@@ -62,6 +62,18 @@ final class SetupModel: ObservableObject {
         await voice.preview("Hi \(first.isEmpty ? "there" : first), I'm Memnox. Press Option Space whenever you want me.")
     }
 
+    /// Premium and Enhanced voices sound like a person; Standard ones sound like reading.
+    var naturalVoice: Bool {
+        guard let chosen = voices.first(where: { $0.identifier == voiceId }) else { return false }
+        return chosen.quality == .premium || chosen.quality == .enhanced
+    }
+
+    /// Where macOS keeps the voices to download, since an app cannot fetch them itself.
+    func openVoiceSettings() {
+        let spoken = URL(string: "x-apple.systempreferences:com.apple.Accessibility-Settings.extension?SpokenContent")
+        if let spoken { NSWorkspace.shared.open(spoken) }
+    }
+
     func finish() {
         let chosen = name.trimmingCharacters(in: .whitespaces)
         owner.name = chosen.isEmpty ? nil : chosen
@@ -117,10 +129,13 @@ struct SetupView: View {
                     step("Touch ID for anything you allow", detail: "A deny needs only your voice. An allow needs your finger.", state: model.key) {
                         EmptyView()
                     }
-                    step("Voice", state: .done) {
+                    step("Voice", state: model.naturalVoice ? .done : .needs("Standard voices sound read aloud. A Premium or Enhanced one sounds like a person.")) {
                         HStack(spacing: 8) {
                             VoicePicker(model: model)
                             Button("Hear it") { Task { await model.hear() } }.buttonStyle(QuietButton())
+                        }
+                        if !model.naturalVoice {
+                            Button("Get a natural voice") { model.openVoiceSettings() }.buttonStyle(QuietButton())
                         }
                     }
                     step("When you come back", state: .done) {

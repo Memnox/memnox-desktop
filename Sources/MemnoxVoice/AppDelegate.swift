@@ -82,6 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
+        // Started while they are still talking, so the answer does not wait on a cold start.
+        Task { [conversation] in await conversation?.warm() }
         var waiting = Self.firstWordSeconds
         diary.note("listening")
         panel.show(.listening, caption: "")

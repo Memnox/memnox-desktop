@@ -53,7 +53,8 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, @unchecked Se
     private var voice: AVSpeechSynthesisVoice?
     private static let voiceKey = "voiceIdentifier"
     private let lock = NSLock()
-    private var finished: (() -> Void)?
+    /// One waiting sentence per utterance, since the synthesizer queues them and a filler may join the queue.
+    private var waiting: [ObjectIdentifier: () -> Void] = [:]
     private var lastWord = Date.distantPast
 
     override init() {
@@ -87,12 +88,15 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, @unchecked Se
     func speak(_ sentence: String) async {
         diary.note("saying: \(sentence)")
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            lock.lock()
-            finished = { continuation.resume() }
-            lock.unlock()
             DispatchQueue.main.async { [self] in
                 let utterance = AVSpeechUtterance(string: sentence)
                 utterance.voice = voice
+                // A touch quicker than the default, which is paced for reading aloud rather than talking.
+                utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 1.08
+                utterance.prefersAssistiveTechnologySettings = false
+                lock.lock()
+                waiting[ObjectIdentifier(utterance)] = { continuation.resume() }
+                lock.unlock()
                 synthesizer.speak(utterance)
             }
         }
@@ -101,7 +105,11 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, @unchecked Se
     func stop() {
         DispatchQueue.main.async { [self] in
             synthesizer.stopSpeaking(at: .immediate)
-            done()
+            lock.lock()
+            let all = Array(waiting.values)
+            waiting.removeAll()
+            lock.unlock()
+            all.forEach { $0() }
         }
     }
 
@@ -112,18 +120,17 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, @unchecked Se
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        done()
+        done(utterance)
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        done()
+        done(utterance)
     }
 
-    /// Resumes the one waiting sentence, once, whichever of finish, cancel or stop comes first.
-    private func done() {
+    /// Resumes the sentence this utterance carried, once, whichever of finish, cancel or stop comes first.
+    private func done(_ utterance: AVSpeechUtterance) {
         lock.lock()
-        let resume = finished
-        finished = nil
+        let resume = waiting.removeValue(forKey: ObjectIdentifier(utterance))
         lock.unlock()
         resume?()
     }

@@ -25,6 +25,27 @@ final class ScriptedLink: DaemonLink {
     }
 }
 
+/// A daemon that takes its time before the first word, the way a cold brain does.
+final class SlowLink: DaemonLink {
+    let delay: UInt64
+    let answer: [DaemonResponse]
+    init(seconds: Double, answer: [DaemonResponse]) {
+        delay = UInt64(seconds * 1_000_000_000)
+        self.answer = answer
+    }
+    func stream(_ request: DaemonRequest) -> AsyncThrowingStream<DaemonResponse, Error> {
+        let delay = self.delay
+        let answer = self.answer
+        return AsyncThrowingStream { continuation in
+            Task {
+                try? await Task.sleep(nanoseconds: delay)
+                for response in answer { continuation.yield(response) }
+                continuation.finish()
+            }
+        }
+    }
+}
+
 final class RecordingSpeaker: Speaker {
     var said: [String] = []
     var stopped = 0
@@ -66,6 +87,42 @@ func line(_ json: String) throws -> DaemonResponse { try decodeLine(json) }
 
 func event(_ json: String) throws -> DaemonEvent {
     try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":"# + json + "}").event)
+}
+
+final class TalkingTests: XCTestCase {
+    func answer() throws -> [DaemonResponse] {
+        [
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"Two are working. "}}"#),
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#),
+        ]
+    }
+
+    func testSaysLetMeLookWhenTheAnswerIsSlowAndOnlyOnce() async throws {
+        let speaker = RecordingSpeaker()
+        let conversation = Conversation(
+            link: SlowLink(seconds: 0.3, answer: try answer()),
+            speaker: speaker, key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil),
+            fillerAfter: 0.05, fillers: ["One sec."]
+        )
+        await conversation.heard("what are they doing")
+        XCTAssertEqual(speaker.said, ["One sec.", "Two are working."])
+    }
+
+    func testSaysNothingExtraWhenTheAnswerIsQuick() async throws {
+        let speaker = RecordingSpeaker()
+        let conversation = Conversation(
+            link: SlowLink(seconds: 0, answer: try answer()),
+            speaker: speaker, key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil),
+            fillerAfter: 0.5, fillers: ["One sec."]
+        )
+        await conversation.heard("what are they doing")
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        XCTAssertEqual(speaker.said, ["Two are working."])
+    }
+
+    func testSpeaksNoMarkdownAndPausesWhereADashStood() {
+        XCTAssertEqual(speakable("It's stuck on `git symbolic-ref` \u{2014} **again**."), "It's stuck on git symbolic-ref, again.")
+    }
 }
 
 final class OwnerTests: XCTestCase {

@@ -13,6 +13,7 @@ public enum DaemonMethod: String {
     case cancel
     case locate
     case brief
+    case warm
 }
 
 public enum EventKind: String {

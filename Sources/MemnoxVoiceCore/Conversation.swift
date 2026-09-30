@@ -52,6 +52,11 @@ public final class Conversation {
     private var asking: String?
     /// Set when the person talks over an answer, so the rest of it is never said.
     private var interrupted = false
+    /// How long a person waits for a reply before a teammate would say "let me look".
+    private let fillerAfter: TimeInterval
+    private let fillers: [String]
+    /// Set as soon as any words of the answer are spoken, so the filler never talks over them.
+    private var answering = false
     /// When the person last said something, since an allow may only follow their own words.
     private var lastHeard: Date?
     private let now: () -> Date
@@ -66,14 +71,23 @@ public final class Conversation {
         key: ConfirmKey,
         face: Face,
         owner: OwnerStore,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        fillerAfter: TimeInterval = 2.2,
+        fillers: [String] = ["Let me look.", "One sec.", "Let me check."]
     ) {
         self.now = now
+        self.fillerAfter = fillerAfter
+        self.fillers = fillers
         self.link = link
         self.speaker = speaker
         self.key = key
         self.face = face
         self.owner = owner
+    }
+
+    /// The person started talking: the brain starts now, so the answer skips its cold start.
+    public func warm() async {
+        _ = try? await link.request(newRequest(.warm))
     }
 
     /// Whether the daemon answers, and whether it speaks voice rather than only answering ok.
@@ -111,7 +125,10 @@ public final class Conversation {
         face.show(.thinking, caption: caption(words))
         var request = newRequest(.ask)
         request.said = words
+        answering = false
+        let filler = fillerTask()
         let told = await speakStream(request)
+        filler.cancel()
         if told == .unreachable { await say("I cannot reach Memnox on this Mac right now.") }
         if case .refused(let error) = told {
             await say(error == Self.tooOld ? error : "I could not ask: \(error).")
@@ -169,6 +186,17 @@ public final class Conversation {
             await say(rest)
         }
         return spoke ? .spoke : .silent
+    }
+
+    /// A short "let me look" when the answer is slow, once, and never over the answer itself.
+    private func fillerTask() -> Task<Void, Never> {
+        let delay = fillerAfter
+        let words = fillers.randomElement()
+        return Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled, let self, !self.answering, !self.interrupted, let words else { return }
+            await self.speaker.speak(words)
+        }
     }
 
     private func newRequest(_ method: DaemonMethod) -> DaemonRequest {
@@ -279,12 +307,25 @@ public final class Conversation {
     }
 
     private func say(_ sentence: String) async {
-        face.show(.speaking, caption: caption(sentence))
-        await speaker.speak(sentence)
+        answering = true
+        let spoken = speakable(sentence)
+        guard !spoken.isEmpty else { return }
+        face.show(.speaking, caption: caption(spoken))
+        await speaker.speak(spoken)
     }
 
     private func takeId() -> Int {
         defer { nextId += 1 }
         return nextId
     }
+}
+
+/// Only what a voice should say: no markdown, no code marks, and a pause where a dash stood.
+public func speakable(_ text: String) -> String {
+    var spoken = text
+    for mark in ["`", "*", "#", "_", "~"] { spoken = spoken.replacingOccurrences(of: mark, with: "") }
+    for dash in [" \u{2014} ", "\u{2014}", " \u{2013} ", "\u{2013}"] {
+        spoken = spoken.replacingOccurrences(of: dash, with: ", ")
+    }
+    return spoken.split(whereSeparator: \.isWhitespace).joined(separator: " ")
 }

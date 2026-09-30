@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var voice: Voice!
     private var conversation: Conversation!
     private var hotkey: Hotkey?
+    private let owner = DefaultsOwner()
+    private let setup = SetupWindow()
     private var status: NSStatusItem?
     /// Turns run one after another, so a held call never talks over an answer.
     private var tail: Task<Void, Never>?
@@ -36,14 +38,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSLog("Memnox: no confirmation key, so allows stay in the terminal: \(error)")
             key = RefusingKey()
         }
-        conversation = Conversation(link: link, speaker: voice, key: key, face: panel)
+        conversation = Conversation(link: link, speaker: voice, key: key, face: panel, owner: owner)
         hotkey = Hotkey { [weak self] in self?.talk() }
         status = menuBarItem()
-        Task {
-            _ = await Ears.askPermission()
-            await conversation.introduce()
-        }
         listenToDaemon()
+        if UserDefaults.standard.bool(forKey: SetupModel.doneKey) {
+            Task { await conversation.introduce() }
+        } else {
+            showSetup()
+        }
     }
 
     /// The hotkey, the menu and Siri all end here: open the orb and listen.
@@ -115,6 +118,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc func showSetup() {
+        let model = SetupModel(owner: owner, conversation: conversation, voice: voice) { [weak self] in
+            self?.setupFinished()
+        }
+        setup.show(model)
+    }
+
+    /// Setup is done: the window goes, and the orb says hello once so the person hears it work.
+    private func setupFinished() {
+        setup.close()
+        enqueue { [self] in
+            panel.present()
+            do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
+            let name = owner.name.map { ", \($0)" } ?? ""
+            let hello = "I'm here whenever you press Option Space\(name)."
+            panel.show(.speaking, caption: caption(hello))
+            await voice.speak(hello)
+            audio.stop()
+            panel.dismiss()
+        }
+    }
+
     private func menuBarItem() -> NSStatusItem {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: "Memnox")
@@ -123,6 +148,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         talkItem.keyEquivalentModifierMask = [.option]
         talkItem.target = self
         menu.addItem(talkItem)
+        let setupItem = NSMenuItem(title: "Set Up Memnox…", action: #selector(showSetup), keyEquivalent: ",")
+        setupItem.target = self
+        menu.addItem(setupItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Memnox", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         item.menu = menu

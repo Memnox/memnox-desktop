@@ -57,7 +57,47 @@ final class PersonKey: ConfirmKey {
     }
 }
 
+final class MemoryOwner: OwnerStore {
+    var name: String?
+    init(_ name: String?) { self.name = name }
+}
+
 func line(_ json: String) throws -> DaemonResponse { try decodeLine(json) }
+
+func event(_ json: String) throws -> DaemonEvent {
+    try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":"# + json + "}").event)
+}
+
+final class OwnerTests: XCTestCase {
+    func testAsksTheWayAColleagueWould() throws {
+        let held = try event(#"{"kind":"held","subject":"apr_1","agent":"claude-code","summary":"claude-code wants to git.push main","at":"t","agentName":"Claude","what":"push main","why":"Pushing to main needs a person.","task":"add order cancellation","place":"shop"}"#)
+        XCTAssertEqual(
+            heldQuestion(owner: "Moise", event: held),
+            "Moise, Claude in shop, working on add order cancellation, wants to push main. Pushing to main needs a person. Allow it, or deny?"
+        )
+    }
+
+    func testSaysOnlyWhatItKnows() throws {
+        let held = try event(#"{"kind":"held","subject":"apr_1","agent":"codex","summary":"codex wants to rm build","at":"t","why":"deletes need a person"}"#)
+        XCTAssertEqual(
+            heldQuestion(owner: nil, event: held),
+            "codex wants to rm build. deletes need a person. Allow it, or deny?"
+        )
+    }
+
+    func testSuggestsTheFirstName() {
+        XCTAssertEqual(suggestedName(fullName: "Moise Rushanika"), "Moise")
+        XCTAssertEqual(suggestedName(fullName: "Cher"), "Cher")
+    }
+
+    func testRemembersTheNameInTheAppsOwnDefaults() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "memnox-owner-test-\(UUID().uuidString)"))
+        let owner = DefaultsOwner(defaults: defaults)
+        XCTAssertNil(owner.name)
+        owner.name = "Moise"
+        XCTAssertEqual(DefaultsOwner(defaults: defaults).name, "Moise")
+    }
+}
 
 final class ProtocolTests: XCTestCase {
     func testEncodesOnlyTheFieldsSet() throws {
@@ -146,7 +186,7 @@ final class ConversationTests: XCTestCase {
         speaker = RecordingSpeaker()
         face = RecordingFace()
         key = PersonKey()
-        conversation = Conversation(link: link, speaker: speaker, key: key, face: face)
+        conversation = Conversation(link: link, speaker: speaker, key: key, face: face, owner: MemoryOwner("Moise"))
     }
 
     func testSendsTheWordsWholeAndSpeaksTheAnswerSentenceBySentence() async throws {
@@ -195,7 +235,7 @@ final class ConversationTests: XCTestCase {
     func testAsksAboutAHeldCallOutLoud() async throws {
         let held = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"held","subject":"apr_1","agent":"claude-code","summary":"claude-code wants to push to main","at":"t"}}"#).event)
         await conversation.handle(held)
-        XCTAssertEqual(speaker.said, ["claude-code wants to push to main. Allow it, or deny?"])
+        XCTAssertEqual(speaker.said, ["Moise, claude-code wants to push to main. Allow it, or deny?"])
         XCTAssertEqual(face.states.last, .listening)
     }
 

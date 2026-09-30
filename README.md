@@ -51,8 +51,15 @@ swift test               # the core, headless
 open build/Memnox.app
 ```
 
-The first run asks for the microphone and speech recognition. Press ⌥Space, or use the
-waveform in the menu bar, and speak.
+The first run opens setup, the one ordinary window Memnox has: what to call you (your
+first name, from your Mac account, to start with), permission to hear you, whether the
+daemon is running, the Touch ID key, and a voice to pick and hear. It reopens from the
+menu bar under Set Up Memnox. After that, press ⌥Space, or use the waveform in the menu
+bar, and speak.
+
+When an agent is held, Memnox says it the way a colleague would, with the facts the daemon
+sent: "Moise, Claude in shop, working on add order cancellation, wants to push main.
+Pushing to main needs a person. Allow it, or deny?" Answer in your own words.
 
 ## Not built yet
 

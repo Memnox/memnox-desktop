@@ -1,5 +1,13 @@
 import Foundation
 
+/// Where the confirmation key stands with the daemon.
+public enum KeyStatus: Equatable {
+    case registered
+    /// Somebody else's key is trusted, so nothing can be confirmed from here.
+    case anotherKey
+    case unreachable
+}
+
 /// What the orb shows. Each state looks and moves differently, so a glance says which it is.
 public enum VoiceState: Equatable {
     case idle
@@ -29,25 +37,38 @@ public final class Conversation {
     private let speaker: Speaker
     private let key: ConfirmKey
     private let face: Face
+    private let owner: OwnerStore
     private var nextId = 1
     /// The held call last asked about out loud, so an answer elsewhere can end the question.
     private var asking: String?
     /// Set when the person talks over an answer, so the rest of it is never said.
     private var interrupted = false
 
-    public init(link: DaemonLink, speaker: Speaker, key: ConfirmKey, face: Face) {
+    public init(link: DaemonLink, speaker: Speaker, key: ConfirmKey, face: Face, owner: OwnerStore) {
         self.link = link
         self.speaker = speaker
         self.key = key
         self.face = face
+        self.owner = owner
     }
 
-    /// Registers this Mac's key, and says so when somebody else's is already there.
-    public func introduce() async {
+    /// Whether the daemon answers at all, which setup shows before anything else.
+    public func daemonAnswers() async -> Bool {
+        (try? await link.request(DaemonRequest(id: takeId(), method: .ping)))?.ok == true
+    }
+
+    /// Registers this Mac's key with the daemon, which trusts the first one it is given.
+    public func registerKey() async -> KeyStatus {
         var request = DaemonRequest(id: takeId(), method: .registerKey)
         request.point = key.publicPoint
-        guard let response = try? await link.request(request) else { return }
-        if response.outcome == "another key" {
+        guard let response = try? await link.request(request) else { return .unreachable }
+        if response.outcome == "another key" { return .anotherKey }
+        return response.ok ? .registered : .unreachable
+    }
+
+    /// At launch: registers the key, and says so when somebody else's is already there.
+    public func introduce() async {
+        if await registerKey() == .anotherKey {
             await say("Another key is registered for confirmations on this Mac, so I will not confirm anything. Run memnox voice forget-key in a terminal, then open me again.")
         }
     }
@@ -108,8 +129,9 @@ public final class Conversation {
         switch event.eventKind {
         case .held:
             asking = event.subject
-            await say("\(event.summary). Allow it, or deny?")
-            face.show(.listening, caption: caption("\(event.summary) · allow / deny"))
+            await say(heldQuestion(owner: owner.name, event: event))
+            let who = event.agentName ?? event.agent
+            face.show(.listening, caption: caption("\(who) wants to \(event.what ?? event.summary)"))
         case .proposal:
             await confirm(event)
         case .paused:

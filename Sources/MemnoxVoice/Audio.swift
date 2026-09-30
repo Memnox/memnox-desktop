@@ -75,7 +75,8 @@ func loudness(of buffer: AVAudioPCMBuffer) -> Float {
 final class Voice: Speaker {
     private let audio: AudioIO
     private let synthesizer = AVSpeechSynthesizer()
-    private let voice: AVSpeechSynthesisVoice?
+    private var voice: AVSpeechSynthesisVoice?
+    private static let voiceKey = "voiceIdentifier"
     private let lock = NSLock()
     private var outstanding = 0
     private var finished = false
@@ -83,7 +84,31 @@ final class Voice: Speaker {
 
     init(audio: AudioIO) {
         self.audio = audio
-        voice = Voice.bestVoice()
+        let chosen = UserDefaults.standard.string(forKey: Self.voiceKey)
+        voice = chosen.flatMap(AVSpeechSynthesisVoice.init(identifier:)) ?? Voice.bestVoice()
+    }
+
+    var identifier: String? { voice?.identifier }
+
+    /// The voice the person picked in setup, kept for next time.
+    func choose(_ identifier: String) {
+        guard let picked = AVSpeechSynthesisVoice(identifier: identifier) else { return }
+        voice = picked
+        UserDefaults.standard.set(identifier, forKey: Self.voiceKey)
+    }
+
+    /// One sentence in the chosen voice, with the engine started just for it.
+    func preview(_ sentence: String) async {
+        do { try audio.start() } catch { return }
+        await speak(sentence)
+        audio.stop()
+    }
+
+    /// Installed English voices, best first, since Premium and Enhanced sound the most like a person.
+    static func englishVoices() -> [AVSpeechSynthesisVoice] {
+        AVSpeechSynthesisVoice.speechVoices()
+            .filter { $0.language.hasPrefix("en") }
+            .sorted { ($0.quality.rawValue, $0.name) > ($1.quality.rawValue, $1.name) }
     }
 
     func speak(_ sentence: String) async {

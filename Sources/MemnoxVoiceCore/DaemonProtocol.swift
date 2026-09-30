@@ -58,6 +58,12 @@ public struct DaemonEvent: Decodable, Equatable {
     public let summary: String
     public let at: String
     public let expiresAt: String?
+    /// On a held call, the facts to say it with: who, where, doing what, and why.
+    public let agentName: String?
+    public let what: String?
+    public let why: String?
+    public let task: String?
+    public let place: String?
 
     public var eventKind: EventKind? { EventKind(rawValue: kind) }
 }

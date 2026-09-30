@@ -14,6 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var conversation: Conversation!
     private var hotkey: Hotkey?
     private let owner = DefaultsOwner()
+    /// When the screen locked, so coming back after a while can be caught up on.
+    private var awaySince: Date?
+    /// Long enough that a coffee counts and a glance away does not.
+    private static let awayLongEnough: TimeInterval = 10 * 60
     private let setup = SetupWindow()
     private var status: NSStatusItem?
     /// Turns run one after another, so a held call never talks over an answer.
@@ -42,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey = Hotkey { [weak self] in self?.talk() }
         status = menuBarItem()
         listenToDaemon()
+        watchPresence()
         if UserDefaults.standard.bool(forKey: SetupModel.doneKey) {
             Task { await conversation.introduce() }
         } else {
@@ -115,6 +120,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 } catch {}
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
+        }
+    }
+
+    /// Lock and unlock, which is the Mac's own word for the person leaving and coming back.
+    private func watchPresence() {
+        UserDefaults.standard.register(defaults: [SetupModel.catchUpKey: true])
+        let center = DistributedNotificationCenter.default()
+        center.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.awaySince = Date() }
+        }
+        center.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.cameBack() }
+        }
+    }
+
+    private func cameBack() {
+        guard let since = awaySince else { return }
+        awaySince = nil
+        guard Date().timeIntervalSince(since) >= Self.awayLongEnough,
+              UserDefaults.standard.bool(forKey: SetupModel.catchUpKey) else { return }
+        enqueue { [self] in
+            panel.present()
+            do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
+            await conversation.welcomeBack(since: since)
+            // Listening after, so "tell me more about the stuck one" just works.
+            await converse()
         }
     }
 

@@ -12,6 +12,7 @@ public enum DaemonMethod: String {
     case registerKey = "register-key"
     case cancel
     case locate
+    case brief
 }
 
 public enum EventKind: String {
@@ -30,6 +31,12 @@ public enum ChunkKind: String {
     case cancelled
 }
 
+public enum Briefing: String {
+    case held
+    case paused
+    case back
+}
+
 public enum ProposalAnswer: String {
     case confirmed
     case declined
@@ -44,6 +51,9 @@ public struct DaemonRequest: Encodable, Equatable {
     public var point: String?
     public var said: String?
     public var sessionId: String?
+    public var owner: String?
+    public var briefing: String?
+    public var since: String?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id

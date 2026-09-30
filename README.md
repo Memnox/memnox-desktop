@@ -57,9 +57,17 @@ daemon is running, the Touch ID key, and a voice to pick and hear. It reopens fr
 menu bar under Set Up Memnox. After that, press ⌥Space, or use the waveform in the menu
 bar, and speak.
 
-When an agent is held, Memnox says it the way a colleague would, with the facts the daemon
-sent: "Moise, Claude in shop, working on add order cancellation, wants to push main.
-Pushing to main needs a person. Allow it, or deny?" Answer in your own words.
+It talks like a colleague who has been watching your sessions:
+
+- **When an agent is held**, your own Claude Code looks at what that session has been doing
+  and tells you: "Moise, Claude has been on order cancellation in shop for twenty minutes,
+  four files and the tests pass. Now it wants to push to main. Should I let it?" If it
+  cannot, the facts alone are said. Answer in your own words.
+- **When you come back** after ten minutes or more with the screen locked, it catches you up
+  on what finished, what got stuck and what is waiting, then listens. Turn it off in setup.
+- **When a session is paused** for going nowhere, it says where it got stuck.
+- **An allow only ever follows your own words.** A proposal that arrives when you have not
+  spoken is left alone and never put to Touch ID.
 
 ## Not built yet
 

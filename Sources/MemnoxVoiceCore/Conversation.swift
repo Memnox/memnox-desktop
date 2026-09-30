@@ -43,8 +43,21 @@ public final class Conversation {
     private var asking: String?
     /// Set when the person talks over an answer, so the rest of it is never said.
     private var interrupted = false
+    /// When the person last said something, since an allow may only follow their own words.
+    private var lastHeard: Date?
+    private let now: () -> Date
+    /// Long enough to say "yes, go ahead" and have the brain propose it.
+    static let answerWindow: TimeInterval = 120
 
-    public init(link: DaemonLink, speaker: Speaker, key: ConfirmKey, face: Face, owner: OwnerStore) {
+    public init(
+        link: DaemonLink,
+        speaker: Speaker,
+        key: ConfirmKey,
+        face: Face,
+        owner: OwnerStore,
+        now: @escaping () -> Date = Date.init
+    ) {
+        self.now = now
         self.link = link
         self.speaker = speaker
         self.key = key
@@ -78,24 +91,59 @@ public final class Conversation {
         let words = said.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty else { return }
         interrupted = false
+        lastHeard = now()
         face.show(.thinking, caption: caption(words))
-        var request = DaemonRequest(id: takeId(), method: .ask)
+        var request = newRequest(.ask)
         request.said = words
+        let told = await speakStream(request)
+        if told == .unreachable { await say("I cannot reach Memnox on this Mac right now.") }
+        if case .refused(let error) = told { await say("I could not ask: \(error).") }
+        face.show(.listening, caption: "")
+    }
+
+    /// Welcome back: what happened while they were away, told by their own brain.
+    public func welcomeBack(since: Date) async {
+        interrupted = false
+        face.show(.thinking, caption: "catching up")
+        var request = newRequest(.brief)
+        request.briefing = Briefing.back.rawValue
+        request.since = ISO8601DateFormatter().string(from: since)
+        _ = await speakStream(request)
+    }
+
+    /// How a streamed answer ended, so a brief that said nothing can fall back to the facts.
+    enum Told: Equatable {
+        case spoke
+        case silent
+        case refused(String)
+        case unreachable
+    }
+
+    /// Streams a turn into speech, sentence by sentence, and says how it ended.
+    private func speakStream(_ request: DaemonRequest) async -> Told {
         var sentences = SentenceSplitter()
+        var spoke = false
         do {
             for try await response in link.stream(request) {
-                if let error = response.error, !response.ok {
-                    await say("I could not ask: \(error).")
-                    break
-                }
+                if let error = response.error, !response.ok { return .refused(error) }
                 guard let chunk = response.chunk else { continue }
+                if chunk.chunkKind == .text, !(chunk.text ?? "").isEmpty { spoke = true }
                 if try await play(chunk, into: &sentences) { break }
             }
         } catch {
-            await say("I cannot reach Memnox on this Mac right now.")
+            return spoke ? .spoke : .unreachable
         }
-        if let rest = sentences.flush(), !interrupted { await say(rest) }
-        face.show(.listening, caption: "")
+        if let rest = sentences.flush(), !interrupted {
+            spoke = true
+            await say(rest)
+        }
+        return spoke ? .spoke : .silent
+    }
+
+    private func newRequest(_ method: DaemonMethod) -> DaemonRequest {
+        var request = DaemonRequest(id: takeId(), method: method)
+        request.owner = owner.name
+        return request
     }
 
     /// The person started talking over the answer: the voice stops now and the brain stops too.
@@ -129,13 +177,31 @@ public final class Conversation {
         switch event.eventKind {
         case .held:
             asking = event.subject
-            await say(heldQuestion(owner: owner.name, event: event))
+            interrupted = false
+            var request = newRequest(.brief)
+            request.briefing = Briefing.held.rawValue
+            request.subject = event.subject
+            face.show(.thinking, caption: "\(event.agentName ?? event.agent) needs you")
+            // Told by their own brain with what the session has been doing; the facts alone if it cannot.
+            if await speakStream(request) != .spoke {
+                await say(heldQuestion(owner: owner.name, event: event))
+            }
             let who = event.agentName ?? event.agent
             face.show(.listening, caption: caption("\(who) wants to \(event.what ?? event.summary)"))
         case .proposal:
-            await confirm(event)
+            // Only after the person spoke: an allow nobody asked for is left alone, not put to Touch ID.
+            if let heard = lastHeard, now().timeIntervalSince(heard) < Self.answerWindow {
+                await confirm(event)
+            } else {
+                await decline(event)
+            }
         case .paused:
-            await say("I paused a session: \(event.summary).")
+            var request = newRequest(.brief)
+            request.briefing = Briefing.paused.rawValue
+            request.subject = event.subject
+            if await speakStream(request) != .spoke {
+                await say("I paused a session: \(event.summary).")
+            }
         case .settled:
             if asking == event.subject {
                 asking = nil
@@ -161,7 +227,7 @@ public final class Conversation {
         } catch {
             answerKind = .declined
         }
-        var request = DaemonRequest(id: takeId(), method: .confirm)
+        var request = newRequest(.confirm)
         request.subject = event.subject
         request.answer = answerKind.rawValue
         request.signature = signature
@@ -171,6 +237,14 @@ public final class Conversation {
         } else {
             await say("That was not confirmed: \(response?.error ?? "Memnox did not answer").")
         }
+    }
+
+    private func decline(_ event: DaemonEvent) async {
+        var request = newRequest(.confirm)
+        request.subject = event.subject
+        request.answer = ProposalAnswer.declined.rawValue
+        _ = try? await link.request(request)
+        await say("Something proposed an allow you did not ask for, so I left it as it was.")
     }
 
     private func say(_ sentence: String) async {

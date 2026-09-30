@@ -20,6 +20,7 @@ final class SetupModel: ObservableObject {
     @Published var daemon: StepState = .waiting
     @Published var key: StepState = .waiting
     @Published var voiceId: String
+    @Published var catchUp: Bool
     let voices: [AVSpeechSynthesisVoice]
 
     private let owner: OwnerStore
@@ -35,6 +36,7 @@ final class SetupModel: ObservableObject {
         name = owner.name ?? suggestedName()
         voices = Voice.englishVoices()
         voiceId = voice.identifier ?? voices.first?.identifier ?? ""
+        catchUp = UserDefaults.standard.object(forKey: SetupModel.catchUpKey) as? Bool ?? true
     }
 
     /// Everything that can be checked without asking the person, checked as the card opens.
@@ -62,11 +64,13 @@ final class SetupModel: ObservableObject {
         let chosen = name.trimmingCharacters(in: .whitespaces)
         owner.name = chosen.isEmpty ? nil : chosen
         voice.choose(voiceId)
+        UserDefaults.standard.set(catchUp, forKey: SetupModel.catchUpKey)
         UserDefaults.standard.set(true, forKey: SetupModel.doneKey)
         finished()
     }
 
     static let doneKey = "setupDone"
+    static let catchUpKey = "catchUp"
 
     private func hearingState() -> StepState {
         let microphone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
@@ -114,6 +118,9 @@ struct SetupView: View {
                     .frame(width: 220)
                     Button("Hear it") { Task { await model.hear() } }
                 }
+            }
+            row("When you come back", state: .done) {
+                Toggle("Catch me up on what my agents did while I was away", isOn: $model.catchUp)
             }
             row("Talk", state: .done) {
                 Text("Press ⌥ Space, or say \"Hey Siri, talk to Memnox\" once Siri is set up.")

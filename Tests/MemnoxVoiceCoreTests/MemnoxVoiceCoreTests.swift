@@ -250,6 +250,7 @@ final class ConversationTests: XCTestCase {
 
     func testConfirmsAProposalOnlyWithTheFingerprintSignatureForThatProposal() async throws {
         link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"confirmed"}"#)]
+        await conversation.heard("yes let it push, just once")
         let proposal = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"proposal","subject":"prp_9","agent":"agt_memnox-operator","summary":"deny railway deploy","at":"t"}}"#).event)
         await conversation.handle(proposal)
 
@@ -264,6 +265,7 @@ final class ConversationTests: XCTestCase {
 
     func testCancellingTouchIDDeclinesAndSendsNoSignature() async throws {
         key.touches = false
+        await conversation.heard("go ahead")
         link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"declined"}"#)]
         let proposal = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"proposal","subject":"prp_9","agent":"a","summary":"s","at":"t"}}"#).event)
         await conversation.handle(proposal)
@@ -272,6 +274,41 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(sent.answer, "declined")
         XCTAssertNil(sent.signature)
         XCTAssertEqual(speaker.said.last, "Left as it was.")
+    }
+
+    func testTellsAHeldCallInTheBrainsOwnWordsWhenItCan() async throws {
+        link.answers["brief"] = [
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"Moise, Claude has been on order cancellation for twenty minutes. It wants to push to main now. Should I let it? "}}"#),
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#),
+        ]
+        let held = try event(#"{"kind":"held","subject":"apr_1","agent":"claude-code","summary":"s","at":"t"}"#)
+        await conversation.handle(held)
+
+        let sent = try XCTUnwrap(link.sent.first)
+        XCTAssertEqual(sent.method, "brief")
+        XCTAssertEqual(sent.briefing, "held")
+        XCTAssertEqual(sent.subject, "apr_1")
+        XCTAssertEqual(sent.owner, "Moise")
+        XCTAssertEqual(speaker.said.first, "Moise, Claude has been on order cancellation for twenty minutes.")
+    }
+
+    func testLeavesAnAllowNobodyAskedForAndNeverRaisesTouchID() async throws {
+        let proposal = try event(#"{"kind":"proposal","subject":"prp_9","agent":"a","summary":"s","at":"t"}"#)
+        await conversation.handle(proposal)
+        XCTAssertEqual(key.signed, [])
+        XCTAssertEqual(link.sent.last?.answer, "declined")
+        XCTAssertNil(link.sent.last?.signature)
+    }
+
+    func testCatchesThemUpWhenTheyComeBack() async throws {
+        link.answers["brief"] = [
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"Welcome back. Codex got stuck on the build and is paused."}}"#),
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#),
+        ]
+        await conversation.welcomeBack(since: Date(timeIntervalSince1970: 0))
+        XCTAssertEqual(link.sent.first?.briefing, "back")
+        XCTAssertEqual(link.sent.first?.since, "1970-01-01T00:00:00Z")
+        XCTAssertEqual(speaker.said, ["Welcome back.", "Codex got stuck on the build and is paused."])
     }
 
     func testSaysSoWhenAnotherKeyIsRegistered() async throws {

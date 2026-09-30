@@ -25,6 +25,29 @@ final class ScriptedLink: DaemonLink {
     }
 }
 
+/// A daemon that answers line by line with pauses between, the way a streaming answer arrives.
+final class StepLink: DaemonLink {
+    let steps: [(Double, DaemonResponse)]
+    var sent: [DaemonRequest] = []
+    init(steps: [(Double, DaemonResponse)]) { self.steps = steps }
+    func stream(_ request: DaemonRequest) -> AsyncThrowingStream<DaemonResponse, Error> {
+        sent.append(request)
+        let steps = self.steps
+        let answering = request.method == "ask"
+        return AsyncThrowingStream { continuation in
+            Task {
+                if answering {
+                    for (delay, response) in steps {
+                        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continuation.yield(response)
+                    }
+                }
+                continuation.finish()
+            }
+        }
+    }
+}
+
 /// A daemon that takes its time before the first word, the way a cold brain does.
 final class SlowLink: DaemonLink {
     let delay: UInt64
@@ -57,6 +80,13 @@ final class RecordingSpeaker: Speaker {
         // Long enough for an interruption raised while speaking to land before the next sentence.
         try? await Task.sleep(nanoseconds: 20_000_000)
     }
+    var onQueue: (() -> Void)?
+    func queue(_ sentence: String) {
+        said.append(sentence)
+        onQueue?()
+        onQueue = nil
+    }
+    func drained() async {}
     func stop() { stopped += 1 }
 }
 
@@ -118,6 +148,24 @@ final class TalkingTests: XCTestCase {
         await conversation.heard("what are they doing")
         try? await Task.sleep(nanoseconds: 700_000_000)
         XCTAssertEqual(speaker.said, ["Two are working."])
+    }
+
+    func testWaitsLongerWhenSomebodyTrailsOff() {
+        XCTAssertEqual(endOfSpeechPause(after: "What are my agents doing?"), 1.6)
+        XCTAssertEqual(endOfSpeechPause(after: "Okay, so are you able to uh"), 2.6)
+        XCTAssertEqual(endOfSpeechPause(after: "Can Claude Code connect to"), 2.6)
+    }
+
+    func testNeverSaysLetMeLookTwoTurnsRunning() async throws {
+        let speaker = RecordingSpeaker()
+        let conversation = Conversation(
+            link: SlowLink(seconds: 0.3, answer: try answer()),
+            speaker: speaker, key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil),
+            fillerAfter: 0.05, fillers: ["One sec."]
+        )
+        await conversation.heard("what are they doing")
+        await conversation.heard("and now")
+        XCTAssertEqual(speaker.said.filter { $0 == "One sec." }.count, 1)
     }
 
     func testSpeaksNoMarkdownAndPausesWhereADashStood() {
@@ -267,14 +315,17 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(link.sent.last?.method, "cancel")
     }
 
-    func testSaysNothingMoreOnceInterrupted() async throws {
-        link.answers["ask"] = [
-            try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"First. Second. "}}"#),
-            try line(#"{"id":1,"ok":true,"chunk":{"kind":"cancelled"}}"#),
-        ]
-        speaker.onSpeak = { [unowned self] in Task { await self.conversation.interrupt() } }
+    func testQueuesNothingThatArrivesAfterAnInterruption() async throws {
+        let link = StepLink(steps: [
+            (0, try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"First. "}}"#)),
+            (0.2, try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"Second. "}}"#)),
+            (0, try line(#"{"id":1,"ok":true,"chunk":{"kind":"cancelled"}}"#)),
+        ])
+        let conversation = Conversation(link: link, speaker: speaker, key: key, face: face, owner: MemoryOwner(nil))
+        speaker.onQueue = { Task { await conversation.interrupt() } }
         await conversation.heard("tell me everything")
         XCTAssertEqual(speaker.said, ["First."])
+        XCTAssertEqual(speaker.stopped, 1)
     }
 
     func testSaysASpentPlanRatherThanGoingQuiet() async throws {

@@ -97,7 +97,7 @@ final class AnalyzerEars {
             loudest = max(loudest, audio.micLevel)
             let (words, changed) = heard.read()
             if words.isEmpty, Date().timeIntervalSince(began) > waiting { break }
-            if !words.isEmpty, Date().timeIntervalSince(changed) > 1.1 { break }
+            if !words.isEmpty, Date().timeIntervalSince(changed) > endOfSpeechPause(after: words) { break }
         }
         audio.onMicrophone = nil
         feed.finish()

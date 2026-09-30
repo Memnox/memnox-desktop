@@ -55,6 +55,8 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, @unchecked Se
     private let lock = NSLock()
     /// One waiting sentence per utterance, since the synthesizer queues them and a filler may join the queue.
     private var waiting: [ObjectIdentifier: () -> Void] = [:]
+    /// Everyone waiting for the queue to empty.
+    private var drainers: [() -> Void] = []
     private var lastWord = Date.distantPast
 
     override init() {
@@ -86,28 +88,50 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, @unchecked Se
     }
 
     func speak(_ sentence: String) async {
-        diary.note("saying: \(sentence)")
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            DispatchQueue.main.async { [self] in
-                let utterance = AVSpeechUtterance(string: sentence)
-                utterance.voice = voice
-                // A touch quicker than the default, which is paced for reading aloud rather than talking.
-                utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 1.08
-                utterance.prefersAssistiveTechnologySettings = false
-                lock.lock()
-                waiting[ObjectIdentifier(utterance)] = { continuation.resume() }
-                lock.unlock()
-                synthesizer.speak(utterance)
-            }
+            enqueue(sentence) { continuation.resume() }
         }
+    }
+
+    func queue(_ sentence: String) {
+        enqueue(sentence) {}
+    }
+
+    /// Waits until nothing queued is left to say.
+    func drained() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            if waiting.isEmpty {
+                lock.unlock()
+                continuation.resume()
+                return
+            }
+            drainers.append { continuation.resume() }
+            lock.unlock()
+        }
+    }
+
+    /// Main queue order is call order, so sentences are said in the order they were given.
+    private func enqueue(_ sentence: String, said: @escaping () -> Void) {
+        diary.note("saying: \(sentence)")
+        let utterance = AVSpeechUtterance(string: sentence)
+        utterance.voice = voice
+        // A touch quicker than the default, which is paced for reading aloud rather than talking.
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 1.08
+        utterance.prefersAssistiveTechnologySettings = false
+        lock.lock()
+        waiting[ObjectIdentifier(utterance)] = said
+        lock.unlock()
+        DispatchQueue.main.async { [self] in synthesizer.speak(utterance) }
     }
 
     func stop() {
         DispatchQueue.main.async { [self] in
             synthesizer.stopSpeaking(at: .immediate)
             lock.lock()
-            let all = Array(waiting.values)
+            let all = Array(waiting.values) + drainers
             waiting.removeAll()
+            drainers.removeAll()
             lock.unlock()
             all.forEach { $0() }
         }
@@ -131,8 +155,11 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, @unchecked Se
     private func done(_ utterance: AVSpeechUtterance) {
         lock.lock()
         let resume = waiting.removeValue(forKey: ObjectIdentifier(utterance))
+        let finished = waiting.isEmpty ? drainers : []
+        if waiting.isEmpty { drainers.removeAll() }
         lock.unlock()
         resume?()
+        finished.forEach { $0() }
     }
 
     /// Installed English voices, best first, since Premium and Enhanced sound the most like a person.
@@ -220,7 +247,8 @@ final class Ears {
 }
 
 /// Names this machine uses, as hints to the recognizer rather than words anything acts on.
-let recognizerHints = ["Memnox", "Claude", "Codex", "Cursor", "kubectl", "Railway", "npm", "git push"]
+/// Replaced by the daemon's own list at launch, since it knows the agents and CLIs actually here.
+nonisolated(unsafe) var recognizerHints = ["Memnox", "Claude Code", "Codex", "Cursor", "kubectl", "Railway", "Vercel", "npm", "git push"]
 
 /// The recognizer before macOS 26.
 final class LegacyEars {
@@ -261,7 +289,7 @@ final class LegacyEars {
             let (words, changed, final) = latest.read()
             if final { break }
             if words.isEmpty, Date().timeIntervalSince(began) > waiting { break }
-            if !words.isEmpty, Date().timeIntervalSince(changed) > 1.1 { break }
+            if !words.isEmpty, Date().timeIntervalSince(changed) > endOfSpeechPause(after: words) { break }
         }
         audio.onMicrophone = nil
         request.endAudio()

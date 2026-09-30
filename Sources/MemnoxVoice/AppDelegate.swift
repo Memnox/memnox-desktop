@@ -84,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
         // Started while they are still talking, so the answer does not wait on a cold start.
         Task { [conversation] in await conversation?.warm() }
+        await learnNames()
         var waiting = Self.firstWordSeconds
         diary.note("listening")
         panel.show(.listening, caption: "")
@@ -165,6 +166,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Listening after, so "tell me more about the stuck one" just works.
             await converse()
         }
+    }
+
+    /// The agents, CLIs and servers on this machine, so the recognizer hears "Railway" and not "right away".
+    private func learnNames() async {
+        let words = await conversation.vocabulary()
+        guard !words.isEmpty else { return }
+        recognizerHints = Array(Set(words + ["Claude Code", "git push", "pull request"]))
+        diary.note("listening for \(recognizerHints.count) names")
     }
 
     /// Checks the voice on its own, apart from listening and the daemon.

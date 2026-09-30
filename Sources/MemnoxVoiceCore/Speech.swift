@@ -48,3 +48,15 @@ public func toolWord(_ tool: String?) -> String {
     guard let tool else { return "the machine" }
     return tool.components(separatedBy: "__").last ?? tool
 }
+
+/// Words people trail off on, which mean they have not finished even when they pause.
+private let trailingWords: Set<String> = ["uh", "um", "er", "erm", "so", "and", "but", "or", "like", "the", "a", "to", "of", "with", "because"]
+
+/// How long a pause ends what somebody is saying: longer after "uh" or "so", where a person is
+/// still thinking, so the question is not cut off halfway.
+public func endOfSpeechPause(after words: String) -> TimeInterval {
+    let trimmed = words.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let last = trimmed.split(whereSeparator: { !$0.isLetter }).last.map(String.init) ?? ""
+    if trimmed.hasSuffix(",") || trailingWords.contains(last) { return 2.6 }
+    return 1.6
+}

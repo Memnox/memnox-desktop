@@ -29,7 +29,12 @@ public enum VoiceState: Equatable, Sendable {
 
 /// Where the words go out loud.
 public protocol Speaker: AnyObject {
+    /// One sentence, returning once it has been said.
     func speak(_ sentence: String) async
+    /// Queued behind whatever is being said, so a reply's sentences run on as one.
+    func queue(_ sentence: String)
+    /// Returns once everything queued has been said.
+    func drained() async
     func stop()
 }
 
@@ -57,6 +62,9 @@ public final class Conversation {
     private let fillers: [String]
     /// Set as soon as any words of the answer are spoken, so the filler never talks over them.
     private var answering = false
+    /// Whether the last turn needed one, since "let me look" twice running sounds like a machine.
+    private var filledLastTurn = false
+    private var fillerSpoke = false
     /// When the person last said something, since an allow may only follow their own words.
     private var lastHeard: Date?
     private let now: () -> Date
@@ -72,7 +80,7 @@ public final class Conversation {
         face: Face,
         owner: OwnerStore,
         now: @escaping () -> Date = Date.init,
-        fillerAfter: TimeInterval = 2.2,
+        fillerAfter: TimeInterval = 3.5,
         fillers: [String] = ["Let me look.", "One sec.", "Let me check."]
     ) {
         self.now = now
@@ -83,6 +91,11 @@ public final class Conversation {
         self.key = key
         self.face = face
         self.owner = owner
+    }
+
+    /// The names this machine uses, from the daemon, for the recognizer to listen for.
+    public func vocabulary() async -> [String] {
+        (try? await link.request(newRequest(.vocabulary)))?.words ?? []
     }
 
     /// The person started talking: the brain starts now, so the answer skips its cold start.
@@ -126,9 +139,11 @@ public final class Conversation {
         var request = newRequest(.ask)
         request.said = words
         answering = false
-        let filler = fillerTask()
+        let filler = filledLastTurn ? nil : fillerTask()
         let told = await speakStream(request)
-        filler.cancel()
+        filler?.cancel()
+        filledLastTurn = fillerSpoke
+        fillerSpoke = false
         if told == .unreachable { await say("I cannot reach Memnox on this Mac right now.") }
         if case .refused(let error) = told {
             await say(error == Self.tooOld ? error : "I could not ask: \(error).")
@@ -183,8 +198,9 @@ public final class Conversation {
         }
         if let rest = sentences.flush(), !interrupted {
             spoke = true
-            await say(rest)
+            flow(rest)
         }
+        await speaker.drained()
         return spoke ? .spoke : .silent
     }
 
@@ -195,6 +211,7 @@ public final class Conversation {
         return Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard !Task.isCancelled, let self, !self.answering, !self.interrupted, let words else { return }
+            self.fillerSpoke = true
             await self.speaker.speak(words)
         }
     }
@@ -216,7 +233,7 @@ public final class Conversation {
     private func play(_ chunk: AskChunk, into sentences: inout SentenceSplitter) async throws -> Bool {
         switch chunk.chunkKind {
         case .text:
-            for sentence in sentences.push(chunk.text ?? "") where !interrupted { await say(sentence) }
+            for sentence in sentences.push(chunk.text ?? "") where !interrupted { flow(sentence) }
         case .tool:
             face.show(.thinking, caption: "reading \(toolWord(chunk.tool))")
         case .limited:
@@ -304,6 +321,15 @@ public final class Conversation {
         request.answer = ProposalAnswer.declined.rawValue
         _ = try? await link.request(request)
         await say("Something proposed an allow you did not ask for, so I left it as it was.")
+    }
+
+    /// A sentence of a streamed reply, queued so the reply is spoken as one run rather than line by line.
+    private func flow(_ sentence: String) {
+        answering = true
+        let spoken = speakable(sentence)
+        guard !spoken.isEmpty else { return }
+        face.show(.speaking, caption: caption(spoken))
+        speaker.queue(spoken)
     }
 
     private func say(_ sentence: String) async {

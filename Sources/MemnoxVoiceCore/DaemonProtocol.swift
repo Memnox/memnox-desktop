@@ -14,6 +14,7 @@ public enum DaemonMethod: String {
     case locate
     case brief
     case warm
+    case vocabulary
 }
 
 public enum EventKind: String {
@@ -111,6 +112,7 @@ public struct DaemonResponse: Decodable, Equatable {
     public let chunk: AskChunk?
     public let outcome: String?
     public let location: DaemonLocation?
+    public let words: [String]?
     public let error: String?
 }
 

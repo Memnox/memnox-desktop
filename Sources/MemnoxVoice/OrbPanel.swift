@@ -31,39 +31,36 @@ final class OrbPanel: NSPanel, Face {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         hidesOnDeactivate = false
 
-        let content = NSView(frame: frame)
-        content.wantsLayer = true
-        content.layer?.backgroundColor = NSColor.clear.cgColor
-        orb.wantsLayer = true
-        orb.layer?.isOpaque = false
         pill.frame = NSRect(x: 50, y: 24, width: 280, height: 50)
         pill.loudness = loudness
-        // Frosted glass behind the sphere, so its dots read over any window rather than mixing into it.
-        content.addSubview(Self.backdrop(around: orb.frame))
-        content.addSubview(orb)
-        content.addSubview(pill)
-        contentView = content
-    }
-
-    override var canBecomeKey: Bool { false }
-
-    /// A round pane of dark glass a little inside the orb's square, blurred and shaded.
-    private static func backdrop(around frame: NSRect) -> NSView {
-        let inset = frame.insetBy(dx: 26, dy: 26)
-        let glass = NSVisualEffectView(frame: inset)
+        orb.wantsLayer = true
+        orb.layer?.isOpaque = false
+        // One pane of glass cut to the orb and the pill: the only way the desktop blurs through a
+        // see-through window, since a blur nested inside a clear view shows nothing behind it.
+        let glass = NSVisualEffectView(frame: frame)
         glass.material = .hudWindow
         glass.blendingMode = .behindWindow
         glass.state = .active
         glass.appearance = NSAppearance(named: .darkAqua)
-        glass.wantsLayer = true
-        glass.layer?.cornerRadius = inset.width / 2
-        glass.layer?.masksToBounds = true
-        let shade = NSView(frame: glass.bounds)
-        shade.wantsLayer = true
-        shade.layer?.backgroundColor = NSColor(srgbRed: 0x03 / 255, green: 0x03 / 255, blue: 0x03 / 255, alpha: 0.55).cgColor
-        glass.addSubview(shade)
-        return glass
+        glass.maskImage = Self.shape(size: frame.size, orb: orb.frame.insetBy(dx: 22, dy: 22), pill: pill.frame)
+        glass.addSubview(orb)
+        glass.addSubview(pill)
+        contentView = glass
     }
+
+    /// A circle behind the sphere and a capsule behind the caption, and nothing between them.
+    private static func shape(size: NSSize, orb: NSRect, pill: NSRect) -> NSImage {
+        NSImage(size: size, flipped: false) { _ in
+            NSColor.black.setFill()
+            NSBezierPath(ovalIn: orb).fill()
+            NSBezierPath(roundedRect: pill, xRadius: pill.height / 2, yRadius: pill.height / 2).fill()
+            return true
+        }
+    }
+
+    override var canBecomeKey: Bool { false }
+
+
 
     /// Fades in at the bottom centre of whichever screen the person is looking at.
     nonisolated func present() {
@@ -125,7 +122,7 @@ final class PillView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: bounds.height / 2, yRadius: bounds.height / 2)
         // The console's dark card and border, so the pill is plainly the same product.
-        NSColor(srgbRed: 0x0F / 255, green: 0x0F / 255, blue: 0x0F / 255, alpha: 0.86).setFill()
+        NSColor(srgbRed: 0x0F / 255, green: 0x0F / 255, blue: 0x0F / 255, alpha: 0.55).setFill()
         shape.fill()
         NSColor(srgbRed: 0x31 / 255, green: 0x31 / 255, blue: 0x31 / 255, alpha: 1).setStroke()
         shape.lineWidth = 1

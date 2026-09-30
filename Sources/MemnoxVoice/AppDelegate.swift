@@ -70,6 +70,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func converse() async {
         talking = true
         panel.present()
+        guard await Ears.mayHear() else {
+            // Said, since a silent orb that cannot hear looks exactly like one that is not listening.
+            panel.show(.speaking, caption: "I need permission to hear you")
+            do { try audio.start() } catch {}
+            await voice.speak("I can't hear you yet. Allow Memnox under Microphone and Speech Recognition in System Settings, Privacy and Security.")
+            audio.stop()
+            panel.dismiss()
+            talking = false
+            return
+        }
         do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
         var waiting = Self.firstWordSeconds
         panel.show(.listening, caption: "")

@@ -211,20 +211,30 @@ final class Ears {
     /// Said when a voice was heard and no words came of it, so the person knows to say it again.
     var missed: (() -> Void)?
     private let legacy = LegacyEars()
-    /// Cleared the first time SpeechAnalyzer cannot start, so every later turn goes straight to what works.
-    private var analyzerWorks = true
+    /// Set once the speech model is on this Mac, and cleared if it ever fails to hear a voice.
+    /// Until then the older recognizer listens, so the first question never waits on a download.
+    private var analyzerReady = false
 
     static func askPermission() async -> Bool {
         await LegacyEars.askPermission()
     }
 
-    /// The speech model fetched at launch; the older recognizer is used until it is there.
+    /// Whether the person has let Memnox hear them, asked for on the first question if not yet.
+    static func mayHear() async -> Bool {
+        if SFSpeechRecognizer.authorizationStatus() == .authorized,
+           AVCaptureDevice.authorizationStatus(for: .audio) == .authorized {
+            return true
+        }
+        return await askPermission()
+    }
+
+    /// Fetches the speech model in the background; SpeechAnalyzer takes over once it is there.
     func prepare() async {
-        if #available(macOS 26, *) { analyzerWorks = await AnalyzerEars.prepare() }
+        if #available(macOS 26, *) { analyzerReady = await AnalyzerEars.prepare() }
     }
 
     func listen(through audio: AudioIO, waiting: TimeInterval) async -> String? {
-        if #available(macOS 26, *), analyzerWorks {
+        if #available(macOS 26, *), analyzerReady {
             let ears = AnalyzerEars()
             ears.hearing = hearing
             switch await ears.listen(through: audio, waiting: waiting) {
@@ -234,7 +244,7 @@ final class Ears {
                 // Its model could not be fetched, it would not start, or it heard a voice and made no
                 // words of it: the older recognizer still hears, and the person is asked once more.
                 voiceLog.error("SpeechAnalyzer unavailable, using the older recognizer")
-                analyzerWorks = false
+                analyzerReady = false
                 missed?()
             }
         }

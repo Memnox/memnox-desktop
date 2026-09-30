@@ -28,7 +28,14 @@ final class ScriptedLink: DaemonLink {
 final class RecordingSpeaker: Speaker {
     var said: [String] = []
     var stopped = 0
-    func speak(_ sentence: String) async { said.append(sentence) }
+    var onSpeak: (() -> Void)?
+    func speak(_ sentence: String) async {
+        said.append(sentence)
+        onSpeak?()
+        onSpeak = nil
+        // Long enough for an interruption raised while speaking to land before the next sentence.
+        try? await Task.sleep(nanoseconds: 20_000_000)
+    }
     func stop() { stopped += 1 }
 }
 
@@ -149,6 +156,22 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(speaker.said, ["Two Claude sessions are open.", "Which one do you mean"])
         XCTAssertTrue(face.shown.contains { $0.0 == .thinking && $0.1 == "reading sessions" })
         XCTAssertEqual(face.states.last, .listening)
+    }
+
+    func testTalkingOverItStopsTheVoiceAndCancelsTheTurn() async throws {
+        await conversation.interrupt()
+        XCTAssertEqual(speaker.stopped, 1)
+        XCTAssertEqual(link.sent.last?.method, "cancel")
+    }
+
+    func testSaysNothingMoreOnceInterrupted() async throws {
+        link.answers["ask"] = [
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"First. Second. "}}"#),
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"cancelled"}}"#),
+        ]
+        speaker.onSpeak = { [unowned self] in Task { await self.conversation.interrupt() } }
+        await conversation.heard("tell me everything")
+        XCTAssertEqual(speaker.said, ["First."])
     }
 
     func testSaysASpentPlanRatherThanGoingQuiet() async throws {

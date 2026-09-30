@@ -32,6 +32,8 @@ public final class Conversation {
     private var nextId = 1
     /// The held call last asked about out loud, so an answer elsewhere can end the question.
     private var asking: String?
+    /// Set when the person talks over an answer, so the rest of it is never said.
+    private var interrupted = false
 
     public init(link: DaemonLink, speaker: Speaker, key: ConfirmKey, face: Face) {
         self.link = link
@@ -54,6 +56,7 @@ public final class Conversation {
     public func heard(_ said: String) async {
         let words = said.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty else { return }
+        interrupted = false
         face.show(.thinking, caption: caption(words))
         var request = DaemonRequest(id: takeId(), method: .ask)
         request.said = words
@@ -70,15 +73,22 @@ public final class Conversation {
         } catch {
             await say("I cannot reach Memnox on this Mac right now.")
         }
-        if let rest = sentences.flush() { await say(rest) }
+        if let rest = sentences.flush(), !interrupted { await say(rest) }
         face.show(.listening, caption: "")
+    }
+
+    /// The person started talking over the answer: the voice stops now and the brain stops too.
+    public func interrupt() async {
+        interrupted = true
+        speaker.stop()
+        _ = try? await link.request(DaemonRequest(id: takeId(), method: .cancel))
     }
 
     /// Returns true once the turn is over.
     private func play(_ chunk: AskChunk, into sentences: inout SentenceSplitter) async throws -> Bool {
         switch chunk.chunkKind {
         case .text:
-            for sentence in sentences.push(chunk.text ?? "") { await say(sentence) }
+            for sentence in sentences.push(chunk.text ?? "") where !interrupted { await say(sentence) }
         case .tool:
             face.show(.thinking, caption: "reading \(toolWord(chunk.tool))")
         case .limited:
@@ -87,7 +97,7 @@ public final class Conversation {
         case .failed:
             if let rest = sentences.flush() { await say(rest) }
             await say("That did not work: \(chunk.text ?? "the brain stopped").")
-        case .done, .none:
+        case .done, .cancelled, .none:
             break
         }
         return chunk.endsTurn

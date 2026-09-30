@@ -62,6 +62,6 @@ waveform in the menu bar, and speak.
   `SFSpeechRecognizer` until then.
 - A chosen voice: this speaks with the best English system voice installed. Kokoro, run
   locally, is next, and a paid voice only later.
-- Talking over it: the hotkey stops it speaking for now.
+- Talking over it by voice: for now ⌥Space interrupts, which stops the voice and cancels the answer.
 
 If the app says another key is registered, run `memnox voice forget-key` and open it again.

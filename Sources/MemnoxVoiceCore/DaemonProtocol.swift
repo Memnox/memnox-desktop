@@ -10,6 +10,7 @@ public enum DaemonMethod: String {
     case waiting
     case confirm
     case registerKey = "register-key"
+    case cancel
 }
 
 public enum EventKind: String {
@@ -25,6 +26,7 @@ public enum ChunkKind: String {
     case done
     case limited
     case failed
+    case cancelled
 }
 
 public enum ProposalAnswer: String {
@@ -65,9 +67,9 @@ public struct AskChunk: Decodable, Equatable {
 
     public var chunkKind: ChunkKind? { ChunkKind(rawValue: kind) }
 
-    /// Done, limited or failed: the last line of a turn.
+    /// Done, limited, failed or cancelled: the last line of a turn.
     public var endsTurn: Bool {
-        chunkKind == .done || chunkKind == .limited || chunkKind == .failed
+        chunkKind == .done || chunkKind == .limited || chunkKind == .failed || chunkKind == .cancelled
     }
 }
 

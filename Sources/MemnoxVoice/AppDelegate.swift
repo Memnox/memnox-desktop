@@ -49,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The hotkey, the menu and Siri all end here: open the orb and listen.
     @objc func talk() {
         if talking {
-            voice.stop()
+            Task { await conversation.interrupt() }
             return
         }
         enqueue { [self] in await converse() }

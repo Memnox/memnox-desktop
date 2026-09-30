@@ -1,8 +1,4 @@
 import Foundation
-import os
-
-/// Every step of a turn, readable with: log stream --predicate 'subsystem == "com.memnox.voice"'
-public let voiceLog = Logger(subsystem: "com.memnox.voice", category: "conversation")
 
 /// Where the confirmation key stands with the daemon.
 public enum KeyStatus: Equatable {
@@ -111,7 +107,7 @@ public final class Conversation {
         guard !words.isEmpty else { return }
         interrupted = false
         lastHeard = now()
-        voiceLog.info("heard: \(words, privacy: .private)")
+        diary.note("heard: \(words)")
         face.show(.thinking, caption: caption(words))
         var request = newRequest(.ask)
         request.said = words
@@ -143,28 +139,29 @@ public final class Conversation {
 
     /// Streams a turn into speech, sentence by sentence, and says how it ended.
     private func speakStream(_ request: DaemonRequest) async -> Told {
+        diary.note("sent \(request.method)")
         var sentences = SentenceSplitter()
         var spoke = false
         do {
             for try await response in link.stream(request) {
                 if let error = response.error, !response.ok {
-                    voiceLog.error("\(request.method, privacy: .public) refused: \(error, privacy: .public)")
+                    diary.note("\(request.method) refused: \(error)")
                     return .refused(error.hasPrefix("no method") ? Self.tooOld : error)
                 }
                 // An older daemon answers a method it does not know with a bare ok and nothing more.
                 guard let chunk = response.chunk else {
                     if response.event == nil, response.waiting == nil {
-                        voiceLog.error("\(request.method, privacy: .public) answered with nothing: an older daemon")
+                        diary.note("\(request.method) answered with nothing: an older daemon")
                         return .refused(Self.tooOld)
                     }
                     continue
                 }
-                voiceLog.debug("chunk \(chunk.kind, privacy: .public)")
+                diary.note("chunk \(chunk.kind)\(chunk.text.map { ": \($0)" } ?? "")")
                 if chunk.chunkKind == .text, !(chunk.text ?? "").isEmpty { spoke = true }
                 if try await play(chunk, into: &sentences) { break }
             }
         } catch {
-            voiceLog.error("\(request.method, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            diary.note("\(request.method) failed: \(error)")
             return spoke ? .spoke : .unreachable
         }
         if let rest = sentences.flush(), !interrupted {

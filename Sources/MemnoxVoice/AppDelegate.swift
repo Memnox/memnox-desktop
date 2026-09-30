@@ -29,8 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let firstWordSeconds: TimeInterval = 10
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        panel = OrbPanel(loudness: { [audio] in max(audio.micLevel, audio.voiceLevel) })
-        voice = Voice(audio: audio)
+        let voice = Voice()
+        self.voice = voice
+        panel = OrbPanel(loudness: { [audio] in max(audio.micLevel, voice.level) })
         ears.hearing = { [weak self] words in
             self?.panel.show(.listening, caption: caption(words))
         }
@@ -82,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
         var waiting = Self.firstWordSeconds
+        diary.note("listening")
         panel.show(.listening, caption: "")
         while let said = await ears.listen(through: audio, waiting: waiting) {
             await conversation.heard(said)
@@ -163,6 +165,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Checks the voice on its own, apart from listening and the daemon.
+    @objc func saySomething() {
+        enqueue { [self] in
+            panel.present()
+            panel.show(.speaking, caption: "Testing my voice")
+            await voice.speak("This is Memnox. If you can hear me, my voice works.")
+            panel.dismiss()
+        }
+    }
+
+    /// The last steps the app took, on the clipboard, for when something went quiet.
+    @objc func copyWhatHappened() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(diary.text.isEmpty ? "Nothing has happened yet." : diary.text, forType: .string)
+    }
+
     @objc func showSetup() {
         let model = SetupModel(owner: owner, conversation: conversation, voice: voice) { [weak self] in
             self?.setupFinished()
@@ -196,6 +214,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let setupItem = NSMenuItem(title: "Set Up Memnox…", action: #selector(showSetup), keyEquivalent: ",")
         setupItem.target = self
         menu.addItem(setupItem)
+        menu.addItem(.separator())
+        let sayItem = NSMenuItem(title: "Say Something", action: #selector(saySomething), keyEquivalent: "")
+        sayItem.target = self
+        menu.addItem(sayItem)
+        let copyItem = NSMenuItem(title: "Copy What Happened", action: #selector(copyWhatHappened), keyEquivalent: "")
+        copyItem.target = self
+        menu.addItem(copyItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Memnox", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         item.menu = menu

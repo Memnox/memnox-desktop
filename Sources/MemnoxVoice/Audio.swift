@@ -2,62 +2,36 @@ import AVFoundation
 import MemnoxVoiceCore
 import Speech
 
-/// One engine for both directions, with Apple's voice processing on so Memnox does not hear
-/// itself. It runs only while a conversation does, so the microphone light means something.
+/// The microphone, and only while a conversation runs, so the microphone light means something.
+/// Speech goes out through the system synthesizer instead, which is the one path macOS never
+/// ducks or silences, since echo cancellation on an engine turns every other sound down.
 final class AudioIO {
     let engine = AVAudioEngine()
-    private let player = AVAudioPlayerNode()
-    // A standard float format at a common rate, which AVFoundation always builds.
-    let playFormat = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
     private(set) var micLevel: Float = 0
-    private(set) var voiceLevel: Float = 0
     /// Every microphone buffer while listening, for the recognizer.
     var onMicrophone: ((AVAudioPCMBuffer) -> Void)?
     private var running = false
 
-    init() {
-        engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: playFormat)
-    }
-
     func start() throws {
         guard !running else { return }
         let input = engine.inputNode
-        // Echo cancellation where the hardware allows it; without it the orb still works.
-        try? input.setVoiceProcessingEnabled(true)
         input.removeTap(onBus: 0)
         input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { [weak self] buffer, _ in
             self?.micLevel = loudness(of: buffer)
             self?.onMicrophone?(buffer)
         }
-        engine.mainMixerNode.removeTap(onBus: 0)
-        engine.mainMixerNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
-            self?.voiceLevel = loudness(of: buffer)
-        }
         engine.prepare()
         try engine.start()
-        player.play()
         running = true
+        diary.note("microphone on: \(input.outputFormat(forBus: 0))")
     }
 
     func stop() {
         guard running else { return }
         engine.inputNode.removeTap(onBus: 0)
-        engine.mainMixerNode.removeTap(onBus: 0)
-        player.stop()
         engine.stop()
         running = false
         micLevel = 0
-        voiceLevel = 0
-    }
-
-    func schedule(_ buffer: AVAudioPCMBuffer, played: @escaping () -> Void) {
-        if !player.isPlaying { player.play() }
-        player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { _ in played() }
-    }
-
-    func silence() {
-        player.stop()
     }
 }
 
@@ -72,24 +46,32 @@ func loudness(of buffer: AVAudioPCMBuffer) -> Float {
 }
 
 /// Speech out, through the same engine, so the orb moves with the voice it is hearing.
-// Unchecked because its shared state is behind `lock` and AppKit work hops to the main queue.
-final class Voice: Speaker, @unchecked Sendable {
-    private let audio: AudioIO
+/// Speech out, through the system synthesizer, with the orb moving on every word it says.
+// Unchecked because its shared state is behind `lock` and synthesizer work hops to the main queue.
+final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, @unchecked Sendable {
     private let synthesizer = AVSpeechSynthesizer()
     private var voice: AVSpeechSynthesisVoice?
     private static let voiceKey = "voiceIdentifier"
     private let lock = NSLock()
-    private var outstanding = 0
-    private var finished = false
-    private var resume: (() -> Void)?
+    private var finished: (() -> Void)?
+    private var lastWord = Date.distantPast
 
-    init(audio: AudioIO) {
-        self.audio = audio
+    override init() {
         let chosen = UserDefaults.standard.string(forKey: Self.voiceKey)
         voice = chosen.flatMap(AVSpeechSynthesisVoice.init(identifier:)) ?? Voice.bestVoice()
+        super.init()
+        synthesizer.delegate = self
     }
 
     var identifier: String? { voice?.identifier }
+
+    /// How loud the orb should look while speaking: a pulse on each word, easing away between words.
+    var level: Float {
+        lock.lock()
+        defer { lock.unlock() }
+        let since = Float(Date().timeIntervalSince(lastWord))
+        return synthesizer.isSpeaking ? max(0.25, 0.9 - since * 2.5) : 0
+    }
 
     /// The voice the person picked in setup, kept for next time.
     func choose(_ identifier: String) {
@@ -98,11 +80,52 @@ final class Voice: Speaker, @unchecked Sendable {
         UserDefaults.standard.set(identifier, forKey: Self.voiceKey)
     }
 
-    /// One sentence in the chosen voice, with the engine started just for it.
     func preview(_ sentence: String) async {
-        do { try audio.start() } catch { return }
         await speak(sentence)
-        audio.stop()
+    }
+
+    func speak(_ sentence: String) async {
+        diary.note("saying: \(sentence)")
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            finished = { continuation.resume() }
+            lock.unlock()
+            DispatchQueue.main.async { [self] in
+                let utterance = AVSpeechUtterance(string: sentence)
+                utterance.voice = voice
+                synthesizer.speak(utterance)
+            }
+        }
+    }
+
+    func stop() {
+        DispatchQueue.main.async { [self] in
+            synthesizer.stopSpeaking(at: .immediate)
+            done()
+        }
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, willSpeakRangeOfSpeechString characterRange: NSRange, utterance: AVSpeechUtterance) {
+        lock.lock()
+        lastWord = Date()
+        lock.unlock()
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        done()
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        done()
+    }
+
+    /// Resumes the one waiting sentence, once, whichever of finish, cancel or stop comes first.
+    private func done() {
+        lock.lock()
+        let resume = finished
+        finished = nil
+        lock.unlock()
+        resume?()
     }
 
     /// Installed English voices, best first, since Premium and Enhanced sound the most like a person.
@@ -112,75 +135,9 @@ final class Voice: Speaker, @unchecked Sendable {
             .sorted { ($0.quality.rawValue, $0.name) > ($1.quality.rawValue, $1.name) }
     }
 
-    func speak(_ sentence: String) async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            lock.lock()
-            outstanding = 0
-            finished = false
-            resume = { continuation.resume() }
-            lock.unlock()
-            DispatchQueue.main.async { [self] in
-                let utterance = AVSpeechUtterance(string: sentence)
-                utterance.voice = voice
-                var converter: AVAudioConverter?
-                synthesizer.write(utterance) { [weak self] raw in
-                    guard let self, let buffer = raw as? AVAudioPCMBuffer else { return }
-                    if buffer.frameLength == 0 {
-                        self.markFinished()
-                        return
-                    }
-                    if converter == nil || converter?.inputFormat != buffer.format {
-                        converter = AVAudioConverter(from: buffer.format, to: self.audio.playFormat)
-                    }
-                    guard let converted = converter.flatMap({ convert(buffer, with: $0, to: self.audio.playFormat) }) else { return }
-                    self.lock.lock()
-                    self.outstanding += 1
-                    self.lock.unlock()
-                    self.audio.schedule(converted) { [weak self] in self?.markPlayed() }
-                }
-            }
-        }
-    }
-
-    func stop() {
-        DispatchQueue.main.async { [self] in
-            synthesizer.stopSpeaking(at: .immediate)
-            audio.silence()
-            lock.lock()
-            let done = resume
-            resume = nil
-            lock.unlock()
-            done?()
-        }
-    }
-
-    private func markFinished() {
-        lock.lock()
-        finished = true
-        let done = outstanding == 0 ? takeResume() : nil
-        lock.unlock()
-        done?()
-    }
-
-    private func markPlayed() {
-        lock.lock()
-        outstanding -= 1
-        let done = finished && outstanding == 0 ? takeResume() : nil
-        lock.unlock()
-        done?()
-    }
-
-    /// Called with the lock held; hands the continuation over once, so it is resumed once.
-    private func takeResume() -> (() -> Void)? {
-        let done = resume
-        resume = nil
-        return done
-    }
-
     /// The best English voice installed; a person picks a Premium or Personal Voice in System Settings.
     private static func bestVoice() -> AVSpeechSynthesisVoice? {
-        let english = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix("en") }
-        return english.max { $0.quality.rawValue < $1.quality.rawValue } ?? AVSpeechSynthesisVoice(language: "en-US")
+        englishVoices().first ?? AVSpeechSynthesisVoice(language: "en-US")
     }
 }
 
@@ -243,14 +200,14 @@ final class Ears {
             case .unavailable:
                 // Its model could not be fetched, it would not start, or it heard a voice and made no
                 // words of it: the older recognizer still hears, and the person is asked once more.
-                voiceLog.error("SpeechAnalyzer unavailable, using the older recognizer")
+                diary.note("SpeechAnalyzer unavailable, using the older recognizer")
                 analyzerReady = false
                 missed?()
             }
         }
         legacy.hearing = hearing
         let words = await legacy.listen(through: audio, waiting: waiting)
-        voiceLog.info("legacy recognizer heard \(words == nil ? "nothing" : "words", privacy: .public)")
+        diary.note("older recognizer heard \(words ?? "nothing")")
         return words
     }
 }
@@ -274,7 +231,10 @@ final class LegacyEars {
 
     /// The next thing said, or nil when nothing was said before the wait ran out.
     func listen(through audio: AudioIO, waiting: TimeInterval) async -> String? {
-        guard let recognizer, recognizer.isAvailable else { return nil }
+        guard let recognizer, recognizer.isAvailable else {
+            diary.note("older recognizer not available: \(SFSpeechRecognizer.authorizationStatus().rawValue)")
+            return nil
+        }
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }

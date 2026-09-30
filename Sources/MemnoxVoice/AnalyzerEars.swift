@@ -24,7 +24,7 @@ final class AnalyzerEars {
             attributeOptions: []
         )
         let ready = await installed(transcriber)
-        voiceLog.info("speech model \(ready ? "ready" : "unavailable", privacy: .public)")
+        diary.note("speech model \(ready ? "ready" : "unavailable")")
         return ready
     }
 
@@ -86,7 +86,7 @@ final class AnalyzerEars {
             audio.onMicrophone = nil
             feed.finish()
             reading.cancel()
-            voiceLog.error("SpeechAnalyzer would not start: \(String(describing: error), privacy: .public)")
+            diary.note("SpeechAnalyzer would not start: \(error)")
             return .unavailable
         }
 
@@ -101,14 +101,14 @@ final class AnalyzerEars {
         }
         audio.onMicrophone = nil
         feed.finish()
-        voiceLog.info("microphone: \(counts.summary, privacy: .public)")
+        diary.note("microphone: \(counts.summary)")
         try? await analyzer.finalizeAndFinishThroughEndOfInput()
         await reading.value
         let words = heard.read().0.trimmingCharacters(in: .whitespacesAndNewlines)
-        voiceLog.info("SpeechAnalyzer heard \(words.isEmpty ? "nothing" : "words", privacy: .public)")
+        diary.note("SpeechAnalyzer heard \(words.isEmpty ? "nothing" : words)")
         if words.isEmpty, loudest > Self.spokeLevel {
             // The microphone heard a voice and no word came back: the analyzer is not working here.
-            voiceLog.error("heard a voice at \(loudest, privacy: .public) and no words")
+            diary.note("heard a voice at level \(loudest) and no words")
             return .unavailable
         }
         return words.isEmpty ? .silence : .heard(words)
@@ -122,7 +122,7 @@ final class AnalyzerEars {
             }
             return true
         } catch {
-            voiceLog.error("speech model not installed: \(String(describing: error), privacy: .public)")
+            diary.note("speech model not installed: \(error)")
             return false
         }
     }

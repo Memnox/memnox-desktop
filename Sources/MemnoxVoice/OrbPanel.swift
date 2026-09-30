@@ -104,9 +104,10 @@ final class PillView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: bounds.height / 2, yRadius: bounds.height / 2)
-        NSColor(white: 0.07, alpha: 0.92).setFill()
+        // The console's dark card and border, so the pill is plainly the same product.
+        NSColor(srgbRed: 0x0F / 255, green: 0x0F / 255, blue: 0x0F / 255, alpha: 0.86).setFill()
         shape.fill()
-        NSColor(white: 1, alpha: 0.12).setStroke()
+        NSColor(srgbRed: 0x31 / 255, green: 0x31 / 255, blue: 0x31 / 255, alpha: 1).setStroke()
         shape.lineWidth = 1
         shape.stroke()
 
@@ -120,8 +121,8 @@ final class PillView: NSView {
 
         let words = text.isEmpty ? placeholder : text
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 15, weight: .semibold),
-            .foregroundColor: NSColor.white,
+            .font: Memnox.nsSans(14, semibold: true),
+            .foregroundColor: NSColor(srgbRed: 0xFD / 255, green: 0xFD / 255, blue: 0xFD / 255, alpha: 1),
         ]
         let size = (words as NSString).size(withAttributes: attributes)
         let room = NSRect(x: 112, y: bounds.midY - size.height / 2, width: bounds.width - 128, height: size.height)

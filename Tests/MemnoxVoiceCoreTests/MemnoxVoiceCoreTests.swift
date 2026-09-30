@@ -75,6 +75,12 @@ final class ProtocolTests: XCTestCase {
         XCTAssertThrowsError(try line("not json"))
     }
 
+    func testReadsWhereASessionRuns() throws {
+        let located = try line(#"{"id":7,"ok":true,"location":{"sessionId":"ses_1","agent":"claude-code","alive":true,"app":"iTerm","appPath":"/Applications/iTerm.app","tty":"ttys004","cwd":"/work/shop"}}"#)
+        XCTAssertEqual(located.location?.appPath, "/Applications/iTerm.app")
+        XCTAssertEqual(located.location?.alive, true)
+    }
+
     func testSignsTheSameMessageTheRuntimeVerifies() {
         XCTAssertEqual(
             confirmationMessage(subject: "prp_1", answer: "confirmed"),

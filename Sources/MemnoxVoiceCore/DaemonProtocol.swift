@@ -11,6 +11,7 @@ public enum DaemonMethod: String {
     case confirm
     case registerKey = "register-key"
     case cancel
+    case locate
 }
 
 public enum EventKind: String {
@@ -42,6 +43,7 @@ public struct DaemonRequest: Encodable, Equatable {
     public var signature: String?
     public var point: String?
     public var said: String?
+    public var sessionId: String?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -73,6 +75,17 @@ public struct AskChunk: Decodable, Equatable {
     }
 }
 
+/// Where a session's agent runs, for bringing its window forward.
+public struct DaemonLocation: Decodable, Equatable {
+    public let sessionId: String
+    public let agent: String
+    public let alive: Bool
+    public let app: String?
+    public let appPath: String?
+    public let tty: String?
+    public let cwd: String?
+}
+
 public struct DaemonResponse: Decodable, Equatable {
     public let id: Int
     public let ok: Bool
@@ -80,6 +93,7 @@ public struct DaemonResponse: Decodable, Equatable {
     public let waiting: [DaemonEvent]?
     public let chunk: AskChunk?
     public let outcome: String?
+    public let location: DaemonLocation?
     public let error: String?
 }
 

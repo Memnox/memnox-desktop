@@ -72,7 +72,8 @@ func loudness(of buffer: AVAudioPCMBuffer) -> Float {
 }
 
 /// Speech out, through the same engine, so the orb moves with the voice it is hearing.
-final class Voice: Speaker {
+// Unchecked because its shared state is behind `lock` and AppKit work hops to the main queue.
+final class Voice: Speaker, @unchecked Sendable {
     private let audio: AudioIO
     private let synthesizer = AVSpeechSynthesizer()
     private var voice: AVSpeechSynthesisVoice?
@@ -183,7 +184,7 @@ final class Voice: Speaker {
     }
 }
 
-private func convert(_ buffer: AVAudioPCMBuffer, with converter: AVAudioConverter, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
+func convert(_ buffer: AVAudioPCMBuffer, with converter: AVAudioConverter, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
     let ratio = format.sampleRate / buffer.format.sampleRate
     let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1_024
     guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return nil }
@@ -201,9 +202,34 @@ private func convert(_ buffer: AVAudioPCMBuffer, with converter: AVAudioConverte
     return error == nil ? output : nil
 }
 
-/// Speech in, recognised on this Mac. It ends an utterance by the pause after it, and hands
-/// the words on whole: nothing here looks for a keyword.
+/// Speech in, recognised on this Mac: Apple's SpeechAnalyzer where the system has it, the older
+/// recognizer where it does not. It ends an utterance by the pause after it, and hands the
+/// words on whole: nothing here looks for a keyword.
 final class Ears {
+    /// The words so far, for the pill.
+    var hearing: ((String) -> Void)?
+    private let legacy = LegacyEars()
+
+    static func askPermission() async -> Bool {
+        await LegacyEars.askPermission()
+    }
+
+    func listen(through audio: AudioIO, waiting: TimeInterval) async -> String? {
+        if #available(macOS 26, *) {
+            let ears = AnalyzerEars()
+            ears.hearing = hearing
+            return await ears.listen(through: audio, waiting: waiting)
+        }
+        legacy.hearing = hearing
+        return await legacy.listen(through: audio, waiting: waiting)
+    }
+}
+
+/// Names this machine uses, as hints to the recognizer rather than words anything acts on.
+let recognizerHints = ["Memnox", "Claude", "Codex", "Cursor", "kubectl", "Railway", "npm", "git push"]
+
+/// The recognizer before macOS 26.
+final class LegacyEars {
     private let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     /// The words so far, for the pill.
     var hearing: ((String) -> Void)?
@@ -222,8 +248,7 @@ final class Ears {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
-        // Names this machine uses, as hints to the recognizer rather than words anything acts on.
-        request.contextualStrings = ["Memnox", "Claude", "Codex", "Cursor", "kubectl", "Railway", "npm", "git push"]
+        request.contextualStrings = recognizerHints
         audio.onMicrophone = { request.append($0) }
 
         let latest = Latest()
@@ -250,7 +275,7 @@ final class Ears {
 }
 
 /// The recognizer's latest words, written from its thread and read from the listening loop.
-private final class Latest {
+final class Latest: @unchecked Sendable {
     private let lock = NSLock()
     private var words = ""
     private var changed = Date()

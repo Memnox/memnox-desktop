@@ -17,7 +17,7 @@ holds still while Touch ID is up. Under it, one pill with a waveform and a short
 ```
  ⌥Space, the menu bar, or a held call arriving
         │
-   the orb listens (Apple speech recognition, on this Mac)
+   the orb listens (Apple's SpeechAnalyzer on this Mac, the older recognizer before macOS 26)
         │ your words, whole
         ▼
  ~/.memnox/memnox.sock  ── the Memnox daemon (memnox-runtime)
@@ -42,7 +42,7 @@ holds still while Touch ID is up. Under it, one pill with a waveform and a short
 
 ## Running it
 
-Needs macOS 14 or later, Xcode 16 or later, and the Memnox daemon running
+Needs macOS 14 or later (26 or later for SpeechAnalyzer), Xcode 26 or later, and the Memnox daemon running
 (`memnox daemon`, or installed by `memnox setup`).
 
 ```sh
@@ -73,8 +73,6 @@ It talks like a colleague who has been watching your sessions:
 
 - "Hey Siri, talk to Memnox" (App Intents), which wants the Xcode 26 project.
 - "Show me": bringing the agent's own window forward, or one closable card.
-- Apple's newer `SpeechAnalyzer`, which needs the macOS 26 SDK; this uses on-device
-  `SFSpeechRecognizer` until then.
 - A chosen voice: this speaks with the best English system voice installed. Kokoro, run
   locally, is next, and a paid voice only later.
 - Talking over it by voice: for now ⌥Space interrupts, which stops the voice and cancels the answer.

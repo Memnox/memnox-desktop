@@ -9,7 +9,7 @@ public enum KeyStatus: Equatable {
 }
 
 /// What the orb shows. Each state looks and moves differently, so a glance says which it is.
-public enum VoiceState: Equatable {
+public enum VoiceState: Equatable, Sendable {
     case idle
     case listening
     case thinking

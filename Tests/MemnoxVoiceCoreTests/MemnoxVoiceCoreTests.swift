@@ -311,6 +311,34 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(speaker.said, ["Welcome back.", "Codex got stuck on the build and is paused."])
     }
 
+    func testSaysAnOlderDaemonCannotAnswerRatherThanWaitingForEver() async throws {
+        // What 0.13 and earlier answer to any method they do not know.
+        link.answers["ask"] = [try line(#"{"id":1,"ok":true}"#)]
+        await conversation.heard("what is claude doing")
+        XCTAssertEqual(speaker.said, [Conversation.tooOld])
+    }
+
+    func testSaysANewerDaemonsRefusalTheSameWay() async throws {
+        link.answers["ask"] = [try line(#"{"id":1,"ok":false,"error":"no method ask"}"#)]
+        await conversation.heard("hello")
+        XCTAssertEqual(speaker.said, [Conversation.tooOld])
+    }
+
+    func testNeverCallsTheKeyRegisteredOnABareOk() async throws {
+        link.answers["register-key"] = [try line(#"{"id":1,"ok":true}"#)]
+        let status = await conversation.registerKey()
+        XCTAssertEqual(status, .tooOld)
+    }
+
+    func testTellsADaemonThatSpeaksVoiceFromOneThatOnlySaysOk() async throws {
+        link.answers["waiting"] = [try line(#"{"id":1,"ok":true}"#)]
+        let old = await conversation.daemonVoice()
+        XCTAssertEqual(old, .tooOld)
+        link.answers["waiting"] = [try line(#"{"id":2,"ok":true,"waiting":[]}"#)]
+        let ready = await conversation.daemonVoice()
+        XCTAssertEqual(ready, .ready)
+    }
+
     func testSaysSoWhenAnotherKeyIsRegistered() async throws {
         link.answers["register-key"] = [try line(#"{"id":1,"ok":false,"outcome":"another key"}"#)]
         await conversation.introduce()

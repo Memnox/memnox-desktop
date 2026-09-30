@@ -209,19 +209,30 @@ final class Ears {
     /// The words so far, for the pill.
     var hearing: ((String) -> Void)?
     private let legacy = LegacyEars()
+    /// Cleared the first time SpeechAnalyzer cannot start, so every later turn goes straight to what works.
+    private var analyzerWorks = true
 
     static func askPermission() async -> Bool {
         await LegacyEars.askPermission()
     }
 
     func listen(through audio: AudioIO, waiting: TimeInterval) async -> String? {
-        if #available(macOS 26, *) {
+        if #available(macOS 26, *), analyzerWorks {
             let ears = AnalyzerEars()
             ears.hearing = hearing
-            return await ears.listen(through: audio, waiting: waiting)
+            switch await ears.listen(through: audio, waiting: waiting) {
+            case .heard(let words): return words
+            case .silence: return nil
+            case .unavailable:
+                // Its model could not be fetched or it would not start: the older recognizer still hears.
+                voiceLog.error("SpeechAnalyzer unavailable, using the older recognizer")
+                analyzerWorks = false
+            }
         }
         legacy.hearing = hearing
-        return await legacy.listen(through: audio, waiting: waiting)
+        let words = await legacy.listen(through: audio, waiting: waiting)
+        voiceLog.info("legacy recognizer heard \(words == nil ? "nothing" : "words", privacy: .public)")
+        return words
     }
 }
 

@@ -38,12 +38,32 @@ final class OrbPanel: NSPanel, Face {
         orb.layer?.isOpaque = false
         pill.frame = NSRect(x: 50, y: 24, width: 280, height: 50)
         pill.loudness = loudness
+        // Frosted glass behind the sphere, so its dots read over any window rather than mixing into it.
+        content.addSubview(Self.backdrop(around: orb.frame))
         content.addSubview(orb)
         content.addSubview(pill)
         contentView = content
     }
 
     override var canBecomeKey: Bool { false }
+
+    /// A round pane of dark glass a little inside the orb's square, blurred and shaded.
+    private static func backdrop(around frame: NSRect) -> NSView {
+        let inset = frame.insetBy(dx: 26, dy: 26)
+        let glass = NSVisualEffectView(frame: inset)
+        glass.material = .hudWindow
+        glass.blendingMode = .behindWindow
+        glass.state = .active
+        glass.appearance = NSAppearance(named: .darkAqua)
+        glass.wantsLayer = true
+        glass.layer?.cornerRadius = inset.width / 2
+        glass.layer?.masksToBounds = true
+        let shade = NSView(frame: glass.bounds)
+        shade.wantsLayer = true
+        shade.layer?.backgroundColor = NSColor(srgbRed: 0x03 / 255, green: 0x03 / 255, blue: 0x03 / 255, alpha: 0.55).cgColor
+        glass.addSubview(shade)
+        return glass
+    }
 
     /// Fades in at the bottom centre of whichever screen the person is looking at.
     nonisolated func present() {

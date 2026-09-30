@@ -1,5 +1,13 @@
 import AVFoundation
+import MemnoxVoiceCore
 import Speech
+
+/// How one listen ended: words, nothing said in time, or a recognizer that could not start.
+enum Listened {
+    case heard(String)
+    case silence
+    case unavailable
+}
 
 /// Apple's SpeechAnalyzer, on macOS 26 and later: on this Mac, streaming, and better at the
 /// words people use about their agents. Its language model downloads the first time, once.
@@ -7,8 +15,8 @@ import Speech
 final class AnalyzerEars {
     var hearing: ((String) -> Void)?
 
-    /// The next thing said, or nil when nothing was said before the wait ran out.
-    func listen(through audio: AudioIO, waiting: TimeInterval) async -> String? {
+    /// The next thing said, nothing when the wait ran out, or unavailable when it could not start.
+    func listen(through audio: AudioIO, waiting: TimeInterval) async -> Listened {
         let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) ?? Locale(identifier: "en-US")
         let transcriber = SpeechTranscriber(
             locale: locale,
@@ -18,7 +26,7 @@ final class AnalyzerEars {
         )
         guard await installed(transcriber),
               let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
-        else { return nil }
+        else { return .unavailable }
 
         let analyzer = SpeechAnalyzer(modules: [transcriber])
         let context = AnalysisContext()
@@ -27,11 +35,16 @@ final class AnalyzerEars {
 
         let (input, feed) = AsyncStream<AnalyzerInput>.makeStream()
         var converter: AVAudioConverter?
+        let counts = Counts()
         audio.onMicrophone = { buffer in
             if converter == nil || converter?.inputFormat != buffer.format {
                 converter = AVAudioConverter(from: buffer.format, to: format)
             }
-            guard let converter, let converted = convert(buffer, with: converter, to: format) else { return }
+            guard let converter, let converted = convert(buffer, with: converter, to: format) else {
+                counts.dropped()
+                return
+            }
+            counts.fed()
             feed.yield(AnalyzerInput(buffer: converted))
         }
 
@@ -52,7 +65,8 @@ final class AnalyzerEars {
             audio.onMicrophone = nil
             feed.finish()
             reading.cancel()
-            return nil
+            voiceLog.error("SpeechAnalyzer would not start: \(String(describing: error), privacy: .public)")
+            return .unavailable
         }
 
         let began = Date()
@@ -64,10 +78,12 @@ final class AnalyzerEars {
         }
         audio.onMicrophone = nil
         feed.finish()
+        voiceLog.info("microphone: \(counts.summary, privacy: .public)")
         try? await analyzer.finalizeAndFinishThroughEndOfInput()
         await reading.value
         let words = heard.read().0.trimmingCharacters(in: .whitespacesAndNewlines)
-        return words.isEmpty ? nil : words
+        voiceLog.info("SpeechAnalyzer heard \(words.isEmpty ? "nothing" : "words", privacy: .public)")
+        return words.isEmpty ? .silence : .heard(words)
     }
 
     /// The model for this language, fetched the first time and kept by the system after that.
@@ -78,6 +94,7 @@ final class AnalyzerEars {
             }
             return true
         } catch {
+            voiceLog.error("speech model not installed: \(String(describing: error), privacy: .public)")
             return false
         }
     }
@@ -108,5 +125,21 @@ private final class Heard: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return (settled + volatile, changed)
+    }
+}
+
+/// How many microphone buffers reached the analyzer and how many could not be converted, for the log.
+private final class Counts: @unchecked Sendable {
+    private let lock = NSLock()
+    private var good = 0
+    private var bad = 0
+
+    func fed() { lock.lock(); good += 1; lock.unlock() }
+    func dropped() { lock.lock(); bad += 1; lock.unlock() }
+
+    var summary: String {
+        lock.lock()
+        defer { lock.unlock() }
+        return "\(good) buffers heard, \(bad) could not be converted"
     }
 }

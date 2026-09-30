@@ -1,10 +1,23 @@
 import Foundation
+import os
+
+/// Every step of a turn, readable with: log stream --predicate 'subsystem == "com.memnox.voice"'
+public let voiceLog = Logger(subsystem: "com.memnox.voice", category: "conversation")
 
 /// Where the confirmation key stands with the daemon.
 public enum KeyStatus: Equatable {
     case registered
     /// Somebody else's key is trusted, so nothing can be confirmed from here.
     case anotherKey
+    case unreachable
+    /// The daemon answers but does not know voice: an older Memnox than this app.
+    case tooOld
+}
+
+/// Whether the daemon can hold a conversation, which setup checks before saying it is ready.
+public enum DaemonVoice: Equatable {
+    case ready
+    case tooOld
     case unreachable
 }
 
@@ -46,6 +59,8 @@ public final class Conversation {
     /// When the person last said something, since an allow may only follow their own words.
     private var lastHeard: Date?
     private let now: () -> Date
+    /// Said when the daemon is older than the app, which is the one fix a person can make.
+    static let tooOld = "The Memnox running on this Mac is older than this app, so it cannot answer yet. Update Memnox and ask me again."
     /// Long enough to say "yes, go ahead" and have the brain propose it.
     static let answerWindow: TimeInterval = 120
 
@@ -65,9 +80,12 @@ public final class Conversation {
         self.owner = owner
     }
 
-    /// Whether the daemon answers at all, which setup shows before anything else.
-    public func daemonAnswers() async -> Bool {
-        (try? await link.request(DaemonRequest(id: takeId(), method: .ping)))?.ok == true
+    /// Whether the daemon answers, and whether it speaks voice rather than only answering ok.
+    public func daemonVoice() async -> DaemonVoice {
+        guard let response = try? await link.request(DaemonRequest(id: takeId(), method: .waiting)) else {
+            return .unreachable
+        }
+        return response.ok && response.waiting != nil ? .ready : .tooOld
     }
 
     /// Registers this Mac's key with the daemon, which trusts the first one it is given.
@@ -76,7 +94,8 @@ public final class Conversation {
         request.point = key.publicPoint
         guard let response = try? await link.request(request) else { return .unreachable }
         if response.outcome == "another key" { return .anotherKey }
-        return response.ok ? .registered : .unreachable
+        // Only the word itself counts, since an older daemon answered anything with a bare ok.
+        return response.ok && response.outcome == "registered" ? .registered : .tooOld
     }
 
     /// At launch: registers the key, and says so when somebody else's is already there.
@@ -92,12 +111,15 @@ public final class Conversation {
         guard !words.isEmpty else { return }
         interrupted = false
         lastHeard = now()
+        voiceLog.info("heard: \(words, privacy: .private)")
         face.show(.thinking, caption: caption(words))
         var request = newRequest(.ask)
         request.said = words
         let told = await speakStream(request)
         if told == .unreachable { await say("I cannot reach Memnox on this Mac right now.") }
-        if case .refused(let error) = told { await say("I could not ask: \(error).") }
+        if case .refused(let error) = told {
+            await say(error == Self.tooOld ? error : "I could not ask: \(error).")
+        }
         face.show(.listening, caption: "")
     }
 
@@ -125,12 +147,24 @@ public final class Conversation {
         var spoke = false
         do {
             for try await response in link.stream(request) {
-                if let error = response.error, !response.ok { return .refused(error) }
-                guard let chunk = response.chunk else { continue }
+                if let error = response.error, !response.ok {
+                    voiceLog.error("\(request.method, privacy: .public) refused: \(error, privacy: .public)")
+                    return .refused(error.hasPrefix("no method") ? Self.tooOld : error)
+                }
+                // An older daemon answers a method it does not know with a bare ok and nothing more.
+                guard let chunk = response.chunk else {
+                    if response.event == nil, response.waiting == nil {
+                        voiceLog.error("\(request.method, privacy: .public) answered with nothing: an older daemon")
+                        return .refused(Self.tooOld)
+                    }
+                    continue
+                }
+                voiceLog.debug("chunk \(chunk.kind, privacy: .public)")
                 if chunk.chunkKind == .text, !(chunk.text ?? "").isEmpty { spoke = true }
                 if try await play(chunk, into: &sentences) { break }
             }
         } catch {
+            voiceLog.error("\(request.method, privacy: .public) failed: \(String(describing: error), privacy: .public)")
             return spoke ? .spoke : .unreachable
         }
         if let rest = sentences.flush(), !interrupted {

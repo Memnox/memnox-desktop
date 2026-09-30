@@ -42,9 +42,11 @@ final class SetupModel: ObservableObject {
     /// Everything that can be checked without asking the person, checked as the card opens.
     func check() async {
         listening = hearingState()
-        daemon = await conversation.daemonAnswers()
-            ? .done
-            : .needs("Start it in a terminal: memnox daemon")
+        switch await conversation.daemonVoice() {
+        case .ready: daemon = .done
+        case .tooOld: daemon = .needs("This Memnox is older than the app. Update it, then check again")
+        case .unreachable: daemon = .needs("Start it in a terminal: memnox daemon --install")
+        }
         key = await keyState()
     }
 
@@ -83,6 +85,7 @@ final class SetupModel: ObservableObject {
         case .registered: return .done
         case .anotherKey: return .needs("Another key is trusted. Run memnox voice forget-key, then check again")
         case .unreachable: return .needs("Waiting for the daemon")
+        case .tooOld: return .needs("Waiting for a Memnox that knows voice")
         }
     }
 }

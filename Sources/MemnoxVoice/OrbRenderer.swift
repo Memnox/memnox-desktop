@@ -136,8 +136,8 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
         float3 ember = float3(1.0, 0.52, 0.18);
         float3 rose = float3(0.95, 0.22, 0.62);
         float3 tint = mix(ember, rose, clamp(0.5 - p.y * 0.5 + wobble, 0.0, 1.0));
-        out.color = float4(tint, mix(0.18, 0.95, front));
-        out.size = (1.6 + 2.2 * front) * u.scale;
+        out.color = float4(tint, mix(0.32, 1.0, front));
+        out.size = (1.8 + 2.4 * front) * u.scale;
         return out;
     }
 

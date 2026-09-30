@@ -15,20 +15,41 @@ enum Listened {
 final class AnalyzerEars {
     var hearing: ((String) -> Void)?
 
-    /// The next thing said, nothing when the wait ran out, or unavailable when it could not start.
-    func listen(through audio: AudioIO, waiting: TimeInterval) async -> Listened {
-        let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) ?? Locale(identifier: "en-US")
+    /// Fetches the speech model ahead of time, at launch, so the first question is not spent downloading.
+    static func prepare() async -> Bool {
         let transcriber = SpeechTranscriber(
-            locale: locale,
+            locale: await locale(),
             transcriptionOptions: [],
             reportingOptions: [.volatileResults],
             attributeOptions: []
         )
-        guard await installed(transcriber),
+        let ready = await installed(transcriber)
+        voiceLog.info("speech model \(ready ? "ready" : "unavailable", privacy: .public)")
+        return ready
+    }
+
+    private static func locale() async -> Locale {
+        await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) ?? Locale(identifier: "en-US")
+    }
+
+    /// Loud enough to be somebody talking rather than a room.
+    private static let spokeLevel: Float = 0.45
+
+    /// The next thing said, nothing when the wait ran out, or unavailable when it could not start.
+    func listen(through audio: AudioIO, waiting: TimeInterval) async -> Listened {
+        let transcriber = SpeechTranscriber(
+            locale: await Self.locale(),
+            transcriptionOptions: [],
+            reportingOptions: [.volatileResults],
+            attributeOptions: []
+        )
+        guard await Self.installed(transcriber),
               let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
         else { return .unavailable }
 
         let analyzer = SpeechAnalyzer(modules: [transcriber])
+        // Loaded before the first word, rather than while the person is already speaking.
+        try? await analyzer.prepareToAnalyze(in: format)
         let context = AnalysisContext()
         context.contextualStrings[.general] = recognizerHints
         try? await analyzer.setContext(context)
@@ -70,8 +91,10 @@ final class AnalyzerEars {
         }
 
         let began = Date()
+        var loudest: Float = 0
         while true {
             try? await Task.sleep(nanoseconds: 150_000_000)
+            loudest = max(loudest, audio.micLevel)
             let (words, changed) = heard.read()
             if words.isEmpty, Date().timeIntervalSince(began) > waiting { break }
             if !words.isEmpty, Date().timeIntervalSince(changed) > 1.1 { break }
@@ -83,11 +106,16 @@ final class AnalyzerEars {
         await reading.value
         let words = heard.read().0.trimmingCharacters(in: .whitespacesAndNewlines)
         voiceLog.info("SpeechAnalyzer heard \(words.isEmpty ? "nothing" : "words", privacy: .public)")
+        if words.isEmpty, loudest > Self.spokeLevel {
+            // The microphone heard a voice and no word came back: the analyzer is not working here.
+            voiceLog.error("heard a voice at \(loudest, privacy: .public) and no words")
+            return .unavailable
+        }
         return words.isEmpty ? .silence : .heard(words)
     }
 
     /// The model for this language, fetched the first time and kept by the system after that.
-    private func installed(_ transcriber: SpeechTranscriber) async -> Bool {
+    private static func installed(_ transcriber: SpeechTranscriber) async -> Bool {
         do {
             if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
                 try await request.downloadAndInstall()

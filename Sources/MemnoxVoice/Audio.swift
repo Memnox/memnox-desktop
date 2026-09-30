@@ -208,12 +208,19 @@ func convert(_ buffer: AVAudioPCMBuffer, with converter: AVAudioConverter, to fo
 final class Ears {
     /// The words so far, for the pill.
     var hearing: ((String) -> Void)?
+    /// Said when a voice was heard and no words came of it, so the person knows to say it again.
+    var missed: (() -> Void)?
     private let legacy = LegacyEars()
     /// Cleared the first time SpeechAnalyzer cannot start, so every later turn goes straight to what works.
     private var analyzerWorks = true
 
     static func askPermission() async -> Bool {
         await LegacyEars.askPermission()
+    }
+
+    /// The speech model fetched at launch; the older recognizer is used until it is there.
+    func prepare() async {
+        if #available(macOS 26, *) { analyzerWorks = await AnalyzerEars.prepare() }
     }
 
     func listen(through audio: AudioIO, waiting: TimeInterval) async -> String? {
@@ -224,9 +231,11 @@ final class Ears {
             case .heard(let words): return words
             case .silence: return nil
             case .unavailable:
-                // Its model could not be fetched or it would not start: the older recognizer still hears.
+                // Its model could not be fetched, it would not start, or it heard a voice and made no
+                // words of it: the older recognizer still hears, and the person is asked once more.
                 voiceLog.error("SpeechAnalyzer unavailable, using the older recognizer")
                 analyzerWorks = false
+                missed?()
             }
         }
         legacy.hearing = hearing

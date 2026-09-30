@@ -34,6 +34,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ears.hearing = { [weak self] words in
             self?.panel.show(.listening, caption: caption(words))
         }
+        ears.missed = { [weak self] in
+            self?.panel.show(.listening, caption: "Sorry, say that again?")
+        }
+        Task { [ears] in await ears.prepare() }
         let key: ConfirmKey
         do {
             key = try SecureEnclaveConfirmKey()

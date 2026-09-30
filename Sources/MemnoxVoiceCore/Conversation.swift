@@ -46,7 +46,7 @@ public final class Conversation {
         request.point = key.publicPoint
         guard let response = try? await link.request(request) else { return }
         if response.outcome == "another key" {
-            await say("Another key is registered for confirmations on this Mac, so I will not confirm anything until it is cleared.")
+            await say("Another key is registered for confirmations on this Mac, so I will not confirm anything. Run memnox voice forget-key in a terminal, then open me again.")
         }
     }
 

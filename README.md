@@ -63,3 +63,5 @@ waveform in the menu bar, and speak.
 - A chosen voice: this speaks with the best English system voice installed. Kokoro, run
   locally, is next, and a paid voice only later.
 - Talking over it: the hotkey stops it speaking for now.
+
+If the app says another key is registered, run `memnox voice forget-key` and open it again.

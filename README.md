@@ -15,7 +15,7 @@ holds still while Touch ID is up. Under it, one pill with a waveform and a short
 ## How it works
 
 ```
- ⌥Space, the menu bar, or a held call arriving
+ ⌥Space, "Memnox", the menu bar, or a held call arriving
         │
    the orb listens (Apple's SpeechAnalyzer on this Mac, the older recognizer before macOS 26)
         │ your words, whole
@@ -56,6 +56,12 @@ first name, from your Mac account, to start with), permission to hear you, wheth
 daemon is running, the Touch ID key, and a voice to pick and hear. It reopens from the
 menu bar under Set Up Memnox. After that, press ⌥Space, or use the waveform in the menu
 bar, and speak.
+
+To wake it by name, click the waveform in the menu bar and turn on **Wake when I say "Memnox"** in the glass panel that opens. While the orb is
+idle it then listens for its name, on this Mac only, and "Memnox, what's going on?" is
+answered straight away. It is off until you turn it on, because it keeps the microphone open
+whenever the orb is idle, and a Mac that cannot recognise speech on device never listens for
+it at all.
 
 It talks like a colleague who has been watching your sessions:
 

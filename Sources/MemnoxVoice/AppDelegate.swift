@@ -7,6 +7,9 @@ import MemnoxVoiceCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let audio = AudioIO()
     private let ears = Ears()
+    private let wake = WakeEars()
+    /// Off until the person turns it on, since it keeps the microphone open whenever the orb is idle.
+    private static let wakeKey = "wakeOnName"
     private let link = UnixSocketLink()
     // Set once in applicationDidFinishLaunching, before anything can reach them.
     private var panel: OrbPanel!
@@ -19,10 +22,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Long enough that a coffee counts and a glance away does not.
     private static let awayLongEnough: TimeInterval = 10 * 60
     private let setup = SetupWindow()
-    private var status: NSStatusItem?
+    private var menuBar: MenuBarPanel?
+    private var menu: MenuModel?
     /// Turns run one after another, so a held call never talks over an answer.
     private var tail: Task<Void, Never>?
     private var talking = false
+    /// Turns queued or running, since the name is only listened for when there are none.
+    private var turns = 0
 
     /// How long the microphone stays open for a follow up after an answer.
     private static let followUpSeconds: TimeInterval = 8
@@ -49,7 +55,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         conversation = Conversation(link: link, speaker: voice, key: key, face: panel, owner: owner)
         hotkey = Hotkey { [weak self] in self?.talk() }
-        status = menuBarItem()
+        wake.woke = { [weak self] after in
+            self?.enqueue { [weak self] in await self?.converse(opening: after) }
+        }
+        let menu = MenuModel(
+            wakeOn: UserDefaults.standard.bool(forKey: Self.wakeKey),
+            talk: { [weak self] in self?.talk() },
+            setWake: { [weak self] in self?.setWake($0) },
+            setUp: { [weak self] in self?.showSetup() },
+            saySomething: { [weak self] in self?.saySomething() },
+            copyWhatHappened: { [weak self] in self?.copyWhatHappened() }
+        )
+        self.menu = menu
+        menuBar = MenuBarPanel(model: menu)
+        listenForName()
         listenToDaemon()
         watchPresence()
         if UserDefaults.standard.bool(forKey: SetupModel.doneKey) {
@@ -68,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         enqueue { [self] in await converse() }
     }
 
-    private func converse() async {
+    private func converse(opening: String = "") async {
         talking = true
         panel.present()
         guard await Ears.mayHear() else {
@@ -86,6 +105,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { [conversation] in await conversation?.warm() }
         await learnNames()
         var waiting = Self.firstWordSeconds
+        if !opening.isEmpty {
+            // "Memnox, what's going on?" is a question already, so it is answered before listening again.
+            await conversation.heard(opening)
+            waiting = Self.followUpSeconds
+        }
         diary.note("listening")
         panel.show(.listening, caption: "")
         while let said = await ears.listen(through: audio, waiting: waiting) {
@@ -116,10 +140,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func enqueue(_ work: @escaping @MainActor () async -> Void) {
+        // The name is not listened for while anything else runs, so the orb never wakes on its own voice.
+        wake.stop()
+        turns += 1
         let previous = tail
-        tail = Task { @MainActor in
+        tail = Task { @MainActor [weak self] in
             await previous?.value
             await work()
+            guard let self else { return }
+            self.turns -= 1
+            self.listenForName()
+        }
+    }
+
+    /// Listens for "Memnox" while the orb is idle, when the person has turned it on.
+    private func listenForName() {
+        guard turns == 0, UserDefaults.standard.bool(forKey: Self.wakeKey) else { return }
+        wake.start(through: audio)
+    }
+
+    private func setWake(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: Self.wakeKey)
+        menu?.wakeOn = on
+        guard on else {
+            wake.stop()
+            return
+        }
+        Task { [self] in
+            // Asked here, since turning it on is the moment somebody expects to be asked.
+            guard await Ears.mayHear() else {
+                setWake(false)
+                return
+            }
+            guard wake.canListen else {
+                setWake(false)
+                enqueue { [self] in
+                    panel.present()
+                    panel.show(.speaking, caption: "I can't listen for my name here")
+                    await voice.speak("This Mac can't recognise speech on its own, so I won't listen for my name. Option Space still works.")
+                    panel.dismiss()
+                }
+                return
+            }
+            listenForName()
         }
     }
 
@@ -212,30 +275,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             audio.stop()
             panel.dismiss()
         }
-    }
-
-    private func menuBarItem() -> NSStatusItem {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: "Memnox")
-        let menu = NSMenu()
-        let talkItem = NSMenuItem(title: "Talk to Memnox", action: #selector(talk), keyEquivalent: " ")
-        talkItem.keyEquivalentModifierMask = [.option]
-        talkItem.target = self
-        menu.addItem(talkItem)
-        let setupItem = NSMenuItem(title: "Set Up Memnox…", action: #selector(showSetup), keyEquivalent: ",")
-        setupItem.target = self
-        menu.addItem(setupItem)
-        menu.addItem(.separator())
-        let sayItem = NSMenuItem(title: "Say Something", action: #selector(saySomething), keyEquivalent: "")
-        sayItem.target = self
-        menu.addItem(sayItem)
-        let copyItem = NSMenuItem(title: "Copy What Happened", action: #selector(copyWhatHappened), keyEquivalent: "")
-        copyItem.target = self
-        menu.addItem(copyItem)
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit Memnox", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-        item.menu = menu
-        return item
     }
 }
 

@@ -65,6 +65,8 @@ public final class Conversation {
     /// Whether the last turn needed one, since "let me look" twice running sounds like a machine.
     private var filledLastTurn = false
     private var fillerSpoke = false
+    /// Only while answering the person, since "one sec" before a held call or a catch up sounds wrong.
+    private var mayFill = false
     /// When the person last said something, since an allow may only follow their own words.
     private var lastHeard: Date?
     private let now: () -> Date
@@ -80,7 +82,7 @@ public final class Conversation {
         face: Face,
         owner: OwnerStore,
         now: @escaping () -> Date = Date.init,
-        fillerAfter: TimeInterval = 3.5,
+        fillerAfter: TimeInterval = 2.0,
         fillers: [String] = ["Let me look.", "One sec.", "Let me check."]
     ) {
         self.now = now
@@ -131,7 +133,8 @@ public final class Conversation {
     /// What the person said, whole. No keyword decides anything here.
     public func heard(_ said: String) async {
         let words = said.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !words.isEmpty else { return }
+        // A lone "." is the recognizer hearing noise, and answering it makes the voice talk to nobody.
+        guard words.contains(where: \.isLetter) else { return }
         interrupted = false
         lastHeard = now()
         diary.note("heard: \(words)")
@@ -140,7 +143,9 @@ public final class Conversation {
         request.said = words
         answering = false
         let filler = filledLastTurn ? nil : fillerTask()
+        mayFill = true
         let told = await speakStream(request)
+        mayFill = false
         filler?.cancel()
         filledLastTurn = fillerSpoke
         fillerSpoke = false
@@ -188,7 +193,7 @@ public final class Conversation {
                     }
                     continue
                 }
-                diary.note("chunk \(chunk.kind)\(chunk.text.map { ": \($0)" } ?? "")")
+                diary.note("chunk \(chunk.kind)\(chunk.text.map { ": \($0)" } ?? "")\(chunk.tool.map { " \(toolWord($0))" } ?? "")")
                 if chunk.chunkKind == .text, !(chunk.text ?? "").isEmpty { spoke = true }
                 if try await play(chunk, into: &sentences) { break }
             }
@@ -210,7 +215,7 @@ public final class Conversation {
         let words = fillers.randomElement()
         return Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            guard !Task.isCancelled, let self, !self.answering, !self.interrupted, let words else { return }
+            guard !Task.isCancelled, let self, !self.answering, !self.fillerSpoke, !self.interrupted, let words else { return }
             self.fillerSpoke = true
             await self.speaker.speak(words)
         }
@@ -235,6 +240,13 @@ public final class Conversation {
         case .text:
             for sentence in sentences.push(chunk.text ?? "") where !interrupted { flow(sentence) }
         case .tool:
+            // Whatever came before a tool call is a sentence on its own, even with no space after its "?".
+            if let rest = sentences.flush(), !interrupted { flow(rest) }
+            // Looking something up takes seconds, so say so the moment it starts rather than on a timer.
+            if mayFill, !answering, !fillerSpoke, !filledLastTurn, !interrupted, let words = fillers.randomElement() {
+                fillerSpoke = true
+                speaker.queue(words)
+            }
             face.show(.thinking, caption: "reading \(toolWord(chunk.tool))")
         case .limited:
             if let rest = sentences.flush() { await say(rest) }

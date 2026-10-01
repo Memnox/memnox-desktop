@@ -45,7 +45,6 @@ func loudness(of buffer: AVAudioPCMBuffer) -> Float {
     return min(max((decibels + 55) / 45, 0), 1)
 }
 
-/// Speech out, through the same engine, so the orb moves with the voice it is hearing.
 /// Speech out, through the system synthesizer, with the orb moving on every word it says.
 // Unchecked because its shared state is behind `lock` and synthesizer work hops to the main queue.
 final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, @unchecked Sendable {
@@ -116,8 +115,11 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, @unchecked Se
         diary.note("saying: \(sentence)")
         let utterance = AVSpeechUtterance(string: sentence)
         utterance.voice = voice
-        // A touch quicker than the default, which is paced for reading aloud rather than talking.
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 1.08
+        // Slower than the default and a little lower, so it sounds like somebody relaxed talking rather than reading out.
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.88
+        utterance.pitchMultiplier = 0.96
+        // A breath after each sentence, since a reply run together with no gaps sounds rushed.
+        utterance.postUtteranceDelay = 0.35
         utterance.prefersAssistiveTechnologySettings = false
         lock.lock()
         waiting[ObjectIdentifier(utterance)] = said

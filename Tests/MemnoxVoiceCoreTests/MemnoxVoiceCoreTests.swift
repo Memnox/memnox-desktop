@@ -151,9 +151,61 @@ final class TalkingTests: XCTestCase {
     }
 
     func testWaitsLongerWhenSomebodyTrailsOff() {
-        XCTAssertEqual(endOfSpeechPause(after: "What are my agents doing?"), 1.6)
+        XCTAssertEqual(endOfSpeechPause(after: "What are my agents doing?"), 0.8)
+        XCTAssertEqual(endOfSpeechPause(after: "what are my agents doing"), 1.2)
         XCTAssertEqual(endOfSpeechPause(after: "Okay, so are you able to uh"), 2.6)
         XCTAssertEqual(endOfSpeechPause(after: "Can Claude Code connect to"), 2.6)
+        XCTAssertEqual(endOfSpeechPause(after: "My..."), 2.6)
+    }
+
+    func testWakesOnItsNameAndHandsOnWhatFollowed() {
+        XCTAssertEqual(afterWakeWord("Memnox"), "")
+        XCTAssertEqual(afterWakeWord("Hey Memnox, what's going on?"), "what's going on?")
+        XCTAssertEqual(afterWakeWord("mem nox are they done"), "are they done")
+        XCTAssertEqual(afterWakeWord("Men knocks."), "")
+        XCTAssertNil(afterWakeWord("what are my agents doing"))
+        XCTAssertNil(afterWakeWord("the memo knocks twice"))
+    }
+
+    func testSaysTheWordsBeforeAToolCallAsTheirOwnSentence() async throws {
+        let speaker = RecordingSpeaker()
+        let conversation = Conversation(
+            link: SlowLink(seconds: 0, answer: [
+                try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"You mean Codex?"}}"#),
+                try line(#"{"id":1,"ok":true,"chunk":{"kind":"tool","tool":"mcp__memnox-operator__sessions"}}"#),
+                try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"Codex has nothing running."}}"#),
+                try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#),
+            ]),
+            speaker: speaker, key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil),
+            fillerAfter: 5
+        )
+        await conversation.heard("what is coco doing")
+        XCTAssertEqual(speaker.said, ["You mean Codex?", "Codex has nothing running."])
+    }
+
+    func testSaysLetMeLookTheMomentItStartsLookingSomethingUp() async throws {
+        let speaker = RecordingSpeaker()
+        let conversation = Conversation(
+            link: SlowLink(seconds: 0, answer: [
+                try line(#"{"id":1,"ok":true,"chunk":{"kind":"tool","tool":"mcp__memnox-operator__changes"}}"#),
+                try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"Two files changed."}}"#),
+                try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#),
+            ]),
+            speaker: speaker, key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil),
+            fillerAfter: 5, fillers: ["Let me look."]
+        )
+        await conversation.heard("what did it change")
+        XCTAssertEqual(speaker.said, ["Let me look.", "Two files changed."])
+    }
+
+    func testSendsNothingWhenTheRecognizerHeardOnlyPunctuation() async throws {
+        let speaker = RecordingSpeaker()
+        let conversation = Conversation(
+            link: SlowLink(seconds: 0, answer: try answer()),
+            speaker: speaker, key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil)
+        )
+        await conversation.heard(" . ")
+        XCTAssertEqual(speaker.said, [])
     }
 
     func testNeverSaysLetMeLookTwoTurnsRunning() async throws {
@@ -291,7 +343,7 @@ final class ConversationTests: XCTestCase {
         speaker = RecordingSpeaker()
         face = RecordingFace()
         key = PersonKey()
-        conversation = Conversation(link: link, speaker: speaker, key: key, face: face, owner: MemoryOwner("Moise"))
+        conversation = Conversation(link: link, speaker: speaker, key: key, face: face, owner: MemoryOwner("Moise"), fillers: ["One sec."])
     }
 
     func testSendsTheWordsWholeAndSpeaksTheAnswerSentenceBySentence() async throws {
@@ -304,7 +356,8 @@ final class ConversationTests: XCTestCase {
         await conversation.heard("  yeah what's claude up to  ")
 
         XCTAssertEqual(link.sent.first?.said, "yeah what's claude up to")
-        XCTAssertEqual(speaker.said, ["Two Claude sessions are open.", "Which one do you mean"])
+        // The tool call says it is looking straight away, then the answer follows sentence by sentence.
+        XCTAssertEqual(speaker.said, ["One sec.", "Two Claude sessions are open.", "Which one do you mean"])
         XCTAssertTrue(face.shown.contains { $0.0 == .thinking && $0.1 == "reading sessions" })
         XCTAssertEqual(face.states.last, .listening)
     }

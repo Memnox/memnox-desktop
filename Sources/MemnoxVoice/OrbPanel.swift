@@ -35,27 +35,19 @@ final class OrbPanel: NSPanel, Face {
         pill.loudness = loudness
         orb.wantsLayer = true
         orb.layer?.isOpaque = false
-        // One pane of glass cut to the orb and the pill: the only way the desktop blurs through a
-        // see-through window, since a blur nested inside a clear view shows nothing behind it.
-        let glass = NSVisualEffectView(frame: frame)
-        glass.material = .hudWindow
-        glass.blendingMode = .behindWindow
-        glass.state = .active
-        glass.appearance = NSAppearance(named: .darkAqua)
-        glass.maskImage = Self.shape(size: frame.size, orb: orb.frame.insetBy(dx: 22, dy: 22), pill: pill.frame)
-        glass.addSubview(orb)
-        glass.addSubview(pill)
-        contentView = glass
-    }
-
-    /// A circle behind the sphere and a capsule behind the caption, and nothing between them.
-    private static func shape(size: NSSize, orb: NSRect, pill: NSRect) -> NSImage {
-        NSImage(size: size, flipped: false) { _ in
-            NSColor.black.setFill()
-            NSBezierPath(ovalIn: orb).fill()
-            NSBezierPath(roundedRect: pill, xRadius: pill.height / 2, yRadius: pill.height / 2).fill()
-            return true
-        }
+        // A circle of glass behind the sphere and a capsule behind the caption, each its own pane,
+        // with the orb and the pill drawn over them so neither is blurred by its own glass.
+        let root = NSView(frame: frame)
+        let disc = orb.frame.insetBy(dx: 22, dy: 22)
+        let behindOrb = glassView(cornerRadius: disc.width / 2)
+        behindOrb.frame = disc
+        let behindPill = glassView(cornerRadius: pill.frame.height / 2)
+        behindPill.frame = pill.frame
+        root.addSubview(behindOrb)
+        root.addSubview(behindPill)
+        root.addSubview(orb)
+        root.addSubview(pill)
+        contentView = root
     }
 
     override var canBecomeKey: Bool { false }
@@ -120,19 +112,17 @@ final class PillView: NSView {
     required init?(coder: NSCoder) { nil }
 
     override func draw(_ dirtyRect: NSRect) {
+        // Barely any fill, so the glass under the pill does the work and the text still reads.
         let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: bounds.height / 2, yRadius: bounds.height / 2)
-        // The console's dark card and border, so the pill is plainly the same product.
-        NSColor(srgbRed: 0x0F / 255, green: 0x0F / 255, blue: 0x0F / 255, alpha: 0.55).setFill()
+        NSColor(srgbRed: 0x03 / 255, green: 0x03 / 255, blue: 0x03 / 255, alpha: 0.18).setFill()
         shape.fill()
-        NSColor(srgbRed: 0x31 / 255, green: 0x31 / 255, blue: 0x31 / 255, alpha: 1).setStroke()
-        shape.lineWidth = 1
-        shape.stroke()
 
-        let ember = NSColor(red: 1.0, green: 0.52, blue: 0.2, alpha: 1)
+        let blue = NSColor(srgbRed: 0x1E / 255, green: 0x86 / 255, blue: 0xEE / 255, alpha: 1)
+        let sky = NSColor(srgbRed: 0x8C / 255, green: 0xC8 / 255, blue: 0xFF / 255, alpha: 1)
         for (index, value) in history.enumerated() {
             let height = 6 + CGFloat(value) * 22
             let bar = NSRect(x: 22 + CGFloat(index) * 9, y: bounds.midY - height / 2, width: 4, height: height)
-            ember.withAlphaComponent(0.55 + CGFloat(value) * 0.45).setFill()
+            (blue.blended(withFraction: CGFloat(value), of: sky) ?? blue).withAlphaComponent(0.6 + CGFloat(value) * 0.4).setFill()
             NSBezierPath(roundedRect: bar, xRadius: 2, yRadius: 2).fill()
         }
 

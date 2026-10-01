@@ -16,9 +16,9 @@ enum Memnox {
         static let success = Color(hex: 0x37CD8F)
         static let warm = Color(hex: 0xDD815D)
         static let destructive = Color(hex: 0xE31957)
-        /// The orb's own two colours, for the small mark in the header.
-        static let ember = Color(red: 1.0, green: 0.52, blue: 0.18)
-        static let rose = Color(red: 0.95, green: 0.22, blue: 0.62)
+        /// The orb's own two blues, the primary and a lighter sky over it, for the small mark in the header.
+        static let sky = Color(hex: 0x8CC8FF)
+        static let deep = Color(hex: 0x1E86EE)
     }
 
     /// `--radius`, 0.375rem.
@@ -56,21 +56,42 @@ extension Color {
     }
 }
 
-/// The frosted glass behind every Memnox surface: the desktop shows through, darkened.
+/// The glass behind every Memnox surface: Liquid Glass from macOS 26, the frosted material before it.
 struct Glass: NSViewRepresentable {
     var material: NSVisualEffectView.Material = .hudWindow
+    var cornerRadius: CGFloat = 0
 
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = .behindWindow
-        view.state = .active
-        return view
+    func makeNSView(context: Context) -> NSView {
+        glassView(cornerRadius: cornerRadius, material: material)
     }
 
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {
-        view.material = material
+    func updateNSView(_ view: NSView, context: Context) {}
+}
+
+/// A faint blue in the glass, so every surface reads as Memnox rather than as a system panel.
+let glassTint = NSColor(srgbRed: 0x1E / 255, green: 0x86 / 255, blue: 0xEE / 255, alpha: 0.10)
+
+/// One pane of glass, rounded to `cornerRadius`, in whichever kind this Mac has.
+func glassView(cornerRadius: CGFloat, material: NSVisualEffectView.Material = .hudWindow) -> NSView {
+    if #available(macOS 26, *) {
+        let glass = NSGlassEffectView()
+        glass.cornerRadius = cornerRadius
+        glass.tintColor = glassTint
+        glass.appearance = NSAppearance(named: .darkAqua)
+        return glass
     }
+    let view = NSVisualEffectView()
+    view.material = material
+    view.blendingMode = .behindWindow
+    view.state = .active
+    view.appearance = NSAppearance(named: .darkAqua)
+    view.wantsLayer = true
+    view.layer?.cornerRadius = cornerRadius
+    view.layer?.masksToBounds = true
+    // The edge light glass has, which the frosted material alone does not draw.
+    view.layer?.borderWidth = 1
+    view.layer?.borderColor = NSColor.white.withAlphaComponent(0.14).cgColor
+    return view
 }
 
 /// The filled blue button, for the one thing a screen asks you to do.

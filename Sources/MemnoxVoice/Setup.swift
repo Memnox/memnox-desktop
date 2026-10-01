@@ -108,7 +108,7 @@ struct SetupView: View {
     var body: some View {
         ZStack {
             Glass(material: .hudWindow)
-            Memnox.Palette.background.opacity(0.55)
+            Memnox.Palette.background.opacity(0.35)
             VStack(alignment: .leading, spacing: 0) {
                 header
                     .padding(.bottom, 22)
@@ -255,10 +255,10 @@ private struct OrbMark: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(RadialGradient(colors: [Memnox.Palette.ember, Memnox.Palette.rose, .clear], center: .center, startRadius: 2, endRadius: 30))
+                .fill(RadialGradient(colors: [Memnox.Palette.sky, Memnox.Palette.deep, .clear], center: .center, startRadius: 2, endRadius: 30))
                 .blur(radius: 6)
             Circle()
-                .fill(LinearGradient(colors: [Memnox.Palette.ember, Memnox.Palette.rose], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(LinearGradient(colors: [Memnox.Palette.sky, Memnox.Palette.deep], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: 22, height: 22)
         }
         .frame(width: 52, height: 52)

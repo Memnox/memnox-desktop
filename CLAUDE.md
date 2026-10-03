@@ -1,6 +1,6 @@
 # memnox-macos
 
-The Mac voice of Memnox: the orb, the pill, the microphone, the speaker and Touch ID. The
+The Mac voice of Memnox: the notch island and its orb, the microphone, the speaker and Touch ID. The
 conventions in `../CLAUDE.md` (copy with no dashes, one-line commits, the author) apply here
 and this file only adds to them. `VISION.md` is a verbatim copy of `memnox-runtime/VISION.md`.
 
@@ -25,7 +25,7 @@ since saying no can do no harm. A confirmed proposal carries a Secure Enclave si
 | Path | Holds |
 |---|---|
 | `Sources/MemnoxVoiceCore` | the protocol, the socket link, sentences and captions, the confirmation key, and `Conversation`, which decides what to say and when. No AppKit, so it is tested headless. |
-| `Sources/MemnoxVoice` | AppKit and Metal: the orb, the pill, audio in and out, the hotkey, the menu bar item. |
+| `Sources/MemnoxVoice` | AppKit, SwiftUI and Metal: the notch island, the orb, audio in and out, the hotkey, the menu bar item. |
 | `Tests/MemnoxVoiceCoreTests` | XCTest against a scripted daemon, a recording speaker and face, and a software key. |
 | `Support/Info.plist` | the usage descriptions macOS shows before it grants the microphone and speech. |
 

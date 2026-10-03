@@ -1,0 +1,50 @@
+name: Idea or feature
+description: Something the app could do, or do better.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The app is a face, a voice and a Touch ID button over the Memnox daemon. An idea that needs a new rule or policy belongs in memnox-runtime, and is still welcome here so we can point it the right way.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you were trying to do, and what got in the way. The problem matters more than the solution.
+      placeholder: When three agents finish at once I hear three notices back to back and lose track.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+      description: How it would work for you. Something you would say, something you would see, or both.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Other ways you thought of
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Where you think it lives
+      description: A guess is fine. [docs/ARCHITECTURE.md](../blob/main/docs/ARCHITECTURE.md) explains the layers.
+      options:
+        - Domain, a rule about what to say or when
+        - Application, a new step in a conversation
+        - Presentation, something on screen
+        - Platform, the microphone, speaker, keyboard or another app
+        - The daemon protocol, shared with memnox-runtime
+        - Not sure
+
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Helping build it
+      options:
+        - label: I would like to open the pull request for this myself.

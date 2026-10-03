@@ -1,0 +1,84 @@
+name: Bug report
+description: Something the app did that it should not have, or did not do that it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time. A clear report is often half the fix.
+
+        **Is it a security issue?** Please do not file it here. Report it privately as [SECURITY.md](../blob/main/SECURITY.md) describes.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw or heard, and what you expected instead.
+      placeholder: I said "open the one fixing checkout" and the island opened the wrong session.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      description: The fewest steps that show it. Say which agents were running and in which app.
+      placeholder: |
+        1. Run two Claude Code sessions in iTerm
+        2. Press Option Space and say "open the one fixing checkout"
+        3. The other session's tab comes forward
+    validations:
+      required: true
+
+  - type: textarea
+    id: diary
+    attributes:
+      label: What happened, from the app
+      description: Click the waveform in the menu bar, choose **Copy what happened**, and paste it here. Remove anything private first.
+      render: text
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: macOS 26.1
+    validations:
+      required: true
+
+  - type: input
+    id: build
+    attributes:
+      label: App build
+      description: The commit you built from (`git rev-parse --short HEAD`), or the release you installed.
+      placeholder: 2468ceb
+    validations:
+      required: true
+
+  - type: input
+    id: runtime
+    attributes:
+      label: Memnox runtime version
+      description: The daemon the app was talking to.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where it shows up
+      options:
+        - The island or the orb
+        - Listening or the wake word
+        - The voice or Kokoro
+        - Touch ID or an approval
+        - Typing into another app or opening a window
+        - Setup or the menu bar
+        - Not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you send it
+      options:
+        - label: I searched the open issues and this is not one of them.
+          required: true

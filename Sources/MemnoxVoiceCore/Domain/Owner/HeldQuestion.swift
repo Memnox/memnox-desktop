@@ -1,7 +1,7 @@
 import Foundation
 
 /// The first name of the account's full name, which is what setup offers before asking.
-public func suggestedName(fullName: String = NSFullUserName()) -> String {
+public func suggestedName(fullName: String) -> String {
     fullName.split(separator: " ").first.map(String.init) ?? fullName
 }
 

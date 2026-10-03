@@ -40,7 +40,7 @@ final class SetupModel: ObservableObject {
         self.conversation = conversation
         self.voice = voice
         self.finished = finished
-        name = owner.name ?? suggestedName()
+        name = owner.name ?? suggestedName(fullName: NSFullUserName())
         voices = Voice.englishVoices()
         voiceId = voice.identifier ?? voices.first?.identifier ?? ""
         catchUp = UserDefaults.standard.object(forKey: SetupModel.catchUpKey) as? Bool ?? true

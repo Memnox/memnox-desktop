@@ -93,7 +93,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSLog("Memnox: no confirmation key, so allows stay in the terminal: \(error)")
             key = RefusingKey()
         }
-        conversation = Conversation(link: link, speaker: voice, key: key, face: panel, owner: owner, presenter: presenter, chimes: chimes)
+        conversation = Conversation(
+            link: link, speaker: voice, key: key, face: panel, owner: owner, presenter: presenter, chimes: chimes,
+            address: { chosenAddress() }
+        )
         presenter.livePanel.fetch = { [weak self] session in await self?.conversation.sessionView(session) }
         presenter.sessions = { [weak self] in await self?.conversation.sessionsList() ?? [] }
         presenter.orbFrame = { [weak self] in self?.panel.orbFrame }

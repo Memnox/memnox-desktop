@@ -52,6 +52,8 @@ public final class Conversation {
     private let now: () -> Date
     /// The Mac's major version, taken in init so a test can name the System Settings pane of either release.
     private let macOSMajorVersion: Int
+    /// How the person asked to be addressed, read through a closure so the composition root owns the file and tests choose it.
+    private let address: () -> String?
     /// Said when the daemon is older than the app, which is the one fix a person can make.
     static let tooOld = "The Memnox running on this Mac is older than this app, so it cannot answer yet. Update Memnox and ask me again."
     /// The operator tool the brain calls when the person is done talking.
@@ -75,7 +77,7 @@ public final class Conversation {
         let since = lastCalled.map { moment.timeIntervalSince($0) }
         lastCalled = moment
         let hour = Calendar.current.component(.hour, from: moment)
-        return wakeLines.line(address: chosenAddress(), hour: hour, sinceLastCall: since)
+        return wakeLines.line(address: address(), hour: hour, sinceLastCall: since)
     }
     /// Long enough to say "yes, go ahead" and have the brain propose it.
     static let answerWindow: TimeInterval = 120
@@ -90,9 +92,11 @@ public final class Conversation {
         chimes: Chimes? = nil,
         now: @escaping () -> Date = Date.init,
         macOSMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
+        address: @escaping () -> String? = { nil },
         fillers: [String] = ["One moment.", "Checking.", "Looking into it."]
     ) {
         self.now = now
+        self.address = address
         self.macOSMajorVersion = macOSMajorVersion
         self.fillers = fillers
         self.link = link

@@ -172,12 +172,15 @@ private func wordsIn(_ text: String) -> [String] {
 }
 
 /// Whether a heard word is the voice's own, misheard: the same word, one inside the other, or a
-/// spelling a letter or a third away, since "the session's" comes back as "possession".
+/// spelling a third away, since "the session's" comes back as "possession". A short word counts
+/// only when it is the very word, because "so" is a letter from "to" and "them" holds "the", and
+/// fuzzy matching on those took the person's own words for its echo and talked on over them.
 private func isEcho(_ word: String, of said: [String]) -> Bool {
     said.contains { spoken in
         if spoken == word { return true }
-        if word.count >= 3, spoken.count >= 3, spoken.contains(word) || word.contains(spoken) { return true }
-        return editDistance(word, spoken) <= max(1, min(word.count, spoken.count) / 3)
+        guard word.count >= 4, spoken.count >= 4 else { return false }
+        if spoken.contains(word) || word.contains(spoken) { return true }
+        return editDistance(word, spoken) <= min(word.count, spoken.count) / 3
     }
 }
 

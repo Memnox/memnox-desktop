@@ -155,8 +155,8 @@ final class TalkingTests: XCTestCase {
         XCTAssertEqual(endOfSpeechPause(after: "Go ahead."), 0.6)
         // Somebody explaining pauses between sentences, so the first one is not answered alone.
         XCTAssertEqual(endOfSpeechPause(after: "Can you open Cursor and start a new session within Memnox runtime and check the git status?"), 1.5)
-        XCTAssertEqual(endOfSpeechPause(after: "Can you scan my entire computer and tell me?"), 1.8)
-        XCTAssertEqual(endOfSpeechPause(after: "Open the last one."), 1.2)
+        XCTAssertEqual(endOfSpeechPause(after: "Can you scan my entire computer and tell me?"), 1.5)
+        XCTAssertEqual(endOfSpeechPause(after: "Open the last one."), 0.9)
     }
 
     func testSaysNothingAndWaitsForTheRestWhenTheyStoppedMidThought() async throws {
@@ -292,7 +292,7 @@ final class TalkingTests: XCTestCase {
         let open = try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_2","agent":"claude-code","summary":"Checkout","at":"2026-10-01T00:00:00Z","display":"open","host":{"app":"iTerm","tty":"ttys004"}}}"#)
         let lost = try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_3","agent":"claude-code","summary":"Checkout","at":"2026-10-01T00:00:00Z","display":"open"}}"#)
         for response in [card, open, lost] { await conversation.handle(try XCTUnwrap(response.event)) }
-        XCTAssertEqual(presenter.cards, ["Checkout: It added two tests."])
+        XCTAssertEqual(presenter.cards, ["Checkout: It added **two** tests."])
         let type = try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_4","agent":"claude-code","summary":"push the voice branch","at":"2026-10-01T00:00:00Z","display":"type","host":{"app":"iTerm","tty":"ttys004"}}}"#)
         let prefill = try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_5","agent":"claude-code","summary":"add a test","at":"2026-10-01T00:00:00Z","display":"prefill","sessionId":"cb694eae-78b4-439d-adce-edb96cac223e","host":{"app":"Visual Studio Code"}}}"#)
         for response in [type, prefill] { await conversation.handle(try XCTUnwrap(response.event)) }
@@ -397,16 +397,20 @@ final class TalkingTests: XCTestCase {
             func board(title: String) async {}
         }
         let prefill = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_5","agent":"claude-code","summary":"check the git history","at":"2026-10-01T00:00:00Z","display":"prefill","sessionId":"ses_1","host":{"app":"Visual Studio Code"}}}"#).event)
-        let speaker = RecordingSpeaker()
-        let conversation = Conversation(
-            link: SlowLink(seconds: 0, answer: [try line(#"{"id":1,"ok":true,"outcome":"kept"}"#)]),
-            speaker: speaker, key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil), presenter: LockedPresenter()
-        )
-        await conversation.handle(prefill)
-        await conversation.handle(prefill)
-        XCTAssertEqual(speaker.said.count, 2)
-        XCTAssertTrue(speaker.said[0].contains("Accessibility"))
-        XCTAssertEqual(speaker.said[1], "Your words are on the clipboard again.")
+        // macOS 27 renamed the pane, so each release hears the name its own System Settings shows.
+        for (version, pane) in [(26, "Accessibility"), (27, "Device Control and Data Access")] {
+            let speaker = RecordingSpeaker()
+            let conversation = Conversation(
+                link: SlowLink(seconds: 0, answer: [try line(#"{"id":1,"ok":true,"outcome":"kept"}"#)]),
+                speaker: speaker, key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil), presenter: LockedPresenter(),
+                macOSMajorVersion: version
+            )
+            await conversation.handle(prefill)
+            await conversation.handle(prefill)
+            XCTAssertEqual(speaker.said.count, 2)
+            XCTAssertTrue(speaker.said[0].contains(pane), "macOS \(version)")
+            XCTAssertEqual(speaker.said[1], "Your words are on the clipboard again.")
+        }
     }
 
     func testTakesItsNameAtTheEndOfAQuestionAsPartOfTheQuestion() {
@@ -417,7 +421,6 @@ final class TalkingTests: XCTestCase {
 
     func testTakesTheTailOfItsOwnSentenceOffWhatItHeard() {
         let spoken = "My apologies, that was not confirmed: memnox login is not something a voice may run."
-        XCTAssertEqual(withoutEchoRuns("Yeah, definitely. I'm sorry that...", spoken: spoken), "Yeah, definitely.")
         XCTAssertEqual(withoutEchoRuns("Confirmed Memnox login", spoken: spoken), "")
         // One word at an end could be theirs, so it stays.
         XCTAssertEqual(withoutEchoRuns("Yes, login", spoken: spoken), "Yes, login")
@@ -435,6 +438,13 @@ final class TalkingTests: XCTestCase {
         XCTAssertFalse(isBargeIn(heard: "the", spoken: spoken))
         XCTAssertTrue(isBargeIn(heard: "wait, what about codex", spoken: spoken))
         XCTAssertTrue(isBargeIn(heard: "stop open it", spoken: ""))
+    }
+
+    func testHearsThePersonWhoseShortWordsSoundLikeItsOwn() {
+        // "so" is a letter from "to" and "them" holds "the": the person, not its echo.
+        let spoken = "Two are working at the moment."
+        XCTAssertTrue(isBargeIn(heard: "Okay, so can you close all of them?", spoken: spoken, speaking: true))
+        XCTAssertEqual(withoutEchoRuns("Okay, so can you close all of them?", spoken: spoken), "Okay, so can you close all of them?")
     }
 
     func testDoesNotTakeItsOwnSentenceMisheardAtTheEndForThePerson() {

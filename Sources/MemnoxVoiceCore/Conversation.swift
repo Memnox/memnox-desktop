@@ -169,6 +169,8 @@ public final class Conversation {
     /// When the first sentence of the answer was ready to speak, for the trace of this turn.
     private var firstSentenceAt: Date?
     private let now: () -> Date
+    /// The Mac's major version, taken in init so a test can name the System Settings pane of either release.
+    private let macOSMajorVersion: Int
     /// Said when the daemon is older than the app, which is the one fix a person can make.
     static let tooOld = "The Memnox running on this Mac is older than this app, so it cannot answer yet. Update Memnox and ask me again."
     /// The operator tool the brain calls when the person is done talking.
@@ -204,9 +206,11 @@ public final class Conversation {
         presenter: Presenter? = nil,
         chimes: Chimes? = nil,
         now: @escaping () -> Date = Date.init,
+        macOSMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
         fillers: [String] = ["One moment.", "Checking.", "Looking into it."]
     ) {
         self.now = now
+        self.macOSMajorVersion = macOSMajorVersion
         self.fillers = fillers
         self.link = link
         self.speaker = speaker
@@ -597,8 +601,16 @@ public final class Conversation {
         defer { toldHowToAllow = true }
         return toldHowToAllow
             ? "Your words are on the clipboard again."
-            : "I am not permitted to type yet. Turn on Memnox under Accessibility in System Settings, Privacy and Security. Meanwhile your words are on the clipboard."
+            : "I am not permitted to type yet. In System Settings, Privacy and Security, \(Self.typingPane(macOSMajorVersion: macOSMajorVersion)), switch Memnox on, or off and on again if it already is. Your words are on the clipboard meanwhile."
     }
+
+    /// Where macOS lists the apps that may press keys: renamed in macOS 27, and a grant left from an
+    /// earlier build shows as on there while doing nothing, which only switching it off and on clears.
+    static func typingPane(macOSMajorVersion: Int) -> String {
+        macOSMajorVersion >= typingPaneRenamedIn ? "Device Control and Data Access" : "Accessibility"
+    }
+    /// The first macOS release that calls the typing pane Device Control and Data Access.
+    static let typingPaneRenamedIn = 27
 
     /// A proposal to let something happen: Touch ID signs exactly this one, or it is declined.
     private func confirm(_ event: DaemonEvent) async {

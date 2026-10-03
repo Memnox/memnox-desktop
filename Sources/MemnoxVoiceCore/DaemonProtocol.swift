@@ -380,7 +380,7 @@ public struct DaemonEvent: Decodable, Equatable {
     /// On a card: the files the session changed and a few of the changed lines.
     public let files: [CardFile]?
     public let excerpt: CardExcerpt?
-    /// On a notice: finished, committed or pushed.
+    /// On a notice: finished, committed, pushed, watched, question, ended or collision.
     public let notice: String?
     /// The session it is about, which an editor needs to open the right conversation.
     public let sessionId: String?

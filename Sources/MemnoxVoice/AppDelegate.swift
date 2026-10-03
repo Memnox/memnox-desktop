@@ -261,8 +261,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
-        // Something they asked to be told about, or an agent waiting on their answer, is said whatever the setting.
-        let mustSay = event.notice == "watched" || event.notice == "question"
+        // Something they asked to be told about, an agent waiting on their answer, or two agents on one piece of work, is said whatever the setting.
+        let mustSay = event.notice == "watched" || event.notice == "question" || event.notice == "collision"
         if event.eventKind == .notice, !mustSay, !UserDefaults.standard.bool(forKey: Self.speakUpKey) { return }
         enqueue { [self] in
             if event.eventKind == .settled {
@@ -273,7 +273,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
             let cutIn = await overVoice { [conversation] in await conversation?.handle(event) }
             // Only a question waiting on their answer keeps the microphone open; news is said and the orb goes back to sleep.
-            if cutIn != nil || event.eventKind == .held || event.notice == "question" {
+            if cutIn != nil || event.eventKind == .held || event.notice == "question" || event.notice == "collision" {
                 await converse(opening: cutIn ?? "")
             } else {
                 audio.stop()

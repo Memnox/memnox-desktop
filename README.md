@@ -152,8 +152,10 @@ and "Very well. It is done.", live in this app.
   read back to you, and after your yes it brings the agent's own iTerm or Terminal tab, or its
   VS Code conversation, to the front and types your words into its prompt a key at a time,
   then sends them. Click into another app while it types and it stops and leaves the words on
-  the clipboard. Typing needs Memnox allowed under **Privacy & Security > Accessibility**; the
-  Mac asks once. The voice only says the agent has started once the Mac reports that the words
+  the clipboard. Typing needs Memnox allowed under **Privacy & Security > Accessibility**, called
+  **Device Control and Data Access** from macOS 27; the Mac asks once. A build signed ad hoc is a
+  new app to macOS, so the switch can show on and still refuse: switch it off and on again, or
+  run `scripts/signing-setup.sh` once so later builds keep it. The voice only says the agent has started once the Mac reports that the words
   landed.
 - **It tells you when.** "Tell me when the tests pass", "let me know if it gets stuck" or "shout
   when Claude is done" sets a one-time watch, and it speaks up when it happens, even with

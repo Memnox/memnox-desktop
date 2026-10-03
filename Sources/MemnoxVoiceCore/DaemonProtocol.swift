@@ -15,6 +15,12 @@ public enum DaemonMethod: String {
     case brief
     case warm
     case vocabulary
+    case sessionView = "session-view"
+    case sessionsList = "sessions-list"
+    /// Whether an instruction the app was asked to type landed, so the brain never says it did when it did not.
+    case delivered
+    /// The app's own timings for the question just answered, so one trace shows the whole answer.
+    case trace
 }
 
 public enum EventKind: String {
@@ -22,6 +28,250 @@ public enum EventKind: String {
     case proposal
     case paused
     case settled
+    /// The person asked to see a session: its window brought forward, or its summary on a card.
+    case show
+    /// Worth saying unasked: a session finished, committed or pushed.
+    case notice
+}
+
+/// How a show event wants to be shown.
+public enum Display: String {
+    case open
+    case card
+    /// Type the person's confirmed instruction into the terminal tab the agent waits in.
+    case type
+    /// Open the session in its editor with the instruction in its input, for the person to send.
+    case prefill
+    /// Turn through the sessions to this one and bring its own terminal tab or editor forward.
+    case focus
+    /// Open a new terminal tab in a repository and type the line that starts an agent there.
+    case launch
+    /// A card that pages through a session's changed files while the voice walks through them.
+    case walk
+    /// The whole screen: every agent on this Mac, from a live scan, with what each reaches.
+    case agents
+    /// A trace drawn as a waterfall: what ran, inside what, for how long, and what failed.
+    case trace
+    /// Every session lately as a card of its own, together, read at a glance.
+    case sessions
+    /// Close the live window on the session and its own terminal tab, which ends the agent there.
+    case close
+    /// Every Memnox card and window off the screen, with every agent and its tab left alone.
+    case dismiss
+}
+
+/// Where a session runs, as its hook saw it: the app, its terminal tab and its folder.
+/// A session as one card in the switcher: who, on what, in what state, and where it runs.
+public struct SessionCard: Decodable, Equatable, Identifiable {
+    public let sessionId: String
+    /// Which agent it is, such as claude-code; absent from a daemon older than the field.
+    public let agent: String?
+    public let agentName: String
+    public let task: String?
+    public let state: String
+    public let thinking: Bool
+    public let repository: String?
+    public let runningIn: String?
+    public let lastActive: String?
+    public let host: DisplayHost?
+
+    public var id: String { sessionId }
+
+    public init(sessionId: String, agent: String? = nil, agentName: String, task: String? = nil, state: String, thinking: Bool = false,
+                repository: String? = nil, runningIn: String? = nil, lastActive: String? = nil, host: DisplayHost? = nil) {
+        self.sessionId = sessionId
+        self.agent = agent
+        self.agentName = agentName
+        self.task = task
+        self.state = state
+        self.thinking = thinking
+        self.repository = repository
+        self.runningIn = runningIn
+        self.lastActive = lastActive
+        self.host = host
+    }
+}
+
+/// One thing a session did, as the live window lists it.
+public struct SessionViewStep: Decodable, Equatable {
+    public let at: String
+    public let surface: String
+    public let text: String
+    public let failed: Bool?
+    public let refused: Bool?
+}
+
+/// A session as it is right now: what it is on, what it just did, and what it changed.
+public struct SessionView: Decodable, Equatable {
+    public let sessionId: String
+    public let agent: String
+    public let agentName: String
+    public let task: String?
+    public let state: String
+    public let thinking: Bool
+    public let repository: String?
+    public let runningIn: String?
+    public let startedAt: String?
+    public let lastActive: String?
+    public let waitingOnYou: Int
+    public let paused: String?
+    public let helpers: [String]
+    public let steps: [SessionViewStep]
+    public let files: [CardFile]
+    /// The changed lines of the file it changed most, so the code it is writing can be shown.
+    public let excerpt: CardExcerpt?
+    /// The conversation's latest lines, where the agent keeps a transcript Memnox can read.
+    public let conversation: [ConversationLine]?
+}
+
+/// A line of a session's conversation: what the person asked, what the agent said, or a tool it ran.
+public struct ConversationLine: Decodable, Equatable {
+    public let at: String
+    /// person, agent or tool.
+    public let who: String
+    public let text: String
+}
+
+/// A file on a summary card, with its lines added and removed; a binary file has no counts.
+public struct CardFile: Decodable, Equatable {
+    public let path: String
+    public let added: Int?
+    public let removed: Int?
+
+    public init(path: String, added: Int? = nil, removed: Int? = nil) {
+        self.path = path
+        self.added = added
+        self.removed = removed
+    }
+}
+
+/// A few changed lines of one file, so the card shows the code and not only its name.
+public struct CardExcerpt: Decodable, Equatable {
+    public let path: String
+    public let lines: [String]
+
+    public init(path: String, lines: [String]) {
+        self.path = path
+        self.lines = lines
+    }
+}
+
+/// One file of a walk through: what the voice says about it and the lines it is about.
+public struct WalkPage: Decodable, Equatable {
+    public let path: String
+    public let note: String
+    public let added: Int?
+    public let removed: Int?
+    public let lines: [String]
+
+    public init(path: String, note: String, added: Int? = nil, removed: Int? = nil, lines: [String] = []) {
+        self.path = path
+        self.note = note
+        self.added = added
+        self.removed = removed
+        self.lines = lines
+    }
+}
+
+/// A step the app timed, sent to hang on the trace of the question it belongs to.
+public struct MacSpan: Encodable, Equatable {
+    public let name: String
+    public let startAt: String
+    public let endAt: String
+    public let attributes: [String: Double]?
+
+    public init(name: String, startAt: String, endAt: String, attributes: [String: Double]? = nil) {
+        self.name = name
+        self.startAt = startAt
+        self.endAt = endAt
+        self.attributes = attributes
+    }
+}
+
+/// A trace as a waterfall: every step's place on the clock, how deep it sits, and how it ended.
+public struct TraceData: Decodable, Equatable {
+    public struct Row: Decodable, Equatable {
+        public let name: String
+        public let depth: Int
+        public let offsetMs: Double
+        public let durationMs: Double
+        public let status: String
+
+        public init(name: String, depth: Int, offsetMs: Double, durationMs: Double, status: String) {
+            self.name = name
+            self.depth = depth
+            self.offsetMs = offsetMs
+            self.durationMs = durationMs
+            self.status = status
+        }
+    }
+
+    public let totalMs: Double
+    public let rows: [Row]
+
+    public init(totalMs: Double, rows: [Row]) {
+        self.totalMs = totalMs
+        self.rows = rows
+    }
+}
+
+/// One agent on the scan screen: who it is and counted facts about what it reaches.
+public struct AgentNode: Decodable, Equatable, Identifiable {
+    public let id: String
+    /// The product, which picks its logo: claude-code, cursor, codex-cli, hermes.
+    public let kind: String
+    public let name: String
+    public let servers: Int
+    public let reaches: [String]
+    public let working: Int
+    public let open: Int
+    /// Each MCP server by name, with what the last scan heard it hold; absent from an older daemon.
+    public let mcp: [AgentServer]?
+    /// Command line tools signed in on this Mac that its shell can run.
+    public let clis: [String]?
+
+    public init(id: String, kind: String, name: String, servers: Int = 0, reaches: [String] = [], working: Int = 0, open: Int = 0,
+                mcp: [AgentServer]? = nil, clis: [String]? = nil) {
+        self.id = id
+        self.kind = kind
+        self.name = name
+        self.servers = servers
+        self.reaches = reaches
+        self.working = working
+        self.open = open
+        self.mcp = mcp
+        self.clis = clis
+    }
+}
+
+/// One MCP server on the scan screen; the counts are absent where no scan has asked it.
+public struct AgentServer: Decodable, Equatable {
+    public let name: String
+    public let tools: Int?
+    public let changing: Int?
+
+    public init(name: String, tools: Int? = nil, changing: Int? = nil) {
+        self.name = name
+        self.tools = tools
+        self.changing = changing
+    }
+}
+
+public struct DisplayHost: Decodable, Equatable, Sendable {
+    public let app: String?
+    public let appPath: String?
+    public let tty: String?
+    public let cwd: String?
+    /// The agent's own id for the conversation, which an editor's agent panel opens by.
+    public let conversation: String?
+
+    public init(app: String? = nil, appPath: String? = nil, tty: String? = nil, cwd: String? = nil, conversation: String? = nil) {
+        self.app = app
+        self.appPath = appPath
+        self.tty = tty
+        self.cwd = cwd
+        self.conversation = conversation
+    }
 }
 
 public enum ChunkKind: String {
@@ -37,11 +287,50 @@ public enum Briefing: String {
     case held
     case paused
     case back
+    case notice
+}
+
+/// How typing an instruction ended, mirrored from the runtime's DELIVERY.
+public enum Delivery: String {
+    case typed
+    /// It could not be typed safely, so the words were left on the clipboard.
+    case clipboard
+    case failed
+    /// Memnox is not allowed to press keys until the person turns it on under Accessibility; the words were left on the clipboard.
+    case notAllowed = "not-allowed"
+}
+
+/// What became of typing an instruction, and why when it did not land.
+public struct Typed: Equatable {
+    public let outcome: Delivery
+    public let reason: String?
+
+    public init(_ outcome: Delivery, _ reason: String? = nil) {
+        self.outcome = outcome
+        self.reason = reason
+    }
+
+    public static let landed = Typed(.typed)
 }
 
 public enum ProposalAnswer: String {
     case confirmed
     case declined
+}
+
+/// What a held call takes, the same three words `HOLD_ANSWER` in the runtime accepts from a voice or a button.
+public enum HoldAnswer: String, Sendable {
+    case once
+    case session
+    case deny
+}
+
+/// How answering a held call from the screen ended, so the island can show it without a voice.
+public enum HeldOutcome: Equatable, Sendable {
+    case answered
+    /// Touch ID was cancelled, so nothing was sent and the call is still waiting.
+    case cancelled
+    case failed(String)
 }
 
 public struct DaemonRequest: Encodable, Equatable {
@@ -52,10 +341,18 @@ public struct DaemonRequest: Encodable, Equatable {
     public var signature: String?
     public var point: String?
     public var said: String?
+    /// On ask: they were waited on for the rest and said nothing more, so `said` is the whole of it.
+    public var finished: Bool?
+    /// On ask: the words so far, sent at a pause so the answer can start before they are known to be done.
+    public var speculative: Bool?
     public var sessionId: String?
     public var owner: String?
     public var briefing: String?
     public var since: String?
+    /// On delivered: why typing did not land, in a few words.
+    public var reason: String?
+    /// On trace: the app's own steps for the question just answered.
+    public var spans: [MacSpan]?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -76,8 +373,26 @@ public struct DaemonEvent: Decodable, Equatable {
     public let why: String?
     public let task: String?
     public let place: String?
+    /// On a show event: open or card, its heading, and where the session runs.
+    public let display: String?
+    public let title: String?
+    public let host: DisplayHost?
+    /// On a card: the files the session changed and a few of the changed lines.
+    public let files: [CardFile]?
+    public let excerpt: CardExcerpt?
+    /// On a notice: finished, committed or pushed.
+    public let notice: String?
+    /// The session it is about, which an editor needs to open the right conversation.
+    public let sessionId: String?
+    /// On a walk card, one page per file, in the order the voice says them.
+    public let pages: [WalkPage]?
+    /// On the scan screen, every agent the scan found.
+    public let agents: [AgentNode]?
+    /// On a trace card, the waterfall to draw.
+    public let trace: TraceData?
 
     public var eventKind: EventKind? { EventKind(rawValue: kind) }
+    public var displayKind: Display? { display.flatMap(Display.init(rawValue:)) }
 }
 
 public struct AskChunk: Decodable, Equatable {
@@ -113,6 +428,10 @@ public struct DaemonResponse: Decodable, Equatable {
     public let outcome: String?
     public let location: DaemonLocation?
     public let words: [String]?
+    /// On session-view: the session as it is right now.
+    public let session: SessionView?
+    /// On sessions-list: the sessions lately, most recently active first.
+    public let sessions: [SessionCard]?
     public let error: String?
 }
 

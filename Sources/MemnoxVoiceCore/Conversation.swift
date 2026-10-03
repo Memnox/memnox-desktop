@@ -38,6 +38,82 @@ public protocol Speaker: AnyObject {
     func stop()
 }
 
+/// What puts a session in front of the person: its own window, or a card to read along with.
+public protocol Presenter: AnyObject {
+    /// Brings the session's window forward, and says whether it could.
+    func open(_ host: DisplayHost?) async -> Bool
+    /// A live window on the session, kept up to date while it is open, with a way to its own window.
+    func live(session: String, host: DisplayHost?) async
+    /// The session's own terminal tab or editor conversation, brought forward.
+    /// Says whether it came forward, so the voice never calls a window open that never appeared.
+    func focus(session: String, host: DisplayHost?) async -> Typed
+    func card(_ card: SummaryCard) async
+    /// Types an instruction into the agent's terminal prompt a key at a time and sends it; the request
+    /// is what an editor's extension reads the words from, since its link may carry none.
+    func type(_ text: String, into host: DisplayHost?, request: String) async -> Typed
+    /// Brings the conversation forward in its editor, types the instruction into its message box and sends it.
+    func prefill(_ text: String, session: String, host: DisplayHost?) async -> Typed
+    /// Opens a new terminal tab in the folder and types the line that starts an agent there.
+    func launch(_ command: String, in folder: String?) async -> Typed
+    /// A card that turns a page per file while the voice walks through the change.
+    func walk(_ walk: WalkCard) async
+    /// The whole screen: every agent on this Mac, with its logo and what it reaches.
+    func scan(_ agents: [AgentNode], title: String) async
+    /// A trace as a waterfall card: what ran, inside what, for how long, and what failed.
+    func trace(_ trace: TraceData, title: String) async
+    /// Every session as its own card, together; the app reads the sessions itself.
+    func board(title: String) async
+    /// Closes the live window on the session and its own terminal tab, and says whether the tab went;
+    /// the request is what an editor's extension checks its close link against.
+    func close(session: String, host: DisplayHost?, request: String) async -> Typed
+    /// Every card, live window, board and scan off the screen; no session is touched.
+    func dismissAll() async
+}
+
+extension Presenter {
+    public func close(session: String, host: DisplayHost?, request: String) async -> Typed {
+        Typed(.failed, "this Mac cannot close a session's tab")
+    }
+
+    public func dismissAll() async {}
+}
+
+/// A walk through a session's change: a heading and one page per file.
+public struct WalkCard: Equatable {
+    public let title: String
+    public let pages: [WalkPage]
+    public let sessionId: String?
+    public let host: DisplayHost?
+
+    public init(title: String, pages: [WalkPage], sessionId: String? = nil, host: DisplayHost? = nil) {
+        self.title = title
+        self.pages = pages
+        self.sessionId = sessionId
+        self.host = host
+    }
+}
+
+/// What a summary card shows: a heading, the summary being said, and the code behind it.
+public struct SummaryCard: Equatable {
+    public let title: String
+    public let text: String
+    public let files: [CardFile]
+    public let excerpt: CardExcerpt?
+    /// The session it summarises and where it runs, so a button on the card goes straight to it.
+    public let sessionId: String?
+    public let host: DisplayHost?
+
+    public init(title: String, text: String, files: [CardFile] = [], excerpt: CardExcerpt? = nil,
+                sessionId: String? = nil, host: DisplayHost? = nil) {
+        self.title = title
+        self.text = text
+        self.files = files
+        self.excerpt = excerpt
+        self.sessionId = sessionId
+        self.host = host
+    }
+}
+
 /// The orb and the pill, told what to show.
 public protocol Face: AnyObject {
     func show(_ state: VoiceState, caption: String)
@@ -52,13 +128,13 @@ public final class Conversation {
     private let key: ConfirmKey
     private let face: Face
     private let owner: OwnerStore
+    private let presenter: Presenter?
+    private let chimes: Chimes?
     private var nextId = 1
     /// The held call last asked about out loud, so an answer elsewhere can end the question.
     private var asking: String?
     /// Set when the person talks over an answer, so the rest of it is never said.
     private var interrupted = false
-    /// How long a person waits for a reply before a teammate would say "let me look".
-    private let fillerAfter: TimeInterval
     private let fillers: [String]
     /// Set as soon as any words of the answer are spoken, so the filler never talks over them.
     private var answering = false
@@ -67,11 +143,55 @@ public final class Conversation {
     private var fillerSpoke = false
     /// Only while answering the person, since "one sec" before a held call or a catch up sounds wrong.
     private var mayFill = false
+    /// Set when the brain said the person is done, so the orb closes after this reply instead of listening on.
+    private var ending = false
+    /// Set when the brain said the person has not finished, so the orb waits longer for the rest.
+    private var holding = false
+
+    /// Whether the last turn was the brain waiting for the rest of what they were saying, read once.
+    public func takeHold() -> Bool {
+        defer { holding = false }
+        return holding
+    }
+
+    /// Whether any words of the reply were said this turn, beyond a "let me look".
+    public var spokeThisTurn: Bool { answering }
+
+    /// Whether the last reply ended the conversation, read once.
+    public func takeEnd() -> Bool {
+        defer { ending = false }
+        return ending
+    }
     /// When the person last said something, since an allow may only follow their own words.
     private var lastHeard: Date?
+    /// When their last word was recognised, set by whoever listened, so the wait for the end is timed.
+    public var lastWordAt: Date?
+    /// When the first sentence of the answer was ready to speak, for the trace of this turn.
+    private var firstSentenceAt: Date?
     private let now: () -> Date
     /// Said when the daemon is older than the app, which is the one fix a person can make.
     static let tooOld = "The Memnox running on this Mac is older than this app, so it cannot answer yet. Update Memnox and ask me again."
+    /// The operator tool the brain calls when the person is done talking.
+    static let endTool = "end_conversation"
+    /// The operator tool the brain calls when the person paused mid thought.
+    static let holdTool = "keep_listening"
+    /// Tools that act and answer with a read back at once, where "let me check" would be the wrong words.
+    static let actingTools: Set<String> = [
+        "start_session", "send_instruction", "watch_for", "pause_session", "show", "walk_through",
+    ]
+    /// Said back when the person calls it, the way somebody looks up from their desk.
+    public var wakeLines = WakeLines()
+    /// When it was last called, so the first call in a while is greeted for the hour.
+    private var lastCalled: Date?
+
+    /// The line for being called now: a greeting for the hour the first time in a while, a word or two after.
+    public func answerToCall() -> String {
+        let moment = now()
+        let since = lastCalled.map { moment.timeIntervalSince($0) }
+        lastCalled = moment
+        let hour = Calendar.current.component(.hour, from: moment)
+        return wakeLines.line(address: chosenAddress(), hour: hour, sinceLastCall: since)
+    }
     /// Long enough to say "yes, go ahead" and have the brain propose it.
     static let answerWindow: TimeInterval = 120
 
@@ -81,23 +201,37 @@ public final class Conversation {
         key: ConfirmKey,
         face: Face,
         owner: OwnerStore,
+        presenter: Presenter? = nil,
+        chimes: Chimes? = nil,
         now: @escaping () -> Date = Date.init,
-        fillerAfter: TimeInterval = 2.0,
-        fillers: [String] = ["Let me look.", "One sec.", "Let me check."]
+        fillers: [String] = ["One moment.", "Checking.", "Looking into it."]
     ) {
         self.now = now
-        self.fillerAfter = fillerAfter
         self.fillers = fillers
         self.link = link
         self.speaker = speaker
         self.key = key
         self.face = face
         self.owner = owner
+        self.presenter = presenter
+        self.chimes = chimes
     }
 
     /// The names this machine uses, from the daemon, for the recognizer to listen for.
     public func vocabulary() async -> [String] {
         (try? await link.request(newRequest(.vocabulary)))?.words ?? []
+    }
+
+    /// A session as it is right now, for the live window on it; nil when the daemon does not know it.
+    public func sessionView(_ sessionId: String) async -> SessionView? {
+        var request = newRequest(.sessionView)
+        request.sessionId = sessionId
+        return (try? await link.request(request))?.session
+    }
+
+    /// The sessions lately, most recently active first, for the switcher to turn through.
+    public func sessionsList() async -> [SessionCard] {
+        (try? await link.request(newRequest(.sessionsList)))?.sessions ?? []
     }
 
     /// The person started talking: the brain starts now, so the answer skips its cold start.
@@ -130,40 +264,82 @@ public final class Conversation {
         }
     }
 
-    /// What the person said, whole. No keyword decides anything here.
-    public func heard(_ said: String) async {
-        let words = said.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// The words so far at a pause, sent the way `heard` would send them so the daemon can start
+    /// the answer now and hand it over the moment `heard` arrives with the same words. Nothing of
+    /// it is said or done before then, so a guess the person talks past costs nothing but the try.
+    public func guess(_ said: String) async {
+        let trimmed = said.trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = withoutLeadingName(trimmed)
+        guard words.contains(where: \.isLetter), !nameAlone(trimmed) else { return }
+        var request = newRequest(.ask)
+        request.said = withUnsent(words)
+        request.speculative = true
+        _ = try? await link.request(request)
+    }
+
+    /// What the person said, whole. No keyword decides anything here. `finished` says the brain
+    /// held for the rest and none came, so it answers what it has rather than waiting again.
+    public func heard(_ said: String, finished: Bool = false) async {
+        let trimmed = said.trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = withoutLeadingName(trimmed)
         // A lone "." is the recognizer hearing noise, and answering it makes the voice talk to nobody.
         guard words.contains(where: \.isLetter) else { return }
         interrupted = false
         lastHeard = now()
+        // Its name alone is somebody getting its attention, answered the way the wake word is.
+        if nameAlone(trimmed) {
+            diary.note("heard my name alone: \(trimmed)")
+            await say(answerToCall())
+            face.show(.listening, caption: "")
+            return
+        }
         diary.note("heard: \(words)")
+        chimes?.play(.sent)
         face.show(.thinking, caption: caption(words))
         var request = newRequest(.ask)
-        request.said = words
+        request.said = withUnsent(words)
+        if finished { request.finished = true }
         answering = false
-        let filler = filledLastTurn ? nil : fillerTask()
         mayFill = true
+        let askedAt = now()
+        firstSentenceAt = nil
         let told = await speakStream(request)
+        await reportTimings(askedAt: askedAt, spokeUntil: lastWordAt)
         mayFill = false
-        filler?.cancel()
         filledLastTurn = fillerSpoke
         fillerSpoke = false
-        if told == .unreachable { await say("I cannot reach Memnox on this Mac right now.") }
+        // Heard before the apology starts, so a broken turn never sounds like a slow one.
+        if told != .spoke, told != .silent { chimes?.play(.failed) }
+        // Kept for the next question, so "why?" after Memnox was unreachable still has its thread.
+        unsent = told == .spoke || told == .silent ? nil : (words, now())
+        if told == .unreachable { await say("My apologies, I cannot reach Memnox on this Mac at the moment.") }
         if case .refused(let error) = told {
-            await say(error == Self.tooOld ? error : "I could not ask: \(error).")
+            await say(error == Self.tooOld ? error : "My apologies, I could not ask that: \(error).")
         }
         face.show(.listening, caption: "")
     }
 
-    /// Welcome back: what happened while they were away, told by their own brain.
-    public func welcomeBack(since: Date) async {
+    /// What they said while Memnox could not be reached, and when.
+    private var unsent: (String, Date)?
+
+    /// Their words, after what never reached the brain a moment ago, so the follow up makes sense.
+    private func withUnsent(_ words: String) -> String {
+        guard let missed = unsent, now().timeIntervalSince(missed.1) < 120 else { return words }
+        unsent = nil
+        return "Just before, Memnox could not be reached when they said: \"\(missed.0)\". Now they say: \(words)"
+    }
+
+    /// Welcome back: what waits on them, told by their own brain, and false when nothing does.
+    @discardableResult
+    public func welcomeBack(since: Date) async -> Bool {
         interrupted = false
         face.show(.thinking, caption: "catching up")
         var request = newRequest(.brief)
         request.briefing = Briefing.back.rawValue
         request.since = ISO8601DateFormatter().string(from: since)
-        _ = await speakStream(request)
+        let told = await speakStream(request)
+        if told != .spoke { face.show(.idle, caption: "") }
+        return told == .spoke
     }
 
     /// How a streamed answer ended, so a brief that said nothing can fall back to the facts.
@@ -176,6 +352,8 @@ public final class Conversation {
 
     /// Streams a turn into speech, sentence by sentence, and says how it ended.
     private func speakStream(_ request: DaemonRequest) async -> Told {
+        streaming += 1
+        defer { streaming -= 1 }
         diary.note("sent \(request.method)")
         var sentences = SentenceSplitter()
         var spoke = false
@@ -209,18 +387,6 @@ public final class Conversation {
         return spoke ? .spoke : .silent
     }
 
-    /// A short "let me look" when the answer is slow, once, and never over the answer itself.
-    private func fillerTask() -> Task<Void, Never> {
-        let delay = fillerAfter
-        let words = fillers.randomElement()
-        return Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            guard !Task.isCancelled, let self, !self.answering, !self.fillerSpoke, !self.interrupted, let words else { return }
-            self.fillerSpoke = true
-            await self.speaker.speak(words)
-        }
-    }
-
     private func newRequest(_ method: DaemonMethod) -> DaemonRequest {
         var request = DaemonRequest(id: takeId(), method: method)
         request.owner = owner.name
@@ -238,12 +404,25 @@ public final class Conversation {
     private func play(_ chunk: AskChunk, into sentences: inout SentenceSplitter) async throws -> Bool {
         switch chunk.chunkKind {
         case .text:
+            // After keep_listening nothing more is said this turn, since anything would talk over them.
+            guard !holding else { break }
             for sentence in sentences.push(chunk.text ?? "") where !interrupted { flow(sentence) }
         case .tool:
             // Whatever came before a tool call is a sentence on its own, even with no space after its "?".
             if let rest = sentences.flush(), !interrupted { flow(rest) }
+            // The brain's own call, not the person's words, says they are done.
+            if toolWord(chunk.tool) == Self.endTool {
+                ending = true
+                return false
+            }
+            // They are mid thought: nothing is said, so nothing talks over the rest of it.
+            if toolWord(chunk.tool) == Self.holdTool {
+                holding = true
+                return false
+            }
             // Looking something up takes seconds, so say so the moment it starts rather than on a timer.
-            if mayFill, !answering, !fillerSpoke, !filledLastTurn, !interrupted, let words = fillers.randomElement() {
+            let acting = toolWord(chunk.tool).hasPrefix("propose_") || Self.actingTools.contains(toolWord(chunk.tool))
+            if mayFill, !acting, !answering, !fillerSpoke, !filledLastTurn, !interrupted, let words = fillers.randomElement() {
                 fillerSpoke = true
                 speaker.queue(words)
             }
@@ -252,8 +431,11 @@ public final class Conversation {
             if let rest = sentences.flush() { await say(rest) }
             await say("Your plan has reached its limit, so I could not finish that.")
         case .failed:
+            // A turn the person cut short was stopped on purpose, so it is not reported as broken.
+            guard !interrupted else { break }
+            chimes?.play(.failed)
             if let rest = sentences.flush() { await say(rest) }
-            await say("That did not work: \(chunk.text ?? "the brain stopped").")
+            await say("My apologies, that did not work: \(chunk.text ?? "the brain stopped").")
         case .done, .cancelled, .none:
             break
         }
@@ -269,9 +451,10 @@ public final class Conversation {
             var request = newRequest(.brief)
             request.briefing = Briefing.held.rawValue
             request.subject = event.subject
+            chimes?.play(.held)
             face.show(.thinking, caption: "\(event.agentName ?? event.agent) needs you")
             // Told by their own brain with what the session has been doing; the facts alone if it cannot.
-            if await speakStream(request) != .spoke {
+            if await speakStream(request) != .spoke, !interrupted {
                 await say(heldQuestion(owner: owner.name, event: event))
             }
             let who = event.agentName ?? event.agent
@@ -279,26 +462,142 @@ public final class Conversation {
         case .proposal:
             // Only after the person spoke: an allow nobody asked for is left alone, not put to Touch ID.
             if let heard = lastHeard, now().timeIntervalSince(heard) < Self.answerWindow {
+                // The read back says what the sensor is for, so the sheet waits until it has been said.
+                await untilQuiet()
                 await confirm(event)
             } else {
                 await decline(event)
             }
         case .paused:
+            interrupted = false
             var request = newRequest(.brief)
             request.briefing = Briefing.paused.rawValue
             request.subject = event.subject
-            if await speakStream(request) != .spoke {
+            if await speakStream(request) != .spoke, !interrupted {
                 await say("I paused a session: \(event.summary).")
             }
+        case .show:
+            await show(event)
+        case .notice:
+            interrupted = false
+            var request = newRequest(.brief)
+            request.briefing = Briefing.notice.rawValue
+            request.subject = event.subject
+            face.show(.thinking, caption: caption(event.agentName ?? event.agent))
+            // In its own words when it can; the plain fact when it cannot.
+            if await speakStream(request) != .spoke, !interrupted { await say(event.summary) }
         case .settled:
             if asking == event.subject {
                 asking = nil
                 speaker.stop()
+                chimes?.play(.settled)
                 face.show(.idle, caption: "answered elsewhere")
             }
         case .none:
             break
         }
+    }
+
+    /// A window or a card the person asked for, put up while the answer is still being said.
+    private func show(_ event: DaemonEvent) async {
+        guard let presenter else { return }
+        switch event.displayKind {
+        case .open:
+            if let session = event.sessionId {
+                await presenter.live(session: session, host: event.host)
+            } else if await !presenter.open(event.host) {
+                diary.note("could not open the window for \(event.subject)")
+                speaker.queue("My apologies, I could not bring its window forward.")
+            }
+        case .focus:
+            if let session = event.sessionId {
+                await shown(event, await presenter.focus(session: session, host: event.host))
+            }
+        case .type:
+            face.show(.thinking, caption: "typing it in")
+            await delivered(event, await presenter.type(event.summary, into: event.host, request: event.subject),
+                            otherwise: "My apologies, I could not type it into its terminal.")
+        case .prefill:
+            face.show(.thinking, caption: "typing it in")
+            let typed = await event.sessionId.asyncMap { await presenter.prefill(event.summary, session: $0, host: event.host) }
+            await delivered(event, typed ?? Typed(.failed, "no session to type into"),
+                            otherwise: typed?.outcome == .clipboard
+                                ? "My apologies, I could not type it in safely, so your words are on the clipboard. Press Command V, then Return, in its chat."
+                                : "My apologies, I could not type it into its chat.")
+        case .launch:
+            face.show(.thinking, caption: "starting it")
+            await delivered(event, await presenter.launch(event.summary, in: event.host?.cwd),
+                            otherwise: "My apologies, I could not start it.")
+        case .walk:
+            await presenter.walk(WalkCard(
+                title: event.title ?? "Walk through",
+                pages: (event.pages ?? []).map { WalkPage(path: $0.path, note: speakable($0.note), added: $0.added, removed: $0.removed, lines: $0.lines) },
+                sessionId: event.sessionId,
+                host: event.host
+            ))
+        case .agents:
+            await presenter.scan(event.agents ?? [], title: event.title ?? "Your agents")
+        case .trace:
+            if let trace = event.trace { await presenter.trace(trace, title: event.title ?? "Trace") }
+        case .sessions:
+            await presenter.board(title: event.title ?? "Your sessions")
+        case .close:
+            face.show(.thinking, caption: "closing it")
+            let closed = await event.sessionId.asyncMap { await presenter.close(session: $0, host: event.host, request: event.subject) }
+            await delivered(event, closed ?? Typed(.failed, "no session to close"),
+                            otherwise: "My apologies, I could not close its tab.")
+        case .dismiss:
+            await presenter.dismissAll()
+        case .card:
+            await presenter.card(SummaryCard(
+                title: event.title ?? "Session",
+                // Read, not heard, so the markdown stays for the card to lay out.
+                text: event.summary,
+                files: event.files ?? [],
+                excerpt: event.excerpt,
+                sessionId: event.sessionId,
+                host: event.host
+            ))
+        case .none:
+            break
+        }
+    }
+
+    /// Tells the brain whether a window came forward, with no sound, since the brain is the one to say it.
+    private func shown(_ event: DaemonEvent, _ typed: Typed) async {
+        if typed.outcome != .typed { diary.note("could not bring \(event.subject) forward: \(typed.reason ?? "no reason")") }
+        var request = newRequest(.delivered)
+        request.subject = event.subject
+        request.answer = typed.outcome.rawValue
+        request.reason = typed.reason
+        _ = try? await link.request(request)
+    }
+
+    /// Tells the brain waiting on it how typing went, so it says that rather than what it hoped.
+    /// Only a daemon too old to listen leaves a failure for the app to say itself.
+    private func delivered(_ event: DaemonEvent, _ typed: Typed, otherwise: String) async {
+        chimes?.play(typed.outcome == .typed ? .done : .failed)
+        if typed.outcome != .typed { diary.note("could not type for \(event.subject): \(typed.reason ?? typed.outcome.rawValue)") }
+        var request = newRequest(.delivered)
+        request.subject = event.subject
+        request.answer = typed.outcome.rawValue
+        request.reason = typed.reason
+        let heard = (try? await link.request(request))?.ok == true
+        let said = typed.outcome == .notAllowed ? notAllowedLine() : otherwise
+        if !heard, typed.outcome != .typed { speaker.queue(said) }
+        // The words on the clipboard need a hand from the person, so that one is always said.
+        if heard, typed.outcome == .clipboard || typed.outcome == .notAllowed { speaker.queue(said) }
+    }
+
+    /// Whether they have heard how to let Memnox type, so the second time is one short line rather than the whole of it.
+    private var toldHowToAllow = false
+
+    /// What to do about it in full the first time, since nothing they say can fix it, and after that only where the words are.
+    private func notAllowedLine() -> String {
+        defer { toldHowToAllow = true }
+        return toldHowToAllow
+            ? "Your words are on the clipboard again."
+            : "I am not permitted to type yet. Turn on Memnox under Accessibility in System Settings, Privacy and Security. Meanwhile your words are on the clipboard."
     }
 
     /// A proposal to let something happen: Touch ID signs exactly this one, or it is declined.
@@ -321,10 +620,65 @@ public final class Conversation {
         request.signature = signature
         let response = try? await link.request(request)
         if response?.ok == true {
-            await say(answerKind == .confirmed ? "Done." : "Left as it was.")
+            chimes?.play(answerKind == .confirmed ? .allowed : .declined)
+            await say(Self.afterConfirm(answerKind, outcome: response?.outcome))
         } else {
-            await say("That was not confirmed: \(response?.error ?? "Memnox did not answer").")
+            chimes?.play(.failed)
+            await say("My apologies, that was not confirmed: \(response?.error ?? "Memnox did not answer").")
         }
+    }
+
+    /// Replies streaming in now; a proposal arrives while its own read back is still being written.
+    private var streaming = 0
+
+    /// Waits for the reply in flight to finish and be said, bounded so a stuck stream never holds Touch ID back.
+    private func untilQuiet() async {
+        var checks = 0
+        while streaming > 0, checks < Self.quietChecks {
+            checks += 1
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        await speaker.drained()
+    }
+
+    /// Twenty seconds in tenths, longer than any read back takes to stream.
+    static let quietChecks = 200
+
+    /// A command still running on its own, like a login waiting on its browser page, is never called done.
+    static func afterConfirm(_ answer: ProposalAnswer, outcome: String?) -> String {
+        guard answer == .confirmed else { return "Very well. I have left it as it was." }
+        return outcome == "started"
+            ? "Very well. It is under way, and I will tell you if anything goes wrong."
+            : "Very well. It is done."
+    }
+
+    /// A held call answered with a button: a deny goes as it is, and an allow only with Touch ID over exactly this call.
+    public func answerHeld(_ subject: String, _ answer: HoldAnswer, reason: String) async -> HeldOutcome {
+        var request = newRequest(.confirm)
+        request.subject = subject
+        request.answer = answer.rawValue
+        if answer != .deny {
+            face.show(.needsYou, caption: caption("Touch ID to \(reason)"))
+            let signature = try? await key.sign(confirmationMessage(subject: subject, answer: answer.rawValue), reason: reason)
+            guard let signature else {
+                face.show(.idle, caption: "")
+                return .cancelled
+            }
+            request.signature = signature
+        }
+        let response = try? await link.request(request)
+        guard response?.ok == true else {
+            chimes?.play(.failed)
+            return .failed(response?.error ?? "Memnox did not answer")
+        }
+        // Answered by hand, so the voice stops asking rather than waiting on a reply that already came.
+        if asking == subject {
+            asking = nil
+            speaker.stop()
+        }
+        chimes?.play(answer == .deny ? .declined : .allowed)
+        face.show(.idle, caption: "")
+        return .answered
     }
 
     private func decline(_ event: DaemonEvent) async {
@@ -332,11 +686,34 @@ public final class Conversation {
         request.subject = event.subject
         request.answer = ProposalAnswer.declined.rawValue
         _ = try? await link.request(request)
-        await say("Something proposed an allow you did not ask for, so I left it as it was.")
+        chimes?.play(.declined)
+        await say("Something proposed an allow you did not ask for. I have declined it.")
+    }
+
+    /// The app's part of the answer, sent once it is spoken, so a trace shows where the seconds went:
+    /// waiting for the end of what they said, the answer arriving, and saying it.
+    private func reportTimings(askedAt: Date, spokeUntil: Date?) async {
+        let stamp = ISO8601DateFormatter()
+        stamp.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let done = now()
+        var spans: [MacSpan] = []
+        if let spoke = spokeUntil, spoke < askedAt {
+            spans.append(MacSpan(name: "waiting for the end", startAt: stamp.string(from: spoke), endAt: stamp.string(from: askedAt)))
+        }
+        if let first = firstSentenceAt {
+            spans.append(MacSpan(name: "first sentence ready", startAt: stamp.string(from: askedAt), endAt: stamp.string(from: first)))
+            spans.append(MacSpan(name: "speaking", startAt: stamp.string(from: first), endAt: stamp.string(from: done)))
+        }
+        guard !spans.isEmpty else { return }
+        var request = newRequest(.trace)
+        request.spans = spans
+        // Sent after the answer is spoken, and its failure ignored, so a trace never holds up the next question.
+        _ = try? await link.request(request)
     }
 
     /// A sentence of a streamed reply, queued so the reply is spoken as one run rather than line by line.
     private func flow(_ sentence: String) {
+        if firstSentenceAt == nil { firstSentenceAt = now() }
         answering = true
         let spoken = speakable(sentence)
         guard !spoken.isEmpty else { return }
@@ -366,4 +743,12 @@ public func speakable(_ text: String) -> String {
         spoken = spoken.replacingOccurrences(of: dash, with: ", ")
     }
     return spoken.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+}
+
+extension Optional {
+    /// The value mapped through async work, or nil without doing it.
+    func asyncMap<T>(_ transform: (Wrapped) async -> T) async -> T? {
+        guard let value = self else { return nil }
+        return await transform(value)
+    }
 }

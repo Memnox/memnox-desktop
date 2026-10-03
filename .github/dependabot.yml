@@ -1,0 +1,9 @@
+# The app has no package dependencies by rule, so the only versions to keep current are the CI actions.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(ci):"

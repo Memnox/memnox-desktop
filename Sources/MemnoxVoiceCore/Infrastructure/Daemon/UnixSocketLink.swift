@@ -100,7 +100,18 @@ private func connectUnix(_ path: String) throws -> Int32 {
         close(descriptor)
         throw ProtocolError.refused("the Memnox daemon is not running at \(path)")
     }
+    guard peerIsCurrentUser(descriptor) else {
+        close(descriptor)
+        throw ProtocolError.refused("the socket at \(path) belongs to another user, so it is not this person's Memnox")
+    }
     return descriptor
+}
+
+/// Only a daemon running as this same user may answer, because what it sends is spoken, shown and typed into the person's terminal.
+func peerIsCurrentUser(_ descriptor: Int32, user: uid_t = getuid()) -> Bool {
+    var peerUser: uid_t = 0
+    var peerGroup: gid_t = 0
+    return getpeereid(descriptor, &peerUser, &peerGroup) == 0 && peerUser == user
 }
 
 private func writeAll(_ descriptor: Int32, _ data: Data) throws {

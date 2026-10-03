@@ -142,3 +142,64 @@ struct Keycap: View {
             .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Memnox.Palette.border, lineWidth: 1))
     }
 }
+
+/// A card of dark glass: the desktop shows faintly through, lit along its top edge like a pane.
+struct GlassCard: View {
+    var cornerRadius: CGFloat
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius)
+        shape
+            .fill(.ultraThinMaterial)
+            .overlay(shape.fill(Color.white.opacity(0.04)))
+            .overlay(
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.18), Color.white.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+            )
+            .environment(\.colorScheme, .dark)
+    }
+}
+
+/// The Memnox mark from the console, white for the dark surfaces here and a template for the
+/// menu bar. Copied into the app by `scripts/bundle.sh`; the orb's dot stands in without it.
+enum MemnoxLogo {
+    static var white: NSImage? { Bundle.main.image(forResource: "memnox-mark-white") }
+
+    /// Drawn by macOS in the menu bar's own colour, light or dark, like every other icon there.
+    static var menuBar: NSImage? {
+        guard let image = Bundle.main.image(forResource: "memnox-mark-template") else { return nil }
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = true
+        return image
+    }
+}
+
+/// The mark with a soft blue glow behind it, so it sits on the glass like the orb does.
+struct LogoMark: View {
+    var size: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(RadialGradient(colors: [Memnox.Palette.deep.opacity(0.55), .clear], center: .center, startRadius: 1, endRadius: size * 0.8))
+                .frame(width: size * 1.6, height: size * 1.6)
+            if let logo = MemnoxLogo.white {
+                Image(nsImage: logo)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: size, height: size)
+            } else {
+                Circle()
+                    .fill(LinearGradient(colors: [Memnox.Palette.sky, Memnox.Palette.deep], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: size * 0.6, height: size * 0.6)
+            }
+        }
+        .frame(width: size * 1.6, height: size * 1.6)
+    }
+}

@@ -53,22 +53,31 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
               let encoder = buffer.makeRenderCommandEncoder(descriptor: pass)
         else { return }
         let size = view.drawableSize
+        let fit = Self.fit(side: min(view.bounds.width, view.bounds.height))
         var uniforms = OrbUniforms(
             time: Float(CACurrentMediaTime() - started),
             level: level,
             swirl: swirl,
             hold: hold,
             aspect: Float(size.width / max(size.height, 1)),
-            scale: Float(view.window?.backingScaleFactor ?? 2)
+            scale: Float(view.window?.backingScaleFactor ?? 2) * fit.dot
         )
-        var count = Self.pointCount
+        var count = fit.points
         encoder.setRenderPipelineState(pipeline)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<OrbUniforms>.stride, index: 0)
         encoder.setVertexBytes(&count, length: MemoryLayout<UInt32>.stride, index: 1)
-        encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: Int(Self.pointCount))
+        encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: Int(count))
         encoder.endEncoding()
         buffer.present(drawable)
         buffer.commit()
+    }
+
+    /// Fewer and finer points as the orb gets smaller, since six thousand full size dots on a small
+    /// orb glow on top of one another into a flat white disc.
+    static func fit(side: CGFloat) -> (points: UInt32, dot: Float) {
+        let share = min(1, max(0, side / 240))
+        let points = UInt32(max(300, Double(pointCount) * Double(share * share)))
+        return (points, Float(max(0.35, share)))
     }
 
     /// Eased toward where the state wants it, so the sphere breathes rather than twitches.

@@ -74,8 +74,6 @@ final class SessionPresenter: Presenter {
     private enum Pattern {
         /// The agent's own conversation id is a UUID.
         static let conversationId = #"^[0-9a-fA-F-]{36}$"#
-        static let terminalDevice = #"^ttys?[0-9]+$"#
-        static let devicePrefix = "/dev/"
     }
 
     private enum Timing {
@@ -148,7 +146,7 @@ final class SessionPresenter: Presenter {
     func close(session: String, host: DisplayHost?, request: String) async -> Typed {
         livePanel.dismiss()
         let app = (host?.app ?? host?.appPath ?? "").lowercased()
-        guard let tty = Self.device(host?.tty) else { return Typed(.failed, "it runs in no terminal Memnox knows, such as the Claude Code panel") }
+        guard let tty = AppleScriptText.device(host?.tty) else { return Typed(.failed, "it runs in no terminal Memnox knows, such as the Claude Code panel") }
         if !app.contains(AppName.iTerm), Self.editors.contains(where: app.contains) {
             // The editor's own terminal, closed by the Memnox extension against the request the runtime wrote.
             guard let link = Self.extensionLink(app: app, path: Link.closePath, query: [QueryKey.request: request, QueryKey.tty: tty]) else {
@@ -211,7 +209,7 @@ final class SessionPresenter: Presenter {
     func open(_ host: DisplayHost?) async -> Bool {
         guard let host else { return false }
         let app = (host.app ?? host.appPath ?? "").lowercased()
-        if let tty = Self.device(host.tty) {
+        if let tty = AppleScriptText.device(host.tty) {
             if app.contains(AppName.iTerm), Self.run(Self.iTermScript(tty)) { return true }
             if app.contains(AppName.terminal), Self.run(Self.terminalScript(tty)) { return true }
         }
@@ -235,7 +233,7 @@ final class SessionPresenter: Presenter {
     /// A link to the Memnox extension, only where that editor has it installed, since a link
     /// nothing handles makes the editor offer to search its marketplace.
     private static func extensionLink(app: String, path: String, query: [String: String]) -> URL? {
-        guard let tty = query[QueryKey.tty], Self.device(tty) != nil else { return nil }
+        guard let tty = query[QueryKey.tty], AppleScriptText.device(tty) != nil else { return nil }
         let (scheme, folder) = app.contains(AppName.cursor) ? (Link.cursorScheme, Folder.cursor)
             : app.contains(AppName.windsurf) ? (Link.windsurfScheme, Folder.windsurf)
             : (Link.vscodeScheme, Folder.vscode)
@@ -325,7 +323,7 @@ final class SessionPresenter: Presenter {
               (front.localizedName ?? "").lowercased().contains(name.lowercased())
         else {
             // Without leave to press keys, the terminal's own scripting puts the line in all at once.
-            let line = Self.quoted(command)
+            let line = AppleScriptText.quoted(command)
             return Self.run(iTerm ? Self.iTermWriteFront(line) : Self.terminalWriteFront(line))
                 ? .landed
                 : Typed(.failed, "the line could not be typed into the new tab")
@@ -337,7 +335,7 @@ final class SessionPresenter: Presenter {
     /// then sends it. The runtime checked the tab's foreground program is the agent, and the tab is
     /// checked again to be the one in front, so the words never land in a bare shell or another tab.
     func type(_ text: String, into host: DisplayHost?, request: String) async -> Typed {
-        guard let host, let tty = Self.device(host.tty) else { return Typed(.failed, "its terminal tab is not known") }
+        guard let host, let tty = AppleScriptText.device(host.tty) else { return Typed(.failed, "its terminal tab is not known") }
         let app = (host.app ?? host.appPath ?? "").lowercased()
         let iTerm = app.contains(AppName.iTerm)
         if !iTerm, Self.editors.contains(where: app.contains) {
@@ -347,7 +345,7 @@ final class SessionPresenter: Presenter {
         await launch(toward: host.app ?? app)
         guard PromptTyping.allowed() else {
             // Without leave to press keys, the terminal's own scripting puts the words in all at once.
-            let words = Self.quoted(text)
+            let words = AppleScriptText.quoted(text)
             let typed = Self.run(iTerm ? Self.iTermTypeScript(tty, words) : Self.terminalTypeScript(tty, words))
             return typed ? .landed : Typed(.failed, "no \(iTerm ? "iTerm" : "Terminal") tab has its terminal")
         }
@@ -422,13 +420,6 @@ final class SessionPresenter: Presenter {
         guard let start else { return }
         flight.fly(from: start, toApp: app)
         try? await Task.sleep(nanoseconds: UInt64(FlightPanel.duration * Timing.flightLanding * Timing.nanosecondsPerSecond))
-    }
-
-    /// The instruction as an AppleScript string: one line, with its quotes and backslashes escaped.
-    private static func quoted(_ text: String) -> String {
-        text.split(whereSeparator: \.isNewline).joined(separator: " ")
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
     /// Typed without a newline and then sent on its own, since an agent reads text and Return arriving together as a paste.
@@ -533,14 +524,6 @@ final class SessionPresenter: Presenter {
 
     /// Editors whose Claude Code extension opens one conversation by its link.
     private static let conversationEditors = [AppName.code, AppName.cursor, AppName.windsurf]
-
-    /// The terminal device as AppleScript names it, and only a real one, since it goes into a script.
-    private static func device(_ tty: String?) -> String? {
-        guard let tty else { return nil }
-        let name = tty.hasPrefix(Pattern.devicePrefix) ? String(tty.dropFirst(Pattern.devicePrefix.count)) : tty
-        guard name.range(of: Pattern.terminalDevice, options: .regularExpression) != nil else { return nil }
-        return "\(Pattern.devicePrefix)\(name)"
-    }
 
     private static func iTermScript(_ tty: String) -> String {
         """

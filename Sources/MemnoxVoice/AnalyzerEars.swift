@@ -6,7 +6,8 @@ import Speech
 enum Listened {
     case heard(String)
     case silence
-    case unavailable
+    /// With what the microphone caught, so a voice the analyzer missed can still be heard by another.
+    case unavailable([AVAudioPCMBuffer])
 }
 
 /// Apple's SpeechAnalyzer, on macOS 26 and later: on this Mac, streaming, and better at the
@@ -14,6 +15,10 @@ enum Listened {
 @available(macOS 26, *)
 final class AnalyzerEars {
     var hearing: ((String) -> Void)?
+    /// The words so far at a pause, so the answer can start before the pause ends what they said.
+    var guessing: ((String) -> Void)?
+    /// When the last word changed, which is when the person stopped talking.
+    private(set) var lastWordAt: Date?
 
     /// Fetches the speech model ahead of time, at launch, so the first question is not spent downloading.
     static func prepare() async -> Bool {
@@ -45,7 +50,7 @@ final class AnalyzerEars {
         )
         guard await Self.installed(transcriber),
               let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
-        else { return .unavailable }
+        else { return .unavailable([]) }
 
         let analyzer = SpeechAnalyzer(modules: [transcriber])
         // Loaded before the first word, rather than while the person is already speaking.
@@ -57,7 +62,9 @@ final class AnalyzerEars {
         let (input, feed) = AsyncStream<AnalyzerInput>.makeStream()
         var converter: AVAudioConverter?
         let counts = Counts()
+        let recording = Recording()
         audio.onMicrophone = { buffer in
+            recording.keep(buffer)
             if converter == nil || converter?.inputFormat != buffer.format {
                 converter = AVAudioConverter(from: buffer.format, to: format)
             }
@@ -87,20 +94,26 @@ final class AnalyzerEars {
             feed.finish()
             reading.cancel()
             diary.note("SpeechAnalyzer would not start: \(error)")
-            return .unavailable
+            return .unavailable([])
         }
 
         let began = Date()
         var loudest: Float = 0
+        var guessed = ""
         while true {
             try? await Task.sleep(nanoseconds: 150_000_000)
             loudest = max(loudest, audio.micLevel)
             let (words, changed) = heard.read()
             if words.isEmpty, Date().timeIntervalSince(began) > waiting { break }
             if !words.isEmpty, Date().timeIntervalSince(changed) > endOfSpeechPause(after: words) { break }
+            if words != guessed, mayGuess(words, pausedFor: Date().timeIntervalSince(changed)) {
+                guessed = words
+                guessing?(words)
+            }
         }
         audio.onMicrophone = nil
         feed.finish()
+        lastWordAt = heard.read().1
         diary.note("microphone: \(counts.summary)")
         try? await analyzer.finalizeAndFinishThroughEndOfInput()
         await reading.value
@@ -109,7 +122,7 @@ final class AnalyzerEars {
         if words.isEmpty, loudest > Self.spokeLevel {
             // The microphone heard a voice and no word came back: the analyzer is not working here.
             diary.note("heard a voice at level \(loudest) and no words")
-            return .unavailable
+            return .unavailable(recording.buffers)
         }
         return words.isEmpty ? .silence : .heard(words)
     }
@@ -125,6 +138,40 @@ final class AnalyzerEars {
             diary.note("speech model not installed: \(error)")
             return false
         }
+    }
+}
+
+/// The microphone as it was heard, copied, since the engine reuses a tap's buffer once the block returns.
+/// Capped at half a minute, which is longer than anybody talks to it in one breath.
+private final class Recording: @unchecked Sendable {
+    private let lock = NSLock()
+    private var kept: [AVAudioPCMBuffer] = []
+    private var frames: AVAudioFrameCount = 0
+    private static let mostSeconds: Double = 30
+
+    func keep(_ buffer: AVAudioPCMBuffer) {
+        guard let copy = copied(buffer) else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        guard Double(frames) < buffer.format.sampleRate * Self.mostSeconds else { return }
+        kept.append(copy)
+        frames += copy.frameLength
+    }
+
+    var buffers: [AVAudioPCMBuffer] {
+        lock.lock()
+        defer { lock.unlock() }
+        return kept
+    }
+
+    private func copied(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: buffer.frameLength),
+              let from = buffer.floatChannelData, let to = copy.floatChannelData else { return nil }
+        copy.frameLength = buffer.frameLength
+        for channel in 0..<Int(buffer.format.channelCount) {
+            to[channel].update(from: from[channel], count: Int(buffer.frameLength))
+        }
+        return copy
     }
 }
 

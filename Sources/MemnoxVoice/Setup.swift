@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import Combine
 import MemnoxVoiceCore
 import Speech
 import SwiftUI
@@ -22,13 +23,19 @@ final class SetupModel: ObservableObject {
     @Published var voiceId: String
     @Published var catchUp: Bool
     let voices: [AVSpeechSynthesisVoice]
+    /// Kokoro installing itself, watched so the voice row shows where it stands.
+    let kokoro: KokoroInstaller
+    private var watchingKokoro: AnyCancellable?
+    /// Installs Kokoro if need be and makes it the voice, for the row's Try again.
+    var useKokoro: (() async -> Void)?
 
     private let owner: OwnerStore
     private let conversation: Conversation
     private let voice: Voice
     private let finished: () -> Void
 
-    init(owner: OwnerStore, conversation: Conversation, voice: Voice, finished: @escaping () -> Void) {
+    init(owner: OwnerStore, conversation: Conversation, voice: Voice, kokoro: KokoroInstaller, finished: @escaping () -> Void) {
+        self.kokoro = kokoro
         self.owner = owner
         self.conversation = conversation
         self.voice = voice
@@ -37,6 +44,8 @@ final class SetupModel: ObservableObject {
         voices = Voice.englishVoices()
         voiceId = voice.identifier ?? voices.first?.identifier ?? ""
         catchUp = UserDefaults.standard.object(forKey: SetupModel.catchUpKey) as? Bool ?? true
+        // A nested object's changes do not reach the view on their own, so they are passed on.
+        watchingKokoro = kokoro.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
     }
 
     /// Everything that can be checked without asking the person, checked as the card opens.
@@ -59,13 +68,34 @@ final class SetupModel: ObservableObject {
     func hear() async {
         voice.choose(voiceId)
         let first = name.trimmingCharacters(in: .whitespaces)
-        await voice.preview("Hi \(first.isEmpty ? "there" : first), I'm Memnox. Press Option Space whenever you want me.")
+        await voice.preview("Hi \(first.isEmpty ? "there" : first), I am Memnox. Press Option Space whenever you want me.")
     }
 
     /// Premium and Enhanced voices sound like a person; Standard ones sound like reading.
     var naturalVoice: Bool {
         guard let chosen = voices.first(where: { $0.identifier == voiceId }) else { return false }
         return chosen.quality == .premium || chosen.quality == .enhanced
+    }
+
+    /// How the voice row reads: Kokoro ready, on its way, or what went wrong with a way to try again.
+    var voiceState: StepState {
+        switch kokoro.state {
+        case .done: return .done
+        case .installing: return .waiting
+        case .failed(let why): return naturalVoice ? .done : .needs(why)
+        case .idle: return naturalVoice ? .done : .waiting
+        }
+    }
+
+    var voiceDetail: String {
+        switch kokoro.state {
+        case .done:
+            return "Kokoro, a natural voice that runs on this Mac for free. The Mac voice below steps in if it ever stops."
+        case .installing(let step):
+            return "Installing Kokoro, a natural voice that runs on this Mac for free: \(step.lowercased()). About 340 MB, once. The Mac voice below speaks until it is ready."
+        case .idle, .failed:
+            return "Kokoro, a natural voice that runs on this Mac for free, installs itself the first time. The Mac voice below speaks until then."
+        }
     }
 
     /// Where macOS keeps the voices to download, since an app cannot fetch them itself.
@@ -107,8 +137,14 @@ struct SetupView: View {
 
     var body: some View {
         ZStack {
-            Glass(material: .hudWindow)
-            Memnox.Palette.background.opacity(0.35)
+            // Solid black lit faintly from below, the same ground as the island and its cards.
+            Color.black
+            RadialGradient(
+                colors: [Memnox.Palette.primary.opacity(0.18), .clear],
+                center: UnitPoint(x: 0.5, y: 1.1),
+                startRadius: 0,
+                endRadius: 520
+            )
             VStack(alignment: .leading, spacing: 0) {
                 header
                     .padding(.bottom, 22)
@@ -118,35 +154,49 @@ struct SetupView: View {
                     }
                     step("Hear you", detail: "Microphone and speech recognition, on this Mac only.", state: model.listening) {
                         if model.listening != .done {
-                            Button("Allow") { Task { await model.allowListening() } }.buttonStyle(QuietButton())
+                            Button("Allow") { Task { await model.allowListening() } }.buttonStyle(IslandButton(primary: true))
                         }
                     }
                     step("Memnox on this Mac", detail: "The daemon your agents already talk to.", state: model.daemon) {
                         if model.daemon != .done {
-                            Button("Check again") { Task { await model.check() } }.buttonStyle(QuietButton())
+                            Button("Check again") { Task { await model.check() } }.buttonStyle(IslandButton(primary: false))
                         }
                     }
                     step("Touch ID for anything you allow", detail: "A deny needs only your voice. An allow needs your finger.", state: model.key) {
                         EmptyView()
                     }
-                    step("Voice", state: model.naturalVoice ? .done : .needs("Standard voices sound read aloud. A Premium or Enhanced one sounds like a person.")) {
+                    step("Voice", detail: model.voiceDetail, state: model.voiceState) {
+                        if case .installing = model.kokoro.state {
+                            ProgressView().controlSize(.small)
+                        }
                         HStack(spacing: 8) {
                             VoicePicker(model: model)
-                            Button("Hear it") { Task { await model.hear() } }.buttonStyle(QuietButton())
+                            Button {
+                                Task { await model.hear() }
+                            } label: {
+                                Label("Hear it", systemImage: "play.fill")
+                            }
+                            .buttonStyle(IslandButton(primary: false))
                         }
-                        if !model.naturalVoice {
-                            Button("Get a natural voice") { model.openVoiceSettings() }.buttonStyle(QuietButton())
+                        if case .failed = model.kokoro.state {
+                            HStack(spacing: 8) {
+                                Button("Try again") { Task { await model.useKokoro?() } }.buttonStyle(IslandButton(primary: false))
+                                if !model.naturalVoice {
+                                    Button("Get a Mac voice instead") { model.openVoiceSettings() }.buttonStyle(IslandButton(primary: false))
+                                }
+                            }
                         }
                     }
                     step("When you come back", state: .done) {
-                        Toggle(isOn: $model.catchUp) {
+                        HStack(spacing: 12) {
                             Text("Catch me up on what my agents did while I was away")
                                 .font(Memnox.sans(12))
-                                .foregroundStyle(Memnox.Palette.muted)
+                                .foregroundStyle(Color.white.opacity(0.5))
+                            Spacer(minLength: 8)
+                            Toggle("", isOn: $model.catchUp)
+                                .toggleStyle(MemnoxSwitch())
+                                .labelsHidden()
                         }
-                        .toggleStyle(.switch)
-                        .tint(Memnox.Palette.primary)
-                        .controlSize(.small)
                     }
                 }
                 footer
@@ -186,11 +236,11 @@ struct SetupView: View {
                 Keycap(label: "Space")
                 Text("to talk, from anywhere")
                     .font(Memnox.sans(12))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Color.white.opacity(0.5))
             }
             Spacer()
             Button("Done") { model.finish() }
-                .buttonStyle(PrimaryButton())
+                .buttonStyle(IslandButton(primary: true))
                 .keyboardShortcut(.defaultAction)
                 .disabled(model.name.trimmingCharacters(in: .whitespaces).isEmpty)
         }
@@ -202,31 +252,35 @@ struct SetupView: View {
         state: StepState,
         @ViewBuilder control: () -> Control
     ) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            StatusMark(state: state).padding(.top, 2)
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(Memnox.sans(13, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
-                if let detail {
-                    Text(detail).font(Memnox.sans(12)).foregroundStyle(Memnox.Palette.muted)
+        IslandCard(veil: veil(state)) {
+            HStack(alignment: .top, spacing: 12) {
+                StatusMark(state: state).padding(.top, 1)
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(title)
+                        .font(Memnox.sans(13.5, .semibold))
+                        .foregroundStyle(Color.white)
+                    if let detail {
+                        Text(detail)
+                            .font(Memnox.sans(12))
+                            .foregroundStyle(Color.white.opacity(0.5))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    control()
+                    if case .needs(let hint) = state {
+                        Text(hint).font(Memnox.sans(12)).foregroundStyle(IslandPalette.amber)
+                    }
                 }
-                control()
-                if case .needs(let hint) = state {
-                    Text(hint).font(Memnox.sans(12)).foregroundStyle(Memnox.Palette.warm)
-                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            .padding(16)
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: Memnox.cardRadius)
-                .fill(Memnox.Palette.card.opacity(0.62))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Memnox.cardRadius)
-                .strokeBorder(Memnox.Palette.border.opacity(0.7), lineWidth: 1)
-        )
+        .animation(.easeInOut(duration: 0.35), value: state)
+    }
+
+    /// Amber light under a step that needs them, and none under one that is done, so the eye goes to what is left.
+    private func veil(_ state: StepState) -> Color? {
+        if case .needs = state { return IslandPalette.amber.opacity(0.3) }
+        return nil
     }
 }
 
@@ -237,31 +291,24 @@ private struct StatusMark: View {
     var body: some View {
         switch state {
         case .done:
-            Circle().fill(Memnox.Palette.success)
-                .frame(width: 16, height: 16)
-                .overlay(Image(systemName: "checkmark").font(.system(size: 8, weight: .bold)).foregroundStyle(Memnox.Palette.background))
+            Circle().fill(IslandPalette.green)
+                .frame(width: 18, height: 18)
+                .overlay(Image(systemName: "checkmark").font(.system(size: 8.5, weight: .heavy)).foregroundStyle(Color.black))
+                .transition(.scale.combined(with: .opacity))
         case .waiting:
-            Circle().strokeBorder(Memnox.Palette.border, lineWidth: 1.5).frame(width: 16, height: 16)
+            Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1.5).frame(width: 18, height: 18)
         case .needs:
-            Circle().fill(Memnox.Palette.warm)
-                .frame(width: 16, height: 16)
-                .overlay(Text("!").font(.system(size: 10, weight: .bold)).foregroundStyle(Memnox.Palette.background))
+            Circle().fill(IslandPalette.amber)
+                .frame(width: 18, height: 18)
+                .overlay(Text("!").font(.system(size: 10, weight: .heavy)).foregroundStyle(Color.black))
         }
     }
 }
 
-/// The orb, small and still, so setup is visibly the same thing that will talk to you.
+/// The Memnox mark, so setup is plainly the same product as the console.
 private struct OrbMark: View {
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(RadialGradient(colors: [Memnox.Palette.sky, Memnox.Palette.deep, .clear], center: .center, startRadius: 2, endRadius: 30))
-                .blur(radius: 6)
-            Circle()
-                .fill(LinearGradient(colors: [Memnox.Palette.sky, Memnox.Palette.deep], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 22, height: 22)
-        }
-        .frame(width: 52, height: 52)
+        LogoMark(size: 34)
     }
 }
 
@@ -276,15 +323,16 @@ private struct NameField: View {
             .font(Memnox.sans(13))
             .foregroundStyle(Memnox.Palette.foreground)
             .focused($focused)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .frame(width: 240)
-            .background(RoundedRectangle(cornerRadius: Memnox.radius).fill(Memnox.Palette.card))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(width: 260)
+            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.white.opacity(0.06)))
             .overlay(
-                RoundedRectangle(cornerRadius: Memnox.radius)
-                    .strokeBorder(focused ? Memnox.Palette.primary : Memnox.Palette.border, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(focused ? Memnox.Palette.primary : Color.white.opacity(0.08), lineWidth: 1)
             )
-            .shadow(color: focused ? Memnox.Palette.ring : .clear, radius: 4)
+            .shadow(color: focused ? Memnox.Palette.ring : .clear, radius: 6)
+            .animation(.easeOut(duration: 0.15), value: focused)
     }
 }
 
@@ -303,11 +351,11 @@ private struct VoicePicker: View {
                 Spacer()
                 Image(systemName: "chevron.up.chevron.down").font(.system(size: 9)).foregroundStyle(Memnox.Palette.muted)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .frame(width: 240)
-            .background(RoundedRectangle(cornerRadius: Memnox.radius).fill(Memnox.Palette.card))
-            .overlay(RoundedRectangle(cornerRadius: Memnox.radius).strokeBorder(Memnox.Palette.border, lineWidth: 1))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(width: 260)
+            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.white.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -340,21 +388,19 @@ final class SetupWindow {
         }
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 540, height: 640),
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.isOpaque = false
-        window.backgroundColor = .clear
         window.isMovableByWindowBackground = true
         window.appearance = NSAppearance(named: .darkAqua)
         window.isReleasedWhenClosed = false
+        // An ordinary window the system rounds itself, so its close and minimize buttons stay on top
+        // and take clicks; painted black like the island rather than frosted.
+        window.backgroundColor = .black
         let host = NSHostingView(rootView: SetupView(model: model))
-        host.wantsLayer = true
-        host.layer?.cornerRadius = 16
-        host.layer?.masksToBounds = true
         window.contentView = host
         window.setContentSize(host.fittingSize)
         window.center()

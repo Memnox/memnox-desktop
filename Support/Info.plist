@@ -21,7 +21,14 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Memnox listens only while the orb is open, so you can ask about your agents and answer them out loud.</string>
+	<string>Memnox listens while the orb is open, and for its name when you turn that on, so you can ask about your agents and answer them out loud.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Memnox brings the terminal tab a session runs in to the front when you ask to open it.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Memnox turns what you say into words on this Mac, and the audio never leaves it.</string>
 </dict>

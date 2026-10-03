@@ -24,12 +24,16 @@ since saying no can do no harm. A confirmed proposal carries a Secure Enclave si
 
 | Path | Holds |
 |---|---|
-| `Sources/MemnoxVoiceCore` | the protocol, the socket link, sentences and captions, the confirmation key, and `Conversation`, which decides what to say and when. No AppKit, so it is tested headless. |
-| `Sources/MemnoxVoice` | AppKit, SwiftUI and Metal: the notch island, the orb, audio in and out, the hotkey, the menu bar item. |
-| `Tests/MemnoxVoiceCoreTests` | XCTest against a scripted daemon, a recording speaker and face, and a software key. |
+| `Sources/MemnoxVoiceCore/Domain` | rules with no I/O: sessions, notices, speech text, the owner's question, and `SharedKernel/DaemonProtocol.swift`. |
+| `Sources/MemnoxVoiceCore/Application` | `Conversation`, which decides what to say and when, and the `Ports` it needs. |
+| `Sources/MemnoxVoiceCore/Infrastructure` | adapters behind the ports: the socket link, the confirmation key, files, the diary. No AppKit anywhere in the core, so it is tested headless. |
+| `Sources/MemnoxVoice/App` | the composition root that wires every adapter into the core. |
+| `Sources/MemnoxVoice/Presentation` | AppKit, SwiftUI and Metal: the notch island, the orb, cards, the menu bar, setup, the design system. |
+| `Sources/MemnoxVoice/Platform` | audio in and out, the recognizer, Kokoro, typing into other apps, the hotkey. |
+| `Tests/MemnoxVoiceCoreTests` | XCTest laid out like the source tree, against the doubles in `Support/`: a scripted daemon, a recording speaker and face, and a software key. |
 | `Support/Info.plist` | the usage descriptions macOS shows before it grants the microphone and speech. |
 
-`DaemonProtocol.swift` mirrors `memnox-runtime/packages/core/src/daemon/protocol.ts`. Change
+`docs/ARCHITECTURE.md` holds the dependency rule and where new code goes. `DaemonProtocol.swift` mirrors `memnox-runtime/packages/core/src/daemon/protocol.ts`. Change
 one and change the other in the same piece of work.
 
 ## Code

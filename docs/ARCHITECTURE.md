@@ -1,0 +1,97 @@
+# Architecture
+
+Memnox for macOS is a face, a voice and a Touch ID button over the Memnox daemon. The daemon
+decides what is allowed and the person's own agent CLI does the thinking; this app shows, speaks,
+listens and signs. That boundary shapes everything below: no policy, no rule and no model call
+lives here, and anything that needs one belongs in `memnox-runtime`.
+
+## Two targets, five layers
+
+The package has two targets. `MemnoxVoiceCore` holds every decision about what to say and when,
+imports no AppKit, and is tested headless. `MemnoxVoice` is the Mac app around it.
+
+```
+MemnoxVoice (the app)
+  App/            composition root: builds every adapter and hands it to the core
+  Presentation/   the notch island, cards, live window, switcher, menu bar, setup, design system
+  Platform/       microphone, recognizer, speaker, Kokoro, typing into other apps, hotkey, sounds
+        |
+        v  uses
+MemnoxVoiceCore (the core)
+  Application/    Conversation, the use cases, and the Ports it needs from the outside world
+  Domain/         rules and words with no I/O: sessions, notices, speech, the owner's question
+  Infrastructure/ adapters behind the ports: the daemon socket, the Secure Enclave key, files
+```
+
+### The dependency rule
+
+Each layer may only depend on the layers named under it here:
+
+| Layer | May use |
+|---|---|
+| Domain | Foundation, and the shared kernel inside Domain |
+| Application | Domain, and its own Ports |
+| Infrastructure | Domain, and the Ports it implements |
+| Platform and Presentation | the core's public API, Apple frameworks |
+| App | everything: it is where adapters are chosen and wired |
+
+Two things cross every layer by design. The `diary` notes what happened so Copy What Happened can
+hand it over, and it logs through `os.Logger`. The shared kernel is the vocabulary every layer
+speaks.
+
+### The shared kernel
+
+`Domain/SharedKernel/DaemonProtocol.swift` mirrors `memnox-runtime/packages/core/src/daemon/protocol.ts`
+field for field. It is a shared kernel in the DDD sense: one model owned jointly by two bounded
+contexts, changed in both repositories in the same piece of work. Values the runtime names as
+constants (`NOTICE_KIND`, `SESSION_STATE`, `EVENT_SURFACE`) are Swift enums here
+(`NoticeKind`, `SessionState`, `StepSurface`). The wire keeps the raw string and each type offers
+a typed view, so a value a newer daemon adds reads as nil instead of failing the whole event.
+
+`confirmationMessage(subject:answer:)` also lives there. It builds the exact string a Touch ID
+signature covers, so it must stay byte for byte what the runtime verifies.
+
+## Ports and adapters
+
+The application layer declares what it needs as protocols in `Application/Ports`. Tests fake
+every one of them, and the app wires the real ones in `App/AppDelegate.swift`.
+
+| Port | Real adapter | Test fake |
+|---|---|---|
+| `DaemonLink` | `UnixSocketLink` (Infrastructure/Daemon) | `ScriptedLink`, `StepLink`, `SlowLink` |
+| `ConfirmKey` | `SecureEnclaveConfirmKey` (Infrastructure/Security), or `RefusingKey` when none can be made | `PersonKey`, `SoftwareConfirmKey` |
+| `OwnerStore` | `DefaultsOwner` (Infrastructure/Persistence) | `MemoryOwner` |
+| `Speaker` | `Voice`, Kokoro or the system voice (Platform/Audio) | `RecordingSpeaker` |
+| `Face` | `IslandPanel` (Presentation/Island) | `RecordingFace` |
+| `Presenter` | `SessionPresenter` (Presentation/Cards) | `RecordingPresenter` |
+| `Chimes` | `SystemChimes` (Platform/Sounds) | `RecordingChimes` |
+
+Anything else from the outside world arrives as a closure in `Conversation.init`, with a default
+that is safe in tests: the clock (`now`), the macOS version (`macOSMajorVersion`) and the person's
+chosen address (`address`).
+
+## How a turn flows
+
+1. The hotkey, the menu bar or the wake word opens the island, and the recognizer (Platform)
+   hears the person.
+2. `Conversation` (Application) sends the words whole to the daemon's `ask`. Nothing in the app
+   acts on a word, which is why `Conversation.swift` may not lowercase or search text.
+3. The daemon streams the answer back as chunks over the Unix socket, one JSON line each.
+4. `SentenceSplitter` (Domain) cuts the stream into sentences, `pronounced` and `speakable` make
+   them sayable, and the `Speaker` says each one as it arrives.
+5. Events the daemon pushes (a held call, a notice, a card to show) go through the domain rules
+   in `Announcing.swift` to decide whether they are said and whether the microphone stays open.
+6. An allow is signed by the Secure Enclave key after Touch ID; a deny or a decline goes unsigned,
+   since saying no can do no harm.
+
+## Where to put new code
+
+| You are adding | Put it in |
+|---|---|
+| A rule about what to say, or when | `Domain/`, as a pure function or type, with a test |
+| A field or method the daemon speaks | `Domain/SharedKernel/DaemonProtocol.swift` and `protocol.ts`, together |
+| A new step in a conversation | `Application/Conversation.swift` |
+| Something the core needs from the Mac | a protocol in `Application/Ports`, an adapter in Infrastructure or Platform |
+| A screen or a view | `Presentation/`, using the tokens in `DesignSystem.swift` |
+| Microphone, speaker, keyboard or another app | `Platform/` |
+| Wiring | `App/AppDelegate.swift` |

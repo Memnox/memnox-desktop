@@ -1,198 +1,224 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="Support/Logo/memnox-mark-white.png">
+  <img src="Support/Logo/memnox-mark-template.png" alt="Memnox" width="88">
+</picture>
+
 # Memnox for macOS
 
-The voice of Memnox. An orb you talk to about your agents, and that talks back: what they
-are doing, what they changed, whether one can be left running, and what is waiting on you.
-It answers with your own agent subscription, never a Memnox key, and nothing you say is
-matched against keywords: your words go whole to your own Claude Code, which reads the
-machine through Memnox's tools and can only ever propose.
+### Talk to your coding agents. Approve with your fingerprint.
 
-## What is on screen
+An orb that lives in your notch, knows what every agent on your Mac is doing,<br>
+tells you out loud, and lets you answer them by voice, with Touch ID guarding every yes.
 
-An island that grows out of the notch, laid out after Coucou's open source notch companion with
-the orb in place of its character. At rest the orb sits just left of the notch, breathing. While
-sessions work, the island widens and shows one dot per working session, in its agent's colour.
-Rest the pointer on it and it opens: the session in focus with its last steps rolling up as they
-happen, and every other session as a pill with its agent's logo. Click the session card to see
-the code it is changing, line by line, and click again to bring its own window forward. A click
-anywhere else puts the island away, and so does a minute untouched, with a thin line counting
-down the last ten seconds.
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
+![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
+![No dependencies](https://img.shields.io/badge/dependencies-Apple%20only-1E86EE)
+![License MIT](https://img.shields.io/badge/license-MIT-37CD8F)
+![PRs welcome](https://img.shields.io/badge/PRs-welcome-DD815D)
 
-The orb is one piece throughout: it travels and grows with the island from beside the notch into
-whichever card is open. When you talk to Memnox it grows largest of all, about 150 points across in
-the middle of the island with a soft blue light behind it, and what was heard or said is written
-under it; when the conversation ends it shrinks back beside the notch. It breathes when idle, moves with your voice while it listens, swirls
-while it reads, moves with its own voice while it speaks, and holds still while Touch ID is up.
+[Quick start](#quick-start) · [What it does](#what-it-does) · [How it works](#how-it-works) · [Architecture](docs/ARCHITECTURE.md) · [Contributing](#contributing)
 
-When an agent is held, the island opens on it with who is waiting, the command, and three answers:
-Deny, Allow this session and Allow once. Both allows ask for Touch ID first, and a deny needs
-none, the same as answering by voice. A session that finishes opens the island on its summary
-for a few seconds, and a pause makes it shake. On a Mac without a notch the same island hangs
-from the top centre of the screen.
+</div>
 
-To see every state without any agents running, start it with
-`open -n build/Memnox.app --args --island-preview`.
+---
 
-## How it works
+> **"Moise, Claude has been on order cancellation in shop for twenty minutes, four files and
+> the tests pass. Now it wants to push to main. Should I let it?"**
+>
+> You say *yes*. Touch ID asks for your finger. The push goes through. You never left your editor.
 
-```
- ⌥Space, "Memnox", the menu bar, or a held call arriving
-        │
-   the orb listens (Apple's SpeechAnalyzer on this Mac, the older recognizer before macOS 26)
-        │ your words, whole
-        ▼
- ~/.memnox/memnox.sock  ── the Memnox daemon (memnox-runtime)
-        │ ask                         │ subscribe
-        ▼                             ▼
- your own Claude Code,          held calls, proposals, pauses,
- with only memnox-operator      and "settled" when you answered elsewhere
-        │
-   sentences stream back and are spoken as they arrive
-```
+Your agents already do the work. The hard part is knowing what they are up to and feeling safe
+letting them carry on. Memnox for macOS is the face and voice of [Memnox](VISION.md), the control
+plane for autonomous work: it watches Claude Code, Codex, Cursor and the rest through the Memnox
+daemon, speaks up only when something needs you, and turns your spoken answer into a signed
+decision.
 
-- **Asking** sends what you said to the daemon's `ask`, which runs your own Claude Code with
-  every built-in tool off and only the `memnox-operator` tools. Answers stream sentence by
-  sentence into speech.
-- **A held call** is said out loud ("claude-code wants to push to main. Allow it, or
-  deny?") and the orb listens for your answer, in any words. A deny takes effect at once.
-- **Anything that lets something happen** arrives as a proposal and needs Touch ID: a key in
-  the Secure Enclave signs exactly that proposal, and the daemon verifies the signature. An
-  agent running as you can raise the sheet, and never finish it.
-- **The terminal, `memnox approve` and the workspace DM all keep working.** The voice is one
-  more way to answer, and whichever answers first releases the agent.
+## Why people like it
 
-## Running it
+| | |
+|---|---|
+| 🎙️ **Just talk** | Your words go whole to your own Claude Code. No keyword matching, no command syntax, no Memnox API key. |
+| 🔐 **Touch ID on every yes** | Anything that lets an agent act is signed by a key that never leaves the Secure Enclave. An agent running as you can raise the sheet, and never finish it. |
+| 🏝️ **Lives in the notch** | An island grows out of the notch with one dot per working session, their latest steps rolling up, and the code they are changing line by line. |
+| 🤫 **Quiet by default** | It says nothing until something needs you: a held call, a question, a paused session, a failure, or what you asked to hear about. |
+| 🗣️ **A voice worth hearing** | Kokoro, an open model, runs on your Mac for free. Nothing it says leaves the machine. |
+| 🧱 **Built to be read** | Pure Swift on Apple frameworks only, a headless core in DDD layers, and a test suite that runs in about a second. |
 
-Needs macOS 14 or later (26 or later for SpeechAnalyzer), Xcode 26 or later, and the Memnox daemon running
-(`memnox daemon`, or installed by `memnox setup`).
+## What it does
+
+Things you can say, and what happens:
+
+| You say | It does |
+|---|---|
+| *"Which one is working?"* | Counts sessions with activity in the last few minutes, never a paused or ended one. |
+| *"Open the one fixing checkout."* | Brings forward that session's exact iTerm or Terminal tab, or its editor window. |
+| *"Give me a summary of it."* | Puts a glass card in the corner and reads it to you. |
+| *"Walk me through it."* | Turns a page per changed file while the voice explains each change. |
+| *"Tell Claude Code to commit this in separate commits."* | Reads it back, and after your yes types it into the agent's own prompt. |
+| *"Start Claude in memnox cloud on the failing auth test."* | Opens a new tab in that repository and starts a governed session with `memnox run`. |
+| *"Have Codex review what Claude just changed."* | Hands Codex your words plus the files Claude changed. |
+| *"Tell me when the tests pass."* | Sets a one time watch, and speaks up when it happens. |
+| *"That broke the UI, put it back."* | Reads back what goes back, to when, then waits for Touch ID. "Bring it back" undoes the undo. |
+| *"Scan my computer."* | Fills the screen with every agent it finds, its MCP servers and its sessions, in a ring. |
+| *"Why did that take so long?"* | Draws a waterfall of the turn: hearing you, thinking, each tool, speaking. |
+| *"Pause that one."* | Happens at once, because holding an agent back is always safe. *"Resume it"* waits for Touch ID. |
+
+<details>
+<summary><b>Everything else it does, in detail</b></summary>
+
+- **Held calls.** When an agent is held, the island opens on it with who is waiting, the command,
+  and three answers: Deny, Allow this session and Allow once. Both allows ask for Touch ID, a deny
+  needs none, and you can answer the same way by voice in any words.
+- **Coming back.** After ten minutes or more with the screen locked, it catches you up on what
+  finished, what got stuck and what is waiting, then listens. Turn it off in setup.
+- **Talking over it.** Start speaking while it talks and it stops and listens. It tells its own
+  echo apart by the words it just said, which works best with headphones.
+- **Chimes.** A quiet system sound marks the orb opening and closing, a question sent, an agent
+  waiting, an allow taken and a turn that broke, so you hear what happened before it is said.
+- **Its name.** Turn on **Wake when I say "Memnox"** and "Memnox, what's going on?" is answered
+  straight away. Recognition stays on this Mac, and it is off until you turn it on.
+- **Any memnox command.** "Run the doctor" runs at once. "Freeze everything" changes something, so
+  it reads it back and waits for Touch ID. A few never run by voice, and it says why.
+- **Speak up on its own.** Turn it on in the menu bar panel to also hear when a session finishes,
+  commits or pushes.
+- **Everywhere else still works.** The terminal, `memnox approve` and the workspace DM keep
+  working. Whichever answers first releases the agent.
+
+On a Mac without a notch, the island hangs from the top centre of the screen. To see every state
+without any agents running, start it with `open -n build/Memnox.app --args --island-preview`.
+
+</details>
+
+## Quick start
+
+You need macOS 14 or later (26 or later for SpeechAnalyzer), Xcode 26 or later, and the Memnox
+daemon running (`memnox daemon`, or installed by `memnox setup`).
 
 ```sh
-swift test               # the core, headless
-./scripts/bundle.sh      # builds build/Memnox.app, signed ad hoc
+scripts/signing-setup.sh   # once: a local signing identity, so macOS remembers your permissions
+swift test                 # the core, headless, in about a second
+./scripts/bundle.sh        # builds build/Memnox.app
 open build/Memnox.app
 ```
 
-The first run opens setup, the one ordinary window Memnox has: what to call you (your
-first name, from your Mac account, to start with), permission to hear you, whether the
-daemon is running, the Touch ID key, and a voice to pick and hear. It reopens from the
-menu bar under Set Up Memnox. After that, press ⌥Space, or use the waveform in the menu
-bar, and speak.
+The first run opens setup: what to call you, permission to hear you, whether the daemon is
+running, your Touch ID key, and a voice to try. After that, press **⌥Space** or click the waveform
+in the menu bar, and speak.
 
-To wake it by name, click the waveform in the menu bar and turn on **Wake when I say "Memnox"** in the glass panel that opens. While the orb is
-idle it then listens for its name, on this Mac only, and "Memnox, what's going on?" is
-answered straight away. It is off until you turn it on, because it keeps the microphone open
-whenever the orb is idle, and a Mac that cannot recognise speech on device never listens for
-it at all.
+## How it works
 
-It talks like a colleague who has been watching your sessions:
+```mermaid
+sequenceDiagram
+    actor You
+    participant Orb as Memnox for macOS
+    participant Daemon as Memnox daemon
+    participant Agent as Your Claude Code
+    You->>Orb: "Which one is working?"
+    Orb->>Daemon: ask, with your words whole
+    Daemon->>Agent: runs with only the memnox operator tools
+    Agent-->>Daemon: the answer, streamed
+    Daemon-->>Orb: one JSON line per chunk, over a local socket
+    Orb-->>You: spoken sentence by sentence as it arrives
+    Note over Daemon,Orb: Held calls, proposals and pauses arrive the same way, pushed
+    You->>Orb: "Yes, let it."
+    Orb->>Orb: Touch ID, then the Secure Enclave signs that one proposal
+    Orb->>Daemon: the signed answer, which the daemon verifies
+```
 
-- **When an agent is held**, your own Claude Code looks at what that session has been doing
-  and tells you: "Moise, Claude has been on order cancellation in shop for twenty minutes,
-  four files and the tests pass. Now it wants to push to main. Should I let it?" If it
-  cannot, the facts alone are said. Answer in your own words.
-- **When you come back** after ten minutes or more with the screen locked, it catches you up
-  on what finished, what got stuck and what is waiting, then listens. Turn it off in setup.
-- **When a session is paused** for going nowhere, it says where it got stuck.
-- **An allow only ever follows your own words.** A proposal that arrives when you have not
-  spoken is left alone and never put to Touch ID.
+The app is a face, a voice and a Touch ID button. The daemon decides what is allowed and your own
+agent does the thinking, so no policy, rule or model call lives here. Speech is recognised by
+Apple's SpeechAnalyzer on this Mac (the older recognizer before macOS 26), and answers stream into
+speech sentence by sentence so the voice starts before the answer is finished.
 
-## Showing you a session
+### Its voice
 
-- **"Open the one fixing checkout"** brings that session's own window forward: the exact tab
-  in iTerm or Terminal, found by its terminal device, or the editor window on its folder in
-  VS Code and Cursor. macOS asks once before Memnox may drive a terminal.
-- **"Give me a summary of it"** puts a glass card in the top left corner with the summary
-  while the voice reads it. A click closes it, and it goes on its own after a while.
-- **"Which one is working"** counts only sessions where something happened in the last few
-  minutes, never a paused one, an ended one or this Mac's own git checks.
+Pick it under **Voice** in the menu bar panel. **Kokoro** is the default: a natural voice from an
+open model, run on this Mac, free. George, a calm British voice, unless you choose another with
+`defaults write com.memnox.voice kokoroVoice bm_lewis` (also `bm_daniel`, `bm_fable`). The app
+installs it on first launch, about 340 MB into `~/.memnox/voice/kokoro`, and the Mac's own voice
+speaks until it is ready. **Mac** uses the best English voice installed. A sentence one voice
+cannot say is said by the other, so it never goes quiet.
 
-Neither changes anything an agent can do, so neither waits on Touch ID.
+It speaks in the manner of J.A.R.V.I.S.: complete sentences, the status first, one calm tone
+whether the news is good or not, and a dry line only now and then.
 
-## Its voice
+## Built to be read
 
-Pick it under **Voice** in the menu bar panel:
+```mermaid
+flowchart TB
+    subgraph app["MemnoxVoice · the Mac app"]
+        AppRoot["App<br/>composition root"]
+        Pres["Presentation<br/>island, cards, menu bar"]
+        Plat["Platform<br/>mic, speaker, Kokoro, typing"]
+    end
+    subgraph core["MemnoxVoiceCore · headless, no AppKit"]
+        Appl["Application<br/>Conversation and its Ports"]
+        Dom["Domain<br/>pure rules, no I/O"]
+        Infra["Infrastructure<br/>socket, Secure Enclave, files"]
+    end
+    AppRoot --> Pres & Plat & Appl & Infra
+    Appl --> Dom
+    Infra -. implements ports of .-> Appl
+```
 
-- **Kokoro**, the default: a natural voice run on this Mac by an open model, free, and nothing it
-  says leaves the machine. George, a calm British voice, unless you pick another with
-  `defaults write com.memnox.voice kokoroVoice bm_lewis` (also `bm_daniel`, `bm_fable`).
-  The app installs it itself on first launch, about 340 MB into `~/.memnox/voice/kokoro`, and
-  the Mac voice speaks until it is ready; setup shows how far it got, and Try again if it could
-  not. It needs nothing installed first: it uses `uv` when the Mac has one and fetches its own
-  into that folder when not. `./scripts/kokoro-setup.sh` does the same from a terminal.
+- **A core you can test without a Mac app.** Every decision about what to say and when lives in
+  `MemnoxVoiceCore`, which imports no AppKit. Tests fake the daemon, the speaker, the face and the
+  key, so they run with no socket, no audio and no Secure Enclave.
+- **Tests that mirror the code.** `Tests/MemnoxVoiceCoreTests/Domain/Speech/EchoTests.swift` tests
+  `Sources/MemnoxVoiceCore/Domain/Speech/Echo.swift`. Find one and you have found the other.
+- **No magic values.** Design tokens live in one place, every number is named for its role, and
+  values the daemon defines are enums, so a typo is a compile error.
+- **No dependencies.** Apple frameworks only, by rule.
 
-  Memnox starts it at launch and stops it when it quits.
-- **Mac**: the best English voice installed.
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) has the dependency rule, the ports and their
+adapters, and a table of where new code goes.
 
-Whichever is chosen, a sentence it cannot voice is said by the Mac's own voice, so it never
-goes quiet.
+## Private and secure by design
 
-It speaks in the manner of J.A.R.V.I.S.: complete sentences with no contractions or fillers,
-the status first, one calm tone whether the news is good or not, and a dry line only now and
-then. The words come from the runtime's voice prompt; only the fixed lines, like the greeting
-and "Very well. It is done.", live in this app.
+- What you say goes to **your own** agent subscription through the local daemon, never to a
+  Memnox server.
+- Every allow is signed by a P-256 key **made in the Secure Enclave**, usable only after Touch ID
+  for each signature. A deny is never signed, because saying no can do no harm.
+- The app only talks to a daemon running **as you**, and text from the daemon can never run as
+  AppleScript. Both are enforced in code and the escaping is covered by tests.
+- The speech server listens on **127.0.0.1 only**.
 
-## Like an assistant at the next desk
+Read [SECURITY.md](SECURITY.md) for the full model, its known limits, and how to report an issue
+privately.
 
-- **It stays quiet until you call it.** Once a conversation ends it says nothing more unless
-  something needs you: a held call, an agent asking you something, a paused session, a command
-  that failed, or what you asked to be told about. Only a question keeps the microphone open
-  after. Turn on **Speak up on its own** in the menu bar panel to also hear when a session
-  finishes, commits or pushes.
-- **You can talk over it.** Start speaking while it talks and it stops and listens. Its own
-  voice coming back through the microphone is told apart by the words it just said, which works
-  best with headphones. Turn it off with **Talk over it**.
-- **It chimes.** A quiet Mac system sound marks the orb opening and closing, a question sent, an
-  agent waiting on you, an allow taken, something left as it was, words typed in, a question
-  answered elsewhere and a turn that broke, so you hear what happened before it is said. Turn
-  it off with **Sounds**.
-- **It answers to its name.** "Memnox" alone gets a "Yes?"; "Memnox, which one is working?"
-  gets the answer.
-- **It acts on sessions.** "Pause that one" happens at once, because it only holds an agent
-  back. "Resume it" waits for Touch ID, because it lets one carry on.
-- **It passes on what you want done.** "Tell Claude Code to commit this in separate commits" is
-  read back to you, and after your yes it brings the agent's own iTerm or Terminal tab, or its
-  VS Code conversation, to the front and types your words into its prompt a key at a time,
-  then sends them. Click into another app while it types and it stops and leaves the words on
-  the clipboard. Typing needs Memnox allowed under **Privacy & Security > Accessibility**, called
-  **Device Control and Data Access** from macOS 27; the Mac asks once. A build signed ad hoc is a
-  new app to macOS, so the switch can show on and still refuse: switch it off and on again, or
-  run `scripts/signing-setup.sh` once so later builds keep it. The voice only says the agent has started once the Mac reports that the words
-  landed.
-- **It tells you when.** "Tell me when the tests pass", "let me know if it gets stuck" or "shout
-  when Claude is done" sets a one-time watch, and it speaks up when it happens, even with
-  **Speak up on its own** turned off, because you asked.
-- **It puts things back.** "That broke the UI, put it back" reads back which repository goes back,
-  to when, and how many files, then waits for Touch ID. Your files as they were are kept first,
-  so "bring it back" undoes the undo.
-- **It starts sessions.** "Start Claude in memnox cloud on the failing auth test" is read back,
-  and after your yes a new iTerm tab, or Terminal when iTerm is not installed, opens in that
-  repository and types `memnox run -- claude '<your task>'` a key at a time, so the session is
-  governed from its first step. Only Claude Code and Codex can be started this way.
-- **It hands work between agents.** "Have Codex review what Claude just changed" sends Codex your
-  words plus the files Claude changed.
-- **It shows you every agent.** "Scan my computer" or "show me all my agents" fills the screen:
-  Memnox in the middle, a sweep that finds each agent in turn, and every one set in a ring with
-  its own logo, its MCP servers, what else it reaches and its sessions right now. Click or press
-  Escape to close it.
-- **It runs any memnox command.** "What's the status", "show me the timeline for the last
-  hour" or "run the doctor" runs at once and it tells you what came back. "Switch to autonomous
-  mode", "freeze everything" or "lock the billing folder" changes something, so it reads it back
-  and waits for Touch ID first. A few never run by voice and it says why: answering a held call
-  has its own Touch ID question, signing in needs a browser, and uninstalling would remove the
-  voice itself.
-- **It shows you why it was slow.** "Why did that take so long?" or "trace that session" puts a
-  waterfall on screen, the way Logfire draws one: hearing you finish, reading the sessions, the
-  brain thinking and each tool it called, then speaking, or every turn and action of an agent's
-  session with its decision and time. `memnox traces --otlp` sends one to Logfire itself.
-- **It walks you through a change.** "Walk me through it" puts a card in the corner that turns a
-  page per file, with that file's changed lines, while the voice says what each change does.
-  Back and Next take the pages over.
+## Contributing
 
-## Not built yet
+**Pull requests are welcome**, and the codebase is set up to make your first one easy: small files
+named for what they do, a test beside every rule, and a suite that runs in about a second.
 
-- "Hey Siri, talk to Memnox" (App Intents), which wants the Xcode 26 project.
+Good places to start:
 
-Run `scripts/signing-setup.sh` once before your first build. It makes a local signing identity in
-your keychain, so every build is the same app to macOS and Accessibility is asked for only once;
-signed ad hoc, each build is a new app and the permission sheet comes back after every rebuild.
+| Idea | Where it lives | Size |
+|---|---|---|
+| "Hey Siri, talk to Memnox" through App Intents | a new `Platform` adapter | Medium |
+| A launch token so only the app can use the speech server | `Platform/Kokoro.swift`, `Support/kokoro/server.py` | Small |
+| Pin SHA-256 checksums for the voice model download | `scripts/kokoro-setup.sh` | Small |
+| Localize the interface (the copy is already `Text` keys) | `Presentation/` | Medium |
+| Notarized release builds | `scripts/bundle.sh` | Medium |
+| More recognizer spellings of "Memnox" from your own Mac | `Domain/Speech/WakeWord.swift`, with a test | Small |
 
-If the app says another key is registered, run `memnox voice forget-key` and open it again.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for how a change gets in and the rules a review checks.
+Every pull request is built and tested on a Mac by CI, and the issue and pull request forms walk
+you through the rest. If you are unsure where something belongs, open an issue and ask; that is
+a good first contribution too. Everyone taking part follows the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Troubleshooting
+
+- **Accessibility keeps asking again.** A build signed ad hoc is a new app to macOS each time.
+  Run `scripts/signing-setup.sh` once so later builds keep the grant. From macOS 27 the setting is
+  called **Device Control and Data Access**; if the switch shows on and typing still fails, turn it
+  off and on again.
+- **"Another key is registered."** Run `memnox voice forget-key` and open the app again.
+- **It cannot reach Memnox.** Start the daemon with `memnox daemon`.
+
+## License
+
+[MIT](LICENSE).

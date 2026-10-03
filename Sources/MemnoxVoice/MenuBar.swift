@@ -61,15 +61,22 @@ final class MenuBarPanel: NSObject {
     private let item: NSStatusItem
     private let panel: NSPanel
     private let host: FirstClickHosting<MenuView>
-    private var outside: Any?
-    private var escape: Any?
+    private var outside: EventMonitor?
+    private var escape: EventMonitor?
     /// The gap between the menu bar icon and the top of the panel, as a menu leaves.
     private static let gap: CGFloat = 6
+    /// A first size only, since the panel is sized to its content each time it opens.
+    private static let initialSize = NSSize(width: 292, height: 400)
+    /// How close the panel may come to the edges of the visible screen.
+    private static let screenMargin: CGFloat = 8
+    private static let fadeIn: TimeInterval = 0.16
+    /// Drawn when the bundled logo is missing.
+    private static let fallbackSymbol = "waveform.circle"
 
     init(model: MenuModel) {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 292, height: 400),
+            contentRect: NSRect(origin: .zero, size: Self.initialSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: true
@@ -79,7 +86,7 @@ final class MenuBarPanel: NSObject {
         super.init()
         close = { [weak self] in self?.dismiss() }
         item.button?.image = MemnoxLogo.menuBar
-            ?? NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: "Memnox")
+            ?? NSImage(systemSymbolName: Self.fallbackSymbol, accessibilityDescription: "Memnox")
         item.button?.toolTip = "Memnox"
         item.button?.target = self
         item.button?.action = #selector(toggle)
@@ -103,31 +110,31 @@ final class MenuBarPanel: NSObject {
         let size = host.fittingSize
         let screen = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? icon
         // Under the icon, and always inside the visible screen, so nothing is cut off at the top or sides.
-        let x = min(max(icon.midX - size.width / 2, screen.minX + 8), screen.maxX - size.width - 8)
-        let y = max(min(icon.minY - Self.gap, screen.maxY) - size.height, screen.minY + 8)
+        let x = min(max(icon.midX - size.width / 2, screen.minX + Self.screenMargin), screen.maxX - size.width - Self.screenMargin)
+        let y = max(min(icon.minY - Self.gap, screen.maxY) - size.height, screen.minY + Self.screenMargin)
         panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
         panel.alphaValue = 0
         panel.orderFrontRegardless()
-        NSAnimationContext.runAnimationGroup { $0.duration = 0.16; panel.animator().alphaValue = 1 }
+        NSAnimationContext.runAnimationGroup { $0.duration = Self.fadeIn; panel.animator().alphaValue = 1 }
         host.rootView.model.opened += 1
         watchForDismissal()
     }
 
     /// A click anywhere else, or Escape, closes it the way a menu closes.
     private func watchForDismissal() {
-        outside = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+        outside = EventMonitor.global([.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             MainActor.assumeIsolated { self?.dismiss() }
         }
-        escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard event.keyCode == 53 else { return event }
+        escape = EventMonitor.local(.keyDown) { [weak self] event in
+            guard event.keyCode == KeyCode.escape else { return event }
             self?.dismiss()
             return nil
         }
     }
 
     private func dismiss() {
-        if let outside { NSEvent.removeMonitor(outside) }
-        if let escape { NSEvent.removeMonitor(escape) }
+        outside?.stop()
+        escape?.stop()
         outside = nil
         escape = nil
         panel.orderOut(nil)
@@ -139,9 +146,27 @@ struct MenuView: View {
     let close: () -> Void
     static let width: CGFloat = 300
 
+    private enum Layout {
+        static let cornerRadius: CGFloat = 22
+        /// A faint blue rising from below the panel.
+        static let glowOpacity = 0.16
+        static let glowCenter = UnitPoint(x: 0.5, y: 1.15)
+        static let edgeInk = 0.07
+        static let logoSize: CGFloat = 24
+        static let titleSize: CGFloat = 21
+        static let dotSize: CGFloat = 6
+        static let idleDotInk = 0.3
+        static let badgeHorizontalPadding: CGFloat = 9
+        static let badgeVerticalPadding: CGFloat = 5
+        static let talkVeilOpacity = 0.45
+        static let talkIconSize: CGFloat = 30
+        static let talkIconFillOpacity = 0.22
+        static let keycapSpacing: CGFloat = 3
+    }
+
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
-        VStack(alignment: .leading, spacing: 10) {
+        let shape = RoundedRectangle(cornerRadius: Layout.cornerRadius, style: .continuous)
+        VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
             header
             talkCard
                 .settling(model.opened, order: 0)
@@ -149,78 +174,78 @@ struct MenuView: View {
                 VStack(spacing: 0) {
                     wakeRow
                     Divide()
-                    SwitchRow(symbol: "bell", title: "Speak up on its own", detail: "When work finishes or ships", isOn: Binding(get: { model.speakUpOn }, set: { model.speakUpOn = $0; model.setSpeakUp($0) }))
+                    SwitchRow(symbol: Symbol.speakUp, title: "Speak up on its own", detail: "When work finishes or ships", isOn: Binding(get: { model.speakUpOn }, set: { model.speakUpOn = $0; model.setSpeakUp($0) }))
                     Divide()
-                    SwitchRow(symbol: "waveform.badge.mic", title: "Talk over it", detail: "Cut in just by speaking", isOn: Binding(get: { model.talkOverOn }, set: { model.talkOverOn = $0; model.setTalkOver($0) }))
+                    SwitchRow(symbol: Symbol.talkOver, title: "Talk over it", detail: "Cut in just by speaking", isOn: Binding(get: { model.talkOverOn }, set: { model.talkOverOn = $0; model.setTalkOver($0) }))
                     Divide()
-                    SwitchRow(symbol: "speaker.wave.1", title: "Sounds", detail: "A chime when something happens", isOn: Binding(get: { model.chimesOn }, set: { model.chimesOn = $0; model.setChimes($0) }))
+                    SwitchRow(symbol: Symbol.sounds, title: "Sounds", detail: "A chime when something happens", isOn: Binding(get: { model.chimesOn }, set: { model.chimesOn = $0; model.setChimes($0) }))
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, Memnox.Spacing.xSmall)
             }
             .settling(model.opened, order: 1)
             IslandCard(veil: nil) {
                 VoiceChoicePicker(choice: Binding(get: { model.voiceChoice }, set: { model.voiceChoice = $0; model.chooseVoice($0) }))
-                    .padding(.vertical, 6)
+                    .padding(.vertical, Memnox.Spacing.small)
             }
             .settling(model.opened, order: 2)
-            VStack(spacing: 2) {
-                MenuRow(symbol: "slider.horizontal.3", title: "Set up Memnox") {
+            VStack(spacing: Memnox.Spacing.xxSmall) {
+                MenuRow(symbol: Symbol.setUp, title: "Set up Memnox") {
                     close()
                     model.setUp()
                 }
-                MenuRow(symbol: "speaker.wave.2", title: "Say something") {
+                MenuRow(symbol: Symbol.saySomething, title: "Say something") {
                     close()
                     model.saySomething()
                 }
-                MenuRow(symbol: "doc.on.clipboard", title: "Copy what happened") {
+                MenuRow(symbol: Symbol.copy, title: "Copy what happened") {
                     close()
                     model.copyWhatHappened()
                 }
-                MenuRow(symbol: "power", title: "Quit Memnox", quiet: true) {
+                MenuRow(symbol: Symbol.quit, title: "Quit Memnox", quiet: true) {
                     NSApp.terminate(nil)
                 }
             }
             .settling(model.opened, order: 3)
         }
-        .padding(12)
+        .padding(Memnox.Spacing.large)
         .frame(width: Self.width)
         .background(
             shape.fill(Color.black)
                 .overlay(
                     RadialGradient(
-                        colors: [Memnox.Palette.primary.opacity(0.16), .clear],
-                        center: UnitPoint(x: 0.5, y: 1.15),
+                        colors: [Memnox.Palette.primary.opacity(Layout.glowOpacity), .clear],
+                        center: Layout.glowCenter,
                         startRadius: 0,
                         endRadius: Self.width
                     )
                 )
                 .clipShape(shape)
         )
-        .overlay(shape.strokeBorder(Color.white.opacity(0.07), lineWidth: 1))
+        .overlay(shape.strokeBorder(Color.white.opacity(Layout.edgeInk), lineWidth: Memnox.Stroke.hairline))
     }
 
     private var header: some View {
-        HStack(spacing: 11) {
-            LogoMark(size: 24)
+        HStack(spacing: MenuLayout.iconSpacing) {
+            LogoMark(size: Layout.logoSize)
             Text("Memnox")
-                .font(Memnox.display(21))
+                .font(Memnox.display(Layout.titleSize))
                 .foregroundStyle(Color.white)
             Spacer()
-            HStack(spacing: 6) {
+            HStack(spacing: Memnox.Spacing.small) {
                 Circle()
-                    .fill(model.wakeOn ? IslandPalette.green : Color.white.opacity(0.3))
-                    .frame(width: 6, height: 6)
+                    .fill(model.wakeOn ? IslandPalette.green : Color.white.opacity(Layout.idleDotInk))
+                    .frame(width: Layout.dotSize, height: Layout.dotSize)
                 Text(model.wakeOn ? "Listening for its name" : "Here when you call")
-                    .font(Memnox.sans(11, .medium))
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .font(Memnox.sans(Memnox.TextSize.caption, .medium))
+                    .foregroundStyle(Color.white.opacity(MenuLayout.mutedInk))
             }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
-            .background(Capsule().fill(Color.white.opacity(0.07)))
-            .animation(.easeOut(duration: 0.2), value: model.wakeOn)
+            .padding(.horizontal, Layout.badgeHorizontalPadding)
+            .padding(.vertical, Layout.badgeVerticalPadding)
+            .background(Capsule().fill(Color.white.opacity(MenuLayout.softFill)))
+            .animation(.easeOut(duration: Memnox.Motion.quick), value: model.wakeOn)
         }
-        .padding(.horizontal, 4)
-        .padding(.top, 4)
+        .padding(.horizontal, Memnox.Spacing.xSmall)
+        .padding(.top, Memnox.Spacing.xSmall)
     }
 
     /// The one thing this panel is for, set apart as its own lit card.
@@ -229,28 +254,28 @@ struct MenuView: View {
             close()
             model.talk()
         } label: {
-            IslandCard(veil: Memnox.Palette.primary.opacity(0.45)) {
-                HStack(spacing: 11) {
-                    Image(systemName: "waveform")
-                        .font(.system(size: 15, weight: .semibold))
+            IslandCard(veil: Memnox.Palette.primary.opacity(Layout.talkVeilOpacity)) {
+                HStack(spacing: MenuLayout.iconSpacing) {
+                    Image(systemName: Symbol.talk)
+                        .font(.system(size: Memnox.TextSize.headline, weight: .semibold))
                         .foregroundStyle(Memnox.Palette.sky)
-                        .frame(width: 30, height: 30)
-                        .background(Circle().fill(Memnox.Palette.primary.opacity(0.22)))
-                    VStack(alignment: .leading, spacing: 1) {
+                        .frame(width: Layout.talkIconSize, height: Layout.talkIconSize)
+                        .background(Circle().fill(Memnox.Palette.primary.opacity(Layout.talkIconFillOpacity)))
+                    VStack(alignment: .leading, spacing: MenuLayout.titleDetailSpacing) {
                         Text("Talk to Memnox")
-                            .font(Memnox.sans(14, .semibold))
+                            .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
                             .foregroundStyle(Color.white)
                         Text("Ask about your agents")
-                            .font(Memnox.sans(11))
-                            .foregroundStyle(Color.white.opacity(0.5))
+                            .font(Memnox.sans(Memnox.TextSize.caption))
+                            .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
                     }
                     Spacer()
-                    HStack(spacing: 3) {
+                    HStack(spacing: Layout.keycapSpacing) {
                         Keycap(label: "\u{2325}")
                         Keycap(label: "Space")
                     }
                 }
-                .padding(12)
+                .padding(Memnox.Spacing.large)
             }
         }
         .buttonStyle(MenuPress())
@@ -258,7 +283,7 @@ struct MenuView: View {
 
     private var wakeRow: some View {
         SwitchRow(
-            symbol: "ear",
+            symbol: Symbol.wake,
             title: "Wake when I say \u{201C}Memnox\u{201D}",
             detail: "On this Mac only",
             isOn: Binding(get: { model.wakeOn }, set: { model.setWake($0) })
@@ -274,26 +299,30 @@ struct MenuRow: View {
     let action: () -> Void
     @State private var hovering = false
 
+    private static let height: CGFloat = 32
+    private static let textInk = 0.9
+    private static let hoverFade: TimeInterval = 0.12
+
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 11) {
+            HStack(spacing: MenuLayout.iconSpacing) {
                 Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(quiet ? 0.4 : 0.6))
-                    .frame(width: 18)
+                    .font(.system(size: Memnox.TextSize.body, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(quiet ? MenuLayout.dimInk : MenuLayout.mutedInk))
+                    .frame(width: MenuLayout.iconColumnWidth)
                 Text(title)
-                    .font(Memnox.sans(13, .medium))
-                    .foregroundStyle(Color.white.opacity(quiet ? 0.5 : 0.9))
+                    .font(Memnox.sans(Memnox.TextSize.body, .medium))
+                    .foregroundStyle(Color.white.opacity(quiet ? Memnox.Ink.secondary : Self.textInk))
                 Spacer()
             }
-            .padding(.horizontal, 10)
-            .frame(height: 32)
+            .padding(.horizontal, Memnox.Spacing.regular)
+            .frame(height: Self.height)
             .contentShape(Rectangle())
             .background(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(Color.white.opacity(hovering ? 0.07 : 0))
+                RoundedRectangle(cornerRadius: MenuLayout.rowCornerRadius, style: .continuous)
+                    .fill(Color.white.opacity(hovering ? MenuLayout.softFill : 0))
             )
-            .animation(.easeOut(duration: 0.12), value: hovering)
+            .animation(.easeOut(duration: Self.hoverFade), value: hovering)
         }
         .buttonStyle(MenuPress())
         .onHover { hovering = $0 }
@@ -307,28 +336,30 @@ struct SwitchRow: View {
     let detail: String
     @Binding var isOn: Bool
 
+    private static let verticalPadding: CGFloat = 9
+
     var body: some View {
-        HStack(spacing: 11) {
+        HStack(spacing: MenuLayout.iconSpacing) {
             Image(systemName: symbol)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color.white.opacity(isOn ? 0.75 : 0.4))
-                .frame(width: 18)
-            VStack(alignment: .leading, spacing: 1) {
+                .font(.system(size: Memnox.TextSize.body, weight: .medium))
+                .foregroundStyle(Color.white.opacity(isOn ? MenuLayout.litInk : MenuLayout.dimInk))
+                .frame(width: MenuLayout.iconColumnWidth)
+            VStack(alignment: .leading, spacing: MenuLayout.titleDetailSpacing) {
                 Text(title)
-                    .font(Memnox.sans(13, .medium))
+                    .font(Memnox.sans(Memnox.TextSize.body, .medium))
                     .foregroundStyle(Color.white)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(detail)
-                    .font(Memnox.sans(11))
-                    .foregroundStyle(Color.white.opacity(0.45))
+                    .font(Memnox.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(Color.white.opacity(Memnox.Ink.tertiary))
             }
-            Spacer(minLength: 8)
+            Spacer(minLength: Memnox.Spacing.medium)
             Toggle("", isOn: $isOn)
                 .toggleStyle(MemnoxSwitch())
                 .labelsHidden()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
+        .padding(.horizontal, MenuLayout.rowInset)
+        .padding(.vertical, Self.verticalPadding)
         .contentShape(Rectangle())
         .onTapGesture { isOn.toggle() }
     }
@@ -343,45 +374,53 @@ enum VoiceChoice {
 struct VoiceChoicePicker: View {
     @Binding var choice: String
 
+    private enum Layout {
+        static let spacing: CGFloat = 9
+        /// The gap between the two segments, and around them inside their track.
+        static let segmentGap: CGFloat = 3
+        static let segmentTextSize: CGFloat = 12.5
+        static let choiceSpring = Animation.spring(response: 0.3, dampingFraction: 0.8)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 11) {
-                Image(systemName: "person.wave.2")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.75))
-                    .frame(width: 18)
+        VStack(alignment: .leading, spacing: Layout.spacing) {
+            HStack(spacing: MenuLayout.iconSpacing) {
+                Image(systemName: Symbol.voice)
+                    .font(.system(size: Memnox.TextSize.body, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(MenuLayout.litInk))
+                    .frame(width: MenuLayout.iconColumnWidth)
                 Text("Voice")
-                    .font(Memnox.sans(13, .medium))
+                    .font(Memnox.sans(Memnox.TextSize.body, .medium))
                     .foregroundStyle(Color.white)
                 Spacer()
                 Text(detail)
-                    .font(Memnox.sans(11))
-                    .foregroundStyle(Color.white.opacity(0.45))
+                    .font(Memnox.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(Color.white.opacity(Memnox.Ink.tertiary))
                     .lineLimit(1)
                     .contentTransition(.opacity)
-                    .animation(.easeOut(duration: 0.2), value: choice)
+                    .animation(.easeOut(duration: Memnox.Motion.quick), value: choice)
             }
-            HStack(spacing: 3) {
+            HStack(spacing: Layout.segmentGap) {
                 segment("Kokoro", VoiceChoice.kokoro)
                 segment("Mac", VoiceChoice.mac)
             }
-            .padding(3)
-            .background(Capsule().fill(Color.white.opacity(0.06)))
+            .padding(Layout.segmentGap)
+            .background(Capsule().fill(Color.white.opacity(Memnox.Ink.faintFill)))
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, MenuLayout.rowInset)
     }
 
     /// One choice: the island's white pill when it is the one speaking.
     private func segment(_ title: String, _ value: String) -> some View {
         let on = choice == value
         return Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { choice = value }
+            withAnimation(Layout.choiceSpring) { choice = value }
         } label: {
             Text(title)
-                .font(Memnox.sans(12.5, .semibold))
-                .foregroundStyle(on ? IslandPalette.primaryText : Color.white.opacity(0.6))
+                .font(Memnox.sans(Layout.segmentTextSize, .semibold))
+                .foregroundStyle(on ? IslandPalette.primaryText : Color.white.opacity(MenuLayout.mutedInk))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
+                .padding(.vertical, Memnox.Spacing.small)
                 .background(Capsule().fill(on ? IslandPalette.primaryFill : Color.clear))
                 .contentShape(Capsule())
         }
@@ -398,19 +437,31 @@ struct VoiceChoicePicker: View {
 
 /// A switch in the console blue, since the system one goes grey in a panel that is not key.
 struct MemnoxSwitch: ToggleStyle {
+    private enum Layout {
+        static let trackWidth: CGFloat = 34
+        static let trackHeight: CGFloat = 20
+        static let offTrackInk = 0.14
+        /// The knob fills the track's height less its inset on each side.
+        static let knobSize: CGFloat = 16
+        static let knobShadowOpacity = 0.25
+        static let knobShadowRadius: CGFloat = 1
+        static let knobShadowDrop: CGFloat = 1
+        static let flip = Animation.spring(response: 0.25, dampingFraction: 0.75)
+    }
+
     func makeBody(configuration: Configuration) -> some View {
         Button { configuration.isOn.toggle() } label: {
             ZStack(alignment: configuration.isOn ? .trailing : .leading) {
                 Capsule()
-                    .fill(configuration.isOn ? Memnox.Palette.primary : Color.white.opacity(0.14))
-                    .frame(width: 34, height: 20)
+                    .fill(configuration.isOn ? Memnox.Palette.primary : Color.white.opacity(Layout.offTrackInk))
+                    .frame(width: Layout.trackWidth, height: Layout.trackHeight)
                 Circle()
                     .fill(Color.white)
-                    .frame(width: 16, height: 16)
-                    .padding(2)
-                    .shadow(color: .black.opacity(0.25), radius: 1, y: 1)
+                    .frame(width: Layout.knobSize, height: Layout.knobSize)
+                    .padding(Memnox.Spacing.xxSmall)
+                    .shadow(color: .black.opacity(Layout.knobShadowOpacity), radius: Layout.knobShadowRadius, y: Layout.knobShadowDrop)
             }
-            .animation(.spring(response: 0.25, dampingFraction: 0.75), value: configuration.isOn)
+            .animation(Layout.flip, value: configuration.isOn)
         }
         .buttonStyle(.plain)
     }
@@ -418,20 +469,27 @@ struct MemnoxSwitch: ToggleStyle {
 
 /// A faint rule between the rows of one card.
 private struct Divide: View {
+    private static let ink = 0.05
+    /// Starts under the row titles: the row's inset, its icon column and the gap after it.
+    private static let indent = MenuLayout.rowInset + MenuLayout.iconColumnWidth + MenuLayout.iconSpacing
+
     var body: some View {
         Rectangle()
-            .fill(Color.white.opacity(0.05))
-            .frame(height: 1)
-            .padding(.leading, 41)
+            .fill(Color.white.opacity(Self.ink))
+            .frame(height: Memnox.Stroke.hairline)
+            .padding(.leading, Self.indent)
     }
 }
 
 /// Gives a little when pressed, the same press as the island's buttons.
 private struct MenuPress: ButtonStyle {
+    private static let pressedScale: CGFloat = 0.97
+    private static let press = Animation.spring(response: 0.2, dampingFraction: 0.6)
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? Self.pressedScale : 1)
+            .animation(Self.press, value: configuration.isPressed)
     }
 }
 
@@ -446,14 +504,53 @@ private struct Settle: ViewModifier {
     let opened: Int
     let order: Int
 
+    private enum Timing {
+        /// How far below its place a section starts.
+        static let rise = 6.0
+        /// A keyframe cannot last no time at all, so hiding at once takes a thousandth of a second.
+        static let instant: TimeInterval = 0.001
+        /// How long each section waits after the one above it.
+        static let stagger: TimeInterval = 0.04
+        static let settle: TimeInterval = 0.32
+    }
+
     func body(content: Content) -> some View {
         content
             .keyframeAnimator(initialValue: 1.0, trigger: opened) { view, value in
-                view.opacity(value).offset(y: (1 - value) * 6)
+                view.opacity(value).offset(y: (1 - value) * Timing.rise)
             } keyframes: { _ in
-                LinearKeyframe(0.0, duration: 0.001)
-                LinearKeyframe(0.0, duration: 0.001 + 0.04 * Double(order))
-                SpringKeyframe(1.0, duration: 0.32, spring: .smooth)
+                LinearKeyframe(0.0, duration: Timing.instant)
+                LinearKeyframe(0.0, duration: Timing.instant + Timing.stagger * Double(order))
+                SpringKeyframe(1.0, duration: Timing.settle, spring: .smooth)
             }
     }
+}
+
+/// Measures every row of the menu shares, so icons, labels and rules line up from row to row.
+private enum MenuLayout {
+    static let iconSpacing: CGFloat = 11
+    static let iconColumnWidth: CGFloat = 18
+    static let rowInset: CGFloat = 12
+    static let rowCornerRadius: CGFloat = 11
+    static let titleDetailSpacing: CGFloat = 1
+    /// White for secondary icons and labels, between the shared secondary ink and full white.
+    static let mutedInk = 0.6
+    static let litInk = 0.75
+    static let dimInk = 0.4
+    /// The faint white behind a hovered row and the listening badge.
+    static let softFill = 0.07
+}
+
+/// The SF Symbols the menu draws, one per row.
+private enum Symbol {
+    static let talk = "waveform"
+    static let wake = "ear"
+    static let speakUp = "bell"
+    static let talkOver = "waveform.badge.mic"
+    static let sounds = "speaker.wave.1"
+    static let voice = "person.wave.2"
+    static let setUp = "slider.horizontal.3"
+    static let saySomething = "speaker.wave.2"
+    static let copy = "doc.on.clipboard"
+    static let quit = "power"
 }

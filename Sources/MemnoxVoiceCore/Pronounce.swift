@@ -8,13 +8,29 @@ public func pronounced(_ text: String) -> String {
     var spoken = websites(in: text)
     spoken = fileNames(in: spoken)
     spoken = machineText(in: spoken)
-    spoken = spoken.replacingOccurrences(of: #"(?<![\w-])--([a-z][\w-]*)"#, with: "dash dash $1", options: .regularExpression)
+    spoken = spoken.replacingOccurrences(of: Pattern.flag, with: "dash dash $1", options: .regularExpression)
     for (written, said) in phrases { spoken = replacingWord(written, with: said, in: spoken) }
     // "memnox-runtime" is two words said together, and a hyphen read aloud is a stumble.
-    spoken = spoken.replacingOccurrences(of: #"(?<=[A-Za-z])-(?=[A-Za-z])"#, with: " ", options: .regularExpression)
+    spoken = spoken.replacingOccurrences(of: Pattern.joiningHyphen, with: " ", options: .regularExpression)
     spoken = abbreviations(in: spoken)
     for (symbol, said) in symbols { spoken = spoken.replacingOccurrences(of: symbol, with: said) }
     return spoken.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+}
+
+/// The regular expressions that find what a voice must say differently from how it is written.
+private enum Pattern {
+    /// A command line flag such as `--force`, but not a dash inside a word.
+    static let flag = #"(?<![\w-])--([a-z][\w-]*)"#
+    /// A hyphen between two letters, as in "memnox-runtime".
+    static let joiningHyphen = #"(?<=[A-Za-z])-(?=[A-Za-z])"#
+    /// A web address, capturing its host without "www.", and leaving any punctuation that ends the sentence.
+    static let website = #"https?://(?:www\.)?([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)(?:[/?#][^\s]*[^\s.,;:!?)])?"#
+    /// A file name with an ending of up to five letters, capturing the name and the ending past any folders.
+    static let fileName = #"(?:[\w.~-]+/)*([\w-]+(?:\.[\w-]+)*)\.([A-Za-z]{1,5})\b"#
+    /// Not preceded by a word character or a hyphen, so a phrase only matches as a whole word.
+    static let wordStart = #"(?<![\w-])"#
+    /// Not followed by a word character, the other half of matching a whole word.
+    static let wordEnd = #"(?![\w])"#
 }
 
 /// Names that read wrong however they are spelled out, matched as whole words, first.
@@ -69,6 +85,7 @@ private let endings: [String: String] = [
     "png": "P N G", "svg": "S V G", "plist": "P list", "lock": "lock", "txt": "text",
 ]
 
+/// Symbols as they are said, spaced where a symbol alone would be ambiguous.
 private let symbols: [(String, String)] = [
     (" & ", " and "), ("%", " percent"), (" + ", " plus "), (" = ", " equals "),
     (" -> ", " to "), (" => ", " to "), ("~/", "home "), ("@", " at "),
@@ -76,7 +93,7 @@ private let symbols: [(String, String)] = [
 
 /// A web address as the site it is on, since nobody reads a whole link out: "github dot com".
 private func websites(in text: String) -> String {
-    guard let expression = try? NSRegularExpression(pattern: #"https?://(?:www\.)?([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)(?:[/?#][^\s]*[^\s.,;:!?)])?"#) else { return text }
+    guard let expression = try? NSRegularExpression(pattern: Pattern.website) else { return text }
     var result = text
     for match in expression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed() {
         guard let whole = Range(match.range, in: result), let host = Range(match.range(at: 1), in: result) else { continue }
@@ -95,6 +112,7 @@ private func machineText(in text: String) -> String {
     return spoken
 }
 
+/// Each pattern with the words it is said as, applied in order.
 private let machineWords: [(String, String)] = [
     // "feat/voice-answers" is the voice answers feature branch, and read as written it is a stumble.
     (#"\bfeat/"#, "feature "),
@@ -112,8 +130,7 @@ private let machineWords: [(String, String)] = [
 
 /// `Speech.swift` as Speech dot swift, and a path down to its last part, which is how a file is named aloud.
 private func fileNames(in text: String) -> String {
-    let pattern = #"(?:[\w.~-]+/)*([\w-]+(?:\.[\w-]+)*)\.([A-Za-z]{1,5})\b"#
-    guard let expression = try? NSRegularExpression(pattern: pattern) else { return text }
+    guard let expression = try? NSRegularExpression(pattern: Pattern.fileName) else { return text }
     var result = text
     let range = NSRange(result.startIndex..., in: result)
     for match in expression.matches(in: result, range: range).reversed() {
@@ -138,8 +155,8 @@ private func abbreviations(in text: String) -> String {
             continue
         }
         let lower = core.lowercased()
-        let capitals = core.count >= 2 && core.count <= 5 && core.allSatisfy { $0.isUppercase && $0.isLetter }
-        let plural = core.count >= 3 && core.dropLast().allSatisfy { $0.isUppercase } && core.last == "s"
+        let capitals = spelledCapitals.contains(core.count) && core.allSatisfy { $0.isUppercase && $0.isLetter }
+        let plural = core.count >= shortestPlural && core.dropLast().allSatisfy { $0.isUppercase } && core.last == "s"
         let spell = spelled.contains(lower) || (capitals && !wordsInCapitals.contains(core))
         guard spell || plural else {
             words.append(String(token))
@@ -152,7 +169,12 @@ private func abbreviations(in text: String) -> String {
     return words.joined(separator: " ")
 }
 
+/// A run of capitals this long reads as an abbreviation, so it is spelled out letter by letter.
+private let spelledCapitals = 2...5
+/// "PRs" or "IDs": at least two capitals and the plural "s".
+private let shortestPlural = 3
+
 private func replacingWord(_ word: String, with said: String, in text: String) -> String {
     let escaped = NSRegularExpression.escapedPattern(for: word)
-    return text.replacingOccurrences(of: #"(?<![\w-])"# + escaped + #"(?![\w])"#, with: said, options: .regularExpression)
+    return text.replacingOccurrences(of: Pattern.wordStart + escaped + Pattern.wordEnd, with: said, options: .regularExpression)
 }

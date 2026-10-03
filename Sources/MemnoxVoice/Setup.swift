@@ -98,9 +98,12 @@ final class SetupModel: ObservableObject {
         }
     }
 
+    /// The Spoken Content pane of Accessibility in System Settings.
+    private static let spokenContentSettings = "x-apple.systempreferences:com.apple.Accessibility-Settings.extension?SpokenContent"
+
     /// Where macOS keeps the voices to download, since an app cannot fetch them itself.
     func openVoiceSettings() {
-        let spoken = URL(string: "x-apple.systempreferences:com.apple.Accessibility-Settings.extension?SpokenContent")
+        let spoken = URL(string: Self.spokenContentSettings)
         if let spoken { NSWorkspace.shared.open(spoken) }
     }
 
@@ -135,20 +138,42 @@ final class SetupModel: ObservableObject {
 struct SetupView: View {
     @ObservedObject var model: SetupModel
 
+    private enum Layout {
+        static let glowOpacity = 0.18
+        static let glowCenter = UnitPoint(x: 0.5, y: 1.1)
+        static let glowRadius: CGFloat = 520
+        /// The room above the steps and below them, setting the header and footer apart.
+        static let sectionGap: CGFloat = 22
+        static let horizontalPadding: CGFloat = 28
+        /// Taller at the top, to clear the window's close and minimize buttons.
+        static let topPadding: CGFloat = 40
+        static let bottomPadding: CGFloat = 24
+        static let headerSpacing: CGFloat = 14
+        static let eyebrowTracking: CGFloat = 1.6
+        static let titleSize: CGFloat = 30
+        static let stepLineSpacing: CGFloat = 7
+        static let stepTitleSize: CGFloat = 13.5
+        /// Lines the mark up with the step title beside it.
+        static let markTopInset: CGFloat = 1
+        static let stepChange: TimeInterval = 0.35
+        static let needsVeilOpacity = 0.3
+        static let playSymbol = "play.fill"
+    }
+
     var body: some View {
         ZStack {
             // Solid black lit faintly from below, the same ground as the island and its cards.
             Color.black
             RadialGradient(
-                colors: [Memnox.Palette.primary.opacity(0.18), .clear],
-                center: UnitPoint(x: 0.5, y: 1.1),
+                colors: [Memnox.Palette.primary.opacity(Layout.glowOpacity), .clear],
+                center: Layout.glowCenter,
                 startRadius: 0,
-                endRadius: 520
+                endRadius: Layout.glowRadius
             )
             VStack(alignment: .leading, spacing: 0) {
                 header
-                    .padding(.bottom, 22)
-                VStack(spacing: 10) {
+                    .padding(.bottom, Layout.sectionGap)
+                VStack(spacing: Memnox.Spacing.regular) {
                     step("What should I call you?", state: model.name.trimmingCharacters(in: .whitespaces).isEmpty ? .waiting : .done) {
                         NameField(text: $model.name)
                     }
@@ -169,17 +194,17 @@ struct SetupView: View {
                         if case .installing = model.kokoro.state {
                             ProgressView().controlSize(.small)
                         }
-                        HStack(spacing: 8) {
+                        HStack(spacing: Memnox.Spacing.medium) {
                             VoicePicker(model: model)
                             Button {
                                 Task { await model.hear() }
                             } label: {
-                                Label("Hear it", systemImage: "play.fill")
+                                Label("Hear it", systemImage: Layout.playSymbol)
                             }
                             .buttonStyle(IslandButton(primary: false))
                         }
                         if case .failed = model.kokoro.state {
-                            HStack(spacing: 8) {
+                            HStack(spacing: Memnox.Spacing.medium) {
                                 Button("Try again") { Task { await model.useKokoro?() } }.buttonStyle(IslandButton(primary: false))
                                 if !model.naturalVoice {
                                     Button("Get a Mac voice instead") { model.openVoiceSettings() }.buttonStyle(IslandButton(primary: false))
@@ -188,11 +213,11 @@ struct SetupView: View {
                         }
                     }
                     step("When you come back", state: .done) {
-                        HStack(spacing: 12) {
+                        HStack(spacing: Memnox.Spacing.large) {
                             Text("Catch me up on what my agents did while I was away")
-                                .font(Memnox.sans(12))
-                                .foregroundStyle(Color.white.opacity(0.5))
-                            Spacer(minLength: 8)
+                                .font(Memnox.sans(Memnox.TextSize.footnote))
+                                .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                            Spacer(minLength: Memnox.Spacing.medium)
                             Toggle("", isOn: $model.catchUp)
                                 .toggleStyle(MemnoxSwitch())
                                 .labelsHidden()
@@ -200,30 +225,30 @@ struct SetupView: View {
                     }
                 }
                 footer
-                    .padding(.top, 22)
+                    .padding(.top, Layout.sectionGap)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 40)
-            .padding(.bottom, 24)
+            .padding(.horizontal, Layout.horizontalPadding)
+            .padding(.top, Layout.topPadding)
+            .padding(.bottom, Layout.bottomPadding)
         }
-        .frame(width: 540)
+        .frame(width: SetupLayout.width)
         .environment(\.colorScheme, .dark)
         .task { await model.check() }
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .center, spacing: Layout.headerSpacing) {
             OrbMark()
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
                 Text("MEMNOX")
-                    .font(Memnox.sans(10, .semibold))
-                    .tracking(1.6)
+                    .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
+                    .tracking(Layout.eyebrowTracking)
                     .foregroundStyle(Memnox.Palette.muted)
                 Text("Set up your voice")
-                    .font(Memnox.display(30))
+                    .font(Memnox.display(Layout.titleSize))
                     .foregroundStyle(Memnox.Palette.foreground)
                 Text("Talk to your agents, and let them do more on their own, safely.")
-                    .font(Memnox.sans(13))
+                    .font(Memnox.sans(Memnox.TextSize.body))
                     .foregroundStyle(Memnox.Palette.muted)
             }
         }
@@ -231,12 +256,12 @@ struct SetupView: View {
 
     private var footer: some View {
         HStack {
-            HStack(spacing: 6) {
+            HStack(spacing: Memnox.Spacing.small) {
                 Keycap(label: "⌥")
                 Keycap(label: "Space")
                 Text("to talk, from anywhere")
-                    .font(Memnox.sans(12))
-                    .foregroundStyle(Color.white.opacity(0.5))
+                    .font(Memnox.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
             }
             Spacer()
             Button("Done") { model.finish() }
@@ -253,33 +278,33 @@ struct SetupView: View {
         @ViewBuilder control: () -> Control
     ) -> some View {
         IslandCard(veil: veil(state)) {
-            HStack(alignment: .top, spacing: 12) {
-                StatusMark(state: state).padding(.top, 1)
-                VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .top, spacing: Memnox.Spacing.large) {
+                StatusMark(state: state).padding(.top, Layout.markTopInset)
+                VStack(alignment: .leading, spacing: Layout.stepLineSpacing) {
                     Text(title)
-                        .font(Memnox.sans(13.5, .semibold))
+                        .font(Memnox.sans(Layout.stepTitleSize, .semibold))
                         .foregroundStyle(Color.white)
                     if let detail {
                         Text(detail)
-                            .font(Memnox.sans(12))
-                            .foregroundStyle(Color.white.opacity(0.5))
+                            .font(Memnox.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     control()
                     if case .needs(let hint) = state {
-                        Text(hint).font(Memnox.sans(12)).foregroundStyle(IslandPalette.amber)
+                        Text(hint).font(Memnox.sans(Memnox.TextSize.footnote)).foregroundStyle(IslandPalette.amber)
                     }
                 }
                 Spacer(minLength: 0)
             }
-            .padding(16)
+            .padding(Memnox.Spacing.xLarge)
         }
-        .animation(.easeInOut(duration: 0.35), value: state)
+        .animation(.easeInOut(duration: Layout.stepChange), value: state)
     }
 
     /// Amber light under a step that needs them, and none under one that is done, so the eye goes to what is left.
     private func veil(_ state: StepState) -> Color? {
-        if case .needs = state { return IslandPalette.amber.opacity(0.3) }
+        if case .needs = state { return IslandPalette.amber.opacity(Layout.needsVeilOpacity) }
         return nil
     }
 }
@@ -288,27 +313,37 @@ struct SetupView: View {
 private struct StatusMark: View {
     let state: StepState
 
+    private enum Layout {
+        static let size: CGFloat = 18
+        /// Small enough for the tick to sit well inside the mark.
+        static let checkSize: CGFloat = 8.5
+        static let checkSymbol = "checkmark"
+        static let waitingRingInk = 0.25
+    }
+
     var body: some View {
         switch state {
         case .done:
             Circle().fill(IslandPalette.green)
-                .frame(width: 18, height: 18)
-                .overlay(Image(systemName: "checkmark").font(.system(size: 8.5, weight: .heavy)).foregroundStyle(Color.black))
+                .frame(width: Layout.size, height: Layout.size)
+                .overlay(Image(systemName: Layout.checkSymbol).font(.system(size: Layout.checkSize, weight: .heavy)).foregroundStyle(Color.black))
                 .transition(.scale.combined(with: .opacity))
         case .waiting:
-            Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1.5).frame(width: 18, height: 18)
+            Circle().strokeBorder(Color.white.opacity(Layout.waitingRingInk), lineWidth: Memnox.Stroke.emphasis).frame(width: Layout.size, height: Layout.size)
         case .needs:
             Circle().fill(IslandPalette.amber)
-                .frame(width: 18, height: 18)
-                .overlay(Text("!").font(.system(size: 10, weight: .heavy)).foregroundStyle(Color.black))
+                .frame(width: Layout.size, height: Layout.size)
+                .overlay(Text("!").font(.system(size: Memnox.TextSize.micro, weight: .heavy)).foregroundStyle(Color.black))
         }
     }
 }
 
 /// The Memnox mark, so setup is plainly the same product as the console.
 private struct OrbMark: View {
+    private static let size: CGFloat = 34
+
     var body: some View {
-        LogoMark(size: 34)
+        LogoMark(size: Self.size)
     }
 }
 
@@ -317,28 +352,34 @@ private struct NameField: View {
     @Binding var text: String
     @FocusState private var focused: Bool
 
+    private static let focusGlowRadius: CGFloat = 6
+    private static let focusFade: TimeInterval = 0.15
+
     var body: some View {
         TextField("", text: $text, prompt: Text("Your name").foregroundStyle(Memnox.Palette.muted))
             .textFieldStyle(.plain)
-            .font(Memnox.sans(13))
+            .font(Memnox.sans(Memnox.TextSize.body))
             .foregroundStyle(Memnox.Palette.foreground)
             .focused($focused)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(width: 260)
-            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.white.opacity(0.06)))
+            .padding(.horizontal, Memnox.Spacing.large)
+            .padding(.vertical, Memnox.Spacing.medium)
+            .frame(width: SetupLayout.fieldWidth)
+            .background(RoundedRectangle(cornerRadius: SetupLayout.fieldCornerRadius, style: .continuous).fill(Color.white.opacity(Memnox.Ink.faintFill)))
             .overlay(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .strokeBorder(focused ? Memnox.Palette.primary : Color.white.opacity(0.08), lineWidth: 1)
+                RoundedRectangle(cornerRadius: SetupLayout.fieldCornerRadius, style: .continuous)
+                    .strokeBorder(focused ? Memnox.Palette.primary : Color.white.opacity(SetupLayout.fieldEdgeInk), lineWidth: Memnox.Stroke.hairline)
             )
-            .shadow(color: focused ? Memnox.Palette.ring : .clear, radius: 6)
-            .animation(.easeOut(duration: 0.15), value: focused)
+            .shadow(color: focused ? Memnox.Palette.ring : .clear, radius: Self.focusGlowRadius)
+            .animation(.easeOut(duration: Self.focusFade), value: focused)
     }
 }
 
 /// The installed voices, best first, as a quiet menu rather than a system pop up button.
 private struct VoicePicker: View {
     @ObservedObject var model: SetupModel
+
+    private static let chevronSymbol = "chevron.up.chevron.down"
+    private static let chevronSize: CGFloat = 9
 
     var body: some View {
         Menu {
@@ -347,15 +388,15 @@ private struct VoicePicker: View {
             }
         } label: {
             HStack {
-                Text(current).font(Memnox.sans(12)).foregroundStyle(Memnox.Palette.foreground)
+                Text(current).font(Memnox.sans(Memnox.TextSize.footnote)).foregroundStyle(Memnox.Palette.foreground)
                 Spacer()
-                Image(systemName: "chevron.up.chevron.down").font(.system(size: 9)).foregroundStyle(Memnox.Palette.muted)
+                Image(systemName: Self.chevronSymbol).font(.system(size: Self.chevronSize)).foregroundStyle(Memnox.Palette.muted)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(width: 260)
-            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.white.opacity(0.06)))
-            .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+            .padding(.horizontal, Memnox.Spacing.large)
+            .padding(.vertical, Memnox.Spacing.medium)
+            .frame(width: SetupLayout.fieldWidth)
+            .background(RoundedRectangle(cornerRadius: SetupLayout.fieldCornerRadius, style: .continuous).fill(Color.white.opacity(Memnox.Ink.faintFill)))
+            .overlay(RoundedRectangle(cornerRadius: SetupLayout.fieldCornerRadius, style: .continuous).strokeBorder(Color.white.opacity(SetupLayout.fieldEdgeInk), lineWidth: Memnox.Stroke.hairline))
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -379,6 +420,8 @@ private struct VoicePicker: View {
 @MainActor
 final class SetupWindow {
     private var window: NSWindow?
+    /// A first height only, since the window is sized to its content once it is built.
+    private static let initialHeight: CGFloat = 640
 
     func show(_ model: SetupModel) {
         if let window {
@@ -387,7 +430,7 @@ final class SetupWindow {
             return
         }
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 540, height: 640),
+            contentRect: NSRect(x: 0, y: 0, width: SetupLayout.width, height: Self.initialHeight),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -413,4 +456,13 @@ final class SetupWindow {
         window?.close()
         window = nil
     }
+}
+
+/// Measures the setup card's pieces share, so the window, its fields and its pickers line up.
+private enum SetupLayout {
+    static let width: CGFloat = 540
+    /// The name field and the voice picker are one width, so they read as one column.
+    static let fieldWidth: CGFloat = 260
+    static let fieldCornerRadius: CGFloat = 11
+    static let fieldEdgeInk = 0.08
 }

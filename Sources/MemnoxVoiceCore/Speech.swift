@@ -12,6 +12,10 @@ public struct SentenceSplitter {
     /// The first piece of a reply may end at a comma once it has this many words, since the voice
     /// is silent until something is said and the rest streams in while it speaks.
     private static let firstClauseWords = 4
+    /// Marks that end a sentence when a space follows them.
+    private static let sentenceEnds = ".!?"
+    /// Marks the first piece of a reply may end at, so the voice starts sooner.
+    private static let clauseBreaks = ",;:"
     private var spoke = false
 
     public init() {}
@@ -24,8 +28,8 @@ public struct SentenceSplitter {
         while index < pending.endIndex {
             let next = pending.index(after: index)
             let spaced = next < pending.endIndex && pending[next].isWhitespace
-            let ends = spaced && ".!?".contains(pending[index])
-            let pauses = spaced && !spoke && ",;:".contains(pending[index])
+            let ends = spaced && Self.sentenceEnds.contains(pending[index])
+            let pauses = spaced && !spoke && Self.clauseBreaks.contains(pending[index])
             if ends || pauses {
                 let sentence = pending[start...index].trimmingCharacters(in: .whitespacesAndNewlines)
                 let joined = carried.isEmpty ? sentence : "\(carried) \(sentence)"
@@ -66,8 +70,11 @@ public struct SentenceSplitter {
     }
 }
 
+/// The longest caption the pill shows, which fits its width in one line at the caption size.
+public let captionLimit = 40
+
 /// The pill's one line: short enough to read at a glance, cut at a word.
-public func caption(_ text: String, limit: Int = 40) -> String {
+public func caption(_ text: String, limit: Int = captionLimit) -> String {
     let flat = text.split(whereSeparator: \.isNewline).joined(separator: " ")
     guard flat.count > limit else { return flat }
     let cut = flat.prefix(limit)
@@ -78,8 +85,11 @@ public func caption(_ text: String, limit: Int = 40) -> String {
 /// `mcp__memnox-operator__sessions` as a person would read it.
 public func toolWord(_ tool: String?) -> String {
     guard let tool else { return "the machine" }
-    return tool.components(separatedBy: "__").last ?? tool
+    return tool.components(separatedBy: mcpToolSeparator).last ?? tool
 }
+
+/// What an MCP tool name puts between its server and the tool itself.
+private let mcpToolSeparator = "__"
 
 /// Words people trail off on, which mean they have not finished even when they pause.
 private let trailingWords: Set<String> = [
@@ -96,18 +106,38 @@ public func endOfSpeechPause(after words: String) -> TimeInterval {
     let trimmed = words.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     let spoken = trimmed.split(whereSeparator: { !$0.isLetter && $0 != "'" })
     let last = spoken.last.map(String.init) ?? ""
-    let trailing = trimmed.hasSuffix(",") || trimmed.hasSuffix("...") || trimmed.hasSuffix("\u{2026}")
-    if trailing || trailingWords.contains(last) { return 3.0 }
+    let trailing = trailingMarks.contains(where: { trimmed.hasSuffix($0) })
+    if trailing || trailingWords.contains(last) { return SpeechPause.stillThinking }
     let long = spoken.count > longThought
     // The recognizer only puts a full stop or a question mark on a sentence it thinks is done.
-    if trimmed.hasSuffix("?") || trimmed.hasSuffix(".") || trimmed.hasSuffix("!") {
-        if spoken.count <= shortReply { return 0.6 }
+    if finishingMarks.contains(where: { trimmed.hasSuffix($0) }) {
+        if spoken.count <= shortReply { return SpeechPause.shortReply }
         // A finished question is answered sooner; a long one keeps more room, since people pause between its sentences.
-        return long ? 1.5 : 0.9
+        return long ? SpeechPause.finishedLong : SpeechPause.finished
     }
     // The older recognizer rarely punctuates as it goes, so an unmarked pause gets the benefit of the doubt.
-    return long ? 2.0 : 1.7
+    return long ? SpeechPause.unmarkedLong : SpeechPause.unmarked
 }
+
+/// The pauses that end what somebody is saying, from a one word answer to somebody still thinking.
+private enum SpeechPause {
+    /// A trailing "uh", "so" or "..." is somebody still thinking, so that waits longest.
+    static let stillThinking: TimeInterval = 3.0
+    /// "Yes." is an answer, and answered almost at once.
+    static let shortReply: TimeInterval = 0.6
+    /// A finished question, answered a beat after it.
+    static let finished: TimeInterval = 0.9
+    /// A finished long thought, since people pause between its sentences.
+    static let finishedLong: TimeInterval = 1.5
+    /// No mark to go on, so the pause gets the benefit of the doubt.
+    static let unmarked: TimeInterval = 1.7
+    static let unmarkedLong: TimeInterval = 2.0
+}
+
+/// Endings that mean somebody trailed off mid thought: a comma or an ellipsis, typed or as one character.
+private let trailingMarks = [",", "...", "\u{2026}"]
+/// Endings the recognizer only writes on a sentence it thinks is done.
+private let finishingMarks = ["?", ".", "!"]
 
 /// How long a pause is before the words so far are sent as a guess, well short of any end of speech.
 public let guessAfterPause: TimeInterval = 0.35
@@ -116,7 +146,7 @@ public let guessAfterPause: TimeInterval = 0.35
 /// like "and", and only while the pause has not yet ended what they are saying.
 public func mayGuess(_ words: String, pausedFor pause: TimeInterval) -> Bool {
     let ending = endOfSpeechPause(after: words)
-    return words.contains(where: \.isLetter) && ending < 3.0 && pause >= guessAfterPause && pause < ending
+    return words.contains(where: \.isLetter) && ending < SpeechPause.stillThinking && pause >= guessAfterPause && pause < ending
 }
 
 /// "Yes.", "Go ahead." or "Open it.": an answer, not the start of a thought.
@@ -166,6 +196,27 @@ public func afterWakeWord(_ words: String) -> String? {
     return nil
 }
 
+/// What they said with "Memnox" taken off the front, since calling it by name mid conversation
+/// is a greeting and not part of the question.
+/// Only its name, or "hey" and its name: somebody getting its attention. Said at the end of a
+/// question, as in "start a session in Memnox", the name is part of what they asked.
+public func nameAlone(_ words: String) -> Bool {
+    guard let rest = afterWakeWord(words), rest.isEmpty else { return false }
+    return words.split(whereSeparator: \.isWhitespace).count <= nameAloneWords
+}
+
+/// "Hey Memnox" heard as up to three words, since the recognizer may split the name in two.
+private let nameAloneWords = 3
+/// One word before the name, like "hey", still makes it a greeting.
+private let greetingWordsBeforeName = 2
+
+public func withoutLeadingName(_ words: String) -> String {
+    guard let rest = afterWakeWord(words) else { return words }
+    let before = words.prefix(words.count - rest.count)
+    // Only the name first, or after one word like "hey", is a greeting; later on it is part of what they asked.
+    return before.split(whereSeparator: \.isWhitespace).count <= greetingWordsBeforeName && !rest.isEmpty ? rest : words
+}
+
 /// The words in a line, lowercased, for comparing what was heard with what was said.
 private func wordsIn(_ text: String) -> [String] {
     text.lowercased().split(whereSeparator: { !$0.isLetter }).map(String.init).filter { $0.count > 1 }
@@ -178,11 +229,16 @@ private func wordsIn(_ text: String) -> [String] {
 private func isEcho(_ word: String, of said: [String]) -> Bool {
     said.contains { spoken in
         if spoken == word { return true }
-        guard word.count >= 4, spoken.count >= 4 else { return false }
+        guard word.count >= fuzzyEchoLength, spoken.count >= fuzzyEchoLength else { return false }
         if spoken.contains(word) || word.contains(spoken) { return true }
-        return editDistance(word, spoken) <= min(word.count, spoken.count) / 3
+        return editDistance(word, spoken) <= min(word.count, spoken.count) / misspellingShare
     }
 }
+
+/// Shorter words match only exactly, since "so" is a letter from "to" and "them" holds "the".
+private let fuzzyEchoLength = 4
+/// A spelling one edit in this many letters away is still its own word misheard.
+private let misspellingShare = 3
 
 private func editDistance(_ a: String, _ b: String) -> Int {
     let a = Array(a), b = Array(b)
@@ -209,12 +265,27 @@ public func isBargeIn(heard: String, spoken: String, speaking: Bool = false) -> 
     let recent = Array(wordsIn(heard).suffix(bargeWindow))
     let novel = recent.filter { !isEcho($0, of: said) }
     // Heard opening on its own words is its echo carrying on misheard; a person cutting in opens with theirs.
-    let opensWithEcho = wordsIn(heard).prefix(2).allSatisfy { isEcho($0, of: said) }
+    let opensWithEcho = wordsIn(heard).prefix(echoOpeningWords).allSatisfy { isEcho($0, of: said) }
     // "Stop" or "wait" is one word and has to cut in at once; its own voice never says them unprompted.
     if novel.contains(where: { stopWords.contains($0) }) { return true }
-    let needed = speaking ? (opensWithEcho ? 4 : 3) : 2
-    return novel.count >= needed && Double(novel.count) >= Double(recent.count) * 0.6
+    let needed = speaking ? (opensWithEcho ? BargeIn.overEcho : BargeIn.overSpeech) : BargeIn.inSilence
+    return novel.count >= needed && Double(novel.count) >= Double(recent.count) * BargeIn.novelShare
 }
+
+/// How many words of the person's own it takes to call what was heard them cutting in.
+private enum BargeIn {
+    /// Nothing is being said, so two words of theirs are enough.
+    static let inSilence = 2
+    /// The voice is talking, which is when its echo is loudest.
+    static let overSpeech = 3
+    /// The voice is talking and what was heard opens with its own words, the likeliest echo of all.
+    static let overEcho = 4
+    /// Most of the recent words have to be theirs, so a stray novel word inside an echo does not count.
+    static let novelShare = 0.6
+}
+
+/// The first words heard, which open with its own when the echo is carrying on.
+private let echoOpeningWords = 2
 
 /// Words a person says to stop the voice mid sentence, and its own name, which mean "listen to me".
 private let stopWords: Set<String> = [
@@ -245,27 +316,14 @@ public func withoutEchoRuns(_ heard: String, spoken: String) -> String {
     func echoes(_ part: String) -> Bool { wordsIn(part).allSatisfy { isEcho($0, of: said) } }
     func judged(_ run: ArraySlice<String>) -> Int { run.filter { !wordsIn($0).isEmpty }.count }
     let leading = parts.prefix(while: echoes)
-    if judged(leading) >= 2 { parts.removeFirst(leading.count) }
+    if judged(leading) >= echoRunLength { parts.removeFirst(leading.count) }
     let trailing = Array(parts.reversed().prefix(while: echoes))
-    if judged(trailing[...]) >= 2 { parts.removeLast(trailing.count) }
+    if judged(trailing[...]) >= echoRunLength { parts.removeLast(trailing.count) }
     return parts.joined(separator: " ")
 }
 
-/// What they said with "Memnox" taken off the front, since calling it by name mid conversation
-/// is a greeting and not part of the question.
-/// Only its name, or "hey" and its name: somebody getting its attention. Said at the end of a
-/// question, as in "start a session in Memnox", the name is part of what they asked.
-public func nameAlone(_ words: String) -> Bool {
-    guard let rest = afterWakeWord(words), rest.isEmpty else { return false }
-    return words.split(whereSeparator: \.isWhitespace).count <= 3
-}
-
-public func withoutLeadingName(_ words: String) -> String {
-    guard let rest = afterWakeWord(words) else { return words }
-    let before = words.prefix(words.count - rest.count)
-    // Only the name first, or after one word like "hey", is a greeting; later on it is part of what they asked.
-    return before.split(whereSeparator: \.isWhitespace).count <= 2 && !rest.isEmpty ? rest : words
-}
+/// A run this long of its own words is echo; one alone could as well be theirs.
+private let echoRunLength = 2
 
 /// What it says when called, the way J.A.R.V.I.S. looks up from his work: brief, composed, and
 /// using the address they chose, never one guessed. The first call in a while is greeted for the
@@ -273,6 +331,10 @@ public func withoutLeadingName(_ words: String) -> String {
 public struct WakeLines {
     /// Long enough apart that being called again is a fresh start, and earns a greeting.
     public static let freshAfter: TimeInterval = 3 * 60 * 60
+    /// The hour the morning greeting gives way to the afternoon one.
+    private static let afternoonFrom = 12
+    /// The hour the afternoon greeting gives way to the evening one.
+    private static let eveningFrom = 17
     private var last: String?
 
     public init() {}
@@ -293,7 +355,7 @@ public struct WakeLines {
     }
 
     private static func greetings(to: String?, hour: Int) -> [String] {
-        let part = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+        let part = hour < afternoonFrom ? "Good morning" : hour < eveningFrom ? "Good afternoon" : "Good evening"
         let named = to.map { "\(part), \($0)." } ?? "\(part)."
         return ["\(named) How shall we proceed?", "\(named) What can I do for you?", "\(named) At your service."]
     }
@@ -316,11 +378,19 @@ public struct WakeLines {
 /// How the person asked to be addressed, kept by the runtime in `~/.memnox/voice/owner.json`; nil when
 /// they chose none, which means no honorific at all.
 public func chosenAddress(home: String = NSHomeDirectory()) -> String? {
-    let path = (home as NSString).appendingPathComponent(".memnox/voice/owner.json")
+    let path = (home as NSString).appendingPathComponent(ownerFilePath)
     guard let data = FileManager.default.contents(atPath: path),
-          let owner = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          let address = owner["address"] as? String
+          let owner = try? JSONDecoder().decode(OwnerFile.self, from: data),
+          let address = owner.address
     else { return nil }
     let trimmed = address.trimmingCharacters(in: .whitespaces)
     return trimmed.isEmpty ? nil : trimmed
+}
+
+/// Where the runtime keeps the person's voice choices, under their home folder.
+private let ownerFilePath = ".memnox/voice/owner.json"
+
+/// The one field of the runtime's owner file the voice reads; the rest is the runtime's own.
+private struct OwnerFile: Decodable {
+    let address: String?
 }

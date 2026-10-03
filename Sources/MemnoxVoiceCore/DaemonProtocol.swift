@@ -60,7 +60,6 @@ public enum Display: String {
     case dismiss
 }
 
-/// Where a session runs, as its hook saw it: the app, its terminal tab and its folder.
 /// A session as one card in the switcher: who, on what, in what state, and where it runs.
 public struct SessionCard: Decodable, Equatable, Identifiable {
     public let sessionId: String
@@ -76,6 +75,8 @@ public struct SessionCard: Decodable, Equatable, Identifiable {
     public let host: DisplayHost?
 
     public var id: String { sessionId }
+    /// The state as a known case, or nil for one this app does not know yet.
+    public var sessionState: SessionState? { SessionState(rawValue: state) }
 
     public init(sessionId: String, agent: String? = nil, agentName: String, task: String? = nil, state: String, thinking: Bool = false,
                 repository: String? = nil, runningIn: String? = nil, lastActive: String? = nil, host: DisplayHost? = nil) {
@@ -92,6 +93,52 @@ public struct SessionCard: Decodable, Equatable, Identifiable {
     }
 }
 
+/// Where a session is, as the runtime's SESSION_STATE in the sessions tool names it.
+/// The wire keeps the raw string, so a state a newer daemon adds reads as nil rather than failing the event.
+public enum SessionState: String, CaseIterable, Sendable {
+    /// Something was recorded in the last few minutes.
+    case working
+    /// Its process is alive and nothing happened lately, so it waits on the person.
+    case open
+    case idle
+    case quiet
+    /// Its process is gone, so it is over whatever the ledger says.
+    case ended
+    case paused
+}
+
+/// What a notice reports, as the runtime's NOTICE_KIND in session/notices.ts names it.
+/// The wire keeps the raw string, so a kind a newer daemon adds reads as nil rather than failing the event.
+public enum NoticeKind: String, CaseIterable, Sendable {
+    /// A long turn ended and the agent handed back to the person.
+    case finished
+    case committed
+    case pushed
+    /// Something the person asked to be told about happened.
+    case watched
+    /// Only watching, a rule would have asked about or refused something that went through.
+    case wouldHave = "would-have"
+    /// An agent asked its person something in its own picker.
+    case question
+    /// A command the voice started ran on its own and worked.
+    case ended
+    /// Two agents on one piece of work, here or across machines.
+    case collision
+}
+
+/// Where the runtime caught a step, as its EVENT_SURFACE in event/event.ts names it.
+public enum StepSurface: String, CaseIterable, Sendable {
+    case mcp
+    case shell
+    case git
+    case filesystem
+    case network
+    /// A question somebody asked, recorded so why can answer about it later.
+    case question
+    /// A change to an agent's configuration, which is not agent work.
+    case config
+}
+
 /// One thing a session did, as the live window lists it.
 public struct SessionViewStep: Decodable, Equatable {
     public let at: String
@@ -99,6 +146,9 @@ public struct SessionViewStep: Decodable, Equatable {
     public let text: String
     public let failed: Bool?
     public let refused: Bool?
+
+    /// The surface as a known case, or nil for one this app does not know yet.
+    public var stepSurface: StepSurface? { StepSurface(rawValue: surface) }
 }
 
 /// A session as it is right now: what it is on, what it just did, and what it changed.
@@ -122,6 +172,9 @@ public struct SessionView: Decodable, Equatable {
     public let excerpt: CardExcerpt?
     /// The conversation's latest lines, where the agent keeps a transcript Memnox can read.
     public let conversation: [ConversationLine]?
+
+    /// The state as a known case, or nil for one this app does not know yet.
+    public var sessionState: SessionState? { SessionState(rawValue: state) }
 }
 
 /// A line of a session's conversation: what the person asked, what the agent said, or a tool it ran.
@@ -257,6 +310,7 @@ public struct AgentServer: Decodable, Equatable {
     }
 }
 
+/// Where a session runs, as its hook saw it: the app, its terminal tab and its folder.
 public struct DisplayHost: Decodable, Equatable, Sendable {
     public let app: String?
     public let appPath: String?
@@ -380,7 +434,7 @@ public struct DaemonEvent: Decodable, Equatable {
     /// On a card: the files the session changed and a few of the changed lines.
     public let files: [CardFile]?
     public let excerpt: CardExcerpt?
-    /// On a notice: finished, committed, pushed, watched, question, ended or collision.
+    /// On a notice, what happened; read it through noticeKind.
     public let notice: String?
     /// The session it is about, which an editor needs to open the right conversation.
     public let sessionId: String?
@@ -392,6 +446,7 @@ public struct DaemonEvent: Decodable, Equatable {
     public let trace: TraceData?
 
     public var eventKind: EventKind? { EventKind(rawValue: kind) }
+    public var noticeKind: NoticeKind? { notice.flatMap(NoticeKind.init(rawValue:)) }
     public var displayKind: Display? { display.flatMap(Display.init(rawValue:)) }
 }
 
@@ -450,9 +505,12 @@ public func encodeLine(_ request: DaemonRequest) throws -> Data {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     var data = try encoder.encode(request)
-    data.append(0x0A)
+    data.append(lineEnd)
     return data
 }
+
+/// The newline that ends every request, since the daemon reads one JSON object per line.
+private let lineEnd: UInt8 = 0x0A
 
 public func decodeLine(_ line: String) throws -> DaemonResponse {
     guard let data = line.data(using: .utf8) else { throw ProtocolError.unreadable(line) }

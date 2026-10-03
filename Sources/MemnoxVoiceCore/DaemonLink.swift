@@ -17,13 +17,15 @@ extension DaemonLink {
 /// Splits bytes into lines, keeping a partial line until the rest of it arrives.
 public struct LineSplitter {
     private var pending = Data()
+    /// The byte that ends every line of the daemon's protocol.
+    private static let newline: UInt8 = 0x0A
 
     public init() {}
 
     public mutating func push(_ bytes: Data) -> [String] {
         pending.append(bytes)
         var lines: [String] = []
-        while let end = pending.firstIndex(of: 0x0A) {
+        while let end = pending.firstIndex(of: Self.newline) {
             let line = pending[pending.startIndex..<end]
             pending.removeSubrange(pending.startIndex...end)
             if let text = String(data: line, encoding: .utf8),
@@ -37,8 +39,13 @@ public struct LineSplitter {
 
 /// `~/.memnox/memnox.sock`, the same path the runtime's `socketPathFor` builds.
 public func defaultSocketPath(home: String = NSHomeDirectory()) -> String {
-    (home as NSString).appendingPathComponent(".memnox/memnox.sock")
+    (home as NSString).appendingPathComponent(socketPathInHome)
 }
+
+/// Where the daemon listens, under the person's home folder.
+private let socketPathInHome = ".memnox/memnox.sock"
+/// How much is read from the socket at once; a longer line simply arrives over several reads.
+private let readBufferSize = 64 * 1024
 
 /// One connection per request, the way every seam talks to the daemon.
 public final class UnixSocketLink: DaemonLink {
@@ -62,7 +69,7 @@ public final class UnixSocketLink: DaemonLink {
             }
             let reader = Thread {
                 var splitter = LineSplitter()
-                var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+                var buffer = [UInt8](repeating: 0, count: readBufferSize)
                 while true {
                     let count = read(descriptor, &buffer, buffer.count)
                     if count <= 0 { break }

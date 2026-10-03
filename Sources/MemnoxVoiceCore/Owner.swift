@@ -37,7 +37,7 @@ public func heldQuestion(owner: String?, event: DaemonEvent) -> String {
         sentence = event.agentName ?? event.agent
         if let place = event.place, !place.isEmpty { sentence += " in \(place)" }
         if let task = event.task, !task.isEmpty {
-            sentence += ", working on \(caption(task, limit: 70)),"
+            sentence += ", working on \(caption(task, limit: taskCaptionLimit)),"
         }
         sentence += " wants to \(what)"
     } else {
@@ -54,5 +54,10 @@ public func heldQuestion(owner: String?, event: DaemonEvent) -> String {
 private func ended(_ text: String) -> String {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard let last = trimmed.last else { return trimmed }
-    return ".!?".contains(last) ? trimmed : "\(trimmed)."
+    return sentenceEnds.contains(last) ? trimmed : "\(trimmed)."
 }
+
+/// Long enough to say what the agent is on, short enough that the question still comes quickly.
+private let taskCaptionLimit = 70
+/// Marks a sentence already ends with, so no full stop is added after them.
+private let sentenceEnds = ".!?"

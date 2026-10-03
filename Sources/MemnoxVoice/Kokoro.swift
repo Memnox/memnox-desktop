@@ -19,10 +19,30 @@ struct KokoroVoice: VoiceEngine {
 
     static let speedKey = "voiceSpeed"
 
+    /// The speeds a set voiceSpeed is held between, and the one used when none is set.
+    private enum Speed {
+        static let unhurried = 0.85
+        static let normal = 1.0
+        static let half = 0.5
+    }
+
+    /// The server's speech route and how it is asked.
+    private enum Request {
+        static let path = "speak"
+        /// Long enough for a long sentence to synthesize on a slow Mac.
+        static let timeout: TimeInterval = 10
+        static let method = "POST"
+        static let contentTypeHeader = "Content-Type"
+        static let json = "application/json"
+    }
+
+    private static let errorDomain = "Kokoro"
+    private static let rejectedCode = 1
+
     /// Slow enough to hear every word without dragging, kept between half speed and normal.
     static func speed() -> Double {
         let set = UserDefaults.standard.double(forKey: speedKey)
-        return set == 0 ? 0.85 : min(1.0, max(0.5, set))
+        return set == 0 ? Speed.unhurried : min(Speed.normal, max(Speed.half, set))
     }
 
     static func chosen() -> KokoroVoice {
@@ -30,33 +50,71 @@ struct KokoroVoice: VoiceEngine {
     }
 
     func audio(for text: String) async throws -> Data {
-        var request = URLRequest(url: KokoroServer.url.appendingPathComponent("speak"), timeoutInterval: 10)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var request = URLRequest(url: KokoroServer.url.appendingPathComponent(Request.path), timeoutInterval: Request.timeout)
+        request.httpMethod = Request.method
+        request.setValue(Request.json, forHTTPHeaderField: Request.contentTypeHeader)
         // Unhurried, so every word lands clearly the way a butler speaks; the voiceSpeed default changes it.
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["text": text, "voice": voice, "speed": Self.speed()])
+        request.httpBody = try JSONEncoder().encode(SpeakBody(text: text, voice: voice, speed: Self.speed()))
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            throw NSError(domain: "Kokoro", code: 1, userInfo: [NSLocalizedDescriptionKey: String(data: data, encoding: .utf8) ?? "no body"])
+        guard (response as? HTTPURLResponse)?.statusCode == httpOK else {
+            throw NSError(domain: Self.errorDomain, code: Self.rejectedCode, userInfo: [NSLocalizedDescriptionKey: String(data: data, encoding: .utf8) ?? "no body"])
         }
         return data
     }
+}
+
+/// What the server's speech route reads, encoded with its field names as the JSON keys.
+private struct SpeakBody: Encodable {
+    let text: String
+    let voice: String
+    let speed: Double
+}
+
+/// The status the server answers with when it did what was asked.
+private let httpOK = 200
+
+/// Where the installer puts Kokoro and the files it needs, relative to the home folder and to each other.
+private enum KokoroFile {
+    static let home = ".memnox/voice/kokoro"
+    static let python = "venv/bin/python"
+    static let server = "server.py"
+    static let model = "kokoro-v1.0.onnx"
+    static let voices = "voices-v1.0.bin"
+    static let serverLog = "server.log"
+    static let installLog = "install.log"
+    static let health = "health"
+    static let portFlag = "--port"
+    /// The installer script as the app bundles it, at `kokoro/kokoro-setup.sh`.
+    static let setupScript = "kokoro-setup"
+    static let setupExtension = "sh"
+    static let setupFolder = "kokoro"
+    static let shell = "/bin/sh"
+    /// The installer prints each step it starts on a line of its own after this.
+    static let stepPrefix = "STEP "
 }
 
 /// Starts the Kokoro server that `KokoroInstaller` put in place, and stops it when Memnox quits.
 @MainActor
 final class KokoroServer {
     nonisolated static let directory = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".memnox/voice/kokoro")
+        .appendingPathComponent(KokoroFile.home)
+    /// The port the server listens on, and the one passed to it when Memnox starts it.
+    private nonisolated static let port = 8723
     /// Loopback only, so nothing off this Mac can reach it.
-    nonisolated static let url = URL(string: "http://127.0.0.1:8723")!
+    /// Force unwrapped because a fixed loopback address with a number for a port always parses.
+    nonisolated static let url = URL(string: "http://127.0.0.1:\(port)")!
+    /// The model loads in about a second; a slow disk gets a little longer, up to ten seconds in all.
+    private static let startupPolls = 40
+    private static let pollInterval: TimeInterval = 0.25
+    /// Short, because a server on this Mac that is up answers at once.
+    private nonisolated static let healthTimeout: TimeInterval = 1
     private var process: Process?
 
     var installed: Bool { Self.isInstalled }
 
     /// Whether the installer has put everything in place, for setup to say so.
     nonisolated static var isInstalled: Bool {
-        ["venv/bin/python", "server.py", "kokoro-v1.0.onnx", "voices-v1.0.bin"].allSatisfy {
+        [KokoroFile.python, KokoroFile.server, KokoroFile.model, KokoroFile.voices].allSatisfy {
             FileManager.default.fileExists(atPath: directory.appendingPathComponent($0).path)
         }
     }
@@ -69,12 +127,11 @@ final class KokoroServer {
             return false
         }
         if process == nil, !start() { return false }
-        // The model loads in about a second; a slow disk gets a little longer.
-        for _ in 0..<40 {
+        for _ in 0..<Self.startupPolls {
             if await Self.healthy() { return true }
-            try? await Task.sleep(nanoseconds: 250_000_000)
+            try? await Task.sleep(nanoseconds: UInt64(Self.pollInterval * Double(NSEC_PER_SEC)))
         }
-        diary.note("Kokoro did not answer; see \(Self.directory.path)/server.log")
+        diary.note("Kokoro did not answer; see \(Self.directory.path)/\(KokoroFile.serverLog)")
         return false
     }
 
@@ -85,10 +142,10 @@ final class KokoroServer {
 
     private func start() -> Bool {
         let process = Process()
-        process.executableURL = Self.directory.appendingPathComponent("venv/bin/python")
-        process.arguments = ["server.py", "--port", String(Self.url.port ?? 8723)]
+        process.executableURL = Self.directory.appendingPathComponent(KokoroFile.python)
+        process.arguments = [KokoroFile.server, KokoroFile.portFlag, String(Self.url.port ?? Self.port)]
         process.currentDirectoryURL = Self.directory
-        let log = Self.directory.appendingPathComponent("server.log")
+        let log = Self.directory.appendingPathComponent(KokoroFile.serverLog)
         FileManager.default.createFile(atPath: log.path, contents: nil)
         if let handle = try? FileHandle(forWritingTo: log) {
             process.standardOutput = handle
@@ -106,9 +163,9 @@ final class KokoroServer {
     }
 
     private static func healthy() async -> Bool {
-        let request = URLRequest(url: url.appendingPathComponent("health"), timeoutInterval: 1)
+        let request = URLRequest(url: url.appendingPathComponent(KokoroFile.health), timeoutInterval: healthTimeout)
         guard let (_, response) = try? await URLSession.shared.data(for: request) else { return false }
-        return (response as? HTTPURLResponse)?.statusCode == 200
+        return (response as? HTTPURLResponse)?.statusCode == httpOK
     }
 }
 
@@ -142,13 +199,13 @@ final class KokoroInstaller: ObservableObject {
     }
 
     private func run() async -> Bool {
-        guard let script = Bundle.main.url(forResource: "kokoro-setup", withExtension: "sh", subdirectory: "kokoro") else {
+        guard let script = Bundle.main.url(forResource: KokoroFile.setupScript, withExtension: KokoroFile.setupExtension, subdirectory: KokoroFile.setupFolder) else {
             state = .failed("This build has no Kokoro installer. Rebuild it with scripts/bundle.sh")
             return false
         }
         state = .installing("Getting ready")
         diary.note("installing Kokoro")
-        let log = KokoroServer.directory.appendingPathComponent("install.log")
+        let log = KokoroServer.directory.appendingPathComponent(KokoroFile.installLog)
         let outcome = await Self.execute(script) { [weak self] step in
             Task { @MainActor in self?.state = .installing(step) }
         }
@@ -167,7 +224,7 @@ final class KokoroInstaller: ObservableObject {
     private nonisolated static func execute(_ script: URL, step: @escaping @Sendable (String) -> Void) async -> (ok: Bool, output: String) {
         await withCheckedContinuation { continuation in
             let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+            process.executableURL = URL(fileURLWithPath: KokoroFile.shell)
             process.arguments = [script.path]
             let pipe = Pipe()
             process.standardOutput = pipe
@@ -176,8 +233,8 @@ final class KokoroInstaller: ObservableObject {
             pipe.fileHandleForReading.readabilityHandler = { handle in
                 let text = String(decoding: handle.availableData, as: UTF8.self)
                 output.append(text)
-                for line in text.split(separator: "\n") where line.hasPrefix("STEP ") {
-                    step(String(line.dropFirst(5)))
+                for line in text.split(separator: "\n") where line.hasPrefix(KokoroFile.stepPrefix) {
+                    step(String(line.dropFirst(KokoroFile.stepPrefix.count)))
                 }
             }
             process.terminationHandler = { finished in

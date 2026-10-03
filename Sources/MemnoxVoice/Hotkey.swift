@@ -7,6 +7,13 @@ final class Hotkey {
     private var handler: EventHandlerRef?
     private let pressed: () -> Void
 
+    /// "MNXV" as a four character code, so Carbon can tell this app's hot key from any other.
+    private static let signature: OSType = 0x4D4E_5856
+    /// The app registers one hot key, so it is number one.
+    private static let hotKeyNumber: UInt32 = 1
+    private static let keyCode = UInt32(kVK_Space)
+    private static let modifiers = UInt32(optionKey)
+
     init(pressed: @escaping () -> Void) {
         self.pressed = pressed
         var type = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
@@ -16,8 +23,8 @@ final class Hotkey {
             Unmanaged<Hotkey>.fromOpaque(context).takeUnretainedValue().pressed()
             return noErr
         }, 1, &type, me, &handler)
-        let id = EventHotKeyID(signature: OSType(0x4D4E_5856), id: 1)
-        RegisterEventHotKey(UInt32(kVK_Space), UInt32(optionKey), id, GetApplicationEventTarget(), 0, &reference)
+        let id = EventHotKeyID(signature: Self.signature, id: Self.hotKeyNumber)
+        RegisterEventHotKey(Self.keyCode, Self.modifiers, id, GetApplicationEventTarget(), 0, &reference)
     }
 
     deinit {

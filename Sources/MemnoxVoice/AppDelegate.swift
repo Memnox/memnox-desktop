@@ -1,6 +1,12 @@
 import AppKit
 import MemnoxVoiceCore
 
+/// Far above the conversation's own request ids, which count up from one, so a subscription never shares one.
+private let firstSubscriptionId = 1_000
+/// How long to wait before subscribing again after the daemon went away.
+private let resubscribeSeconds: TimeInterval = 2
+private let nanosecondsPerSecond: TimeInterval = 1_000_000_000
+
 /// Wires the face, the ears and the voice to the conversation, and keeps one ear on the daemon
 /// for anything that starts waiting on the person.
 @MainActor
@@ -34,6 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var awaySince: Date?
     /// Long enough that a coffee counts and a glance away does not.
     private static let awayLongEnough: TimeInterval = 10 * 60
+    /// The system's own announcements that the screen locked and unlocked.
+    private static let screenLocked = Notification.Name("com.apple.screenIsLocked")
+    private static let screenUnlocked = Notification.Name("com.apple.screenIsUnlocked")
     private let setup = SetupWindow()
     private var menuBar: MenuBarPanel?
     private var menu: MenuModel?
@@ -222,7 +231,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await speaking()
             return nil
         }
-        let voice = self.voice!
+        let voice = self.voice! // Set at launch, before any turn can run.
         var cutting: Task<Void, Never>?
         // A breath before, so the first sentence queued for this reply is part of what counts as its own.
         // Back far enough to cover a sentence from before this reply that is still playing.
@@ -250,8 +259,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .held: panel.hold(event)
         case .settled: panel.release(event.subject)
         case .paused: panel.shake()
-        case .notice where event.notice == "finished": panel.finished(event)
-        default: break
+        case .notice where event.noticeKind == .finished: panel.finished(event)
+        case .notice, .proposal, .show, nil: break
         }
         if event.eventKind == .proposal {
             let previous = confirmations
@@ -261,9 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
-        // Something they asked to be told about, an agent waiting on their answer, or two agents on one piece of work, is said whatever the setting.
-        let mustSay = event.notice == "watched" || event.notice == "question" || event.notice == "collision"
-        if event.eventKind == .notice, !mustSay, !UserDefaults.standard.bool(forKey: Self.speakUpKey) { return }
+        guard event.isSaid(speakUp: UserDefaults.standard.bool(forKey: Self.speakUpKey)) else { return }
         enqueue { [self] in
             if event.eventKind == .settled {
                 await conversation.handle(event)
@@ -272,8 +279,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.present()
             do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
             let cutIn = await overVoice { [conversation] in await conversation?.handle(event) }
-            // Only a question waiting on their answer keeps the microphone open; news is said and the orb goes back to sleep.
-            if cutIn != nil || event.eventKind == .held || event.notice == "question" || event.notice == "collision" {
+            // Only something waiting on their answer keeps the microphone open; news is said and the orb goes back to sleep.
+            if cutIn != nil || event.awaitsAnswer {
                 await converse(opening: cutIn ?? "")
             } else {
                 audio.stop()
@@ -380,7 +387,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let link = self.link
         let deliver: @MainActor (DaemonEvent) -> Void = { [weak self] event in self?.arrived(event) }
         Task.detached {
-            var id = 1_000
+            var id = firstSubscriptionId
             while true {
                 id += 1
                 do {
@@ -389,7 +396,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         await deliver(event)
                     }
                 } catch {}
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                try? await Task.sleep(nanoseconds: UInt64(resubscribeSeconds * nanosecondsPerSecond))
             }
         }
     }
@@ -398,10 +405,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func watchPresence() {
         UserDefaults.standard.register(defaults: [SetupModel.catchUpKey: true])
         let center = DistributedNotificationCenter.default()
-        center.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
+        center.addObserver(forName: Self.screenLocked, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.awaySince = Date() }
         }
-        center.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
+        center.addObserver(forName: Self.screenUnlocked, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.cameBack() }
         }
     }

@@ -2,6 +2,10 @@ import AVFoundation
 import MemnoxVoiceCore
 import Speech
 
+/// The fallback when no better English voice or recognizer locale is on this Mac.
+private let fallbackLanguage = "en-US"
+private let nanosecondsPerSecond: TimeInterval = 1_000_000_000
+
 /// The microphone, and only while a conversation runs, so the microphone light means something.
 /// Speech goes out through the system synthesizer instead, which is the one path macOS never
 /// ducks or silences, since echo cancellation on an engine turns every other sound down.
@@ -11,12 +15,14 @@ final class AudioIO {
     /// Every microphone buffer while listening, for the recognizer.
     var onMicrophone: ((AVAudioPCMBuffer) -> Void)?
     private var running = false
+    /// Frames per microphone tap, about twenty milliseconds at 48 kHz.
+    private static let tapBufferFrames: AVAudioFrameCount = 1024
 
     func start() throws {
         guard !running else { return }
         let input = engine.inputNode
         input.removeTap(onBus: 0)
-        input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { [weak self] buffer, _ in
+        input.installTap(onBus: 0, bufferSize: Self.tapBufferFrames, format: input.outputFormat(forBus: 0)) { [weak self] buffer, _ in
             self?.micLevel = loudness(of: buffer)
             self?.onMicrophone?(buffer)
         }
@@ -35,14 +41,22 @@ final class AudioIO {
     }
 }
 
+/// Amplitude to decibels is twenty times the base ten log.
+private let decibelsPerDecade: Float = 20
+/// The quietest amplitude counted, so silence is a finite number of decibels.
+private let silenceFloor: Float = 0.000_01
+/// The decibels shown as zero, and the span above them shown as one.
+private let quietestDecibels: Float = -55
+private let decibelSpan: Float = 45
+
 /// Loudness from zero to one, on a decibel scale, because that is how a voice sounds.
 func loudness(of buffer: AVAudioPCMBuffer) -> Float {
     guard let channel = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return 0 }
     var sum: Float = 0
     for index in 0..<Int(buffer.frameLength) { sum += channel[index] * channel[index] }
     let rms = (sum / Float(buffer.frameLength)).squareRoot()
-    let decibels = 20 * log10(max(rms, 0.000_01))
-    return min(max((decibels + 55) / 45, 0), 1)
+    let decibels = decibelsPerDecade * log10(max(rms, silenceFloor))
+    return min(max((decibels - quietestDecibels) / decibelSpan, 0), 1)
 }
 
 /// Speech out, through the system synthesizer, with the orb moving on every word it says.
@@ -72,7 +86,31 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
     private var player: AVAudioPlayer?
     private var playerDone: (() -> Void)?
     /// A breath between sentences, long enough that one never runs into the next.
-    private static let breath: UInt64 = 260_000_000
+    private static let breath: TimeInterval = 0.26
+
+    /// How the orb's level follows the voice.
+    private enum Meter {
+        /// The engine's power in decibels shown as zero, and the span above it shown as one.
+        static let quietestPower: Float = -45
+        static let powerSpan: Float = 40
+        /// The least the orb shows while speaking, so it never looks silent mid sentence.
+        static let speakingFloor: Float = 0.25
+        /// The pulse on each word and how fast it eases away, per second.
+        static let wordPeak: Float = 0.9
+        static let easePerSecond: Float = 2.5
+    }
+
+    /// How the system voice is paced.
+    private enum Pacing {
+        /// Well under the default and a little lower, so every word lands clearly with no rush.
+        static let rateScale: Float = 0.8
+        static let pitch: Float = 0.96
+        /// A breath after each sentence, since a reply run together with no gaps sounds rushed.
+        static let afterSentence: TimeInterval = 0.28
+    }
+
+    /// The language code prefix every English voice shares.
+    private static let englishPrefix = "en"
 
     /// What it has said since a moment, which is all its own echo could be while it answers now.
     func spoken(since moment: Date) -> String {
@@ -103,10 +141,10 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
         defer { lock.unlock() }
         if let player, player.isPlaying {
             player.updateMeters()
-            return min(max((player.averagePower(forChannel: 0) + 45) / 40, 0.25), 1)
+            return min(max((player.averagePower(forChannel: 0) - Meter.quietestPower) / Meter.powerSpan, Meter.speakingFloor), 1)
         }
         let since = Float(Date().timeIntervalSince(lastWord))
-        return synthesizer.isSpeaking ? max(0.25, 0.9 - since * 2.5) : 0
+        return synthesizer.isSpeaking ? max(Meter.speakingFloor, Meter.wordPeak - since * Meter.easePerSecond) : 0
     }
 
     /// The voice the person picked in setup, kept for next time.
@@ -164,11 +202,9 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
     private func enqueueSystem(_ sentence: String, said: @escaping () -> Void) {
         let utterance = AVSpeechUtterance(string: sentence)
         utterance.voice = voice
-        // Well under the default and a little lower, so every word lands clearly with no rush.
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.8
-        utterance.pitchMultiplier = 0.96
-        // A breath after each sentence, since a reply run together with no gaps sounds rushed.
-        utterance.postUtteranceDelay = 0.28
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * Pacing.rateScale
+        utterance.pitchMultiplier = Pacing.pitch
+        utterance.postUtteranceDelay = Pacing.afterSentence
         utterance.prefersAssistiveTechnologySettings = false
         lock.lock()
         waiting[ObjectIdentifier(utterance)] = said
@@ -221,7 +257,7 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
             }
             if let data = await fetch.value {
                 await self.play(data, generation: generation)
-                try? await Task.sleep(nanoseconds: Self.breath)
+                try? await Task.sleep(nanoseconds: UInt64(Self.breath * nanosecondsPerSecond))
             } else if self.inGeneration(generation) {
                 await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
                     self.enqueueSystem(sentence) { done.resume() }
@@ -309,19 +345,22 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
     /// Installed English voices, best first, since Premium and Enhanced sound the most like a person.
     static func englishVoices() -> [AVSpeechSynthesisVoice] {
         AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language.hasPrefix("en") }
+            .filter { $0.language.hasPrefix(englishPrefix) }
             .sorted { ($0.quality.rawValue, $0.name) > ($1.quality.rawValue, $1.name) }
     }
 
     /// The best English voice installed; a person picks a Premium or Personal Voice in System Settings.
     private static func bestVoice() -> AVSpeechSynthesisVoice? {
-        englishVoices().first ?? AVSpeechSynthesisVoice(language: "en-US")
+        englishVoices().first ?? AVSpeechSynthesisVoice(language: fallbackLanguage)
     }
 }
 
+/// Slack past the length the rate ratio gives, so the output buffer is never short.
+private let conversionHeadroomFrames: AVAudioFrameCount = 1_024
+
 func convert(_ buffer: AVAudioPCMBuffer, with converter: AVAudioConverter, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
     let ratio = format.sampleRate / buffer.format.sampleRate
-    let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1_024
+    let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + conversionHeadroomFrames
     guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return nil }
     var fed = false
     var error: NSError?
@@ -428,7 +467,11 @@ nonisolated(unsafe) var recognizerHints = ["Memnox", "Claude Code", "Codex", "Cu
 
 /// The recognizer before macOS 26.
 final class LegacyEars {
-    private let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer(locale: Locale(identifier: fallbackLanguage))
+    /// A recording of a few seconds is read in well under this; past it the person is waiting.
+    private static let transcribeTimeout: TimeInterval = 6
+    /// How often the latest words are looked at.
+    private static let pollSeconds: TimeInterval = 0.15
     /// The words so far, for the pill.
     var hearing: ((String) -> Void)?
     /// The words so far at a pause, sent ahead so the answer can start before the pause ends.
@@ -462,8 +505,7 @@ final class LegacyEars {
                     once.run { continuation.resume(returning: nil) }
                 }
             }
-            // A recording of a few seconds is read in well under this; past it the person is waiting.
-            DispatchQueue.global().asyncAfter(deadline: .now() + 6) {
+            DispatchQueue.global().asyncAfter(deadline: .now() + LegacyEars.transcribeTimeout) {
                 once.run {
                     running.task?.cancel()
                     continuation.resume(returning: nil)
@@ -489,7 +531,7 @@ final class LegacyEars {
             var finished = false
             var final = false
             while !finished {
-                try? await Task.sleep(nanoseconds: 150_000_000)
+                try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * nanosecondsPerSecond))
                 let (words, changed, isFinal) = round.latest.read()
                 if !words.isEmpty { lastWord = max(lastWord, changed) }
                 let all = joined(settled, words)

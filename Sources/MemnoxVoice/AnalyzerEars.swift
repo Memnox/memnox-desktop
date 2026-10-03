@@ -34,11 +34,16 @@ final class AnalyzerEars {
     }
 
     private static func locale() async -> Locale {
-        await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) ?? Locale(identifier: "en-US")
+        await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) ?? Locale(identifier: fallbackLocale)
     }
 
     /// Loud enough to be somebody talking rather than a room.
     private static let spokeLevel: Float = 0.45
+    /// The transcriber's language when the Mac's own is not one it supports.
+    private static let fallbackLocale = "en-US"
+    /// How often the words and the level are looked at.
+    private static let pollSeconds: TimeInterval = 0.15
+    private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
     /// The next thing said, nothing when the wait ran out, or unavailable when it could not start.
     func listen(through audio: AudioIO, waiting: TimeInterval) async -> Listened {
@@ -101,7 +106,7 @@ final class AnalyzerEars {
         var loudest: Float = 0
         var guessed = ""
         while true {
-            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * Self.nanosecondsPerSecond))
             loudest = max(loudest, audio.micLevel)
             let (words, changed) = heard.read()
             if words.isEmpty, Date().timeIntervalSince(began) > waiting { break }

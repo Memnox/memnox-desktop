@@ -28,7 +28,9 @@ public final class SoftwareConfirmKey: ConfirmKey {
 /// The real one: made in the Secure Enclave, usable only after Touch ID or the password, and
 /// kept as the enclave's own opaque blob in the login keychain. It never leaves the chip.
 public final class SecureEnclaveConfirmKey: ConfirmKey {
+    /// The keychain service the app files its items under, its bundle identifier.
     private static let service = "com.memnox.voice"
+    /// The one item under that service: the enclave's blob for the confirmation key.
     private static let account = "confirm-key"
     private let blob: Data
     public let publicPoint: String
@@ -72,27 +74,35 @@ public final class SecureEnclaveConfirmKey: ConfirmKey {
     }
 
     private static func readBlob() -> Data? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-        ]
         var found: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &found) == errSecSuccess else { return nil }
+        guard SecItemCopyMatching(keychainItem(.readBack), &found) == errSecSuccess else { return nil }
         return found as? Data
     }
 
     private static func writeBlob(_ data: Data) throws {
-        let item: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: data,
-        ]
-        let status = SecItemAdd(item as CFDictionary, nil)
+        let status = SecItemAdd(keychainItem(.storing(data)), nil)
         guard status == errSecSuccess else {
             throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
         }
+    }
+
+    /// What a keychain call does with the key's item: read its blob back, or store a new one.
+    private enum KeychainUse {
+        case readBack
+        case storing(Data)
+    }
+
+    /// The Keychain takes its queries as an untyped dictionary, so this is the one place one is built.
+    private static func keychainItem(_ use: KeychainUse) -> CFDictionary {
+        var item: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        switch use {
+        case .readBack: item[kSecReturnData as String] = true
+        case .storing(let data): item[kSecValueData as String] = data
+        }
+        return item as CFDictionary
     }
 }

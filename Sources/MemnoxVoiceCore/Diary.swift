@@ -6,8 +6,12 @@ import os
 public final class Diary: @unchecked Sendable {
     private let lock = NSLock()
     private var lines: [String] = []
+    /// A few hundred steps, enough to show how something went quiet without keeping the whole day.
     private let limit = 300
-    private let log = Logger(subsystem: "com.memnox.voice", category: "diary")
+    /// The unified log's subsystem, the app's bundle identifier, so Console filters to this app.
+    private static let logSubsystem = "com.memnox.voice"
+    private static let logCategory = "diary"
+    private let log = Logger(subsystem: Diary.logSubsystem, category: Diary.logCategory)
     private let clock = ISO8601DateFormatter()
 
     public init() {}

@@ -6,6 +6,45 @@ import MemnoxVoiceCore
 final class OrbRenderer: NSObject, MTKViewDelegate {
     private static let pointCount: UInt32 = 6_000
 
+    /// The shader's entry points, named as `shader` declares them.
+    private enum Function {
+        static let vertex = "orbVertex"
+        static let fragment = "orbFragment"
+    }
+
+    /// The vertex buffer slots, numbered as the shader's `[[buffer(n)]]` attributes number them.
+    private enum Slot {
+        static let uniforms = 0
+        static let count = 1
+    }
+
+    /// The scale assumed before the view is on a window, which is a Retina display's.
+    private static let fallbackBackingScale: CGFloat = 2
+
+    /// The side at which the orb draws every point at full size; smaller orbs thin them out.
+    private static let fullSizeSide: CGFloat = 240
+    /// However small the orb, it keeps at least this many points, each at least this share of full size.
+    private static let minimumPoints: Double = 300
+    private static let minimumDotShare: CGFloat = 0.35
+
+    /// Where each state eases the sphere toward: how much it ripples, spins and pulls in.
+    private enum Target {
+        static let idleLevel: Float = 0.04
+        static let listeningLevel: Float = 0.08
+        static let thinkingLevel: Float = 0.12
+        static let speakingLevel: Float = 0.1
+        /// Speech ripples a little harder than the same loudness heard.
+        static let speakingGain: Float = 1.2
+        static let needsYouLevel: Float = 0.02
+    }
+
+    /// How much of the gap to its target each value closes per frame: ripples fast, spin and hold slowly.
+    private enum Easing {
+        static let level: Float = 0.25
+        static let swirl: Float = 0.05
+        static let hold: Float = 0.08
+    }
+
     private let queue: MTLCommandQueue
     private let pipeline: MTLRenderPipelineState
     private let started = CACurrentMediaTime()
@@ -23,8 +62,8 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
               let library = try? device.makeLibrary(source: Self.shader, options: nil)
         else { return nil }
         let descriptor = MTLRenderPipelineDescriptor()
-        descriptor.vertexFunction = library.makeFunction(name: "orbVertex")
-        descriptor.fragmentFunction = library.makeFunction(name: "orbFragment")
+        descriptor.vertexFunction = library.makeFunction(name: Function.vertex)
+        descriptor.fragmentFunction = library.makeFunction(name: Function.fragment)
         // Attachment zero always exists on a fresh descriptor.
         let color = descriptor.colorAttachments[0]!
         color.pixelFormat = view.colorPixelFormat
@@ -60,12 +99,12 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
             swirl: swirl,
             hold: hold,
             aspect: Float(size.width / max(size.height, 1)),
-            scale: Float(view.window?.backingScaleFactor ?? 2) * fit.dot
+            scale: Float(view.window?.backingScaleFactor ?? Self.fallbackBackingScale) * fit.dot
         )
         var count = fit.points
         encoder.setRenderPipelineState(pipeline)
-        encoder.setVertexBytes(&uniforms, length: MemoryLayout<OrbUniforms>.stride, index: 0)
-        encoder.setVertexBytes(&count, length: MemoryLayout<UInt32>.stride, index: 1)
+        encoder.setVertexBytes(&uniforms, length: MemoryLayout<OrbUniforms>.stride, index: Slot.uniforms)
+        encoder.setVertexBytes(&count, length: MemoryLayout<UInt32>.stride, index: Slot.count)
         encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: Int(count))
         encoder.endEncoding()
         buffer.present(drawable)
@@ -75,9 +114,9 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
     /// Fewer and finer points as the orb gets smaller, since six thousand full size dots on a small
     /// orb glow on top of one another into a flat white disc.
     static func fit(side: CGFloat) -> (points: UInt32, dot: Float) {
-        let share = min(1, max(0, side / 240))
-        let points = UInt32(max(300, Double(pointCount) * Double(share * share)))
-        return (points, Float(max(0.35, share)))
+        let share = min(1, max(0, side / fullSizeSide))
+        let points = UInt32(max(minimumPoints, Double(pointCount) * Double(share * share)))
+        return (points, Float(max(minimumDotShare, share)))
     }
 
     /// Eased toward where the state wants it, so the sphere breathes rather than twitches.
@@ -85,15 +124,15 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
         let heard = min(max(loudness(), 0), 1)
         let target: (level: Float, swirl: Float, hold: Float)
         switch state {
-        case .idle: target = (0.04, 0, 0)
-        case .listening: target = (0.08 + heard, 0, 0)
-        case .thinking: target = (0.12, 1, 0)
-        case .speaking: target = (0.1 + heard * 1.2, 0, 0)
-        case .needsYou: target = (0.02, 0, 1)
+        case .idle: target = (Target.idleLevel, 0, 0)
+        case .listening: target = (Target.listeningLevel + heard, 0, 0)
+        case .thinking: target = (Target.thinkingLevel, 1, 0)
+        case .speaking: target = (Target.speakingLevel + heard * Target.speakingGain, 0, 0)
+        case .needsYou: target = (Target.needsYouLevel, 0, 1)
         }
-        level += (target.level - level) * 0.25
-        swirl += (target.swirl - swirl) * 0.05
-        hold += (target.hold - hold) * 0.08
+        level += (target.level - level) * Easing.level
+        swirl += (target.swirl - swirl) * Easing.swirl
+        hold += (target.hold - hold) * Easing.hold
     }
 
     private static let shader = """

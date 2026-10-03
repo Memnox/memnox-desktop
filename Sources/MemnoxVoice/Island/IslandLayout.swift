@@ -1,0 +1,177 @@
+import AppKit
+import MemnoxVoiceCore
+import SwiftUI
+
+/// The measurements and timings the island is drawn and moved with.
+enum Island {
+    static let width: CGFloat = 640
+    /// The concave curve where the island meets the screen edge on either side.
+    static let flare: CGFloat = 14
+    /// How far an open island's content sits in from its sides and bottom.
+    static let contentInset: CGFloat = 10
+    static let voiceWidth: CGFloat = 440
+    /// Big enough that the orb reads as the one thing on screen while you talk.
+    static let voiceOrb: CGFloat = 150
+    static let window = CGSize(width: width + 2 * flare + windowMargin, height: tallestIsland + windowMargin)
+    /// Room left around the island inside its window.
+    private static let windowMargin: CGFloat = 40
+    /// The tallest the island may grow, which sizes the window it grows inside.
+    private static let tallestIsland: CGFloat = 310
+    /// Long enough that passing the pointer across the menu bar never opens it.
+    static let dwellResting: TimeInterval = 0.65
+    static let dwellBusy: TimeInterval = 0.2
+    /// Open and untouched this long, it puts itself away; the last ten seconds are shown as a shrinking line.
+    static let idleClose: TimeInterval = 60
+    static let countdownFrom: TimeInterval = 10
+    /// How long a finished session stays up before the island folds back.
+    static let finishedFor = UInt64(finishedSeconds * nanosecondsPerSecond)
+    private static let finishedSeconds: TimeInterval = 5.2
+    private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
+
+    /// How much wider than the notch the small modes are, leaving room for the orb and the session dots.
+    private enum Widening {
+        static let peek: CGFloat = 64
+        static let compact: CGFloat = 104
+    }
+
+    /// Each open mode's height, just tall enough for what that mode holds.
+    private enum Height {
+        /// Measured from where content starts, since the voice mode sits below the notch row.
+        static let voiceBelowTop: CGFloat = 190
+        static let overview: CGFloat = 196
+        static let session: CGFloat = 256
+        static let empty: CGFloat = 150
+        static let held: CGFloat = 206
+        static let finished: CGFloat = 170
+    }
+
+    /// Where content starts: never above this, and always a little below the notch itself.
+    private static let minimumTop: CGFloat = 36
+    private static let gapBelowNotch: CGFloat = 4
+
+    /// Growing springs out past its size and back; shrinking eases in and settles.
+    private enum Movement {
+        static let growResponse = 0.5
+        static let growDamping = 0.72
+        static let shrinkDuration: TimeInterval = 0.34
+        /// The control points of the shrinking curve: a gentle start and a long soft landing.
+        static let shrinkStart = (x: 0.45, y: 0.0)
+        static let shrinkEnd = (x: 0.2, y: 1.0)
+    }
+
+    /// The orb's place and size in each mode: beside the notch when small, left of the content when open.
+    private enum OrbSpot {
+        static let peekX: CGFloat = 19
+        static let peekDiameter: CGFloat = 18
+        static let peekHoverDiameter: CGFloat = 22
+        static let compactX: CGFloat = 27
+        static let compactDiameter: CGFloat = 20
+        static let compactHoverDiameter: CGFloat = 23
+        /// How far below the content top the large voice orb's centre sits.
+        static let voiceBelowTop: CGFloat = 92
+        static let overviewX: CGFloat = 64
+        static let overviewDiameter: CGFloat = 70
+        static let sessionX: CGFloat = 46
+        /// Measured from the content top rather than centred, unlike the other open modes.
+        static let sessionBelowTop: CGFloat = 36
+        static let sessionDiameter: CGFloat = 44
+        static let emptyX: CGFloat = 70
+        static let emptyDiameter: CGFloat = 62
+        static let heldX: CGFloat = 62
+        static let heldDiameter: CGFloat = 56
+        static let finishedX: CGFloat = 62
+        static let finishedDiameter: CGFloat = 58
+    }
+
+    static func size(_ mode: IslandMode, _ notch: NotchGeometry) -> CGSize {
+        switch mode {
+        case .peek: return CGSize(width: notch.width + Widening.peek, height: notch.height)
+        case .compact: return CGSize(width: notch.width + Widening.compact, height: notch.height)
+        case .voice: return CGSize(width: voiceWidth, height: top(notch) + Height.voiceBelowTop)
+        case .overview: return CGSize(width: width, height: Height.overview)
+        case .session: return CGSize(width: width, height: Height.session)
+        case .empty: return CGSize(width: width, height: Height.empty)
+        case .held: return CGSize(width: width, height: Height.held)
+        case .finished: return CGSize(width: width, height: Height.finished)
+        }
+    }
+
+    static func area(_ mode: IslandMode, _ notch: NotchGeometry) -> CGFloat {
+        let size = size(mode, notch)
+        return size.width * size.height
+    }
+
+    /// Where content starts below the notch row, which is also where the header sits.
+    static func top(_ notch: NotchGeometry) -> CGFloat { max(minimumTop, notch.height + gapBelowNotch) }
+
+    /// Growing overshoots a little, the way something springs out; shrinking settles with no bounce.
+    static func motion(growing: Bool) -> Animation {
+        growing
+            ? .spring(response: Movement.growResponse, dampingFraction: Movement.growDamping)
+            : .timingCurve(
+                Movement.shrinkStart.x, Movement.shrinkStart.y, Movement.shrinkEnd.x, Movement.shrinkEnd.y,
+                duration: Movement.shrinkDuration
+            )
+    }
+
+    /// The orb's centre and diameter in each mode, so it travels and grows with the island as one piece.
+    static func orb(_ mode: IslandMode, _ notch: NotchGeometry, hovering: Bool) -> (center: CGPoint, diameter: CGFloat) {
+        let height = size(mode, notch).height
+        let top = top(notch)
+        let middle = top + (height - top - contentInset) / 2
+        switch mode {
+        case .peek:
+            return (CGPoint(x: OrbSpot.peekX, y: notch.height / 2), hovering ? OrbSpot.peekHoverDiameter : OrbSpot.peekDiameter)
+        case .compact:
+            return (
+                CGPoint(x: OrbSpot.compactX, y: notch.height / 2),
+                hovering ? OrbSpot.compactHoverDiameter : OrbSpot.compactDiameter
+            )
+        case .voice: return (CGPoint(x: voiceWidth / 2, y: top + OrbSpot.voiceBelowTop), voiceOrb)
+        case .overview: return (CGPoint(x: OrbSpot.overviewX, y: middle), OrbSpot.overviewDiameter)
+        case .session: return (CGPoint(x: OrbSpot.sessionX, y: top + OrbSpot.sessionBelowTop), OrbSpot.sessionDiameter)
+        case .empty: return (CGPoint(x: OrbSpot.emptyX, y: middle), OrbSpot.emptyDiameter)
+        case .held: return (CGPoint(x: OrbSpot.heldX, y: middle), OrbSpot.heldDiameter)
+        case .finished: return (CGPoint(x: OrbSpot.finishedX, y: middle), OrbSpot.finishedDiameter)
+        }
+    }
+}
+
+/// The colours the island is painted in: its cards, its veil and each agent's own colour.
+enum IslandPalette {
+    static let card = Color(hex: 0x141518)
+    static let primaryFill = Color(hex: 0xF5F6F8)
+    static let primaryText = Color(hex: 0x0B0C0E)
+    static let quiet = Color(hex: 0x5F646D)
+    static let soft = Color(hex: 0xC9CDD4)
+    static let red = Color(red: 244 / 255, green: 80 / 255, blue: 94 / 255)
+    static let green = Color(red: 52 / 255, green: 211 / 255, blue: 153 / 255)
+    static let amber = Color(red: 245 / 255, green: 165 / 255, blue: 36 / 255)
+    static let indigo = Color(red: 99 / 255, green: 102 / 255, blue: 241 / 255)
+
+    /// Each agent keeps one colour everywhere it appears; any other takes one of these by its name.
+    private static let known: [String: UInt32] = [
+        "claude-code": 0xD97757, "claude": 0xD97757, "claude-desktop": 0xD97757,
+        "codex": 0x2DD4BF, "codex-cli": 0x2DD4BF, "cursor": 0xC0C4CC, "gemini": 0x8AB4F8,
+        "antigravity": 0xE879F9, "hermes": 0xA78BFA, "openclaw": 0xF7B32B, "cline": 0x38BDF8,
+    ]
+    private static let others: [UInt32] = [0xF472B6, 0x34D399, 0xFB923C, 0x60A5FA, 0xE879F9]
+
+    /// How the daemon prefixes an agent id, which is dropped to leave the agent's kind.
+    private static let agentIdPrefix = "agt_"
+    /// The multiplier and mask of the name hash, kept small so the index stays positive.
+    private static let hashMultiplier = 31
+    private static let hashMask = 0xFFFF
+
+    static func kind(_ agent: String?) -> String {
+        let id = agent ?? ""
+        return id.hasPrefix(agentIdPrefix) ? String(id.dropFirst(agentIdPrefix.count)) : id
+    }
+
+    static func color(_ agent: String?) -> Color {
+        let kind = kind(agent)
+        if let hex = known[kind] { return Color(hex: hex) }
+        let index = kind.unicodeScalars.reduce(0) { ($0 &* hashMultiplier &+ Int($1.value)) & hashMask }
+        return Color(hex: others[index % others.count])
+    }
+}

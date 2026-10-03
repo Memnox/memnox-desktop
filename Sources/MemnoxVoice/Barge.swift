@@ -2,14 +2,20 @@ import AVFoundation
 import MemnoxVoiceCore
 import Speech
 
+/// The recognizer's language when the Mac's own has none.
+private let fallbackLocale = "en-US"
+
 /// Listens while Memnox is talking, so the person can cut in just by speaking. Its own voice
 /// comes back through the microphone too, so only words it did not just say count as the person.
 @MainActor
 final class BargeEars {
-    private let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer(locale: Locale(identifier: fallbackLocale))
     private var generation = 0
     private var listening: Task<String?, Never>?
     private var barged = false
+    /// How often the latest words are looked at, quick so a cut in stops the voice at once.
+    private static let pollSeconds: TimeInterval = 0.12
+    private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
     /// Starts listening for the person over the voice; `cutIn` runs the moment they are heard.
     func watch(
@@ -39,7 +45,7 @@ final class BargeEars {
                 task.cancel()
             }
             while self?.generation == mine {
-                try? await Task.sleep(nanoseconds: 120_000_000)
+                try? await Task.sleep(nanoseconds: UInt64(BargeEars.pollSeconds * BargeEars.nanosecondsPerSecond))
                 guard let self else { return nil }
                 let (words, changed, final) = latest.read()
                 if !self.barged, isBargeIn(heard: words, spoken: spoken(), speaking: speaking()) {

@@ -14,6 +14,16 @@ final class SwitcherModel: ObservableObject {
     var picked: ((SessionCard) -> Void)?
 }
 
+/// A card counts as the one in front while the turn is within half a place of it.
+private let frontReach = 0.5
+
+private let nanosecondsPerSecond: TimeInterval = 1_000_000_000
+
+/// The sleep API takes nanoseconds, so every wait is written in seconds and converted once.
+private func nanoseconds(_ seconds: TimeInterval) -> UInt64 {
+    UInt64((seconds * nanosecondsPerSecond).rounded())
+}
+
 /// The sessions as cards standing in a row in 3D, turned at an angle like records on a shelf,
 /// which turn past until the one asked for faces the person, then comes forward and opens.
 @MainActor
@@ -23,6 +33,21 @@ final class SwitcherPanel {
     /// A beat per card, quick enough that several pass in about a second.
     private static let stepSeconds = 0.16
     private static let holdSeconds = 0.45
+
+    private enum Timing {
+        /// Lets the row fade in before it starts to turn.
+        static let settleBeforeTurn: TimeInterval = 0.28
+        /// Added to the turn's response so even a one card turn eases rather than snaps.
+        static let turnBaseResponse = 0.35
+        static let turnDamping = 0.82
+        static let chooseResponse = 0.45
+        static let chooseDamping = 0.7
+        /// Long enough to see the chosen card come forward before the row leaves.
+        static let chosenHold: TimeInterval = 0.38
+        static let exitDuration: TimeInterval = 0.25
+        /// Just past the exit animation, so the panel leaves only once it has faded.
+        static let orderOutDelay: TimeInterval = 0.26
+    }
 
     init() {
         panel = KeyablePanel(
@@ -52,18 +77,18 @@ final class SwitcherPanel {
         panel.setFrame(screen.frame, display: false)
         panel.contentView = NSHostingView(rootView: SwitcherView(model: model))
         panel.orderFrontRegardless()
-        withAnimation(.easeOut(duration: 0.3)) { model.shown = true }
-        try? await Task.sleep(nanoseconds: 280_000_000)
+        withAnimation(.easeOut(duration: Memnox.Motion.standard)) { model.shown = true }
+        try? await Task.sleep(nanoseconds: nanoseconds(Timing.settleBeforeTurn))
         let steps = abs(target - start)
-        withAnimation(.spring(response: Self.stepSeconds * Double(steps) + 0.35, dampingFraction: 0.82)) {
+        withAnimation(.spring(response: Self.stepSeconds * Double(steps) + Timing.turnBaseResponse, dampingFraction: Timing.turnDamping)) {
             model.selected = Double(target)
         }
-        try? await Task.sleep(nanoseconds: UInt64((Self.stepSeconds * Double(steps) + Self.holdSeconds) * 1_000_000_000))
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { model.chosen = true }
-        try? await Task.sleep(nanoseconds: 380_000_000)
-        withAnimation(.easeIn(duration: 0.25)) { model.shown = false }
+        try? await Task.sleep(nanoseconds: UInt64((Self.stepSeconds * Double(steps) + Self.holdSeconds) * nanosecondsPerSecond))
+        withAnimation(.spring(response: Timing.chooseResponse, dampingFraction: Timing.chooseDamping)) { model.chosen = true }
+        try? await Task.sleep(nanoseconds: nanoseconds(Timing.chosenHold))
+        withAnimation(.easeIn(duration: Timing.exitDuration)) { model.shown = false }
         Task { [panel] in
-            try? await Task.sleep(nanoseconds: 260_000_000)
+            try? await Task.sleep(nanoseconds: nanoseconds(Timing.orderOutDelay))
             panel.orderOut(nil)
             panel.contentView = nil
         }
@@ -73,18 +98,24 @@ final class SwitcherPanel {
 private struct SwitcherView: View {
     @ObservedObject var model: SwitcherModel
 
+    private enum Layout {
+        static let backdropOpacity = 0.38
+        static let shownLift: CGFloat = -30
+        static let hiddenDrop: CGFloat = 40
+    }
+
     var body: some View {
         ZStack {
             // The rest of the screen falls back, so the row is the only thing to look at.
-            Color.black.opacity(model.shown ? 0.38 : 0).ignoresSafeArea()
+            Color.black.opacity(model.shown ? Layout.backdropOpacity : 0).ignoresSafeArea()
             ZStack {
                 ForEach(Array(model.cards.enumerated()), id: \.element.id) { index, card in
                     let offset = Double(index) - model.selected
-                    SessionTile(card: card, front: abs(offset) < 0.5)
-                        .modifier(Shelf(offset: offset, chosen: model.chosen && abs(offset) < 0.5))
+                    SessionTile(card: card, front: abs(offset) < frontReach)
+                        .modifier(Shelf(offset: offset, chosen: model.chosen && abs(offset) < frontReach))
                 }
             }
-            .offset(y: model.shown ? -30 : 40)
+            .offset(y: model.shown ? Layout.shownLift : Layout.hiddenDrop)
             .opacity(model.shown ? 1 : 0)
         }
     }
@@ -96,15 +127,32 @@ private struct Shelf: ViewModifier {
     let offset: Double
     let chosen: Bool
 
+    private enum Layout {
+        static let turnDegrees = 52.0
+        static let perspective: CGFloat = 0.55
+        static let chosenScale = 1.18
+        /// Cards further than this stop shrinking and dimming, so the far end of the row stays legible.
+        static let farthestStep = 3.0
+        static let shrinkPerStep = 0.1
+        static let spacing = 150.0
+        /// Extra room each side of the front card, so the turned ones clear it.
+        static let sideGap = 70.0
+        static let chosenLift: CGFloat = -20
+        /// Past this a card is off the shelf and hidden.
+        static let hiddenBeyond = 3.4
+        static let chosenBrightness = 0.06
+        static let dimPerStep = 0.08
+    }
+
     func body(content: Content) -> some View {
         let side = max(-1, min(1, offset))
         let distance = abs(offset)
         content
-            .rotation3DEffect(.degrees(-side * 52), axis: (x: 0, y: 1, z: 0), perspective: 0.55)
-            .scaleEffect(chosen ? 1.18 : 1 - min(distance, 3) * 0.1)
-            .offset(x: offset * 150 + side * 70, y: chosen ? -20 : 0)
-            .opacity(distance > 3.4 ? 0 : 1)
-            .brightness(chosen ? 0.06 : -min(distance, 3) * 0.08)
+            .rotation3DEffect(.degrees(-side * Layout.turnDegrees), axis: (x: 0, y: 1, z: 0), perspective: Layout.perspective)
+            .scaleEffect(chosen ? Layout.chosenScale : 1 - min(distance, Layout.farthestStep) * Layout.shrinkPerStep)
+            .offset(x: offset * Layout.spacing + side * Layout.sideGap, y: chosen ? Layout.chosenLift : 0)
+            .opacity(distance > Layout.hiddenBeyond ? 0 : 1)
+            .brightness(chosen ? Layout.chosenBrightness : -min(distance, Layout.farthestStep) * Layout.dimPerStep)
             .zIndex(-distance)
     }
 }
@@ -114,99 +162,116 @@ private struct SessionTile: View {
     let card: SessionCard
     let front: Bool
 
+    private enum Layout {
+        static let reflectionOpacity = 0.16
+        static let reflectionHeight: CGFloat = 90
+        static let reflectionGap: CGFloat = 4
+        static let nameSize: CGFloat = 20
+        static let taskOpacity = 0.9
+        static let taskLineLimit = 4
+        static let dotSize: CGFloat = 7
+        static let padding: CGFloat = 18
+        static let width: CGFloat = 240
+        static let height: CGFloat = 300
+        static let cornerRadius: CGFloat = 16
+        static let tintOpacity = 0.4
+        static let frontEdgeOpacity = 0.8
+        static let edgeOpacity = 0.12
+        static let frontGlowOpacity = 0.45
+        static let shadowOpacity = 0.4
+        static let frontShadowRadius: CGFloat = 22
+        static let shadowRadius: CGFloat = 14
+        static let shadowDrop: CGFloat = 10
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             face
             // The card reflected in the glass it stands on.
             face
                 .scaleEffect(x: 1, y: -1, anchor: .center)
-                .opacity(0.16)
+                .opacity(Layout.reflectionOpacity)
                 .mask(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .center))
-                .frame(height: 90, alignment: .top)
+                .frame(height: Layout.reflectionHeight, alignment: .top)
                 .clipped()
-                .offset(y: 4)
+                .offset(y: Layout.reflectionGap)
         }
     }
 
     private var face: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
+            HStack(spacing: Memnox.Spacing.regular) {
                 AppIcon(path: card.host?.appPath)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(card.agentName)
-                        .font(Memnox.display(20))
+                        .font(Memnox.display(Layout.nameSize))
                         .foregroundStyle(Memnox.Palette.foreground)
                     Text(card.runningIn ?? "Somewhere unknown")
-                        .font(Memnox.sans(11))
+                        .font(Memnox.sans(Memnox.TextSize.caption))
                         .foregroundStyle(Memnox.Palette.muted)
                 }
             }
             Text(card.task ?? "No task recorded")
-                .font(Memnox.sans(13))
-                .foregroundStyle(Memnox.Palette.foreground.opacity(0.9))
-                .lineLimit(4)
+                .font(Memnox.sans(Memnox.TextSize.body))
+                .foregroundStyle(Memnox.Palette.foreground.opacity(Layout.taskOpacity))
+                .lineLimit(Layout.taskLineLimit)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 0)
             HStack {
-                Circle().fill(colour).frame(width: 7, height: 7)
-                Text(label).font(Memnox.sans(11, .medium)).foregroundStyle(colour)
+                Circle().fill(colour).frame(width: Layout.dotSize, height: Layout.dotSize)
+                Text(label).font(Memnox.sans(Memnox.TextSize.caption, .medium)).foregroundStyle(colour)
                 Spacer()
                 if let repository = card.repository {
-                    Text(repository).font(Memnox.sans(11)).foregroundStyle(Memnox.Palette.muted).lineLimit(1)
+                    Text(repository).font(Memnox.sans(Memnox.TextSize.caption)).foregroundStyle(Memnox.Palette.muted).lineLimit(1)
                 }
             }
         }
-        .padding(18)
-        .frame(width: 240, height: 300)
+        .padding(Layout.padding)
+        .frame(width: Layout.width, height: Layout.height)
         .background(
             ZStack {
-                Glass(material: .hudWindow, cornerRadius: 16)
-                Memnox.Palette.background.opacity(0.4)
+                Glass(material: .hudWindow, cornerRadius: Layout.cornerRadius)
+                Memnox.Palette.background.opacity(Layout.tintOpacity)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(front ? colour.opacity(0.8) : Color.white.opacity(0.12), lineWidth: front ? 1.5 : 1)
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .strokeBorder(
+                    front ? colour.opacity(Layout.frontEdgeOpacity) : Color.white.opacity(Layout.edgeOpacity),
+                    lineWidth: front ? Memnox.Stroke.emphasis : Memnox.Stroke.hairline
+                )
         )
-        .shadow(color: front ? colour.opacity(0.45) : .black.opacity(0.4), radius: front ? 22 : 14, y: 10)
+        .shadow(
+            color: front ? colour.opacity(Layout.frontGlowOpacity) : .black.opacity(Layout.shadowOpacity),
+            radius: front ? Layout.frontShadowRadius : Layout.shadowRadius,
+            y: Layout.shadowDrop
+        )
     }
 
-    private var label: String {
-        if card.thinking { return "Thinking" }
-        switch card.state {
-        case "working": return "Working"
-        case "open": return "Waiting on you"
-        case "paused": return "Paused"
-        case "ended": return "Ended"
-        default: return "Quiet"
-        }
-    }
+    private var label: String { card.status.label }
 
-    private var colour: Color {
-        switch card.state {
-        case "working": return Memnox.Palette.success
-        case "open": return Memnox.Palette.warm
-        case "paused": return Memnox.Palette.destructive
-        default: return card.thinking ? Memnox.Palette.success : Memnox.Palette.muted
-        }
-    }
+    private var colour: Color { card.status.tint }
 }
 
 /// The app the session runs in, by its own icon, which is how a person tells iTerm from VS Code at a glance.
 private struct AppIcon: View {
     let path: String?
 
+    private static let size: CGFloat = 36
+    private static let fallbackSymbolSize: CGFloat = 22
+    private static let fallbackSymbol = "terminal"
+
     var body: some View {
         if let path {
             Image(nsImage: NSWorkspace.shared.icon(forFile: path))
                 .resizable()
-                .frame(width: 36, height: 36)
+                .frame(width: Self.size, height: Self.size)
         } else {
-            Image(systemName: "terminal")
-                .font(.system(size: 22))
+            Image(systemName: Self.fallbackSymbol)
+                .font(.system(size: Self.fallbackSymbolSize))
                 .foregroundStyle(Memnox.Palette.muted)
-                .frame(width: 36, height: 36)
+                .frame(width: Self.size, height: Self.size)
         }
     }
 }

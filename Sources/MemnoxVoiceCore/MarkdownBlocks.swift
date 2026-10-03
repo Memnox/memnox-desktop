@@ -9,12 +9,18 @@ public enum MarkdownBlock: Equatable {
     case code(String)
     case text(String)
 
+    /// Opens and closes a fenced code block.
+    private static let fenceMark = "```"
+    private static let headingMark: Character = "#"
+    /// The marks a bulleted line starts with, each with the space after it.
+    private static let bulletMarks = ["- ", "* ", "+ "]
+
     public static func parse(_ source: String) -> [MarkdownBlock] {
         var blocks: [MarkdownBlock] = []
         var fence: [String]?
         for raw in source.components(separatedBy: .newlines) {
             let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.hasPrefix("```") {
+            if line.hasPrefix(Self.fenceMark) {
                 if let open = fence {
                     blocks.append(.code(open.joined(separator: "\n")))
                     fence = nil
@@ -28,7 +34,7 @@ public enum MarkdownBlock: Equatable {
                 continue
             }
             if line.isEmpty { continue }
-            if let heading = stripped(line, of: "#") {
+            if let heading = stripped(line, of: Self.headingMark) {
                 blocks.append(.heading(heading))
             } else if let item = bulleted(line) {
                 blocks.append(.bullet(item))
@@ -51,7 +57,7 @@ public enum MarkdownBlock: Equatable {
 
     /// "- item", "* item" or "1. item" as "item".
     private static func bulleted(_ line: String) -> String? {
-        for mark in ["- ", "* ", "+ "] where line.hasPrefix(mark) {
+        for mark in bulletMarks where line.hasPrefix(mark) {
             return String(line.dropFirst(mark.count))
         }
         guard let dot = line.firstIndex(of: "."), line[..<dot].allSatisfy(\.isNumber), !line[..<dot].isEmpty else {

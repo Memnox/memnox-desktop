@@ -181,6 +181,8 @@ public final class Conversation {
     static let actingTools: Set<String> = [
         "start_session", "send_instruction", "watch_for", "pause_session", "show", "walk_through",
     ]
+    /// Every operator tool that proposes an action starts with this, and each reads its proposal back at once.
+    private static let proposingToolPrefix = "propose_"
     /// Said back when the person calls it, the way somebody looks up from their desk.
     public var wakeLines = WakeLines()
     /// When it was last called, so the first call in a while is greeted for the hour.
@@ -256,9 +258,9 @@ public final class Conversation {
         var request = DaemonRequest(id: takeId(), method: .registerKey)
         request.point = key.publicPoint
         guard let response = try? await link.request(request) else { return .unreachable }
-        if response.outcome == "another key" { return .anotherKey }
+        if response.outcome == Outcome.anotherKey { return .anotherKey }
         // Only the word itself counts, since an older daemon answered anything with a bare ok.
-        return response.ok && response.outcome == "registered" ? .registered : .tooOld
+        return response.ok && response.outcome == Outcome.registered ? .registered : .tooOld
     }
 
     /// At launch: registers the key, and says so when somebody else's is already there.
@@ -325,10 +327,12 @@ public final class Conversation {
 
     /// What they said while Memnox could not be reached, and when.
     private var unsent: (String, Date)?
+    /// Long enough for a follow up to still be about what never arrived.
+    private static let unsentKeptFor: TimeInterval = 120
 
     /// Their words, after what never reached the brain a moment ago, so the follow up makes sense.
     private func withUnsent(_ words: String) -> String {
-        guard let missed = unsent, now().timeIntervalSince(missed.1) < 120 else { return words }
+        guard let missed = unsent, now().timeIntervalSince(missed.1) < Self.unsentKeptFor else { return words }
         unsent = nil
         return "Just before, Memnox could not be reached when they said: \"\(missed.0)\". Now they say: \(words)"
     }
@@ -354,6 +358,9 @@ public final class Conversation {
         case unreachable
     }
 
+    /// How the daemon's refusal of a method it does not know begins, which means it is older than the app.
+    private static let unknownMethodError = "no method"
+
     /// Streams a turn into speech, sentence by sentence, and says how it ended.
     private func speakStream(_ request: DaemonRequest) async -> Told {
         streaming += 1
@@ -365,7 +372,7 @@ public final class Conversation {
             for try await response in link.stream(request) {
                 if let error = response.error, !response.ok {
                     diary.note("\(request.method) refused: \(error)")
-                    return .refused(error.hasPrefix("no method") ? Self.tooOld : error)
+                    return .refused(error.hasPrefix(Self.unknownMethodError) ? Self.tooOld : error)
                 }
                 // An older daemon answers a method it does not know with a bare ok and nothing more.
                 guard let chunk = response.chunk else {
@@ -425,7 +432,7 @@ public final class Conversation {
                 return false
             }
             // Looking something up takes seconds, so say so the moment it starts rather than on a timer.
-            let acting = toolWord(chunk.tool).hasPrefix("propose_") || Self.actingTools.contains(toolWord(chunk.tool))
+            let acting = toolWord(chunk.tool).hasPrefix(Self.proposingToolPrefix) || Self.actingTools.contains(toolWord(chunk.tool))
             if mayFill, !acting, !answering, !fillerSpoke, !filledLastTurn, !interrupted, let words = fillers.randomElement() {
                 fillerSpoke = true
                 speaker.queue(words)
@@ -648,18 +655,21 @@ public final class Conversation {
         var checks = 0
         while streaming > 0, checks < Self.quietChecks {
             checks += 1
-            try? await Task.sleep(nanoseconds: 100_000_000)
+            try? await Task.sleep(nanoseconds: UInt64(Self.quietCheckInterval * Self.nanosecondsPerSecond))
         }
         await speaker.drained()
     }
 
     /// Twenty seconds in tenths, longer than any read back takes to stream.
     static let quietChecks = 200
+    /// A tenth of a second between checks, which is what `quietChecks` counts in.
+    private static let quietCheckInterval: TimeInterval = 0.1
+    private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
     /// A command still running on its own, like a login waiting on its browser page, is never called done.
     static func afterConfirm(_ answer: ProposalAnswer, outcome: String?) -> String {
         guard answer == .confirmed else { return "Very well. I have left it as it was." }
-        return outcome == "started"
+        return outcome == Outcome.started
             ? "Very well. It is under way, and I will tell you if anything goes wrong."
             : "Very well. It is done."
     }
@@ -710,17 +720,33 @@ public final class Conversation {
         let done = now()
         var spans: [MacSpan] = []
         if let spoke = spokeUntil, spoke < askedAt {
-            spans.append(MacSpan(name: "waiting for the end", startAt: stamp.string(from: spoke), endAt: stamp.string(from: askedAt)))
+            spans.append(MacSpan(name: SpanName.waitingForEnd, startAt: stamp.string(from: spoke), endAt: stamp.string(from: askedAt)))
         }
         if let first = firstSentenceAt {
-            spans.append(MacSpan(name: "first sentence ready", startAt: stamp.string(from: askedAt), endAt: stamp.string(from: first)))
-            spans.append(MacSpan(name: "speaking", startAt: stamp.string(from: first), endAt: stamp.string(from: done)))
+            spans.append(MacSpan(name: SpanName.firstSentence, startAt: stamp.string(from: askedAt), endAt: stamp.string(from: first)))
+            spans.append(MacSpan(name: SpanName.speaking, startAt: stamp.string(from: first), endAt: stamp.string(from: done)))
         }
         guard !spans.isEmpty else { return }
         var request = newRequest(.trace)
         request.spans = spans
         // Sent after the answer is spoken, and its failure ignored, so a trace never holds up the next question.
         _ = try? await link.request(request)
+    }
+
+    /// The app's step names on a trace, which the trace card names again under a `mac.` prefix.
+    private enum SpanName {
+        static let waitingForEnd = "waiting for the end"
+        static let firstSentence = "first sentence ready"
+        static let speaking = "speaking"
+    }
+
+    /// The daemon's outcome words this app acts on.
+    private enum Outcome {
+        /// The key was already registered by somebody else.
+        static let anotherKey = "another key"
+        static let registered = "registered"
+        /// A confirmed command still running on its own.
+        static let started = "started"
     }
 
     /// A sentence of a streamed reply, queued so the reply is spoken as one run rather than line by line.
@@ -747,16 +773,6 @@ public final class Conversation {
     }
 }
 
-/// Only what a voice should say: no markdown, no code marks, and a pause where a dash stood.
-public func speakable(_ text: String) -> String {
-    var spoken = text
-    for mark in ["`", "*", "#", "_", "~"] { spoken = spoken.replacingOccurrences(of: mark, with: "") }
-    for dash in [" \u{2014} ", "\u{2014}", " \u{2013} ", "\u{2013}"] {
-        spoken = spoken.replacingOccurrences(of: dash, with: ", ")
-    }
-    return spoken.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-}
-
 extension Optional {
     /// The value mapped through async work, or nil without doing it.
     func asyncMap<T>(_ transform: (Wrapped) async -> T) async -> T? {
@@ -764,3 +780,18 @@ extension Optional {
         return await transform(value)
     }
 }
+
+/// Only what a voice should say: no markdown, no code marks, and a pause where a dash stood.
+public func speakable(_ text: String) -> String {
+    var spoken = text
+    for mark in markdownMarks { spoken = spoken.replacingOccurrences(of: mark, with: "") }
+    for dash in spokenDashes {
+        spoken = spoken.replacingOccurrences(of: dash, with: ", ")
+    }
+    return spoken.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+}
+
+/// Code marks, emphasis, headings and strikethrough, which a voice would otherwise read out.
+private let markdownMarks = ["`", "*", "#", "_", "~"]
+/// Em and en dashes, spaced first so the spaces go with them.
+private let spokenDashes = [" \u{2014} ", "\u{2014}", " \u{2013} ", "\u{2013}"]

@@ -6,13 +6,26 @@ import SwiftUI
 struct MarkdownText: View {
     let source: String
 
+    private enum Layout {
+        /// Between a bullet and its line.
+        static let bulletGap: CGFloat = 7
+        static let bulletLineSpacing: CGFloat = 2
+        /// The monospaced size of a code block, two points under a paragraph.
+        static let codeTextSize: CGFloat = 11.5
+        /// The dark shade behind a code block that sets it apart from the text around it.
+        static let codeShadeOpacity = 0.28
+        /// Between the body and callout sizes, so a paragraph reads a touch above a bullet.
+        static let paragraphTextSize: CGFloat = 13.5
+        static let paragraphLineSpacing: CGFloat = 3
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
             ForEach(Array(MarkdownBlock.parse(source).enumerated()), id: \.offset) { _, block in
                 view(for: block)
             }
         }
-        .foregroundStyle(Memnox.Palette.foreground.opacity(0.92))
+        .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
         .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -21,22 +34,22 @@ struct MarkdownText: View {
         switch block {
         case .heading(let line):
             Text(Self.inline(line))
-                .font(Memnox.sans(15, .semibold))
+                .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
                 .foregroundStyle(Memnox.Palette.foreground)
-                .padding(.top, 2)
+                .padding(.top, Memnox.Spacing.xxSmall)
         case .bullet(let line):
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Text("•").font(Memnox.sans(13, .semibold)).foregroundStyle(Memnox.Palette.primary)
-                Text(Self.inline(line)).font(Memnox.sans(13)).lineSpacing(2)
+            HStack(alignment: .firstTextBaseline, spacing: Layout.bulletGap) {
+                Text("•").font(Memnox.sans(Memnox.TextSize.body, .semibold)).foregroundStyle(Memnox.Palette.primary)
+                Text(Self.inline(line)).font(Memnox.sans(Memnox.TextSize.body)).lineSpacing(Layout.bulletLineSpacing)
             }
         case .code(let code):
             Text(code)
-                .font(.system(size: 11.5, design: .monospaced))
-                .padding(8)
+                .font(.system(size: Layout.codeTextSize, design: .monospaced))
+                .padding(Memnox.Spacing.medium)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.28)))
+                .background(RoundedRectangle(cornerRadius: Memnox.radius).fill(Color.black.opacity(Layout.codeShadeOpacity)))
         case .text(let line):
-            Text(Self.inline(line)).font(Memnox.sans(13.5)).lineSpacing(3)
+            Text(Self.inline(line)).font(Memnox.sans(Layout.paragraphTextSize)).lineSpacing(Layout.paragraphLineSpacing)
         }
     }
 

@@ -2,12 +2,15 @@ import AVFoundation
 import MemnoxVoiceCore
 import Speech
 
+/// The recognizer's language when the Mac's own has none.
+private let fallbackLocale = "en-US"
+
 /// Listens for its own name while nothing else is happening, so saying "Memnox" opens the orb
 /// the way Option Space does. Recognition stays on this Mac, and a Mac that cannot recognise on
 /// device never listens at all, since a microphone streaming all day to a server is not a door.
 @MainActor
 final class WakeEars {
-    private let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer(locale: Locale(identifier: fallbackLocale))
     /// Bumped on every start and stop, so a round that was stopped never touches the microphone again.
     private var generation = 0
     private var listening: Task<Void, Never>?
@@ -16,6 +19,15 @@ final class WakeEars {
     private static let roundSeconds: TimeInterval = 50
     /// How long after the name alone before the orb opens, in case a question follows it.
     private static let afterNameSeconds: TimeInterval = 1.0
+    /// The name it listens for, given to the recognizer as a hint only.
+    private static let name = "Memnox"
+    /// A short rest between rounds, so a round that ends at once does not spin.
+    private static let betweenRoundsSeconds: TimeInterval = 0.3
+    /// How long to wait before trying again while the recognizer is unavailable.
+    private static let unavailableSeconds: TimeInterval = 2.0
+    /// How often the latest words are looked at.
+    private static let pollSeconds: TimeInterval = 0.15
+    private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
     /// Called with whatever followed the name, empty when it was said alone.
     var woke: ((String) -> Void)?
@@ -49,7 +61,7 @@ final class WakeEars {
                     self.woke?(after)
                     return
                 }
-                try? await Task.sleep(nanoseconds: 300_000_000)
+                try? await Task.sleep(nanoseconds: UInt64(WakeEars.betweenRoundsSeconds * WakeEars.nanosecondsPerSecond))
             }
         }
     }
@@ -67,13 +79,13 @@ final class WakeEars {
     /// One recognizer request: the words after the name once they pause, or nil when the round ran out.
     private func round(through audio: AudioIO, generation mine: Int) async -> String? {
         guard let recognizer, recognizer.isAvailable else {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            try? await Task.sleep(nanoseconds: UInt64(Self.unavailableSeconds * Self.nanosecondsPerSecond))
             return nil
         }
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.requiresOnDeviceRecognition = true
-        request.contextualStrings = ["Memnox"]
+        request.contextualStrings = [Self.name]
         audio.onMicrophone = { request.append($0) }
         let latest = Latest()
         let task = recognizer.recognitionTask(with: request) { result, error in
@@ -90,7 +102,7 @@ final class WakeEars {
         }
         let began = Date()
         while generation == mine {
-            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * Self.nanosecondsPerSecond))
             let (words, changed, final) = latest.read()
             if let after = afterWakeWord(words) {
                 let pause = after.isEmpty ? Self.afterNameSeconds : endOfSpeechPause(after: after)

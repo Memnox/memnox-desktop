@@ -8,8 +8,18 @@ enum IslandMode: Equatable {
     case peek
     /// Sessions working: the orb left of the notch, one dot per working session right of it.
     case compact
-    /// Talking: the orb grown large below the notch, with what was heard or said under it.
+    /// Talking: the orb grown large below the notch, before any words are heard.
     case voice
+    /// Talking with live words on: the orb above what the person is saying, word by word as it is heard.
+    case hearing
+    /// A turn under way: the question above, and the answer arriving in a card below it.
+    case conversation
+    /// A drafted message from the person's connected mail, read whole before a signed Send.
+    case draft
+    /// One answer opened up tall, for a long reply or one picked from the history at the side.
+    case answer
+    /// A rule the person said, with where it could hold, waiting for them to pick a place and sign.
+    case rule
     /// Opened by the pointer: the session in focus, what it is doing, and every other session as a pill.
     case overview
     /// One session up close: what it did and the code it is writing.
@@ -34,12 +44,15 @@ struct HeldCard: Equatable, Sendable {
     let summary: String
     /// False only where the daemon placed the call inside its repository, so a tap allows it.
     let touchID: Bool
+    /// False only where the daemon placed the call inside its repository, so a tap allows it.
+    let touchID: Bool
 
     init(_ event: DaemonEvent) {
         subject = event.subject
         agent = event.agent
         who = event.agentName ?? event.agent
         what = event.what ?? event.summary
+        touchID = event.needsTouchID
         why = event.why
         summary = event.summary
         touchID = event.needsTouchID
@@ -111,7 +124,7 @@ final class IslandModel: ObservableObject {
     @Published var countdown: CGFloat?
     @Published var hops = 0
     @Published var shakes = 0
-
+    var answer: (HeldCard, HoldAnswer) -> Void = { _, _ in }
     var active = false
     var opened = false
     var answer: (HeldCard, HoldAnswer) -> Void = { _, _ in }

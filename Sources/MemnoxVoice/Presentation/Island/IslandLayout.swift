@@ -15,8 +15,8 @@ enum Island {
     static let window = CGSize(width: width + 2 * flare + windowMargin, height: tallestIsland + windowMargin)
     /// Room left around the island inside its window.
     private static let windowMargin: CGFloat = 40
-    /// The tallest the island may grow, which sizes the window it grows inside.
-    private static let tallestIsland: CGFloat = 310
+    /// The tallest the island may grow, which sizes the window it grows inside: the answer opened up.
+    private static let tallestIsland: CGFloat = Height.answer
     /// Long enough that passing the pointer across the menu bar never opens it.
     static let dwellResting: TimeInterval = 0.65
     static let dwellBusy: TimeInterval = 0.2
@@ -43,6 +43,22 @@ enum Island {
         static let empty: CGFloat = 150
         static let held: CGFloat = 206
         static let finished: CGFloat = 170
+        /// The orb and up to three lines of what is being said under it.
+        static let hearingBelowTop: CGFloat = 196
+        /// The question and an answer card tall enough for a short reply to sit whole.
+        static let conversation: CGFloat = 372
+        /// A reply's thread, recipients, subject, a few lines of body and Send.
+        static let draft: CGFloat = 430
+        /// Tall enough for a file tree or a long list to read without scrolling much.
+        static let answer: CGFloat = 560
+        /// The question, the rule and its details, three places to pick from and the answers.
+        static let rule: CGFloat = 470
+    }
+
+    /// The talking modes are narrower than the open island, so the words keep a comfortable line length.
+    private enum Width {
+        static let hearing: CGFloat = 520
+        static let conversation: CGFloat = 580
     }
 
     /// Where content starts: never above this, and always a little below the notch itself.
@@ -81,6 +97,12 @@ enum Island {
         static let heldDiameter: CGFloat = 56
         static let finishedX: CGFloat = 62
         static let finishedDiameter: CGFloat = 58
+        /// Above the words it is hearing, smaller than the voice orb so three lines fit under it.
+        static let hearingBelowTop: CGFloat = 50
+        static let hearingDiameter: CGFloat = 84
+        /// In the header row left of the notch, a small light while the words take the space below.
+        static let headerX: CGFloat = 30
+        static let headerDiameter: CGFloat = 20
     }
 
     static func size(_ mode: IslandMode, _ notch: NotchGeometry) -> CGSize {
@@ -93,6 +115,11 @@ enum Island {
         case .empty: return CGSize(width: width, height: Height.empty)
         case .held: return CGSize(width: width, height: Height.held)
         case .finished: return CGSize(width: width, height: Height.finished)
+        case .hearing: return CGSize(width: Width.hearing, height: top(notch) + Height.hearingBelowTop)
+        case .conversation: return CGSize(width: Width.conversation, height: Height.conversation)
+        case .draft: return CGSize(width: Width.conversation, height: Height.draft)
+        case .answer: return CGSize(width: width, height: Height.answer)
+        case .rule: return CGSize(width: Width.conversation, height: Height.rule)
         }
     }
 
@@ -133,6 +160,9 @@ enum Island {
         case .empty: return (CGPoint(x: OrbSpot.emptyX, y: middle), OrbSpot.emptyDiameter)
         case .held: return (CGPoint(x: OrbSpot.heldX, y: middle), OrbSpot.heldDiameter)
         case .finished: return (CGPoint(x: OrbSpot.finishedX, y: middle), OrbSpot.finishedDiameter)
+        case .hearing: return (CGPoint(x: Width.hearing / 2, y: top + OrbSpot.hearingBelowTop), OrbSpot.hearingDiameter)
+        case .conversation, .draft, .answer, .rule:
+            return (CGPoint(x: OrbSpot.headerX, y: notch.height / 2), OrbSpot.headerDiameter)
         }
     }
 }

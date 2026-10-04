@@ -257,6 +257,37 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(ready, .ready)
     }
 
+    func testReadsTheVoiceAgentsAndWhyTheOthersCannotAnswer() async throws {
+        link.answers["voice-agents"] = [try line(#"{"id":1,"ok":true,"voiceAgents":[{"kind":"cursor","label":"Cursor","installed":true,"sealed":true,"works":true,"chosen":true,"install":"x"},{"kind":"hermes","label":"Hermes","installed":true,"sealed":false,"works":false,"because":"its plan ran out","chosen":false,"install":"y"}]}"#)]
+        let answer = await conversation.voiceAgents()
+        guard case .agents(let agents) = answer else { return XCTFail("expected agents, got \(answer)") }
+        XCTAssertEqual(agents.map(\.kind), ["cursor", "hermes"])
+        XCTAssertEqual(agents.last?.because, "its plan ran out")
+        XCTAssertNil(link.sent.last?.recheck)
+    }
+
+    func testAsksEveryAgentAgainOnlyWhenToldTo() async throws {
+        link.answers["voice-agents"] = [try line(#"{"id":1,"ok":true,"voiceAgents":[]}"#)]
+        _ = await conversation.voiceAgents(recheck: true)
+        XCTAssertEqual(link.sent.last?.recheck, true)
+    }
+
+    func testSendsThePersonsPickAndSaysWhyOneWasRefused() async throws {
+        link.answers["choose-voice-agent"] = [try line(#"{"id":1,"ok":false,"error":"Codex is not installed on this Mac"}"#)]
+        let answer = await conversation.chooseVoiceAgent("codex")
+        XCTAssertEqual(link.sent.last?.voiceAgent, "codex")
+        XCTAssertEqual(answer, .refused("Codex is not installed on this Mac"))
+    }
+
+    func testCallsADaemonWithNoVoiceAgentsOlderRatherThanEmpty() async throws {
+        link.answers["voice-agents"] = [try line(#"{"id":1,"ok":true}"#)]
+        let answer = await conversation.voiceAgents()
+        XCTAssertEqual(answer, .refused("This Memnox is older than the app"))
+        link.unreachable = true
+        let gone = await conversation.voiceAgents()
+        XCTAssertEqual(gone, .unreachable)
+    }
+
     func testSaysSoWhenAnotherKeyIsRegistered() async throws {
         link.answers["register-key"] = [try line(#"{"id":1,"ok":false,"outcome":"another key"}"#)]
         await conversation.introduce()

@@ -17,6 +17,14 @@ public enum DaemonVoice: Equatable {
     case unreachable
 }
 
+/// What the daemon said about the agents the voice can think with.
+public enum VoiceAgentsAnswer: Equatable, Sendable {
+    case agents([VoiceAgentStatus])
+    /// It answered no, with why: an agent not on this Mac, or a daemon that knows no voice agents.
+    case refused(String)
+    case unreachable
+}
+
 /// What the orb shows. Each state looks and moves differently, so a glance says which it is.
 public enum VoiceState: Equatable, Sendable {
     case idle

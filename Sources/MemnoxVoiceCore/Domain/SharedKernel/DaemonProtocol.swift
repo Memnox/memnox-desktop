@@ -21,6 +21,10 @@ public enum DaemonMethod: String {
     case delivered
     /// The app's own timings for the question just answered, so one trace shows the whole answer.
     case trace
+    /// Which of the person's agents can be the voice, and why the others cannot.
+    case voiceAgents = "voice-agents"
+    /// The person picking which agent the voice thinks with.
+    case chooseVoiceAgent = "choose-voice-agent"
 }
 
 public enum EventKind: String {
@@ -407,6 +411,10 @@ public struct DaemonRequest: Encodable, Equatable {
     public var reason: String?
     /// On trace: the app's own steps for the question just answered.
     public var spans: [MacSpan]?
+    /// On voice-agents: ask every installed agent again rather than answer from the last check.
+    public var recheck: Bool?
+    /// On choose-voice-agent: the agent's kind, such as cursor.
+    public var voiceAgent: String?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -463,6 +471,38 @@ public struct AskChunk: Decodable, Equatable {
     }
 }
 
+/// One agent as the settings show it: there or not, whether it answered, and whether it is the voice.
+public struct VoiceAgentStatus: Decodable, Equatable, Identifiable, Sendable {
+    public let kind: String
+    public let label: String
+    public let installed: Bool
+    /// Kept to reading; one that is not is used only when nothing else answered.
+    public let sealed: Bool
+    /// Nil until it has been asked.
+    public let works: Bool?
+    /// Why it did not answer, in words a person can act on.
+    public let because: String?
+    public let checkedAt: String?
+    public let chosen: Bool
+    /// What to install, or set up, when it is missing or cannot answer.
+    public let install: String
+
+    public var id: String { kind }
+
+    public init(kind: String, label: String, installed: Bool, sealed: Bool, works: Bool? = nil,
+                because: String? = nil, checkedAt: String? = nil, chosen: Bool = false, install: String = "") {
+        self.kind = kind
+        self.label = label
+        self.installed = installed
+        self.sealed = sealed
+        self.works = works
+        self.because = because
+        self.checkedAt = checkedAt
+        self.chosen = chosen
+        self.install = install
+    }
+}
+
 /// Where a session's agent runs, for bringing its window forward.
 public struct DaemonLocation: Decodable, Equatable {
     public let sessionId: String
@@ -487,6 +527,8 @@ public struct DaemonResponse: Decodable, Equatable {
     public let session: SessionView?
     /// On sessions-list: the sessions lately, most recently active first.
     public let sessions: [SessionCard]?
+    /// On voice-agents and choose-voice-agent: every agent the voice knows, preferred first.
+    public let voiceAgents: [VoiceAgentStatus]?
     public let error: String?
 }
 

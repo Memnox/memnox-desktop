@@ -16,6 +16,8 @@ final class AudioIO {
     static let voiceLevel: Float = 0.45
     /// Loud enough to be somebody talking rather than a room, on the same scale as `micLevel`.
     static let voiceLevel: Float = 0.45
+    /// Loud enough to be somebody talking rather than a room, on the same scale as `micLevel`.
+    static let voiceLevel: Float = 0.45
     /// Every microphone buffer while listening, for the recognizer.
     var onMicrophone: ((AVAudioPCMBuffer) -> Void)?
     private var running = false
@@ -492,6 +494,7 @@ final class LegacyEars {
     /// Words in audio already recorded, or nil when there are none or it takes too long.
     func transcribe(_ buffers: [AVAudioPCMBuffer]) async -> String? {
         guard let recognizer, recognizer.isAvailable, !buffers.isEmpty else { return nil }
+        useVocabulary(in: request, with: recognizer)
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = false
         request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
@@ -525,6 +528,8 @@ final class LegacyEars {
         guard let recognizer, recognizer.isAvailable else {
             diary.note("older recognizer not available: \(SFSpeechRecognizer.authorizationStatus().rawValue)")
             return nil
+        var lastVoice: Date?
+        var loudest: Float = 0
         }
         let began = Date()
         var lastVoice: Date?
@@ -534,7 +539,9 @@ final class LegacyEars {
         var guessed = ""
         while true {
             let round = startRound(with: recognizer, through: audio)
-            var finished = false
+                loudest = max(loudest, audio.micLevel)
+                if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
+                let all = joinedSpeech(settled, words)
             var final = false
             while !finished {
                 try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * nanosecondsPerSecond))
@@ -555,6 +562,10 @@ final class LegacyEars {
                     settled = all
                     break
                 }
+        if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
+            diary.note("dropped words from a listen too quiet for speech: \(words)")
+            return nil
+        }
                 if finished { settled = all }
             }
             audio.onMicrophone = nil
@@ -569,6 +580,7 @@ final class LegacyEars {
         let words = settled.trimmingCharacters(in: .whitespacesAndNewlines)
         return words.isEmpty ? nil : words
     }
+        useVocabulary(in: request, with: recognizer)
 
     private struct Round {
         let request: SFSpeechAudioBufferRecognitionRequest
@@ -579,11 +591,16 @@ final class LegacyEars {
     private func startRound(with recognizer: SFSpeechRecognizer, through audio: AudioIO) -> Round {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
-        if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
-        request.contextualStrings = recognizerHints
-        audio.onMicrophone = { request.append($0) }
+/// The model trained on the agents' names, when it is built in this recognizer's language; it only runs on this Mac.
+private func useVocabulary(in request: SFSpeechAudioBufferRecognitionRequest, with recognizer: SFSpeechRecognizer) {
+    guard let trained = Vocabulary.trained, recognizer.supportsOnDeviceRecognition,
+          recognizer.locale.identifier == Vocabulary.locale.identifier else { return }
+    request.requiresOnDeviceRecognition = true
+    request.customizedLanguageModel = trained
         let latest = Latest()
         let task = recognizer.recognitionTask(with: request) { result, _ in
+/// Two stretches of what somebody said, run together as one.
+
             guard let result else { return }
             latest.update(result.bestTranscription.formattedString, final: result.isFinal)
         }

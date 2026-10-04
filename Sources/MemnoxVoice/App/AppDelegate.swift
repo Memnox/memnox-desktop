@@ -37,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let presenter = SessionPresenter()
     private let chimes = SystemChimes()
     private let frontApp = FrontApp()
+    private let frontApp = FrontApp()
     /// When the screen locked, so coming back after a while can be caught up on.
     private var awaySince: Date?
     /// Long enough that a coffee counts and a glance away does not.
@@ -95,7 +96,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             key = RefusingKey()
         }
         conversation = Conversation(
-            link: link, speaker: voice, key: key, face: panel, owner: owner, presenter: presenter, chimes: chimes,
+            address: { chosenAddress() },
+            name: { chosenName() },
+            lookingAt: { [frontApp] in frontApp.name }
             address: { chosenAddress() },
             name: { chosenName() },
             lookingAt: { [frontApp] in frontApp.name }
@@ -447,6 +450,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The agents, CLIs and servers on this machine, so the recognizer hears "Railway" and not "right away".
     private func learnNames() async {
         let words = await conversation.vocabulary()
+        // Hints only nudge the recognizer, so the same names also train a model it hears them with.
+        await Vocabulary.train(names: names)
         guard !words.isEmpty else { return }
         recognizerHints = Array(Set(words + Self.spokenVocabulary))
         diary.note("listening for \(recognizerHints.count) names")

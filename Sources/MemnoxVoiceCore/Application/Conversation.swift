@@ -62,6 +62,10 @@ public final class Conversation {
     private let name: () -> String?
     /// The app in front of the person as they speak, so the brain hears their words against what they work in.
     private let lookingAt: () -> String?
+    /// Their name, which the wake line keeps for a greeting and says far less often than the address.
+    private let name: () -> String?
+    /// The app in front of the person as they speak, so the brain hears their words against what they work in.
+    private let lookingAt: () -> String?
     /// The app in front of the person as they speak, so the brain hears their words against what they work in.
     private let lookingAt: () -> String?
     /// Said when the daemon is older than the app, which is the one fix a person can make.
@@ -77,7 +81,7 @@ public final class Conversation {
     /// Every operator tool that proposes an action starts with this, and each reads its proposal back at once.
     private static let proposingToolPrefix = "propose_"
     /// Said back when the person calls it, the way somebody looks up from their desk.
-    public var wakeLines = WakeLines()
+        return wakeLines.line(address: address(), name: name(), hour: hour, sinceLastCall: since, at: moment)
     /// When it was last called, so the first call in a while is greeted for the hour.
     private var lastCalled: Date?
 
@@ -93,10 +97,14 @@ public final class Conversation {
     static let answerWindow: TimeInterval = 120
 
     public init(
+        name: @escaping () -> String? = { nil },
+        lookingAt: @escaping () -> String? = { nil },
         link: DaemonLink,
         speaker: Speaker,
         key: ConfirmKey,
         face: Face,
+        self.name = name
+        self.lookingAt = lookingAt
         name: @escaping () -> String? = { nil },
         lookingAt: @escaping () -> String? = { nil },
         owner: OwnerStore,
@@ -125,6 +133,27 @@ public final class Conversation {
         self.face = face
         self.owner = owner
         self.presenter = presenter
+    /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
+    public func voiceAgents(recheck: Bool = false) async -> VoiceAgentsAnswer {
+        var request = newRequest(.voiceAgents)
+        if recheck { request.recheck = true }
+        return await agentsAnswer(request)
+    }
+
+    /// The person picking the agent the voice thinks with, from the next question on.
+    public func chooseVoiceAgent(_ kind: String) async -> VoiceAgentsAnswer {
+        var request = newRequest(.chooseVoiceAgent)
+        request.voiceAgent = kind
+        return await agentsAnswer(request)
+    }
+
+    private func agentsAnswer(_ request: DaemonRequest) async -> VoiceAgentsAnswer {
+        guard let response = try? await link.request(request) else { return .unreachable }
+        if response.ok, let agents = response.voiceAgents { return .agents(agents) }
+        // An older daemon answers a method it does not know with a bare ok and no agents.
+        return .refused(response.error ?? "This Memnox is older than the app")
+    }
+
         self.chimes = chimes
     }
 
@@ -164,6 +193,7 @@ public final class Conversation {
     /// The sessions lately, most recently active first, for the switcher to turn through.
     /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
     public func voiceAgents(recheck: Bool = false) async -> VoiceAgentsAnswer {
+        request.lookingAt = lookingAt()
         var request = newRequest(.voiceAgents)
         if recheck { request.recheck = true }
         return await agentsAnswer(request)
@@ -189,6 +219,7 @@ public final class Conversation {
 
     /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
     public func voiceAgents(recheck: Bool = false) async -> VoiceAgentsAnswer {
+        request.lookingAt = lookingAt()
         var request = newRequest(.voiceAgents)
         if recheck { request.recheck = true }
         return await agentsAnswer(request)
@@ -410,20 +441,26 @@ public final class Conversation {
             spoke = true
             flow(rest)
         }
-        await speaker.drained()
-        return spoke ? .spoke : .silent
-    }
+            await oneAtATime { [self] in
+                face.show(.thinking, caption: "typing it in")
+                await delivered(event, await presenter.type(event.summary, into: event.host, request: event.subject),
+                                otherwise: "My apologies, I could not type it into its terminal.")
+            }
 
-    private func newRequest(_ method: DaemonMethod) -> DaemonRequest {
-        var request = DaemonRequest(id: takeId(), method: method)
-        request.owner = owner.name
-        return request
-    }
-
+            await oneAtATime { [self] in
+                face.show(.thinking, caption: "typing it in")
+                let typed = await event.sessionId.asyncMap { await presenter.prefill(event.summary, session: $0, host: event.host) }
+                await delivered(event, typed ?? Typed(.failed, "no session to type into"),
+                                otherwise: typed?.outcome == .clipboard
+                                    ? "My apologies, I could not type it in safely, so your words are on the clipboard. Press Command V, then Return, in its chat."
+                                    : "My apologies, I could not type it into its chat.")
+            }
     /// The person started talking over the answer: the voice stops now and the brain stops too.
-    public func interrupt() async {
-        interrupted = true
-        speaker.stop()
+            await oneAtATime { [self] in
+                face.show(.thinking, caption: "starting it")
+                await delivered(event, await presenter.launch(event.summary, in: event.host?.cwd),
+                                otherwise: "My apologies, I could not start it.")
+            }
         _ = try? await link.request(DaemonRequest(id: takeId(), method: .cancel))
     }
 
@@ -444,6 +481,13 @@ public final class Conversation {
             }
             // They are mid thought: nothing is said, so nothing talks over the rest of it.
             if toolWord(chunk.tool) == Self.holdTool {
+        case .folder:
+            let opener = event.title.flatMap(FolderOpener.init(rawValue:)) ?? .finder
+            guard let path = event.host?.cwd, await presenter.openFolder(path, in: opener) else {
+                diary.note("could not open the folder for \(event.subject)")
+                speaker.queue("My apologies, I could not open that folder.")
+                return
+            }
                 holding = true
                 return false
             }
@@ -471,6 +515,29 @@ public final class Conversation {
 
     /// Something that started or stopped waiting on the person.
     public func handle(_ event: DaemonEvent) async {
+    /// The typing in progress, and the lock that hands it on, since show events arrive on tasks of their own.
+    private var typing: Task<Void, Never>?
+    private let typingLock = NSLock()
+
+    /// Keys pressed for one message at a time: the person talking on while a prompt goes in sends the rest
+    /// as a message of its own, and two typed at once would mix their letters in the agent's prompt.
+    private func oneAtATime(_ work: @escaping () async -> Void) async {
+        await queued(work).value
+    }
+
+    /// Puts the work behind whatever is typing now, under the lock, which only a synchronous call may hold.
+    private func queued(_ work: @escaping () async -> Void) -> Task<Void, Never> {
+        typingLock.lock()
+        defer { typingLock.unlock() }
+        let previous = typing
+        let mine = Task {
+            await previous?.value
+            await work()
+        }
+        typing = mine
+        return mine
+    }
+
         switch event.eventKind {
         case .held:
             asking = event.subject
@@ -588,6 +655,17 @@ public final class Conversation {
                 // Read, not heard, so the markdown stays for the card to lay out.
                 text: event.summary,
                 files: event.files ?? [],
+    /// What the person changed in a message the app typed before they sent it: each word they swapped
+    /// for one that sounds alike is sent to be learned, so it is heard right the next time they say it.
+    public func learn(typed: String, sent: String) async {
+        let corrections = correctedWords(typed: typed, sent: sent)
+        guard !corrections.isEmpty else { return }
+        var request = newRequest(.learnWords)
+        request.learned = corrections.map { LearnedWord(heard: $0.heard, meant: $0.meant) }
+        let kept = (try? await link.request(request))?.words ?? []
+        diary.note("learned from an edit: \(corrections.map { "\($0.heard) is \($0.meant)" }.joined(separator: ", ")); kept \(kept.count)")
+    }
+
                 excerpt: event.excerpt,
                 sessionId: event.sessionId,
                 host: event.host

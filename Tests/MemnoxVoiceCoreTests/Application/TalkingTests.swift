@@ -320,6 +320,56 @@ final class TalkingTests: XCTestCase {
         XCTAssertEqual(speaker.said.filter { $0 == "One sec." }.count, 1)
     }
 
+    func testOpensAFolderWhereTheTitleSaysAndSaysSoWhenItCannot() async throws {
+        final class Folders: Presenter, @unchecked Sendable {
+            var opened: [String] = []
+            var works = true
+            func live(session: String, host: DisplayHost?) async {}
+            func open(_ host: DisplayHost?) async -> Bool { true }
+            func type(_ text: String, into host: DisplayHost?, request: String) async -> Typed { .landed }
+            func focus(session: String, host: DisplayHost?) async -> Typed { .landed }
+            func card(_ card: SummaryCard) async {}
+            func prefill(_ text: String, session: String, host: DisplayHost?) async -> Typed { .landed }
+            func launch(_ command: String, in folder: String?) async -> Typed { .landed }
+            func walk(_ walk: WalkCard) async {}
+            func scan(_ agents: [AgentNode], title: String) async {}
+            func trace(_ trace: TraceData, title: String) async {}
+            func board(title: String) async {}
+            func openFolder(_ path: String, in opener: FolderOpener) async -> Bool {
+                opened.append("\(opener.rawValue) \(path)")
+                return works
+            }
+        }
+        let presenter = Folders()
+        let speaker = RecordingSpeaker()
+        let conversation = Conversation(
+            link: SlowLink(seconds: 0, answer: []), speaker: speaker, key: PersonKey(),
+            face: RecordingFace(), owner: MemoryOwner(nil), presenter: presenter
+        )
+        let folder = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_8","agent":"memnox","summary":"editor","at":"2026-10-01T00:00:00Z","display":"folder","title":"editor","sessionId":"folder","host":{"cwd":"shop"}}}"#).event)
+        await conversation.handle(folder)
+        XCTAssertEqual(presenter.opened, ["editor shop"])
+        XCTAssertEqual(speaker.said, [])
+        presenter.works = false
+        await conversation.handle(folder)
+        XCTAssertEqual(speaker.said, ["My apologies, I could not open that folder."])
+    }
+
+    func testSendsTheWordsFixedInATypedMessageToBeLearned() async throws {
+        let link = ScriptedLink()
+        link.answers["learn-words"] = [try line(#"{"id":1,"ok":true,"words":["sessions"]}"#)]
+        let conversation = Conversation(
+            link: link, speaker: RecordingSpeaker(), key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil)
+        )
+        await conversation.learn(typed: "check the surgeons", sent: "check the sessions")
+        XCTAssertEqual(link.sent.last?.method, "learn-words")
+        XCTAssertEqual(link.sent.last?.learned, [LearnedWord(heard: "surgeons", meant: "sessions")])
+        // Nothing fixed, nothing sent.
+        let before = link.sent.count
+        await conversation.learn(typed: "check the sessions", sent: "check the sessions")
+        XCTAssertEqual(link.sent.count, before)
+    }
+
     func testSendsTheWordsFixedInATypedMessageToBeLearned() async throws {
         let link = ScriptedLink()
         link.answers["learn-words"] = [try line(#"{"id":1,"ok":true,"words":["sessions"]}"#)]

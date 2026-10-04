@@ -40,9 +40,35 @@ enum IslandMode: Equatable {
     case answer
     /// A rule the person said, with where it could hold, waiting for them to pick a place and sign.
     case rule
+    /// Talking with live words on: the orb above what the person is saying, word by word as it is heard.
+    case hearing
+    /// False only where the daemon placed the call inside its repository, so a tap allows it.
+    let touchID: Bool
+    /// A turn under way: the question above, and the answer arriving in a card below it.
+    case conversation
+    /// A drafted message from the person's connected mail, read whole before a signed Send.
+    case draft
+    /// One answer opened up tall, for a long reply or one picked from the history at the side.
+    case answer
+    /// A rule the person said, with where it could hold, waiting for them to pick a place and sign.
+    case rule
+        touchID = event.needsTouchID
     /// Opened by the pointer: the session in focus, what it is doing, and every other session as a pill.
     case overview
     /// False only where the daemon placed the call inside its repository, so a tap allows it.
+/// A drafted message as the island shows it, with the subject a Send signs and the words Touch ID shows.
+struct DraftCard: Equatable, Sendable {
+    let subject: String
+    let draft: MailDraft
+
+    var isReply: Bool { draft.draftMode == .reply }
+    /// What the Touch ID sheet says it is for, so the sensor is never touched for something unnamed.
+    var reason: String {
+        let to = draft.to.joined(separator: ", ")
+        return isReply ? "send the reply to \(to)" : "send the email to \(to)"
+    }
+}
+
     let touchID: Bool
     /// One session up close: what it did and the code it is writing.
     case session
@@ -108,13 +134,50 @@ struct NotchGeometry: Equatable {
     let height: CGFloat
     let hasNotch: Bool
 
+    /// What the person is saying right now, word by word, while live words are on.
+    @Published var heard = ""
+    /// The person's choice to see their words in the notch as they say them.
+    @Published var liveWords = true
+    @Published var history = History()
+    @Published var draft: DraftCard?
+    /// Set while Touch ID is up for a draft's Send or a rule's Enforce, so a second press cannot raise a second sheet.
+    @Published var sending = false
+    /// The answer opened up tall rather than in its card under the question.
+    @Published var expanded = false
+    /// The exchange opened from the history at the side, shown tall under the notch.
+    @Published var picked: UUID?
+    /// When this time talking began, so the notch shows this conversation's exchanges and not the last one's.
+    var talkingSince: Date?
     /// A typical notch, assumed until the island is placed on a real screen.
     fileprivate static let beforePlacement = NotchGeometry(width: 185, height: 32, hasNotch: true)
     /// The bar that stands in for a notch on a Mac without one: this wide, and no taller than this.
-    private static let standInWidth: CGFloat = 80
+    var answer: (HeldCard, HoldAnswer) -> Void = { _, _ in }
     private static let standInMaxHeight: CGFloat = 24
 
     static func of(_ screen: NSScreen) -> NotchGeometry {
+    var openAnswer: (Exchange) -> Void = { _ in }
+    var answerDraft: (DraftCard, Bool) -> Void = { _, _ in }
+    var forgetHistory: () -> Void = {}
+    var askAgain: (String) -> Void = { _ in }
+
+    /// The exchange this conversation is on: the newest, and only once asked since talking began.
+    var turn: Exchange? {
+        guard let since = talkingSince, let newest = history.exchanges.first, newest.askedAt >= since else { return nil }
+        return newest
+    }
+
+    /// The exchange opened from the history, which the tall answer shows when nobody is talking.
+    var pickedExchange: Exchange? { history.exchanges.first { $0.id == picked } }
+
+    /// The header holds the tabs, except while talking, when the orb sits in its row above the words.
+    var showsHeader: Bool {
+        switch mode {
+        case .hearing, .conversation, .draft, .rule: return false
+        case .answer: return !active
+        case .peek, .compact: return false
+        case .voice, .overview, .session, .empty, .held, .finished: return true
+        }
+    }
         let top = screen.safeAreaInsets.top
         if top > 0, let left = screen.auxiliaryTopLeftArea?.width, let right = screen.auxiliaryTopRightArea?.width {
             return NotchGeometry(width: screen.frame.width - left - right, height: top, hasNotch: true)
@@ -125,10 +188,16 @@ struct NotchGeometry: Equatable {
     @Published var heard = ""
     /// The person's choice to see their words in the notch as they say them.
     @Published var liveWords = true
+        } else if draft != nil {
+            next = .draft
     @Published var history = History()
     /// The answer opened up tall rather than in its card under the question.
     @Published var expanded = false
-    /// The exchange opened from the history at the side, shown tall under the notch.
+            // What Memnox says is heard rather than read, so a turn keeps the orb up instead of printing the answer;
+            // the answer stays in the history at the side. A rule is always shown as it is said, since the person signs it.
+            next = ruling || (liveWords && !heard.isEmpty) ? .hearing : .voice
+        } else if opened, pickedExchange != nil {
+            next = .answer
     @Published var picked: UUID?
     /// When this time talking began, so the notch shows this conversation's exchanges and not the last one's.
     var talkingSince: Date?

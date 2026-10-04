@@ -14,6 +14,8 @@ final class AudioIO {
     private(set) var micLevel: Float = 0
     /// Loud enough to be somebody talking rather than a room, on the same scale as `micLevel`.
     static let voiceLevel: Float = 0.45
+    /// Loud enough to be somebody talking rather than a room, on the same scale as `micLevel`.
+    static let voiceLevel: Float = 0.45
     /// Every microphone buffer while listening, for the recognizer.
     var onMicrophone: ((AVAudioPCMBuffer) -> Void)?
     private var running = false
@@ -525,6 +527,8 @@ final class LegacyEars {
             return nil
         }
         let began = Date()
+        var lastVoice: Date?
+        var loudest: Float = 0
         var settled = ""
         var lastWord = began
         var guessed = ""
@@ -534,7 +538,9 @@ final class LegacyEars {
             var final = false
             while !finished {
                 try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * nanosecondsPerSecond))
-                let (words, changed, isFinal) = round.latest.read()
+                loudest = max(loudest, audio.micLevel)
+                if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
+                let all = joinedSpeech(settled, words)
                 if !words.isEmpty { lastWord = max(lastWord, changed) }
                 let all = joined(settled, words)
                 hearing?(all)
@@ -555,6 +561,10 @@ final class LegacyEars {
             round.request.endAudio()
             round.task.cancel()
             if !final { break }
+        if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
+            diary.note("dropped words from a listen too quiet for speech: \(words)")
+            return nil
+        }
         }
         let words = settled.trimmingCharacters(in: .whitespacesAndNewlines)
         return words.isEmpty ? nil : words

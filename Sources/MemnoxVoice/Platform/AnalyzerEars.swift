@@ -37,8 +37,6 @@ final class AnalyzerEars {
         await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) ?? Locale(identifier: fallbackLocale)
     }
 
-    /// The transcriber's language when the Mac's own is not one it supports.
-    private static let fallbackLocale = "en-US"
     /// How often the words and the level are looked at.
     private static let pollSeconds: TimeInterval = 0.15
     private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
@@ -104,13 +102,15 @@ final class AnalyzerEars {
         var loudest: Float = 0
         var guessed = ""
         while true {
+        var lastVoice: Date?
             try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * Self.nanosecondsPerSecond))
             loudest = max(loudest, audio.micLevel)
             let (words, changed) = heard.read()
             if words.isEmpty, Date().timeIntervalSince(began) > waiting { break }
+            if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
             if !words.isEmpty, Date().timeIntervalSince(changed) > endOfSpeechPause(after: words) { break }
             if words != guessed, mayGuess(words, pausedFor: Date().timeIntervalSince(changed)) {
-                guessed = words
+            if !words.isEmpty, quietFor(now: Date(), lastWord: changed, lastVoice: lastVoice) > endOfSpeechPause(after: words) { break }
                 guessing?(words)
             }
         }
@@ -124,11 +124,15 @@ final class AnalyzerEars {
         diary.note("SpeechAnalyzer heard \(words.isEmpty ? "nothing" : words)")
         if words.isEmpty, loudest > AudioIO.voiceLevel {
             // The microphone heard a voice and no word came back: the analyzer is not working here.
-            diary.note("heard a voice at level \(loudest) and no words")
+        if words.isEmpty, loudest > AudioIO.voiceLevel {
             return .unavailable(recording.buffers)
         }
         return words.isEmpty ? .silence : .heard(words)
     }
+        if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
+            diary.note("dropped words from a listen too quiet for speech: \(words)")
+            return .silence
+        }
 
     /// The model for this language, fetched the first time and kept by the system after that.
     private static func installed(_ transcriber: SpeechTranscriber) async -> Bool {
@@ -192,19 +196,19 @@ private final class Heard: @unchecked Sendable {
         if final {
             settled += text
             volatile = ""
-        } else {
+            settled = joinedSpeech(settled, text)
             volatile = text
         }
         changed = Date()
         return settled + volatile
     }
-
+        return joinedSpeech(settled, volatile)
     func read() -> (String, Date) {
         lock.lock()
         defer { lock.unlock() }
         return (settled + volatile, changed)
     }
-}
+        return (joinedSpeech(settled, volatile), changed)
 
 /// How many microphone buffers reached the analyzer and how many could not be converted, for the log.
 private final class Counts: @unchecked Sendable {

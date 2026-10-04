@@ -73,15 +73,29 @@ chosen address (`address`).
 ## How a turn flows
 
 1. The hotkey, the menu bar or the wake word opens the island, and the recognizer (Platform)
-   hears the person.
+   hears the person. With Live words on, each word goes to the island the moment the
+   recognizer has it, so the person sees what is heard while they are still saying it.
 2. `Conversation` (Application) sends the words whole to the daemon's `ask`. Nothing in the app
    acts on a word, which is why `Conversation.swift` may not lowercase or search text.
 3. The daemon streams the answer back as chunks over the Unix socket, one JSON line each.
 4. `SentenceSplitter` (Domain) cuts the stream into sentences, `pronounced` and `speakable` make
-   them sayable, and the `Speaker` says each one as it arrives.
-5. Events the daemon pushes (a held call, a notice, a card to show) go through the domain rules
+   them sayable, and the `Speaker` says each one as it arrives. The same chunks reach the `Face`
+   as written, markdown and all, through `asked`, `replying` and `replied`; the island lays them
+   out in an answer card and keeps the exchange in `History` (Domain), saved by `HistoryFile`.
+   A brief or a held call never reaches the card, only an answer to something the person asked.
+   The side panel (`Presentation/Side`), opened from the left of the notch, lists that history by
+   day beside what needs the person and what is working, and keeps a failed question with its
+   reason so it can be asked again whole.
+5. A `draft` show event puts a message from the person's connected mail on the island, read
+   whole. Nothing on the Mac edits it, so Send signs exactly what the runtime drafted.
+   Holding Control and Option (`HoldKeys`, Platform) takes down a rule: the recognizer listens for
+   exactly as long as the keys are down, and the words go whole to `ask` with the `rule` intent,
+   which the keys chose and no word did. The runtime proposes the rule with the places it could
+   hold, and the island's rule card lets the person pick one; that place's id is the answer Touch
+   ID signs, so the reach of a rule is never chosen by anyone but them.
+6. Events the daemon pushes (a held call, a notice, a card to show) go through the domain rules
    in `Announcing.swift` to decide whether they are said and whether the microphone stays open.
-6. An allow is signed by the Secure Enclave key after Touch ID; a deny or a decline goes unsigned,
+7. An allow is signed by the Secure Enclave key after Touch ID; a deny or a decline goes unsigned,
    since saying no can do no harm.
 
 ## Where to put new code

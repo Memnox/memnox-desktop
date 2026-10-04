@@ -37,6 +37,7 @@ final class SessionPresenter: Presenter {
         static let windsurf = "com.exafunction.windsurf"
         static let iTerm = "com.googlecode.iterm2"
         static let terminal = "com.apple.Terminal"
+        static let terminal = "com.apple.Terminal"
     }
 
     /// The URL schemes, hosts and paths of the Claude Code extension's links and the Memnox extension's.
@@ -249,6 +250,24 @@ final class SessionPresenter: Presenter {
         return link.url
     }
 
+    /// Finder shows it, the editor opens on it, or a terminal starts a tab in it, iTerm when it is installed.
+    func openFolder(_ path: String, in opener: FolderOpener) async -> Bool {
+        let folder = URL(fileURLWithPath: path, isDirectory: true)
+        switch opener {
+        case .finder:
+            return NSWorkspace.shared.open(folder)
+        case .editor:
+            guard let editor = Self.installedEditor() else { return NSWorkspace.shared.open(folder) }
+            return await Self.open([folder], with: editor)
+        case .terminal:
+            let terminal = [BundleID.iTerm, BundleID.terminal].lazy
+                .compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
+                .first
+            guard let terminal else { return false }
+            return await Self.open([folder], with: terminal)
+        }
+    }
+
     /// VS Code first, since Claude Code most often runs inside it, then Cursor.
     /// Finder shows it, the editor opens on it, or a terminal starts a tab in it, iTerm when it is installed.
     func openFolder(_ path: String, in opener: FolderOpener) async -> Bool {
@@ -396,6 +415,9 @@ final class SessionPresenter: Presenter {
         return await Self.extensionDelivery(of: request)
     }
 
+    /// Told what was typed and what the person sent after fixing it, so the words they fixed are learned.
+    var corrected: ((String, String) -> Void)?
+
     /// What the extension wrote on the request once it typed it, read from the runtime's own folder.
     private static func extensionDelivery(of request: String) async -> Typed {
         let file = FileManager.default.homeDirectoryForCurrentUser
@@ -408,7 +430,8 @@ final class SessionPresenter: Presenter {
                     ? .landed
                     : Typed(.failed, delivered.reason ?? "the extension could not type it")
             }
-            try? await Task.sleep(nanoseconds: nanoseconds(Timing.deliveryPoll))
+        let corrected = corrected
+        let typed = await PromptTyping.typeIntoEditor(text, inAppAt: host?.appPath) { corrected?(text, $0) }
         }
         return Typed(.failed, "the Memnox extension did not answer, so reload the editor window or run memnox protect --vscode")
     }

@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let frontApp = FrontApp()
     private let frontApp = FrontApp()
     private let frontApp = FrontApp()
+    private let frontApp = FrontApp()
     /// When the screen locked, so coming back after a while can be caught up on.
     private var awaySince: Date?
     /// Long enough that a coffee counts and a glance away does not.
@@ -95,11 +96,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // No Secure Enclave or no keychain: nothing can ever be confirmed from this Mac.
             NSLog("Memnox: no confirmation key, so allows stay in the terminal: \(error)")
             key = RefusingKey()
-        }
             address: { chosenAddress() },
             name: { chosenName() },
             lookingAt: { [frontApp] in frontApp.name }
             address: { chosenAddress() },
+            name: { chosenName() },
+            lookingAt: { [frontApp] in frontApp.name }
+            address: { chosenAddress() },
+        presenter.corrected = { [weak self] typed, sent in
+            Task { await self?.conversation.learn(typed: typed, sent: sent) }
+        }
             name: { chosenName() },
             lookingAt: { [frontApp] in frontApp.name }
             address: { chosenAddress() },
@@ -174,7 +180,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Said, since a silent orb that cannot hear looks exactly like one that is not listening.
             panel.show(.speaking, caption: "I need permission to hear you")
             do { try audio.start() } catch {}
-            await voice.speak("I cannot hear you yet. Allow Memnox under Microphone and Speech Recognition in System Settings, Privacy and Security.")
+        // Learnt alongside rather than before, so the microphone is heard from the first word; the names land by the next listen.
+        Task { [weak self] in await self?.learnNames() }
             audio.stop()
             panel.dismiss()
         // Learnt alongside rather than before, so the microphone is heard from the first word; the names land by the next listen.
@@ -444,9 +451,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // The daemon says nothing when nothing waits on them, and then the orb goes back to sleep unheard.
             if cutIn != nil || caughtUp {
                 await converse(opening: cutIn ?? "")
-            } else {
-                audio.stop()
+        let names = Array(Set(recognizerHints + words))
+        recognizerHints = Array(Set(names + SpokenTerms.terms))
                 panel.dismiss()
+        // Hints only nudge the recognizer, so the same names also train a model it hears them with.
+        await Vocabulary.train(names: names)
             }
         let names = Array(Set(recognizerHints + words))
         recognizerHints = Array(Set(names + SpokenTerms.terms))

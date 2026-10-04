@@ -25,6 +25,12 @@ public enum DaemonMethod: String {
     case voiceAgents = "voice-agents"
     /// The person picking which agent the voice thinks with.
     case chooseVoiceAgent = "choose-voice-agent"
+    /// Words the person fixed in what the app typed for them, kept so they are heard right next time.
+    case learnWords = "learn-words"
+    /// Which of the person's agents can be the voice, and why the others cannot.
+    case voiceAgents = "voice-agents"
+    /// The person picking which agent the voice thinks with.
+    case chooseVoiceAgent = "choose-voice-agent"
 }
 
 public enum EventKind: String {
@@ -399,6 +405,8 @@ public struct DaemonRequest: Encodable, Equatable {
     public var signature: String?
     public var point: String?
     public var said: String?
+    /// On learn-words: each word as it was typed and as the person corrected it.
+    public var learned: [LearnedWord]?
     /// On ask: they were waited on for the rest and said nothing more, so `said` is the whole of it.
     public var finished: Bool?
     /// On ask: the words so far, sent at a pause so the answer can start before they are known to be done.
@@ -407,6 +415,10 @@ public struct DaemonRequest: Encodable, Equatable {
     public var owner: String?
     public var briefing: String?
     public var since: String?
+    /// On voice-agents: ask every installed agent again rather than answer from the last check.
+    public var recheck: Bool?
+    /// On choose-voice-agent: the agent's kind, such as cursor.
+    public var voiceAgent: String?
     /// On delivered: why typing did not land, in a few words.
     public var reason: String?
     /// On trace: the app's own steps for the question just answered.
@@ -414,6 +426,17 @@ public struct DaemonRequest: Encodable, Equatable {
     /// On voice-agents: ask every installed agent again rather than answer from the last check.
     public var recheck: Bool?
     /// On choose-voice-agent: the agent's kind, such as cursor.
+/// One correction as the runtime's LEARN_WORDS takes it.
+public struct LearnedWord: Encodable, Equatable, Sendable {
+    public let heard: String
+    public let meant: String
+
+    public init(heard: String, meant: String) {
+        self.heard = heard
+        self.meant = meant
+    }
+}
+
     public var voiceAgent: String?
 
     public init(id: Int, method: DaemonMethod) {
@@ -463,6 +486,38 @@ public struct AskChunk: Decodable, Equatable {
     public let text: String?
     public let tool: String?
 
+/// One agent as the settings show it: there or not, whether it answered, and whether it is the voice.
+public struct VoiceAgentStatus: Decodable, Equatable, Identifiable, Sendable {
+    public let kind: String
+    public let label: String
+    public let installed: Bool
+    /// Kept to reading; one that is not is used only when nothing else answered.
+    public let sealed: Bool
+    /// Nil until it has been asked.
+    public let works: Bool?
+    /// Why it did not answer, in words a person can act on.
+    public let because: String?
+    public let checkedAt: String?
+    public let chosen: Bool
+    /// What to install, or set up, when it is missing or cannot answer.
+    public let install: String
+
+    public var id: String { kind }
+
+    public init(kind: String, label: String, installed: Bool, sealed: Bool, works: Bool? = nil,
+                because: String? = nil, checkedAt: String? = nil, chosen: Bool = false, install: String = "") {
+        self.kind = kind
+        self.label = label
+        self.installed = installed
+        self.sealed = sealed
+        self.works = works
+        self.because = because
+        self.checkedAt = checkedAt
+        self.chosen = chosen
+        self.install = install
+    }
+}
+
     public var chunkKind: ChunkKind? { ChunkKind(rawValue: kind) }
 
     /// Done, limited, failed or cancelled: the last line of a turn.
@@ -487,6 +542,8 @@ public struct VoiceAgentStatus: Decodable, Equatable, Identifiable, Sendable {
     /// What to install, or set up, when it is missing or cannot answer.
     public let install: String
 
+    /// On voice-agents and choose-voice-agent: every agent the voice knows, preferred first.
+    public let voiceAgents: [VoiceAgentStatus]?
     public var id: String { kind }
 
     public init(kind: String, label: String, installed: Bool, sealed: Bool, works: Bool? = nil,

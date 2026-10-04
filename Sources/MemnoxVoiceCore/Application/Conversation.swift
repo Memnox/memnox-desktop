@@ -82,6 +82,10 @@ public final class Conversation {
     private let name: () -> String?
     /// The app in front of the person as they speak, so the brain hears their words against what they work in.
         return wakeLines.line(address: address(), name: name(), hour: hour, sinceLastCall: since, at: moment)
+    /// Their name, which the wake line keeps for a greeting and says far less often than the address.
+    private let name: () -> String?
+    /// The app in front of the person as they speak, so the brain hears their words against what they work in.
+        return wakeLines.line(address: address(), name: name(), hour: hour, sinceLastCall: since, at: moment)
     /// The app in front of the person as they speak, so the brain hears their words against what they work in.
     private let lookingAt: () -> String?
     /// Said when the daemon is older than the app, which is the one fix a person can make.
@@ -93,10 +97,14 @@ public final class Conversation {
     /// Tools that act and answer with a read back at once, where "let me check" would be the wrong words.
     static let actingTools: Set<String> = [
         "start_session", "send_instruction", "watch_for", "pause_session", "show", "walk_through",
+        name: @escaping () -> String? = { nil },
+        lookingAt: @escaping () -> String? = { nil },
         return wakeLines.line(address: address(), name: name(), hour: hour, sinceLastCall: since, at: moment)
     /// Every operator tool that proposes an action starts with this, and each reads its proposal back at once.
     private static let proposingToolPrefix = "propose_"
     /// Said back when the person calls it, the way somebody looks up from their desk.
+        self.name = name
+        self.lookingAt = lookingAt
         name: @escaping () -> String? = { nil },
         lookingAt: @escaping () -> String? = { nil },
         return wakeLines.line(address: address(), name: name(), hour: hour, sinceLastCall: since, at: moment)
@@ -125,6 +133,27 @@ public final class Conversation {
         lookingAt: @escaping () -> String? = { nil },
     /// Long enough to say "yes, go ahead" and have the brain propose it.
     static let answerWindow: TimeInterval = 120
+    /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
+    public func voiceAgents(recheck: Bool = false) async -> VoiceAgentsAnswer {
+        var request = newRequest(.voiceAgents)
+        if recheck { request.recheck = true }
+        return await agentsAnswer(request)
+    }
+
+    /// The person picking the agent the voice thinks with, from the next question on.
+    public func chooseVoiceAgent(_ kind: String) async -> VoiceAgentsAnswer {
+        var request = newRequest(.chooseVoiceAgent)
+        request.voiceAgent = kind
+        return await agentsAnswer(request)
+    }
+
+    private func agentsAnswer(_ request: DaemonRequest) async -> VoiceAgentsAnswer {
+        guard let response = try? await link.request(request) else { return .unreachable }
+        if response.ok, let agents = response.voiceAgents { return .agents(agents) }
+        // An older daemon answers a method it does not know with a bare ok and no agents.
+        return .refused(response.error ?? "This Memnox is older than the app")
+    }
+
 
     public init(
         self.name = name
@@ -151,7 +180,7 @@ public final class Conversation {
         guard let response = try? await link.request(request) else { return .unreachable }
         if response.ok, let agents = response.voiceAgents { return .agents(agents) }
         // An older daemon answers a method it does not know with a bare ok and no agents.
-        return .refused(response.error ?? "This Memnox is older than the app")
+            await say(Self.anotherKeyLine)
     }
 
         key: ConfirmKey,
@@ -164,13 +193,15 @@ public final class Conversation {
         presenter: Presenter? = nil,
     /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
     public func voiceAgents(recheck: Bool = false) async -> VoiceAgentsAnswer {
+        request.lookingAt = lookingAt()
         var request = newRequest(.voiceAgents)
         if recheck { request.recheck = true }
         return await agentsAnswer(request)
     }
 
     /// The person picking the agent the voice thinks with, from the next question on.
-    public func chooseVoiceAgent(_ kind: String) async -> VoiceAgentsAnswer {
+    /// `intent` is how they asked, set by the keys they held, never by a word they said.
+    public func heard(_ said: String, finished: Bool = false, intent: AskIntent? = nil) async {
         var request = newRequest(.chooseVoiceAgent)
         request.voiceAgent = kind
         return await agentsAnswer(request)
@@ -187,14 +218,20 @@ public final class Conversation {
         now: @escaping () -> Date = Date.init,
         self.name = name
         self.lookingAt = lookingAt
+        face.asked(words)
         name: @escaping () -> String? = { nil },
         lookingAt: @escaping () -> String? = { nil },
+        request.lookingAt = lookingAt()
         macOSMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
+        request.intent = intent?.rawValue
         address: @escaping () -> String? = { nil },
     /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
     public func voiceAgents(recheck: Bool = false) async -> VoiceAgentsAnswer {
         request.lookingAt = lookingAt()
+        showingReply = true
         var request = newRequest(.voiceAgents)
+        showingReply = false
+        face.replied(failure: Self.failure(told))
         if recheck { request.recheck = true }
         return await agentsAnswer(request)
     }
@@ -210,6 +247,18 @@ public final class Conversation {
         guard let response = try? await link.request(request) else { return .unreachable }
         if response.ok, let agents = response.voiceAgents { return .agents(agents) }
         // An older daemon answers a method it does not know with a bare ok and no agents.
+    /// Why a turn got no answer, as the history shows it beside the question; nil when it was answered or simply quiet.
+    static func failure(_ told: Told) -> String? {
+        switch told {
+        case .spoke, .silent: return nil
+        case .unreachable: return "Memnox could not be reached on this Mac"
+        case .refused(let error): return error == tooOld ? "The Memnox running here is older than this app" : error
+        }
+    }
+
+    /// Set while an answer to the person streams, so its words reach the notch and a brief's never do.
+    private var showingReply = false
+
             await say(Self.anotherKeyLine)
     }
 
@@ -302,6 +351,7 @@ public final class Conversation {
     }
 
     /// Set while an answer to the person streams, so its words reach the notch and a brief's never do.
+            if showingReply, !interrupted, let text = chunk.text { face.replying(text) }
     private var showingReply = false
 
             await say(Self.anotherKeyLine)
@@ -357,7 +407,11 @@ public final class Conversation {
     }
 
     /// The person picking the agent the voice thinks with, from the next question on.
-    public func chooseVoiceAgent(_ kind: String) async -> VoiceAgentsAnswer {
+            let asked = lastHeard.map { now().timeIntervalSince($0) < Self.answerWindow } ?? false
+            if let rule = event.rule, asked {
+                // A rule waits on the card for where it holds; the sheet comes up only once a place is picked.
+                face.rule(subject: event.subject, rule)
+            } else if asked {
         var request = newRequest(.chooseVoiceAgent)
         request.voiceAgent = kind
         return await agentsAnswer(request)
@@ -396,6 +450,11 @@ public final class Conversation {
         // An older daemon answers a method it does not know with a bare ok and no agents.
         return .refused(response.error ?? "This Memnox is older than the app")
     }
+        // The brain says what it drafted and the card shows the message whole, so nothing goes out unread.
+        if event.displayKind == .draft {
+            if let draft = event.draft { face.draft(subject: event.subject, draft) }
+            return
+        }
 
             if showingReply, !interrupted, let text = chunk.text { face.replying(text) }
     /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
@@ -410,20 +469,26 @@ public final class Conversation {
         var request = newRequest(.chooseVoiceAgent)
         request.lookingAt = lookingAt()
         request.voiceAgent = kind
-        return await agentsAnswer(request)
-    }
-
+            await oneAtATime { [self] in
+                face.show(.thinking, caption: "typing it in")
+                await delivered(event, await presenter.type(event.summary, into: event.host, request: event.subject),
+                                otherwise: "My apologies, I could not type it into its terminal.")
+            }
         request.lookingAt = lookingAt()
-    private func agentsAnswer(_ request: DaemonRequest) async -> VoiceAgentsAnswer {
-        guard let response = try? await link.request(request) else { return .unreachable }
-        if response.ok, let agents = response.voiceAgents { return .agents(agents) }
-        // An older daemon answers a method it does not know with a bare ok and no agents.
-        return .refused(response.error ?? "This Memnox is older than the app")
-    }
+            await oneAtATime { [self] in
+                face.show(.thinking, caption: "typing it in")
+                let typed = await event.sessionId.asyncMap { await presenter.prefill(event.summary, session: $0, host: event.host) }
+                await delivered(event, typed ?? Typed(.failed, "no session to type into"),
+                                otherwise: typed?.outcome == .clipboard
+                                    ? "My apologies, I could not type it in safely, so your words are on the clipboard. Press Command V, then Return, in its chat."
+                                    : "My apologies, I could not type it into its chat.")
+            }
 
-    /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
-    public func voiceAgents(recheck: Bool = false) async -> VoiceAgentsAnswer {
-        var request = newRequest(.voiceAgents)
+            await oneAtATime { [self] in
+                face.show(.thinking, caption: "starting it")
+                await delivered(event, await presenter.launch(event.summary, in: event.host?.cwd),
+                                otherwise: "My apologies, I could not start it.")
+            }
         if recheck { request.recheck = true }
         return await agentsAnswer(request)
     }
@@ -444,6 +509,16 @@ public final class Conversation {
         return .refused(response.error ?? "This Memnox is older than the app")
     }
 
+        case .folder:
+            let opener = event.title.flatMap(FolderOpener.init(rawValue:)) ?? .finder
+            guard let path = event.host?.cwd, await presenter.openFolder(path, in: opener) else {
+                diary.note("could not open the folder for \(event.subject)")
+                speaker.queue("My apologies, I could not open that folder.")
+                return
+            }
+        case .draft:
+            // Shown by the face before the presenter is needed, above.
+            break
         // The brain says what it drafted and the card shows the message whole, so nothing goes out unread.
         if event.displayKind == .draft {
             if let draft = event.draft { face.draft(subject: event.subject, draft) }
@@ -471,6 +546,29 @@ public final class Conversation {
         guard let response = try? await link.request(request) else { return .unreachable }
             await oneAtATime { [self] in
                 face.show(.thinking, caption: "typing it in")
+    /// The typing in progress, and the lock that hands it on, since show events arrive on tasks of their own.
+    private var typing: Task<Void, Never>?
+    private let typingLock = NSLock()
+
+    /// Keys pressed for one message at a time: the person talking on while a prompt goes in sends the rest
+    /// as a message of its own, and two typed at once would mix their letters in the agent's prompt.
+    private func oneAtATime(_ work: @escaping () async -> Void) async {
+        await queued(work).value
+    }
+
+    /// Puts the work behind whatever is typing now, under the lock, which only a synchronous call may hold.
+    private func queued(_ work: @escaping () async -> Void) -> Task<Void, Never> {
+        typingLock.lock()
+        defer { typingLock.unlock() }
+        let previous = typing
+        let mine = Task {
+            await previous?.value
+            await work()
+        }
+        typing = mine
+        return mine
+    }
+
                 let typed = await event.sessionId.asyncMap { await presenter.prefill(event.summary, session: $0, host: event.host) }
                 await delivered(event, typed ?? Typed(.failed, "no session to type into"),
                                 otherwise: typed?.outcome == .clipboard
@@ -505,18 +603,28 @@ public final class Conversation {
         let trimmed = said.trimmingCharacters(in: .whitespacesAndNewlines)
         case .folder:
             let opener = event.title.flatMap(FolderOpener.init(rawValue:)) ?? .finder
+    /// A yes to a call that stays in its repository goes as it is, since the daemon asks no fingerprint for it.
             guard let path = event.host?.cwd, await presenter.openFolder(path, in: opener) else {
                 diary.note("could not open the folder for \(event.subject)")
                 speaker.queue("My apologies, I could not open that folder.")
-                return
+        if event.needsTouchID, await registerKey() == .anotherKey {
+            chimes?.play(.failed)
+            await say(Self.anotherKeyLine)
+            return
+        }
+        if event.needsTouchID {
+            face.show(.needsYou, caption: caption("Touch ID to \(event.summary)"))
+            do {
+                signature = try await key.sign(
+                    confirmationMessage(subject: event.subject, answer: ProposalAnswer.confirmed.rawValue),
+                    reason: event.summary
+                )
+                answerKind = signature == nil ? .declined : .confirmed
+            } catch {
+                answerKind = .declined
             }
-        case .draft:
-            // Shown by the face before the presenter is needed, above.
-            break
-        let words = withoutLeadingName(trimmed)
-        // A lone "." is the recognizer hearing noise, and answering it makes the voice talk to nobody.
-        guard words.contains(where: \.isLetter) else { return }
-        interrupted = false
+        } else {
+            answerKind = .confirmed
         lastHeard = now()
         // Its name alone is somebody getting its attention, answered the way the wake word is.
         if nameAlone(trimmed) {
@@ -559,25 +667,20 @@ public final class Conversation {
             await previous?.value
             await work()
         }
-        typing = mine
-        return mine
+    /// A held call answered with a button: a deny goes as it is, and an allow only with Touch ID over exactly
+    /// this call, unless the daemon placed it inside its repository, where a tap is the answer.
+    public func answerHeld(_ subject: String, _ answer: HoldAnswer, reason: String, touchID: Bool = true) async -> HeldOutcome {
     }
 
             }
-        mayFill = false
-            await oneAtATime { [self] in
-                face.show(.thinking, caption: "starting it")
-                await delivered(event, await presenter.launch(event.summary, in: event.host?.cwd),
-                                otherwise: "My apologies, I could not start it.")
-            }
+        if answer != .deny, touchID {
+            switch await signature(subject, answer: answer.rawValue, reason: reason) {
+            case .signed(let signature): request.signature = signature
+            case .refused(let outcome): return outcome
         if told != .spoke, told != .silent { chimes?.play(.failed) }
-        // Kept for the next question, so "why?" after Memnox was unreachable still has its thread.
         unsent = told == .spoke || told == .silent ? nil : (words, now())
         if told == .unreachable { await say("My apologies, I cannot reach Memnox on this Mac at the moment.") }
-        if case .refused(let error) = told {
-            await say(error == Self.tooOld ? error : "My apologies, I could not ask that: \(error).")
-        }
-        face.show(.listening, caption: "")
+        guard response?.ok == true else { return await notThrough(response) }
     }
 
     /// What they said while Memnox could not be reached, and when.
@@ -588,6 +691,100 @@ public final class Conversation {
     /// Their words, after what never reached the brain a moment ago, so the follow up makes sense.
     private func withUnsent(_ words: String) -> String {
             await oneAtATime { [self] in
+    /// A rule answered from its card: the place picked is the answer Touch ID signs, so nobody else
+    /// chooses where it holds; nil leaves the rule out, unsigned, since saying no can do no harm.
+    public func answerRule(_ subject: String, scope: RuleScope?, reason: String) async -> HeldOutcome {
+        var request = newRequest(.confirm)
+        request.subject = subject
+        request.answer = scope?.id ?? ProposalAnswer.declined.rawValue
+        if let scope {
+            switch await signature(subject, answer: scope.id, reason: reason) {
+            case .signed(let signature): request.signature = signature
+            case .refused(let outcome): return outcome
+            }
+        }
+        let response = try? await link.request(request)
+        guard response?.ok == true else { return await notThrough(response) }
+        chimes?.play(scope == nil ? .declined : .allowed)
+        await say(Self.afterRule(scope))
+        return .answered
+    }
+
+    /// Where it holds now, said once it is written, so the person hears the reach they signed for.
+    static func afterRule(_ scope: RuleScope?) -> String {
+        guard let scope else { return "Very well. I have left that rule out." }
+        switch scope.scopeKind {
+        case .machine: return "Very well. That rule is in force on this Mac."
+        case .repository: return "Very well. That rule is in force in \(scope.label)."
+        case nil: return "Very well. That rule is in force."
+        }
+    }
+
+    /// A drafted message answered from its card: Send goes only with Touch ID over exactly this draft, and closing it goes unsigned.
+    public func answerDraft(_ subject: String, send: Bool, reason: String) async -> HeldOutcome {
+        var request = newRequest(.confirm)
+        request.subject = subject
+        let answer: ProposalAnswer = send ? .confirmed : .declined
+        request.answer = answer.rawValue
+        if send {
+            switch await signature(subject, answer: answer.rawValue, reason: reason) {
+            case .signed(let signature): request.signature = signature
+            case .refused(let outcome): return outcome
+            }
+        }
+        let response = try? await link.request(request)
+        guard response?.ok == true else { return await notThrough(response) }
+        chimes?.play(send ? .allowed : .declined)
+        face.show(.idle, caption: "")
+        return .answered
+    }
+
+    /// What the person changed in a message the app typed before they sent it: each word they swapped
+    /// for one that sounds alike is sent to be learned, so it is heard right the next time they say it.
+    public func learn(typed: String, sent: String) async {
+        let corrections = correctedWords(typed: typed, sent: sent)
+        guard !corrections.isEmpty else { return }
+        var request = newRequest(.learnWords)
+        request.learned = corrections.map { LearnedWord(heard: $0.heard, meant: $0.meant) }
+        let kept = (try? await link.request(request))?.words ?? []
+        diary.note("learned from an edit: \(corrections.map { "\($0.heard) is \($0.meant)" }.joined(separator: ", ")); kept \(kept.count)")
+    }
+
+    /// A fingerprint over exactly this answer, or why there is none to send.
+    private enum Signing {
+        case signed(String)
+        case refused(HeldOutcome)
+    }
+
+    /// Touch ID over this answer, asked only once the daemon trusts this Mac's key: a signature from any
+    /// other key is refused after the fingerprint, which reads as the button doing nothing.
+    private func signature(_ subject: String, answer: String, reason: String) async -> Signing {
+        if await registerKey() == .anotherKey {
+            chimes?.play(.failed)
+            face.show(.idle, caption: "")
+            await say(Self.anotherKeyLine)
+            return .refused(.failed(Self.anotherKeyLine))
+        }
+        face.show(.needsYou, caption: caption("Touch ID to \(reason)"))
+        guard let signature = try? await key.sign(confirmationMessage(subject: subject, answer: answer), reason: reason) else {
+            face.show(.idle, caption: "")
+            return .refused(.cancelled)
+        }
+        return .signed(signature)
+    }
+
+    /// An answer the daemon would not take, said with its reason, since a shake alone tells nobody what to do.
+    private func notThrough(_ response: DaemonResponse?) async -> HeldOutcome {
+        let why = response?.error ?? "Memnox did not answer"
+        chimes?.play(.failed)
+        face.show(.idle, caption: "")
+        await say("That did not go through: \(why).")
+        return .failed(why)
+    }
+
+    /// Said when the daemon trusts another key, so nothing this Mac signs can be confirmed until it is cleared.
+    static let anotherKeyLine = "Memnox trusts another key for confirmations, so your fingerprint cannot confirm anything yet. Run memnox voice forget-key in a terminal, then open me again."
+
                 face.show(.thinking, caption: "typing it in")
                 await delivered(event, await presenter.type(event.summary, into: event.host, request: event.subject),
         case .folder:

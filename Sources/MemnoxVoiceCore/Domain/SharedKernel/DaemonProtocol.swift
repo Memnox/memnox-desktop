@@ -55,9 +55,126 @@ public enum DaemonMethod: String {
     case voiceAgents = "voice-agents"
     /// The person picking which agent the voice thinks with.
     case chooseVoiceAgent = "choose-voice-agent"
+    /// Words the person fixed in what the app typed for them, kept so they are heard right next time.
+    case learnWords = "learn-words"
+    /// Which of the person's agents can be the voice, and why the others cannot.
+    case voiceAgents = "voice-agents"
+    /// The person picking which agent the voice thinks with.
+    case chooseVoiceAgent = "choose-voice-agent"
 }
 
 public enum EventKind: String {
+    /// A message from the person's connected mail, drafted for them to read; Send is a signed confirm of the subject.
+    case draft
+    /// A folder the person named, opened where the title says.
+    case folder
+}
+
+/// Where a folder opens, as the runtime's FOLDER_OPENER names it in a folder display's title.
+public enum FolderOpener: String, Sendable {
+    case finder
+    case editor
+    case terminal
+}
+
+/// How a person asked: holding Control and Option says what follows is a rule they want in force.
+public enum AskIntent: String, Sendable {
+    case rule
+}
+
+/// Where a rule can be put in force: every agent on this Mac, or only inside one repository.
+public enum RuleScopeKind: String, CaseIterable, Sendable {
+    case machine
+    case repository
+}
+
+/// One place a proposed rule can go; its id is the answer Touch ID signs, so the choice is the person's alone.
+public struct RuleScope: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let kind: String
+    /// "This Mac", or the repository's folder name.
+    public let label: String
+    public let folder: String?
+    public let suggested: Bool?
+
+    public init(id: String, kind: String, label: String, folder: String? = nil, suggested: Bool? = nil) {
+        self.id = id
+        self.kind = kind
+        self.label = label
+        self.folder = folder
+        self.suggested = suggested
+    }
+
+    public var scopeKind: RuleScopeKind? { RuleScopeKind(rawValue: kind) }
+}
+
+/// A proposed rule as the card shows it before it is confirmed: what it does, and where it could hold.
+public struct RuleDraft: Decodable, Equatable, Sendable {
+    public let summary: String
+    public let effect: String
+    public let action: String
+    public let branches: [String]?
+    public let targets: [String]?
+    public let reason: String
+    public let scopes: [RuleScope]
+
+    public init(summary: String, effect: String, action: String, branches: [String]? = nil, targets: [String]? = nil,
+                reason: String, scopes: [RuleScope]) {
+        self.summary = summary
+        self.effect = effect
+        self.action = action
+        self.branches = branches
+        self.targets = targets
+        self.reason = reason
+        self.scopes = scopes
+    }
+
+    public var ruleEffect: RuleEffect? { RuleEffect(rawValue: effect) }
+    /// The place picked until the person picks another: the suggested one, or the first offered.
+    public var suggestedScope: RuleScope? { scopes.first { $0.suggested == true } ?? scopes.first }
+}
+
+/// What a rule decides, the three effects the runtime's engine knows.
+public enum RuleEffect: String, CaseIterable, Sendable {
+    case allow
+    case ask
+    case deny
+}
+
+/// Whether a drafted message starts a thread or answers one.
+public enum DraftMode: String, CaseIterable, Sendable {
+    case compose
+    case reply
+}
+
+/// The mail service a draft goes out through, which picks the mark on its card.
+public enum MailService: String, CaseIterable, Sendable {
+    case gmail
+}
+
+/// A message the person's connected mail account would send, shown whole before anything is sent.
+public struct MailDraft: Decodable, Equatable, Sendable {
+    public let service: String
+    public let mode: String
+    public let to: [String]
+    public let cc: [String]?
+    public let subject: String?
+    public let body: String
+    /// On a reply, how many messages the thread already holds.
+    public let thread: Int?
+
+    public init(service: String, mode: String, to: [String], cc: [String]? = nil, subject: String? = nil, body: String, thread: Int? = nil) {
+        self.service = service
+        self.mode = mode
+        self.to = to
+        self.cc = cc
+        self.subject = subject
+        self.body = body
+        self.thread = thread
+    }
+
+    public var draftMode: DraftMode? { DraftMode(rawValue: mode) }
+    public var mailService: MailService? { MailService(rawValue: service) }
     case held
     case proposal
     case paused
@@ -397,8 +514,14 @@ public struct AgentNode: Decodable, Equatable, Identifiable {
 }
 
 /// One MCP server on the scan screen; the counts are absent where no scan has asked it.
+    /// On ask: how the person asked, chosen by the keys they held rather than by any word they said.
+    public var intent: String?
 public struct AgentServer: Decodable, Equatable {
     public let name: String
+    /// On ask: the app in front of the person as they spoke, by name, so a misheard word is read against it.
+    public var lookingAt: String?
+    /// On learn-words: each word as it was typed and as the person corrected it.
+    public var learned: [LearnedWord]?
     public let tools: Int?
     public let changing: Int?
 
@@ -407,6 +530,10 @@ public struct AgentServer: Decodable, Equatable {
         self.tools = tools
         self.changing = changing
     }
+    /// On voice-agents: ask every installed agent again rather than answer from the last check.
+    public var recheck: Bool?
+    /// On choose-voice-agent: the agent's kind, such as cursor.
+    public var voiceAgent: String?
 }
 
 /// Where a session runs, as its hook saw it: the app, its terminal tab and its folder.
@@ -414,6 +541,17 @@ public struct DisplayHost: Decodable, Equatable, Sendable {
     public let app: String?
     public let appPath: String?
     public let tty: String?
+/// One correction as the runtime's LEARN_WORDS takes it.
+public struct LearnedWord: Encodable, Equatable, Sendable {
+    public let heard: String
+    public let meant: String
+
+    public init(heard: String, meant: String) {
+        self.heard = heard
+        self.meant = meant
+    }
+}
+
     public let cwd: String?
     /// The agent's own id for the conversation, which an editor's agent panel opens by.
     public let conversation: String?
@@ -444,10 +582,18 @@ public enum Briefing: String {
 }
 
 /// How typing an instruction ended, mirrored from the runtime's DELIVERY.
+    /// On a draft, the message to put in front of the person before it is sent.
+    public let draft: MailDraft?
+    /// On a proposal of a rule, the rule and where it could hold, so the person picks a place before Touch ID.
+    public let rule: RuleDraft?
+    /// On a held call, or a proposal answering one, the daemon found it stays inside its session's repository.
+    public let withinSession: Bool?
 public enum Delivery: String {
     case typed
     /// It could not be typed safely, so the words were left on the clipboard.
     case clipboard
+    /// Only a call the daemon placed inside its repository goes without a fingerprint; absent asks for one.
+    public var needsTouchID: Bool { withinSession != true }
     case failed
     /// Memnox is not allowed to press keys until the person turns it on under Accessibility; the words were left on the clipboard.
     case notAllowed = "not-allowed"
@@ -463,6 +609,38 @@ public struct Typed: Equatable {
     public let reason: String?
 
     public init(_ outcome: Delivery, _ reason: String? = nil) {
+/// One agent as the settings show it: there or not, whether it answered, and whether it is the voice.
+public struct VoiceAgentStatus: Decodable, Equatable, Identifiable, Sendable {
+    public let kind: String
+    public let label: String
+    public let installed: Bool
+    /// Kept to reading; one that is not is used only when nothing else answered.
+    public let sealed: Bool
+    /// Nil until it has been asked.
+    public let works: Bool?
+    /// Why it did not answer, in words a person can act on.
+    public let because: String?
+    public let checkedAt: String?
+    public let chosen: Bool
+    /// What to install, or set up, when it is missing or cannot answer.
+    public let install: String
+
+    public var id: String { kind }
+
+    public init(kind: String, label: String, installed: Bool, sealed: Bool, works: Bool? = nil,
+                because: String? = nil, checkedAt: String? = nil, chosen: Bool = false, install: String = "") {
+        self.kind = kind
+        self.label = label
+        self.installed = installed
+        self.sealed = sealed
+        self.works = works
+        self.because = because
+        self.checkedAt = checkedAt
+        self.chosen = chosen
+        self.install = install
+    }
+}
+
         self.outcome = outcome
     /// On voice-agents: ask every installed agent again rather than answer from the last check.
     public var recheck: Bool?
@@ -487,6 +665,8 @@ public struct LearnedWord: Encodable, Equatable, Sendable {
 }
 
     /// On ask: the app in front of the person as they spoke, by name, so a misheard word is read against it.
+    /// On voice-agents and choose-voice-agent: every agent the voice knows, preferred first.
+    public let voiceAgents: [VoiceAgentStatus]?
     public var lookingAt: String?
     /// On learn-words: each word as it was typed and as the person corrected it.
     public var learned: [LearnedWord]?

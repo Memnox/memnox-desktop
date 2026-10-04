@@ -11,6 +11,24 @@ public protocol Face: AnyObject {
     func replied(failure: String?)
     /// A drafted message to put in front of the person, which only a signed Send lets go.
     func draft(subject: String, _ draft: MailDraft)
+    /// A proposed rule with the places it could hold, for the person to pick one and sign.
+    func rule(subject: String, _ rule: RuleDraft)
+}
+
+extension Face {
+    public func asked(_ words: String) {}
+    public func replying(_ text: String) {}
+    public func replied(failure: String?) {}
+    public func draft(subject: String, _ draft: MailDraft) {}
+    public func rule(subject: String, _ rule: RuleDraft) {}
+    /// What the person's turn sent to their brain, whole, for the question above the answer.
+    func asked(_ words: String)
+    /// More of the reply as written, markdown and all, since the notch lays it out rather than reading it.
+    func replying(_ text: String)
+    /// The reply is over, so the answer can be kept; the failure says why none came, when none did.
+    func replied(failure: String?)
+    /// A drafted message to put in front of the person, which only a signed Send lets go.
+    func draft(subject: String, _ draft: MailDraft)
 }
 
 extension Face {

@@ -43,6 +43,12 @@ public enum DaemonMethod: String {
     case voiceAgents = "voice-agents"
     /// The person picking which agent the voice thinks with.
     case chooseVoiceAgent = "choose-voice-agent"
+    /// Words the person fixed in what the app typed for them, kept so they are heard right next time.
+    case learnWords = "learn-words"
+    /// Which of the person's agents can be the voice, and why the others cannot.
+    case voiceAgents = "voice-agents"
+    /// The person picking which agent the voice thinks with.
+    case chooseVoiceAgent = "choose-voice-agent"
 }
 
 public enum EventKind: String {
@@ -58,6 +64,15 @@ public enum EventKind: String {
 
 /// How a show event wants to be shown.
 public enum Display: String {
+    /// A folder the person named, opened where the title says.
+    case folder
+}
+
+/// Where a folder opens, as the runtime's FOLDER_OPENER names it in a folder display's title.
+public enum FolderOpener: String, Sendable {
+    case finder
+    case editor
+    case terminal
     case open
     case card
     /// Type the person's confirmed instruction into the terminal tab the agent waits in.
@@ -399,6 +414,10 @@ public struct Typed: Equatable {
 }
 
 public enum ProposalAnswer: String {
+    /// On ask: the app in front of the person as they spoke, by name, so a misheard word is read against it.
+    public var lookingAt: String?
+    /// On learn-words: each word as it was typed and as the person corrected it.
+    public var learned: [LearnedWord]?
     case confirmed
     case declined
 }
@@ -407,6 +426,10 @@ public enum ProposalAnswer: String {
 public enum HoldAnswer: String, Sendable {
     case once
     case session
+    /// On voice-agents: ask every installed agent again rather than answer from the last check.
+    public var recheck: Bool?
+    /// On choose-voice-agent: the agent's kind, such as cursor.
+    public var voiceAgent: String?
     case deny
 }
 
@@ -414,6 +437,17 @@ public enum HoldAnswer: String, Sendable {
 public enum HeldOutcome: Equatable, Sendable {
     case answered
     /// Touch ID was cancelled, so nothing was sent and the call is still waiting.
+/// One correction as the runtime's LEARN_WORDS takes it.
+public struct LearnedWord: Encodable, Equatable, Sendable {
+    public let heard: String
+    public let meant: String
+
+    public init(heard: String, meant: String) {
+        self.heard = heard
+        self.meant = meant
+    }
+}
+
     /// On ask: the app in front of the person as they spoke, by name, so a misheard word is read against it.
     public var lookingAt: String?
     /// On learn-words: each word as it was typed and as the person corrected it.
@@ -444,10 +478,14 @@ public struct LearnedWord: Encodable, Equatable, Sendable {
 
     public init(heard: String, meant: String) {
         self.heard = heard
+    /// On a held call, or a proposal answering one, the daemon found it stays inside its session's repository.
+    public let withinSession: Bool?
         self.meant = meant
     }
 }
 
+    /// Only a call the daemon placed inside its repository goes without a fingerprint; absent asks for one.
+    public var needsTouchID: Bool { withinSession != true }
     public var said: String?
     /// On learn-words: each word as it was typed and as the person corrected it.
     public var learned: [LearnedWord]?
@@ -463,6 +501,38 @@ public struct LearnedWord: Encodable, Equatable, Sendable {
     public var owner: String?
     public var briefing: String?
 /// One correction as the runtime's LEARN_WORDS takes it.
+/// One agent as the settings show it: there or not, whether it answered, and whether it is the voice.
+public struct VoiceAgentStatus: Decodable, Equatable, Identifiable, Sendable {
+    public let kind: String
+    public let label: String
+    public let installed: Bool
+    /// Kept to reading; one that is not is used only when nothing else answered.
+    public let sealed: Bool
+    /// Nil until it has been asked.
+    public let works: Bool?
+    /// Why it did not answer, in words a person can act on.
+    public let because: String?
+    public let checkedAt: String?
+    public let chosen: Bool
+    /// What to install, or set up, when it is missing or cannot answer.
+    public let install: String
+
+    public var id: String { kind }
+
+    public init(kind: String, label: String, installed: Bool, sealed: Bool, works: Bool? = nil,
+                because: String? = nil, checkedAt: String? = nil, chosen: Bool = false, install: String = "") {
+        self.kind = kind
+        self.label = label
+        self.installed = installed
+        self.sealed = sealed
+        self.works = works
+        self.because = because
+        self.checkedAt = checkedAt
+        self.chosen = chosen
+        self.install = install
+    }
+}
+
 public struct LearnedWord: Encodable, Equatable, Sendable {
     public let heard: String
     public let meant: String
@@ -487,6 +557,8 @@ public struct LearnedWord: Encodable, Equatable, Sendable {
     /// On choose-voice-agent: the agent's kind, such as cursor.
 /// One correction as the runtime's LEARN_WORDS takes it.
 public struct LearnedWord: Encodable, Equatable, Sendable {
+    /// On voice-agents and choose-voice-agent: every agent the voice knows, preferred first.
+    public let voiceAgents: [VoiceAgentStatus]?
     public let heard: String
     public let meant: String
 

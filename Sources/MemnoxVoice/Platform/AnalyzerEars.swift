@@ -37,27 +37,38 @@ final class AnalyzerEars {
         await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) ?? Locale(identifier: fallbackLocale)
     }
 
-    /// How often the words and the level are looked at.
-    private static let pollSeconds: TimeInterval = 0.15
     private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
     /// The next thing said, nothing when the wait ran out, or unavailable when it could not start.
     func listen(through audio: AudioIO, waiting: TimeInterval) async -> Listened {
         let transcriber = SpeechTranscriber(
             locale: await Self.locale(),
-            transcriptionOptions: [],
-            reportingOptions: [.volatileResults],
-            attributeOptions: []
-        )
-        guard await Self.installed(transcriber),
-              let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
-        else { return .unavailable([]) }
+    /// The kinds of transcriber whose model is known to be on this Mac, so later listens skip asking the asset inventory again.
+    nonisolated(unsafe) private static var modelsReady: Set<String> = []
 
-        let analyzer = SpeechAnalyzer(modules: [transcriber])
-        // Loaded before the first word, rather than while the person is already speaking.
-        try? await analyzer.prepareToAnalyze(in: format)
+            transcriptionOptions: [],
+    /// With `holding`, it listens for exactly as long as that says the keys are down, and no pause ends it.
+    func listen(through audio: AudioIO, waiting: TimeInterval, holding: (() -> Bool)? = nil, cut: Flag? = nil) async -> Listened {
+        // Heard from the first buffer, before the analyzer has loaded, so the first word is never lost to a cold start.
+        let recording = Recording()
+        let early = Feeder()
+        audio.onMicrophone = { buffer in
+            recording.keep(buffer)
+            early.take(buffer)
+        }
+        let transcriber = await Self.transcriber()
+        let kind = String(describing: type(of: transcriber.module))
+        let ready = Self.modelsReady.contains(kind) ? true : await Self.installed([transcriber.module])
+        guard ready,
+              let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber.module])
+        else {
+            // The older recognizer listens afresh, since a fraction of a second recorded holds nothing worth reading.
+            audio.onMicrophone = nil
+            return .unavailable([])
+        }
+        Self.modelsReady.insert(kind)
         let context = AnalysisContext()
-        context.contextualStrings[.general] = recognizerHints
+        let analyzer = SpeechAnalyzer(modules: [transcriber.module])
         try? await analyzer.setContext(context)
 
         let (input, feed) = AsyncStream<AnalyzerInput>.makeStream()
@@ -67,9 +78,7 @@ final class AnalyzerEars {
         audio.onMicrophone = { buffer in
             recording.keep(buffer)
             if converter == nil || converter?.inputFormat != buffer.format {
-                converter = AVAudioConverter(from: buffer.format, to: format)
-            }
-            guard let converter, let converted = convert(buffer, with: converter, to: format) else {
+        let send: (AVAudioPCMBuffer) -> Void = { buffer in
                 counts.dropped()
                 return
             }
@@ -80,12 +89,14 @@ final class AnalyzerEars {
         let heard = Heard()
         let reading = Task { [weak self] in
             do {
+        // What was said while the analyzer loaded goes first, then every buffer straight through.
+        early.open(send)
                 for try await result in transcriber.results {
                     let words = heard.take(String(result.text.characters), final: result.isFinal)
                     self?.hearing?(words)
                 }
-            } catch {
-                // The analyzer finishing or failing both end the listening; the words so far stand.
+                for try await (text, final) in transcriber.results {
+                    let words = heard.take(text, final: final)
             }
         }
         do {
@@ -104,9 +115,11 @@ final class AnalyzerEars {
         while true {
         var lastVoice: Date?
             try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * Self.nanosecondsPerSecond))
+        var lastVoice: Date?
             loudest = max(loudest, audio.micLevel)
             let (words, changed) = heard.read()
             if words.isEmpty, Date().timeIntervalSince(began) > waiting { break }
+            if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
             if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
             if !words.isEmpty, Date().timeIntervalSince(changed) > endOfSpeechPause(after: words) { break }
             if words != guessed, mayGuess(words, pausedFor: Date().timeIntervalSince(changed)) {
@@ -129,6 +142,10 @@ final class AnalyzerEars {
         }
         return words.isEmpty ? .silence : .heard(words)
     }
+        if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
+            diary.note("dropped words from a listen too quiet for speech: \(words)")
+            return .silence
+        }
         if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
             diary.note("dropped words from a listen too quiet for speech: \(words)")
             return .silence
@@ -169,14 +186,42 @@ private final class Recording: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return kept
+}
+
+/// A tap's buffer copied, since the engine reuses it once the tap block returns.
+private func copied(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+    guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: buffer.frameLength),
+          let from = buffer.floatChannelData, let to = copy.floatChannelData else { return nil }
+    copy.frameLength = buffer.frameLength
+    for channel in 0..<Int(buffer.format.channelCount) {
+        to[channel].update(from: from[channel], count: Int(buffer.frameLength))
+    }
+    return copy
+}
+
+/// Holds the microphone while the analyzer loads, then hands every buffer on in the order it was heard.
+private final class Feeder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var waiting: [AVAudioPCMBuffer] = []
+    private var send: ((AVAudioPCMBuffer) -> Void)?
+
+    func take(_ buffer: AVAudioPCMBuffer) {
+        lock.lock()
+        defer { lock.unlock() }
+        if let send {
+            send(buffer)
+        } else if let copy = copied(buffer) {
+            waiting.append(copy)
+        for channel in 0..<Int(buffer.format.channelCount) {
     }
 
-    private func copied(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
-        guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: buffer.frameLength),
-              let from = buffer.floatChannelData, let to = copy.floatChannelData else { return nil }
-        copy.frameLength = buffer.frameLength
-        for channel in 0..<Int(buffer.format.channelCount) {
-            to[channel].update(from: from[channel], count: Int(buffer.frameLength))
+    /// Sends what waited, then lets every later buffer straight through; held under the lock so none jumps the queue.
+    func open(_ send: @escaping (AVAudioPCMBuffer) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        waiting.forEach(send)
+        waiting.removeAll()
+        self.send = send
         }
         return copy
     }
@@ -192,19 +237,19 @@ private final class Heard: @unchecked Sendable {
     /// Takes one result and returns everything heard so far.
     func take(_ text: String, final: Bool) -> String {
         lock.lock()
-        defer { lock.unlock() }
+            settled = joinedSpeech(settled, text)
         if final {
             settled += text
             volatile = ""
             settled = joinedSpeech(settled, text)
             volatile = text
-        }
+        return joinedSpeech(settled, volatile)
         changed = Date()
         return settled + volatile
     }
         return joinedSpeech(settled, volatile)
     func read() -> (String, Date) {
-        lock.lock()
+        return (joinedSpeech(settled, volatile), changed)
         defer { lock.unlock() }
         return (settled + volatile, changed)
     }

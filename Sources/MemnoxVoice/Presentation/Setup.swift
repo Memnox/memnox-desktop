@@ -22,6 +22,11 @@ final class SetupModel: ObservableObject {
     @Published var key: StepState = .waiting
     @Published var voiceId: String
     @Published var catchUp: Bool
+    /// The agents the voice can think with, as the daemon last checked them.
+    @Published var agents: [VoiceAgentStatus] = []
+    @Published var agentsState: StepState = .waiting
+    /// Asking every agent takes a while, so the row says it is still asking.
+    @Published var checkingAgents = false
     let voices: [AVSpeechSynthesisVoice]
     /// Kokoro installing itself, watched so the voice row shows where it stands.
     let kokoro: KokoroInstaller
@@ -57,6 +62,51 @@ final class SetupModel: ObservableObject {
         case .unreachable: daemon = .needs("Start it in a terminal: memnox daemon --install")
         }
         key = await keyState()
+        // Last, since the first time it asks every agent a question and that takes a while.
+        await loadAgents()
+    }
+
+    /// The agents from the daemon's last check, or every one asked again when the person says so.
+    func loadAgents(recheck: Bool = false) async {
+        checkingAgents = true
+        defer { checkingAgents = false }
+        apply(await conversation.voiceAgents(recheck: recheck))
+    }
+
+    func useAgent(_ kind: String) async {
+        apply(await conversation.chooseVoiceAgent(kind))
+    }
+
+    /// What the step under the voice agents says: which one thinks, and whether it is kept to reading.
+    var agentsDetail: String {
+        guard let chosen = agents.first(where: \.chosen) else {
+            return checkingAgents
+                ? "Asking each of your agents one question to see which answers."
+                : "The agent you already use thinks for the voice."
+        }
+        if chosen.sealed { return "\(chosen.label), kept to reading, so it never edits a file or runs a command." }
+        return "\(chosen.label) can run shell commands without asking, used because no agent kept to reading answered."
+    }
+
+    private func apply(_ answer: VoiceAgentsAnswer) {
+        switch answer {
+        case .agents(let found):
+            agents = found
+            agentsState = agentsState(found)
+        case .refused(let why): agentsState = .needs(why)
+        case .unreachable: agentsState = .needs("Waiting for the daemon")
+        }
+    }
+
+    private func agentsState(_ found: [VoiceAgentStatus]) -> StepState {
+        let installed = found.filter(\.installed)
+        if installed.isEmpty {
+            return .needs("Install and log in to one of Claude Code, Codex, Cursor, Hermes or OpenClaw, then check again")
+        }
+        if let chosen = found.first(where: \.chosen), chosen.works == true { return .done }
+        if installed.allSatisfy({ $0.works == nil }) { return .waiting }
+        if installed.contains(where: { $0.works == true }) { return .needs("Choose the agent that answers for you") }
+        return .needs("None of your agents answered. Fix one below, then check again")
     }
 
     func allowListening() async {
@@ -371,6 +421,66 @@ private struct NameField: View {
             )
             .shadow(color: focused ? Memnox.Palette.ring : .clear, radius: Self.focusGlowRadius)
             .animation(.easeOut(duration: Self.focusFade), value: focused)
+    }
+}
+
+/// Each agent on this Mac with what it said when asked, and a way to make another one the voice.
+private struct AgentRows: View {
+    @ObservedObject var model: SetupModel
+
+    private enum Layout {
+        static let rowSpacing: CGFloat = 6
+        static let labelWidth: CGFloat = 84
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Layout.rowSpacing) {
+            ForEach(model.agents.filter(\.installed)) { agent in
+                HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.medium) {
+                    Text(agent.label)
+                        .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
+                        .foregroundStyle(Memnox.Palette.foreground)
+                        .frame(width: Layout.labelWidth, alignment: .leading)
+                    // One line each, so a long failure cannot stretch the window; the whole of it shows on hover.
+                    Text(status(agent))
+                        .font(Memnox.sans(Memnox.TextSize.caption))
+                        .foregroundStyle(agent.works == false ? IslandPalette.amber : Color.white.opacity(Memnox.Ink.secondary))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .help(status(agent))
+                    Spacer(minLength: Memnox.Spacing.small)
+                    if agent.chosen {
+                        Text("In use").font(Memnox.sans(Memnox.TextSize.caption, .semibold)).foregroundStyle(IslandPalette.green)
+                    } else if agent.works == true {
+                        Button("Use") { Task { await model.useAgent(agent.kind) } }.buttonStyle(IslandButton(primary: false))
+                    }
+                }
+            }
+            if !missing.isEmpty {
+                Text("Also answers through \(missing) once installed and logged in.")
+                    .font(Memnox.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(Memnox.Palette.muted)
+            }
+            HStack(spacing: Memnox.Spacing.medium) {
+                Button("Check again") { Task { await model.loadAgents(recheck: true) } }
+                    .buttonStyle(IslandButton(primary: false))
+                    .disabled(model.checkingAgents)
+                if model.checkingAgents { ProgressView().controlSize(.small) }
+            }
+        }
+    }
+
+    private func status(_ agent: VoiceAgentStatus) -> String {
+        guard let works = agent.works else { return model.checkingAgents ? "Asking" : "Not asked yet" }
+        if !works { return agent.because ?? "Did not answer" }
+        return agent.sealed ? "Answers, kept to reading" : "Answers, but can run ordinary shell commands"
+    }
+
+    /// The agents the voice knows that are not on this Mac, named in one line rather than a row each.
+    private var missing: String {
+        let names = model.agents.filter { !$0.installed }.map(\.label)
+        guard let last = names.last else { return "" }
+        return names.count == 1 ? last : names.dropLast().joined(separator: ", ") + " or " + last
     }
 }
 

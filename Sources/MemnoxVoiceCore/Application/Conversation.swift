@@ -58,6 +58,10 @@ public final class Conversation {
     private let name: () -> String?
     /// The app in front of the person as they speak, so the brain hears their words against what they work in.
     private let lookingAt: () -> String?
+    /// Their name, which the wake line keeps for a greeting and says far less often than the address.
+    private let name: () -> String?
+    /// The app in front of the person as they speak, so the brain hears their words against what they work in.
+    private let lookingAt: () -> String?
     /// The app in front of the person as they speak, so the brain hears their words against what they work in.
     private let lookingAt: () -> String?
     /// Said when the daemon is older than the app, which is the one fix a person can make.
@@ -77,7 +81,7 @@ public final class Conversation {
     /// When it was last called, so the first call in a while is greeted for the hour.
     private var lastCalled: Date?
 
-    /// The line for being called now: a greeting for the hour the first time in a while, a word or two after.
+        return wakeLines.line(address: address(), name: name(), hour: hour, sinceLastCall: since, at: moment)
     public func answerToCall() -> String {
         let moment = now()
         let since = lastCalled.map { moment.timeIntervalSince($0) }
@@ -93,10 +97,14 @@ public final class Conversation {
         speaker: Speaker,
         key: ConfirmKey,
         face: Face,
+        name: @escaping () -> String? = { nil },
+        lookingAt: @escaping () -> String? = { nil },
         owner: OwnerStore,
         presenter: Presenter? = nil,
         chimes: Chimes? = nil,
         now: @escaping () -> Date = Date.init,
+        self.name = name
+        self.lookingAt = lookingAt
         name: @escaping () -> String? = { nil },
         lookingAt: @escaping () -> String? = { nil },
         macOSMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
@@ -123,6 +131,27 @@ public final class Conversation {
     /// The names this machine uses, from the daemon, for the recognizer to listen for.
     public func vocabulary() async -> [String] {
         (try? await link.request(newRequest(.vocabulary)))?.words ?? []
+    }
+
+    /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
+    public func voiceAgents(recheck: Bool = false) async -> VoiceAgentsAnswer {
+        var request = newRequest(.voiceAgents)
+        if recheck { request.recheck = true }
+        return await agentsAnswer(request)
+    }
+
+    /// The person picking the agent the voice thinks with, from the next question on.
+    public func chooseVoiceAgent(_ kind: String) async -> VoiceAgentsAnswer {
+        var request = newRequest(.chooseVoiceAgent)
+        request.voiceAgent = kind
+        return await agentsAnswer(request)
+    }
+
+    private func agentsAnswer(_ request: DaemonRequest) async -> VoiceAgentsAnswer {
+        guard let response = try? await link.request(request) else { return .unreachable }
+        if response.ok, let agents = response.voiceAgents { return .agents(agents) }
+        // An older daemon answers a method it does not know with a bare ok and no agents.
+        return .refused(response.error ?? "This Memnox is older than the app")
     }
 
     /// A session as it is right now, for the live window on it; nil when the daemon does not know it.
@@ -164,6 +193,7 @@ public final class Conversation {
         if recheck { request.recheck = true }
         return await agentsAnswer(request)
     }
+        request.lookingAt = lookingAt()
 
     /// The person picking the agent the voice thinks with, from the next question on.
     public func chooseVoiceAgent(_ kind: String) async -> VoiceAgentsAnswer {
@@ -189,6 +219,7 @@ public final class Conversation {
     /// The person picking the agent the voice thinks with, from the next question on.
     public func chooseVoiceAgent(_ kind: String) async -> VoiceAgentsAnswer {
         var request = newRequest(.chooseVoiceAgent)
+        request.lookingAt = lookingAt()
         request.voiceAgent = kind
         return await agentsAnswer(request)
     }
@@ -444,6 +475,13 @@ public final class Conversation {
         case .held:
             asking = event.subject
             interrupted = false
+        case .folder:
+            let opener = event.title.flatMap(FolderOpener.init(rawValue:)) ?? .finder
+            guard let path = event.host?.cwd, await presenter.openFolder(path, in: opener) else {
+                diary.note("could not open the folder for \(event.subject)")
+                speaker.queue("My apologies, I could not open that folder.")
+                return
+            }
             var request = newRequest(.brief)
             request.briefing = Briefing.held.rawValue
             request.subject = event.subject
@@ -587,6 +625,17 @@ public final class Conversation {
 
     /// Whether they have heard how to let Memnox type, so the second time is one short line rather than the whole of it.
     private var toldHowToAllow = false
+
+    /// What the person changed in a message the app typed before they sent it: each word they swapped
+    /// for one that sounds alike is sent to be learned, so it is heard right the next time they say it.
+    public func learn(typed: String, sent: String) async {
+        let corrections = correctedWords(typed: typed, sent: sent)
+        guard !corrections.isEmpty else { return }
+        var request = newRequest(.learnWords)
+        request.learned = corrections.map { LearnedWord(heard: $0.heard, meant: $0.meant) }
+        let kept = (try? await link.request(request))?.words ?? []
+        diary.note("learned from an edit: \(corrections.map { "\($0.heard) is \($0.meant)" }.joined(separator: ", ")); kept \(kept.count)")
+    }
 
     /// What to do about it in full the first time, since nothing they say can fix it, and after that only where the words are.
     private func notAllowedLine() -> String {

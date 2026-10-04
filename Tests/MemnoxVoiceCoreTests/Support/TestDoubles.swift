@@ -95,6 +95,16 @@ final class RecordingFace: Face {
     var shown: [(VoiceState, String)] = []
     func show(_ state: VoiceState, caption: String) { shown.append((state, caption)) }
     var states: [VoiceState] { shown.map(\.0) }
+    var asks: [String] = []
+    var reply = ""
+    var replies = 0
+    var failures: [String?] = []
+    func asked(_ words: String) { asks.append(words) }
+    func replying(_ text: String) { reply += text }
+    func replied(failure: String?) {
+        replies += 1
+        failures.append(failure)
+    }
 }
 
 /// A person who either touches the sensor or cancels.

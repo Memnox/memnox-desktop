@@ -37,8 +37,6 @@ final class AnalyzerEars {
         await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) ?? Locale(identifier: fallbackLocale)
     }
 
-    /// Loud enough to be somebody talking rather than a room.
-    private static let spokeLevel: Float = 0.45
     /// The transcriber's language when the Mac's own is not one it supports.
     private static let fallbackLocale = "en-US"
     /// How often the words and the level are looked at.
@@ -124,7 +122,7 @@ final class AnalyzerEars {
         await reading.value
         let words = heard.read().0.trimmingCharacters(in: .whitespacesAndNewlines)
         diary.note("SpeechAnalyzer heard \(words.isEmpty ? "nothing" : words)")
-        if words.isEmpty, loudest > Self.spokeLevel {
+        if words.isEmpty, loudest > AudioIO.voiceLevel {
             // The microphone heard a voice and no word came back: the analyzer is not working here.
             diary.note("heard a voice at level \(loudest) and no words")
             return .unavailable(recording.buffers)

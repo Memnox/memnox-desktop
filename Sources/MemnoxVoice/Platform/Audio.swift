@@ -12,6 +12,8 @@ private let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 final class AudioIO {
     let engine = AVAudioEngine()
     private(set) var micLevel: Float = 0
+    /// Loud enough to be somebody talking rather than a room, on the same scale as `micLevel`.
+    static let voiceLevel: Float = 0.45
     /// Every microphone buffer while listening, for the recognizer.
     var onMicrophone: ((AVAudioPCMBuffer) -> Void)?
     private var running = false

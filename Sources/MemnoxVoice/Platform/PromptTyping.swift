@@ -29,6 +29,12 @@ enum PromptTyping {
         static let breath: TimeInterval = 0.06
         /// The marks a person pauses after.
         static let breathMarks = ",.?!;:"
+        /// How long the words sit in the box before Return, so the person can start fixing one.
+        static let editGrace: TimeInterval = 1.5
+        /// How often the box is read while the person edits it.
+        static let editPoll: TimeInterval = 0.5
+        /// How long an edit is waited on before it is let go unlearned, since a message left unsent taught nothing.
+        static let editWatch: TimeInterval = 120
 
         static func nanoseconds(_ seconds: TimeInterval) -> UInt64 {
             UInt64(seconds * nanosecondsPerSecond)
@@ -65,8 +71,12 @@ enum PromptTyping {
     private static var asked = false
 
     /// Types the words into whatever has focus in the app, then presses Return. Stops, and leaves
-    /// the words on the clipboard, the moment the app is no longer in front.
-    static func type(_ text: String, into app: NSRunningApplication) async -> Typed {
+    /// the words on the clipboard, the moment the app is no longer in front. Given the message box,
+    /// it waits a moment first: the person fixing a word takes the message over and sends it
+    /// themselves, and `sent` hears what they sent so the word they fixed is learned.
+    static func type(
+        _ text: String, into app: NSRunningApplication, box: AXUIElement? = nil, sent: ((String) -> Void)? = nil
+    ) async -> Typed {
         let words = Array(oneLine(text))
         let pause = keyPause(for: words.count)
         for (index, character) in words.enumerated() {
@@ -79,6 +89,13 @@ enum PromptTyping {
             try? await Task.sleep(nanoseconds: pause(character))
         }
         try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.beforeReturn))
+        if let box, let typed = string(box, kAXValueAttribute) {
+            try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.editGrace))
+            if let now = string(box, kAXValueAttribute), now != typed {
+                Task { await watchEdit(box, from: now, sent: sent) }
+                return .landed
+            }
+        }
         guard inFront(app) else {
             leaveOnClipboard(text)
             return Typed(.clipboard, "the person moved to another app before it was sent")
@@ -88,7 +105,7 @@ enum PromptTyping {
     }
 
     /// Brings the conversation's message box into focus in the editor in front, then types into it.
-    static func typeIntoEditor(_ text: String, inAppAt path: String?) async -> Typed {
+    static func typeIntoEditor(_ text: String, inAppAt path: String?, sent: ((String) -> Void)? = nil) async -> Typed {
         guard allowed() else { return Typed(.notAllowed, "Memnox is not allowed to type yet") }
         guard let app = running(path) else { return Typed(.clipboard, "the editor is not running") }
         app.activate()
@@ -104,7 +121,23 @@ enum PromptTyping {
         guard isMessageBox(focused(in: element)) else {
             return Typed(.clipboard, "the message box would not take focus")
         }
-        return await type(text, into: app)
+        return await type(text, into: app, box: input, sent: sent)
+    }
+
+    /// Reads the box while the person edits it, and hands over the last of it once they send it,
+    /// which empties the box. Left unsent too long, it is let go: nothing was confirmed.
+    private static func watchEdit(_ box: AXUIElement, from start: String, sent: ((String) -> Void)?) async {
+        var last = start
+        let polls = Int(Timing.editWatch / Timing.editPoll)
+        for _ in 0..<polls {
+            try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.editPoll))
+            let now = string(box, kAXValueAttribute)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if now.isEmpty {
+                sent?(last)
+                return
+            }
+            last = now
+        }
     }
 
     /// The words left on the clipboard, for when they cannot be typed safely.

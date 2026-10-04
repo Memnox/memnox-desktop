@@ -319,4 +319,19 @@ final class TalkingTests: XCTestCase {
         await conversation.heard("and now")
         XCTAssertEqual(speaker.said.filter { $0 == "One sec." }.count, 1)
     }
+
+    func testSendsTheWordsFixedInATypedMessageToBeLearned() async throws {
+        let link = ScriptedLink()
+        link.answers["learn-words"] = [try line(#"{"id":1,"ok":true,"words":["sessions"]}"#)]
+        let conversation = Conversation(
+            link: link, speaker: RecordingSpeaker(), key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil)
+        )
+        await conversation.learn(typed: "check the surgeons", sent: "check the sessions")
+        XCTAssertEqual(link.sent.last?.method, "learn-words")
+        XCTAssertEqual(link.sent.last?.learned, [LearnedWord(heard: "surgeons", meant: "sessions")])
+        // Nothing fixed, nothing sent.
+        let before = link.sent.count
+        await conversation.learn(typed: "check the sessions", sent: "check the sessions")
+        XCTAssertEqual(link.sent.count, before)
+    }
 }

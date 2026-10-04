@@ -15,6 +15,10 @@ final class TurnTakingTests: XCTestCase {
         XCTAssertEqual(endOfSpeechPause(after: "I wanted to know about my"), 3.0)
         XCTAssertEqual(endOfSpeechPause(after: "Yes."), 0.6)
         XCTAssertEqual(endOfSpeechPause(after: "Go ahead."), 0.6)
+        // The recognizer marks "Can you?" as finished, but it is only how a request starts.
+        XCTAssertEqual(endOfSpeechPause(after: "Can you?"), 3.0)
+        XCTAssertEqual(endOfSpeechPause(after: "Is there"), 3.0)
+        XCTAssertEqual(endOfSpeechPause(after: "Thank you."), 0.6)
         // Somebody explaining pauses between sentences, so the first one is not answered alone.
         XCTAssertEqual(endOfSpeechPause(after: "Can you open Cursor and start a new session within Memnox runtime and check the git status?"), 1.5)
         XCTAssertEqual(endOfSpeechPause(after: "Can you scan my entire computer and tell me?"), 1.5)

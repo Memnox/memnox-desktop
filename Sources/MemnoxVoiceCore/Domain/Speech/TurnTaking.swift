@@ -14,9 +14,18 @@ private let requestOpenings: Set<String> = [
     "okay so", "ok so", "so can you", "and can you", "hey", "hey can you",
 ]
 
+/// The openings of a request, which said alone are somebody gathering the rest of it even when the
+/// recognizer writes "Can you?" as a finished question.
+private let requestOpenings: Set<String> = [
+    "can you", "could you", "would you", "will you", "can i", "could i", "can we", "could we", "do you",
+    "is there", "are there", "what about", "show me", "tell me", "i want", "i need", "i want you to", "please",
+    "okay so", "ok so", "so can you", "and can you", "hey", "hey can you",
+]
+
 /// How long a pause ends what somebody is saying. A short reply like "Yes." is answered almost at
 /// once, a finished question a second after it, and somebody who has been talking for a while gets
 /// longer, because between two sentences of one thought people pause for more than a second, and
+    if requestOpenings.contains(spoken.joined(separator: " ")) { return SpeechPause.stillThinking }
 /// answering the first half means cancelling it and starting again, which is what feels broken.
 /// "uh", "so" or a trailing "..." is somebody still thinking, so that waits longest.
 public func endOfSpeechPause(after words: String) -> TimeInterval {
@@ -63,6 +72,19 @@ public let guessAfterPause: TimeInterval = 0.35
 /// Whether a pause this long is worth starting the answer on: never while they trail off on a word
 /// like "and", and only while the pause has not yet ended what they are saying.
 public func mayGuess(_ words: String, pausedFor pause: TimeInterval) -> Bool {
+
+/// How long they have been quiet: since the last new word, or since the microphone last heard their
+/// voice when that is later, because the recognizer lags behind a slow or unclear sentence and a
+/// pause in the words alone cut people off mid thought. A voice with no new words holds it open only
+/// so long, so a noisy room never keeps it listening for ever.
+public func quietFor(now: Date, lastWord: Date, lastVoice: Date?) -> TimeInterval {
+    guard let lastVoice else { return now.timeIntervalSince(lastWord) }
+    let held = min(lastVoice, lastWord.addingTimeInterval(voiceHoldsFor))
+    return now.timeIntervalSince(max(lastWord, held))
+}
+
+/// Longest a voice still talking keeps the turn open after the words stopped changing.
+public let voiceHoldsFor: TimeInterval = 3.0
     let ending = endOfSpeechPause(after: words)
     return words.contains(where: \.isLetter) && ending < SpeechPause.stillThinking && pause >= guessAfterPause && pause < ending
 }

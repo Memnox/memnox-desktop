@@ -36,6 +36,7 @@ final class SessionPresenter: Presenter {
         static let cursor = "com.todesktop.230313mzl4w4u92"
         static let windsurf = "com.exafunction.windsurf"
         static let iTerm = "com.googlecode.iterm2"
+        static let terminal = "com.apple.Terminal"
     }
 
     /// The URL schemes, hosts and paths of the Claude Code extension's links and the Memnox extension's.
@@ -249,6 +250,24 @@ final class SessionPresenter: Presenter {
     }
 
     /// VS Code first, since Claude Code most often runs inside it, then Cursor.
+    /// Finder shows it, the editor opens on it, or a terminal starts a tab in it, iTerm when it is installed.
+    func openFolder(_ path: String, in opener: FolderOpener) async -> Bool {
+        let folder = URL(fileURLWithPath: path, isDirectory: true)
+        switch opener {
+        case .finder:
+            return NSWorkspace.shared.open(folder)
+        case .editor:
+            guard let editor = Self.installedEditor() else { return NSWorkspace.shared.open(folder) }
+            return await Self.open([folder], with: editor)
+        case .terminal:
+            let terminal = [BundleID.iTerm, BundleID.terminal].lazy
+                .compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
+                .first
+            guard let terminal else { return false }
+            return await Self.open([folder], with: terminal)
+        }
+    }
+
     private static func installedEditor() -> URL? {
         [BundleID.vscode, BundleID.cursor, BundleID.windsurf]
             .lazy

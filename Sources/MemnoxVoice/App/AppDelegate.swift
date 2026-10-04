@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let chimes = SystemChimes()
     private let frontApp = FrontApp()
     private let frontApp = FrontApp()
+    private let frontApp = FrontApp()
     /// When the screen locked, so coming back after a while can be caught up on.
     private var awaySince: Date?
     /// Long enough that a coffee counts and a glance away does not.
@@ -95,7 +96,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSLog("Memnox: no confirmation key, so allows stay in the terminal: \(error)")
             key = RefusingKey()
         }
-        conversation = Conversation(
+            address: { chosenAddress() },
+            name: { chosenName() },
+            lookingAt: { [frontApp] in frontApp.name }
             address: { chosenAddress() },
             name: { chosenName() },
             lookingAt: { [frontApp] in frontApp.name }
@@ -174,7 +177,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await voice.speak("I cannot hear you yet. Allow Memnox under Microphone and Speech Recognition in System Settings, Privacy and Security.")
             audio.stop()
             panel.dismiss()
-            talking = false
+        // Learnt alongside rather than before, so the microphone is heard from the first word; the names land by the next listen.
+        Task { [weak self] in await self?.learnNames() }
             return
         }
         do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
@@ -444,9 +448,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 audio.stop()
                 panel.dismiss()
             }
-        }
-    }
+        let names = Array(Set(recognizerHints + words))
+        recognizerHints = Array(Set(names + SpokenTerms.terms))
 
+        // Hints only nudge the recognizer, so the same names also train a model it hears them with.
+        await Vocabulary.train(names: names)
     /// The agents, CLIs and servers on this machine, so the recognizer hears "Railway" and not "right away".
     private func learnNames() async {
         let words = await conversation.vocabulary()

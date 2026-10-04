@@ -98,12 +98,28 @@ public func withoutEchoRuns(_ heard: String, spoken: String) -> String {
     // "I'm" or "a" has no word long enough to judge, so it carries a run on without counting toward it.
     func echoes(_ part: String) -> Bool { wordsIn(part).allSatisfy { isEcho($0, of: said) } }
     func judged(_ run: ArraySlice<String>) -> Int { run.filter { !wordsIn($0).isEmpty }.count }
-    let leading = parts.prefix(while: echoes)
-    if judged(leading) >= echoRunLength { parts.removeFirst(leading.count) }
-    let trailing = Array(parts.reversed().prefix(while: echoes))
-    if judged(trailing[...]) >= echoRunLength { parts.removeLast(trailing.count) }
+    func isRun(_ run: [String]) -> Bool { judged(run[...]) >= echoRunLength && followsInOrder(run.flatMap(wordsIn), in: said) }
+    let leading = Array(parts.prefix(while: echoes))
+    if isRun(leading) { parts.removeFirst(leading.count) }
+    let trailing = Array(parts.reversed().prefix(while: echoes).reversed())
+    if isRun(trailing) { parts.removeLast(trailing.count) }
     return parts.joined(separator: " ")
 }
 
 /// A run this long of its own words is echo; one alone could as well be theirs.
 private let echoRunLength = 2
+
+/// Whether the words follow one another in what it said, since its echo comes back in its own order,
+/// while the person's "can you" is only scattered across its "what can I do for you".
+private func followsInOrder(_ words: [String], in said: [String]) -> Bool {
+    func from(_ index: Int, _ rest: ArraySlice<String>) -> Bool {
+        guard let word = rest.first else { return true }
+        guard index < said.count else { return false }
+        return (index...min(index + echoGap, said.count - 1)).contains { isEcho(word, of: [said[$0]]) && from($0 + 1, rest.dropFirst()) }
+    }
+    guard let first = words.first else { return false }
+    return said.indices.contains { isEcho(first, of: [said[$0]]) && from($0 + 1, words.dropFirst()) }
+}
+
+/// How many of its own words an echo may drop between two it kept, since the recognizer misses some.
+private let echoGap = 1

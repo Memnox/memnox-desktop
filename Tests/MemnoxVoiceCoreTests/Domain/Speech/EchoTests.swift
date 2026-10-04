@@ -12,6 +12,13 @@ final class EchoTests: XCTestCase {
         XCTAssertEqual(withoutEchoRuns("Yes, login", spoken: spoken), "Yes, login")
     }
 
+    func testKeepsThePersonsWordsThatItsSentenceOnlyHoldsOutOfOrder() {
+        // "can" and "you" are both in its greeting, but not one after the other, so they are the person's.
+        let spoken = "Good morning. What can I do for you?"
+        XCTAssertEqual(withoutEchoRuns("Can you?", spoken: spoken), "Can you?")
+        XCTAssertEqual(withoutEchoRuns("do for you show my sessions", spoken: spoken), "show my sessions")
+    }
+
     func testTellsThePersonTalkingOverItFromItsOwnEcho() {
         let spoken = "Claude Code finished checkout, four files changed and the tests pass."
         XCTAssertFalse(isBargeIn(heard: "four files changed and the tests", spoken: spoken))

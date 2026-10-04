@@ -30,6 +30,8 @@ public protocol Presenter: AnyObject {
     func close(session: String, host: DisplayHost?, request: String) async -> Typed
     /// Every card, live window, board and scan off the screen; no session is touched.
     func dismissAll() async
+    /// A folder opened in Finder, the editor or a new terminal tab, and whether it opened.
+    func openFolder(_ path: String, in opener: FolderOpener) async -> Bool
 }
 
 extension Presenter {
@@ -38,4 +40,6 @@ extension Presenter {
     }
 
     public func dismissAll() async {}
+
+    public func openFolder(_ path: String, in opener: FolderOpener) async -> Bool { false }
 }

@@ -88,6 +88,15 @@ struct IslandView: View {
         }
     }
 
+    /// The talking modes share one content, so the island grows around the words instead of fading them out and in.
+    private var contentId: IslandMode {
+        switch model.mode {
+        case .conversation, .draft, .rule: return .conversation
+        case .answer: return model.active ? .conversation : .answer
+        case .peek, .compact, .voice, .hearing, .overview, .session, .empty, .held, .finished: return model.mode
+        }
+    }
+
     @ViewBuilder private var content: some View {
         switch model.mode {
         case .peek:
@@ -99,6 +108,16 @@ struct IslandView: View {
         case .voice:
             IslandVoiceCard(model: model)
         case .overview:
+        case .hearing:
+            IslandHearing(model: model)
+        case .conversation, .draft, .rule:
+            IslandConversation(model: model, exchange: model.turn, live: model.active)
+        case .answer:
+            if model.active {
+                IslandConversation(model: model, exchange: model.turn, live: true)
+            } else if let picked = model.pickedExchange {
+                IslandConversation(model: model, exchange: picked, live: false)
+            }
             IslandOverview(model: model)
         case .session:
             if let session = model.focused { IslandSessionDetail(model: model, session: session) }
@@ -111,11 +130,14 @@ struct IslandView: View {
         case .hearing:
             IslandHearing(model: model)
         case .conversation, .draft, .rule:
+        static let history = "clock.arrow.circlepath"
             IslandConversation(model: model, exchange: model.turn, live: model.active)
         case .answer:
             if model.active {
                 IslandConversation(model: model, exchange: model.turn, live: true)
             } else if let picked = model.pickedExchange {
+        /// Clears the small orb that sits at the start of the header row on an opened answer.
+        static let pastOrb: CGFloat = 46
                 IslandConversation(model: model, exchange: picked, live: false)
             }
         }
@@ -125,11 +147,15 @@ struct IslandView: View {
 /// The row along the notch while the island is open: where you are on the left, how many are working on the right.
 struct IslandHeader: View {
     @ObservedObject var model: IslandModel
+                model.picked = nil
 
     private enum Symbol {
-        static let overview = "square.grid.2x2"
+            IslandTab(symbol: Symbol.history, on: model.sideOpen) { model.toggleSide() }
+                .help("History, sessions and what needs you")
+            if model.mode == .session || model.mode == .answer {
         static let back = "chevron.left"
         static let voice = "waveform"
+                    model.picked = nil
     }
 
     private enum Layout {
@@ -143,7 +169,7 @@ struct IslandHeader: View {
         let count = model.working.count
         HStack(spacing: Memnox.Spacing.xSmall) {
             IslandTab(symbol: Symbol.overview, on: model.mode == .overview || model.mode == .empty) {
-                model.detail = false
+        .padding(.leading, model.mode == .answer ? Layout.pastOrb : Memnox.Spacing.large)
                 model.settle()
             }
             if model.mode == .session {
@@ -227,8 +253,8 @@ struct IslandCompact: View {
 struct IslandLogos: View {
     let cards: [SessionCard]
 
-    /// Each logo tucks this far under the one before it.
-    private static let overlap: CGFloat = -5
+/// Talking: the big orb alone with a soft light behind it, until words are heard. With live words on
+/// the island turns to `IslandHearing` as the first word lands; with them off it stays the orb alone.
     private static let logoSide: CGFloat = 16
     /// A black ring the island's colour, so overlapping logos stay apart.
     private static let ringWidth: CGFloat = 1.5

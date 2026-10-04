@@ -19,6 +19,8 @@ final class IslandPanel: NSPanel, Face {
     private var clicks: EventMonitor?
     private var list: () async -> [SessionCard] = { [] }
     private var view: (String) async -> SessionView? = { _ in nil }
+    /// Where the history is kept between launches; none in the preview, which keeps it in memory only.
+    private var historyFile: HistoryFile?
 
     private enum Layout {
         /// The orb view's size before the island lays it out at its real size.
@@ -114,6 +116,31 @@ final class IslandPanel: NSPanel, Face {
         refresh()
     }
 
+    /// The history read back from where it was kept, and kept there again after every answer.
+    @MainActor func keepHistory(in file: HistoryFile) {
+        historyFile = file
+        model.history = file.load()
+        model.forgetHistory = { [weak self] in
+            guard let self else { return }
+            self.model.history.forget()
+            self.historyFile?.save(self.model.history)
+            self.model.settle()
+        }
+    }
+
+    /// What a button on an answer or a draft does, wired by the app delegate.
+    @MainActor func wireConversation(
+        openAnswer: @escaping (Exchange) -> Void,
+        answerDraft: @escaping (DraftCard, Bool) -> Void,
+        answerRule: @escaping (RuleCard, RuleScope?) -> Void,
+        askAgain: @escaping (String) -> Void
+    ) {
+        model.openAnswer = openAnswer
+        model.answerDraft = answerDraft
+        model.answerRule = answerRule
+        model.askAgain = askAgain
+    }
+
     /// Where the orb is on screen while it shows large, for a card that flies out of it.
     @MainActor var orbFrame: NSRect? {
         guard model.mode.isOpen else { return nil }
@@ -129,6 +156,7 @@ final class IslandPanel: NSPanel, Face {
     nonisolated func present() {
         DispatchQueue.main.async { [self] in
             place()
+            if !model.active { model.talkingSince = Date() }
             model.active = true
             model.settle()
         }
@@ -138,6 +166,9 @@ final class IslandPanel: NSPanel, Face {
         DispatchQueue.main.async { [self] in
             model.active = false
             model.caption = ""
+            model.heard = ""
+            model.expanded = false
+            model.talkingSince = nil
             model.state = .idle
             renderer?.state = .idle
             model.settle()
@@ -149,6 +180,37 @@ final class IslandPanel: NSPanel, Face {
         DispatchQueue.main.async { [self] in
             guard model.liveWords, model.active, words != model.heard else { return }
             model.heard = words
+            model.settle()
+        }
+    }
+
+    nonisolated func asked(_ words: String) {
+        DispatchQueue.main.async { [self] in
+            model.history.ask(words, at: Date())
+            model.heard = ""
+            model.settle()
+        }
+    }
+
+    nonisolated func replying(_ text: String) {
+        DispatchQueue.main.async { [self] in model.history.reply(text) }
+    }
+
+    nonisolated func replied(failure: String?) {
+        DispatchQueue.main.async { [self] in
+            model.history.end(at: Date(), failure: failure)
+            historyFile?.save(model.history)
+            model.settle()
+        }
+    }
+
+    /// Every word heard so far, the moment the recognizer has it, for the notch to show as it is said.
+    nonisolated func hearing(_ words: String) {
+        DispatchQueue.main.async { [self] in
+            guard model.liveWords, model.active, words != model.heard else { return }
+            model.heard = words
+            // A fresh listen starts with no words, so nothing heard last time lingers in the bubble.
+            if state == .listening, text.isEmpty { model.heard = "" }
             model.settle()
         }
     }
@@ -271,6 +333,7 @@ final class IslandPanel: NSPanel, Face {
 
     @MainActor func openIsland() {
         hoverSince = nil
+        model.picked = nil
         lastActivity = Date()
         model.opened = true
         model.detail = false
@@ -299,6 +362,12 @@ final class IslandPanel: NSPanel, Face {
                 if cards != model.cards { model.cards = cards }
                 if model.opened, let focus = model.focusCard {
                     if model.focusId == nil { model.focusId = focus.sessionId }
+    /// The answer under the question opened up tall, or put back in its card.
+    @MainActor func expandAnswer(_ on: Bool) {
+        model.expanded = on
+        model.settle()
+    }
+
                     let view = await view(focus.sessionId)
                     guard !Task.isCancelled else { return }
                     if view != model.focused { model.focused = view }

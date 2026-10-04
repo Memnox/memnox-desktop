@@ -26,6 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let kokoroInstaller = KokoroInstaller()
     /// Off until the person turns it on, since it keeps the microphone open whenever the orb is idle.
     private static let wakeKey = "wakeOnName"
+    /// On unless turned off: what the person says shows in the notch word by word as it is heard.
+    private static let liveWordsKey = "liveWords"
     private let link = UnixSocketLink()
     // Set once in applicationDidFinishLaunching, before anything can reach them.
     private var panel: IslandPanel!
@@ -36,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let owner = DefaultsOwner()
     private let presenter = SessionPresenter()
     private let chimes = SystemChimes()
+    private let frontApp = FrontApp()
     private let frontApp = FrontApp()
     private let frontApp = FrontApp()
     private let frontApp = FrontApp()
@@ -74,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         let voice = Voice()
+            self?.panel.hearing(words)
         self.voice = voice
         panel = IslandPanel(loudness: { [audio] in max(audio.micLevel, voice.level) })
         ears.hearing = { [weak self] words in
@@ -95,11 +99,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             // No Secure Enclave or no keychain: nothing can ever be confirmed from this Mac.
             NSLog("Memnox: no confirmation key, so allows stay in the terminal: \(error)")
-            key = RefusingKey()
             address: { chosenAddress() },
             name: { chosenName() },
             lookingAt: { [frontApp] in frontApp.name }
             address: { chosenAddress() },
+            name: { chosenName() },
+            lookingAt: { [frontApp] in frontApp.name }
+            address: { chosenAddress() },
+        presenter.corrected = { [weak self] typed, sent in
+            Task { await self?.conversation.learn(typed: typed, sent: sent) }
+        }
             name: { chosenName() },
             lookingAt: { [frontApp] in frontApp.name }
             address: { chosenAddress() },
@@ -124,6 +133,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             view: { [weak self] session in await self?.conversation.sessionView(session) },
             open: { [presenter] session, host in Task { _ = await presenter.focus(session: session, host: host) } }
         )
+            liveWordsOn: UserDefaults.standard.bool(forKey: Self.liveWordsKey),
+            setLiveWords: { [weak self] on in
+                UserDefaults.standard.set(on, forKey: Self.liveWordsKey)
+                self?.panel.showLiveWords(on)
+            },
         hotkey = Hotkey { [weak self] in self?.talk() }
         UserDefaults.standard.register(defaults: [Self.speakUpKey: false, Self.bargeKey: true, SystemChimes.key: true])
         wake.woke = { [weak self] after in
@@ -174,7 +188,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func converse(opening: String = "", greet: Bool = false) async {
-        talking = true
+        // Learnt alongside rather than before, so the microphone is heard from the first word; the names land by the next listen.
+        Task { [weak self] in await self?.learnNames() }
         panel.present()
         guard await Ears.mayHear() else {
             // Said, since a silent orb that cannot hear looks exactly like one that is not listening.
@@ -444,9 +459,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         enqueue { [self] in
             panel.present()
             do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
-            caughtUp = false
-            let cutIn = await overVoice { [weak self] in
+        let names = Array(Set(recognizerHints + words))
+        recognizerHints = Array(Set(names + SpokenTerms.terms))
                 self?.caughtUp = await self?.conversation?.welcomeBack(since: since) ?? false
+        // Hints only nudge the recognizer, so the same names also train a model it hears them with.
+        await Vocabulary.train(names: names)
             }
             // The daemon says nothing when nothing waits on them, and then the orb goes back to sleep unheard.
             if cutIn != nil || caughtUp {

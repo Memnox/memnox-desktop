@@ -8,6 +8,7 @@ final class MenuModel: ObservableObject {
     @Published var speakUpOn: Bool
     @Published var talkOverOn: Bool
     @Published var chimesOn: Bool
+    @Published var liveWordsOn: Bool
     @Published var voiceChoice: String
     /// Counted each time the panel opens, so its sections can settle in one after another.
     @Published var opened = 0
@@ -16,6 +17,7 @@ final class MenuModel: ObservableObject {
     let setSpeakUp: (Bool) -> Void
     let setTalkOver: (Bool) -> Void
     let setChimes: (Bool) -> Void
+    let setLiveWords: (Bool) -> Void
     let chooseVoice: (String) -> Void
     let setUp: () -> Void
     let saySomething: () -> Void
@@ -31,6 +33,8 @@ final class MenuModel: ObservableObject {
         setTalkOver: @escaping (Bool) -> Void,
         chimesOn: Bool,
         setChimes: @escaping (Bool) -> Void,
+        liveWordsOn: Bool,
+        setLiveWords: @escaping (Bool) -> Void,
         voiceChoice: String,
         chooseVoice: @escaping (String) -> Void,
         setUp: @escaping () -> Void,
@@ -46,6 +50,8 @@ final class MenuModel: ObservableObject {
         self.setTalkOver = setTalkOver
         self.chimesOn = chimesOn
         self.setChimes = setChimes
+        self.liveWordsOn = liveWordsOn
+        self.setLiveWords = setLiveWords
         self.voiceChoice = voiceChoice
         self.chooseVoice = chooseVoice
         self.setUp = setUp
@@ -179,6 +185,8 @@ struct MenuView: View {
                     SwitchRow(symbol: Symbol.talkOver, title: "Talk over it", detail: "Cut in just by speaking", isOn: Binding(get: { model.talkOverOn }, set: { model.talkOverOn = $0; model.setTalkOver($0) }))
                     Divide()
                     SwitchRow(symbol: Symbol.sounds, title: "Sounds", detail: "A chime when something happens", isOn: Binding(get: { model.chimesOn }, set: { model.chimesOn = $0; model.setChimes($0) }))
+                    Divide()
+                    SwitchRow(symbol: Symbol.liveWords, title: "Live words", detail: "See what you say in the notch", isOn: Binding(get: { model.liveWordsOn }, set: { model.liveWordsOn = $0; model.setLiveWords($0) }))
                 }
                 .padding(.vertical, Memnox.Spacing.xSmall)
             }
@@ -548,6 +556,7 @@ private enum Symbol {
     static let speakUp = "bell"
     static let talkOver = "waveform.badge.mic"
     static let sounds = "speaker.wave.1"
+    static let liveWords = "text.bubble"
     static let voice = "person.wave.2"
     static let setUp = "slider.horizontal.3"
     static let saySomething = "speaker.wave.2"

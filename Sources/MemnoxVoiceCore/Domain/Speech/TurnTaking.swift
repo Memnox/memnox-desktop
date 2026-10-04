@@ -22,6 +22,15 @@ private let requestOpenings: Set<String> = [
     "okay so", "ok so", "so can you", "and can you", "hey", "hey can you",
 ]
 
+/// The openings of a request, which said alone are somebody gathering the rest of it even when the
+/// recognizer writes "Can you?" as a finished question.
+private let requestOpenings: Set<String> = [
+    if requestOpenings.contains(spoken.joined(separator: " ")) { return SpeechPause.stillThinking }
+    "can you", "could you", "would you", "will you", "can i", "could i", "can we", "could we", "do you",
+    "is there", "are there", "what about", "show me", "tell me", "i want", "i need", "i want you to", "please",
+    "okay so", "ok so", "so can you", "and can you", "hey", "hey can you",
+]
+
 /// How long a pause ends what somebody is saying. A short reply like "Yes." is answered almost at
 /// once, a finished question a second after it, and somebody who has been talking for a while gets
 /// longer, because between two sentences of one thought people pause for more than a second, and
@@ -63,6 +72,25 @@ private enum SpeechPause {
 
 /// Endings that mean somebody trailed off mid thought: a comma or an ellipsis, typed or as one character.
 private let trailingMarks = [",", "...", "\u{2026}"]
+
+/// How long they have been quiet: since the last new word, or since the microphone last heard their
+/// voice when that is later, because the recognizer lags behind a slow or unclear sentence and a
+/// pause in the words alone cut people off mid thought. A voice with no new words holds it open only
+/// so long, so a noisy room never keeps it listening for ever.
+public func quietFor(now: Date, lastWord: Date, lastVoice: Date?) -> TimeInterval {
+    guard let lastVoice else { return now.timeIntervalSince(lastWord) }
+    let held = min(lastVoice, lastWord.addingTimeInterval(voiceHoldsFor))
+    return now.timeIntervalSince(max(lastWord, held))
+}
+
+/// Longest a voice still talking keeps the turn open after the words stopped changing.
+public let voiceHoldsFor: TimeInterval = 3.0
+
+/// Two stretches of what was heard as one sentence, with the space between them the recognizer leaves out
+/// when it finishes one segment and starts the next, so "so." and "Is there" never read as "so.Is there".
+public func joinedSpeech(_ first: String, _ second: String) -> String {
+    [first, second].map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
+}
 /// Endings the recognizer only writes on a sentence it thinks is done.
 private let finishingMarks = ["?", ".", "!"]
 

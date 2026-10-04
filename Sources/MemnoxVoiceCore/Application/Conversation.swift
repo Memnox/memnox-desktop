@@ -54,6 +54,10 @@ public final class Conversation {
     private let macOSMajorVersion: Int
     /// How the person asked to be addressed, read through a closure so the composition root owns the file and tests choose it.
     private let address: () -> String?
+    /// Their name, which the wake line keeps for a greeting and says far less often than the address.
+    private let name: () -> String?
+    /// The app in front of the person as they speak, so the brain hears their words against what they work in.
+    private let lookingAt: () -> String?
     /// The app in front of the person as they speak, so the brain hears their words against what they work in.
     private let lookingAt: () -> String?
     /// Said when the daemon is older than the app, which is the one fix a person can make.
@@ -77,7 +81,7 @@ public final class Conversation {
     public func answerToCall() -> String {
         let moment = now()
         let since = lastCalled.map { moment.timeIntervalSince($0) }
-        lastCalled = moment
+        return wakeLines.line(address: address(), name: name(), hour: hour, sinceLastCall: since, at: moment)
         let hour = Calendar.current.component(.hour, from: moment)
         return wakeLines.line(address: address(), hour: hour, sinceLastCall: since)
     }
@@ -93,10 +97,14 @@ public final class Conversation {
         presenter: Presenter? = nil,
         chimes: Chimes? = nil,
         now: @escaping () -> Date = Date.init,
+        name: @escaping () -> String? = { nil },
+        lookingAt: @escaping () -> String? = { nil },
         macOSMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
         address: @escaping () -> String? = { nil },
         lookingAt: @escaping () -> String? = { nil },
         fillers: [String] = ["One moment.", "Checking.", "Looking into it."]
+        self.name = name
+        self.lookingAt = lookingAt
     ) {
         self.now = now
         self.address = address
@@ -125,6 +133,27 @@ public final class Conversation {
     }
 
     /// The sessions lately, most recently active first, for the switcher to turn through.
+    /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
+    public func voiceAgents(recheck: Bool = false) async -> VoiceAgentsAnswer {
+        var request = newRequest(.voiceAgents)
+        if recheck { request.recheck = true }
+        return await agentsAnswer(request)
+    }
+
+    /// The person picking the agent the voice thinks with, from the next question on.
+    public func chooseVoiceAgent(_ kind: String) async -> VoiceAgentsAnswer {
+        var request = newRequest(.chooseVoiceAgent)
+        request.voiceAgent = kind
+        return await agentsAnswer(request)
+    }
+
+    private func agentsAnswer(_ request: DaemonRequest) async -> VoiceAgentsAnswer {
+        guard let response = try? await link.request(request) else { return .unreachable }
+        if response.ok, let agents = response.voiceAgents { return .agents(agents) }
+        // An older daemon answers a method it does not know with a bare ok and no agents.
+        return .refused(response.error ?? "This Memnox is older than the app")
+    }
+
     public func sessionsList() async -> [SessionCard] {
         (try? await link.request(newRequest(.sessionsList)))?.sessions ?? []
     }
@@ -164,6 +193,7 @@ public final class Conversation {
         return await agentsAnswer(request)
     }
 
+        request.lookingAt = lookingAt()
     private func agentsAnswer(_ request: DaemonRequest) async -> VoiceAgentsAnswer {
         guard let response = try? await link.request(request) else { return .unreachable }
         if response.ok, let agents = response.voiceAgents { return .agents(agents) }
@@ -189,6 +219,7 @@ public final class Conversation {
         guard let response = try? await link.request(request) else { return .unreachable }
         if response.ok, let agents = response.voiceAgents { return .agents(agents) }
         // An older daemon answers a method it does not know with a bare ok and no agents.
+        request.lookingAt = lookingAt()
         request.lookingAt = lookingAt()
         return .refused(response.error ?? "This Memnox is older than the app")
     }
@@ -588,6 +619,17 @@ public final class Conversation {
             answerKind = .declined
         }
         var request = newRequest(.confirm)
+    /// What the person changed in a message the app typed before they sent it: each word they swapped
+    /// for one that sounds alike is sent to be learned, so it is heard right the next time they say it.
+    public func learn(typed: String, sent: String) async {
+        let corrections = correctedWords(typed: typed, sent: sent)
+        guard !corrections.isEmpty else { return }
+        var request = newRequest(.learnWords)
+        request.learned = corrections.map { LearnedWord(heard: $0.heard, meant: $0.meant) }
+        let kept = (try? await link.request(request))?.words ?? []
+        diary.note("learned from an edit: \(corrections.map { "\($0.heard) is \($0.meant)" }.joined(separator: ", ")); kept \(kept.count)")
+    }
+
         request.subject = event.subject
         request.answer = answerKind.rawValue
         request.signature = signature

@@ -54,6 +54,8 @@ public final class Conversation {
     private let macOSMajorVersion: Int
     /// How the person asked to be addressed, read through a closure so the composition root owns the file and tests choose it.
     private let address: () -> String?
+    /// The app in front of the person as they speak, so the brain hears their words against what they work in.
+    private let lookingAt: () -> String?
     /// Said when the daemon is older than the app, which is the one fix a person can make.
     static let tooOld = "The Memnox running on this Mac is older than this app, so it cannot answer yet. Update Memnox and ask me again."
     /// The operator tool the brain calls when the person is done talking.
@@ -93,10 +95,12 @@ public final class Conversation {
         now: @escaping () -> Date = Date.init,
         macOSMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
         address: @escaping () -> String? = { nil },
+        lookingAt: @escaping () -> String? = { nil },
         fillers: [String] = ["One moment.", "Checking.", "Looking into it."]
     ) {
         self.now = now
         self.address = address
+        self.lookingAt = lookingAt
         self.macOSMajorVersion = macOSMajorVersion
         self.fillers = fillers
         self.link = link
@@ -167,6 +171,28 @@ public final class Conversation {
         return .refused(response.error ?? "This Memnox is older than the app")
     }
 
+    /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
+    public func voiceAgents(recheck: Bool = false) async -> VoiceAgentsAnswer {
+        var request = newRequest(.voiceAgents)
+        if recheck { request.recheck = true }
+        return await agentsAnswer(request)
+    }
+
+    /// The person picking the agent the voice thinks with, from the next question on.
+    public func chooseVoiceAgent(_ kind: String) async -> VoiceAgentsAnswer {
+        var request = newRequest(.chooseVoiceAgent)
+        request.voiceAgent = kind
+        return await agentsAnswer(request)
+    }
+
+    private func agentsAnswer(_ request: DaemonRequest) async -> VoiceAgentsAnswer {
+        guard let response = try? await link.request(request) else { return .unreachable }
+        if response.ok, let agents = response.voiceAgents { return .agents(agents) }
+        // An older daemon answers a method it does not know with a bare ok and no agents.
+        request.lookingAt = lookingAt()
+        return .refused(response.error ?? "This Memnox is older than the app")
+    }
+
     /// The person started talking: the brain starts now, so the answer skips its cold start.
     public func warm() async {
         _ = try? await link.request(newRequest(.warm))
@@ -189,6 +215,7 @@ public final class Conversation {
         // Only the word itself counts, since an older daemon answered anything with a bare ok.
         return response.ok && response.outcome == Outcome.registered ? .registered : .tooOld
     }
+        request.lookingAt = lookingAt()
 
     /// At launch: registers the key, and says so when somebody else's is already there.
     public func introduce() async {
@@ -588,6 +615,17 @@ public final class Conversation {
     }
 
     /// Twenty seconds in tenths, longer than any read back takes to stream.
+    /// What the person changed in a message the app typed before they sent it: each word they swapped
+    /// for one that sounds alike is sent to be learned, so it is heard right the next time they say it.
+    public func learn(typed: String, sent: String) async {
+        let corrections = correctedWords(typed: typed, sent: sent)
+        guard !corrections.isEmpty else { return }
+        var request = newRequest(.learnWords)
+        request.learned = corrections.map { LearnedWord(heard: $0.heard, meant: $0.meant) }
+        let kept = (try? await link.request(request))?.words ?? []
+        diary.note("learned from an edit: \(corrections.map { "\($0.heard) is \($0.meant)" }.joined(separator: ", ")); kept \(kept.count)")
+    }
+
     static let quietChecks = 200
     /// A tenth of a second between checks, which is what `quietChecks` counts in.
     private static let quietCheckInterval: TimeInterval = 0.1

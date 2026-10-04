@@ -146,6 +146,27 @@ public final class Conversation {
         return .refused(response.error ?? "This Memnox is older than the app")
     }
 
+    /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
+    public func voiceAgents(recheck: Bool = false) async -> VoiceAgentsAnswer {
+        var request = newRequest(.voiceAgents)
+        if recheck { request.recheck = true }
+        return await agentsAnswer(request)
+    }
+
+    /// The person picking the agent the voice thinks with, from the next question on.
+    public func chooseVoiceAgent(_ kind: String) async -> VoiceAgentsAnswer {
+        var request = newRequest(.chooseVoiceAgent)
+        request.voiceAgent = kind
+        return await agentsAnswer(request)
+    }
+
+    private func agentsAnswer(_ request: DaemonRequest) async -> VoiceAgentsAnswer {
+        guard let response = try? await link.request(request) else { return .unreachable }
+        if response.ok, let agents = response.voiceAgents { return .agents(agents) }
+        // An older daemon answers a method it does not know with a bare ok and no agents.
+        return .refused(response.error ?? "This Memnox is older than the app")
+    }
+
     /// The person started talking: the brain starts now, so the answer skips its cold start.
     public func warm() async {
         _ = try? await link.request(newRequest(.warm))
@@ -588,6 +609,17 @@ public final class Conversation {
         if answer != .deny {
             face.show(.needsYou, caption: caption("Touch ID to \(reason)"))
             let signature = try? await key.sign(confirmationMessage(subject: subject, answer: answer.rawValue), reason: reason)
+    /// What the person changed in a message the app typed before they sent it: each word they swapped
+    /// for one that sounds alike is sent to be learned, so it is heard right the next time they say it.
+    public func learn(typed: String, sent: String) async {
+        let corrections = correctedWords(typed: typed, sent: sent)
+        guard !corrections.isEmpty else { return }
+        var request = newRequest(.learnWords)
+        request.learned = corrections.map { LearnedWord(heard: $0.heard, meant: $0.meant) }
+        let kept = (try? await link.request(request))?.words ?? []
+        diary.note("learned from an edit: \(corrections.map { "\($0.heard) is \($0.meant)" }.joined(separator: ", ")); kept \(kept.count)")
+    }
+
             guard let signature else {
                 face.show(.idle, caption: "")
                 return .cancelled

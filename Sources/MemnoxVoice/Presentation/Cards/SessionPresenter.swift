@@ -38,6 +38,7 @@ final class SessionPresenter: Presenter {
         static let iTerm = "com.googlecode.iterm2"
         static let terminal = "com.apple.Terminal"
         static let terminal = "com.apple.Terminal"
+        static let terminal = "com.apple.Terminal"
     }
 
     /// The URL schemes, hosts and paths of the Claude Code extension's links and the Memnox extension's.
@@ -111,6 +112,8 @@ final class SessionPresenter: Presenter {
                 reason = try? container.decode(String.self, forKey: .reason)
             }
         }
+        /// Set by the extension when no integrated terminal holds the device, which leaves the request for the Mac.
+        let noTerminal: Bool?
 
         let delivered: Delivered?
     }
@@ -249,6 +252,24 @@ final class SessionPresenter: Presenter {
         link.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) }
         return link.url
     }
+    /// Finder shows it, the editor opens on it, or a terminal starts a tab in it, iTerm when it is installed.
+    func openFolder(_ path: String, in opener: FolderOpener) async -> Bool {
+        let folder = URL(fileURLWithPath: path, isDirectory: true)
+        switch opener {
+        case .finder:
+            return NSWorkspace.shared.open(folder)
+        case .editor:
+            guard let editor = Self.installedEditor() else { return NSWorkspace.shared.open(folder) }
+            return await Self.open([folder], with: editor)
+        case .terminal:
+            let terminal = [BundleID.iTerm, BundleID.terminal].lazy
+                .compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
+                .first
+            guard let terminal else { return false }
+            return await Self.open([folder], with: terminal)
+        }
+    }
+
 
     /// Finder shows it, the editor opens on it, or a terminal starts a tab in it, iTerm when it is installed.
     func openFolder(_ path: String, in opener: FolderOpener) async -> Bool {
@@ -339,7 +360,7 @@ final class SessionPresenter: Presenter {
         card.present(walk, open: walk.sessionId.map { id in
             { [weak self] in Task { await self?.bringForward(session: id, host: walk.host) } }
         })
-    }
+            return await typeInEditorTerminal(text, request: request, tty: tty, host: host, app: app)
 
     /// Opens a new tab in the repository and types the line that starts the agent, a key at a time,
     /// so the person watches a session begin. The runtime built the line and quoted the task in it.
@@ -366,7 +387,7 @@ final class SessionPresenter: Presenter {
                 ? .landed
                 : Typed(.failed, "the line could not be typed into the new tab")
         }
-        return await PromptTyping.type(command, into: front)
+    private func typeInEditorTerminal(_ text: String, request: String, tty: String, host: DisplayHost, app: String) async -> Typed {
     }
 
     /// Brings the agent's own tab forward and types the instruction into its prompt a key at a time,
@@ -374,21 +395,31 @@ final class SessionPresenter: Presenter {
     /// checked again to be the one in front, so the words never land in a bare shell or another tab.
     func type(_ text: String, into host: DisplayHost?, request: String) async -> Typed {
         guard let host, let tty = AppleScriptText.device(host.tty) else { return Typed(.failed, "its terminal tab is not known") }
-        let app = (host.app ?? host.appPath ?? "").lowercased()
+        let delivered = await Self.extensionDelivery(of: request)
+        // An editor started from a shell hands that shell's terminal to its agent panel too, so a
+        // terminal nobody can find in the editor means the session is in the panel, typed into there.
+        guard delivered.outcome == .failed, delivered.reason == Self.noEditorTerminal,
+              let session = host.conversation
+        else { return delivered }
+        diary.note("no editor terminal holds \(tty), so typing into the agent panel")
+        return await prefill(text, session: session, host: host)
         let iTerm = app.contains(AppName.iTerm)
         if !iTerm, Self.editors.contains(where: app.contains) {
+    /// What the Memnox extension says when no integrated terminal in the editor holds the device.
+    private static let noEditorTerminal = "no integrated terminal holds its device"
+
             return await typeInEditorTerminal(request: request, tty: tty, host: host, app: app)
         }
         guard iTerm || app.contains(AppName.terminal) else { return Typed(.failed, "it does not run in iTerm, Terminal or an editor") }
         await launch(toward: host.app ?? app)
         guard PromptTyping.allowed() else {
-            // Without leave to press keys, the terminal's own scripting puts the words in all at once.
-            let words = AppleScriptText.quoted(text)
-            let typed = Self.run(iTerm ? Self.iTermTypeScript(tty, words) : Self.terminalTypeScript(tty, words))
+            let record = (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode(DeliveryRecord.self, from: $0) }
+            if let delivered = record?.delivered {
             return typed ? .landed : Typed(.failed, "no \(iTerm ? "iTerm" : "Terminal") tab has its terminal")
         }
         guard Self.run(iTerm ? Self.iTermScript(tty) : Self.terminalScript(tty)) else {
             return Typed(.failed, "no \(iTerm ? "iTerm" : "Terminal") tab has its terminal")
+            if record?.noTerminal == true { return Typed(.failed, noEditorTerminal) }
         }
         try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.tabSettle))
         guard Self.run(iTerm ? Self.iTermInFront(tty) : Self.terminalInFront(tty)),
@@ -396,6 +427,9 @@ final class SessionPresenter: Presenter {
               (front.localizedName ?? "").lowercased().contains(iTerm ? AppName.iTerm : AppName.terminal)
         else {
             PromptTyping.leaveOnClipboard(text)
+    /// Told what was typed and what the person sent after fixing it, so the words they fixed are learned.
+    var corrected: ((String, String) -> Void)?
+
             return Typed(.clipboard, "its tab did not come to the front")
         }
         return await PromptTyping.type(text, into: front)
@@ -408,7 +442,8 @@ final class SessionPresenter: Presenter {
         guard let link = Self.extensionLink(app: app, path: Link.typePath, query: [QueryKey.request: request, QueryKey.tty: tty]) else {
             return Typed(.failed, "the Memnox extension is not in \(host.app ?? "the editor"), so run memnox protect --vscode")
         }
-        await launch(toward: host.app ?? app)
+        let corrected = corrected
+        let typed = await PromptTyping.typeIntoEditor(text, inAppAt: host?.appPath) { corrected?(text, $0) }
         _ = await open(host)
         try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.editorSettle))
         guard NSWorkspace.shared.open(link) else { return Typed(.failed, "the editor would not take the Memnox link") }

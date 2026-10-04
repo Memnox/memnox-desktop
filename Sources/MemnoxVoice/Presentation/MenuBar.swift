@@ -9,6 +9,7 @@ final class MenuModel: ObservableObject {
     @Published var talkOverOn: Bool
     @Published var chimesOn: Bool
     @Published var liveWordsOn: Bool
+    @Published var liveWordsOn: Bool
     @Published var voiceChoice: String
     /// Counted each time the panel opens, so its sections can settle in one after another.
     @Published var opened = 0
@@ -16,9 +17,11 @@ final class MenuModel: ObservableObject {
     let setWake: (Bool) -> Void
     let setSpeakUp: (Bool) -> Void
     let setTalkOver: (Bool) -> Void
+    let setLiveWords: (Bool) -> Void
     let setChimes: (Bool) -> Void
     let setLiveWords: (Bool) -> Void
     let chooseVoice: (String) -> Void
+    let sayRule: () -> Void
     let setUp: () -> Void
     let saySomething: () -> Void
     let copyWhatHappened: () -> Void
@@ -31,10 +34,13 @@ final class MenuModel: ObservableObject {
         setSpeakUp: @escaping (Bool) -> Void,
         talkOverOn: Bool,
         setTalkOver: @escaping (Bool) -> Void,
+        liveWordsOn: Bool,
+        setLiveWords: @escaping (Bool) -> Void,
         chimesOn: Bool,
         setChimes: @escaping (Bool) -> Void,
         liveWordsOn: Bool,
         setLiveWords: @escaping (Bool) -> Void,
+        sayRule: @escaping () -> Void,
         voiceChoice: String,
         chooseVoice: @escaping (String) -> Void,
         setUp: @escaping () -> Void,
@@ -46,10 +52,13 @@ final class MenuModel: ObservableObject {
         self.setWake = setWake
         self.speakUpOn = speakUpOn
         self.setSpeakUp = setSpeakUp
+        self.liveWordsOn = liveWordsOn
+        self.setLiveWords = setLiveWords
         self.talkOverOn = talkOverOn
         self.setTalkOver = setTalkOver
         self.chimesOn = chimesOn
         self.setChimes = setChimes
+        self.sayRule = sayRule
         self.liveWordsOn = liveWordsOn
         self.setLiveWords = setLiveWords
         self.voiceChoice = voiceChoice
@@ -180,6 +189,8 @@ struct MenuView: View {
                 VStack(spacing: 0) {
                     wakeRow
                     Divide()
+                    SwitchRow(symbol: Symbol.liveWords, title: "Live words", detail: "See what you say in the notch", isOn: Binding(get: { model.liveWordsOn }, set: { model.liveWordsOn = $0; model.setLiveWords($0) }))
+                    Divide()
                     SwitchRow(symbol: Symbol.speakUp, title: "Speak up on its own", detail: "When work finishes or ships", isOn: Binding(get: { model.speakUpOn }, set: { model.speakUpOn = $0; model.setSpeakUp($0) }))
                     Divide()
                     SwitchRow(symbol: Symbol.talkOver, title: "Talk over it", detail: "Cut in just by speaking", isOn: Binding(get: { model.talkOverOn }, set: { model.talkOverOn = $0; model.setTalkOver($0) }))
@@ -193,6 +204,10 @@ struct MenuView: View {
             .settling(model.opened, order: 1)
             IslandCard(veil: nil) {
                 VoiceChoicePicker(choice: Binding(get: { model.voiceChoice }, set: { model.voiceChoice = $0; model.chooseVoice($0) }))
+                MenuRow(symbol: Symbol.rule, title: "Say a rule") {
+                    close()
+                    model.sayRule()
+                }
                     .padding(.vertical, Memnox.Spacing.small)
             }
             .settling(model.opened, order: 2)
@@ -548,6 +563,8 @@ private enum MenuLayout {
     /// The faint white behind a hovered row and the listening badge.
     static let softFill = 0.07
 }
+    static let liveWords = "text.bubble"
+    static let rule = "shield.lefthalf.filled"
 
 /// The SF Symbols the menu draws, one per row.
 private enum Symbol {

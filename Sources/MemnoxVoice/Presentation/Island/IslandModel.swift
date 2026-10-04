@@ -32,6 +32,8 @@ struct HeldCard: Equatable, Sendable {
     let what: String
     let why: String?
     let summary: String
+    /// False only where the daemon placed the call inside its repository, so a tap allows it.
+    let touchID: Bool
 
     init(_ event: DaemonEvent) {
         subject = event.subject
@@ -40,6 +42,7 @@ struct HeldCard: Equatable, Sendable {
         what = event.what ?? event.summary
         why = event.why
         summary = event.summary
+        touchID = event.needsTouchID
     }
 }
 
@@ -111,7 +114,7 @@ final class IslandModel: ObservableObject {
 
     var active = false
     var opened = false
-    var answer: (String, HoldAnswer, String) -> Void = { _, _, _ in }
+    var answer: (HeldCard, HoldAnswer) -> Void = { _, _ in }
     var tapped: () -> Void = {}
     var openWindow: (String, DisplayHost?) -> Void = { _, _ in }
     var focus: (String) -> Void = { _ in }

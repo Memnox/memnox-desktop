@@ -97,7 +97,7 @@ final class IslandPanel: NSPanel, Face {
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 
     /// The answer buttons and a tap on the resting orb, wired by the app delegate.
-    @MainActor func wire(answer: @escaping (String, HoldAnswer, String) -> Void, tapped: @escaping () -> Void) {
+    @MainActor func wire(answer: @escaping (HeldCard, HoldAnswer) -> Void, tapped: @escaping () -> Void) {
         model.answer = answer
         model.tapped = tapped
     }

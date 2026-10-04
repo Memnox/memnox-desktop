@@ -67,13 +67,15 @@ struct IslandHeldCall: View {
 
     private func press(_ answer: HoldAnswer) {
         model.answering = answer != .deny
-        model.answer(card.subject, answer, card.summary)
+        model.answer(card, answer)
     }
 
-    /// Every allow is signed, so the button says so before it is pressed.
+    /// An allow that reaches outside the session is signed, so the button says so before it is pressed.
     private func touchID(_ title: String) -> some View {
         HStack(spacing: Memnox.Spacing.small) {
-            Image(systemName: Self.touchIDSymbol).font(.system(size: Memnox.TextSize.footnote, weight: .medium))
+            if card.touchID {
+                Image(systemName: Self.touchIDSymbol).font(.system(size: Memnox.TextSize.footnote, weight: .medium))
+            }
             Text(title)
         }
     }

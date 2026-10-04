@@ -46,12 +46,12 @@ struct IslandView: View {
                     .fill(Color.black)
                     .shadow(color: .black.opacity(model.mode.isOpen ? Shade.openShadow : Shade.closedShadow), radius: Layout.shadowRadius, y: Layout.shadowDrop)
                 ZStack(alignment: .topLeading) {
-                    if model.mode.isOpen {
+                    if model.showsHeader {
                         IslandHeader(model: model)
                             .transition(.opacity.animation(Timing.headerIn))
                     }
                     content
-                        .id(model.mode)
+                        .id(contentId)
                         .transition(.islandContent)
                     // One orb throughout, positioned rather than swapped, so it travels and grows with the island.
                     IslandOrbSurface(view: orb)
@@ -79,6 +79,15 @@ struct IslandView: View {
         .frame(width: Island.window.width, height: Island.window.height, alignment: .top)
     }
 
+    /// The talking modes share one content, so the island grows around the words instead of fading them out and in.
+    private var contentId: IslandMode {
+        switch model.mode {
+        case .conversation, .draft, .rule: return .conversation
+        case .answer: return model.active ? .conversation : .answer
+        case .peek, .compact, .voice, .hearing, .overview, .session, .empty, .held, .finished: return model.mode
+        }
+    }
+
     @ViewBuilder private var content: some View {
         switch model.mode {
         case .peek:
@@ -99,6 +108,16 @@ struct IslandView: View {
             if let held = model.held { IslandHeldCall(model: model, card: held) }
         case .finished:
             if let finished = model.finished { IslandFinished(model: model, card: finished) }
+        case .hearing:
+            IslandHearing(model: model)
+        case .conversation, .draft, .rule:
+            IslandConversation(model: model, exchange: model.turn, live: model.active)
+        case .answer:
+            if model.active {
+                IslandConversation(model: model, exchange: model.turn, live: true)
+            } else if let picked = model.pickedExchange {
+                IslandConversation(model: model, exchange: picked, live: false)
+            }
         }
     }
 }
@@ -227,8 +246,8 @@ struct IslandLogos: View {
     }
 }
 
-/// Talking: the big orb alone with a soft light behind it. Nothing is written under it, since what was
-/// said is heard, and reading it back on screen only repeats it.
+/// Talking: the big orb alone with a soft light behind it, until words are heard. With live words on
+/// the island turns to `IslandHearing` as the first word lands; with them off it stays the orb alone.
 struct IslandVoiceCard: View {
     @ObservedObject var model: IslandModel
 

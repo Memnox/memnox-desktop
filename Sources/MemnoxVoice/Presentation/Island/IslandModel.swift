@@ -20,6 +20,16 @@ enum IslandMode: Equatable {
     case answer
     /// A rule the person said, with where it could hold, waiting for them to pick a place and sign.
     case rule
+    /// Talking with live words on: the orb above what the person is saying, word by word as it is heard.
+    case hearing
+    /// A turn under way: the question above, and the answer arriving in a card below it.
+    case conversation
+    /// A drafted message from the person's connected mail, read whole before a signed Send.
+    case draft
+    /// One answer opened up tall, for a long reply or one picked from the history at the side.
+    case answer
+    /// A rule the person said, with where it could hold, waiting for them to pick a place and sign.
+    case rule
     /// Opened by the pointer: the session in focus, what it is doing, and every other session as a pill.
     case overview
     /// One session up close: what it did and the code it is writing.
@@ -32,6 +42,8 @@ enum IslandMode: Equatable {
     case finished
 
     var isOpen: Bool { self != .peek && self != .compact }
+    /// False only where the daemon placed the call inside its repository, so a tap allows it.
+    let touchID: Bool
 }
 
 /// A held call as the island shows it, taken from the daemon's event.
@@ -40,6 +52,7 @@ struct HeldCard: Equatable, Sendable {
     let agent: String
     let who: String
     let what: String
+        touchID = event.needsTouchID
     let why: String?
     let summary: String
     /// False only where the daemon placed the call inside its repository, so a tap allows it.
@@ -108,13 +121,27 @@ final class IslandModel: ObservableObject {
     @Published var caption = ""
     @Published var held: HeldCard?
     @Published var finished: FinishedCard?
+    /// What the person is saying right now, word by word, while live words are on.
+    @Published var heard = ""
+    /// The person's choice to see their words in the notch as they say them.
+    @Published var liveWords = true
     /// Set while Touch ID is up for a button, so a second press cannot raise a second sheet.
     @Published var answering = false
     @Published var notch = NotchGeometry.beforePlacement
-    @Published var hovering = false
+    var answer: (HeldCard, HoldAnswer) -> Void = { _, _ in }
     /// Every recent session, working ones first, and the one the open island is about.
     @Published var cards: [SessionCard] = []
     @Published var focusId: String?
+
+    /// The header holds the tabs, except while talking, when the orb sits in its row above the words.
+    var showsHeader: Bool {
+        switch mode {
+        case .hearing, .conversation, .draft, .rule: return false
+        case .answer: return !active
+        case .peek, .compact: return false
+        case .voice, .overview, .session, .empty, .held, .finished: return true
+        }
+    }
     @Published var focused: SessionView?
     /// Whether the open island shows one session up close rather than all of them.
     @Published var detail = false
@@ -128,7 +155,11 @@ final class IslandModel: ObservableObject {
     var active = false
     var opened = false
     var answer: (HeldCard, HoldAnswer) -> Void = { _, _ in }
-    var tapped: () -> Void = {}
+            // What Memnox says is heard rather than read, so a turn keeps the orb up instead of printing the answer;
+            // the answer stays in the history at the side. A rule is always shown as it is said, since the person signs it.
+            next = ruling || (liveWords && !heard.isEmpty) ? .hearing : .voice
+        } else if opened, pickedExchange != nil {
+            next = .answer
     var openWindow: (String, DisplayHost?) -> Void = { _, _ in }
     var focus: (String) -> Void = { _ in }
 

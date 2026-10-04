@@ -144,11 +144,22 @@ final class IslandPanel: NSPanel, Face {
         }
     }
 
+    /// Every word heard so far, the moment the recognizer has it, for the notch to show as it is said.
+    nonisolated func hearing(_ words: String) {
+        DispatchQueue.main.async { [self] in
+            guard model.liveWords, model.active, words != model.heard else { return }
+            model.heard = words
+            model.settle()
+        }
+    }
+
     nonisolated func show(_ state: VoiceState, caption text: String) {
         DispatchQueue.main.async { [self] in
             renderer?.state = state
             model.state = state
             if !text.isEmpty || state == .idle { model.caption = text }
+            // A fresh listen starts with no words, so nothing heard last time lingers in the bubble.
+            if state == .listening, text.isEmpty { model.heard = "" }
             model.settle()
         }
     }

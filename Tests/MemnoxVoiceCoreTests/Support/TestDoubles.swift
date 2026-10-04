@@ -109,28 +109,6 @@ final class RecordingFace: Face {
     func draft(subject: String, _ draft: MailDraft) { drafts.append((subject, draft)) }
     var rules: [(String, RuleDraft)] = []
     func rule(subject: String, _ rule: RuleDraft) { rules.append((subject, rule)) }
-    var asks: [String] = []
-    var reply = ""
-    var replies = 0
-    var failures: [String?] = []
-    var drafts: [(String, MailDraft)] = []
-    func asked(_ words: String) { asks.append(words) }
-    func replying(_ text: String) { reply += text }
-    func replied(failure: String?) {
-        replies += 1
-        failures.append(failure)
-    }
-    func draft(subject: String, _ draft: MailDraft) { drafts.append((subject, draft)) }
-    var asks: [String] = []
-    var reply = ""
-    var replies = 0
-    var failures: [String?] = []
-    func asked(_ words: String) { asks.append(words) }
-    func replying(_ text: String) { reply += text }
-    func replied(failure: String?) {
-        replies += 1
-        failures.append(failure)
-    }
 }
 
 /// A person who either touches the sensor or cancels.

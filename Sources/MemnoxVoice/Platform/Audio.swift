@@ -14,12 +14,6 @@ final class AudioIO {
     private(set) var micLevel: Float = 0
     /// Loud enough to be somebody talking rather than a room, on the same scale as `micLevel`.
     static let voiceLevel: Float = 0.45
-    /// Loud enough to be somebody talking rather than a room, on the same scale as `micLevel`.
-    static let voiceLevel: Float = 0.45
-    /// Loud enough to be somebody talking rather than a room, on the same scale as `micLevel`.
-    static let voiceLevel: Float = 0.45
-    /// Loud enough to be somebody talking rather than a room, on the same scale as `micLevel`.
-    static let voiceLevel: Float = 0.45
     /// Every microphone buffer while listening, for the recognizer.
     var onMicrophone: ((AVAudioPCMBuffer) -> Void)?
     private var running = false
@@ -419,6 +413,12 @@ final class Ears {
         }
         return await askPermission()
     }
+
+    /// Fetches the speech model in the background; SpeechAnalyzer takes over once it is there.
+    func prepare() async {
+        if #available(macOS 26, *) { analyzerReady = await AnalyzerEars.prepare() }
+    }
+
     /// Set to end the listen now with nothing heard, for a rule held down while it was listening.
     let cut = Flag()
 
@@ -426,24 +426,18 @@ final class Ears {
     func listen(through audio: AudioIO, waiting: TimeInterval, holding: (() -> Bool)? = nil) async -> String? {
         // A held rule listens whatever was asked before it; any other listen honours a cut asked for already.
         if holding != nil { _ = cut.take() } else if cut.take() { return nil }
-    /// Fetches the speech model in the background; SpeechAnalyzer takes over once it is there.
-    func prepare() async {
-        if #available(macOS 26, *) { analyzerReady = await AnalyzerEars.prepare() }
-    }
-
-    func listen(through audio: AudioIO, waiting: TimeInterval) async -> String? {
         if !analyzerReady, let retry = retryAt, Date() >= retry {
             analyzerReady = true
             retryAt = nil
             misses = 0
             diary.note("trying SpeechAnalyzer again")
-            switch await ears.listen(through: audio, waiting: waiting, holding: holding, cut: holding == nil ? cut : nil) {
+        }
         if #available(macOS 26, *), analyzerReady {
             let ears = AnalyzerEars()
             ears.hearing = hearing
             ears.guessing = guessing
             lastWordAt = nil
-            switch await ears.listen(through: audio, waiting: waiting) {
+            switch await ears.listen(through: audio, waiting: waiting, holding: holding, cut: holding == nil ? cut : nil) {
             case .heard(let words):
                 misses = 0
                 lastWordAt = ears.lastWordAt
@@ -463,13 +457,13 @@ final class Ears {
                     retryAt = Date().addingTimeInterval(Self.retryAfter)
                 } else {
                     diary.note("SpeechAnalyzer heard no words, the older recognizer listens this once")
-        let words = await legacy.listen(through: audio, waiting: waiting, holding: holding, cut: holding == nil ? cut : nil)
+                }
                 missed?()
             }
         }
         legacy.hearing = hearing
         legacy.guessing = guessing
-        let words = await legacy.listen(through: audio, waiting: waiting)
+        let words = await legacy.listen(through: audio, waiting: waiting, holding: holding, cut: holding == nil ? cut : nil)
         diary.note("older recognizer heard \(words ?? "nothing")")
         return words
     }
@@ -500,14 +494,13 @@ final class LegacyEars {
     }
 
     /// Words in audio already recorded, or nil when there are none or it takes too long.
-        useVocabulary(in: request, with: recognizer)
     func transcribe(_ buffers: [AVAudioPCMBuffer]) async -> String? {
         guard let recognizer, recognizer.isAvailable, !buffers.isEmpty else { return nil }
-        useVocabulary(in: request, with: recognizer)
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = false
         request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
         request.contextualStrings = recognizerHints
+        useVocabulary(in: request, with: recognizer)
         for buffer in buffers { request.append(buffer) }
         request.endAudio()
         let once = Once()
@@ -526,29 +519,36 @@ final class LegacyEars {
                     running.task?.cancel()
                     continuation.resume(returning: nil)
                 }
-    func listen(through audio: AudioIO, waiting: TimeInterval, holding: (() -> Bool)? = nil, cut: Flag? = nil) async -> String? {
+            }
         }
     }
 
     /// The next thing said, or nil when nothing was said before the wait ran out. The recognizer
     /// calls a result final on its own, often at a breath mid sentence, so a final result starts a
     /// fresh request and the words carry on: only the person pausing ends what they are saying.
-    func listen(through audio: AudioIO, waiting: TimeInterval) async -> String? {
-        var lastVoice: Date?
-        var loudest: Float = 0
+    func listen(through audio: AudioIO, waiting: TimeInterval, holding: (() -> Bool)? = nil, cut: Flag? = nil) async -> String? {
         guard let recognizer, recognizer.isAvailable else {
             diary.note("older recognizer not available: \(SFSpeechRecognizer.authorizationStatus().rawValue)")
             return nil
-        var lastVoice: Date?
-        var loudest: Float = 0
         }
         let began = Date()
+        var settled = ""
+        var lastWord = began
         var lastVoice: Date?
         var loudest: Float = 0
+        var guessed = ""
+        while true {
+            let round = startRound(with: recognizer, through: audio)
+            var finished = false
+            var final = false
+            while !finished {
+                try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * nanosecondsPerSecond))
+                let (words, changed, isFinal) = round.latest.read()
+                if !words.isEmpty { lastWord = max(lastWord, changed) }
                 loudest = max(loudest, audio.micLevel)
                 if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
                 let all = joinedSpeech(settled, words)
-        var lastWord = began
+                hearing?(all)
                 if cut?.take() == true {
                     audio.onMicrophone = nil
                     round.request.endAudio()
@@ -562,26 +562,7 @@ final class LegacyEars {
                     if !all.isEmpty, quietFor(now: Date(), lastWord: lastWord, lastVoice: lastVoice) > endOfSpeechPause(after: all) { finished = true }
                 }
                 if !finished, holding == nil, all != guessed, mayGuess(all, pausedFor: Date().timeIntervalSince(lastWord)) {
-                loudest = max(loudest, audio.micLevel)
-                if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
-                let all = joinedSpeech(settled, words)
-            var final = false
-            while !finished {
-                try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * nanosecondsPerSecond))
-                loudest = max(loudest, audio.micLevel)
-                if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
-                let all = joinedSpeech(settled, words)
-                if !words.isEmpty { lastWord = max(lastWord, changed) }
-                let all = joined(settled, words)
-                hearing?(all)
-                if all.isEmpty, Date().timeIntervalSince(began) > waiting { finished = true }
-                if !all.isEmpty, Date().timeIntervalSince(lastWord) > endOfSpeechPause(after: all) { finished = true }
-                if !finished, all != guessed, mayGuess(all, pausedFor: Date().timeIntervalSince(lastWord)) {
                     guessed = all
-        if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
-            diary.note("dropped words from a listen too quiet for speech: \(words)")
-            return nil
-        }
                     guessing?(all)
                 }
                 if isFinal, !finished {
@@ -589,34 +570,23 @@ final class LegacyEars {
                     settled = all
                     break
                 }
-        if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
-            diary.note("dropped words from a listen too quiet for speech: \(words)")
-            return nil
-        }
                 if finished { settled = all }
             }
             audio.onMicrophone = nil
-        useVocabulary(in: request, with: recognizer)
             round.request.endAudio()
             round.task.cancel()
             if !final { break }
+        }
+        let words = settled.trimmingCharacters(in: .whitespacesAndNewlines)
         if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
             diary.note("dropped words from a listen too quiet for speech: \(words)")
             return nil
         }
-        }
-        let words = settled.trimmingCharacters(in: .whitespacesAndNewlines)
         return words.isEmpty ? nil : words
-/// The model trained on the agents' names, when it is built in this recognizer's language; it only runs on this Mac.
-private func useVocabulary(in request: SFSpeechAudioBufferRecognitionRequest, with recognizer: SFSpeechRecognizer) {
-    guard let trained = Vocabulary.trained, recognizer.supportsOnDeviceRecognition,
-          recognizer.locale.identifier == Vocabulary.locale.identifier else { return }
-    request.requiresOnDeviceRecognition = true
-    request.customizedLanguageModel = trained
+    }
+
     private struct Round {
         let request: SFSpeechAudioBufferRecognitionRequest
-/// Two stretches of what somebody said, run together as one.
-
         let task: SFSpeechRecognitionTask
         let latest: Latest
     }
@@ -624,16 +594,12 @@ private func useVocabulary(in request: SFSpeechAudioBufferRecognitionRequest, wi
     private func startRound(with recognizer: SFSpeechRecognizer, through audio: AudioIO) -> Round {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
-/// The model trained on the agents' names, when it is built in this recognizer's language; it only runs on this Mac.
-private func useVocabulary(in request: SFSpeechAudioBufferRecognitionRequest, with recognizer: SFSpeechRecognizer) {
-    guard let trained = Vocabulary.trained, recognizer.supportsOnDeviceRecognition,
-          recognizer.locale.identifier == Vocabulary.locale.identifier else { return }
-    request.requiresOnDeviceRecognition = true
-    request.customizedLanguageModel = trained
+        if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
+        request.contextualStrings = recognizerHints
+        useVocabulary(in: request, with: recognizer)
+        audio.onMicrophone = { request.append($0) }
         let latest = Latest()
         let task = recognizer.recognitionTask(with: request) { result, _ in
-/// Two stretches of what somebody said, run together as one.
-
             guard let result else { return }
             latest.update(result.bestTranscription.formattedString, final: result.isFinal)
         }
@@ -641,10 +607,15 @@ private func useVocabulary(in request: SFSpeechAudioBufferRecognitionRequest, wi
     }
 }
 
-/// Two stretches of what somebody said, run together as one.
-private func joined(_ first: String, _ second: String) -> String {
-    [first, second].map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
+/// The model trained on the agents' names, when it is built in this recognizer's language; it only runs on this Mac.
+private func useVocabulary(in request: SFSpeechAudioBufferRecognitionRequest, with recognizer: SFSpeechRecognizer) {
+    guard let trained = Vocabulary.trained, recognizer.supportsOnDeviceRecognition,
+          recognizer.locale.identifier == Vocabulary.locale.identifier else { return }
+    request.requiresOnDeviceRecognition = true
+    request.customizedLanguageModel = trained
 }
+
+/// Two stretches of what somebody said, run together as one.
 
 /// The recognizer's latest words, written from its thread and read from the listening loop.
 final class Latest: @unchecked Sendable {

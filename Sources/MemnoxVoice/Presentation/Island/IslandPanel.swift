@@ -25,18 +25,6 @@ final class IslandPanel: NSPanel, Face {
     private var side: SidePanel?
     /// Whether the pointer resting on the notch is on its left, where the orb sits, which opens the side panel instead.
     private var restingOnLeft = false
-    /// Where the history is kept between launches; none in the preview, which keeps it in memory only.
-    private var historyFile: HistoryFile?
-    /// The history at the left of the screen, opened from the left of the notch.
-    private var side: SidePanel?
-    /// Whether the pointer resting on the notch is on its left, where the orb sits, which opens the side panel instead.
-    private var restingOnLeft = false
-    /// Where the history is kept between launches; none in the preview, which keeps it in memory only.
-    private var historyFile: HistoryFile?
-    /// Where the history is kept between launches; none in the preview, which keeps it in memory only.
-    private var historyFile: HistoryFile?
-    /// Where the history is kept between launches; none in the preview, which keeps it in memory only.
-    private var historyFile: HistoryFile?
 
     private enum Layout {
         /// The orb view's size before the island lays it out at its real size.
@@ -75,38 +63,35 @@ final class IslandPanel: NSPanel, Face {
         super.init(
             contentRect: NSRect(origin: .zero, size: Island.window),
             styleMask: [.borderless, .nonactivatingPanel],
-        model.toggleSide = { [weak self] in self?.side?.toggle() }
-        model.showExchange = { [weak self] id in self?.showExchange(id) }
             backing: .buffered,
             defer: false
         )
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        model.toggleSide = { [weak self] in self?.side?.toggle() }
-        side = SidePanel(model: model)
-        model.showExchange = { [weak self] id in self?.showExchange(id) }
         // Above the menu bar, since the island has to cover the notch and the bar either side of it.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + Layout.levelAboveMenuBar)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         hidesOnDeactivate = false
         ignoresMouseEvents = true
         model.focus = { [weak self] session in self?.focus(session) }
+        model.toggleSide = { [weak self] in self?.side?.toggle() }
+        model.showExchange = { [weak self] id in self?.showExchange(id) }
         // Takes the first click, since the island never becomes the active window and would otherwise swallow it.
-        side = SidePanel(model: model)
         let hosting = FirstClickHosting(rootView: IslandView(model: model, orb: orb, loudness: loudness))
         // The window keeps its own size, since the island grows inside it rather than with it.
         hosting.sizingOptions = []
         contentView = hosting
         place()
         orderFrontRegardless()
+        side = SidePanel(model: model)
         // Polled rather than tracked, because the window is larger than the island and must let clicks past its shape.
         poll = Timer.scheduledTimer(withTimeInterval: 1.0 / Double(Timing.framesPerSecond), repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.follow() }
         }
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
-    @MainActor func wire(answer: @escaping (HeldCard, HoldAnswer) -> Void, tapped: @escaping () -> Void) {
+        ) { [weak self] _ in
             MainActor.assumeIsolated { self?.place() }
         }
         // A click anywhere else puts the open island away; clicks on the island itself are not global.
@@ -115,14 +100,29 @@ final class IslandPanel: NSPanel, Face {
         }
     }
 
-    @MainActor func wire(answer: @escaping (HeldCard, HoldAnswer) -> Void, tapped: @escaping () -> Void) {
+    override var canBecomeKey: Bool { false }
 
-    @MainActor func wire(answer: @escaping (HeldCard, HoldAnswer) -> Void, tapped: @escaping () -> Void) {
+    /// Not pushed below the menu bar, which is exactly where the island lives.
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
-    @MainActor func wire(answer: @escaping (HeldCard, HoldAnswer) -> Void, tapped: @escaping () -> Void) {
+
     /// The answer buttons and a tap on the resting orb, wired by the app delegate.
     @MainActor func wire(answer: @escaping (HeldCard, HoldAnswer) -> Void, tapped: @escaping () -> Void) {
         model.answer = answer
+        model.tapped = tapped
+    }
+
+    /// Where the sessions come from, and how a session's own window is brought forward.
+    @MainActor func wireSessions(
+        list: @escaping () async -> [SessionCard],
+        view: @escaping (String) async -> SessionView?,
+        open: @escaping (String, DisplayHost?) -> Void
+    ) {
+        self.list = list
+        self.view = view
+        model.openWindow = open
+        refresh()
+    }
+
     /// The history read back from where it was kept, and kept there again after every answer.
     @MainActor func keepHistory(in file: HistoryFile) {
         historyFile = file
@@ -191,525 +191,14 @@ final class IslandPanel: NSPanel, Face {
         model.settle()
     }
 
-        model.tapped = tapped
-    }
-
-    /// Where the sessions come from, and how a session's own window is brought forward.
-    @MainActor func wireSessions(
-        list: @escaping () async -> [SessionCard],
-        view: @escaping (String) async -> SessionView?,
-        open: @escaping (String, DisplayHost?) -> Void
-    ) {
-    /// The history read back from where it was kept, and kept there again after every answer.
-    @MainActor func keepHistory(in file: HistoryFile) {
-        historyFile = file
-        model.history = file.load()
-        model.forgetHistory = { [weak self] in
-            guard let self else { return }
-            if !model.active { model.talkingSince = Date() }
-            self.model.history.forget()
-            self.historyFile?.save(self.model.history)
-            self.model.settle()
-        }
-    }
-
-    /// What a button on an answer or a draft does, wired by the app delegate.
-    @MainActor func wireConversation(
-        openAnswer: @escaping (Exchange) -> Void,
-            model.heard = ""
-            model.expanded = false
-            model.talkingSince = nil
-        answerDraft: @escaping (DraftCard, Bool) -> Void,
-        answerRule: @escaping (RuleCard, RuleScope?) -> Void,
-        askAgain: @escaping (String) -> Void
-    ) {
-        model.openAnswer = openAnswer
-        model.answerDraft = answerDraft
-    /// Every word heard so far, the moment the recognizer has it, for the notch to show as it is said.
-    nonisolated func hearing(_ words: String) {
-        DispatchQueue.main.async { [self] in
-            guard model.liveWords, model.active, words != model.heard else { return }
-            model.heard = words
-            model.settle()
-        }
-    }
-
-    nonisolated func asked(_ words: String) {
-        DispatchQueue.main.async { [self] in
-            model.history.ask(words, at: Date())
-            model.heard = ""
-            model.settle()
-        }
-    }
-
-    nonisolated func replying(_ text: String) {
-        DispatchQueue.main.async { [self] in model.history.reply(text) }
-    }
-
-    nonisolated func replied(failure: String?) {
-        DispatchQueue.main.async { [self] in
-            model.history.end(at: Date(), failure: failure)
-            historyFile?.save(model.history)
-            model.settle()
-        }
-    }
-
-    /// Sending mail is set aside for now, so a drafted message is left unshown and nothing can send it.
-    private nonisolated static let showsDrafts = false
-
-    /// A drafted message arrived: the island opens on it, over whatever it was showing, until it is sent or closed.
-    nonisolated func draft(subject: String, _ draft: MailDraft) {
-        guard Self.showsDrafts else { return }
-        let card = DraftCard(subject: subject, draft: draft)
-        DispatchQueue.main.async { [self] in
-            place()
-            model.draft = card
-            model.sending = false
-            model.settle()
-        }
-    }
-
-    /// A Send or a close ended: the card stays up when Touch ID was cancelled, and shakes when it did not go through.
-    nonisolated func draftAnswered(_ card: DraftCard, _ outcome: HeldOutcome) {
-        DispatchQueue.main.async { [self] in
-            model.sending = false
-            switch outcome {
-            case .answered:
-                guard model.draft?.subject == card.subject else { return }
-                model.draft = nil
-                model.settle()
-            case .cancelled: break
-            case .failed: model.shakes += 1
-            }
-        }
-    }
-
-        model.answerRule = answerRule
-        model.askAgain = askAgain
-    }
-
-    /// Control and Option held or let go: the island says it is taking down a rule while they are held.
-            // A fresh listen starts with no words, so nothing heard last time lingers in the bubble.
-            if state == .listening, text.isEmpty { model.heard = "" }
-    nonisolated func ruling(_ on: Bool) {
-        DispatchQueue.main.async { [self] in
-            withAnimation(.snappy) { model.ruling = on }
-            model.settle()
-        }
-    }
-
-    /// A proposed rule arrived: the island opens on it with the places it could hold, the suggested one picked.
-    nonisolated func rule(subject: String, _ rule: RuleDraft) {
-        let card = RuleCard(subject: subject, draft: rule)
-        DispatchQueue.main.async { [self] in
-            place()
-            model.rule = card
-            model.ruleScope = rule.suggestedScope?.id
-            model.sending = false
-            model.settle()
-        }
-    }
-
-    /// Enforce or Not now ended: the card stays up when Touch ID was cancelled, and shakes when it did not go through.
-    nonisolated func ruleAnswered(_ card: RuleCard, _ outcome: HeldOutcome) {
-        DispatchQueue.main.async { [self] in
-            model.sending = false
-            switch outcome {
-            case .answered:
-                guard model.rule?.subject == card.subject else { return }
-                model.rule = nil
-                model.ruleScope = nil
-                model.settle()
-            case .cancelled: break
-            case .failed: model.shakes += 1
-            }
-        }
-    }
-
-        self.list = list
-        self.view = view
-    /// The history read back from where it was kept, and kept there again after every answer.
-    @MainActor func keepHistory(in file: HistoryFile) {
-        historyFile = file
-        model.history = file.load()
-        model.forgetHistory = { [weak self] in
-            guard let self else { return }
-            self.model.history.forget()
-            self.historyFile?.save(self.model.history)
-            self.model.settle()
-        }
-    }
-
-    /// What a button on an answer or a draft does, wired by the app delegate.
-            if !model.active { model.talkingSince = Date() }
-    @MainActor func wireConversation(
-        openAnswer: @escaping (Exchange) -> Void,
-        answerDraft: @escaping (DraftCard, Bool) -> Void,
-        answerRule: @escaping (RuleCard, RuleScope?) -> Void,
-        askAgain: @escaping (String) -> Void
-    ) {
-        model.openAnswer = openAnswer
-        model.answerDraft = answerDraft
-        model.answerRule = answerRule
-            model.heard = ""
-            model.expanded = false
-            model.talkingSince = nil
-        model.askAgain = askAgain
-    }
-
-    /// Control and Option held or let go: the island says it is taking down a rule while they are held.
-    nonisolated func ruling(_ on: Bool) {
-        DispatchQueue.main.async { [self] in
-    /// Every word heard so far, the moment the recognizer has it, for the notch to show as it is said.
-    nonisolated func hearing(_ words: String) {
-        DispatchQueue.main.async { [self] in
-            guard model.liveWords, model.active, words != model.heard else { return }
-            model.heard = words
-            model.settle()
-        }
-    }
-
-    nonisolated func asked(_ words: String) {
-        DispatchQueue.main.async { [self] in
-            model.history.ask(words, at: Date())
-            model.heard = ""
-            model.settle()
-        }
-    }
-
-    nonisolated func replying(_ text: String) {
-        // The left of the notch, where the orb rests, opens the side panel; anywhere else opens the island.
-        let onLeft = mouse.x < frame.midX - model.notch.width / 2
-        if hovering, onLeft != restingOnLeft {
-            restingOnLeft = onLeft
-            hoverSince = nil
-        }
-        if hovering, !model.active, !(onLeft && model.sideOpen) {
-    }
-
-    nonisolated func replied(failure: String?) {
-            if now.timeIntervalSince(since) >= dwell {
-                if onLeft {
-                    hoverSince = nil
-                    side?.open()
-                } else {
-                    openIsland()
-                }
-            }
-            model.history.end(at: Date(), failure: failure)
-            historyFile?.save(model.history)
-            model.settle()
-        }
-        guard model.opened, !model.active, [.overview, .session, .empty, .answer].contains(model.mode) else {
-
-    /// Sending mail is set aside for now, so a drafted message is left unshown and nothing can send it.
-    private nonisolated static let showsDrafts = false
-
-    /// A drafted message arrived: the island opens on it, over whatever it was showing, until it is sent or closed.
-    nonisolated func draft(subject: String, _ draft: MailDraft) {
-        guard Self.showsDrafts else { return }
-        let card = DraftCard(subject: subject, draft: draft)
-        DispatchQueue.main.async { [self] in
-            place()
-            model.draft = card
-            model.sending = false
-            model.settle()
-        }
-    }
-
-    /// A Send or a close ended: the card stays up when Touch ID was cancelled, and shakes when it did not go through.
-    nonisolated func draftAnswered(_ card: DraftCard, _ outcome: HeldOutcome) {
-        DispatchQueue.main.async { [self] in
-            model.sending = false
-            switch outcome {
-            case .answered:
-                guard model.draft?.subject == card.subject else { return }
-                model.draft = nil
-                model.settle()
-        model.picked = nil
-            case .cancelled: break
-            case .failed: model.shakes += 1
-            }
-        }
-    }
-
-            withAnimation(.snappy) { model.ruling = on }
-            model.settle()
-        }
-    }
-
-            // A fresh listen starts with no words, so nothing heard last time lingers in the bubble.
-            if state == .listening, text.isEmpty { model.heard = "" }
-    /// A proposed rule arrived: the island opens on it with the places it could hold, the suggested one picked.
-    nonisolated func rule(subject: String, _ rule: RuleDraft) {
-        let card = RuleCard(subject: subject, draft: rule)
-        DispatchQueue.main.async { [self] in
-            place()
-            model.rule = card
-            model.ruleScope = rule.suggestedScope?.id
-            model.sending = false
-            model.settle()
-        }
-    }
-
-    /// Enforce or Not now ended: the card stays up when Touch ID was cancelled, and shakes when it did not go through.
-    nonisolated func ruleAnswered(_ card: RuleCard, _ outcome: HeldOutcome) {
-        DispatchQueue.main.async { [self] in
-    /// The side panel put up or taken down, from the header, the menu or the preview.
-    @MainActor func showSide(_ on: Bool) {
-        on ? side?.open() : side?.close(animated: true)
-    }
-
-    /// An exchange picked in the side panel, opened tall under the notch beside it.
-    @MainActor private func showExchange(_ id: UUID) {
-        guard !model.active else { return }
-        model.picked = id
-        openIsland()
-    }
-
-    /// The answer under the question opened up tall, or put back in its card.
-    @MainActor func expandAnswer(_ on: Bool) {
-        model.expanded = on
-        model.settle()
-    }
-
-            model.sending = false
-            switch outcome {
-            case .answered:
-                guard model.rule?.subject == card.subject else { return }
-                model.rule = nil
-                model.ruleScope = nil
-                model.settle()
-            case .cancelled: break
-            case .failed: model.shakes += 1
-            }
-        }
-    }
-
-        model.openWindow = open
-        refresh()
-    /// The history read back from where it was kept, and kept there again after every answer.
-    @MainActor func keepHistory(in file: HistoryFile) {
-        historyFile = file
-        model.history = file.load()
-        model.forgetHistory = { [weak self] in
-            guard let self else { return }
-            self.model.history.forget()
-            self.historyFile?.save(self.model.history)
-            self.model.settle()
-        }
-    }
-
-    /// What a button on an answer or a draft does, wired by the app delegate.
-            if !model.active { model.talkingSince = Date() }
-    @MainActor func wireConversation(
-        openAnswer: @escaping (Exchange) -> Void,
-        answerDraft: @escaping (DraftCard, Bool) -> Void,
-        answerRule: @escaping (RuleCard, RuleScope?) -> Void,
-        askAgain: @escaping (String) -> Void
-    ) {
-        model.openAnswer = openAnswer
-        model.answerDraft = answerDraft
-        model.answerRule = answerRule
-            model.heard = ""
-            model.expanded = false
-            model.talkingSince = nil
-        model.askAgain = askAgain
-    }
-
-    }
-
-    /// The history read back from where it was kept, and kept there again after every answer.
-    /// Every word heard so far, the moment the recognizer has it, for the notch to show as it is said.
-    nonisolated func hearing(_ words: String) {
-        DispatchQueue.main.async { [self] in
-            guard model.liveWords, model.active, words != model.heard else { return }
-            model.heard = words
-            model.settle()
-        }
-    }
-
-    nonisolated func asked(_ words: String) {
-        DispatchQueue.main.async { [self] in
-            model.history.ask(words, at: Date())
-            model.heard = ""
-            model.settle()
-        }
-    }
-
-    nonisolated func replying(_ text: String) {
-        DispatchQueue.main.async { [self] in model.history.reply(text) }
-    }
-
-    nonisolated func replied(failure: String?) {
-        DispatchQueue.main.async { [self] in
-            model.history.end(at: Date(), failure: failure)
-            historyFile?.save(model.history)
-        // The left of the notch, where the orb rests, opens the side panel; anywhere else opens the island.
-        let onLeft = mouse.x < frame.midX - model.notch.width / 2
-        if hovering, onLeft != restingOnLeft {
-            restingOnLeft = onLeft
-            hoverSince = nil
-        }
-        if hovering, !model.active, !(onLeft && model.sideOpen) {
-        }
-    }
-
-            if now.timeIntervalSince(since) >= dwell {
-                if onLeft {
-                    hoverSince = nil
-                    side?.open()
-                } else {
-                    openIsland()
-                }
-            }
-    private nonisolated static let showsDrafts = false
-
-    /// A drafted message arrived: the island opens on it, over whatever it was showing, until it is sent or closed.
-    nonisolated func draft(subject: String, _ draft: MailDraft) {
-        guard model.opened, !model.active, [.overview, .session, .empty, .answer].contains(model.mode) else {
-        let card = DraftCard(subject: subject, draft: draft)
-        DispatchQueue.main.async { [self] in
-            place()
-            model.draft = card
-            model.sending = false
-            model.settle()
-        }
-    }
-
-    /// A Send or a close ended: the card stays up when Touch ID was cancelled, and shakes when it did not go through.
-    nonisolated func draftAnswered(_ card: DraftCard, _ outcome: HeldOutcome) {
-        DispatchQueue.main.async { [self] in
-            model.sending = false
-            switch outcome {
-            case .answered:
-                guard model.draft?.subject == card.subject else { return }
-                model.draft = nil
-                model.settle()
-            case .cancelled: break
-            case .failed: model.shakes += 1
-            }
-        }
-    }
-
-    @MainActor func keepHistory(in file: HistoryFile) {
-        model.picked = nil
-        historyFile = file
-        model.history = file.load()
-        model.forgetHistory = { [weak self] in
-            guard let self else { return }
-            // A fresh listen starts with no words, so nothing heard last time lingers in the bubble.
-            if state == .listening, text.isEmpty { model.heard = "" }
-            self.model.history.forget()
-            self.historyFile?.save(self.model.history)
-            self.model.settle()
-        }
-    }
-
-    /// What a button on an answer or a draft does, wired by the app delegate.
-            if !model.active { model.talkingSince = Date() }
-    @MainActor func wireConversation(
-        openAnswer: @escaping (Exchange) -> Void,
-        answerDraft: @escaping (DraftCard, Bool) -> Void,
-        answerRule: @escaping (RuleCard, RuleScope?) -> Void,
-        askAgain: @escaping (String) -> Void
-    ) {
-        model.openAnswer = openAnswer
-        model.answerDraft = answerDraft
-        model.answerRule = answerRule
-            model.heard = ""
-            model.expanded = false
-            model.talkingSince = nil
-        model.askAgain = askAgain
-    }
-    /// The side panel put up or taken down, from the header, the menu or the preview.
-    @MainActor func showSide(_ on: Bool) {
-        on ? side?.open() : side?.close(animated: true)
-    }
-
-    /// An exchange picked in the side panel, opened tall under the notch beside it.
-    @MainActor private func showExchange(_ id: UUID) {
-        guard !model.active else { return }
-        model.picked = id
-        openIsland()
-    }
-
-    /// The answer under the question opened up tall, or put back in its card.
-    @MainActor func expandAnswer(_ on: Bool) {
-        model.expanded = on
-        model.settle()
-    }
-
-
     /// Where the orb is on screen while it shows large, for a card that flies out of it.
     @MainActor var orbFrame: NSRect? {
         guard model.mode.isOpen else { return nil }
-    /// Every word heard so far, the moment the recognizer has it, for the notch to show as it is said.
-    nonisolated func hearing(_ words: String) {
-        DispatchQueue.main.async { [self] in
-            guard model.liveWords, model.active, words != model.heard else { return }
-            model.heard = words
-            model.settle()
-        }
-    }
-
-    nonisolated func asked(_ words: String) {
-        DispatchQueue.main.async { [self] in
-            model.history.ask(words, at: Date())
-            model.heard = ""
-            model.settle()
-        }
-    }
-
-    nonisolated func replying(_ text: String) {
-        DispatchQueue.main.async { [self] in model.history.reply(text) }
-    }
-
-    nonisolated func replied(failure: String?) {
-        DispatchQueue.main.async { [self] in
-            model.history.end(at: Date(), failure: failure)
-            historyFile?.save(model.history)
-            model.settle()
-        }
-    }
-
-    /// Sending mail is set aside for now, so a drafted message is left unshown and nothing can send it.
-    private nonisolated static let showsDrafts = false
-
-    /// A drafted message arrived: the island opens on it, over whatever it was showing, until it is sent or closed.
-    nonisolated func draft(subject: String, _ draft: MailDraft) {
-        guard Self.showsDrafts else { return }
-        let card = DraftCard(subject: subject, draft: draft)
-        DispatchQueue.main.async { [self] in
-            place()
-            model.draft = card
-            model.sending = false
-            model.settle()
-        }
-    }
-
-    /// A Send or a close ended: the card stays up when Touch ID was cancelled, and shakes when it did not go through.
-    nonisolated func draftAnswered(_ card: DraftCard, _ outcome: HeldOutcome) {
-        DispatchQueue.main.async { [self] in
-            model.sending = false
-            switch outcome {
-            case .answered:
-                guard model.draft?.subject == card.subject else { return }
-                model.draft = nil
-                model.settle()
-            case .cancelled: break
-            case .failed: model.shakes += 1
-            }
-        }
-    }
-
         let orb = Island.orb(model.mode, model.notch, hovering: false)
         let size = model.size(of: model.mode)
         let left = frame.midX - size.width / 2
         return NSRect(
             x: left + orb.center.x - orb.diameter / 2, y: frame.maxY - orb.center.y - orb.diameter / 2,
-            // A fresh listen starts with no words, so nothing heard last time lingers in the bubble.
-            if state == .listening, text.isEmpty { model.heard = "" }
             width: orb.diameter, height: orb.diameter
         )
     }
@@ -740,7 +229,6 @@ final class IslandPanel: NSPanel, Face {
     nonisolated func hearing(_ words: String) {
         DispatchQueue.main.async { [self] in
             guard model.liveWords, model.active, words != model.heard else { return }
-        model.picked = nil
             model.heard = words
             model.settle()
         }
@@ -766,20 +254,33 @@ final class IslandPanel: NSPanel, Face {
         }
     }
 
-    /// Every word heard so far, the moment the recognizer has it, for the notch to show as it is said.
-    nonisolated func hearing(_ words: String) {
+    /// Sending mail is set aside for now, so a drafted message is left unshown and nothing can send it.
+    private nonisolated static let showsDrafts = false
+
+    /// A drafted message arrived: the island opens on it, over whatever it was showing, until it is sent or closed.
+    nonisolated func draft(subject: String, _ draft: MailDraft) {
+        guard Self.showsDrafts else { return }
+        let card = DraftCard(subject: subject, draft: draft)
         DispatchQueue.main.async { [self] in
-    /// The answer under the question opened up tall, or put back in its card.
-    @MainActor func expandAnswer(_ on: Bool) {
-        model.expanded = on
-        model.settle()
+            place()
+            model.draft = card
+            model.sending = false
+            model.settle()
+        }
     }
 
-            guard model.liveWords, model.active, words != model.heard else { return }
-            model.heard = words
-            // A fresh listen starts with no words, so nothing heard last time lingers in the bubble.
-            if state == .listening, text.isEmpty { model.heard = "" }
-            model.settle()
+    /// A Send or a close ended: the card stays up when Touch ID was cancelled, and shakes when it did not go through.
+    nonisolated func draftAnswered(_ card: DraftCard, _ outcome: HeldOutcome) {
+        DispatchQueue.main.async { [self] in
+            model.sending = false
+            switch outcome {
+            case .answered:
+                guard model.draft?.subject == card.subject else { return }
+                model.draft = nil
+                model.settle()
+            case .cancelled: break
+            case .failed: model.shakes += 1
+            }
         }
     }
 
@@ -839,7 +340,6 @@ final class IslandPanel: NSPanel, Face {
                 try? await Task.sleep(nanoseconds: Island.finishedFor)
                 guard !Task.isCancelled, let model = self?.model else { return }
                 model.finished = nil
-        model.picked = nil
                 model.settle()
             }
         }
@@ -868,12 +368,6 @@ final class IslandPanel: NSPanel, Face {
         ).insetBy(dx: -Layout.pointerSlop, dy: -Layout.pointerSlop)
         let mouse = NSEvent.mouseLocation
         let over = shape.contains(mouse)
-    /// The answer under the question opened up tall, or put back in its card.
-    @MainActor func expandAnswer(_ on: Bool) {
-        model.expanded = on
-        model.settle()
-    }
-
         if ignoresMouseEvents == over { ignoresMouseEvents = !over }
         let now = Date()
         if over, mouse != lastMouse { lastActivity = now }
@@ -884,16 +378,29 @@ final class IslandPanel: NSPanel, Face {
         if hovering != model.hovering {
             withAnimation(.spring(response: Timing.hoverResponse, dampingFraction: Timing.hoverDamping)) { model.hovering = hovering }
         }
-        if hovering, !model.active {
+        // The left of the notch, where the orb rests, opens the side panel; anywhere else opens the island.
+        let onLeft = mouse.x < frame.midX - model.notch.width / 2
+        if hovering, onLeft != restingOnLeft {
+            restingOnLeft = onLeft
+            hoverSince = nil
+        }
+        if hovering, !model.active, !(onLeft && model.sideOpen) {
             let since = hoverSince ?? now
             hoverSince = since
             let dwell = model.mode == .peek ? Island.dwellResting : Island.dwellBusy
-            if now.timeIntervalSince(since) >= dwell { openIsland() }
+            if now.timeIntervalSince(since) >= dwell {
+                if onLeft {
+                    hoverSince = nil
+                    side?.open()
+                } else {
+                    openIsland()
+                }
+            }
         } else {
             hoverSince = nil
         }
 
-        guard model.opened, [.overview, .session, .empty].contains(model.mode) else {
+        guard model.opened, !model.active, [.overview, .session, .empty, .answer].contains(model.mode) else {
             if model.countdown != nil { model.countdown = nil }
             return
         }
@@ -908,7 +415,6 @@ final class IslandPanel: NSPanel, Face {
 
     @MainActor func openIsland() {
         hoverSince = nil
-        model.picked = nil
         lastActivity = Date()
         model.opened = true
         model.detail = false
@@ -920,6 +426,7 @@ final class IslandPanel: NSPanel, Face {
         guard model.opened else { return }
         model.opened = false
         model.detail = false
+        model.picked = nil
         model.countdown = nil
         model.settle()
         refresh()
@@ -937,12 +444,6 @@ final class IslandPanel: NSPanel, Face {
                 if cards != model.cards { model.cards = cards }
                 if model.opened, let focus = model.focusCard {
                     if model.focusId == nil { model.focusId = focus.sessionId }
-    /// The answer under the question opened up tall, or put back in its card.
-    @MainActor func expandAnswer(_ on: Bool) {
-        model.expanded = on
-        model.settle()
-    }
-
                     let view = await view(focus.sessionId)
                     guard !Task.isCancelled else { return }
                     if view != model.focused { model.focused = view }
@@ -952,6 +453,24 @@ final class IslandPanel: NSPanel, Face {
                 try? await Task.sleep(nanoseconds: UInt64(pause * Timing.nanosecondsPerSecond))
             }
         }
+    }
+
+    /// The side panel put up or taken down, from the header, the menu or the preview.
+    @MainActor func showSide(_ on: Bool) {
+        on ? side?.open() : side?.close(animated: true)
+    }
+
+    /// An exchange picked in the side panel, opened tall under the notch beside it.
+    @MainActor private func showExchange(_ id: UUID) {
+        guard !model.active else { return }
+        model.picked = id
+        openIsland()
+    }
+
+    /// The answer under the question opened up tall, or put back in its card.
+    @MainActor func expandAnswer(_ on: Bool) {
+        model.expanded = on
+        model.settle()
     }
 
     /// The open island turned to one session up close, or back to all of them.

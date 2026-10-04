@@ -17,8 +17,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let barge = BargeEars()
     /// Control and Option held down: a rule said for as long as they are held.
     private let holdKeys = HoldKeys()
-    /// Control and Option held down: a rule said for as long as they are held.
-    private let holdKeys = HoldKeys()
     /// Off unless the person turns it on: news that needs nobody stays quiet until they call Memnox.
     private static let speakUpKey = "speakUp"
     /// On unless turned off: cutting in by speaking over the voice.
@@ -28,33 +26,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let kokoro = KokoroServer()
     /// Puts Kokoro on this Mac the first time, so the natural voice is the default with nothing to run.
     private let kokoroInstaller = KokoroInstaller()
-    /// On unless turned off: what the person says shows in the notch word by word as it is heard.
-    private static let liveWordsKey = "liveWords"
     /// Off until the person turns it on, since it keeps the microphone open whenever the orb is idle.
     private static let wakeKey = "wakeOnName"
     /// On unless turned off: what the person says shows in the notch word by word as it is heard.
     private static let liveWordsKey = "liveWords"
-    /// On unless turned off: what the person says shows in the notch word by word as it is heard.
-    private static let liveWordsKey = "liveWords"
-    /// On unless turned off: what the person says shows in the notch word by word as it is heard.
-    private static let liveWordsKey = "liveWords"
     private let link = UnixSocketLink()
     // Set once in applicationDidFinishLaunching, before anything can reach them.
-    private let frontApp = FrontApp()
     private var panel: IslandPanel!
     private var preview: IslandPreview?
     private var voice: Voice!
     private var conversation: Conversation!
-    private let frontApp = FrontApp()
     private var hotkey: Hotkey?
     private let owner = DefaultsOwner()
-    private let frontApp = FrontApp()
     private let presenter = SessionPresenter()
     private let chimes = SystemChimes()
-    private let frontApp = FrontApp()
-    private let frontApp = FrontApp()
-    private let frontApp = FrontApp()
-    private let frontApp = FrontApp()
     private let frontApp = FrontApp()
     /// When the screen locked, so coming back after a while can be caught up on.
     private var awaySince: Date?
@@ -79,150 +64,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// How long it waits for the rest when the brain thought they stopped mid thought; past it, what they said is answered as it stands.
     private static let restOfThoughtSeconds: TimeInterval = 6
     private static let firstWordSeconds: TimeInterval = 10
-            self?.panel.hearing(words)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The island on its own, touring its states, with nothing listening and no daemon needed.
         if IslandPreview.requested {
             panel = IslandPanel(loudness: { IslandPreview.level })
-            self?.panel.hearing(words)
             let preview = IslandPreview(panel: panel)
             self.preview = preview
             preview.start()
-            self?.panel.hearing(words)
             return
         }
         let voice = Voice()
-            self?.panel.hearing(words)
         self.voice = voice
         panel = IslandPanel(loudness: { [audio] in max(audio.micLevel, voice.level) })
         ears.hearing = { [weak self] words in
             self?.panel.show(.listening, caption: caption(words))
+            self?.panel.hearing(words)
         }
         ears.guessing = { [weak self] words in
             Task { @MainActor [weak self] in
-            address: { chosenAddress() },
-            name: { chosenName() },
-            lookingAt: { [frontApp] in frontApp.name }
+                guard let self, let mine = self.ownWordsOnly(words) else { return }
                 await self.conversation?.guess(mine)
             }
         }
         ears.missed = { [weak self] in
-        presenter.corrected = { [weak self] typed, sent in
-            Task { await self?.conversation.learn(typed: typed, sent: sent) }
-        }
             self?.panel.show(.listening, caption: "Sorry, say that again?")
-            answer: { [weak self] card, answer in self?.answerHeld(card, answer) },
-            name: { chosenName() },
-            lookingAt: { [frontApp] in frontApp.name }
+        }
         Task { [ears] in await ears.prepare() }
         let key: ConfirmKey
         do {
-            address: { chosenAddress() },
-        presenter.corrected = { [weak self] typed, sent in
-        panel.keepHistory(in: HistoryFile())
-        panel.wireConversation(
-            openAnswer: { [presenter] exchange in
-                Task { await presenter.card(SummaryCard(title: exchange.question, text: exchange.answer)) }
-            },
-            answerDraft: { [weak self] card, send in self?.answerDraft(card, send: send) },
-            answerRule: { [weak self] card, scope in self?.answerRule(card, scope: scope) },
-            // The question goes back whole, as if said again, so nothing here reads its words.
-            askAgain: { [weak self] question in
-                guard let self, !self.talking else { return }
-                self.enqueue { [weak self] in await self?.converse(opening: question) }
-            }
-        )
-            Task { await self?.conversation.learn(typed: typed, sent: sent) }
-        holdKeys.began = { [weak self] in self?.ruleHeld() }
-        holdKeys.ended = { [weak self] in self?.panel.ruling(false) }
-        holdKeys.start()
-        if !HoldKeys.canWatch { diary.note("Accessibility is off, so holding Control and Option for a rule is not seen yet") }
-        UserDefaults.standard.register(defaults: [Self.speakUpKey: false, Self.bargeKey: true, SystemChimes.key: true, Self.liveWordsKey: true])
-        panel.showLiveWords(UserDefaults.standard.bool(forKey: Self.liveWordsKey))
-            name: { chosenName() },
-            answer: { [weak self] card, answer in self?.answerHeld(card, answer) },
+            key = try SecureEnclaveConfirmKey()
         } catch {
             // No Secure Enclave or no keychain: nothing can ever be confirmed from this Mac.
             NSLog("Memnox: no confirmation key, so allows stay in the terminal: \(error)")
-            address: { chosenAddress() },
-        presenter.corrected = { [weak self] typed, sent in
-            Task { await self?.conversation.learn(typed: typed, sent: sent) }
+            key = RefusingKey()
         }
-        panel.keepHistory(in: HistoryFile())
-        panel.wireConversation(
-            openAnswer: { [presenter] exchange in
-                Task { await presenter.card(SummaryCard(title: exchange.question, text: exchange.answer)) }
-            liveWordsOn: UserDefaults.standard.bool(forKey: Self.liveWordsKey),
-            setLiveWords: { [weak self] on in
-                UserDefaults.standard.set(on, forKey: Self.liveWordsKey)
-                self?.panel.showLiveWords(on)
-            },
-            },
-            answerDraft: { [weak self] card, send in self?.answerDraft(card, send: send) },
-            answerRule: { [weak self] card, scope in self?.answerRule(card, scope: scope) },
-            // The question goes back whole, as if said again, so nothing here reads its words.
-            sayRule: { [weak self] in self?.sayRule() },
-            askAgain: { [weak self] question in
-                guard let self, !self.talking else { return }
-                self.enqueue { [weak self] in await self?.converse(opening: question) }
-            }
-        )
-            name: { chosenName() },
-        holdKeys.began = { [weak self] in self?.ruleHeld() }
-        holdKeys.ended = { [weak self] in self?.panel.ruling(false) }
-        holdKeys.start()
-        if !HoldKeys.canWatch { diary.note("Accessibility is off, so holding Control and Option for a rule is not seen yet") }
-        UserDefaults.standard.register(defaults: [Self.speakUpKey: false, Self.bargeKey: true, SystemChimes.key: true, Self.liveWordsKey: true])
-        panel.showLiveWords(UserDefaults.standard.bool(forKey: Self.liveWordsKey))
+        conversation = Conversation(
+            link: link, speaker: voice, key: key, face: panel, owner: owner, presenter: presenter, chimes: chimes,
             address: { chosenAddress() },
             name: { chosenName() },
-            lookingAt: { [frontApp] in frontApp.name }
-            address: { chosenAddress() },
-        presenter.corrected = { [weak self] typed, sent in
-            Task { await self?.conversation.learn(typed: typed, sent: sent) }
-        }
-        panel.keepHistory(in: HistoryFile())
-        panel.wireConversation(
-            openAnswer: { [presenter] exchange in
-                Task { await presenter.card(SummaryCard(title: exchange.question, text: exchange.answer)) }
-            },
-            answerDraft: { [weak self] card, send in self?.answerDraft(card, send: send) },
-            liveWordsOn: UserDefaults.standard.bool(forKey: Self.liveWordsKey),
-            setLiveWords: { [weak self] on in
-                UserDefaults.standard.set(on, forKey: Self.liveWordsKey)
-                self?.panel.showLiveWords(on)
-            },
-            answerRule: { [weak self] card, scope in self?.answerRule(card, scope: scope) },
-            // The question goes back whole, as if said again, so nothing here reads its words.
-            askAgain: { [weak self] question in
-                guard let self, !self.talking else { return }
-                self.enqueue { [weak self] in await self?.converse(opening: question) }
-            }
-        )
-            name: { chosenName() },
-            lookingAt: { [frontApp] in frontApp.name }
-            address: { chosenAddress() },
-        presenter.corrected = { [weak self] typed, sent in
-            Task { await self?.conversation.learn(typed: typed, sent: sent) }
-        }
-            name: { chosenName() },
-            lookingAt: { [frontApp] in frontApp.name }
-            address: { chosenAddress() },
-        // Learnt alongside rather than before, so the microphone is heard from the first word; the names land by the next listen.
-        Task { [weak self] in await self?.learnNames() }
             lookingAt: { [frontApp] in frontApp.name }
         )
         presenter.livePanel.fetch = { [weak self] session in await self?.conversation.sessionView(session) }
         presenter.sessions = { [weak self] in await self?.conversation.sessionsList() ?? [] }
         presenter.orbFrame = { [weak self] in self?.panel.orbFrame }
-            liveWordsOn: UserDefaults.standard.bool(forKey: Self.liveWordsKey),
-            setLiveWords: { [weak self] on in
-                UserDefaults.standard.set(on, forKey: Self.liveWordsKey)
-                self?.panel.showLiveWords(on)
-            },
+        presenter.corrected = { [weak self] typed, sent in
+            Task { await self?.conversation.learn(typed: typed, sent: sent) }
+        }
         panel.wire(
-            answer: { [weak self] subject, answer, reason in self?.answerHeld(subject, answer, reason: reason) },
+            answer: { [weak self] card, answer in self?.answerHeld(card, answer) },
             tapped: { [weak self] in self?.tappedIsland() }
         )
         panel.wireSessions(
@@ -230,13 +120,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             view: { [weak self] session in await self?.conversation.sessionView(session) },
             open: { [presenter] session, host in Task { _ = await presenter.focus(session: session, host: host) } }
         )
-            liveWordsOn: UserDefaults.standard.bool(forKey: Self.liveWordsKey),
-            setLiveWords: { [weak self] on in
-                UserDefaults.standard.set(on, forKey: Self.liveWordsKey)
-                self?.panel.showLiveWords(on)
+        panel.keepHistory(in: HistoryFile())
+        panel.wireConversation(
+            openAnswer: { [presenter] exchange in
+                Task { await presenter.card(SummaryCard(title: exchange.question, text: exchange.answer)) }
             },
+            answerDraft: { [weak self] card, send in self?.answerDraft(card, send: send) },
+            answerRule: { [weak self] card, scope in self?.answerRule(card, scope: scope) },
+            // The question goes back whole, as if said again, so nothing here reads its words.
+            askAgain: { [weak self] question in
+                guard let self, !self.talking else { return }
+                self.enqueue { [weak self] in await self?.converse(opening: question) }
+            }
+        )
         hotkey = Hotkey { [weak self] in self?.talk() }
-        UserDefaults.standard.register(defaults: [Self.speakUpKey: false, Self.bargeKey: true, SystemChimes.key: true])
+        holdKeys.began = { [weak self] in self?.ruleHeld() }
+        holdKeys.ended = { [weak self] in self?.panel.ruling(false) }
+        holdKeys.start()
+        if !HoldKeys.canWatch { diary.note("Accessibility is off, so holding Control and Option for a rule is not seen yet") }
+        UserDefaults.standard.register(defaults: [Self.speakUpKey: false, Self.bargeKey: true, SystemChimes.key: true, Self.liveWordsKey: true])
+        panel.showLiveWords(UserDefaults.standard.bool(forKey: Self.liveWordsKey))
         wake.woke = { [weak self] after in
             self?.enqueue { [weak self] in await self?.converse(opening: after, greet: after.isEmpty) }
         }
@@ -244,17 +147,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             wakeOn: UserDefaults.standard.bool(forKey: Self.wakeKey),
             talk: { [weak self] in self?.talk() },
             setWake: { [weak self] in self?.setWake($0) },
-        // Learnt alongside rather than before, so the microphone is heard from the first word; the names land by the next listen.
-        Task { [weak self] in await self?.learnNames() }
+            speakUpOn: UserDefaults.standard.bool(forKey: Self.speakUpKey),
             setSpeakUp: { UserDefaults.standard.set($0, forKey: Self.speakUpKey) },
             talkOverOn: UserDefaults.standard.bool(forKey: Self.bargeKey),
             setTalkOver: { UserDefaults.standard.set($0, forKey: Self.bargeKey) },
             chimesOn: UserDefaults.standard.bool(forKey: SystemChimes.key),
             setChimes: { UserDefaults.standard.set($0, forKey: SystemChimes.key) },
+            liveWordsOn: UserDefaults.standard.bool(forKey: Self.liveWordsKey),
+            setLiveWords: { [weak self] on in
+                UserDefaults.standard.set(on, forKey: Self.liveWordsKey)
+                self?.panel.showLiveWords(on)
+            },
             voiceChoice: VoiceChoice.mac,
             chooseVoice: { [weak self] choice in Task { await self?.chooseVoice(choice, announce: true) } },
             setUp: { [weak self] in self?.showSetup() },
             saySomething: { [weak self] in self?.saySomething() },
+            sayRule: { [weak self] in self?.sayRule() },
             copyWhatHappened: { [weak self] in self?.copyWhatHappened() }
         )
         self.menu = menu
@@ -272,8 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if UserDefaults.standard.bool(forKey: SetupModel.doneKey) {
             Task { await conversation.introduce() }
         } else {
-        // Learnt alongside rather than before, so the microphone is heard from the first word; the names land by the next listen.
-        Task { [weak self] in await self?.learnNames() }
+            showSetup()
         }
     }
 
@@ -287,25 +194,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func converse(opening: String = "", greet: Bool = false) async {
-        // Learnt alongside rather than before, so the microphone is heard from the first word; the names land by the next listen.
-        Task { [weak self] in await self?.learnNames() }
+        talking = true
         panel.present()
         guard await Ears.mayHear() else {
             // Said, since a silent orb that cannot hear looks exactly like one that is not listening.
             panel.show(.speaking, caption: "I need permission to hear you")
             do { try audio.start() } catch {}
-        // Learnt alongside rather than before, so the microphone is heard from the first word; the names land by the next listen.
-        Task { [weak self] in await self?.learnNames() }
+            await voice.speak("I cannot hear you yet. Allow Memnox under Microphone and Speech Recognition in System Settings, Privacy and Security.")
             audio.stop()
             panel.dismiss()
-        // Learnt alongside rather than before, so the microphone is heard from the first word; the names land by the next listen.
-        Task { [weak self] in await self?.learnNames() }
+            talking = false
             return
         }
         do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
         // Started while they are still talking, so the answer does not wait on a cold start.
         Task { [conversation] in await conversation?.warm() }
-        await learnNames()
+        // Learnt alongside rather than before, so the microphone is heard from the first word; the names land by the next listen.
+        Task { [weak self] in await self?.learnNames() }
         var waiting = Self.firstWordSeconds
         if greet {
             // Called by name alone, it answers the way a person would before they ask.
@@ -328,84 +233,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if let more = next, !conversation.spokeThisTurn { next = "\(said) \(more)" }
             let holding = conversation.takeHold()
             // Held once on words already marked whole is a brain ignoring the note, and asking again would loop.
-    /// A button on the island: Touch ID for an allow that reaches outside the session, then the answer,
-    /// and the call stays up if it did not go through.
-    private func answerHeld(_ card: HeldCard, _ answer: HoldAnswer) {
+            held = holding && !finished ? said : nil
+            // They said they were done, so the orb goes now rather than after another wait.
             if next == nil, conversation.takeEnd() { break }
             waiting = holding ? Self.restOfThoughtSeconds : Self.followUpSeconds
             panel.show(.listening, caption: "")
         }
-            let outcome = await conversation.answerHeld(card.subject, answer, reason: card.summary, touchID: card.touchID)
-            panel.answered(card.subject, outcome)
-        }
-    }
-
-    /// Control and Option held: whatever was going on gives way, and the rule is listened to for as long as they are down.
-    private func ruleHeld() {
-        panel.ruling(true)
-        if talking {
-            // The listen in progress ends with nothing heard and the voice stops, so the rule turn comes next.
-            ears.cut.set(true)
-            Task { await conversation.interrupt() }
-        }
-        enqueue { [weak self] in await self?.converseRule() }
-    }
-
-    /// A rule, heard until the keys are let go and then sent at once with the rule intent; the brain
-    /// reads it back and asks where it holds, and the conversation carries on for the answer.
-    private func converseRule() async {
-        // Let go before this turn began: nothing was said for it, so there is nothing to take down.
-        guard holdKeys.holding else {
-            panel.ruling(false)
-            return
-        }
-        talking = true
-        panel.present()
-        panel.ruling(true)
-        guard await Ears.mayHear() else {
-            panel.ruling(false)
-            panel.dismiss()
-            talking = false
-            return
-        }
-        do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
-        Task { [conversation] in await conversation?.warm() }
-        chimes.play(.listening)
-        panel.show(.listening, caption: "")
-        diary.note("listening for a rule")
-        let down = holdKeys.down
-        let said = ownWordsOnly(await ears.listen(through: audio, waiting: 0, holding: { down.isSet }))
-        panel.ruling(false)
-        guard let said else {
-            chimes.play(.closed)
-            audio.stop()
-            panel.dismiss()
-            talking = false
-            return
-        }
-        let cutIn = await overVoice { [conversation] in await conversation?.heard(said, finished: true, intent: .rule) }
-        // The place can be said as well as picked, so the microphone stays open for the answer.
-        await converse(opening: cutIn ?? "")
-    }
-
-    /// Enforce or Not now on a rule: Touch ID over the place picked, one sheet after another, and the card stays up if it did not go.
-    private func answerRule(_ card: RuleCard, scope: RuleScope?) {
-        let previous = confirmations
-        confirmations = Task { [conversation, panel] in
-            await previous?.value
-            guard let conversation, let panel else { return }
-            let reason = "\(card.draft.summary) \(scope.map(placeWords) ?? "")"
-            panel.ruleAnswered(card, await conversation.answerRule(card.subject, scope: scope, reason: reason))
-        }
-    }
-
-    /// A draft's Send or close: Touch ID for a Send, one after another with every other sheet, and the card stays up if it did not go.
-    private func answerDraft(_ card: DraftCard, send: Bool) {
-        let previous = confirmations
-        confirmations = Task { [conversation, panel] in
-            await previous?.value
-            guard let conversation, let panel else { return }
-            panel.draftAnswered(card, await conversation.answerDraft(card.subject, send: send, reason: card.reason))
+        chimes.play(.closed)
         audio.stop()
         panel.dismiss()
         talking = false
@@ -434,13 +268,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func overVoice(_ speaking: @escaping @MainActor () async -> Void) async -> String? {
         guard UserDefaults.standard.bool(forKey: Self.bargeKey) else {
             await speaking()
-    /// A button on the island: Touch ID for an allow that reaches outside the session, then the answer,
-    /// and the call stays up if it did not go through.
-    private func answerHeld(_ card: HeldCard, _ answer: HoldAnswer) {
+            return nil
+        }
         let voice = self.voice! // Set at launch, before any turn can run.
         var cutting: Task<Void, Never>?
         // A breath before, so the first sentence queued for this reply is part of what counts as its own.
         // Back far enough to cover a sentence from before this reply that is still playing.
+        let began = Date().addingTimeInterval(-Self.echoLingers)
+        barge.watch(through: audio, spoken: { voice.spoken(since: began) }, speaking: { voice.level > 0 }) { [weak self] in
+            cutting = Task { await self?.conversation.interrupt() }
+        }
+        await speaking()
+        // The old answer's cancel must reach the daemon before the next question does, or it cancels that one.
+        await cutting?.value
+        return await barge.finish(audio)
+    }
+
+    /// Something began or stopped waiting: said out loud, then listened to for the answer.
+    private func arrived(_ event: DaemonEvent) {
+        // Shown at once, since it belongs to the answer being said now and a queue would hold it until after.
+        // A card, a window or a Touch ID sheet belongs to the conversation happening now, so it
+        // comes up at once; queued, it would wait until the person stopped talking.
+        if event.eventKind == .show {
+            Task { [conversation] in await conversation?.handle(event) }
+            return
+        }
+        // The island shows a held call the moment it arrives, so a hand can answer it before the voice has finished.
+        switch event.eventKind {
+        case .held: panel.hold(event)
+        case .settled: panel.release(event.subject)
+        case .paused: panel.shake()
+        case .notice where event.noticeKind == .finished: panel.finished(event)
+        case .notice, .proposal, .show, nil: break
+        }
+        if event.eventKind == .proposal {
+            let previous = confirmations
+            confirmations = Task { [conversation] in
+                await previous?.value
+                await conversation?.handle(event)
+            }
+            return
+        }
+        guard event.isSaid(speakUp: UserDefaults.standard.bool(forKey: Self.speakUpKey)) else { return }
+        enqueue { [self] in
+            if event.eventKind == .settled {
+                await conversation.handle(event)
+                return
+            }
+            panel.present()
+            do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
+            let cutIn = await overVoice { [conversation] in await conversation?.handle(event) }
+            // Only something waiting on their answer keeps the microphone open; news is said and the orb goes back to sleep.
+            if cutIn != nil || event.awaitsAnswer {
+                await converse(opening: cutIn ?? "")
+            } else {
+                audio.stop()
+                panel.dismiss()
+            }
+        }
+    }
+
+    /// A button on the island: Touch ID for an allow that reaches outside the session, then the answer,
+    /// and the call stays up if it did not go through.
+    private func answerHeld(_ card: HeldCard, _ answer: HoldAnswer) {
+        let previous = confirmations
+        confirmations = Task { [conversation, panel] in
+            await previous?.value
+            guard let conversation, let panel else { return }
             let outcome = await conversation.answerHeld(card.subject, answer, reason: card.summary, touchID: card.touchID)
             panel.answered(card.subject, outcome)
         }
@@ -512,145 +406,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await previous?.value
             guard let conversation, let panel else { return }
             panel.draftAnswered(card, await conversation.answerDraft(card.subject, send: send, reason: card.reason))
-        barge.watch(through: audio, spoken: { voice.spoken(since: began) }, speaking: { voice.level > 0 }) { [weak self] in
-            cutting = Task { await self?.conversation.interrupt() }
-        }
-        await speaking()
-        // The old answer's cancel must reach the daemon before the next question does, or it cancels that one.
-        await cutting?.value
-        return await barge.finish(audio)
-    }
-
-    /// Something began or stopped waiting: said out loud, then listened to for the answer.
-    private func arrived(_ event: DaemonEvent) {
-        // Shown at once, since it belongs to the answer being said now and a queue would hold it until after.
-        // A card, a window or a Touch ID sheet belongs to the conversation happening now, so it
-        // comes up at once; queued, it would wait until the person stopped talking.
-        if event.eventKind == .show {
-            Task { [conversation] in await conversation?.handle(event) }
-            return
-        }
-        // The island shows a held call the moment it arrives, so a hand can answer it before the voice has finished.
-        switch event.eventKind {
-        case .held: panel.hold(event)
-    /// A button on the island: Touch ID for an allow that reaches outside the session, then the answer,
-    /// and the call stays up if it did not go through.
-    private func answerHeld(_ card: HeldCard, _ answer: HoldAnswer) {
-        case .notice where event.noticeKind == .finished: panel.finished(event)
-        case .notice, .proposal, .show, nil: break
-        }
-        if event.eventKind == .proposal {
-            let outcome = await conversation.answerHeld(card.subject, answer, reason: card.summary, touchID: card.touchID)
-            panel.answered(card.subject, outcome)
-        }
-    }
-
-    /// Control and Option held: whatever was going on gives way, and the rule is listened to for as long as they are down.
-    private func ruleHeld() {
-        panel.ruling(true)
-        if talking {
-            // The listen in progress ends with nothing heard and the voice stops, so the rule turn comes next.
-            ears.cut.set(true)
-        let names = Array(Set(recognizerHints + words))
-        recognizerHints = Array(Set(names + SpokenTerms.terms))
-        enqueue { [weak self] in await self?.converseRule() }
-        // Hints only nudge the recognizer, so the same names also train a model it hears them with.
-        await Vocabulary.train(names: names)
-    }
-
-    /// How to say a rule, from the menu: hold the keys, say it, let go. Without Accessibility the keys
-    /// are never seen, so that is asked for first, the same leave typing into an agent needs.
-    @objc func sayRule() {
-        let allowed = HoldKeys.canWatch || PromptTyping.allowed()
-        enqueue { [self] in
-            panel.present()
-            let line = allowed
-                ? "Hold Control and Option, say the rule, then let go. I will ask where it should hold."
-                : "To hear the rule keys I need Accessibility. Switch Memnox on in System Settings, then hold Control and Option to say a rule."
-            panel.show(.speaking, caption: allowed ? "Hold Control Option to say a rule" : "Memnox needs Accessibility")
-            await voice.speak(line)
-            panel.dismiss()
-        }
-    }
-        talking = true
-        panel.present()
-        panel.ruling(true)
-        guard await Ears.mayHear() else {
-            panel.ruling(false)
-            panel.dismiss()
-            talking = false
-            return
-        }
-        do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
-        Task { [conversation] in await conversation?.warm() }
-        chimes.play(.listening)
-        panel.show(.listening, caption: "")
-        diary.note("listening for a rule")
-        let down = holdKeys.down
-        let said = ownWordsOnly(await ears.listen(through: audio, waiting: 0, holding: { down.isSet }))
-        panel.ruling(false)
-        guard let said else {
-            chimes.play(.closed)
-            audio.stop()
-            panel.dismiss()
-            talking = false
-            return
-        }
-        let cutIn = await overVoice { [conversation] in await conversation?.heard(said, finished: true, intent: .rule) }
-        // The place can be said as well as picked, so the microphone stays open for the answer.
-        await converse(opening: cutIn ?? "")
-    }
-
-    /// Enforce or Not now on a rule: Touch ID over the place picked, one sheet after another, and the card stays up if it did not go.
-    private func answerRule(_ card: RuleCard, scope: RuleScope?) {
-        let previous = confirmations
-        confirmations = Task { [conversation, panel] in
-            await previous?.value
-            guard let conversation, let panel else { return }
-            let reason = "\(card.draft.summary) \(scope.map(placeWords) ?? "")"
-            panel.ruleAnswered(card, await conversation.answerRule(card.subject, scope: scope, reason: reason))
-        }
-    }
-
-    /// A draft's Send or close: Touch ID for a Send, one after another with every other sheet, and the card stays up if it did not go.
-    private func answerDraft(_ card: DraftCard, send: Bool) {
-        let previous = confirmations
-        confirmations = Task { [conversation, panel] in
-            await previous?.value
-            guard let conversation, let panel else { return }
-            panel.draftAnswered(card, await conversation.answerDraft(card.subject, send: send, reason: card.reason))
-            confirmations = Task { [conversation] in
-                await previous?.value
-                await conversation?.handle(event)
-            }
-            return
-        }
-        guard event.isSaid(speakUp: UserDefaults.standard.bool(forKey: Self.speakUpKey)) else { return }
-        enqueue { [self] in
-            if event.eventKind == .settled {
-                await conversation.handle(event)
-                return
-            }
-            panel.present()
-            do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
-            let cutIn = await overVoice { [conversation] in await conversation?.handle(event) }
-            // Only something waiting on their answer keeps the microphone open; news is said and the orb goes back to sleep.
-            if cutIn != nil || event.awaitsAnswer {
-                await converse(opening: cutIn ?? "")
-            } else {
-                audio.stop()
-                panel.dismiss()
-            }
-        }
-    }
-
-    /// A button on the island: Touch ID for an allow, then the answer, and the call stays up if it did not go through.
-    private func answerHeld(_ subject: String, _ answer: HoldAnswer, reason: String) {
-        let previous = confirmations
-        confirmations = Task { [conversation, panel] in
-            await previous?.value
-            guard let conversation, let panel else { return }
-            panel.answered(subject, await conversation.answerHeld(subject, answer, reason: reason))
         }
     }
 
@@ -665,11 +420,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         turns += 1
         let previous = tail
         tail = Task { @MainActor [weak self] in
-        let names = Array(Set(recognizerHints + words))
-        recognizerHints = Array(Set(names + SpokenTerms.terms))
+            await previous?.value
+            await work()
             guard let self else { return }
-        // Hints only nudge the recognizer, so the same names also train a model it hears them with.
-        await Vocabulary.train(names: names)
             self.turns -= 1
             self.listenForName()
         }
@@ -766,11 +519,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.awaySince = Date() }
         }
         center.addObserver(forName: Self.screenUnlocked, object: nil, queue: .main) { [weak self] _ in
-        let names = Array(Set(recognizerHints + words))
-        recognizerHints = Array(Set(names + SpokenTerms.terms))
+            MainActor.assumeIsolated { self?.cameBack() }
+        }
     }
-        // Hints only nudge the recognizer, so the same names also train a model it hears them with.
-        await Vocabulary.train(names: names)
 
     /// Whether coming back found anything to say, set inside the turn that said it.
     private var caughtUp = false
@@ -783,44 +534,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         enqueue { [self] in
             panel.present()
             do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
-        let names = Array(Set(recognizerHints + words))
-        recognizerHints = Array(Set(names + SpokenTerms.terms))
+            caughtUp = false
+            let cutIn = await overVoice { [weak self] in
                 self?.caughtUp = await self?.conversation?.welcomeBack(since: since) ?? false
-        // Hints only nudge the recognizer, so the same names also train a model it hears them with.
-        await Vocabulary.train(names: names)
             }
             // The daemon says nothing when nothing waits on them, and then the orb goes back to sleep unheard.
             if cutIn != nil || caughtUp {
                 await converse(opening: cutIn ?? "")
-        let names = Array(Set(recognizerHints + words))
-        recognizerHints = Array(Set(names + SpokenTerms.terms))
+            } else {
+                audio.stop()
                 panel.dismiss()
-        // Hints only nudge the recognizer, so the same names also train a model it hears them with.
-        await Vocabulary.train(names: names)
             }
-        let names = Array(Set(recognizerHints + words))
-        recognizerHints = Array(Set(names + SpokenTerms.terms))
+        }
+    }
 
-        // Hints only nudge the recognizer, so the same names also train a model it hears them with.
-        await Vocabulary.train(names: names)
     /// The agents, CLIs and servers on this machine, so the recognizer hears "Railway" and not "right away".
     private func learnNames() async {
         let words = await conversation.vocabulary()
+        let names = Array(Set(recognizerHints + words))
+        recognizerHints = Array(Set(names + SpokenTerms.terms))
+        diary.note("listening for \(recognizerHints.count) names")
         // Hints only nudge the recognizer, so the same names also train a model it hears them with.
         await Vocabulary.train(names: names)
-        guard !words.isEmpty else { return }
-        recognizerHints = Array(Set(words + Self.spokenVocabulary))
-        diary.note("listening for \(recognizerHints.count) names")
     }
 
-    /// The words people use about their agents, which the recognizer otherwise hears as "urgent",
-    /// "contacts", "Carter" or "closed quote", so it is told to expect them.
-    private static let spokenVocabulary = [
-        "Claude Code", "Codex", "Cursor", "Memnox", "Memnox runtime", "Memnox cloud", "Memnox client",
-        "agent", "agents", "session", "sessions", "last session", "new session", "repository",
-        "git push", "git status", "git history", "git changes", "commit", "commits", "pull request",
-        "scan my computer", "walk me through", "put it back", "tell me when", "the tests pass",
-    ]
+    /// How to say a rule, from the menu: hold the keys, say it, let go. Without Accessibility the keys
+    /// are never seen, so that is asked for first, the same leave typing into an agent needs.
+    @objc func sayRule() {
+        let allowed = HoldKeys.canWatch || PromptTyping.allowed()
+        enqueue { [self] in
+            panel.present()
+            let line = allowed
+                ? "Hold Control and Option, say the rule, then let go. I will ask where it should hold."
+                : "To hear the rule keys I need Accessibility. Switch Memnox on in System Settings, then hold Control and Option to say a rule."
+            panel.show(.speaking, caption: allowed ? "Hold Control Option to say a rule" : "Memnox needs Accessibility")
+            await voice.speak(line)
+            panel.dismiss()
+        }
+    }
 
     /// Checks the voice on its own, apart from listening and the daemon.
     @objc func saySomething() {

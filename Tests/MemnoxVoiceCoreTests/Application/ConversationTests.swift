@@ -132,6 +132,39 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(speaker.said, [])
     }
 
+    func testAllowsAHeldCallInsideTheSessionFromAButtonWithNoTouchID() async throws {
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"once"}"#)]
+        let outcome = await conversation.answerHeld("apr_4", .once, reason: "delete old.ts", touchID: false)
+
+        XCTAssertEqual(outcome, .answered)
+        XCTAssertEqual(key.signed, [])
+        let sent = try XCTUnwrap(link.sent.last)
+        XCTAssertEqual(sent.answer, "once")
+        XCTAssertNil(sent.signature)
+        XCTAssertFalse(face.states.contains(.needsYou))
+    }
+
+    func testConfirmsASpokenYesInsideTheSessionWithNoTouchID() async throws {
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"confirmed"}"#)]
+        await conversation.heard("yes delete it")
+        let proposal = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"proposal","subject":"prp_9","agent":"a","summary":"delete old.ts","at":"t","withinSession":true}}"#).event)
+        await conversation.handle(proposal)
+
+        XCTAssertEqual(key.signed, [])
+        let sent = try XCTUnwrap(link.sent.last)
+        XCTAssertEqual(sent.answer, "confirmed")
+        XCTAssertNil(sent.signature)
+        XCTAssertFalse(face.states.contains(.needsYou))
+    }
+
+    func testAsksTouchIDWhenTheDaemonDidNotPlaceTheCallInside() throws {
+        let outside = try event(#"{"kind":"held","subject":"apr_4","agent":"a","summary":"s","at":"t"}"#)
+        let inside = try event(#"{"kind":"held","subject":"apr_4","agent":"a","summary":"s","at":"t","withinSession":true}"#)
+
+        XCTAssertTrue(outside.needsTouchID)
+        XCTAssertFalse(inside.needsTouchID)
+    }
+
     func testDeniesAHeldCallFromAButtonWithNoTouchID() async throws {
         link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"deny"}"#)]
         let outcome = await conversation.answerHeld("apr_4", .deny, reason: "push to main")
@@ -262,6 +295,56 @@ final class ConversationTests: XCTestCase {
         let answer = await conversation.voiceAgents()
         guard case .agents(let agents) = answer else { return XCTFail("expected agents, got \(answer)") }
         XCTAssertEqual(agents.map(\.kind), ["cursor", "hermes"])
+        XCTAssertEqual(agents.last?.because, "its plan ran out")
+        XCTAssertNil(link.sent.last?.recheck)
+    }
+
+    func testAsksEveryAgentAgainOnlyWhenToldTo() async throws {
+        link.answers["voice-agents"] = [try line(#"{"id":1,"ok":true,"voiceAgents":[]}"#)]
+        _ = await conversation.voiceAgents(recheck: true)
+        XCTAssertEqual(link.sent.last?.recheck, true)
+    }
+
+    func testSendsThePersonsPickAndSaysWhyOneWasRefused() async throws {
+        link.answers["choose-voice-agent"] = [try line(#"{"id":1,"ok":false,"error":"Codex is not installed on this Mac"}"#)]
+        let answer = await conversation.chooseVoiceAgent("codex")
+        XCTAssertEqual(link.sent.last?.voiceAgent, "codex")
+        XCTAssertEqual(answer, .refused("Codex is not installed on this Mac"))
+    }
+
+    func testCallsADaemonWithNoVoiceAgentsOlderRatherThanEmpty() async throws {
+        link.answers["voice-agents"] = [try line(#"{"id":1,"ok":true}"#)]
+        let answer = await conversation.voiceAgents()
+        XCTAssertEqual(answer, .refused("This Memnox is older than the app"))
+        link.unreachable = true
+        let gone = await conversation.voiceAgents()
+        XCTAssertEqual(gone, .unreachable)
+    }
+
+    func testReadsTheVoiceAgentsAndWhyTheOthersCannotAnswer() async throws {
+        link.answers["voice-agents"] = [try line(#"{"id":1,"ok":true,"voiceAgents":[{"kind":"cursor","label":"Cursor","installed":true,"sealed":true,"works":true,"chosen":true,"install":"x"},{"kind":"hermes","label":"Hermes","installed":true,"sealed":false,"works":false,"because":"its plan ran out","chosen":false,"install":"y"}]}"#)]
+        let answer = await conversation.voiceAgents()
+        guard case .agents(let agents) = answer else { return XCTFail("expected agents, got \(answer)") }
+        XCTAssertTrue(speaker.said.first?.hasPrefix("Memnox trusts another key") ?? false)
+    }
+
+    func testAsksNoFingerprintWhileTheDaemonTrustsAnotherKey() async throws {
+        // A fingerprint the daemon would refuse is the button doing nothing, so it is never asked for.
+        link.answers["register-key"] = [try line(#"{"id":1,"ok":false,"outcome":"another key"}"#)]
+        let outcome = await conversation.answerHeld("apr_4", .once, reason: "push to main")
+
+        XCTAssertEqual(outcome, .failed(Conversation.anotherKeyLine))
+        XCTAssertEqual(key.signed, [])
+        XCTAssertFalse(link.sent.contains { $0.method == "confirm" })
+        XCTAssertEqual(speaker.said, [Conversation.anotherKeyLine])
+    }
+
+    func testSaysWhyAnAnswerDidNotGoThrough() async throws {
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":false,"error":"apr_4 is no longer held"}"#)]
+        let outcome = await conversation.answerHeld("apr_4", .once, reason: "push to main")
+
+        XCTAssertEqual(outcome, .failed("apr_4 is no longer held"))
+        XCTAssertTrue(speaker.said.first?.hasPrefix("That did not go through") ?? false)
         XCTAssertEqual(agents.last?.because, "its plan ran out")
         XCTAssertNil(link.sent.last?.recheck)
     }

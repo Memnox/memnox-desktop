@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let owner = DefaultsOwner()
     private let presenter = SessionPresenter()
     private let chimes = SystemChimes()
+    private let frontApp = FrontApp()
     /// When the screen locked, so coming back after a while can be caught up on.
     private var awaySince: Date?
     /// Long enough that a coffee counts and a glance away does not.
@@ -95,7 +96,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         conversation = Conversation(
             link: link, speaker: voice, key: key, face: panel, owner: owner, presenter: presenter, chimes: chimes,
-            address: { chosenAddress() }
+            address: { chosenAddress() },
+            name: { chosenName() },
+            lookingAt: { [frontApp] in frontApp.name }
         )
         presenter.livePanel.fetch = { [weak self] session in await self?.conversation.sessionView(session) }
         presenter.sessions = { [weak self] in await self?.conversation.sessionsList() ?? [] }

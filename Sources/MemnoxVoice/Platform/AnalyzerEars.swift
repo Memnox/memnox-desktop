@@ -37,10 +37,10 @@ final class AnalyzerEars {
         await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) ?? Locale(identifier: fallbackLocale)
     }
 
-    /// The next thing said, nothing when the wait ran out, or unavailable when it could not start.
-    func listen(through audio: AudioIO, waiting: TimeInterval) async -> Listened {
         let transcriber = SpeechTranscriber(
             locale: await Self.locale(),
+    /// The kinds of transcriber whose model is known to be on this Mac, so later listens skip asking the asset inventory again.
+    nonisolated(unsafe) private static var modelsReady: Set<String> = []
     /// The kinds of transcriber whose model is known to be on this Mac, so later listens skip asking the asset inventory again.
     nonisolated(unsafe) private static var modelsReady: Set<String> = []
     /// The kinds of transcriber whose model is known to be on this Mac, so later listens skip asking the asset inventory again.
@@ -79,13 +79,24 @@ final class AnalyzerEars {
         }
         Self.modelsReady.insert(kind)
         let send: (AVAudioPCMBuffer) -> Void = { buffer in
+        guard ready,
+              let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber.module])
+        else {
+            // The older recognizer listens afresh, since a fraction of a second recorded holds nothing worth reading.
+            audio.onMicrophone = nil
+            return .unavailable([])
+        }
+        Self.modelsReady.insert(kind)
+        let send: (AVAudioPCMBuffer) -> Void = { buffer in
 
+        // What was said while the analyzer loaded goes first, then every buffer straight through.
+        early.open(send)
         let (input, feed) = AsyncStream<AnalyzerInput>.makeStream()
         var converter: AVAudioConverter?
         let counts = Counts()
         let recording = Recording()
-        audio.onMicrophone = { buffer in
-            recording.keep(buffer)
+                for try await (text, final) in transcriber.results {
+                    let words = heard.take(text, final: final)
             if converter == nil || converter?.inputFormat != buffer.format {
         let send: (AVAudioPCMBuffer) -> Void = { buffer in
                 counts.dropped()
@@ -104,13 +115,27 @@ final class AnalyzerEars {
         early.open(send)
                 for try await result in transcriber.results {
                     let words = heard.take(String(result.text.characters), final: result.isFinal)
+        var lastVoice: Date?
                     self?.hearing?(words)
                 }
                 for try await (text, final) in transcriber.results {
                     let words = heard.take(text, final: final)
+            if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
+            }
+            // Cut short for a rule held down meanwhile: nothing of this listen is answered.
+            if cut?.take() == true {
+                audio.onMicrophone = nil
+                feed.finish()
+                reading.cancel()
+                return .silence
+            }
+            if let holding {
+                // Let go is the end of it, at once, which is what makes a held rule instant.
+                if !holding() { break }
+                continue
             }
         }
-        do {
+            if !words.isEmpty, quietFor(now: Date(), lastWord: changed, lastVoice: lastVoice) > endOfSpeechPause(after: words) { break }
             try await analyzer.start(inputSequence: input)
         } catch {
             audio.onMicrophone = nil
@@ -124,31 +149,18 @@ final class AnalyzerEars {
 
         let began = Date()
             if !words.isEmpty, quietFor(now: Date(), lastWord: changed, lastVoice: lastVoice) > endOfSpeechPause(after: words) { break }
-        var guessed = ""
+        if words.isEmpty, loudest > AudioIO.voiceLevel {
         while true {
         var lastVoice: Date?
             try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * Self.nanosecondsPerSecond))
         var lastVoice: Date?
-            loudest = max(loudest, audio.micLevel)
-            let (words, changed) = heard.read()
-            if words.isEmpty, Date().timeIntervalSince(began) > waiting { break }
-            if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
-            if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
-            if !words.isEmpty, Date().timeIntervalSince(changed) > endOfSpeechPause(after: words) { break }
-            if words != guessed, mayGuess(words, pausedFor: Date().timeIntervalSince(changed)) {
-            if !words.isEmpty, quietFor(now: Date(), lastWord: changed, lastVoice: lastVoice) > endOfSpeechPause(after: words) { break }
-        if words.isEmpty, loudest > AudioIO.voiceLevel {
-            }
-        }
-        audio.onMicrophone = nil
-        feed.finish()
         if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
             diary.note("dropped words from a listen too quiet for speech: \(words)")
             return .silence
         }
-        lastWordAt = heard.read().1
-        diary.note("microphone: \(counts.summary)")
-        try? await analyzer.finalizeAndFinishThroughEndOfInput()
+            loudest = max(loudest, audio.micLevel)
+            let (words, changed) = heard.read()
+            if words.isEmpty, Date().timeIntervalSince(began) > waiting { break }
     /// The dictation model taught the agents' names once that model is built, since only dictation takes
     /// a trained model; the general transcriber until then, which only has the hints to go on.
     private static func transcriber() async -> Transcriber {
@@ -194,17 +206,114 @@ final class AnalyzerEars {
         return Transcriber(module: general, results: results)
     }
 
+            if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
+    private static func installed(_ modules: [any SpeechModule]) async -> Bool {
+            if !words.isEmpty, Date().timeIntervalSince(changed) > endOfSpeechPause(after: words) { break }
+            if let request = try await AssetInventory.assetInstallationRequest(supporting: modules) {
+            if !words.isEmpty, quietFor(now: Date(), lastWord: changed, lastVoice: lastVoice) > endOfSpeechPause(after: words) { break }
+        if words.isEmpty, loudest > AudioIO.voiceLevel {
+            }
+        }
+        audio.onMicrophone = nil
+        feed.finish()
+        if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
+            diary.note("dropped words from a listen too quiet for speech: \(words)")
+            return .silence
+        }
+/// One of the two transcribers, with its words and whether each is final, read the same way whichever it is.
+@available(macOS 26, *)
+private struct Transcriber {
+    let module: any SpeechModule
+    let results: AsyncThrowingStream<(String, Bool), Error>
+}
+
+        lastWordAt = heard.read().1
+        diary.note("microphone: \(counts.summary)")
+        try? await analyzer.finalizeAndFinishThroughEndOfInput()
+    /// The dictation model taught the agents' names once that model is built, since only dictation takes
+    /// a trained model; the general transcriber until then, which only has the hints to go on.
+    private static func transcriber() async -> Transcriber {
+        if let trained = Vocabulary.trained {
+            let dictation = DictationTranscriber(
+                locale: Vocabulary.locale,
+                contentHints: [.shortForm, .customizedLanguage(modelConfiguration: trained)],
+                transcriptionOptions: [.punctuation],
+                reportingOptions: [.volatileResults, .frequentFinalization],
+                attributeOptions: []
+            )
+            let results = AsyncThrowingStream<(String, Bool), Error> { continuation in
+                let reading = Task {
+                    do {
+                        for try await result in dictation.results { continuation.yield((String(result.text.characters), result.isFinal)) }
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+}
+
+/// A tap's buffer copied, since the engine reuses it once the tap block returns.
+private func copied(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+    guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: buffer.frameLength),
+          let from = buffer.floatChannelData, let to = copy.floatChannelData else { return nil }
+    copy.frameLength = buffer.frameLength
+    for channel in 0..<Int(buffer.format.channelCount) {
+        to[channel].update(from: from[channel], count: Int(buffer.frameLength))
+    }
+    return copy
+}
+
+/// Holds the microphone while the analyzer loads, then hands every buffer on in the order it was heard.
+private final class Feeder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var waiting: [AVAudioPCMBuffer] = []
+    private var send: ((AVAudioPCMBuffer) -> Void)?
+
+    func take(_ buffer: AVAudioPCMBuffer) {
+        lock.lock()
+        defer { lock.unlock() }
+        if let send {
+            send(buffer)
+        } else if let copy = copied(buffer) {
+            waiting.append(copy)
+            locale: await locale(),
+    }
+
+    /// Sends what waited, then lets every later buffer straight through; held under the lock so none jumps the queue.
+    func open(_ send: @escaping (AVAudioPCMBuffer) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        waiting.forEach(send)
+        waiting.removeAll()
+        self.send = send
+            reportingOptions: [.volatileResults, .fastResults],
+            attributeOptions: []
+        )
+        let results = AsyncThrowingStream<(String, Bool), Error> { continuation in
+            let reading = Task {
+                do {
+                    for try await result in general.results { continuation.yield((String(result.text.characters), result.isFinal)) }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in reading.cancel() }
+        }
+        return Transcriber(module: general, results: results)
+            settled = joinedSpeech(settled, text)
+
         await reading.value
     private static func installed(_ modules: [any SpeechModule]) async -> Bool {
         diary.note("SpeechAnalyzer heard \(words.isEmpty ? "nothing" : words)")
             if let request = try await AssetInventory.assetInstallationRequest(supporting: modules) {
-            // The microphone heard a voice and no word came back: the analyzer is not working here.
+        return joinedSpeech(settled, volatile)
         if words.isEmpty, loudest > AudioIO.voiceLevel {
             return .unavailable(recording.buffers)
         }
         return words.isEmpty ? .silence : .heard(words)
     }
-        if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
+        return (joinedSpeech(settled, volatile), changed)
             diary.note("dropped words from a listen too quiet for speech: \(words)")
             return .silence
         }

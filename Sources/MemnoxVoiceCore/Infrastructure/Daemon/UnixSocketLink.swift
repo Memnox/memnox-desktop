@@ -98,7 +98,7 @@ private func connectUnix(_ path: String) throws -> Int32 {
     }
     guard connected == 0 else {
         close(descriptor)
-        throw ProtocolError.refused("the Memnox daemon is not running at \(path)")
+        throw ProtocolError.notRunning("the Memnox daemon is not running at \(path)")
     }
     guard peerIsCurrentUser(descriptor) else {
         close(descriptor)

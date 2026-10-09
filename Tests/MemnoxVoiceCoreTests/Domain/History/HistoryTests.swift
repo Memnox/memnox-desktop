@@ -80,4 +80,19 @@ final class HistoryTests: XCTestCase {
         let data = try JSONEncoder().encode(history)
         XCTAssertEqual(try JSONDecoder().decode(History.self, from: data), history)
     }
+
+    func testKeepsWhatAnActionLeftBesideTheAnswerThatTookIt() {
+        var history = History()
+        history.ask("tell claude to push", at: start)
+        history.prove(Proof(checked: "the words in its iTerm tab", seen: "> push", image: "/p/1.png"))
+        history.reply("Sent, and I saw it land.")
+        history.end(at: start.addingTimeInterval(2))
+        XCTAssertEqual(history.exchanges.first?.proofs, [Proof(checked: "the words in its iTerm tab", seen: "> push", image: "/p/1.png")])
+    }
+
+    func testReadsAHistorySavedBeforeProofsWereKept() throws {
+        let saved = #"{"exchanges":[{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","question":"hi","answer":"Hello.","askedAt":0}]}"#
+        let history = try JSONDecoder().decode(History.self, from: Data(saved.utf8))
+        XCTAssertEqual(history.exchanges.first?.proofs, [])
+    }
 }

@@ -10,14 +10,32 @@ public struct Exchange: Codable, Equatable, Identifiable, Sendable {
     public private(set) var answeredAt: Date?
     /// Why no answer came, in words a person can act on; nil when one did.
     public private(set) var failure: String?
+    /// What was read back after each action this answer took, the evidence beside what it says.
+    public private(set) var proofs: [Proof]
 
-    public init(id: UUID = UUID(), question: String, answer: String = "", askedAt: Date, answeredAt: Date? = nil, failure: String? = nil) {
+    public init(id: UUID = UUID(), question: String, answer: String = "", askedAt: Date, answeredAt: Date? = nil,
+                failure: String? = nil, proofs: [Proof] = []) {
         self.id = id
         self.question = question
         self.answer = answer
         self.askedAt = askedAt
         self.answeredAt = answeredAt
         self.failure = failure
+        self.proofs = proofs
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, question, answer, askedAt, answeredAt, failure, proofs }
+
+    /// A history saved before proofs were kept reads with none, rather than failing to read at all.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        question = try container.decode(String.self, forKey: .question)
+        answer = try container.decode(String.self, forKey: .answer)
+        askedAt = try container.decode(Date.self, forKey: .askedAt)
+        answeredAt = try container.decodeIfPresent(Date.self, forKey: .answeredAt)
+        failure = try container.decodeIfPresent(String.self, forKey: .failure)
+        proofs = try container.decodeIfPresent([Proof].self, forKey: .proofs) ?? []
     }
 
     public var isAnswering: Bool { answeredAt == nil }
@@ -30,6 +48,10 @@ public struct Exchange: Codable, Equatable, Identifiable, Sendable {
 
     mutating func add(_ text: String) {
         answer += text
+    }
+
+    mutating func prove(_ proof: Proof) {
+        proofs.append(proof)
     }
 
     mutating func end(at moment: Date, failure reason: String? = nil) {
@@ -71,6 +93,12 @@ public struct History: Codable, Equatable, Sendable {
     public mutating func reply(_ text: String) {
         guard current != nil, !text.isEmpty else { return }
         exchanges[0].add(text)
+    }
+
+    /// What an action this turn left behind, kept on the newest exchange, which is the turn that acted.
+    public mutating func prove(_ proof: Proof) {
+        guard !exchanges.isEmpty else { return }
+        exchanges[0].prove(proof)
     }
 
     /// The reply ended. A failure is kept with its reason, so the question can be asked again; an exchange

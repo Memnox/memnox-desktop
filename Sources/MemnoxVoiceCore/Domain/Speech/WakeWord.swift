@@ -61,3 +61,9 @@ public func withoutLeadingName(_ words: String) -> String {
     // Only the name first, or after one word like "hey", is a greeting; later on it is part of what they asked.
     return before.split(whereSeparator: \.isWhitespace).count <= greetingWordsBeforeName && !rest.isEmpty ? rest : words
 }
+
+/// The words after its name, once its own recent sentences are taken off, so a greeting it says
+/// with "Memnox" in it never wakes it. Nil when the name was only ever in its own voice.
+public func afterWakeWord(_ words: String, spoken: String) -> String? {
+    afterWakeWord(withoutEchoRuns(words, spoken: spoken))
+}

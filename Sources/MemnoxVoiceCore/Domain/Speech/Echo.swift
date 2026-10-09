@@ -12,11 +12,38 @@ private func wordsIn(_ text: String) -> [String] {
 private func isEcho(_ word: String, of said: [String]) -> Bool {
     said.contains { spoken in
         if spoken == word { return true }
+        // Its "asks" comes back as "ask", and a plural ending is never how "the" turns into "them".
+        if spoken == word + "s" || word == spoken + "s" { return true }
         guard word.count >= fuzzyEchoLength, spoken.count >= fuzzyEchoLength else { return false }
         if spoken.contains(word) || word.contains(spoken) { return true }
+        // Its "write" comes back as "right" and "there" as "their": spelled apart, said alike.
+        if soundKey(word) == soundKey(spoken) { return true }
         return editDistance(word, spoken) <= min(word.count, spoken.count) / misspellingShare
     }
 }
+
+/// How a word sounds rather than how it is spelled: silent letters off, alike sounds as one letter,
+/// and every run of vowels as one, so homophones the recognizer swaps share a key.
+private func soundKey(_ word: String) -> String {
+    var text = word
+    for (from, to) in soundsAlike where text.hasPrefix(from) {
+        text = to + text.dropFirst(from.count)
+        break
+    }
+    for (from, to) in spelledAlike { text = text.replacingOccurrences(of: from, with: to) }
+    if text.count > 2, text.hasSuffix("e") { text.removeLast() }
+    var key = ""
+    for letter in text {
+        let sound: Character = "aeiouy".contains(letter) ? "a" : letter
+        if key.last != sound { key.append(sound) }
+    }
+    return key
+}
+
+/// Letters at the start of a word that are not said.
+private let soundsAlike: [(String, String)] = [("wr", "r"), ("kn", "n"), ("wh", "w"), ("ps", "s")]
+/// Spellings anywhere in a word that say the same sound.
+private let spelledAlike: [(String, String)] = [("gh", ""), ("ph", "f"), ("ck", "k"), ("ei", "e"), ("ea", "e")]
 
 /// Shorter words match only exactly, since "so" is a letter from "to" and "them" holds "the".
 private let fuzzyEchoLength = 4
@@ -53,6 +80,64 @@ public func isBargeIn(heard: String, spoken: String, speaking: Bool = false) -> 
     if novel.contains(where: { stopWords.contains($0) }) { return true }
     let needed = speaking ? (opensWithEcho ? BargeIn.overEcho : BargeIn.overSpeech) : BargeIn.inSilence
     return novel.count >= needed && Double(novel.count) >= Double(recent.count) * BargeIn.novelShare
+}
+
+/// Whether the newest words heard over the voice are not ones it said, the first sign of the person
+/// starting to talk. Two in a row, since one stray word is how its own voice comes back misheard,
+/// "want" for its "one" and "pool" for its "pull", and pausing on each cut every sentence it said.
+/// "Stop" or "wait" alone is enough, since its own voice never says them unprompted.
+public func mayBeCuttingIn(heard: String, spoken: String) -> Bool {
+    let said = wordsIn(spoken)
+    let words = wordsIn(heard)
+    guard let newest = words.last else { return false }
+    // Only when it did not just say it: its own name is in half its sentences, and pausing on it cut each one.
+    if stopWords.contains(newest), !isEcho(newest, of: said) { return true }
+    let recent = words.suffix(firstWordsOfTheirs)
+    return recent.count == firstWordsOfTheirs && recent.allSatisfy { !isEcho($0, of: said) && !isEchoStarting($0, of: said) }
+}
+
+/// How many words in a row not its own it takes to pause the voice.
+private let firstWordsOfTheirs = 2
+
+/// Whether a word is the start of one it said, which the recognizer writes before it has the rest:
+/// "cur" on its way to Cursor, "me" to Memnox, "run" to runtime.
+private func isEchoStarting(_ word: String, of said: [String]) -> Bool {
+    said.contains { $0.count > word.count && $0.hasPrefix(word) }
+}
+
+/// What was heard from the words it paused on, since everything before them was its own voice and
+/// only what comes once it is quiet can be the person. The words it paused on are kept, as their first.
+public func sincePause(_ heard: String, pausedOn: String) -> String {
+    let before = pausedOn.split(whereSeparator: \.isWhitespace).count
+    return heard.split(whereSeparator: \.isWhitespace).dropFirst(max(before - firstWordsOfTheirs, 0)).joined(separator: " ")
+}
+
+/// Whether the words heard since it went quiet are the person: two of theirs after the ones it paused
+/// on, since the recognizer still finishes a word or two of its own echo once the voice has stopped,
+/// and one alone is enough when it is "stop" or "wait".
+public func isPersonAfterPause(_ sincePaused: String, spoken: String) -> Bool {
+    let said = wordsIn(spoken)
+    let heard = wordsIn(sincePaused).filter { !isEcho($0, of: said) }
+    // "Stop" is theirs even as the word it paused on, since its own voice never says it unprompted.
+    if heard.contains(where: { stopWords.contains($0) }) { return true }
+    return wordsIn(sincePaused).dropFirst(firstWordsOfTheirs).filter { !isEcho($0, of: said) }.count >= BargeIn.inSilence
+}
+
+/// What the recognizer puts between the words it heard.
+private let cutInSeparator: Character = " "
+
+/// What the person said over the voice, with its own words taken off the front. When they were
+/// already talking while it was quiet, everything from their first word of their own is kept, since
+/// the pause came only once the voice spoke over them and the start of their sentence was before it.
+public func cutInWords(_ heard: String, pausedOn: String, spoken: String, spokeInQuiet: Bool) -> String {
+    guard spokeInQuiet else { return withoutEcho(sincePause(heard, pausedOn: pausedOn), spoken: spoken) }
+    let said = wordsIn(spoken)
+    let parts = withoutEchoRuns(heard, spoken: spoken).split(separator: cutInSeparator).map(String.init)
+    guard let first = parts.firstIndex(where: { part in wordsIn(part).contains { !isEcho($0, of: said) } }) else { return "" }
+    // "I" in "I think" is too short to judge, so it stays with the word of theirs it opens.
+    var start = first
+    while start > 0, wordsIn(parts[start - 1]).isEmpty { start -= 1 }
+    return parts[start...].joined(separator: String(cutInSeparator))
 }
 
 /// How many words of the person's own it takes to call what was heard them cutting in.
@@ -94,16 +179,54 @@ public func withoutEcho(_ heard: String, spoken: String) -> String {
 /// or more is echo; one word alone at an end could as well be theirs, so it stays.
 public func withoutEchoRuns(_ heard: String, spoken: String) -> String {
     let said = wordsIn(spoken)
-    var parts = heard.split(separator: " ").map(String.init)
+    var parts = rejoined(heard.split(separator: " ").map(String.init), said: said)
     // "I'm" or "a" has no word long enough to judge, so it carries a run on without counting toward it.
-    func echoes(_ part: String) -> Bool { wordsIn(part).allSatisfy { isEcho($0, of: said) } }
-    func judged(_ run: ArraySlice<String>) -> Int { run.filter { !wordsIn($0).isEmpty }.count }
-    func isRun(_ run: [String]) -> Bool { judged(run[...]) >= echoRunLength && followsInOrder(run.flatMap(wordsIn), in: said) }
+    func echoes(_ part: String) -> Bool { pieceWords(part).allSatisfy { isEcho($0, of: said) } }
+    func judged(_ run: ArraySlice<String>) -> Int { run.filter { !pieceWords($0).isEmpty }.count }
+    func isRun(_ run: [String]) -> Bool { judged(run[...]) >= echoRunLength && followsInOrder(run.flatMap(pieceWords), in: said) }
     let leading = Array(parts.prefix(while: echoes))
-    if isRun(leading) { parts.removeFirst(leading.count) }
+    let removedLeading = isRun(leading)
+    if removedLeading { parts.removeFirst(leading.count) }
     let trailing = Array(parts.reversed().prefix(while: echoes).reversed())
-    if isRun(trailing) { parts.removeLast(trailing.count) }
+    let removedTrailing = isRun(trailing)
+    if removedTrailing { parts.removeLast(trailing.count) }
+    // What is left beside an echo, split where its sentence was not, like "me AI" from "HireMe.AI",
+    // is the end of the same echo when its letters run on inside what it said.
+    let left = letters(parts.joined())
+    if removedLeading || removedTrailing, judged(parts[...]) <= echoLeftoverWords,
+       left.count >= echoLeftoverLetters, letters(spoken).contains(left) {
+        return ""
+    }
     return parts.joined(separator: " ")
+}
+
+/// Heard words put back together where the recognizer split one it said, "hire me" for its "HireMe",
+/// kept as one piece with its space so the person's own words still come back as they were heard.
+private func rejoined(_ parts: [String], said: [String]) -> [String] {
+    var pieces: [String] = []
+    for part in parts {
+        if let last = pieces.last, !said.contains(letters(last)), said.contains(letters(last + part)),
+           letters(last + part).count >= fuzzyEchoLength {
+            pieces[pieces.count - 1] = "\(last) \(part)"
+        } else {
+            pieces.append(part)
+        }
+    }
+    return pieces
+}
+
+/// The words in a piece: a rejoined one is the single word it was split from.
+private func pieceWords(_ piece: String) -> [String] {
+    piece.contains(" ") ? [letters(piece)] : wordsIn(piece)
+}
+
+/// A few words at most beside an echo; more is the person carrying on.
+private let echoLeftoverWords = 3
+/// Shorter than this a leftover matches anywhere in a sentence by chance.
+private let echoLeftoverLetters = 3
+
+private func letters(_ text: String) -> String {
+    text.lowercased().filter(\.isLetter)
 }
 
 /// A run this long of its own words is echo; one alone could as well be theirs.

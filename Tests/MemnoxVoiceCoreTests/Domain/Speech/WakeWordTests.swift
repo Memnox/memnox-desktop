@@ -34,4 +34,12 @@ final class WakeWordTests: XCTestCase {
         XCTAssertEqual(withoutLeadingName("is the Memnox runtime on main"), "is the Memnox runtime on main")
         XCTAssertEqual(withoutLeadingName("Memnox"), "Memnox")
     }
+
+    func testDoesNotWakeOnItsOwnGreeting() {
+        let spoken = "Hi Moïse, I am Memnox. Press Option Space whenever you want me."
+        XCTAssertNil(afterWakeWord("Hi Moise I am Memnox press option space whenever you want me", spoken: spoken))
+        // The person calling it after its own sentence still wakes it.
+        XCTAssertEqual(afterWakeWord("whenever you want me Memnox what changed today", spoken: spoken), "what changed today")
+        XCTAssertEqual(afterWakeWord("Memnox are they done", spoken: ""), "are they done")
+    }
 }

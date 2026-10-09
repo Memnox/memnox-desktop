@@ -31,6 +31,8 @@ final class WakeEars {
 
     /// Called with whatever followed the name, empty when it was said alone.
     var woke: ((String) -> Void)?
+    /// What the voice said lately, so its own sentence with its name in it never wakes it.
+    var spoken: () -> String = { "" }
 
     var canListen: Bool {
         guard let recognizer else { return false }
@@ -104,7 +106,7 @@ final class WakeEars {
         while generation == mine {
             try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * Self.nanosecondsPerSecond))
             let (words, changed, final) = latest.read()
-            if let after = afterWakeWord(words) {
+            if let after = afterWakeWord(words, spoken: spoken()) {
                 let pause = after.isEmpty ? Self.afterNameSeconds : endOfSpeechPause(after: after)
                 if final || Date().timeIntervalSince(changed) > pause { return after }
                 continue

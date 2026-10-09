@@ -7,10 +7,11 @@ private let fallbackLanguage = "en-US"
 private let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
 /// The microphone, and only while a conversation runs, so the microphone light means something.
-/// Speech goes out through the system synthesizer instead, which is the one path macOS never
-/// ducks or silences, since echo cancellation on an engine turns every other sound down.
+/// Apple's echo cancellation runs on it, and only takes back out what this same engine plays, so
+/// while it is on the voice is played here too; other apps keep their volume, since ducking is held at its least.
 final class AudioIO {
-    let engine = AVAudioEngine()
+    /// Replaced after a failed start, since an engine whose output unit would not initialize keeps failing.
+    private(set) var engine = AVAudioEngine()
     private(set) var micLevel: Float = 0
     /// Loud enough to be somebody talking rather than a room, on the same scale as `micLevel`.
     static let voiceLevel: Float = 0.45
@@ -19,27 +20,234 @@ final class AudioIO {
     private var running = false
     /// Frames per microphone tap, about twenty milliseconds at 48 kHz.
     private static let tapBufferFrames: AVAudioFrameCount = 1024
+    /// Every node here has one bus, the first.
+    private static let bus: AVAudioNodeBus = 0
+    /// The voice is one voice, so one channel.
+    private static let voiceChannels: AVAudioChannelCount = 1
+    /// Turned off only by hand, for a headset whose own microphone misbehaves under voice processing.
+    static let echoCancellationKey = "echoCancellation"
+    /// The voice's sentences while the microphone is open, played here so echo cancellation knows what to remove.
+    private let speech = AVAudioPlayerNode()
+    private var speechFormat: AVAudioFormat?
+    private let speechLock = NSLock()
+    private var speechLoudness: Float = 0
+    /// Whether echo cancellation is running now, which is when the voice is played through this engine.
+    private(set) var cancelsEcho = false
 
+    private static var wantsEchoCancellation: Bool {
+        UserDefaults.standard.object(forKey: echoCancellationKey) as? Bool ?? true
+    }
+
+    /// The microphone and speakers voice processing would not start on, so it is tried again once either changes.
+    private static var failedOn: AudioRoute?
+    /// Set by the first buffer after a start, read by the watchdog that catches a start which delivers none.
+    private let heardLock = NSLock()
+    private var heardSinceStart = false
+    private var silentStartWatch: DispatchWorkItem?
+    /// Long enough for the first buffer of any microphone, and short enough that nobody notices the restart.
+    private static let silentStartAfter: TimeInterval = 2.5
+
+    /// The microphone on, with echo cancellation where this Mac's audio allows it and without where it does not,
+    /// since a microphone that never starts is far worse than one that hears the voice's own echo.
     func start() throws {
         guard !running else { return }
+        let route = AudioRoute.current()
+        do {
+            try begin(cancellingEcho: Self.wantsEchoCancellation && Self.failedOn != route)
+        } catch where cancelsEcho {
+            // Once more on a fresh engine, which is what clears a voice processing unit left half set up.
+            fresh()
+            do {
+                try begin(cancellingEcho: true)
+            } catch where cancelsEcho {
+                diary.note("echo cancellation would not start on \(route.described), so the microphone runs without it until the microphone or speakers change: \(error)")
+                Self.failedOn = route
+                fresh()
+                try begin(cancellingEcho: false)
+            }
+        }
+        running = true
+        diary.note("microphone on\(cancelsEcho ? " with echo cancellation" : ""): \(engine.inputNode.outputFormat(forBus: Self.bus))")
+        if cancelsEcho { watchForSilentStart(on: route) }
+    }
+
+    /// Voice processing on some devices starts without error and then never delivers a buffer, so a start that
+    /// stays silent is taken as failed on this route and the microphone is opened again plainly.
+    private func watchForSilentStart(on route: AudioRoute) {
+        silentStartWatch?.cancel()
+        let watch = DispatchWorkItem { [weak self] in
+            guard let self, self.running, self.cancelsEcho, !self.heard else { return }
+            diary.note("echo cancellation started on \(route.described) but the microphone delivered nothing, so it runs without it until the microphone or speakers change")
+            Self.failedOn = route
+            self.fresh()
+            do {
+                try self.begin(cancellingEcho: false)
+                diary.note("microphone on: \(self.engine.inputNode.outputFormat(forBus: Self.bus))")
+            } catch {
+                diary.note("the microphone would not start without echo cancellation either: \(error)")
+                self.running = false
+            }
+        }
+        silentStartWatch = watch
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.silentStartAfter, execute: watch)
+    }
+
+    private var heard: Bool {
+        heardLock.lock()
+        defer { heardLock.unlock() }
+        return heardSinceStart
+    }
+
+    private func begin(cancellingEcho: Bool) throws {
         let input = engine.inputNode
-        input.removeTap(onBus: 0)
-        input.installTap(onBus: 0, bufferSize: Self.tapBufferFrames, format: input.outputFormat(forBus: 0)) { [weak self] buffer, _ in
-            self?.micLevel = loudness(of: buffer)
-            self?.onMicrophone?(buffer)
+        // Left on by a start that failed, it fails every start after, so a plain start switches it off first.
+        if !cancellingEcho, input.isVoiceProcessingEnabled { try? input.setVoiceProcessingEnabled(false) }
+        // Before the tap, since voice processing changes the format the microphone delivers.
+        cancelsEcho = cancellingEcho && voiceProcessing(on: input)
+        input.removeTap(onBus: Self.bus)
+        heardLock.lock()
+        heardSinceStart = false
+        heardLock.unlock()
+        input.installTap(onBus: Self.bus, bufferSize: Self.tapBufferFrames, format: input.outputFormat(forBus: Self.bus)) { [weak self] buffer, _ in
+            guard let self else { return }
+            self.heardLock.lock()
+            self.heardSinceStart = true
+            self.heardLock.unlock()
+            let heard = AudioIO.oneChannel(of: buffer)
+            self.micLevel = loudness(of: heard)
+            self.onMicrophone?(heard)
+        }
+        if cancelsEcho {
+            outputForVoiceProcessing()
+            attachSpeech()
         }
         engine.prepare()
         try engine.start()
-        running = true
-        diary.note("microphone on: \(input.outputFormat(forBus: 0))")
     }
 
     func stop() {
         guard running else { return }
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        silentStartWatch?.cancel()
+        silentStartWatch = nil
+        tearDown()
         running = false
         micLevel = 0
+    }
+
+    /// Everything begin set up taken down, voice processing included, so the next start begins clean.
+    private func tearDown() {
+        // A node never attached to the engine throws on stop and removeTap, and a throw through Swift
+        // leaves the main actor's bookkeeping broken, so the app crashes at its next main-thread check.
+        if speech.engine != nil {
+            speech.stop()
+            speech.removeTap(onBus: Self.bus)
+        }
+        engine.inputNode.removeTap(onBus: Self.bus)
+        engine.stop()
+        if speech.engine != nil { engine.detach(speech) }
+        if engine.inputNode.isVoiceProcessingEnabled { try? engine.inputNode.setVoiceProcessingEnabled(false) }
+        cancelsEcho = false
+    }
+
+    /// Everything torn down and a new engine in its place.
+    private func fresh() {
+        tearDown()
+        engine = AVAudioEngine()
+    }
+
+    /// The mixer joined to the speakers in the format voice processing gives them, since a join made in the
+    /// format from before it was on is what fails the output unit's start with -10875.
+    private func outputForVoiceProcessing() {
+        let output = engine.outputNode
+        let format = output.inputFormat(forBus: Self.bus)
+        guard format.sampleRate > 0, format.channelCount > 0 else { return }
+        engine.connect(engine.mainMixerNode, to: output, format: format)
+    }
+
+    private func voiceProcessing(on input: AVAudioInputNode) -> Bool {
+        do {
+            if !input.isVoiceProcessingEnabled { try input.setVoiceProcessingEnabled(true) }
+            // Without this macOS turns every other app down while the microphone is open.
+            input.voiceProcessingOtherAudioDuckingConfiguration = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(
+                enableAdvancedDucking: false, duckingLevel: .min)
+            return true
+        } catch {
+            diary.note("echo cancellation could not start, so its own voice is told apart by words: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func attachSpeech() {
+        if speech.engine == nil { engine.attach(speech) }
+        let rate = engine.mainMixerNode.outputFormat(forBus: Self.bus).sampleRate
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: Self.voiceChannels) else { return }
+        engine.connect(speech, to: engine.mainMixerNode, format: format)
+        speechFormat = format
+        speech.removeTap(onBus: Self.bus)
+        speech.installTap(onBus: Self.bus, bufferSize: Self.tapBufferFrames, format: format) { [weak self] buffer, _ in
+            self?.setSpeechLoudness(loudness(of: buffer))
+        }
+    }
+
+    /// One sentence played through this engine, `done` once it has been heard or stopped; false when it cannot be.
+    func play(_ buffers: [AVAudioPCMBuffer], start: Bool, done: @escaping () -> Void) -> Bool {
+        guard running, cancelsEcho, let format = speechFormat, !buffers.isEmpty else { return false }
+        let ready = buffers.compactMap { Self.fitted($0, to: format) }
+        guard ready.count == buffers.count, let last = ready.last else { return false }
+        for buffer in ready.dropLast() { speech.scheduleBuffer(buffer) }
+        speech.scheduleBuffer(last, completionCallbackType: .dataPlayedBack) { _ in done() }
+        if start, !speech.isPlaying { speech.play() }
+        return true
+    }
+
+    func pauseSpeech() {
+        if speech.engine != nil { speech.pause() }
+    }
+
+    func resumeSpeech() {
+        if running, cancelsEcho, speech.engine != nil { speech.play() }
+    }
+
+    /// Everything scheduled dropped, which calls each sentence's `done`.
+    func stopSpeech() {
+        if speech.engine != nil { speech.stop() }
+    }
+
+    /// How loud the voice is playing through this engine, on the microphone's scale.
+    var speechLevel: Float {
+        speechLock.lock()
+        defer { speechLock.unlock() }
+        return speechLoudness
+    }
+
+    private func setSpeechLoudness(_ level: Float) {
+        speechLock.lock()
+        speechLoudness = level
+        speechLock.unlock()
+    }
+
+    /// The microphone as one channel: voice processing hands several to some Macs, and the recognizers that
+    /// take its buffers as they come hear nothing in a format they do not expect.
+    static func oneChannel(of buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer {
+        let format = buffer.format
+        guard format.channelCount > voiceChannels, !format.isInterleaved,
+              let single = AVAudioFormat(commonFormat: format.commonFormat, sampleRate: format.sampleRate,
+                                         channels: voiceChannels, interleaved: false),
+              let out = AVAudioPCMBuffer(pcmFormat: single, frameCapacity: buffer.frameLength),
+              let source = buffer.floatChannelData, let target = out.floatChannelData
+        else { return buffer }
+        out.frameLength = buffer.frameLength
+        target[firstChannel].update(from: source[firstChannel], count: Int(buffer.frameLength))
+        return out
+    }
+
+    /// The channel the voice is on when there are several: the built-in microphone's own.
+    private static let firstChannel = 0
+
+    private static func fitted(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        if buffer.format == format { return buffer }
+        guard let converter = AVAudioConverter(from: buffer.format, to: format) else { return nil }
+        return convert(buffer, with: converter, to: format)
     }
 }
 
@@ -87,8 +295,19 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
     private var engineGeneration = 0
     private var player: AVAudioPlayer?
     private var playerDone: (() -> Void)?
+    /// The microphone's engine, which plays the voice while it is open so echo cancellation can take it back out.
+    weak var route: AudioIO?
+    /// Set while a sentence plays through that engine, numbered so a stopped one's late callback ends nothing newer.
+    private var routed: Int?
+    private var routedCount = 0
+    /// Renders the system voice into audio rather than speaking it, so it can be played through that engine.
+    private let writer = AVSpeechSynthesizer()
+    /// Held quiet while the person may be cutting in, so a sentence that comes up meanwhile waits too.
+    private var paused = false
     /// A breath between sentences, long enough that one never runs into the next.
     private static let breath: TimeInterval = 0.26
+    /// This long past a sentence's own length, a finish that never came is taken as done, so a turn never hangs speaking.
+    private static let playbackGrace: TimeInterval = 3
 
     /// How the orb's level follows the voice.
     private enum Meter {
@@ -130,7 +349,8 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
 
     override init() {
         let chosen = UserDefaults.standard.string(forKey: Self.voiceKey)
-        voice = chosen.flatMap(AVSpeechSynthesisVoice.init(identifier:)) ?? Voice.bestVoice()
+        // A novelty voice saved by an earlier version is dropped, so Zarvox never stands in for Kokoro.
+        voice = chosen.flatMap(AVSpeechSynthesisVoice.init(identifier:)).flatMap { $0.isNovelty ? nil : $0 } ?? Voice.bestVoice()
         super.init()
         synthesizer.delegate = self
     }
@@ -141,12 +361,28 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
     var level: Float {
         lock.lock()
         defer { lock.unlock() }
+        if paused { return 0 }
+        if routed != nil { return max(route?.speechLevel ?? 0, Meter.speakingFloor) }
         if let player, player.isPlaying {
             player.updateMeters()
             return min(max((player.averagePower(forChannel: 0) - Meter.quietestPower) / Meter.powerSpan, Meter.speakingFloor), 1)
         }
         let since = Float(Date().timeIntervalSince(lastWord))
         return synthesizer.isSpeaking ? max(Meter.speakingFloor, Meter.wordPeak - since * Meter.easePerSecond) : 0
+    }
+
+    /// How loud its own voice is playing right now on the microphone's scale, zero in the hush between words,
+    /// so the person talking over it can be told from its echo. The system voice reports no level, so it reads as loud.
+    var playingLevel: Float {
+        lock.lock()
+        defer { lock.unlock() }
+        if paused { return 0 }
+        if routed != nil { return route?.speechLevel ?? 0 }
+        if let player, player.isPlaying {
+            player.updateMeters()
+            return min(max((player.averagePower(forChannel: 0) - quietestDecibels) / decibelSpan, 0), 1)
+        }
+        return synthesizer.isSpeaking ? Meter.wordPeak : 0
     }
 
     /// The voice the person picked in setup, kept for next time.
@@ -201,27 +437,76 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
         enqueueSystem(sentence, said: said)
     }
 
-    private func enqueueSystem(_ sentence: String, said: @escaping () -> Void) {
+    private func utterance(_ sentence: String) -> AVSpeechUtterance {
         let utterance = AVSpeechUtterance(string: sentence)
         utterance.voice = voice
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * Pacing.rateScale
         utterance.pitchMultiplier = Pacing.pitch
         utterance.postUtteranceDelay = Pacing.afterSentence
         utterance.prefersAssistiveTechnologySettings = false
+        return utterance
+    }
+
+    /// The system voice through the microphone's engine while echo cancellation runs, else straight out.
+    private func enqueueSystem(_ sentence: String, said: @escaping () -> Void) {
+        if route?.cancelsEcho == true {
+            enqueueClip(sentence, said: said) { [weak self] in
+                guard let buffers = await self?.rendered(sentence) else { return nil }
+                return .buffers(buffers)
+            }
+            return
+        }
+        speakDirectly(sentence, said: said)
+    }
+
+    private func speakDirectly(_ sentence: String, said: @escaping () -> Void) {
+        let utterance = utterance(sentence)
         lock.lock()
         waiting[ObjectIdentifier(utterance)] = said
         lock.unlock()
         DispatchQueue.main.async { [self] in synthesizer.speak(utterance) }
     }
 
+    /// Quiet at once, mid word, without letting go of what is left to say.
+    func hush() {
+        DispatchQueue.main.async { [self] in
+            lock.lock()
+            paused = true
+            let playing = player
+            let throughEngine = routed != nil
+            lock.unlock()
+            playing?.pause()
+            if throughEngine { route?.pauseSpeech() }
+            synthesizer.pauseSpeaking(at: .immediate)
+        }
+    }
+
+    /// Carries on from the word it paused on.
+    func carryOn() {
+        DispatchQueue.main.async { [self] in
+            lock.lock()
+            let wasHushed = paused
+            paused = false
+            let playing = player
+            let throughEngine = routed != nil
+            lock.unlock()
+            guard wasHushed else { return }
+            if let playing, !playing.play() { finishPlayer() }
+            if throughEngine { route?.resumeSpeech() }
+            synthesizer.continueSpeaking()
+        }
+    }
+
     func stop() {
         DispatchQueue.main.async { [self] in
             synthesizer.stopSpeaking(at: .immediate)
             lock.lock()
+            paused = false
             engineGeneration += 1
             let playing = player
             lock.unlock()
             playing?.stop()
+            route?.stopSpeech()
             finishPlayer()
             lock.lock()
             let all = Array(waiting.values) + drainers
@@ -233,11 +518,15 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
         }
     }
 
-    /// Fetched at once, so the next sentence is ready while this one plays, and played in order.
+    /// One sentence's sound: a file from a voice engine, or the system voice rendered for the microphone's engine.
+    private enum Clip {
+        case data(Data)
+        case buffers([AVAudioPCMBuffer])
+    }
+
     private func enqueueEngine(_ sentence: String, with engine: VoiceEngine, said: @escaping () -> Void) {
-        let token = NSObject()
-        let fetch = Task { () -> Data? in
-            do { return try await engine.audio(for: sentence) } catch {
+        enqueueClip(sentence, said: said) {
+            do { return .data(try await engine.audio(for: sentence)) } catch {
                 // Cancelled means somebody talked over it, which is not a failure worth noting.
                 if (error as? URLError)?.code != .cancelled, !(error is CancellationError) {
                     diary.note("\(engine.name) did not voice it, so the system voice does: \(error.localizedDescription)")
@@ -245,6 +534,12 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
                 return nil
             }
         }
+    }
+
+    /// Fetched at once, so the next sentence is ready while this one plays, and played in order.
+    private func enqueueClip(_ sentence: String, said: @escaping () -> Void, sound: @escaping () async -> Clip?) {
+        let token = NSObject()
+        let fetch = Task { await sound() }
         lock.lock()
         waiting[ObjectIdentifier(token)] = said
         tokens[ObjectIdentifier(token)] = token
@@ -257,12 +552,12 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
                 fetch.cancel()
                 return
             }
-            if let data = await fetch.value {
-                await self.play(data, generation: generation)
+            if let clip = await fetch.value, await self.play(clip, generation: generation) {
                 try? await Task.sleep(nanoseconds: UInt64(Self.breath * nanosecondsPerSecond))
             } else if self.inGeneration(generation) {
+                // Said here rather than queued, since a queued sentence would wait behind this one forever.
                 await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
-                    self.enqueueSystem(sentence) { done.resume() }
+                    self.speakDirectly(sentence) { done.resume() }
                 }
             }
             self.finish(token)
@@ -274,6 +569,87 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
         lock.lock()
         defer { lock.unlock() }
         return engineGeneration == generation
+    }
+
+    /// Through the microphone's engine while echo cancellation runs, else straight out; false when it could not be played.
+    private func play(_ clip: Clip, generation: Int) async -> Bool {
+        if route?.cancelsEcho == true {
+            let buffers: [AVAudioPCMBuffer]?
+            switch clip {
+            case .data(let data): buffers = Self.pcm(data).map { [$0] }
+            case .buffers(let rendered): buffers = rendered
+            }
+            if let buffers, await playThroughEngine(buffers, generation: generation) { return true }
+        }
+        guard case .data(let data) = clip else { return false }
+        await play(data, generation: generation)
+        return true
+    }
+
+    private func playThroughEngine(_ buffers: [AVAudioPCMBuffer], generation: Int) async -> Bool {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            DispatchQueue.main.async { [self] in
+                guard inGeneration(generation), let route else {
+                    continuation.resume(returning: inGeneration(generation) ? false : true)
+                    return
+                }
+                lock.lock()
+                routedCount += 1
+                let mine = routedCount
+                routed = mine
+                playerDone = { continuation.resume(returning: true) }
+                // A sentence that comes up while paused is left ready, and resume starts it.
+                let held = paused
+                lock.unlock()
+                let scheduled = route.play(buffers, start: !held) { [weak self] in
+                    DispatchQueue.main.async { self?.finishRouted(mine) }
+                }
+                if !scheduled {
+                    lock.lock()
+                    routed = nil
+                    playerDone = nil
+                    lock.unlock()
+                    continuation.resume(returning: false)
+                    return
+                }
+                let length = buffers.reduce(0) { $0 + Double($1.frameLength) / $1.format.sampleRate }
+                finishAt(length) { [weak self] in self?.routed == mine }
+            }
+        }
+    }
+
+    /// Ends the sentence playing through the engine, unless a newer one has started since.
+    private func finishRouted(_ which: Int) {
+        lock.lock()
+        let current = routed == which
+        lock.unlock()
+        if current { finishPlayer() }
+    }
+
+    /// A voice engine's file as audio the microphone's engine can play, read through a file since that is what reads every format.
+    private static func pcm(_ data: Data) -> AVAudioPCMBuffer? {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("memnox-voice-\(UUID().uuidString).wav")
+        defer { try? FileManager.default.removeItem(at: url) }
+        guard (try? data.write(to: url)) != nil,
+              let file = try? AVAudioFile(forReading: url),
+              let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)),
+              (try? file.read(into: buffer)) != nil
+        else { return nil }
+        return buffer
+    }
+
+    /// The system voice's sentence as audio, gathered until it says it is done; nil when it rendered nothing.
+    private func rendered(_ sentence: String) async -> [AVAudioPCMBuffer]? {
+        let utterance = utterance(sentence)
+        let gathered = Gathered()
+        return await withCheckedContinuation { (continuation: CheckedContinuation<[AVAudioPCMBuffer]?, Never>) in
+            DispatchQueue.main.async { [self] in
+                writer.write(utterance) { buffer in
+                    guard let pcm = buffer as? AVAudioPCMBuffer else { return }
+                    if let all = gathered.add(pcm) { continuation.resume(returning: all.isEmpty ? nil : all) }
+                }
+            }
+        }
     }
 
     private func play(_ data: Data, generation: Int) async {
@@ -288,7 +664,11 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
                 lock.lock()
                 self.player = player
                 playerDone = { continuation.resume() }
+                let held = paused
                 lock.unlock()
+                finishAt(player.duration) { [weak self] in self?.player === player }
+                // A sentence that comes up while paused is left ready, and resume starts it.
+                if held { return }
                 if !player.play() { finishPlayer() }
             }
         }
@@ -298,11 +678,31 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
         finishPlayer()
     }
 
+    /// Ends the sentence once it should long have finished, unless a newer one took its place; one held by a
+    /// pause is given its length again, since the person talking over it is not the playback stuck.
+    private func finishAt(_ length: TimeInterval, isCurrent: @escaping () -> Bool) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + length + Self.playbackGrace) { [weak self] in
+            guard let self else { return }
+            lock.lock()
+            let current = isCurrent()
+            let held = paused
+            lock.unlock()
+            guard current else { return }
+            if held {
+                finishAt(length, isCurrent: isCurrent)
+                return
+            }
+            diary.note("a sentence never said it finished, so it was ended to keep the conversation going")
+            finishPlayer()
+        }
+    }
+
     private func finishPlayer() {
         lock.lock()
         let done = playerDone
         playerDone = nil
         player = nil
+        routed = nil
         lock.unlock()
         done?()
     }
@@ -344,16 +744,44 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
         finished.forEach { $0() }
     }
 
-    /// Installed English voices, best first, since Premium and Enhanced sound the most like a person.
+    /// Installed English voices, best first and then by name, since Premium and Enhanced sound the
+    /// most like a person; novelty voices such as Zarvox and Bells are left out because they cannot hold a conversation.
     static func englishVoices() -> [AVSpeechSynthesisVoice] {
         AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language.hasPrefix(englishPrefix) }
-            .sorted { ($0.quality.rawValue, $0.name) > ($1.quality.rawValue, $1.name) }
+            .filter { $0.language.hasPrefix(englishPrefix) && !$0.isNovelty }
+            .sorted { $0.quality.rawValue != $1.quality.rawValue ? $0.quality.rawValue > $1.quality.rawValue : $0.name < $1.name }
     }
 
     /// The best English voice installed; a person picks a Premium or Personal Voice in System Settings.
     private static func bestVoice() -> AVSpeechSynthesisVoice? {
         englishVoices().first ?? AVSpeechSynthesisVoice(language: fallbackLanguage)
+    }
+}
+
+private extension AVSpeechSynthesisVoice {
+    /// The robots and sound effects macOS ships beside its real voices.
+    var isNovelty: Bool { voiceTraits.contains(.isNoveltyVoice) }
+}
+
+/// The buffers the system voice renders a sentence into, handed on once, when its empty last buffer arrives.
+private final class Gathered: @unchecked Sendable {
+    private let lock = NSLock()
+    private var buffers: [AVAudioPCMBuffer] = []
+    private var finished = false
+    /// The system voice ends a sentence with an empty buffer.
+    private static let endOfSentence: AVAudioFrameCount = 0
+
+    /// Every buffer so far once the sentence is over, nil until then and after.
+    func add(_ buffer: AVAudioPCMBuffer) -> [AVAudioPCMBuffer]? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !finished else { return nil }
+        if buffer.frameLength > Self.endOfSentence {
+            buffers.append(buffer)
+            return nil
+        }
+        finished = true
+        return buffers
     }
 }
 
@@ -469,9 +897,15 @@ final class Ears {
     }
 }
 
+/// The names in no dictionary that people say most, misheard as "Lenox", "vehicle code", "eye term" and "guitar push" without a hint.
+let firstRecognizerHints = [
+    "Memnox", "Claude Code", "Codex", "Cursor", "VS Code", "Visual Studio Code", "iTerm", "Hermes", "ChatGPT",
+    "git status", "git push", "npm", "kubectl", "Railway", "Vercel",
+]
+
 /// Names this machine uses, as hints to the recognizer rather than words anything acts on.
-/// Replaced by the daemon's own list at launch, since it knows the agents and CLIs actually here.
-nonisolated(unsafe) var recognizerHints = ["Memnox", "Claude Code", "Codex", "Cursor", "kubectl", "Railway", "Vercel", "npm", "git push"]
+/// Joined by the daemon's own list at launch, since it knows the agents and CLIs actually here.
+nonisolated(unsafe) var recognizerHints = firstRecognizerHints
 
 /// The recognizer before macOS 26.
 final class LegacyEars {
@@ -535,7 +969,7 @@ final class LegacyEars {
         var settled = ""
         var lastWord = began
         var lastVoice: Date?
-        var loudest: Float = 0
+        var meter = VoiceMeter()
         var guessed = ""
         while true {
             let round = startRound(with: recognizer, through: audio)
@@ -545,8 +979,7 @@ final class LegacyEars {
                 try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * nanosecondsPerSecond))
                 let (words, changed, isFinal) = round.latest.read()
                 if !words.isEmpty { lastWord = max(lastWord, changed) }
-                loudest = max(loudest, audio.micLevel)
-                if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
+                if meter.hear(audio.micLevel) { lastVoice = Date() }
                 let all = joinedSpeech(settled, words)
                 hearing?(all)
                 if cut?.take() == true {
@@ -578,10 +1011,6 @@ final class LegacyEars {
             if !final { break }
         }
         let words = settled.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
-            diary.note("dropped words from a listen too quiet for speech: \(words)")
-            return nil
-        }
         return words.isEmpty ? nil : words
     }
 

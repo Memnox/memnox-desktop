@@ -13,8 +13,8 @@ struct KokoroVoice: VoiceEngine {
     let voice: String
     var name: String { "Kokoro" }
 
-    /// George, a calm British voice; `defaults write com.memnox.voice kokoroVoice bm_lewis` picks another.
-    static let defaultVoice = "bm_george"
+    /// Heart, Kokoro's own default and the first in setup's list, where another is picked.
+    static let defaultVoice = "af_heart"
     static let voiceKey = "kokoroVoice"
 
     static let speedKey = "voiceSpeed"
@@ -49,6 +49,26 @@ struct KokoroVoice: VoiceEngine {
         KokoroVoice(voice: UserDefaults.standard.string(forKey: voiceKey) ?? defaultVoice)
     }
 
+    /// The voice the person picked in setup, kept for next time.
+    static func choose(_ voice: String) {
+        UserDefaults.standard.set(voice, forKey: voiceKey)
+    }
+
+    /// The voices setup offers, by Kokoro's id and the way the picker shows it.
+    static let choices: [KokoroChoice] = [
+        KokoroChoice(id: "af_heart", label: "Default (American Female)"),
+        KokoroChoice(id: "af_bella", label: "Bella (American Female)"),
+        KokoroChoice(id: "af_nicole", label: "Nicole (American Female)"),
+        KokoroChoice(id: "af_sarah", label: "Sarah (American Female)"),
+        KokoroChoice(id: "af_sky", label: "Sky (American Female)"),
+        KokoroChoice(id: "am_adam", label: "Adam (American Male)"),
+        KokoroChoice(id: "am_michael", label: "Michael (American Male)"),
+        KokoroChoice(id: "bf_emma", label: "Emma (British Female)"),
+        KokoroChoice(id: "bf_isabella", label: "Isabella (British Female)"),
+        KokoroChoice(id: "bm_george", label: "George (British Male)"),
+        KokoroChoice(id: "bm_lewis", label: "Lewis (British Male)"),
+    ]
+
     func audio(for text: String) async throws -> Data {
         var request = URLRequest(url: KokoroServer.url.appendingPathComponent(Request.path), timeoutInterval: Request.timeout)
         request.httpMethod = Request.method
@@ -70,6 +90,12 @@ private struct SpeakBody: Encodable {
     let speed: Double
 }
 
+/// One of Kokoro's voices as setup offers it.
+struct KokoroChoice: Identifiable, Equatable {
+    let id: String
+    let label: String
+}
+
 /// The status the server answers with when it did what was asked.
 private let httpOK = 200
 
@@ -78,8 +104,13 @@ private enum KokoroFile {
     static let home = ".memnox/voice/kokoro"
     static let python = "venv/bin/python"
     static let server = "server.py"
+    /// The same file as the app bundles it, by name and ending, at `kokoro/server.py`.
+    static let serverName = "server"
+    static let serverExtension = "py"
     static let model = "kokoro-v1.0.onnx"
     static let voices = "voices-v1.0.bin"
+    /// Written by the setup that adds misaki's pronunciation, so a Mac set up before it runs it again.
+    static let setupMark = "setup-2"
     static let serverLog = "server.log"
     static let installLog = "install.log"
     static let health = "health"
@@ -114,13 +145,14 @@ final class KokoroServer {
 
     /// Whether the installer has put everything in place, for setup to say so.
     nonisolated static var isInstalled: Bool {
-        [KokoroFile.python, KokoroFile.server, KokoroFile.model, KokoroFile.voices].allSatisfy {
+        [KokoroFile.python, KokoroFile.server, KokoroFile.model, KokoroFile.voices, KokoroFile.setupMark].allSatisfy {
             FileManager.default.fileExists(atPath: directory.appendingPathComponent($0).path)
         }
     }
 
     /// True once it answers, starting it first unless one from an earlier launch is still running.
     func ready() async -> Bool {
+        Self.refreshServer()
         if await Self.healthy() { return true }
         guard installed else {
             diary.note("Kokoro is not installed yet")
@@ -138,6 +170,23 @@ final class KokoroServer {
     func stop() {
         process?.terminate()
         process = nil
+    }
+
+    /// The server as this app ships it, copied over the installed one when the two differ, so a
+    /// change to how it speaks reaches a Mac that installed Kokoro with an earlier version.
+    private static func refreshServer() {
+        let installed = directory.appendingPathComponent(KokoroFile.server)
+        guard let bundled = Bundle.main.url(forResource: KokoroFile.serverName, withExtension: KokoroFile.serverExtension, subdirectory: KokoroFile.setupFolder),
+              let shipped = try? Data(contentsOf: bundled),
+              FileManager.default.fileExists(atPath: installed.path),
+              (try? Data(contentsOf: installed)) != shipped
+        else { return }
+        do {
+            try shipped.write(to: installed, options: .atomic)
+            diary.note("Kokoro server updated to the one this app ships")
+        } catch {
+            diary.note("could not update the Kokoro server: \(error.localizedDescription)")
+        }
     }
 
     private func start() -> Bool {

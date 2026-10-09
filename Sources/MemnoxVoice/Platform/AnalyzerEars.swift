@@ -41,6 +41,8 @@ final class AnalyzerEars {
     private static let fallbackLocale = "en-US"
     /// How often the words and the level are looked at.
     private static let pollSeconds: TimeInterval = 0.15
+    /// How long after a voice stops with no word back before the analyzer is taken to have missed it.
+    private static let wordlessVoiceGrace: TimeInterval = 1.5
     private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
     /// The kinds of transcriber whose model is known to be on this Mac, so later listens skip asking the asset inventory again.
@@ -114,13 +116,12 @@ final class AnalyzerEars {
         }
 
         let began = Date()
-        var loudest: Float = 0
+        var meter = VoiceMeter()
         var lastVoice: Date?
         var guessed = ""
         while true {
             try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * Self.nanosecondsPerSecond))
-            loudest = max(loudest, audio.micLevel)
-            if audio.micLevel > AudioIO.voiceLevel { lastVoice = Date() }
+            if meter.hear(audio.micLevel) { lastVoice = Date() }
             let (words, changed) = heard.read()
             // Cut short for a rule held down meanwhile: nothing of this listen is answered.
             if cut?.take() == true {
@@ -135,6 +136,10 @@ final class AnalyzerEars {
                 continue
             }
             if words.isEmpty, Date().timeIntervalSince(began) > waiting { break }
+            // A voice that stopped with no word back is the analyzer not working, so the recording is read now
+            // rather than once the whole wait has run out with the person standing there.
+            if words.isEmpty, let lastVoice, meter.loudest > AudioIO.voiceLevel,
+               Date().timeIntervalSince(lastVoice) > Self.wordlessVoiceGrace { break }
             if !words.isEmpty, quietFor(now: Date(), lastWord: changed, lastVoice: lastVoice) > endOfSpeechPause(after: words) { break }
             if words != guessed, mayGuess(words, pausedFor: Date().timeIntervalSince(changed)) {
                 guessed = words
@@ -145,18 +150,21 @@ final class AnalyzerEars {
         feed.finish()
         lastWordAt = heard.read().1
         diary.note("microphone: \(counts.summary)")
+        // Nothing heard at all is a grant or a device, never the speech model, so both are named for the log.
+        if counts.heardNothing {
+            let granted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized ? "granted" : "not granted"
+            diary.note("microphone silent: access \(granted) (\(AVCaptureDevice.authorizationStatus(for: .audio).rawValue)), route \(AudioRoute.current().described)")
+        }
         try? await analyzer.finalizeAndFinishThroughEndOfInput()
         await reading.value
         let words = heard.read().0.trimmingCharacters(in: .whitespacesAndNewlines)
         diary.note("SpeechAnalyzer heard \(words.isEmpty ? "nothing" : words)")
+        let loudest = meter.loudest
+        diary.note("microphone levels: quietest \(meter.quietest), loudest \(loudest)")
         if words.isEmpty, loudest > AudioIO.voiceLevel {
             // The microphone heard a voice and no word came back: the analyzer is not working here.
             diary.note("heard a voice at level \(loudest) and no words")
             return .unavailable(recording.buffers)
-        }
-        if !words.isEmpty, !soundedLikeSpeech(loudest: loudest) {
-            diary.note("dropped words from a listen too quiet for speech: \(words)")
-            return .silence
         }
         return words.isEmpty ? .silence : .heard(words)
     }
@@ -330,5 +338,12 @@ private final class Counts: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return "\(good) buffers heard, \(bad) could not be converted"
+    }
+
+    /// True when not one buffer arrived, which is a microphone that was never opened rather than a quiet room.
+    var heardNothing: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return good == 0 && bad == 0
     }
 }

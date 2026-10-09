@@ -14,6 +14,20 @@ private let requestOpenings: Set<String> = [
     "okay so", "ok so", "so can you", "and can you", "hey", "hey can you",
 ]
 
+/// The polite openings that need both a verb and what it acts on, so "can you open" is half a request
+/// while "show me sessions" is a whole one.
+private let politeOpenings: Set<String> = [
+    "can you", "could you", "would you", "will you", "can we", "could we", "please", "so can you", "okay so can you",
+]
+
+/// Words a request or a question opens with, so a short line opening with one is somebody asking,
+/// not "Yes." answering: "Can you open?" waits for what to open rather than being acted on at once.
+private let askingWords: Set<String> = [
+    "can", "could", "would", "will", "do", "does", "did", "is", "are", "was", "what", "which", "who", "how",
+    "why", "where", "when", "please", "open", "show", "tell", "close", "start", "stop", "run", "make", "ask",
+    "check", "give", "let", "i", "so", "okay", "ok",
+]
+
 /// How long a pause ends what somebody is saying. A short reply like "Yes." is answered almost at
 /// once, a finished question a second after it, and somebody who has been talking for a while gets
 /// longer, because between two sentences of one thought people pause for more than a second, and
@@ -26,10 +40,13 @@ public func endOfSpeechPause(after words: String) -> TimeInterval {
     let trailing = trailingMarks.contains(where: { trimmed.hasSuffix($0) })
     if trailing || trailingWords.contains(last) { return SpeechPause.stillThinking }
     if requestOpenings.contains(spoken.joined(separator: " ")) { return SpeechPause.stillThinking }
+    // An opening and one word, like "can you open", names what to do and not yet what to do it to.
+    if spoken.count > 1, politeOpenings.contains(spoken.dropLast().joined(separator: " ")) { return SpeechPause.stillThinking }
     let long = spoken.count > longThought
+    let answering = !askingWords.contains(spoken.first.map(String.init) ?? "")
     // The recognizer only puts a full stop or a question mark on a sentence it thinks is done.
     if finishingMarks.contains(where: { trimmed.hasSuffix($0) }) {
-        if spoken.count <= shortReply { return SpeechPause.shortReply }
+        if spoken.count <= shortReply, answering { return SpeechPause.shortReply }
         // A finished question is answered sooner; a long one keeps more room, since people pause between its sentences.
         return long ? SpeechPause.finishedLong : SpeechPause.finished
     }
@@ -41,15 +58,17 @@ public func endOfSpeechPause(after words: String) -> TimeInterval {
 private enum SpeechPause {
     /// A trailing "uh", "so" or "..." is somebody still thinking, so that waits longest.
     static let stillThinking: TimeInterval = 3.0
-    /// "Yes." is an answer, and answered almost at once.
-    static let shortReply: TimeInterval = 0.6
-    /// A finished question, answered a beat after it.
-    static let finished: TimeInterval = 0.9
+    /// "Yes." is an answer, and answered soon after.
+    static let shortReply: TimeInterval = 0.8
+    /// A finished question, answered once a breath has passed. The recognizer marks nearly every
+    /// pause as a full stop, and under a second and a half cut people off mid thought; the guess at
+    /// a short pause starts the answer anyway, so waiting longer here costs no time.
+    static let finished: TimeInterval = 1.4
     /// A finished long thought, since people pause between its sentences.
-    static let finishedLong: TimeInterval = 1.5
+    static let finishedLong: TimeInterval = 2.0
     /// No mark to go on, so the pause gets the benefit of the doubt.
-    static let unmarked: TimeInterval = 1.7
-    static let unmarkedLong: TimeInterval = 2.0
+    static let unmarked: TimeInterval = 2.2
+    static let unmarkedLong: TimeInterval = 2.6
 }
 
 /// Endings that mean somebody trailed off mid thought: a comma or an ellipsis, typed or as one character.
@@ -88,16 +107,35 @@ public let voiceHoldsFor: TimeInterval = 3.0
 
 /// Two stretches of what was heard as one sentence, with the space between them the recognizer leaves out
 /// when it finishes one segment and starts the next, so "so." and "Is there" never read as "so.Is there".
+/// A segment that is only a mark joins the words before it, and a mark already there is not said twice,
+/// so dictation finishing "sir ?" and then "?" on its own reads "sir?" rather than "sir ? ?".
 public func joinedSpeech(_ first: String, _ second: String) -> String {
-    [first, second].map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
+    let joined = [first, second].map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
+    return joined
+        .replacingOccurrences(of: #"\s+([?!,;:])"#, with: "$1", options: .regularExpression)
+        .replacingOccurrences(of: #"([?!])[?!]+"#, with: "$1", options: .regularExpression)
 }
 
-/// Whether a listen was loud enough at its loudest to hold somebody speaking, on the zero to one
-/// decibel scale the microphone reports. A recognizer taught Memnox's own requests turns a quiet
-/// room into one of them, like "show me all my sessions", so words from a listen this quiet are noise.
-public func soundedLikeSpeech(loudest: Float) -> Bool {
-    loudest >= quietestSpeech
+/// Tells a voice from the room by how far it rises above the quietest the microphone has been in
+/// this listen, rather than by a fixed level, since one microphone's whisper is another's shout and
+/// a fixed level either never heard the person or heard the fan.
+public struct VoiceMeter: Sendable {
+    public private(set) var quietest: Float = 1
+    public private(set) var loudest: Float = 0
+
+    public init() {}
+
+    /// Takes one reading and says whether it is somebody speaking.
+    public mutating func hear(_ level: Float) -> Bool {
+        // Nothing at all is a reading taken before the first sound arrived, not the room going quiet;
+        // counted, it set the floor at zero and every murmur read as a voice.
+        guard level > 0 else { return false }
+        quietest = min(quietest, level)
+        loudest = max(loudest, level)
+        return level - quietest >= voiceAbove
+    }
 }
 
-/// About 46 decibels below full scale, under the quietest speech a laptop microphone picks up.
-public let quietestSpeech: Float = 0.2
+/// About five and a half decibels over the room on the microphone's zero to one scale: a voice
+/// clears it, the hum of a room does not.
+public let voiceAbove: Float = 0.12

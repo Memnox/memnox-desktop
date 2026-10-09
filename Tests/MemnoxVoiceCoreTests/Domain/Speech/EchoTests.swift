@@ -19,6 +19,17 @@ final class EchoTests: XCTestCase {
         XCTAssertEqual(withoutEchoRuns("do for you show my sessions", spoken: spoken), "show my sessions")
     }
 
+    func testTakesOffWhatIsLeftOfItsEchoWhereTheRecognizerSplitAWord() {
+        let spoken = "Very well. That rule is in force in HireMe.AI."
+        XCTAssertEqual(withoutEchoRuns("Very well that rule is enforced in hire me AI", spoken: spoken), "")
+        // The person answering straight after it is kept.
+        XCTAssertEqual(withoutEchoRuns("Very well that rule is in force, now push it", spoken: spoken), "now push it")
+        // A word of theirs on its own, with nothing of the echo beside it, is never taken.
+        XCTAssertEqual(withoutEchoRuns("rule", spoken: spoken), "rule")
+        // What the person said after a name it split is theirs, and the split name is not.
+        XCTAssertEqual(withoutEchoRuns("Very well that rule is enforced in hire me AI so can you", spoken: spoken), "so can you")
+    }
+
     func testTellsThePersonTalkingOverItFromItsOwnEcho() {
         let spoken = "Claude Code finished checkout, four files changed and the tests pass."
         XCTAssertFalse(isBargeIn(heard: "four files changed and the tests", spoken: spoken))
@@ -62,5 +73,69 @@ final class EchoTests: XCTestCase {
         XCTAssertFalse(isBargeIn(heard: "the voice bridge for the Mac", spoken: spoken, speaking: true))
         // It said "stop" itself, so hearing "stop" is its own echo.
         XCTAssertFalse(isBargeIn(heard: "stop", spoken: "I can stop the session", speaking: true))
+    }
+
+    func testPausesOnTheFirstWordsThatAreNotItsOwn() {
+        let spoken = "Claude Code finished setting up the voice picker in memnox macos"
+        XCTAssertTrue(mayBeCuttingIn(heard: "Claude Code finished setting why not", spoken: spoken))
+        // One stray word is its own voice misheard as often as it is the person.
+        XCTAssertFalse(mayBeCuttingIn(heard: "Claude Code finished setting why", spoken: spoken))
+        XCTAssertTrue(mayBeCuttingIn(heard: "Claude Code finished stop", spoken: spoken))
+        XCTAssertFalse(mayBeCuttingIn(heard: "Claude Code finished setting up", spoken: spoken))
+        // A stray word of its own misheard, followed by more of its own, is past and no reason to pause.
+        XCTAssertFalse(mayBeCuttingIn(heard: "Claude Code polished setting up the voice", spoken: spoken))
+        XCTAssertFalse(mayBeCuttingIn(heard: "", spoken: spoken))
+    }
+
+    func testCarriesOnOverItsOwnWordsHeardWrongOrHalfHeard() {
+        // Each of these paused the voice for a second and a half on 2026-10-04, which is what cut it.
+        let rules = "Two rules are on a card on the Mac, one to ask before you push, the other to ask before you create a pull request."
+        XCTAssertFalse(mayBeCuttingIn(heard: "Two rules are on a card on the Mac want", spoken: rules))
+        XCTAssertFalse(mayBeCuttingIn(heard: "The other to ask before you create a pool", spoken: rules))
+        let starting = "Shall I start Cursor in memnox runtime to review your changes?"
+        XCTAssertFalse(mayBeCuttingIn(heard: "Shall I start cursor in me", spoken: starting))
+        XCTAssertFalse(mayBeCuttingIn(heard: "Shall I start cur", spoken: starting))
+        let finished = "Claude Code in memnox runtime finished a moment ago and is waiting on you."
+        XCTAssertFalse(mayBeCuttingIn(heard: "Claude Code in memory", spoken: finished))
+        XCTAssertFalse(mayBeCuttingIn(heard: "Claude Code in Memnox runtime finished a moment ago and he", spoken: finished))
+        // Its own name, said in its own sentence, is no call to stop; the person saying it over another is.
+        XCTAssertFalse(mayBeCuttingIn(heard: "Claude is open in Memnox", spoken: "Claude is open in memnox-runtime with your request in it."))
+        XCTAssertTrue(mayBeCuttingIn(heard: "Five agents on your Memnox", spoken: "Five agents on your Mac."))
+    }
+
+    func testTakesOnlyWhatCameOnceItWentQuietForThePerson() {
+        // Its own heads up read a path the recognizer turned into "Galo Shanaka": that paused it, nothing more.
+        let spoken = "Moïse, Claude Code in memnox macos wants to delete src. Allow it, or deny?"
+        let pausedOn = "My Claude Code in memnox macos wants to delete and Galo"
+        XCTAssertFalse(isPersonAfterPause(sincePause("\(pausedOn) Shanaka", pausedOn: pausedOn), spoken: spoken))
+        // The person carrying on once it is quiet is them, and only their words are kept.
+        let heard = "\(pausedOn) wait which folder is that"
+        XCTAssertTrue(isPersonAfterPause(sincePause(heard, pausedOn: pausedOn), spoken: spoken))
+        XCTAssertEqual(sincePause(heard, pausedOn: pausedOn), "and Galo wait which folder is that")
+        // "Stop" alone is enough, even as the word it paused on.
+        XCTAssertTrue(isPersonAfterPause(sincePause("Claude Code stop", pausedOn: "Claude Code stop"), spoken: spoken))
+    }
+    /// The voice log of 2026-10-05: its own "a write there asks first" came back as "right there ask for"
+    /// once it paused, was taken for the person, and the held call it was asking about was dropped.
+    func testTakesItsOwnWordsSaidAlikeAfterAPauseForItsEcho() {
+        let spoken = "index dot J S is outside memnox runtime, where this session works, so a write there asks first. Allow it, or deny?"
+        let pausedOn = "index.JS is outside Memnox runtime where the session works so we're right"
+        let heard = "\(pausedOn) there ask for"
+        XCTAssertFalse(isPersonAfterPause(sincePause(heard, pausedOn: pausedOn), spoken: spoken))
+        // The person saying something of their own after the same pause still cuts in.
+        XCTAssertTrue(isPersonAfterPause(sincePause("\(pausedOn) open the billing session", pausedOn: pausedOn), spoken: spoken))
+    }
+    /// The voice log of 2026-10-08: they were talking while it thought, it paused only once it spoke over
+    /// them, and everything before the last two words was dropped, leaving "to talk you said".
+    func testKeepsWhatTheySaidWhileItWasQuiet() {
+        let spoken = "Codex is open, and your words are on the clipboard, since I could not type them in. Press Command V, then Return, in its chat. The Mac couldn't type into Codex a moment ago, so the message is on your clipboard. Shall I try typing it again?"
+        let pausedOn = "On the clipboard since I could not type them in press command V then return and it's chat so I think sometimes you don't understand so I ask you many times to talk"
+        let heard = "\(pausedOn) you said"
+        XCTAssertEqual(
+            cutInWords(heard, pausedOn: pausedOn, spoken: spoken, spokeInQuiet: true),
+            "I think sometimes you don't understand so I ask you many times to talk you said"
+        )
+        // Without words of theirs in the quiet, only what came from the pause on is theirs, as before.
+        XCTAssertEqual(cutInWords(heard, pausedOn: pausedOn, spoken: spoken, spokeInQuiet: false), "to talk you said")
     }
 }

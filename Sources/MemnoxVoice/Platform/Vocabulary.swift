@@ -47,7 +47,7 @@ enum Vocabulary {
     }
 
     /// The agents themselves, always taught, since they are what a person names most.
-    private static let agents = ["Claude Code", "Claude", "Codex", "Cursor", "Hermes", "OpenClaw", "Memnox"]
+    private static let agents = ["Claude Code", "Claude", "Codex", "Cursor", "Hermes", "OpenClaw", "Memnox", "ChatGPT"]
 
     /// The ways people bring an agent into a sentence, so its name is expected where it is said.
     private static let templates: [(String, Int)] = [
@@ -59,6 +59,9 @@ enum Vocabulary {
         ("ask <name>", 200),
         ("tell <name> to", 150),
         ("have <name> review", 150),
+        ("open <name> desktop", 200),
+        ("open the <name> app", 200),
+        ("ask <name> to review my changes", 150),
         ("what is <name> doing", 150),
         ("show me the <name> session", 150),
         ("is <name> working", 100),
@@ -70,9 +73,24 @@ enum Vocabulary {
     /// How the names nobody's dictionary has are said, in the X-SAMPA the recognizer reads.
     private static let pronunciations = [
         ("Claude", "k l O d"),
+        // Stressed on its first half, as people say it, and with the open and the rounded "o" of nox,
+        // so "mem knocks" and "mem nox" both land on Memnox rather than on "my Knox".
         ("Memnox", "m E m n A k s"),
+        ("Memnox", "m \"E m . n A k s"),
+        ("Memnox", "m \"E m . n O k s"),
+        ("Memnox", "m \"E m . n Q k s"),
         ("Codex", "k o d E k s"),
         ("OpenClaw", "o p @ n k l O"),
+        // Said as two words, which the recognizer otherwise hears as "an item" or "eye term".
+        ("iTerm", "aI t 3` m"),
+        ("macOS", "m { k o U E s"),
+        // Heard as "gate" and "get" before push or status, and as "a mess" for Hermes.
+        ("git", "g I t"),
+        ("GitHub", "g I t h V b"),
+        // Heard as "VS studio" and "videos studios".
+        ("VS Code", "v i E s k o U d"),
+        ("Hermes", "h 3` m i z"),
+        ("Cursor", "k 3` s 3`"),
     ]
 
     private static func data(names: [String], locale: Locale) -> SFCustomLanguageModelData {
@@ -87,7 +105,11 @@ enum Vocabulary {
         }
         // A pronunciation with a sound the recognizer does not know would fail the whole model, so it is left out.
         let known = Set(SFCustomLanguageModelData.supportedPhonemes(locale: locale))
-        for (grapheme, phonemes) in pronunciations where phonemes.split(separator: " ").allSatisfy({ known.contains(String($0)) }) {
+        for (grapheme, phonemes) in pronunciations {
+            guard phonemes.split(separator: " ").allSatisfy({ known.contains(String($0)) }) else {
+                diary.note("left out a pronunciation of \(grapheme) the recognizer cannot read: \(phonemes)")
+                continue
+            }
             data.insert(term: SFCustomLanguageModelData.CustomPronunciation(grapheme: grapheme, phonemes: [phonemes]))
         }
         return data
@@ -130,7 +152,7 @@ enum Vocabulary {
     /// The bundle identifier, which the system files a custom model under.
     private static let identifier = "com.memnox.voice"
     /// Raised when the templates or pronunciations change, so every Mac builds its model again.
-    private static let version = "3"
+    private static let version = "7"
     private static let nameClass = "name"
     /// Each word heard on its own often enough to be expected, well under the requests that hold it.
     private static let termCount = 50

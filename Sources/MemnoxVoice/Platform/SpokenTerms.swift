@@ -8,14 +8,15 @@ enum SpokenTerms {
     static let terms: [String] = agents + sessions + rules + protection + history + git + tools + workspace + places
 
     /// Whole requests with how often people say them, which teach the model what follows what.
-    static let phrases: [(String, Int)] = asking + acting + ruling + protecting + looking + working + finding
+    static let phrases: [(String, Int)] = naming + asking + acting + ruling + protecting + looking + working + finding
 
     // MARK: Terms
 
     private static let agents = [
         "Memnox", "Claude Code", "Claude", "Codex", "Cursor", "Gemini", "Windsurf", "Copilot", "Aider", "Goose",
         "OpenCode", "Hermes", "OpenClaw", "Ruflo", "agent", "agents", "subagent", "subagents", "helper", "helpers",
-        "operator", "brain", "voice agent",
+        "operator", "brain", "voice agent", "Claude desktop", "Claude app", "Codex app", "Codex desktop", "ChatGPT",
+        "Cursor app", "Hermes app", "Hermes desktop", "desktop app",
     ]
 
     private static let sessions = [
@@ -46,7 +47,8 @@ enum SpokenTerms {
     ]
 
     private static let git = [
-        "git", "git status", "git history", "git log", "git diff", "git push", "git pull", "commit", "commits",
+        "git", "git status", "git history", "git log", "git diff", "git push", "git pull", "git commit", "git branch",
+        "git stash", "git rebase", "git merge", "git checkout", "git fetch", "git reset", "commit", "commits",
         "push", "pull", "pull request", "PR", "branch", "branches", "main", "release branch", "merge", "rebase",
         "stash", "checkout", "tag", "clone", "worktree", "conflict", "collision", "the tests", "tests pass",
         "test suite", "build", "deploy", "lint", "type check",
@@ -57,6 +59,11 @@ enum SpokenTerms {
         "Visual Studio Code", "Xcode", "Finder", "GitHub", "GitHub CLI", "Linear", "Jira", "Slack", "Discord",
         "Notion", "Gmail", "Outlook", "Railway", "Vercel", "Docker", "Kubernetes", "kubectl", "npm", "pnpm",
         "Yarn", "Node", "Swift", "Postgres", "MongoDB", "Supabase", "AWS", "Anthropic", "OpenAI", "API key",
+        "TypeScript", "JavaScript", "Python", "Rust", "Golang", "JSON", "YAML", "TOML", "Markdown", "React", "Next.js",
+        "Tailwind", "Vite", "Vitest", "Jest", "ESLint", "Prettier", "Redis", "SQLite", "SQL", "GraphQL", "REST API",
+        "API", "endpoint", "webhook", "CI", "GitHub Actions", "Homebrew", "SwiftUI", "Cloudflare", "Netlify",
+        "Heroku", "Terraform", "Stripe", "OAuth", "JWT", "localhost", "refactor", "unit test", "Playwright",
+        "Figma", "Sentry", "Datadog", "PostHog", "Electron", "monorepo", "changeset", "lockfile", "dependency",
     ]
 
     private static let workspace = [
@@ -71,6 +78,41 @@ enum SpokenTerms {
     ]
 
     // MARK: Phrases
+
+    /// Memnox and its projects, weighted well above everything else: the name is in no dictionary, so
+    /// without the weight "my Knox runtime" outscores "Memnox runtime" on every common word around it.
+    private static let naming: [(String, Int)] = [
+        ("Memnox", 600),
+        ("hey Memnox", 300),
+        ("Memnox runtime", 500),
+        ("Memnox client", 400),
+        ("Memnox cloud", 400),
+        ("Memnox macOS", 400),
+        ("in Memnox runtime", 300),
+        ("within Memnox runtime", 300),
+        ("in Memnox client", 200),
+        ("in Memnox macOS", 200),
+        // "Memnox Marco's" was heard for the Mac app's folder.
+        ("Claude Code in Memnox macOS", 200),
+        ("Memnox macOS folder", 150),
+        ("my Memnox runtime", 200),
+        ("open Memnox", 200),
+        ("ask Memnox", 200),
+        ("Claude Code", 500),
+        ("a new Claude Code session", 300),
+        ("open Codex", 200),
+        // "keto", "cars" and "a mess this up" were heard for these on 2026-10-04.
+        ("open Codex desktop", 300),
+        ("open the Codex app", 300),
+        ("start Codex desktop", 200),
+        ("open Claude desktop", 300),
+        ("open the Claude app", 200),
+        ("open the Cursor app", 200),
+        ("open Hermes", 200),
+        ("open the Hermes app", 300),
+        ("open Hermes desktop", 300),
+        ("start Hermes", 200),
+    ]
 
     private static let asking: [(String, Int)] = [
         ("show me all my sessions", 200),
@@ -109,6 +151,21 @@ enum SpokenTerms {
         ("pause the session", 100),
         ("resume the session", 100),
         ("commit and push", 100),
+        ("ask it to review my changes", 200),
+        ("review my changes", 200),
+        ("git push", 200),
+        // Heard as "gate history" and "gate through" when nothing tells the recognizer this is about code.
+        ("ask it to check the git history", 200),
+        ("a follow up on the last session", 200),
+        ("do a follow up in the same session", 200),
+        ("in the VS Code terminal", 200),
+        ("the Claude Code extension in VS Code", 150),
+        ("open VS Code", 150),
+        ("git pull", 150),
+        ("git commit", 150),
+        ("create a pull request", 150),
+        ("ask before you push", 100),
+        ("ask before you create a pull request", 100),
         ("push to the release branch", 100),
         ("open a pull request", 100),
         ("wait no", 100),
@@ -154,6 +211,13 @@ enum SpokenTerms {
         ("walk me through the changes", 100),
         ("show me the git status", 100),
         ("show me the git history", 100),
+        // "gate three session" and "recession" were heard for these, so they are weighted over the common words.
+        ("review the git history", 150),
+        ("check the git history", 150),
+        ("the git history session", 150),
+        ("is the git history session still running", 150),
+        ("is the session still running", 150),
+        ("is it still running", 100),
         ("run memnox doctor", 100),
         ("what is my status", 100),
     ]
@@ -175,7 +239,13 @@ enum SpokenTerms {
         ("open my folder", 100),
         ("open the folder", 150),
         ("open it in Finder", 100),
-        ("open it in VS Code", 100),
+        // "VS to your code", "VS studio code" and "an item" were heard for these.
+        ("open it in VS Code", 200),
+        ("open a new session in VS Code", 200),
+        ("in VS Code not in iTerm", 150),
+        ("I said VS Code", 150),
+        ("open it in iTerm", 150),
+        ("not in iTerm", 100),
         ("open it in the terminal", 100),
         ("which folders do I use most", 100),
         ("open the memnox runtime folder", 100),

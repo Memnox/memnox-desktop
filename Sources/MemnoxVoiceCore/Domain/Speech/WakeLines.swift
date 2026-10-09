@@ -48,16 +48,20 @@ public struct WakeLines {
     private static func greetings(to: String?, hour: Int) -> [String] {
         let part = hour < afternoonFrom ? "Good morning" : hour < eveningFrom ? "Good afternoon" : "Good evening"
         let named = to.map { "\(part), \($0)." } ?? "\(part)."
-        return ["\(named) How shall we proceed?", "\(named) What can I do for you?", "\(named) At your service."]
+        return [
+            "\(named) Systems online. Memnox is ready.", "\(named) Let's see what your agents are up to.",
+            "\(named) Your agents, your rules.",
+        ]
     }
 
+    /// Never "Yes", since being called is not a question it was asked, and a "Yes" sounds like it agreed to something.
     private static func replies(to: String?) -> [String] {
         guard let to else {
-            return ["Yes?", "At your service.", "How may I assist?", "Standing by.", "Ready for your next command."]
+            return ["I'm here.", "Standing by.", "Ready when you are.", "I'm listening.", "How may I assist?"]
         }
         return [
-            "Yes, \(to)?", "\(capitalizedFirst(to))?", "At your service, \(to).", "How may I assist, \(to)?",
-            "Standing by, \(to).", "Ready when you are, \(to).",
+            "I'm here, \(to).", "\(capitalizedFirst(to))?", "Standing by, \(to).", "Ready when you are, \(to).",
+            "How may I assist, \(to)?",
         ]
     }
 

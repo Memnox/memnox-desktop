@@ -233,6 +233,53 @@ final class TalkingTests: XCTestCase {
         XCTAssertEqual(older.said, ["My apologies, I could not type it into its terminal."])
     }
 
+    func testTellsThePersonWhatOnlyTheyCanDoOnceARun() async throws {
+        final class HintingPresenter: Presenter {
+            func live(session: String, host: DisplayHost?) async {}
+            func focus(session: String, host: DisplayHost?) async -> Typed { .landed }
+            func open(_ host: DisplayHost?) async -> Bool { true }
+            func card(_ card: SummaryCard) async {}
+            func type(_ text: String, into host: DisplayHost?, request: String) async -> Typed { Typed(.typed, hint: .allowTyping) }
+            func prefill(_ text: String, session: String, host: DisplayHost?) async -> Typed {
+                Typed(.failed, "silent", hint: .restartExtensions(app: "Visual Studio Code"))
+            }
+            func launch(_ command: String, in folder: String?) async -> Typed { .landed }
+            func walk(_ walk: WalkCard) async {}
+            func scan(_ agents: [AgentNode], title: String) async {}
+            func trace(_ trace: TraceData, title: String) async {}
+            func board(title: String) async {}
+        }
+        let type = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_4","agent":"claude-code","summary":"commit it","at":"2026-10-01T00:00:00Z","display":"type","host":{"app":"Terminal","tty":"ttys004"}}}"#).event)
+        let prefill = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_5","agent":"claude-code","summary":"add a test","at":"2026-10-01T00:00:00Z","display":"prefill","sessionId":"ses_1","host":{"app":"Visual Studio Code"}}}"#).event)
+        let speaker = RecordingSpeaker()
+        let conversation = Conversation(
+            link: SlowLink(seconds: 0, answer: [try line(#"{"id":1,"ok":true,"outcome":"kept"}"#)]),
+            speaker: speaker, key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil),
+            presenter: HintingPresenter(), macOSMajorVersion: 26
+        )
+        for event in [type, type, prefill, prefill] { await conversation.handle(event) }
+        // Said whatever the brain says, since only the person can do it, and once rather than after every message.
+        XCTAssertEqual(speaker.said, [
+            Conversation.line(for: .allowTyping, macOSMajorVersion: 26),
+            Conversation.line(for: .restartExtensions(app: "Visual Studio Code"), macOSMajorVersion: 26),
+        ])
+        XCTAssertTrue(speaker.said[1].contains("Developer: Restart Extension Host"))
+    }
+
+    func testAsksAgainRatherThanStayingSilentWhenTheBrainHoldsOnWordsMarkedWhole() async throws {
+        let hold = [
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"tool","tool":"mcp__memnox-operator__keep_listening"}}"#),
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#),
+        ]
+        let speaker = RecordingSpeaker()
+        let conversation = Conversation(
+            link: SlowLink(seconds: 0, answer: hold),
+            speaker: speaker, key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil)
+        )
+        await conversation.heard("can you try to pronounce the same word", finished: true)
+        XCTAssertEqual(speaker.said, [Conversation.sayItAgain])
+    }
+
     func testSaysHowToLetItTypeOnceAndThenOnlyWhereTheWordsAre() async throws {
         final class LockedPresenter: Presenter {
             func live(session: String, host: DisplayHost?) async {}
@@ -406,5 +453,72 @@ final class TalkingTests: XCTestCase {
         let before = link.sent.count
         await conversation.learn(typed: "check the sessions", sent: "check the sessions")
         XCTAssertEqual(link.sent.count, before)
+    }
+
+    func testSendsWhatItReadBackAndShowsItBesideTheAnswer() async throws {
+        final class SeeingPresenter: Presenter {
+            static let proof = Proof(checked: "the words in its iTerm tab", seen: "> push it", image: "/p/dsp_4.png")
+            func live(session: String, host: DisplayHost?) async {}
+            func focus(session: String, host: DisplayHost?) async -> Typed { .landed }
+            func open(_ host: DisplayHost?) async -> Bool { true }
+            func card(_ card: SummaryCard) async {}
+            func type(_ text: String, into host: DisplayHost?, request: String) async -> Typed { Typed.landed.verified(Self.proof) }
+            func prefill(_ text: String, session: String, host: DisplayHost?) async -> Typed { Typed(.waiting, "its panel needs its window") }
+            func launch(_ command: String, in folder: String?) async -> Typed { .landed }
+            func walk(_ walk: WalkCard) async {}
+            func scan(_ agents: [AgentNode], title: String) async {}
+            func trace(_ trace: TraceData, title: String) async {}
+            func board(title: String) async {}
+            var looked: [String?] = []
+            func look(app: String?) async -> Sight? {
+                looked.append(app)
+                return Sight(app: "Safari", window: "Pull request", image: "/s/1.png", outline: "Button \"Merge\"")
+            }
+        }
+        let link = ScriptedLink()
+        link.answers["delivered"] = [try line(#"{"id":1,"ok":true,"outcome":"kept"}"#)]
+        let face = RecordingFace()
+        let speaker = RecordingSpeaker()
+        let presenter = SeeingPresenter()
+        let conversation = Conversation(link: link, speaker: speaker, key: PersonKey(), face: face, owner: MemoryOwner(nil), presenter: presenter)
+        let type = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_4","agent":"claude-code","summary":"push it","at":"2026-10-01T00:00:00Z","display":"type","host":{"app":"iTerm","tty":"ttys004"}}}"#).event)
+        await conversation.handle(type)
+        let delivered = try XCTUnwrap(link.sent.first { $0.method == "delivered" })
+        XCTAssertEqual(delivered.answer, "verified")
+        XCTAssertEqual(delivered.proof, SeeingPresenter.proof)
+        XCTAssertEqual(face.proofs, [SeeingPresenter.proof])
+        // The daemon heard it, so the brain says it landed and the app says nothing over it.
+        XCTAssertEqual(speaker.said, [])
+
+        let look = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_9","agent":"memnox","summary":"","at":"2026-10-01T00:00:00Z","display":"look","title":"Safari"}}"#).event)
+        await conversation.handle(look)
+        XCTAssertEqual(presenter.looked, ["Safari"])
+        XCTAssertEqual(face.reactions, [.glance])
+        let seen = try XCTUnwrap(link.sent.first { $0.method == "seen" })
+        XCTAssertEqual(seen.subject, "dsp_9")
+        XCTAssertEqual(seen.sight?.image, "/s/1.png")
+    }
+
+    func testKeepsTheWindowAndSaysSoWhenTheDaemonDidNotHear() async throws {
+        final class StayingPresenter: Presenter {
+            func live(session: String, host: DisplayHost?) async {}
+            func focus(session: String, host: DisplayHost?) async -> Typed { .landed }
+            func open(_ host: DisplayHost?) async -> Bool { true }
+            func card(_ card: SummaryCard) async {}
+            func type(_ text: String, into host: DisplayHost?, request: String) async -> Typed { .landed }
+            func prefill(_ text: String, session: String, host: DisplayHost?) async -> Typed { Typed(.waiting, "its panel needs its window") }
+            func launch(_ command: String, in folder: String?) async -> Typed { .landed }
+            func walk(_ walk: WalkCard) async {}
+            func scan(_ agents: [AgentNode], title: String) async {}
+            func trace(_ trace: TraceData, title: String) async {}
+            func board(title: String) async {}
+        }
+        let link = ScriptedLink()
+        let speaker = RecordingSpeaker()
+        let conversation = Conversation(link: link, speaker: speaker, key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil), presenter: StayingPresenter())
+        let prefill = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_5","agent":"claude-code","summary":"add a test","at":"2026-10-01T00:00:00Z","display":"prefill","sessionId":"ses_1","host":{"app":"Visual Studio Code"}}}"#).event)
+        await conversation.handle(prefill)
+        XCTAssertEqual(link.sent.first { $0.method == "delivered" }?.answer, "waiting")
+        XCTAssertEqual(speaker.said, ["I kept it for its next prompt rather than take your window."])
     }
 }

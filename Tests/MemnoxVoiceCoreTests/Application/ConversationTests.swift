@@ -35,6 +35,17 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(face.states.last, .listening)
     }
 
+    func testSendsTheWindowInFrontSoHereMeansThatFolder() async throws {
+        link.answers["ask"] = [try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#)]
+        let here = Conversation(
+            link: link, speaker: speaker, key: key, face: face, owner: MemoryOwner(nil),
+            lookingAt: { "Code" }, lookingAtWindow: { "Conversation.swift: memnox-macos" }
+        )
+        await here.heard("start a new session here and check the git history")
+        XCTAssertEqual(link.sent.first?.lookingAt, "Code")
+        XCTAssertEqual(link.sent.first?.lookingAtWindow, "Conversation.swift: memnox-macos")
+    }
+
     func testMarksTheWordsWholeWhenNothingMoreCameAfterAHold() async throws {
         link.answers["ask"] = [try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#)]
         await conversation.heard("open it and show me the session in", finished: true)
@@ -68,10 +79,28 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(speaker.said.last, "Your plan has reached its limit, so I could not finish that.")
     }
 
+    /// The voice log of 2026-10-04: an answer that never sent its end left the orb thinking for good.
+    func testSaysItLostTheThreadWhenAnAnswerNeverEnds() async {
+        let link = QuietLink()
+        let conversation = Conversation(link: link, speaker: speaker, key: key, face: face, owner: MemoryOwner(nil), quietLimit: 0.3)
+        await conversation.heard("so you could directly send the instruction after opening it")
+        XCTAssertEqual(speaker.said, [Conversation.stalled])
+        XCTAssertTrue(link.sent.contains { $0.method == "cancel" })
+    }
+
     func testSaysWhenMemnoxCannotBeReached() async {
         link.unreachable = true
         await conversation.heard("hello")
         XCTAssertEqual(speaker.said, ["My apologies, I cannot reach Memnox on this Mac at the moment."])
+    }
+
+    /// The voice log of 2026-10-05: a held call whose brief found nothing was still read out, asking about nothing.
+    func testSaysNothingAboutAHeldCallNoLongerWaiting() async throws {
+        link.answers["brief"] = [try line(#"{"id":0,"ok":false,"error":"nothing to brief about"}"#)]
+        let held = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"held","subject":"apr_1","agent":"claude-code","summary":"claude-code wants to push to main","at":"t"}}"#).event)
+        await conversation.handle(held)
+        XCTAssertEqual(speaker.said, [])
+        XCTAssertFalse(conversation.stillAsking("apr_1"))
     }
 
     func testAsksAboutAHeldCallOutLoud() async throws {
@@ -192,6 +221,60 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(speaker.stopped, stoppedBefore + 1)
     }
 
+    func testTheOrbRingsOutForAnAllowAndPullsInForADeny() async throws {
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"once"}"#)]
+        _ = await conversation.answerHeld("apr_4", .once, reason: "push to main")
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"deny"}"#)]
+        _ = await conversation.answerHeld("apr_5", .deny, reason: "push to main")
+
+        XCTAssertEqual(face.reactions, [.allowed, .refused])
+    }
+
+    func testAnAnswerThatCameSecondMakesNoGestureOfItsOwn() async throws {
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"already answered deny"}"#)]
+        _ = await conversation.answerHeld("apr_4", .once, reason: "push to main")
+
+        XCTAssertEqual(face.reactions, [])
+    }
+
+    func testAnAllowPressedAfterADenyElsewhereSaysTheDenyStands() async throws {
+        await conversation.handle(try event(#"{"kind":"held","subject":"apr_4","agent":"a","summary":"s","at":"t"}"#))
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"already answered deny"}"#)]
+        let stoppedBefore = speaker.stopped
+        let outcome = await conversation.answerHeld("apr_4", .once, reason: "push to main")
+
+        XCTAssertEqual(outcome, .answeredElsewhere(EarlierAnswer(word: "deny")))
+        XCTAssertEqual(speaker.stopped, stoppedBefore + 1)
+        XCTAssertEqual(speaker.said.last, "That was already answered elsewhere: it was denied.")
+        XCTAssertEqual(face.shown.last?.1, "answered elsewhere")
+    }
+
+    func testTheSameAnswerTwiceSaysNothingMore() async throws {
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"already answered deny"}"#)]
+        let outcome = await conversation.answerHeld("apr_4", .deny, reason: "push to main")
+
+        XCTAssertEqual(outcome, .answeredElsewhere(EarlierAnswer(word: "deny")))
+        XCTAssertEqual(speaker.said, [])
+        XCTAssertEqual(face.shown.last?.1, "answered elsewhere")
+    }
+
+    func testAButtonOnACallItsAgentAlreadyTookIsNotAFailure() async throws {
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":false,"error":"apr_4 is no longer held"}"#)]
+        let outcome = await conversation.answerHeld("apr_4", .deny, reason: "push to main")
+
+        XCTAssertEqual(outcome, .answeredElsewhere(EarlierAnswer(word: nil)))
+        XCTAssertEqual(speaker.said, ["That was settled before your answer arrived, so nothing changed."])
+    }
+
+    func testASpokenYesToAProposalDeclinedElsewhereNeverSaysItIsDone() async throws {
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"already declined"}"#)]
+        await conversation.heard("yes let it push")
+        await conversation.handle(try event(#"{"kind":"proposal","subject":"prp_9","agent":"a","summary":"push to main","at":"t"}"#))
+
+        XCTAssertEqual(speaker.said.last, "That was already answered elsewhere: it was declined.")
+        XCTAssertFalse(speaker.said.contains("Very well. It is done."))
+    }
+
     func testTellsAHeldCallInTheBrainsOwnWordsWhenItCan() async throws {
         link.answers["brief"] = [
             try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"Moise, Claude has been on order cancellation for twenty minutes. It wants to push to main now. Should I let it? "}}"#),
@@ -282,12 +365,45 @@ final class ConversationTests: XCTestCase {
     }
 
     func testTellsADaemonThatSpeaksVoiceFromOneThatOnlySaysOk() async throws {
+        link.answers["ping"] = [try line(#"{"id":1,"ok":true,"version":"0.13.14"}"#)]
         link.answers["waiting"] = [try line(#"{"id":1,"ok":true}"#)]
         let old = await conversation.daemonVoice()
         XCTAssertEqual(old, .tooOld)
         link.answers["waiting"] = [try line(#"{"id":2,"ok":true,"waiting":[]}"#)]
         let ready = await conversation.daemonVoice()
         XCTAssertEqual(ready, .ready)
+    }
+
+    func testKeepsADaemonsOwnNoRatherThanCallingItTooOld() async throws {
+        // What the daemon says between claiming its socket and opening the voice, which is not an older Memnox.
+        link.answers["ping"] = [try line(#"{"id":1,"ok":false,"error":"the daemon is not listening yet"}"#)]
+        let refused = await conversation.daemonVoice()
+        XCTAssertEqual(refused, .refused("the daemon is not listening yet"))
+        link.answers["register-key"] = [try line(#"{"id":2,"ok":false,"error":"register-key needs a P-256 point"}"#)]
+        let key = await conversation.registerKey()
+        XCTAssertEqual(key, .refused("register-key needs a P-256 point"))
+        // An unknown method is still the one no that means older.
+        link.answers["ping"] = [try line(#"{"id":3,"ok":false,"error":"no method ping"}"#)]
+        let older = await conversation.daemonVoice()
+        XCTAssertEqual(older, .tooOld)
+    }
+
+    func testCallsADaemonThatNamesNoVersionTooOld() async throws {
+        link.answers["ping"] = [try line(#"{"id":1,"ok":true}"#)]
+        link.answers["waiting"] = [try line(#"{"id":2,"ok":true,"waiting":[]}"#)]
+        let old = await conversation.daemonVoice()
+        XCTAssertEqual(old, .tooOld)
+        link.unreachable = true
+        let gone = await conversation.daemonVoice()
+        XCTAssertEqual(gone, .unreachable)
+    }
+
+    func testComparesVersionsByNumberNotByLetter() {
+        XCTAssertTrue(isAtLeast("0.13.14", "0.13.14"))
+        XCTAssertTrue(isAtLeast("0.13.20", "0.13.14"))
+        XCTAssertTrue(isAtLeast("1.0.0", "0.13.14"))
+        XCTAssertFalse(isAtLeast("0.13.9", "0.13.14"))
+        XCTAssertFalse(isAtLeast(nil, "0.13.14"))
     }
 
     func testReadsTheVoiceAgentsAndWhyTheOthersCannotAnswer() async throws {
@@ -340,10 +456,10 @@ final class ConversationTests: XCTestCase {
     }
 
     func testSaysWhyAnAnswerDidNotGoThrough() async throws {
-        link.answers["confirm"] = [try line(#"{"id":1,"ok":false,"error":"apr_4 is no longer held"}"#)]
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":false,"error":"a signature is required"}"#)]
         let outcome = await conversation.answerHeld("apr_4", .once, reason: "push to main")
 
-        XCTAssertEqual(outcome, .failed("apr_4 is no longer held"))
+        XCTAssertEqual(outcome, .failed("a signature is required"))
         XCTAssertTrue(speaker.said.first?.hasPrefix("That did not go through") ?? false)
     }
 }

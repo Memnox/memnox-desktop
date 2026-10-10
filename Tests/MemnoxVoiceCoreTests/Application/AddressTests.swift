@@ -14,6 +14,8 @@ final class AddressTests: XCTestCase {
             return conversation.answerToCall()
         }
         XCTAssertTrue(greeting("sir").contains("sir"))
-        XCTAssertFalse(greeting(nil).contains(","))
+        // Only the greeting's own sentence, since a line such as "Your agents, your rules." carries a comma of its own.
+        let firstSentence = greeting(nil).prefix { $0 != "." }
+        XCTAssertFalse(firstSentence.contains(","))
     }
 }

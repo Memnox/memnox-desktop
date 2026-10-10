@@ -49,6 +49,19 @@ final class StepLink: DaemonLink {
     }
 }
 
+/// A daemon that takes an ask and never answers or ends it, the way a turn that lost its end did.
+final class QuietLink: DaemonLink {
+    var sent: [DaemonRequest] = []
+    func stream(_ request: DaemonRequest) -> AsyncThrowingStream<DaemonResponse, Error> {
+        sent.append(request)
+        let asking = request.method == "ask"
+        return AsyncThrowingStream { continuation in
+            // Anything but an ask is answered at once, so only the ask hangs.
+            if !asking { continuation.finish() }
+        }
+    }
+}
+
 /// A daemon that takes its time before the first word, the way a cold brain does.
 final class SlowLink: DaemonLink {
     let delay: UInt64
@@ -109,6 +122,22 @@ final class RecordingFace: Face {
     func draft(subject: String, _ draft: MailDraft) { drafts.append((subject, draft)) }
     var rules: [(String, RuleDraft)] = []
     func rule(subject: String, _ rule: RuleDraft) { rules.append((subject, rule)) }
+    var works: [(String, WorkDraft)] = []
+    func work(subject: String, _ draft: WorkDraft) { works.append((subject, draft)) }
+    var signIns: [[ToolSignIn]] = []
+    func signIns(_ tools: [ToolSignIn]) { signIns.append(tools) }
+    var signedIns: [SignedInNotice] = []
+    func signedIn(_ notice: SignedInNotice) { signedIns.append(notice) }
+    var reactions: [Reaction] = []
+    func react(_ reaction: Reaction) { reactions.append(reaction) }
+    var proofs: [Proof] = []
+    func proof(_ proof: Proof) { proofs.append(proof) }
+    var drives: [DriveGrant?] = []
+    func driven(_ grant: DriveGrant?) { drives.append(grant) }
+    var phones: [PhoneExchange] = []
+    func phone(_ turn: PhoneExchange) { phones.append(turn) }
+    var voices: [PhoneVoice?] = []
+    func voiceOn(_ phone: PhoneVoice?) { voices.append(phone) }
 }
 
 /// A person who either touches the sensor or cancels.

@@ -3,6 +3,19 @@ import Foundation
 /// Talks and listens on the person's behalf: what they said goes whole to their own brain, what
 /// is waiting on them is said out loud, and every allow waits for their fingerprint. It holds no
 /// policy and never matches words: the brain understands them and the daemon decides.
+/// The operator's tools by the names the runtime gives them, so a list of them is never spelled twice.
+enum ToolName {
+    static let startSession = "start_session"
+    static let sendInstruction = "send_instruction"
+    static let watchFor = "watch_for"
+    static let pauseSession = "pause_session"
+    static let show = "show"
+    static let walkThrough = "walk_through"
+    static let typeInApp = "type_in_app"
+    static let controlApp = "control_app"
+    static let answerQuestion = "answer_question"
+}
+
 public final class Conversation {
     private let link: DaemonLink
     private let speaker: Speaker
@@ -11,7 +24,14 @@ public final class Conversation {
     private let owner: OwnerStore
     private let presenter: Presenter?
     private let chimes: Chimes?
-    private var nextId = 1
+    /// Shared with every other use case, since over the relay one session carries them all and refuses an id in flight.
+    private let ids: RequestIds
+    /// True when the answer to a subject reaches a server, which never takes a yes without a signature, whatever the event says.
+    private let signsEveryYes: (String) -> Bool
+    /// The server that raised a subject, nil for this Mac, so the person sees where a call waits.
+    private let raisedOn: (String) -> String?
+    /// The calls teammates' agents raised that the workspace routed to this person, answered through it and never a daemon.
+    private let workspace: WorkspaceAnswering?
     /// The held call last asked about out loud, so an answer elsewhere can end the question.
     private var asking: String?
     /// Set when the person talks over an answer, so the rest of it is never said.
@@ -45,6 +65,12 @@ public final class Conversation {
     }
     /// When the person last said something, since an allow may only follow their own words.
     private var lastHeard: Date?
+    /// Rule proposals the person asked for by pressing hand over, so they reach the card rather than a decline.
+    private var handedOver = Set<String>()
+    /// The hand over still waiting on the daemon, whose proposal event may arrive before its answer does.
+    private var handingOver: Task<DaemonResponse?, Never>?
+    /// A phone's turn put together from its notices, so each one shows the whole of it so far.
+    private var phoneConversation = PhoneConversation()
     /// When their last word was recognised, set by whoever listened, so the wait for the end is timed.
     public var lastWordAt: Date?
     /// When the first sentence of the answer was ready to speak, for the trace of this turn.
@@ -58,6 +84,8 @@ public final class Conversation {
     private let name: () -> String?
     /// The app in front of the person as they speak, so the brain hears their words against what they work in.
     private let lookingAt: () -> String?
+    /// The title of that app's window in front, so "the one in front of me" names a folder rather than a guess.
+    private let lookingAtWindow: () -> String?
     /// Said when the daemon is older than the app, which is the one fix a person can make.
     static let tooOld = "The Memnox running on this Mac is older than this app, so it cannot answer yet. Update Memnox and ask me again."
     /// The operator tool the brain calls when the person is done talking.
@@ -66,8 +94,10 @@ public final class Conversation {
     static let holdTool = "keep_listening"
     /// Tools that act and answer with a read back at once, where "let me check" would be the wrong words.
     static let actingTools: Set<String> = [
-        "start_session", "send_instruction", "watch_for", "pause_session", "show", "walk_through",
+        ToolName.startSession, ToolName.sendInstruction, ToolName.watchFor, ToolName.pauseSession,
+        ToolName.show, ToolName.walkThrough, ToolName.typeInApp, ToolName.controlApp, ToolName.answerQuestion,
     ]
+
     /// Every operator tool that proposes an action starts with this, and each reads its proposal back at once.
     private static let proposingToolPrefix = "propose_"
     /// Said back when the person calls it, the way somebody looks up from their desk.
@@ -85,6 +115,8 @@ public final class Conversation {
     }
     /// Long enough to say "yes, go ahead" and have the brain propose it.
     static let answerWindow: TimeInterval = 120
+    /// How long after a sign in finished its request is still worth carrying on with, when nothing was said since.
+    static let resumeWindow: TimeInterval = 60
 
     public init(
         link: DaemonLink,
@@ -99,12 +131,27 @@ public final class Conversation {
         address: @escaping () -> String? = { nil },
         name: @escaping () -> String? = { nil },
         lookingAt: @escaping () -> String? = { nil },
-        fillers: [String] = ["One moment.", "Checking.", "Looking into it."]
+        lookingAtWindow: @escaping () -> String? = { nil },
+        // Nothing said while it looks something up or acts: only results, and questions only it can't answer alone.
+        fillers: [String] = [],
+        quietLimit: TimeInterval = 75,
+        reconnectWait: TimeInterval = 8,
+        ids: RequestIds = RequestIds(),
+        signsEveryYes: @escaping (String) -> Bool = { _ in false },
+        raisedOn: @escaping (String) -> String? = { _ in nil },
+        workspace: WorkspaceAnswering? = nil
     ) {
+        self.workspace = workspace
+        self.ids = ids
+        self.signsEveryYes = signsEveryYes
+        self.raisedOn = raisedOn
+        self.quietLimit = quietLimit
+        self.reconnectWait = reconnectWait
         self.now = now
         self.address = address
         self.name = name
         self.lookingAt = lookingAt
+        self.lookingAtWindow = lookingAtWindow
         self.macOSMajorVersion = macOSMajorVersion
         self.fillers = fillers
         self.link = link
@@ -131,6 +178,38 @@ public final class Conversation {
     /// The sessions lately, most recently active first, for the switcher to turn through.
     public func sessionsList() async -> [SessionCard] {
         (try? await link.request(newRequest(.sessionsList)))?.sessions ?? []
+    }
+
+    /// The home's five blocks; nil when the daemon is away or too old to know them, so the window keeps what it had.
+    public func home() async -> DaemonHome? {
+        guard let response = try? await link.request(newRequest(.home)), response.ok else { return nil }
+        return response.home
+    }
+
+    /// The person pressed to hand the ready action over: the daemon proposes the rule, and that proposal counts as
+    /// asked for, so it goes on the rule card for a place and Touch ID rather than being declined as unasked.
+    public func handOver(_ action: String) async -> HandOver {
+        var request = newRequest(.handOver)
+        request.action = action
+        let link = self.link
+        let asking = Task { try? await link.request(request) }
+        handingOver = asking
+        let response = await asking.value
+        if handingOver == asking { handingOver = nil }
+        guard let response else { return .unreachable }
+        if response.ok, let proposed = response.proposed {
+            handedOver.insert(proposed)
+            return .proposed(proposed)
+        }
+        // A runtime from before the home answers a method it does not know with a bare ok and nothing else.
+        return .refused(response.reason ?? response.error ?? "This Memnox is older than the app")
+    }
+
+    /// Whether a proposal is the one a hand over asked for, waiting on one still in flight since its event can come first.
+    private func fromHandOver(_ subject: String) async -> Bool {
+        if handedOver.remove(subject) != nil { return true }
+        guard let pending = handingOver, let response = await pending.value else { return false }
+        return response.ok && response.proposed == subject
     }
 
     /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
@@ -161,11 +240,24 @@ public final class Conversation {
 
     /// Whether the daemon answers, and whether it speaks voice rather than only answering ok.
     public func daemonVoice() async -> DaemonVoice {
+        guard let pong = try? await link.request(DaemonRequest(id: takeId(), method: .ping)) else { return .unreachable }
+        if let refusal = Self.refusal(pong) { return refusal }
+        guard isAtLeast(pong.version, MinimumRuntime.version) else { return .tooOld }
         guard let response = try? await link.request(DaemonRequest(id: takeId(), method: .waiting)) else {
             return .unreachable
         }
+        if let refusal = Self.refusal(response) { return refusal }
         return response.ok && response.waiting != nil ? .ready : .tooOld
     }
+
+    /// A no with a reason is kept in the daemon's words, since only an unknown method means an older Memnox.
+    private static func refusal(_ response: DaemonResponse) -> DaemonVoice? {
+        guard !response.ok, let error = response.error, !error.hasPrefix(unknownMethodError) else { return nil }
+        return .refused(error)
+    }
+
+    /// Whether this Mac holds a key Touch ID can sign with; without one every allow stays in the terminal.
+    public var canSign: Bool { !key.publicPoint.isEmpty }
 
     /// Registers this Mac's key with the daemon, which trusts the first one it is given.
     public func registerKey() async -> KeyStatus {
@@ -173,6 +265,7 @@ public final class Conversation {
         request.point = key.publicPoint
         guard let response = try? await link.request(request) else { return .unreachable }
         if response.outcome == Outcome.anotherKey { return .anotherKey }
+        if !response.ok, let error = response.error, !error.hasPrefix(Self.unknownMethodError) { return .refused(error) }
         // Only the word itself counts, since an older daemon answered anything with a bare ok.
         return response.ok && response.outcome == Outcome.registered ? .registered : .tooOld
     }
@@ -194,6 +287,8 @@ public final class Conversation {
         var request = newRequest(.ask)
         request.said = withUnsent(words)
         request.lookingAt = lookingAt()
+        request.lookingAtWindow = lookingAtWindow()
+        request.teamCalls = workspace?.briefs()
         request.speculative = true
         _ = try? await link.request(request)
     }
@@ -207,6 +302,7 @@ public final class Conversation {
         // A lone "." is the recognizer hearing noise, and answering it makes the voice talk to nobody.
         guard words.contains(where: \.isLetter) else { return }
         interrupted = false
+        macTold = false
         lastHeard = now()
         // Its name alone is somebody getting its attention, answered the way the wake word is.
         if nameAlone(trimmed) {
@@ -222,6 +318,9 @@ public final class Conversation {
         var request = newRequest(.ask)
         request.said = withUnsent(words)
         request.lookingAt = lookingAt()
+        request.lookingAtWindow = lookingAtWindow()
+        // Every ask names the team's questions, the empty list included, so the brain never answers one already gone.
+        request.teamCalls = workspace?.briefs()
         if finished { request.finished = true }
         request.intent = intent?.rawValue
         answering = false
@@ -229,7 +328,14 @@ public final class Conversation {
         let askedAt = now()
         firstSentenceAt = nil
         showingReply = true
-        let told = await speakStream(request)
+        var told = await speakStream(request)
+        // launchd starts a stopped daemon again within seconds, so a question asked in that gap waits for it rather than failing.
+        var waited: TimeInterval = 0
+        while told == .unreachable, daemonDown, waited < reconnectWait, !interrupted {
+            try? await Task.sleep(nanoseconds: UInt64(Self.reconnectStep * Self.nanosecondsPerSecond))
+            waited += Self.reconnectStep
+            told = await speakStream(request)
+        }
         showingReply = false
         face.replied(failure: Self.failure(told))
         await reportTimings(askedAt: askedAt, spokeUntil: lastWordAt)
@@ -238,11 +344,17 @@ public final class Conversation {
         fillerSpoke = false
         // Heard before the apology starts, so a broken turn never sounds like a slow one.
         if told != .spoke, told != .silent { chimes?.play(.failed) }
+        // Holding on words already marked whole is the brain ignoring the note, and silence there sounds like nobody heard.
+        if finished, holding, !interrupted {
+            diary.note("the brain held again on words marked whole: \(words)")
+            await say(Self.sayItAgain)
+        }
         // Kept for the next question, so "why?" after Memnox was unreachable still has its thread.
-        unsent = told == .spoke || told == .silent ? nil : (words, now())
+        // A stalled turn reached the brain, so its words are already in the conversation.
+        unsent = told == .spoke || told == .silent || told == .refused(Self.stalled) ? nil : (words, now())
         if told == .unreachable { await say("My apologies, I cannot reach Memnox on this Mac at the moment.") }
         if case .refused(let error) = told {
-            await say(error == Self.tooOld ? error : "My apologies, I could not ask that: \(error).")
+            await say(error == Self.tooOld || error == Self.stalled ? error : "My apologies, I could not ask that: \(error).")
         }
         face.show(.listening, caption: "")
     }
@@ -252,9 +364,14 @@ public final class Conversation {
         switch told {
         case .spoke, .silent: return nil
         case .unreachable: return "Memnox could not be reached on this Mac"
-        case .refused(let error): return error == tooOld ? "The Memnox running here is older than this app" : error
+        case .refused(let error):
+            if error == tooOld { return "The Memnox running here is older than this app" }
+            return error == stalled ? "No answer came, so it stopped waiting" : error
         }
     }
+
+    /// Set once this Mac said out loud what the person has to do, so the brain's own words on it are left out.
+    private var macTold = false
 
     /// Set while an answer to the person streams, so its words reach the notch and a brief's never do.
     private var showingReply = false
@@ -292,18 +409,85 @@ public final class Conversation {
         case unreachable
     }
 
+    /// The daemon's refusal of a brief whose call is no longer waiting on anybody.
+    static let nothingToBrief = "nothing to brief about"
+
+    /// Whether a held call is still the one being asked about, so the microphone stays open only for a live one.
+    public func stillAsking(_ subject: String) -> Bool { asking == subject }
+
     /// How the daemon's refusal of a method it does not know begins, which means it is older than the app.
     private static let unknownMethodError = "no method"
+
+    /// Said when a turn went quiet without ending, so the person is never left waiting on silence.
+    static let stalled = "My apologies, I lost the thread there. Could you say that again?"
+
+    /// Longer than any tool takes between two chunks, typing a few sentences into a terminal included.
+    private let quietLimit: TimeInterval
+
+    /// Set when the last turn found no daemon at the socket at all, the one failure worth waiting out.
+    private var daemonDown = false
+    /// How long a question waits for a daemon that is starting again, about as long as launchd takes.
+    private let reconnectWait: TimeInterval
+    /// How often it looks for the daemon while it waits.
+    private static let reconnectStep: TimeInterval = 0.5
+
+    /// Thrown when the daemon sent nothing for longer than any turn takes.
+    struct Stalled: Error {}
+
+    /// The daemon's chunks as they come, ended with `Stalled` once none has arrived for `limit` seconds,
+    /// since a turn that never sends its end would otherwise hold the orb in thinking for good.
+    static func quieted(
+        _ upstream: AsyncThrowingStream<DaemonResponse, Error>,
+        limit: TimeInterval
+    ) -> AsyncThrowingStream<DaemonResponse, Error> {
+        AsyncThrowingStream { continuation in
+            let heard = LastHeard()
+            let pump = Task {
+                do {
+                    for try await response in upstream {
+                        await heard.touch()
+                        continuation.yield(response)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            let watch = Task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: UInt64(min(limit, 1) * nanosecondsPerSecond))
+                    if await heard.quietFor() >= limit {
+                        continuation.finish(throwing: Stalled())
+                        pump.cancel()
+                        return
+                    }
+                }
+            }
+            continuation.onTermination = { _ in
+                pump.cancel()
+                watch.cancel()
+            }
+        }
+    }
+
+    /// When the last chunk arrived, shared between the reading task and the one watching it.
+    private actor LastHeard {
+        private var at = Date()
+        func touch() { at = Date() }
+        func quietFor() -> TimeInterval { Date().timeIntervalSince(at) }
+    }
 
     /// Streams a turn into speech, sentence by sentence, and says how it ended.
     private func speakStream(_ request: DaemonRequest) async -> Told {
         streaming += 1
         defer { streaming -= 1 }
+        daemonDown = false
         diary.note("sent \(request.method)")
+        saidThisReply = []
         var sentences = SentenceSplitter()
         var spoke = false
         do {
-            for try await response in link.stream(request) {
+            for try await response in Self.quieted(link.stream(request), limit: quietLimit) {
                 if let error = response.error, !response.ok {
                     diary.note("\(request.method) refused: \(error)")
                     return .refused(error.hasPrefix(Self.unknownMethodError) ? Self.tooOld : error)
@@ -320,8 +504,15 @@ public final class Conversation {
                 if chunk.chunkKind == .text, !(chunk.text ?? "").isEmpty { spoke = true }
                 if try await play(chunk, into: &sentences) { break }
             }
+        } catch is Stalled {
+            diary.note("\(request.method) sent nothing for \(Int(quietLimit)) seconds, so it was stopped")
+            _ = try? await link.request(DaemonRequest(id: takeId(), method: .cancel))
+            if let rest = sentences.flush(), !interrupted { flow(rest) }
+            await speaker.drained()
+            return spoke ? .spoke : .refused(Self.stalled)
         } catch {
             diary.note("\(request.method) failed: \(error)")
+            if case ProtocolError.notRunning = error { daemonDown = true }
             return spoke ? .spoke : .unreachable
         }
         if let rest = sentences.flush(), !interrupted {
@@ -349,8 +540,9 @@ public final class Conversation {
     private func play(_ chunk: AskChunk, into sentences: inout SentenceSplitter) async throws -> Bool {
         switch chunk.chunkKind {
         case .text:
-            // After keep_listening nothing more is said this turn, since anything would talk over them.
-            guard !holding else { break }
+            // After keep_listening nothing more is said this turn, since anything would talk over them;
+            // nor once this Mac told them what to do, since the brain would only say it again.
+            guard !holding, !macTold else { break }
             if showingReply, !interrupted, let text = chunk.text { face.replying(text) }
             for sentence in sentences.push(chunk.text ?? "") where !interrupted { flow(sentence) }
         case .tool:
@@ -392,25 +584,53 @@ public final class Conversation {
     public func handle(_ event: DaemonEvent) async {
         switch event.eventKind {
         case .held:
+            // The phone holding the voice asks; the island shows the card for a hand at the Mac, with no sound.
+            if event.quietOnMac {
+                diary.note("\(event.subject) held while \(phoneHolding(event)) speaks, shown on the island without a sound")
+                return
+            }
             asking = event.subject
             interrupted = false
             var request = newRequest(.brief)
             request.briefing = Briefing.held.rawValue
             request.subject = event.subject
             chimes?.play(.held)
-            face.show(.thinking, caption: "\(event.agentName ?? event.agent) needs you")
+            let who = CallLabel.label(event.agentName ?? event.agent, at: .raised(on: raisedOn(event.subject)))
+            face.show(.thinking, caption: caption("\(who) needs you"))
             // Told by their own brain with what the session has been doing; the facts alone if it cannot.
-            if await speakStream(request) != .spoke, !interrupted {
-                await say(heldQuestion(owner: owner.name, event: event))
+            let told = await speakStream(request)
+            // Nothing to brief is a call already answered or run out, and asking about it asks about nothing.
+            if told == .refused(Self.nothingToBrief) {
+                asking = nil
+                face.show(.idle, caption: "")
+                return
             }
-            let who = event.agentName ?? event.agent
+            if told != .spoke, !interrupted {
+                await say(heldQuestion(owner: owner.name, event: event, label: who))
+            }
             face.show(.listening, caption: caption("\(who) wants to \(event.what ?? event.summary)"))
         case .proposal:
+            // The phone that asked answers it, so it is never declined here; a rule still goes on the card for a hand at the Mac.
+            if event.quietOnMac {
+                if let rule = event.rule { face.rule(subject: event.subject, rule) }
+                diary.note("\(event.subject) proposed while \(phoneHolding(event)) speaks, left for it to answer")
+                return
+            }
             // Only after the person spoke: an allow nobody asked for is left alone, not put to Touch ID.
-            let asked = lastHeard.map { now().timeIntervalSince($0) < Self.answerWindow } ?? false
-            if let rule = event.rule, asked {
+            // Or pressed for: hand over names exactly this proposal, so nothing else rides on the press.
+            let spoke = lastHeard.map { now().timeIntervalSince($0) < Self.answerWindow } ?? false
+            let pressed = await fromHandOver(event.subject)
+            let asked = spoke || pressed
+            if let team = event.teamAnswer, asked {
+                // The read back names the call, so the sheet waits until it has been said, as any proposal's does.
+                await untilQuiet()
+                await carryOut(team, proposal: event)
+            } else if let rule = event.rule, asked {
                 // A rule waits on the card for where it holds; the sheet comes up only once a place is picked.
                 face.rule(subject: event.subject, rule)
+            } else if let work = event.work, asked {
+                // What goes out in their name waits on its card, read whole; the sheet comes up on Send.
+                face.work(subject: event.subject, work)
             } else if asked {
                 // The read back says what the sensor is for, so the sheet waits until it has been said.
                 await untilQuiet()
@@ -419,6 +639,10 @@ public final class Conversation {
                 await decline(event)
             }
         case .paused:
+            if event.quietOnMac {
+                diary.note("paused \(event.subject) while \(phoneHolding(event)) speaks, shown without a sound")
+                return
+            }
             interrupted = false
             var request = newRequest(.brief)
             request.briefing = Briefing.paused.rawValue
@@ -429,6 +653,38 @@ public final class Conversation {
         case .show:
             await show(event)
         case .notice:
+            // A phone's conversation is shown and never said, so the room hears nothing and no chime plays.
+            if let turn = event.phoneTurn {
+                showPhone(turn)
+                return
+            }
+            if let drivenBy = event.drivenBy {
+                let grant = DriveGrant(drivenBy, now: now())
+                diary.note(grant.map { "\($0.name) drives this Mac until \(drivenBy.until ?? "")" } ?? "\(drivenBy.name) stopped driving this Mac")
+                face.driven(grant)
+                return
+            }
+            // The pill says it and the request carries on, so a finished sign in is shown rather than briefed.
+            if event.noticeKind == .signedIn, let signedIn = event.signedIn {
+                // Asked again only while nothing has moved on, so an old request never lands on top of a newer one.
+                let shown = movedOn(since: event.at) ? signedIn.withoutResume : signedIn
+                diary.note("signed in to \(signedIn.toolkit)\(shown.resume == nil ? "" : ", carrying on")")
+                face.signedIn(shown)
+                return
+            }
+            if event.noticeKind == .signInStalled, let signedIn = event.signedIn {
+                face.signedIn(signedIn)
+            }
+            if let voiceOn = event.voiceOn {
+                let phone = PhoneVoice(voiceOn)
+                diary.note(phone.map { "\($0.name) took the voice from this Mac" } ?? "\(voiceOn.name) gave the voice back to this Mac")
+                face.voiceOn(phone)
+                return
+            }
+            if event.quietOnMac {
+                diary.note("\(event.subject) told while \(phoneHolding(event)) speaks, left unsaid on this Mac")
+                return
+            }
             interrupted = false
             var request = newRequest(.brief)
             request.briefing = Briefing.notice.rawValue
@@ -440,7 +696,7 @@ public final class Conversation {
             if asking == event.subject {
                 asking = nil
                 speaker.stop()
-                chimes?.play(.settled)
+                if !event.quietOnMac { chimes?.play(.settled) }
                 face.show(.idle, caption: "answered elsewhere")
             }
         case .none:
@@ -448,25 +704,138 @@ public final class Conversation {
         }
     }
 
+    /// A teammate's call the workspace routed here, said like one of this Mac's: chimed, captioned with its one label
+    /// and asked aloud. Every ask names it to the brain, so a spoken answer comes back as a proposal this Mac carries
+    /// out with the workspace; a button on the island answers it too, and either way no daemon answers it.
+    public func announceTeam(_ call: WorkspaceHeldCall) async {
+        guard workspace?.owns(call.id) ?? false else { return }
+        asking = call.id
+        interrupted = false
+        chimes?.play(.held)
+        face.show(.thinking, caption: caption("\(call.who) needs you"))
+        await say(teamQuestion(owner: owner.name, call: call))
+        // Answered by hand while it was being said, so the caption does not ask about a call already gone.
+        guard asking == call.id else { return }
+        face.show(.listening, caption: caption("\(call.who): \(call.what)"))
+    }
+
+    /// The person spoke after this moment, or it is too old to pick up where it left off.
+    private func movedOn(since at: String) -> Bool {
+        guard let moment = readInstant(at) else { return true }
+        if let heard = lastHeard, heard > moment { return true }
+        return now().timeIntervalSince(moment) > Self.resumeWindow
+    }
+
+    /// A team's question answered by voice and carried out here, so the island takes its card down as a button would.
+    public var teamAnswered: ((String, HeldOutcome) -> Void)?
+
+    /// A team's question the person answered by voice. The workspace takes the answer first and only then is the
+    /// proposal confirmed to the daemon that raised it, so it never reads as done where the workspace did not take it.
+    /// A yes is one touch over both messages, a deny goes unsigned both ways, and a cancelled touch sends the workspace nothing.
+    private func carryOut(_ team: TeamAnswerBrief, proposal event: DaemonEvent) async {
+        guard let workspace, let call = workspace.call(team.callId), let answer = team.holdAnswer else {
+            diary.note("\(event.subject) answers \(team.callId), which is not waiting here, so it is declined")
+            _ = await settleProposal(event.subject, .declined, signature: nil)
+            chimes?.play(.failed)
+            face.show(.idle, caption: "")
+            await say(WorkspaceLines.gone)
+            return
+        }
+        // This Mac's own label for the sheet, so what the sensor is touched for never rests on the daemon's words.
+        let reason = CallLabel.touchIDReason(call.who, what: call.what, answer: answer)
+        var signatures: [String]?
+        if answer != .deny {
+            face.show(.needsYou, caption: caption("Touch ID to \(reason)"))
+            let messages = [
+                confirmationMessage(subject: call.id, answer: answer.rawValue),
+                confirmationMessage(subject: event.subject, answer: ProposalAnswer.confirmed.rawValue),
+            ]
+            guard let signed = try? await key.sign(messages, reason: reason), signed.count == messages.count else {
+                _ = await settleProposal(event.subject, .declined, signature: nil)
+                chimes?.play(.declined)
+                face.show(.idle, caption: "")
+                await say(Self.afterConfirm(.declined, outcome: nil))
+                return
+            }
+            signatures = signed
+        }
+        let outcome = await answerForTeam(workspace, call.id, answer, reason: reason, signed: signatures?.first)
+        guard outcome == .answered else {
+            // Nothing this Mac did reached the workspace, so the proposal is declined rather than left to read as done.
+            _ = await settleProposal(event.subject, .declined, signature: nil)
+            if case .answeredElsewhere = outcome { teamAnswered?(call.id, outcome) }
+            return
+        }
+        teamAnswered?(call.id, outcome)
+        let response = await settleProposal(event.subject, .confirmed, signature: signatures?.last)
+        // The workspace already holds the answer, so a daemon that would not take the confirmation changes nothing done.
+        if response?.ok != true { diary.note("\(event.subject) was carried out but not confirmed: \(response?.error ?? "no answer")") }
+        await say(WorkspaceLines.answeredByVoice)
+    }
+
+    /// Confirms or declines a proposal to the daemon that raised it, which the link finds by its subject.
+    private func settleProposal(_ subject: String, _ answer: ProposalAnswer, signature: String?) async -> DaemonResponse? {
+        var request = newRequest(.confirm)
+        request.subject = subject
+        request.answer = answer.rawValue
+        request.signature = signature
+        return try? await link.request(request)
+    }
+
+    /// A teammate's call settled somewhere else while it was being asked about, so the voice stops asking.
+    public func teamSettled(_ subject: String, line: String?) {
+        guard asking == subject else { return }
+        asking = nil
+        speaker.stop()
+        face.show(.idle, caption: caption(line ?? SettledLine.unknown))
+    }
+
+    /// The phone an event belongs to, by name when it holds the voice, for the diary.
+    private func phoneHolding(_ event: DaemonEvent) -> String {
+        event.heardOn?.name ?? event.origin?.deviceId ?? "a phone"
+    }
+
+    /// One notice of a phone's turn, put together with the ones before it; the words stay out of the diary.
+    private func showPhone(_ turn: PhoneTurn) {
+        guard let shown = phoneConversation.take(turn, at: now()) else { return }
+        if turn.said != nil { diary.note("\(shown.name) started a turn, shown on the island without a sound") }
+        if !shown.isAnswering { diary.note("\(shown.name) finished its turn") }
+        face.phone(shown)
+    }
+
     /// A window or a card the person asked for, put up while the answer is still being said.
     private func show(_ event: DaemonEvent) async {
+        // Icons in the notch rather than a window, so it needs no presenter and waits on nothing.
+        if event.displayKind == .signIn {
+            face.signIns(event.signIn ?? [])
+            return
+        }
         // The brain says what it drafted and the card shows the message whole, so nothing goes out unread.
         if event.displayKind == .draft {
             if let draft = event.draft { face.draft(subject: event.subject, draft) }
             return
         }
         guard let presenter else { return }
+        // A phone asked or holds the voice, so its own speaker answers; the Mac does the work and shows it, and says nothing.
+        let quiet = event.quietOnMac
+        if quiet { diary.note("doing \(event.subject) for \(phoneHolding(event)) without a sound") }
+        await witnessBefore(event)
         switch event.displayKind {
         case .open:
-            if let session = event.sessionId {
-                await presenter.live(session: session, host: event.host)
-            } else if await !presenter.open(event.host) {
-                diary.note("could not open the window for \(event.subject)")
-                speaker.queue("My apologies, I could not bring its window forward.")
+            // Behind any typing, since a window brought forward mid sentence takes the rest of its keys.
+            await oneAtATime { [self] in
+                if let session = event.sessionId {
+                    await presenter.live(session: session, host: event.host)
+                } else if await !presenter.open(event.host) {
+                    diary.note("could not open the window for \(event.subject)")
+                    if !quiet { speaker.queue("My apologies, I could not bring its window forward.") }
+                }
             }
         case .focus:
             if let session = event.sessionId {
-                await shown(event, await presenter.focus(session: session, host: event.host))
+                await oneAtATime { [self] in
+                    await shown(event, await presenter.focus(session: session, host: event.host))
+                }
             }
         case .type:
             await oneAtATime { [self] in
@@ -486,8 +855,35 @@ public final class Conversation {
         case .launch:
             await oneAtATime { [self] in
                 face.show(.thinking, caption: "starting it")
-                await delivered(event, await presenter.launch(event.summary, in: event.host?.cwd),
-                                otherwise: "My apologies, I could not start it.")
+                let started: Typed
+                switch event.via {
+                case Self.viaTerminalApp:
+                    started = await presenter.launch(event.summary, in: event.host?.cwd, terminalApp: event.host?.appPath ?? "")
+                case Self.viaPanel:
+                    started = await presenter.startInPanel(event.summary, in: event.host?.cwd, editor: event.host?.appPath)
+                default:
+                    started = await presenter.launch(event.summary, in: event.host?.cwd,
+                                                     editor: event.host?.appPath, request: event.subject)
+                }
+                await delivered(event, started, otherwise: "My apologies, I could not start it.")
+            }
+        case .app:
+            let start = AppStart(
+                name: event.title ?? event.agent,
+                appPath: event.host?.appPath,
+                folder: event.host?.cwd,
+                links: event.app?.links ?? [],
+                env: event.app?.env ?? [:],
+                // The summary falls back to the title, so only words the runtime sent are typed.
+                typed: event.summary == event.title ? nil : event.summary,
+                newChat: event.via == Self.viaNewChat
+            )
+            await oneAtATime { [self] in
+                face.show(.thinking, caption: "opening \(start.name)")
+                await delivered(event, await presenter.openApp(start),
+                                otherwise: start.typed == nil
+                                    ? "My apologies, I could not open \(start.name)."
+                                    : "\(start.name) is open, and your words are on the clipboard, since I could not type them in. Press Command V, then Return, in its chat.")
             }
         case .walk:
             await presenter.walk(WalkCard(
@@ -507,16 +903,35 @@ public final class Conversation {
             let closed = await event.sessionId.asyncMap { await presenter.close(session: $0, host: event.host, request: event.subject) }
             await delivered(event, closed ?? Typed(.failed, "no session to close"),
                             otherwise: "My apologies, I could not close its tab.")
+        case .interrupt:
+            face.show(.thinking, caption: "stopping it")
+            let stopped = await event.sessionId.asyncMap { await presenter.interrupt(session: $0, host: event.host, request: event.subject) }
+            await delivered(event, stopped ?? Typed(.failed, "no session to stop"),
+                            otherwise: "My apologies, I could not stop it.")
+        case .press:
+            // Only what parses as keys is pressed, so the words of the request can never be typed as text.
+            let keys = TerminalPress.parse(event.summary)
+            // Behind any typing, since keys landing mid sentence would answer with the wrong words.
+            await oneAtATime { [self] in
+                face.show(.thinking, caption: "answering it")
+                let pressed = await keys.asyncMap { keys in
+                    await event.sessionId.asyncMap { await presenter.press(keys, session: $0, host: event.host) }
+                } ?? nil
+                await delivered(event, pressed ?? Typed(.failed, keys == nil ? "those were not keys" : "no session to answer"),
+                                otherwise: "My apologies, I could not answer it in its terminal.")
+            }
         case .dismiss:
             await presenter.dismissAll()
+        case .look:
+            await look(event)
         case .folder:
             let opener = event.title.flatMap(FolderOpener.init(rawValue:)) ?? .finder
             guard let path = event.host?.cwd, await presenter.openFolder(path, in: opener) else {
                 diary.note("could not open the folder for \(event.subject)")
-                speaker.queue("My apologies, I could not open that folder.")
+                if !quiet { speaker.queue("My apologies, I could not open that folder.") }
                 return
             }
-        case .draft:
+        case .draft, .signIn:
             // Shown by the face before the presenter is needed, above.
             break
         case .card:
@@ -534,9 +949,22 @@ public final class Conversation {
         }
     }
 
+    /// The screen as the brain asked to see it: the orb glances so the person knows, and the capture goes back unread here.
+    private func look(_ event: DaemonEvent) async {
+        guard let presenter else { return }
+        face.react(.glance)
+        let app = event.title.flatMap { $0.isEmpty ? nil : $0 }
+        let sight = await presenter.look(app: app)
+        diary.note("looked at \(sight?.app ?? app ?? "the screen")\(sight?.image == nil ? " with no capture" : "")")
+        var request = newRequest(.seen)
+        request.subject = event.subject
+        request.sight = sight ?? Sight(app: app ?? "the screen")
+        _ = try? await link.request(request)
+    }
+
     /// Tells the brain whether a window came forward, with no sound, since the brain is the one to say it.
     private func shown(_ event: DaemonEvent, _ typed: Typed) async {
-        if typed.outcome != .typed { diary.note("could not bring \(event.subject) forward: \(typed.reason ?? "no reason")") }
+        if !typed.wentIn { diary.note("could not bring \(event.subject) forward: \(typed.reason ?? "no reason")") }
         var request = newRequest(.delivered)
         request.subject = event.subject
         request.answer = typed.outcome.rawValue
@@ -569,18 +997,103 @@ public final class Conversation {
         return mine
     }
 
+    /// The displays that act on another app, whose window is captured either side of acting as its evidence.
+    private static let witnessed: Set<Display> = [.type, .prefill, .launch, .app, .close, .interrupt]
+
+    /// Each action's window as it was just before, kept until its outcome is told.
+    private var evidenceBefore: [String: Witness] = [:]
+
+    private func witnessBefore(_ event: DaemonEvent) async {
+        guard let presenter, let kind = event.displayKind, Self.witnessed.contains(kind) else { return }
+        evidenceBefore[event.subject] = await presenter.evidence(of: event.host, request: event.subject, at: .before)
+    }
+
+    /// The window just after acting beside the one from before, so what is said about it has a witness.
+    private func witnessAfter(_ event: DaemonEvent) async -> Witness? {
+        guard let presenter, let kind = event.displayKind, Self.witnessed.contains(kind) else { return nil }
+        let before = evidenceBefore.removeValue(forKey: event.subject)
+        let after = await presenter.evidence(of: event.host, request: event.subject, at: .after)
+        guard let before else { return after }
+        return before.after(after)
+    }
+
     private func delivered(_ event: DaemonEvent, _ typed: Typed, otherwise: String) async {
-        chimes?.play(typed.outcome == .typed ? .done : .failed)
-        if typed.outcome != .typed { diary.note("could not type for \(event.subject): \(typed.reason ?? typed.outcome.rawValue)") }
+        let quiet = event.quietOnMac
+        if !quiet { chimes?.play(typed.wentIn || typed.outcome == .waiting ? .done : .failed) }
+        if typed.outcome != .verified { diary.note("\(event.subject) \(typed.outcome.rawValue): \(typed.reason ?? "nothing read back")") }
+        if let proof = typed.proof {
+            diary.note("\(event.subject) seen landing: \(proof.checked)")
+            face.proof(proof)
+        }
         var request = newRequest(.delivered)
         request.subject = event.subject
         request.answer = typed.outcome.rawValue
         request.reason = typed.reason
+        request.proof = typed.proof
+        request.evidence = await witnessAfter(event)
+        // The step only the person can take is said below, so the brain is told not to say it again.
+        if !quiet, let hint = typed.hint, willSay(hint) {
+            request.told = true
+            macTold = true
+        }
+        // The clipboard line is said below too, so the brain is told it was, or it says it a second time.
+        if !quiet, typed.hint == nil, typed.outcome == .clipboard || typed.outcome == .notAllowed {
+            request.told = true
+            macTold = true
+        }
         let heard = (try? await link.request(request))?.ok == true
+        // The daemon tells the phone how it went, so nothing is said in an empty room.
+        if quiet {
+            if let hint = typed.hint { diary.note("needs the person, left unsaid for a phone: \(hint)") }
+            return
+        }
         let said = typed.outcome == .notAllowed ? notAllowedLine() : otherwise
-        if !heard, typed.outcome != .typed { speaker.queue(said) }
+        if !heard, let line = Evidence.unheard(typed.outcome, otherwise: said) { speaker.queue(line) }
+        if let hint = typed.hint { tell(hint) }
         // The words on the clipboard need a hand from the person, so that one is always said.
+        // Unless a hint was just said, which already told them what happened and what to do.
+        if typed.hint != nil { return }
         if heard, typed.outcome == .clipboard || typed.outcome == .notAllowed { speaker.queue(said) }
+    }
+
+    /// How the runtime names where a launch goes and an app start begins, as `DISPLAY_VIA` spells them.
+    static let viaTerminalApp = "terminal-app"
+    static let viaPanel = "panel"
+    static let viaNewChat = "new-chat"
+
+    /// Said when the brain held for more on words that were already all of it.
+    static let sayItAgain = "Sorry, I did not quite follow. Could you say that once more?"
+
+    /// The steps already said this run, so an instruction is heard once rather than after every message.
+    private var hintsSaid: Set<TypingHint> = []
+
+    /// Says what the person has to do, always, whatever the brain says, since only they can do it.
+    private func tell(_ hint: TypingHint) {
+        diary.note("needs the person: \(hint)")
+        guard willSay(hint) else { return }
+        hintsSaid.insert(hint)
+        speaker.queue(Self.line(for: hint, macOSMajorVersion: macOSMajorVersion))
+    }
+
+    /// A step for this one typing is said every time; a setup step once a run, since they heard it already.
+    private func willSay(_ hint: TypingHint) -> Bool {
+        hint.isAboutThisTyping || !hintsSaid.contains(hint)
+    }
+
+    /// The steps for one hint, named the way the person sees them on screen.
+    static func line(for hint: TypingHint, macOSMajorVersion: Int) -> String {
+        switch hint {
+        case .allowTyping:
+            return "That went in all at once, because I am not permitted to type yet. To watch me type it, open System Settings, Privacy and Security, \(typingPane(macOSMajorVersion: macOSMajorVersion)), and switch Memnox on."
+        case .restartExtensions(let app):
+            return "\(app) is still running the older Memnox extension. In \(app), press Command Shift P, run Developer: Restart Extension Host, then ask me again."
+        case .installExtension(let app):
+            return "The Memnox extension is not in \(app) yet. In a terminal, run memnox daemon with the install flag, so the daemon starts again and puts it in, then ask me again."
+        case .pasteIn(let app):
+            return "\(app) has more than one window or tab open, so I could not tell which one is the session's. Your words are on the clipboard: in its tab, press Command V, then Return."
+        case .clickMessageBox(let app):
+            return "I could not find Claude's message box in \(app). Click into it once, then ask me again, and I will remember it from then on. Your words are on the clipboard meanwhile."
+        }
     }
 
     /// Whether they have heard how to let Memnox type, so the second time is one short line rather than the whole of it.
@@ -607,12 +1120,13 @@ public final class Conversation {
     private func confirm(_ event: DaemonEvent) async {
         let answerKind: ProposalAnswer
         var signature: String?
-        if event.needsTouchID, await registerKey() == .anotherKey {
+        let needsTouchID = event.needsTouchID || signsEveryYes(event.subject)
+        if needsTouchID, await registerKey() == .anotherKey {
             chimes?.play(.failed)
             await say(Self.anotherKeyLine)
             return
         }
-        if event.needsTouchID {
+        if needsTouchID {
             face.show(.needsYou, caption: caption("Touch ID to \(event.summary)"))
             do {
                 signature = try await key.sign(
@@ -631,8 +1145,9 @@ public final class Conversation {
         request.answer = answerKind.rawValue
         request.signature = signature
         let response = try? await link.request(request)
+        if await answeredFirst(response, chose: answerKind.rawValue) != nil { return }
         if response?.ok == true {
-            chimes?.play(answerKind == .confirmed ? .allowed : .declined)
+            marked(allowed: answerKind == .confirmed)
             await say(Self.afterConfirm(answerKind, outcome: response?.outcome))
         } else {
             chimes?.play(.failed)
@@ -659,36 +1174,67 @@ public final class Conversation {
     private static let quietCheckInterval: TimeInterval = 0.1
     private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
-    /// A command still running on its own, like a login waiting on its browser page, is never called done.
+    /// A command still running on its own, or a held call only let through, is never called done.
     static func afterConfirm(_ answer: ProposalAnswer, outcome: String?) -> String {
-        guard answer == .confirmed else { return "Very well. I have left it as it was." }
-        return outcome == Outcome.started
-            ? "Very well. It is under way, and I will tell you if anything goes wrong."
-            : "Very well. It is done."
+        Evidence.afterConfirm(answer, outcome: outcome)
     }
 
     /// A held call answered with a button: a deny goes as it is, and an allow only with Touch ID over exactly
     /// this call, unless the daemon placed it inside its repository, where a tap is the answer.
     public func answerHeld(_ subject: String, _ answer: HoldAnswer, reason: String, touchID: Bool = true) async -> HeldOutcome {
+        // A teammate's call has no rule on this Mac to relax, so from now on is a yes to this call there.
+        if let workspace, workspace.owns(subject) {
+            return await answerForTeam(workspace, subject, answer == .always ? .once : answer, reason: reason)
+        }
         var request = newRequest(.confirm)
         request.subject = subject
         request.answer = answer.rawValue
-        if answer != .deny, touchID {
+        if answer != .deny, touchID || signsEveryYes(subject) {
             switch await signature(subject, answer: answer.rawValue, reason: reason) {
             case .signed(let signature): request.signature = signature
             case .refused(let outcome): return outcome
             }
         }
         let response = try? await link.request(request)
+        // Answered by hand or elsewhere, so the voice stops asking rather than waiting on a reply that already came.
+        if response?.ok == true || EarlierAnswer(response) != nil, asking == subject {
+            asking = nil
+            speaker.stop()
+        }
+        if let first = await answeredFirst(response, chose: answer.rawValue) { return .answeredElsewhere(first) }
         guard response?.ok == true else { return await notThrough(response) }
-        // Answered by hand, so the voice stops asking rather than waiting on a reply that already came.
+        marked(allowed: answer != .deny)
+        face.show(.idle, caption: "")
+        return .answered
+    }
+
+    /// A teammate's call answered through the workspace: Touch ID for every yes, since it always reaches another
+    /// machine, and nothing for a deny; the daemon on this Mac never hears of it.
+    private func answerForTeam(_ workspace: WorkspaceAnswering, _ subject: String, _ answer: HoldAnswer, reason: String,
+                               signed: String? = nil) async -> HeldOutcome {
+        // Answered by hand, so the question being said about it stops rather than asking after the answer.
         if asking == subject {
             asking = nil
             speaker.stop()
         }
-        chimes?.play(answer == .deny ? .declined : .allowed)
-        face.show(.idle, caption: "")
-        return .answered
+        if answer != .deny, signed == nil { face.show(.needsYou, caption: caption("Touch ID to \(reason)")) }
+        let outcome = await workspace.answer(subject, answer, reason: reason, signed: signed)
+        switch outcome {
+        case .answered:
+            marked(allowed: answer != .deny)
+            face.show(.idle, caption: "")
+        case .answeredElsewhere(let first):
+            chimes?.play(.settled)
+            await say(first.line)
+            face.show(.idle, caption: "answered elsewhere")
+        case .cancelled:
+            face.show(.idle, caption: "")
+        case .failed(let why):
+            chimes?.play(.failed)
+            face.show(.idle, caption: "")
+            await say("That did not go through: \(why)")
+        }
+        return outcome
     }
 
     /// A rule answered from its card: the place picked is the answer Touch ID signs, so nobody else
@@ -704,8 +1250,10 @@ public final class Conversation {
             }
         }
         let response = try? await link.request(request)
+        let chose: ProposalAnswer = scope == nil ? .declined : .confirmed
+        if let first = await answeredFirst(response, chose: chose.rawValue) { return .answeredElsewhere(first) }
         guard response?.ok == true else { return await notThrough(response) }
-        chimes?.play(scope == nil ? .declined : .allowed)
+        marked(allowed: scope != nil)
         await say(Self.afterRule(scope))
         return .answered
     }
@@ -716,6 +1264,7 @@ public final class Conversation {
         switch scope.scopeKind {
         case .machine: return "Very well. That rule is in force on this Mac."
         case .repository: return "Very well. That rule is in force in \(scope.label)."
+        case .team: return "Very well. I have offered that rule to the team. It holds everywhere once a second admin approves it."
         case nil: return "Very well. That rule is in force."
         }
     }
@@ -733,8 +1282,9 @@ public final class Conversation {
             }
         }
         let response = try? await link.request(request)
+        if let first = await answeredFirst(response, chose: answer.rawValue) { return .answeredElsewhere(first) }
         guard response?.ok == true else { return await notThrough(response) }
-        chimes?.play(send ? .allowed : .declined)
+        marked(allowed: send)
         face.show(.idle, caption: "")
         return .answered
     }
@@ -771,6 +1321,23 @@ public final class Conversation {
             return .refused(.cancelled)
         }
         return .signed(signature)
+    }
+
+    /// The answer that came first, when another route got there before this one: it stands, so the
+    /// person hears it only when it differs from what they chose, and never the outcome of their own press.
+    private func answeredFirst(_ response: DaemonResponse?, chose: String) async -> EarlierAnswer? {
+        guard let first = EarlierAnswer(response) else { return nil }
+        diary.note("answered elsewhere first: \(first.word ?? "unknown"), this one was \(chose)")
+        chimes?.play(.settled)
+        if !first.matches(chose) { await say(first.line) }
+        face.show(.idle, caption: "answered elsewhere")
+        return first
+    }
+
+    /// An answer that went through, heard as a chime and seen as the orb ringing out or pulling in.
+    private func marked(allowed: Bool) {
+        chimes?.play(allowed ? .allowed : .declined)
+        face.react(allowed ? .allowed : .refused)
     }
 
     /// An answer the daemon would not take, said with its reason, since a shake alone tells nobody what to do.
@@ -827,9 +1394,10 @@ public final class Conversation {
         /// The key was already registered by somebody else.
         static let anotherKey = "another key"
         static let registered = "registered"
-        /// A confirmed command still running on its own.
-        static let started = "started"
     }
+
+    /// What this reply has said so far, so a sentence told twice around a tool is said once.
+    private var saidThisReply: [String] = []
 
     /// A sentence of a streamed reply, queued so the reply is spoken as one run rather than line by line.
     private func flow(_ sentence: String) {
@@ -837,6 +1405,11 @@ public final class Conversation {
         answering = true
         let spoken = speakable(sentence)
         guard !spoken.isEmpty else { return }
+        if repeats(spoken, saidAlready: saidThisReply) {
+            diary.note("left out a repeat: \(spoken)")
+            return
+        }
+        saidThisReply.append(spoken)
         face.show(.speaking, caption: caption(spoken))
         speaker.queue(spoken)
     }
@@ -850,8 +1423,7 @@ public final class Conversation {
     }
 
     private func takeId() -> Int {
-        defer { nextId += 1 }
-        return nextId
+        ids.next()
     }
 }
 

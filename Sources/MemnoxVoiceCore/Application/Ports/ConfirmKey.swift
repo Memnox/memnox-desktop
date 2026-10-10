@@ -7,4 +7,18 @@ public protocol ConfirmKey: AnyObject {
     var publicPoint: String { get }
     /// A base64 DER signature, or nil when the person declined or cancelled.
     func sign(_ message: String, reason: String) async throws -> String?
+    /// One signature per message under one touch, in order, or nil when the person declined or cancelled.
+    func sign(_ messages: [String], reason: String) async throws -> [String]?
+}
+
+extension ConfirmKey {
+    /// Each in turn, for a key whose every signature costs nothing more than the first.
+    public func sign(_ messages: [String], reason: String) async throws -> [String]? {
+        var signatures: [String] = []
+        for message in messages {
+            guard let signature = try await sign(message, reason: reason) else { return nil }
+            signatures.append(signature)
+        }
+        return signatures
+    }
 }

@@ -37,14 +37,19 @@ public final class SecureEnclaveConfirmKey: ConfirmKey {
     }
 
     public func sign(_ message: String, reason: String) async throws -> String? {
+        try await sign([message], reason: reason)?.first
+    }
+
+    public func sign(_ messages: [String], reason: String) async throws -> [String]? {
         let context = LAContext()
         context.localizedReason = reason
         do {
+            // One context for every message, so the sheet asks once for an answer that two places verify.
             let key = try SecureEnclave.P256.Signing.PrivateKey(
                 dataRepresentation: blob,
                 authenticationContext: context
             )
-            return try key.signature(for: Data(message.utf8)).derRepresentation.base64EncodedString()
+            return try messages.map { try key.signature(for: Data($0.utf8)).derRepresentation.base64EncodedString() }
         } catch let error as LAError where error.code == .userCancel || error.code == .appCancel {
             // Cancelling the sheet is a no, said as one rather than as a failure.
             return nil

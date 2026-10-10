@@ -35,6 +35,17 @@ final class SessionTextTests: XCTestCase {
         XCTAssertEqual(SessionText.meaningful(onlyCalls).count, 1)
     }
 
+    /// The island of 2026-10-05 listed anthropic.com twice among four lines for a desktop app session.
+    func testListsEachSiteOnceWhenAllASessionDidWasConnect() throws {
+        let calls = try ["api.anthropic.com", "http-intake.logs.us5.datadoghq.com", "github.com", "api.anthropic.com"]
+            .map { try step("network", "Connected to \($0)") }
+        XCTAssertEqual(SessionText.meaningful(calls).map(SessionText.line(for:)),
+                       ["Reached datadoghq.com", "Reached github.com", "Reached anthropic.com"])
+        XCTAssertTrue(SessionText.onlyNetwork(calls))
+        XCTAssertFalse(SessionText.onlyNetwork(calls + [try step("filesystem", "Edited /work/cart.ts")]))
+        XCTAssertFalse(SessionText.onlyNetwork([]))
+    }
+
     func testNamesATraceStepAndItsDurationTheWayAWaterfallIsRead() {
         XCTAssertEqual(SessionText.traceStepName("voice.turn"), "Your question")
         XCTAssertEqual(SessionText.traceStepName("brain.sessions"), "Asked sessions")

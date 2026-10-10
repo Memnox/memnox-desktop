@@ -42,15 +42,22 @@ public enum SessionText {
     }
 
     /// The steps worth reading: what it changed and ran, leaving out the hosts it called unless that is all
-    /// it did, and one line for the same thing done several times running.
+    /// it did, and one line, the latest, for the same thing done several times.
     public static func meaningful(_ steps: [SessionViewStep]) -> [SessionViewStep] {
         let work = steps.filter { $0.stepSurface != .network }
         var kept: [SessionViewStep] = []
+        // The latest of each line only, since a session that only talks to the network reaches the same few sites over and over.
         for step in work.isEmpty ? steps : work {
-            if let last = kept.last, line(for: last) == line(for: step) { kept.removeLast() }
+            kept.removeAll { line(for: $0) == line(for: step) }
             kept.append(step)
         }
         return kept
+    }
+
+    /// True when all Memnox saw of a session is where it connected, as for a desktop app it does not
+    /// hook, so an empty file list means its files are unseen rather than unchanged.
+    public static func onlyNetwork(_ steps: [SessionViewStep]) -> Bool {
+        !steps.isEmpty && steps.allSatisfy { $0.stepSurface == .network }
     }
 
     /// A step as a line: a host it called by its site's name, and anything else as the runtime wrote it with each path cut to its last part.

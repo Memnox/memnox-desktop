@@ -28,7 +28,7 @@
 		<true/>
 	</dict>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Memnox brings the terminal tab a session runs in to the front when you ask to open it.</string>
+	<string>Memnox brings the terminal tab a session runs in to the front when you ask to open it, types your words into it, and reads it back to see that they landed.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Memnox turns what you say into words on this Mac, and the audio never leaves it.</string>
 </dict>

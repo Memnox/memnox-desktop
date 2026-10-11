@@ -1,0 +1,239 @@
+import Foundation
+import MemnoxVoiceCore
+
+/// Puts the Memnox runtime under the app with no terminal: finds `memnox` or installs it, wires the
+/// machine the first time, starts the daemon, and brings one too old for this app up to date. Every
+/// step runs what a person would have typed, through their own login shell, so it lands where they
+/// would have. Where `memnox` comes from is fixed when the app is built: a local build runs the
+/// runtime checkout it was built beside, a release installs the published package from npm.
+@MainActor
+final class RuntimeInstaller: ObservableObject {
+    /// What it is doing now, in a few words for the setup row; nil when it is not working.
+    @Published private(set) var doing: String?
+    /// Why the daemon is still not there after it tried, in words the person can act on.
+    @Published private(set) var failed: String?
+    private var running: Task<DaemonVoice, Never>?
+    private let source = RuntimeSource.ofThisApp()
+
+    /// The daemon ready for this app, or as close as it could get; one run at a time, shared by every caller.
+    func ensure(_ conversation: Conversation) async -> DaemonVoice {
+        if let running { return await running.value }
+        let task = Task { await self.bringUp(conversation) }
+        running = task
+        let state = await task.value
+        running = nil
+        doing = nil
+        return state
+    }
+
+    private func bringUp(_ conversation: Conversation) async -> DaemonVoice {
+        var state = await conversation.daemonVoice()
+        if state == .ready {
+            failed = nil
+            return state
+        }
+        guard let found = await memnoxCommand() else { return state }
+        let memnox = Self.quoted(found)
+        if state == .unreachable {
+            let wired = FileManager.default.fileExists(atPath: Self.home(Self.keptFile))
+            // The first time it wires every agent in observe, which records and enforces nothing until the person says.
+            doing = wired ? "Starting the Memnox daemon" : "Setting Memnox up on this Mac"
+            _ = await Self.shell(wired ? "\(memnox) daemon --install" : "\(memnox) setup --yes --no-probe")
+            state = await settle(conversation)
+        }
+        if state == .tooOld { state = await update(memnox, conversation) }
+        failed = why(state)
+        return state
+    }
+
+    /// Puts the agents found here under Memnox with the same `memnox setup --yes` the first run uses: it asks nothing,
+    /// takes nothing on its line but fixed words, and hooks every agent installed. Nil when it went through, else why.
+    func protectAgents() async -> String? {
+        // Two runs of the CLI at once would race over the same agent configs, and doing is set while any runs.
+        guard doing == nil else { return "Memnox is still starting up. Try again in a moment." }
+        doing = "Putting your agents under Memnox"
+        defer { doing = nil }
+        guard let found = await memnoxCommand() else { return failed ?? Self.notProtected }
+        doing = "Putting your agents under Memnox"
+        guard await Self.shell("\(Self.quoted(found)) setup --yes --no-probe") else { return Self.notProtected }
+        return nil
+    }
+
+    private static let notProtected = "Memnox could not put them under it. In a terminal: memnox setup"
+
+    /// A daemon older than the app: a local build restarts it on the checkout's code, which the build
+    /// just made; a release updates from npm. Neither ever swaps a local checkout for the published one.
+    private func update(_ memnox: String, _ conversation: Conversation) async -> DaemonVoice {
+        doing = "Updating Memnox"
+        if case .local = source {
+            _ = await Self.shell("\(memnox) daemon --install")
+            return await settle(conversation)
+        }
+        _ = await Self.shell("\(memnox) update --yes")
+        // The daemon restarts itself on its new code; one that never ran as a service is started now.
+        var state = await settle(conversation)
+        if state == .unreachable {
+            _ = await Self.shell("\(memnox) daemon --install")
+            state = await settle(conversation)
+        }
+        return state
+    }
+
+    /// `memnox` from where this build says it comes from.
+    private func memnoxCommand() async -> String? {
+        switch source {
+        case .local(let checkout): return await localMemnox(checkout)
+        case .npm: return await publishedMemnox()
+        }
+    }
+
+    /// The checkout's own CLI, linked onto the PATH with `npm link` when `memnox` there is any other copy,
+    /// so the daemon, the hooks and every terminal run the code this app was built against.
+    private func localMemnox(_ checkout: String) async -> String? {
+        let cli = (checkout as NSString).appendingPathComponent(Runtime.cliFolder)
+        guard FileManager.default.fileExists(atPath: (cli as NSString).appendingPathComponent(Runtime.cliEntry)) else {
+            failed = "The runtime in \(checkout) is not built. In a terminal there: pnpm build"
+            return nil
+        }
+        if let found = await Self.found(Command.memnox), Self.resolved(found).hasPrefix(Self.resolved(checkout)) {
+            return found
+        }
+        doing = "Linking the local Memnox runtime"
+        guard await Self.shell("cd \(Self.quoted(cli)) && npm link"), let found = await Self.found(Command.memnox) else {
+            failed = "The local runtime would not link. In a terminal: cd \(cli) && npm link"
+            return nil
+        }
+        diary.note("linked memnox from \(checkout) at \(found)")
+        return found
+    }
+
+    /// `memnox` as the person's shell finds it, or the published package installed with npm when it is nowhere.
+    private func publishedMemnox() async -> String? {
+        if let found = await Self.found(Command.memnox) { return found }
+        doing = "Installing Memnox"
+        var hasNpm = await Self.found(Command.npm) != nil
+        if !hasNpm { hasNpm = await installNode() }
+        guard hasNpm else {
+            failed = "Memnox needs Node.js. Install it from nodejs.org, then check again"
+            return nil
+        }
+        guard await Self.shell("npm install -g memnox@latest"), let found = await Self.found(Command.memnox) else {
+            failed = "Memnox would not install. In a terminal: npm install -g memnox"
+            return nil
+        }
+        diary.note("installed memnox at \(found)")
+        return found
+    }
+
+    /// Node through Homebrew, the one installer a Mac may already have that needs no password.
+    private func installNode() async -> Bool {
+        guard await Self.found(Command.brew) != nil else { return false }
+        doing = "Installing Node.js"
+        return await Self.shell("brew install node")
+    }
+
+    /// Asks again for a while, since a daemon just started or restarted takes a moment to answer.
+    private func settle(_ conversation: Conversation) async -> DaemonVoice {
+        var state = DaemonVoice.unreachable
+        for _ in 0..<Timing.attempts {
+            state = await conversation.daemonVoice()
+            if state == .ready { return state }
+            try? await Task.sleep(nanoseconds: UInt64(Timing.pollSeconds * 1_000_000_000))
+        }
+        return state
+    }
+
+    private func why(_ state: DaemonVoice) -> String? {
+        switch (state, source) {
+        case (.ready, _): return nil
+        case (.tooOld, .local(let checkout)):
+            return "The runtime in \(checkout) is older than this app. Pull it, run pnpm build there, then check again"
+        case (.tooOld, .npm): return "This Memnox is older than the app and would not update. In a terminal: memnox update"
+        case (.refused(let error), _): return "Memnox answered: \(error). Check again, or in a terminal: memnox doctor"
+        case (.unreachable, _): return "The daemon would not start. In a terminal: memnox daemon --install"
+        }
+    }
+
+    /// A path with every link followed, so a global bin is compared by the folder it really lives in.
+    private static func resolved(_ path: String) -> String {
+        URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+    }
+
+    /// The full path of a command as the person's login shell finds it, which knows nvm, Homebrew and npm's own folder.
+    private static func found(_ command: String) async -> String? {
+        let (ok, output) = await run("command -v \(command)")
+        let path = output.split(whereSeparator: \.isNewline).last.map(String.init)?.trimmingCharacters(in: .whitespaces)
+        guard ok, let path, path.hasPrefix("/") else { return nil }
+        return path
+    }
+
+    /// True when the line ran cleanly; what it printed goes to the diary when it did not.
+    private static func shell(_ line: String) async -> Bool {
+        diary.note("running: \(line)")
+        let (ok, output) = await run(line)
+        if !ok { diary.note("\(line) failed: \(output.suffix(Timing.keptOutput))") }
+        return ok
+    }
+
+    /// One line through an interactive login shell, since that is where the person's PATH is set up.
+    /// Only fixed words and paths the shell itself returned or the build wrote are ever put in it.
+    private static func run(_ line: String) async -> (Bool, String) {
+        // A file rather than a pipe, since npm or Homebrew printing more than a pipe holds would never finish.
+        let log = FileManager.default.temporaryDirectory.appendingPathComponent("memnox-runtime-\(UUID().uuidString).log")
+        FileManager.default.createFile(atPath: log.path, contents: nil)
+        guard let output = try? FileHandle(forWritingTo: log) else { return (false, "no log file") }
+        return await withCheckedContinuation { continuation in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SHELL"] ?? Command.zsh)
+            process.arguments = ["-lic", line]
+            process.standardInput = FileHandle.nullDevice
+            process.standardOutput = output
+            process.standardError = output
+            process.terminationHandler = { finished in
+                try? output.close()
+                let text = (try? String(contentsOf: log, encoding: .utf8)) ?? ""
+                try? FileManager.default.removeItem(at: log)
+                continuation.resume(returning: (finished.terminationStatus == 0, text))
+            }
+            do {
+                try process.run()
+            } catch {
+                try? output.close()
+                continuation.resume(returning: (false, error.localizedDescription))
+            }
+        }
+    }
+
+    /// Single quoted for the shell, with each quote inside closed, escaped and reopened.
+    private static func quoted(_ path: String) -> String {
+        "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    private static func home(_ path: String) -> String {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(path).path
+    }
+
+    /// Written by setup once it has wired the machine, so its absence is a machine never set up.
+    private static let keptFile = ".memnox/kept.json"
+
+    private enum Command {
+        static let memnox = "memnox"
+        static let npm = "npm"
+        static let brew = "brew"
+        static let zsh = "/bin/zsh"
+    }
+
+    /// Where the CLI sits in a runtime checkout, and the file a build leaves there.
+    private enum Runtime {
+        static let cliFolder = "packages/cli"
+        static let cliEntry = "dist/index.js"
+    }
+
+    private enum Timing {
+        /// Long enough for a daemon on a cold Mac to load its rules and answer.
+        static let attempts = 30
+        static let pollSeconds: TimeInterval = 1
+        /// The end of what a failed step printed, which is where the reason is.
+        static let keptOutput = 600
+    }
+}

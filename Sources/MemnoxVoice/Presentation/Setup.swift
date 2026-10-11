@@ -12,56 +12,119 @@ enum StepState: Equatable {
     case needs(String)
 }
 
+/// Where pairing a phone stands in setup, from the QR to the digits the person checks to the result.
+enum PhoneStep: Equatable {
+    case idle
+    case opening
+    case showing(qr: String)
+    /// A phone reached the pairing and its digits wait on the person.
+    case checking(PairingPhone)
+    /// Touch ID is up for the yes.
+    case approving(PairingPhone)
+    case paired(name: String)
+    case failed(String)
+}
+
+/// Where connecting to a server stands, from the pasted link to the digits the person types there to the result.
+enum ServerStep: Equatable {
+    case idle
+    /// The handshake is running over the relay.
+    case pairing
+    /// Both ends have the digits, and the server waits for the person to type them into memnox pair.
+    case showingCode(String)
+    case connected(name: String)
+    case failed(String)
+}
+
 /// The first run, and whenever the person opens it again from the menu bar: who they are,
 /// what the Mac lets Memnox hear, whether the daemon is there, the key, and the voice.
 @MainActor
 final class SetupModel: ObservableObject {
     @Published var name: String
     @Published var listening: StepState = .waiting
+    @Published var seeing: StepState = .waiting
     @Published var daemon: StepState = .waiting
     @Published var key: StepState = .waiting
-    @Published var voiceId: String
     @Published var catchUp: Bool
     /// The agents the voice can think with, as the daemon last checked them.
     @Published var agents: [VoiceAgentStatus] = []
     @Published var agentsState: StepState = .waiting
     /// Asking every agent takes a while, so the row says it is still asking.
     @Published var checkingAgents = false
-    let voices: [AVSpeechSynthesisVoice]
+    /// The Kokoro voice picked, which is the only kind setup offers.
+    @Published var kokoroVoiceId = KokoroVoice.chosen().voice
     /// Kokoro installing itself, watched so the voice row shows where it stands.
     let kokoro: KokoroInstaller
     private var watchingKokoro: AnyCancellable?
+    /// The runtime installing, starting or updating itself, watched so the daemon row says which.
+    let runtime: RuntimeInstaller
+    private var watchingRuntime: AnyCancellable?
     /// Installs Kokoro if need be and makes it the voice, for the row's Try again.
     var useKokoro: (() async -> Void)?
+    /// Where pairing a phone stands; optional, so it never counts toward ready.
+    @Published var phone: PhoneStep = .idle
+    /// Says a line through the orb, for a phone paired or a pairing the daemon would not open.
+    var say: ((String) -> Void)?
+    /// Told when a phone is paired, so the menu's devices list catches up.
+    var devicesChanged: (() -> Void)?
+    /// Told the Kokoro voice picked, so the daemon can hand it to a paired phone.
+    var voicePicked: ((String) -> Void)?
+    private let pairing: Pairing
+    /// The pairing open now; cleared once it ends so a late update from it is ignored.
+    private var pairingId: String?
+    private var watchingPairing: Task<Void, Never>?
+    /// Pairs this Mac with servers over the relay; set by the app, and nil leaves the server row out.
+    var serverPairing: ServerPairing?
+    /// Where connecting to a server stands; optional, so it never counts toward ready.
+    @Published var server: ServerStep = .idle
+    /// The memnox://pair link pasted from the server's terminal.
+    @Published var serverLink = ""
+    @Published var servers: [PairedMachine] = []
+    /// The machine the voice and the session views talk to, nil for this Mac.
+    @Published var talkingTo: String?
+    /// Told when a server is paired or forgotten, so the app opens or drops its relay link.
+    var serversChanged: (() -> Void)?
+    /// Told the machine picked, nil for this Mac.
+    var chooseMachine: ((String?) -> Void)?
 
     private let owner: OwnerStore
     private let conversation: Conversation
     private let voice: Voice
     private let finished: () -> Void
 
-    init(owner: OwnerStore, conversation: Conversation, voice: Voice, kokoro: KokoroInstaller, finished: @escaping () -> Void) {
+    init(owner: OwnerStore, conversation: Conversation, pairing: Pairing, voice: Voice, kokoro: KokoroInstaller, runtime: RuntimeInstaller,
+         finished: @escaping () -> Void) {
+        self.pairing = pairing
         self.kokoro = kokoro
+        self.runtime = runtime
         self.owner = owner
         self.conversation = conversation
         self.voice = voice
         self.finished = finished
         name = owner.name ?? suggestedName(fullName: NSFullUserName())
-        voices = Voice.englishVoices()
-        voiceId = voice.identifier ?? voices.first?.identifier ?? ""
         catchUp = UserDefaults.standard.object(forKey: SetupModel.catchUpKey) as? Bool ?? true
         // A nested object's changes do not reach the view on their own, so they are passed on.
         watchingKokoro = kokoro.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+        watchingRuntime = runtime.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+    }
+
+    /// What the daemon row says under its name: what is being done for it, else what it is for.
+    var daemonDetail: String {
+        runtime.doing.map { "\($0)…" } ?? "What your agents already talk to. Installed, started and updated for you."
     }
 
     /// Everything that can be checked without asking the person, checked as the card opens.
     func check() async {
         listening = hearingState()
-        switch await conversation.daemonVoice() {
+        seeing = seeingState()
+        daemon = .waiting
+        // Installed, started or updated here rather than told to the person, who only sees it if that fails.
+        switch await runtime.ensure(conversation) {
         case .ready: daemon = .done
-        case .tooOld: daemon = .needs("This Memnox is older than the app. Update it, then check again")
-        case .unreachable: daemon = .needs("Start it in a terminal: memnox daemon --install")
+        case .tooOld, .unreachable, .refused: daemon = .needs(runtime.failed ?? "The daemon is not answering yet")
         }
         key = await keyState()
+        await voiceChanged()
         // Last, since the first time it asks every agent a question and that takes a while.
         await loadAgents()
     }
@@ -109,21 +172,246 @@ final class SetupModel: ObservableObject {
         return .needs("None of your agents answered. Fix one below, then check again")
     }
 
+    /// Both grants are the person's alone: macOS shows its own sheet once and then only System Settings can.
+    func allowSeeing() {
+        _ = PromptTyping.allowed()
+        if !ScreenSight.allowed { _ = CGRequestScreenCaptureAccess() }
+        seeing = seeingState()
+    }
+
+    /// Typing and reading back need Accessibility; seeing the screen and the proof shots need Screen Recording.
+    private func seeingState() -> StepState {
+        switch (AXIsProcessTrusted(), ScreenSight.allowed) {
+        case (true, true): return .done
+        case (false, _): return .needs("Turn on Memnox in System Settings, Privacy and Security, Accessibility")
+        case (true, false): return .needs("Turn on Memnox in System Settings, Privacy and Security, Screen Recording, then reopen Memnox")
+        }
+    }
+
     func allowListening() async {
-        listening = await Ears.askPermission()
-            ? .done
-            : .needs("Turn on Memnox in System Settings, Privacy and Security, Microphone and Speech Recognition")
+        if await Ears.askPermission() {
+            listening = .done
+            return
+        }
+        // macOS shows its sheet once per app; after a no, only System Settings can change it, so that page is opened.
+        if let page = URL(string: Self.microphoneSettings) { NSWorkspace.shared.open(page) }
+        listening = .needs("Turn on Memnox in System Settings, Privacy and Security, Microphone and Speech Recognition")
+    }
+
+    private static let microphoneSettings = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+
+    /// Whether Kokoro is the voice speaking, as the menu bar set it.
+    var speaksWithKokoro: Bool { voice.engine is KokoroVoice }
+
+    /// Set while a sample plays, so picking quickly never stacks one sample on another.
+    private var sampling = false
+
+    /// Keeps the voice picked and, once Kokoro speaks with it, says a short line so the person hears the choice.
+    func pickVoice(_ id: String) async {
+        kokoroVoiceId = id
+        await usePicked()
+        // Only Kokoro ready and nothing mid sentence, so a sample never talks over the voice or comes from another engine.
+        guard case .done = kokoro.state, speaksWithKokoro, !sampling, voice.level == 0 else { return }
+        sampling = true
+        defer { sampling = false }
+        await voice.preview(Self.voiceSample)
+    }
+
+    /// Short enough to hear the voice without waiting on it.
+    private static let voiceSample = "This is how I will sound."
+
+    /// Picks up a voice chosen elsewhere, so the picker matches what speaks.
+    func voiceChanged() async {
+        kokoroVoiceId = KokoroVoice.chosen().voice
+    }
+
+    /// Keeps the picked Kokoro voice and speaks with it, switching from the Mac's voice once Kokoro is
+    /// installed; while it still installs, the pick is kept for when it is ready.
+    private func usePicked() async {
+        KokoroVoice.choose(kokoroVoiceId)
+        voicePicked?(kokoroVoiceId)
+        if speaksWithKokoro {
+            voice.engine = KokoroVoice(voice: kokoroVoiceId)
+        } else if KokoroServer.isInstalled {
+            await useKokoro?()
+        }
+    }
+
+    /// Opens a pairing and shows its QR, or shows and says the daemon's reason when it will not open one.
+    func pairPhone() async {
+        stopWatchingPairing()
+        phone = .opening
+        switch await pairing.begin() {
+        case .started(let invite):
+            guard let qr = invite.qr else { return failPairing(PairingLines.refused) }
+            pairingId = invite.id
+            phone = .showing(qr: qr)
+            watchPairing(invite.id)
+        case .refused(let why):
+            failPairing(why)
+        case .unreachable:
+            failPairing(PairingLines.unreachable)
+        }
+    }
+
+    /// The person's yes once the digits match; a cancelled Touch ID leaves the digits up to try again.
+    func approvePhone() async {
+        guard case .checking(let found) = phone, let id = pairingId else { return }
+        phone = .approving(found)
+        switch await pairing.accept(id, phone: found) {
+        case .paired(let device): pairedPhone(device.name)
+        case .cancelled: phone = .checking(found)
+        case .refused(let why): failPairing(why)
+        case .unreachable: failPairing(PairingLines.unreachable)
+        }
+    }
+
+    /// The person's no, or Cancel while the QR is up: the pairing ends and the row goes back to Pair.
+    func declinePhone() async {
+        guard let id = pairingId else {
+            phone = .idle
+            return
+        }
+        stopWatchingPairing()
+        phone = .idle
+        _ = await pairing.decline(id)
+    }
+
+    private func watchPairing(_ id: String) {
+        let updates = pairing.pending(id)
+        watchingPairing = Task { [weak self] in
+            do {
+                for try await invite in updates { self?.pairingMoved(invite) }
+            } catch {
+                self?.pairingLost(id)
+                return
+            }
+            self?.pairingLost(id)
+        }
+    }
+
+    private func pairingMoved(_ invite: PairingInvite) {
+        guard invite.id == pairingId, let state = invite.pairingState else { return }
+        switch state {
+        case .waiting:
+            break
+        case .answered:
+            // Once Touch ID is up the row stays on it, whatever else arrives.
+            if case .approving = phone { return }
+            if let found = invite.phone { phone = .checking(found) }
+        case .paired:
+            pairedPhone(invite.phone?.name ?? "")
+        case .declined:
+            failPairing(PairingLines.declined, aloud: false)
+        case .expired:
+            failPairing(PairingLines.expired, aloud: false)
+        }
+    }
+
+    /// The daemon stopped answering about a pairing that was still open, so the row offers to try again.
+    private func pairingLost(_ id: String) {
+        guard id == pairingId else { return }
+        switch phone {
+        case .showing, .checking: failPairing(PairingLines.unreachable, aloud: false)
+        case .idle, .opening, .approving, .paired, .failed: break
+        }
+    }
+
+    private func pairedPhone(_ name: String) {
+        if case .paired = phone { return }
+        stopWatchingPairing()
+        phone = .paired(name: name)
+        say?(PairingLines.paired(name))
+        devicesChanged?()
+    }
+
+    private func failPairing(_ why: String, aloud: Bool = true) {
+        stopWatchingPairing()
+        phone = .failed(why)
+        if aloud { say?(why) }
+    }
+
+    private func stopWatchingPairing() {
+        watchingPairing?.cancel()
+        watchingPairing = nil
+        pairingId = nil
+    }
+
+    /// Pairs with the server in the pasted link, showing the six digits to type there the moment both ends have them.
+    func connectServer() async {
+        let link = serverLink.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let serverPairing, !link.isEmpty else { return }
+        server = .pairing
+        let name = Host.current().localizedName ?? ServerPairingLines.thisMac
+        let result = await serverPairing.connect(link: link, name: name) { [weak self] code in
+            Task { @MainActor [weak self] in
+                guard let self, self.server == .pairing else { return }
+                self.server = .showingCode(code)
+            }
+        }
+        switch result {
+        case .connected(let paired):
+            server = .connected(name: paired.machine)
+            serverLink = ""
+            say?(ServerPairingLines.connected(paired.machine))
+        case .refused(let why):
+            server = .failed(why)
+        }
+        servers = serverPairing.servers()
+        serversChanged?()
+    }
+
+    /// Forgets a server on this Mac; it keeps this Mac's device record until it is revoked there.
+    func forgetServer(_ machineId: String) {
+        serverPairing?.forget(machineId)
+        servers = serverPairing?.servers() ?? []
+        if talkingTo == machineId { talkTo(nil) }
+        serversChanged?()
+    }
+
+    /// The machine the voice and the session views talk to from now on, nil for this Mac.
+    func talkTo(_ machineId: String?) {
+        talkingTo = machineId
+        chooseMachine?(machineId)
+    }
+
+    /// The servers as kept, read each time the card shows, so one paired from elsewhere appears.
+    func loadServers() {
+        servers = serverPairing?.servers() ?? []
+    }
+
+    var serverState: StepState {
+        switch server {
+        case .connected: return .done
+        case .failed(let why): return .needs(why)
+        case .idle, .pairing, .showingCode: return servers.isEmpty ? .waiting : .done
+        }
+    }
+
+    /// Whether a phone's digits wait on Approve, which then takes Return from Done.
+    var phoneAwaitsApproval: Bool {
+        if case .checking = phone { return true }
+        return false
+    }
+
+    /// How the phone row's mark reads: paired, waiting on something, or what went wrong.
+    var phoneState: StepState {
+        switch phone {
+        case .paired: return .done
+        case .failed(let why): return .needs(why)
+        case .idle, .opening, .showing, .checking, .approving: return .waiting
+        }
     }
 
     func hear() async {
-        voice.choose(voiceId)
+        await usePicked()
         let first = name.trimmingCharacters(in: .whitespaces)
         await voice.preview("Hi \(first.isEmpty ? "there" : first), I am Memnox. Press Option Space whenever you want me.")
     }
 
-    /// Premium and Enhanced voices sound like a person; Standard ones sound like reading.
+    /// Whether the Mac voice standing in for Kokoro is Premium or Enhanced, which sound like a person.
     var naturalVoice: Bool {
-        guard let chosen = voices.first(where: { $0.identifier == voiceId }) else { return false }
+        guard let chosen = voice.identifier.flatMap(AVSpeechSynthesisVoice.init(identifier:)) else { return false }
         return chosen.quality == .premium || chosen.quality == .enhanced
     }
 
@@ -140,7 +428,7 @@ final class SetupModel: ObservableObject {
     var voiceDetail: String {
         switch kokoro.state {
         case .done:
-            return "Kokoro, a natural voice running on this Mac."
+            return speaksWithKokoro ? "Kokoro, a natural voice running on this Mac." : "The Mac's own voice, as picked in the menu bar."
         case .installing(let step):
             return "Installing Kokoro, about 340 MB once: \(step.lowercased()). The Mac voice speaks until then."
         case .idle, .failed:
@@ -157,13 +445,33 @@ final class SetupModel: ObservableObject {
         if let spoken { NSWorkspace.shared.open(spoken) }
     }
 
+    /// Keeps the name as it is typed once setup has been done, since Settings has no Done to press.
+    func saveName() {
+        let chosen = name.trimmingCharacters(in: .whitespaces)
+        guard !chosen.isEmpty else { return }
+        owner.name = chosen
+    }
+
+    /// Keeps catch up the moment it is switched, for the same reason.
+    func saveCatchUp() {
+        UserDefaults.standard.set(catchUp, forKey: SetupModel.catchUpKey)
+    }
+
+    /// Whether the first run has been finished, which is when Settings stops asking for Done.
+    var isFinished: Bool { UserDefaults.standard.bool(forKey: SetupModel.doneKey) }
+
+    /// The name as a step: done once there is one.
+    var nameState: StepState { name.trimmingCharacters(in: .whitespaces).isEmpty ? .waiting : .done }
+
     func finish() {
         let chosen = name.trimmingCharacters(in: .whitespaces)
         owner.name = chosen.isEmpty ? nil : chosen
-        voice.choose(voiceId)
         UserDefaults.standard.set(catchUp, forKey: SetupModel.catchUpKey)
         UserDefaults.standard.set(true, forKey: SetupModel.doneKey)
-        finished()
+        Task {
+            await usePicked()
+            finished()
+        }
     }
 
     static let doneKey = "setupDone"
@@ -176,127 +484,180 @@ final class SetupModel: ObservableObject {
     }
 
     private func keyState() async -> StepState {
+        // Made once at launch; a Mac that could not make it has nothing to register, whatever the daemon is.
+        guard conversation.canSign else {
+            return .needs("This Mac could not make a Touch ID key. Check Touch ID is set up in System Settings, then quit and reopen Memnox")
+        }
         switch await conversation.registerKey() {
         case .registered: return .done
         case .anotherKey: return .needs("Another key is trusted. Run memnox voice forget-key, then check again")
         case .unreachable: return .needs("Waiting for the daemon")
         case .tooOld: return .needs("Waiting for a Memnox that knows voice")
+        case .refused(let why): return .needs(why)
         }
     }
 }
 
-struct SetupView: View {
+/// Setup's steps as cards the Settings window hosts on its pages, each a short group rather than one long sheet.
+private enum SetupCardLayout {
+    static let dividerInk = 0.06
+    /// Lines a divider up with the titles rather than the marks, as System Settings does.
+    static let dividerInset: CGFloat = 44
+    static let stepChange: TimeInterval = 0.25
+    static let playSymbol = "play.fill"
+}
+
+/// The hairline between two steps on a card.
+private struct SetupDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Memnox.ink(SetupCardLayout.dividerInk))
+            .frame(height: Memnox.Stroke.hairline)
+            .padding(.leading, SetupCardLayout.dividerInset)
+    }
+}
+
+/// Who the person is and what the Mac lets Memnox hear and see.
+struct SetupYouCard: View {
+    @ObservedObject var model: SetupModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            SetupStep("Your name", detail: "What I call you.", state: model.nameState) {
+                NameField(text: $model.name)
+                    .onSubmit { model.saveName() }
+                    .onChange(of: model.name) { _, _ in if model.isFinished { model.saveName() } }
+            }
+            SetupDivider()
+            SetupStep("Hear you", detail: "Microphone and speech recognition, on this Mac only.", state: model.listening) {
+                if model.listening != .done {
+                    Button("Allow") { Task { await model.allowListening() } }.buttonStyle(KitButton(kind: .primary))
+                }
+            }
+            SetupDivider()
+            SetupStep("See and act", detail: "Read your screen when you ask, and check that what it sent landed.", state: model.seeing) {
+                if model.seeing != .done {
+                    Button("Allow") { model.allowSeeing() }.buttonStyle(KitButton(kind: .primary))
+                }
+            }
+        }
+        .surface()
+    }
+}
+
+/// The daemon and the key Touch ID signs with.
+struct SetupMacCard: View {
+    @ObservedObject var model: SetupModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            SetupStep("Memnox daemon", detail: model.daemonDetail, state: model.daemon) {
+                if model.daemon != .done { checkAgain }
+            }
+            .tile(MemnoxTile())
+            SetupDivider()
+            SetupStep("Touch ID", detail: "Your finger approves anything outside a session's repository. Saying no needs only your voice.", state: model.key) {
+                if model.key != .done { checkAgain }
+            }
+            .tile(IconTile(symbol: "touchid"))
+        }
+        .surface()
+    }
+
+    private var checkAgain: some View {
+        Button("Check again") { Task { await model.check() } }.buttonStyle(KitButton(kind: .secondary))
+    }
+}
+
+/// Pairing a phone: Pair, the code to scan, the digits to approve, and the result.
+struct SetupPhoneCard: View {
+    @ObservedObject var model: SetupModel
+
+    var body: some View {
+        SetupStep("Pair a phone", detail: "Optional. Answer your agents and talk to Memnox from your iPhone.", state: model.phoneState) {
+            phoneButton
+        } extra: {
+            PhoneExtra(model: model)
+        }
+        .surface()
+    }
+
+    /// Pair to start, Cancel while the QR waits, Try again after a failure, and nothing once paired.
+    @ViewBuilder private var phoneButton: some View {
+        switch model.phone {
+        case .idle, .paired:
+            Button("Pair") { Task { await model.pairPhone() } }.buttonStyle(KitButton(kind: .secondary))
+        case .failed:
+            Button("Try again") { Task { await model.pairPhone() } }.buttonStyle(KitButton(kind: .secondary))
+        case .showing:
+            Button("Cancel") { Task { await model.declinePhone() } }.buttonStyle(KitButton(kind: .secondary))
+        case .opening, .checking, .approving:
+            EmptyView()
+        }
+    }
+}
+
+/// Connecting to a server: the link pasted from memnox pair, the digits to type there, and the servers kept.
+struct SetupServerCard: View {
+    @ObservedObject var model: SetupModel
+
+    var body: some View {
+        SetupStep("Connect to a server",
+                  detail: "Optional. Talk to Memnox on a Linux server through the relay. Run memnox pair there and paste the link it prints.",
+                  state: model.serverState) {
+            serverButton
+        } extra: {
+            ServerExtra(model: model)
+        }
+        .surface()
+        .onAppear { model.loadServers() }
+    }
+
+    @ViewBuilder private var serverButton: some View {
+        switch model.server {
+        case .idle, .connected, .failed:
+            Button("Connect") { Task { await model.connectServer() } }
+                .buttonStyle(KitButton(kind: .secondary))
+                .disabled(model.serverLink.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        case .pairing, .showingCode:
+            ProgressView().controlSize(.small)
+        }
+    }
+}
+
+/// Which agent thinks for the voice, and the voice itself with a way to hear it.
+struct SetupVoiceCard: View {
     @ObservedObject var model: SetupModel
     /// Whether the agent rows show once an agent already answers, since then they are detail.
     @State private var showingAgents = false
 
-    private enum Layout {
-        static let glowOpacity = 0.14
-        static let glowCenter = UnitPoint(x: 0.5, y: 1.1)
-        static let glowRadius: CGFloat = 420
-        /// The room between the header, the checklist and the footer.
-        static let sectionGap: CGFloat = 16
-        static let horizontalPadding: CGFloat = 22
-        /// Taller at the top, to clear the window's close and minimize buttons.
-        static let topPadding: CGFloat = 34
-        static let bottomPadding: CGFloat = 18
-        static let headerSpacing: CGFloat = 12
-        static let titleSize: CGFloat = 24
-        static let logoSize: CGFloat = 28
-        static let stepChange: TimeInterval = 0.25
-        static let playSymbol = "play.fill"
-        static let dividerInk = 0.06
-        /// Lines a divider up with the titles rather than the marks, as System Settings does.
-        static let dividerInset: CGFloat = 44
-    }
-
     var body: some View {
-        ZStack {
-            // Solid black lit faintly from below, the same ground as the island and its cards.
-            Color.black
-            RadialGradient(
-                colors: [Memnox.Palette.primary.opacity(Layout.glowOpacity), .clear],
-                center: Layout.glowCenter,
-                startRadius: 0,
-                endRadius: Layout.glowRadius
-            )
-            VStack(alignment: .leading, spacing: Layout.sectionGap) {
-                header
-                checklist
-                catchUpRow
-                footer
+        VStack(spacing: 0) {
+            SetupStep("Who answers for you", detail: model.agentsDetail, state: model.agentsState) {
+                if model.agentsState == .done {
+                    Button(showingAgents ? "Hide" : "Details") { showingAgents.toggle() }
+                        .buttonStyle(KitButton(kind: .secondary))
+                }
+            } extra: {
+                if model.agentsState != .done || showingAgents { AgentRows(model: model) }
             }
-            .padding(.horizontal, Layout.horizontalPadding)
-            .padding(.top, Layout.topPadding)
-            .padding(.bottom, Layout.bottomPadding)
-        }
-        .frame(width: SetupLayout.width)
-        .environment(\.colorScheme, .dark)
-        .task { await model.check() }
-    }
-
-    private var header: some View {
-        HStack(alignment: .center, spacing: Layout.headerSpacing) {
-            LogoMark(size: Layout.logoSize)
-            VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
-                Text("Set up your voice")
-                    .font(Memnox.display(Layout.titleSize))
-                    .foregroundStyle(Memnox.Palette.foreground)
-                Text("Talk to your agents, and let them do more on their own, safely.")
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+            SetupDivider()
+            SetupStep("Voice", detail: model.voiceDetail, state: model.voiceState) {
+                HStack(spacing: Memnox.Spacing.small) {
+                    VoicePicker(model: model)
+                    Button { Task { await model.hear() } } label: {
+                        Image(systemName: SetupCardLayout.playSymbol)
+                    }
+                    .buttonStyle(KitButton(kind: .secondary))
+                    .help("Hear it")
+                    .accessibilityLabel("Hear it")
+                }
+            } extra: {
+                voiceExtra
             }
-            Spacer(minLength: Memnox.Spacing.medium)
-            ProgressPill(ready: readyCount, total: steps.count)
         }
-    }
-
-    /// Every step as one grouped list, so the window stays short enough to fit any screen.
-    private var checklist: some View {
-        IslandCard(veil: nil) {
-            VStack(spacing: 0) {
-                SetupStep("Your name", detail: "What I call you.", state: steps[0]) {
-                    NameField(text: $model.name)
-                }
-                divider
-                SetupStep("Hear you", detail: "Microphone and speech recognition, on this Mac only.", state: model.listening) {
-                    if model.listening != .done {
-                        Button("Allow") { Task { await model.allowListening() } }.buttonStyle(IslandButton(primary: true))
-                    }
-                }
-                divider
-                SetupStep("Memnox daemon", detail: "What your agents already talk to.", state: model.daemon) {
-                    if model.daemon != .done { checkAgainButton }
-                }
-                divider
-                SetupStep("Touch ID", detail: "Your finger approves anything outside a session's repository. Saying no needs only your voice.", state: model.key) {
-                    if model.key != .done { checkAgainButton }
-                }
-                divider
-                SetupStep("Who answers for you", detail: model.agentsDetail, state: model.agentsState) {
-                    if model.agentsState == .done {
-                        Button(showingAgents ? "Hide" : "Details") { showingAgents.toggle() }
-                            .buttonStyle(IslandButton(primary: false))
-                    }
-                } extra: {
-                    if model.agentsState != .done || showingAgents { AgentRows(model: model) }
-                }
-                divider
-                SetupStep("Voice", detail: model.voiceDetail, state: model.voiceState) {
-                    HStack(spacing: Memnox.Spacing.small) {
-                        VoicePicker(model: model)
-                        Button { Task { await model.hear() } } label: {
-                            Image(systemName: Layout.playSymbol)
-                        }
-                        .buttonStyle(IslandButton(primary: false))
-                        .help("Hear it")
-                    }
-                } extra: {
-                    voiceExtra
-                }
-            }
-            .animation(.easeInOut(duration: Layout.stepChange), value: showingAgents)
-        }
+        .surface()
+        .animation(.easeInOut(duration: SetupCardLayout.stepChange), value: showingAgents)
     }
 
     @ViewBuilder private var voiceExtra: some View {
@@ -305,74 +666,44 @@ struct SetupView: View {
             ProgressView().controlSize(.small)
         case .failed:
             HStack(spacing: Memnox.Spacing.medium) {
-                Button("Try again") { Task { await model.useKokoro?() } }.buttonStyle(IslandButton(primary: false))
+                Button("Try again") { Task { await model.useKokoro?() } }.buttonStyle(KitButton(kind: .secondary))
                 if !model.naturalVoice {
-                    Button("Get a Mac voice instead") { model.openVoiceSettings() }.buttonStyle(IslandButton(primary: false))
+                    Button("Get a Mac voice instead") { model.openVoiceSettings() }.buttonStyle(KitButton(kind: .secondary))
                 }
             }
         case .idle, .done:
             EmptyView()
         }
     }
+}
 
-    private var checkAgainButton: some View {
-        Button("Check again") { Task { await model.check() } }.buttonStyle(IslandButton(primary: false))
+/// Catching the person up after time away, kept the moment it is switched.
+struct SetupCatchUpRow: View {
+    @ObservedObject var model: SetupModel
+
+    var body: some View {
+        SwitchRow(symbol: "clock.arrow.circlepath", title: "Catch me up", detail: "What my agents did while I was away",
+                  isOn: Binding(get: { model.catchUp }, set: { model.catchUp = $0; model.saveCatchUp() }))
     }
+}
 
-    private var divider: some View {
-        Rectangle()
-            .fill(Color.white.opacity(Layout.dividerInk))
-            .frame(height: Memnox.Stroke.hairline)
-            .padding(.leading, Layout.dividerInset)
-    }
+/// The mark a step shows in the overview's checklist, the same as on its card.
+struct SetupMark: View {
+    let state: StepState
 
-    private var catchUpRow: some View {
-        HStack(spacing: Memnox.Spacing.large) {
-            Text("Catch me up on what my agents did while I was away")
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Color.white.opacity(Memnox.Ink.primary))
-            Spacer(minLength: Memnox.Spacing.medium)
-            Toggle("", isOn: $model.catchUp)
-                .toggleStyle(MemnoxSwitch())
-                .labelsHidden()
-        }
-        .padding(.horizontal, Memnox.Spacing.xSmall)
-    }
-
-    private var footer: some View {
-        HStack {
-            HStack(spacing: Memnox.Spacing.small) {
-                Keycap(label: "⌥")
-                Keycap(label: "Space")
-                Text("to talk, from anywhere")
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
-            }
-            Spacer()
-            Button("Done") { model.finish() }
-                .buttonStyle(IslandButton(primary: true))
-                .keyboardShortcut(.defaultAction)
-                .disabled(model.name.trimmingCharacters(in: .whitespaces).isEmpty)
-        }
-    }
-
-    /// The name first, then each check in the order the list shows them.
-    private var steps: [StepState] {
-        let named: StepState = model.name.trimmingCharacters(in: .whitespaces).isEmpty ? .waiting : .done
-        return [named, model.listening, model.daemon, model.key, model.agentsState, model.voiceState]
-    }
-
-    private var readyCount: Int { steps.filter { $0 == .done }.count }
+    var body: some View { StatusMark(state: state) }
 }
 
 /// One row of the checklist: its mark, its title and a line on what it is, the control on the right,
-/// anything longer underneath, and what to do in amber when it needs the person.
+/// anything longer underneath, and what to do in words when it needs the person.
 private struct SetupStep<Trailing: View, Extra: View>: View {
     let title: String
     let detail: String
     let state: StepState
     let trailing: Trailing
     let extra: Extra
+    /// What the row is about, on a bordered tile at its start; with one, the checkbox moves to the end of the row.
+    var tile: AnyView?
 
     private typealias Layout = SetupStepLayout
 
@@ -385,27 +716,28 @@ private struct SetupStep<Trailing: View, Extra: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: Memnox.Spacing.large) {
-            StatusMark(state: state).padding(.top, Layout.markTopInset)
+        HStack(alignment: tile == nil ? .top : .center, spacing: Memnox.Spacing.large) {
+            if let tile { tile } else { StatusMark(state: state).padding(.top, Layout.markTopInset) }
             VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
                 HStack(alignment: .center, spacing: Memnox.Spacing.large) {
                     VStack(alignment: .leading, spacing: Layout.lineSpacing) {
                         Text(title)
                             .font(Memnox.sans(Layout.titleSize, .semibold))
-                            .foregroundStyle(Color.white)
+                            .foregroundStyle(Memnox.Palette.ink)
                         Text(detail)
                             .font(Memnox.sans(Memnox.TextSize.caption))
-                            .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                            .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 0)
                     trailing
+                    if tile != nil, state == .done { StatusMark(state: state) }
                 }
                 extra
                 if case .needs(let hint) = state {
-                    Text(hint)
-                        .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(IslandPalette.amber)
+                    Label(hint, systemImage: "exclamationmark.circle")
+                        .font(Memnox.sans(Memnox.TextSize.caption, .medium))
+                        .foregroundStyle(Memnox.ink(Memnox.Ink.primary))
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                 }
@@ -413,13 +745,6 @@ private struct SetupStep<Trailing: View, Extra: View>: View {
         }
         .padding(.horizontal, Memnox.Spacing.xLarge)
         .padding(.vertical, Memnox.Spacing.large)
-        .background(tint)
-    }
-
-    /// A faint amber wash behind a step that needs the person, so the eye goes to what is left.
-    private var tint: Color {
-        if case .needs = state { return IslandPalette.amber.opacity(Layout.needsTint) }
-        return .clear
     }
 }
 
@@ -429,7 +754,15 @@ private enum SetupStepLayout {
     static let lineSpacing: CGFloat = 3
     /// Lines the mark up with the title beside it.
     static let markTopInset: CGFloat = 1
-    static let needsTint = 0.07
+}
+
+extension SetupStep {
+    /// The same row with a tile at its start.
+    func tile<Tile: View>(_ view: Tile) -> SetupStep {
+        var copy = self
+        copy.tile = AnyView(view)
+        return copy
+    }
 }
 
 extension SetupStep where Extra == EmptyView {
@@ -438,52 +771,11 @@ extension SetupStep where Extra == EmptyView {
     }
 }
 
-/// How many steps are ready, or a green All set once every one is.
-private struct ProgressPill: View {
-    let ready: Int
-    let total: Int
-
-    private static let fillInk = 0.08
-
-    var body: some View {
-        let done = ready == total
-        Text(done ? "All set" : "\(ready) of \(total) ready")
-            .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
-            .foregroundStyle(done ? IslandPalette.green : Memnox.Palette.muted)
-            .padding(.horizontal, Memnox.Spacing.regular)
-            .padding(.vertical, Memnox.Spacing.xSmall)
-            .background(Capsule().fill((done ? IslandPalette.green : Color.white).opacity(Self.fillInk)))
-            .fixedSize()
-    }
-}
-
-/// Done in green, waiting as an outline, and anything that needs you in the warm colour.
-private struct StatusMark: View {
+/// The voiceos checkbox: filled and ticked once done, an empty square while waiting, and marked when it needs you.
+struct StatusMark: View {
     let state: StepState
 
-    private enum Layout {
-        static let size: CGFloat = 16
-        /// Small enough for the tick to sit well inside the mark.
-        static let checkSize: CGFloat = 7.5
-        static let checkSymbol = "checkmark"
-        static let waitingRingInk = 0.25
-    }
-
-    var body: some View {
-        switch state {
-        case .done:
-            Circle().fill(IslandPalette.green)
-                .frame(width: Layout.size, height: Layout.size)
-                .overlay(Image(systemName: Layout.checkSymbol).font(.system(size: Layout.checkSize, weight: .heavy)).foregroundStyle(Color.black))
-                .transition(.scale.combined(with: .opacity))
-        case .waiting:
-            Circle().strokeBorder(Color.white.opacity(Layout.waitingRingInk), lineWidth: Memnox.Stroke.emphasis).frame(width: Layout.size, height: Layout.size)
-        case .needs:
-            Circle().fill(IslandPalette.amber)
-                .frame(width: Layout.size, height: Layout.size)
-                .overlay(Text("!").font(.system(size: Memnox.TextSize.micro, weight: .heavy)).foregroundStyle(Color.black))
-        }
-    }
+    var body: some View { CheckBox(state: state) }
 }
 
 /// A text field in the console's input style: dark, bordered, a blue ring when focused.
@@ -503,12 +795,12 @@ private struct NameField: View {
             .padding(.horizontal, Memnox.Spacing.regular)
             .padding(.vertical, Memnox.Spacing.small)
             .frame(width: SetupLayout.fieldWidth)
-            .background(RoundedRectangle(cornerRadius: SetupLayout.fieldCornerRadius, style: .continuous).fill(Color.white.opacity(Memnox.Ink.faintFill)))
+            .background(RoundedRectangle(cornerRadius: SetupLayout.fieldCornerRadius, style: .continuous).fill(Memnox.ink(Memnox.Ink.faintFill)))
             .overlay(
                 RoundedRectangle(cornerRadius: SetupLayout.fieldCornerRadius, style: .continuous)
-                    .strokeBorder(focused ? Memnox.Palette.primary : Color.white.opacity(SetupLayout.fieldEdgeInk), lineWidth: Memnox.Stroke.hairline)
+                    .strokeBorder(focused ? Memnox.ink(Memnox.Ink.secondary) : Memnox.ink(SetupLayout.fieldEdgeInk), lineWidth: Memnox.Stroke.hairline)
             )
-            .shadow(color: focused ? Memnox.Palette.ring : .clear, radius: Self.focusGlowRadius)
+            .shadow(color: focused ? Memnox.ink(Memnox.Ink.fill) : .clear, radius: Self.focusGlowRadius)
             .animation(.easeOut(duration: Self.focusFade), value: focused)
     }
 }
@@ -518,14 +810,16 @@ private struct AgentRows: View {
     @ObservedObject var model: SetupModel
 
     private enum Layout {
-        static let rowSpacing: CGFloat = 6
+        static let rowSpacing: CGFloat = 8
         static let labelWidth: CGFloat = 84
+        static let logoSide: CGFloat = 24
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Layout.rowSpacing) {
             ForEach(model.agents.filter(\.installed)) { agent in
-                HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.medium) {
+                HStack(alignment: .center, spacing: Memnox.Spacing.medium) {
+                    BrandLogo(agent: agent.kind, name: agent.label, size: Layout.logoSide)
                     Text(agent.label)
                         .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
                         .foregroundStyle(Memnox.Palette.foreground)
@@ -533,7 +827,7 @@ private struct AgentRows: View {
                     // One line each, so a long failure cannot stretch the window; the whole of it shows on hover.
                     Text(status(agent))
                         .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(agent.works == false ? IslandPalette.amber : Color.white.opacity(Memnox.Ink.secondary))
+                        .foregroundStyle(Memnox.ink(agent.works == false ? Memnox.Ink.primary : Memnox.Ink.secondary))
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .help(status(agent))
@@ -541,7 +835,7 @@ private struct AgentRows: View {
                     if agent.chosen {
                         Text("In use").font(Memnox.sans(Memnox.TextSize.caption, .semibold)).foregroundStyle(IslandPalette.green)
                     } else if agent.works == true {
-                        Button("Use") { Task { await model.useAgent(agent.kind) } }.buttonStyle(IslandButton(primary: false))
+                        Button("Use") { Task { await model.useAgent(agent.kind) } }.buttonStyle(KitButton(kind: .secondary))
                     }
                 }
             }
@@ -552,7 +846,7 @@ private struct AgentRows: View {
             }
             HStack(spacing: Memnox.Spacing.medium) {
                 Button("Check again") { Task { await model.loadAgents(recheck: true) } }
-                    .buttonStyle(IslandButton(primary: false))
+                    .buttonStyle(KitButton(kind: .secondary))
                     .disabled(model.checkingAgents)
                 if model.checkingAgents { ProgressView().controlSize(.small) }
             }
@@ -573,7 +867,184 @@ private struct AgentRows: View {
     }
 }
 
-/// The installed voices, best first, as a quiet menu rather than a system pop up button.
+/// Under the phone row: the QR to scan, then the phone's name and digits to approve, then the result.
+private struct PhoneExtra: View {
+    @ObservedObject var model: SetupModel
+
+    private enum Layout {
+        static let qrSize: CGFloat = 148
+        /// The white margin a reader needs around the code to find its edges.
+        static let quietZone: CGFloat = 10
+        static let qrCornerRadius: CGFloat = 10
+        static let codeSize: CGFloat = 26
+        /// The digits shown in two groups of this many, the way a phone shows a code.
+        static let codeGroup = 3
+        static let codeTracking: CGFloat = 2
+    }
+
+    var body: some View {
+        switch model.phone {
+        case .opening:
+            ProgressView().controlSize(.small)
+        case .showing(let qr):
+            HStack(alignment: .center, spacing: Memnox.Spacing.xLarge) {
+                code(qr)
+                VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+                    Text("Scan this with the Memnox app on your iPhone.")
+                        .font(Memnox.sans(Memnox.TextSize.caption))
+                        .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                        .fixedSize(horizontal: false, vertical: true)
+                    // The same pairing as a link, for a simulator with no camera or a phone that cannot scan.
+                    Button("Copy link") { copy(qr) }.buttonStyle(KitButton(kind: .secondary))
+                }
+            }
+        case .checking(let phone), .approving(let phone):
+            checking(phone)
+        case .paired(let name):
+            Text(PairingLines.paired(name))
+                .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
+                .foregroundStyle(IslandPalette.green)
+        case .idle, .failed:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder private func code(_ qr: String) -> some View {
+        if let image = QRImage.make(qr) {
+            Image(nsImage: image)
+                .interpolation(.none)
+                .resizable()
+                .frame(width: Layout.qrSize, height: Layout.qrSize)
+                .padding(Layout.quietZone)
+                .background(RoundedRectangle(cornerRadius: Layout.qrCornerRadius, style: .continuous).fill(Color.white))
+        } else {
+            Text("The code could not be drawn. Try again.")
+                .font(Memnox.sans(Memnox.TextSize.caption))
+                .foregroundStyle(Memnox.ink(Memnox.Ink.primary))
+        }
+    }
+
+    private func checking(_ phone: PairingPhone) -> some View {
+        let approving: Bool
+        if case .approving = model.phone { approving = true } else { approving = false }
+        return VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+            Text(phone.name)
+                .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
+                .foregroundStyle(Memnox.Palette.foreground)
+            Text(grouped(phone.code))
+                .font(.system(size: Layout.codeSize, weight: .semibold, design: .monospaced))
+                .tracking(Layout.codeTracking)
+                .foregroundStyle(Memnox.Palette.ink)
+                .textSelection(.enabled)
+            Text("Approve if your iPhone shows the same digits.")
+                .font(Memnox.sans(Memnox.TextSize.caption))
+                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+            HStack(spacing: Memnox.Spacing.medium) {
+                // No Return shortcut, since letting a phone in must be a click made after comparing the digits.
+                Button("Approve") { Task { await model.approvePhone() } }
+                    .buttonStyle(KitButton(kind: .primary))
+                    .disabled(approving)
+                Button("Decline") { Task { await model.declinePhone() } }
+                    .buttonStyle(KitButton(kind: .secondary))
+                    .disabled(approving)
+                if approving { ProgressView().controlSize(.small) }
+            }
+        }
+    }
+
+    private func copy(_ link: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(link, forType: .string)
+    }
+
+    /// "482913" as "482 913", so six digits read at a glance.
+    private func grouped(_ digits: String) -> String {
+        guard digits.count > Layout.codeGroup else { return digits }
+        return "\(digits.prefix(Layout.codeGroup)) \(digits.dropFirst(Layout.codeGroup))"
+    }
+}
+
+/// Under the server row: the field for the link, the digits to type on the server, and each server kept,
+/// with which one the voice talks to and a way to forget it.
+private struct ServerExtra: View {
+    @ObservedObject var model: SetupModel
+
+    private enum Layout {
+        static let codeSize: CGFloat = 26
+        static let codeGroup = 3
+        static let codeTracking: CGFloat = 2
+        static let fieldWidth: CGFloat = 320
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+            switch model.server {
+            case .idle, .connected, .failed:
+                TextField("", text: $model.serverLink, prompt: Text("memnox://pair?d=...").foregroundStyle(Memnox.Palette.muted))
+                    .textFieldStyle(.plain)
+                    .font(Memnox.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(Memnox.Palette.foreground)
+                    .padding(.horizontal, Memnox.Spacing.regular)
+                    .padding(.vertical, Memnox.Spacing.small)
+                    .frame(width: Layout.fieldWidth)
+                    .background(RoundedRectangle(cornerRadius: SetupLayout.fieldCornerRadius, style: .continuous).fill(Memnox.ink(Memnox.Ink.faintFill)))
+                    .onSubmit { Task { await model.connectServer() } }
+            case .pairing:
+                Text("Meeting the server through the relay.")
+                    .font(Memnox.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+            case .showingCode(let code):
+                Text(grouped(code))
+                    .font(.system(size: Layout.codeSize, weight: .semibold, design: .monospaced))
+                    .tracking(Layout.codeTracking)
+                    .foregroundStyle(Memnox.Palette.ink)
+                    .textSelection(.enabled)
+                Text(ServerPairingLines.typeCode)
+                    .font(Memnox.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+            }
+            if case .connected(let name) = model.server {
+                Text(ServerPairingLines.connected(name))
+                    .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
+                    .foregroundStyle(IslandPalette.green)
+            }
+            if !model.servers.isEmpty {
+                machineRow(ServerPairingLines.thisMac, id: nil)
+                ForEach(model.servers, id: \.machineId) { server in
+                    machineRow(server.machine, id: server.machineId)
+                }
+            }
+        }
+    }
+
+    /// One machine: its name, whether the voice talks to it, and Forget for a server.
+    private func machineRow(_ name: String, id: String?) -> some View {
+        HStack(spacing: Memnox.Spacing.medium) {
+            Text(name)
+                .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
+                .foregroundStyle(Memnox.Palette.foreground)
+            Spacer(minLength: Memnox.Spacing.small)
+            if model.talkingTo == id {
+                Text("Talking to it")
+                    .font(Memnox.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(IslandPalette.green)
+            } else {
+                Button("Talk to it") { model.talkTo(id) }.buttonStyle(KitButton(kind: .secondary))
+            }
+            if let id {
+                Button("Forget") { model.forgetServer(id) }.buttonStyle(KitButton(kind: .secondary))
+            }
+        }
+    }
+
+    /// "482913" as "482 913", so six digits read at a glance.
+    private func grouped(_ digits: String) -> String {
+        guard digits.count > Layout.codeGroup else { return digits }
+        return "\(digits.prefix(Layout.codeGroup)) \(digits.dropFirst(Layout.codeGroup))"
+    }
+}
+
+/// Kokoro's voices, as a quiet menu rather than a system pop up button.
 private struct VoicePicker: View {
     @ObservedObject var model: SetupModel
 
@@ -582,8 +1053,8 @@ private struct VoicePicker: View {
 
     var body: some View {
         Menu {
-            ForEach(model.voices, id: \.identifier) { voice in
-                Button(label(voice)) { model.voiceId = voice.identifier }
+            ForEach(KokoroVoice.choices) { choice in
+                Button(choice.label) { Task { await model.pickVoice(choice.id) } }
             }
         } label: {
             HStack {
@@ -594,72 +1065,43 @@ private struct VoicePicker: View {
             .padding(.horizontal, Memnox.Spacing.regular)
             .padding(.vertical, Memnox.Spacing.small)
             .frame(width: SetupLayout.fieldWidth)
-            .background(RoundedRectangle(cornerRadius: SetupLayout.fieldCornerRadius, style: .continuous).fill(Color.white.opacity(Memnox.Ink.faintFill)))
-            .overlay(RoundedRectangle(cornerRadius: SetupLayout.fieldCornerRadius, style: .continuous).strokeBorder(Color.white.opacity(SetupLayout.fieldEdgeInk), lineWidth: Memnox.Stroke.hairline))
+            .background(RoundedRectangle(cornerRadius: SetupLayout.fieldCornerRadius, style: .continuous).fill(Memnox.ink(Memnox.Ink.faintFill)))
+            .overlay(RoundedRectangle(cornerRadius: SetupLayout.fieldCornerRadius, style: .continuous).strokeBorder(Memnox.ink(SetupLayout.fieldEdgeInk), lineWidth: Memnox.Stroke.hairline))
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
+        .pointingHand()
         .menuIndicator(.hidden)
+        .help("Choose the Kokoro voice, which speaks once picked")
     }
 
+    /// A voice saved before this list existed still shows its Kokoro id rather than nothing.
     private var current: String {
-        model.voices.first { $0.identifier == model.voiceId }.map(label) ?? "Choose a voice"
-    }
-
-    private func label(_ voice: AVSpeechSynthesisVoice) -> String {
-        switch voice.quality {
-        case .premium: return "\(voice.name) · Premium"
-        case .enhanced: return "\(voice.name) · Enhanced"
-        default: return voice.name
-        }
+        KokoroVoice.choices.first { $0.id == model.kokoroVoiceId }?.label ?? model.kokoroVoiceId
     }
 }
 
-/// The one ordinary window Memnox ever opens: setup, on glass, closed when it is done.
+/// The first run walks through the onboarding until it is finished; after that, setup lives in the Settings window as
+/// its Overview and its pages. Both read the one model, so a grant made in either shows in the other.
 @MainActor
 final class SetupWindow {
-    private var window: NSWindow?
-    /// A first height only, since the window is sized to its content once it is built.
-    private static let initialHeight: CGFloat = 640
-
     func show(_ model: SetupModel) {
-        if let window {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
+        SettingsWindow.shared.setup = model
+        if model.isFinished {
+            SettingsWindow.shared.show()
+        } else {
+            OnboardingWindow.shared.show(model)
         }
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: SetupLayout.width, height: Self.initialHeight),
-            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.isMovableByWindowBackground = true
-        window.appearance = NSAppearance(named: .darkAqua)
-        window.isReleasedWhenClosed = false
-        // An ordinary window the system rounds itself, so its close and minimize buttons stay on top
-        // and take clicks; painted black like the island rather than frosted.
-        window.backgroundColor = .black
-        let host = NSHostingView(rootView: SetupView(model: model))
-        window.contentView = host
-        window.setContentSize(host.fittingSize)
-        window.center()
-        self.window = window
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     func close() {
-        window?.close()
-        window = nil
+        OnboardingWindow.shared.close()
+        SettingsWindow.shared.close()
     }
 }
 
 /// Measures the setup card's pieces share, so the window, its fields and its pickers line up.
 private enum SetupLayout {
-    static let width: CGFloat = 460
     /// The name field and the voice picker are one width, so they read as one column.
     static let fieldWidth: CGFloat = 180
     static let fieldCornerRadius: CGFloat = 9

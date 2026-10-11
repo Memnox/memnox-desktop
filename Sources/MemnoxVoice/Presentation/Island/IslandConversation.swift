@@ -52,6 +52,10 @@ struct IslandConversation: View {
     let exchange: Exchange?
     /// True while talking, which is when the words are live and the answer can be opened up or put back.
     let live: Bool
+    /// Whose turn it is when it is not the person's own, such as a paired phone's.
+    var from: String?
+
+    private static let fromSymbol = "iphone"
 
     /// A card grows out of the bubble's lower edge from just under its size, so it reads as coming from the question.
     private static let cardArrivalScale: CGFloat = 0.97
@@ -59,11 +63,20 @@ struct IslandConversation: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+            if let from {
+                Label(from, systemImage: Self.fromSymbol)
+                    .font(Memnox.sans(Memnox.TextSize.caption, .medium))
+                    .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                    .lineLimit(1)
+            }
             if let question = bubbleText {
                 QuestionBubble(text: question, live: showsLiveWords, listening: model.state == .listening)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            if let draft = model.draft {
+            if let work = model.work {
+                IslandWorkCard(model: model, card: work)
+                    .transition(.opacity.combined(with: .scale(scale: Self.cardArrivalScale, anchor: .top)))
+            } else if let draft = model.draft {
                 IslandDraftCard(model: model, card: draft)
                     .transition(.opacity.combined(with: .scale(scale: Self.cardArrivalScale, anchor: .top)))
             } else if let rule = model.rule {
@@ -75,6 +88,7 @@ struct IslandConversation: View {
             }
         }
         .animation(Self.arrival, value: model.draft)
+        .animation(Self.arrival, value: model.work)
         .animation(Self.arrival, value: model.rule)
         .animation(Self.arrival, value: exchange?.id)
         .islandContentInset(model.notch)
@@ -85,7 +99,8 @@ struct IslandConversation: View {
 
     private var bubbleText: String? {
         if showsLiveWords { return model.heard }
-        return exchange?.question
+        // A phone turn whose start was missed has no question, and an empty bubble says nothing.
+        return exchange.flatMap { $0.question.isEmpty ? nil : $0.question }
     }
 }
 
@@ -290,6 +305,7 @@ struct AnswerCard: View {
             VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
                 header
                 bodyText
+                ForEach(Array(exchange.proofs.enumerated()), id: \.offset) { _, proof in ProofRow(proof: proof) }
                 footer
             }
             .padding(Layout.padding)
@@ -300,7 +316,7 @@ struct AnswerCard: View {
     private var header: some View {
         HStack(spacing: Memnox.Spacing.medium) {
             Circle()
-                .fill(LinearGradient(colors: [Memnox.Palette.sky, Memnox.Palette.primary], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(Memnox.Palette.primary)
                 .frame(width: Layout.markSide, height: Layout.markSide)
             Text("Memnox")
                 .font(Memnox.sans(Memnox.TextSize.body, .semibold))
@@ -364,6 +380,45 @@ struct AnswerCard: View {
                 .disabled(exchange.answer.isEmpty)
         }
         .font(Memnox.sans(Layout.footerSize, .medium))
+    }
+}
+
+/// The evidence for an action: what was read back, and the window as it was left, opened full size on a click.
+struct ProofRow: View {
+    let proof: Proof
+
+    private enum Layout {
+        static let thumbnailHeight: CGFloat = 44
+        static let corner: CGFloat = 6
+        static let lines = 3
+    }
+
+    private enum Symbol {
+        static let seen = "eye.circle.fill"
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Memnox.Spacing.medium) {
+            if let path = proof.image, let image = NSImage(contentsOfFile: path) {
+                Button { NSWorkspace.shared.open(URL(fileURLWithPath: path)) } label: {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: Layout.thumbnailHeight)
+                        .clipShape(RoundedRectangle(cornerRadius: Layout.corner))
+                }
+                .buttonStyle(.plain)
+                .pointingHand()
+                .help("Open the screenshot taken after it landed")
+            } else {
+                Image(systemName: Symbol.seen).foregroundStyle(IslandPalette.green)
+            }
+            Text(Evidence.card(proof))
+                .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
+                .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                .lineLimit(Layout.lines)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 

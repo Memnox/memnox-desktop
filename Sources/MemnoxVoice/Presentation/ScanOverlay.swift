@@ -186,30 +186,18 @@ enum ScanLayout {
     }
 }
 
-/// Black like the island, lit faintly blue from the middle, over a blur of whatever is behind.
+/// Flat black like the island over a blur of whatever is behind, dark enough that every card and figure reads on it.
 private struct ScanBackdrop: View {
     let phase: ScanModel.Phase
 
     private enum Layout {
         static let dim = 0.9
-        /// The blue glow brightens while the sweep is looking and dims once it rests.
-        static let scanningGlow = 0.22
-        static let restingGlow = 0.14
-        static let glowRadius: CGFloat = 700
-        static let glowChange: TimeInterval = 0.8
     }
 
     var body: some View {
         ZStack {
             Glass(material: .fullScreenUI, cornerRadius: 0)
             Color.black.opacity(Layout.dim)
-            RadialGradient(
-                colors: [Memnox.Palette.primary.opacity(phase == .scanning ? Layout.scanningGlow : Layout.restingGlow), .clear],
-                center: .center,
-                startRadius: 0,
-                endRadius: Layout.glowRadius
-            )
-            .animation(.easeInOut(duration: Layout.glowChange), value: phase)
         }
         .opacity(phase == .hidden ? 0 : 1)
     }
@@ -247,8 +235,7 @@ private struct ScanLink: View {
     let live: Bool
 
     private enum Layout {
-        static let startOpacity = 0.5
-        static let endOpacity = 0.55
+        static let lineOpacity = 0.55
         static let lineWidth: CGFloat = 1.2
         /// A dotted line, so it reads as a reach rather than a wire.
         static let dash: [CGFloat] = [2, 5]
@@ -268,11 +255,7 @@ private struct ScanLink: View {
             line
                 .trim(from: 0, to: shown ? 1 : 0)
                 .stroke(
-                    LinearGradient(
-                        colors: [Memnox.Palette.primary.opacity(Layout.startOpacity), colour.opacity(Layout.endOpacity)],
-                        startPoint: UnitPoint(x: from.x > to.x ? 1 : 0, y: from.y > to.y ? 1 : 0),
-                        endPoint: UnitPoint(x: from.x > to.x ? 0 : 1, y: from.y > to.y ? 0 : 1)
-                    ),
+                    colour.opacity(Layout.lineOpacity),
                     style: StrokeStyle(lineWidth: Layout.lineWidth, lineCap: .round, dash: Layout.dash)
                 )
                 .animation(.easeOut(duration: Layout.drawOut), value: shown)
@@ -310,9 +293,6 @@ private struct ScanCore: View {
     }
 
     private enum Layout {
-        static let glowOpacity = 0.3
-        static let glowRadiusScale: CGFloat = 0.8
-        static let glowScale: CGFloat = 1.6
         /// The share of its canvas the orb fills, the same as the island's orb, so the two draw alike.
         static let orbFill: CGFloat = 0.62
         static let hiddenScale: CGFloat = 0.5
@@ -330,8 +310,6 @@ private struct ScanCore: View {
                         .stroke(Memnox.Palette.primary.opacity((1 - progress) * (phase == .scanning ? Pulse.scanningOpacity : Pulse.restingOpacity)), lineWidth: Memnox.Stroke.hairline)
                         .frame(width: Self.size * (Pulse.startScale + progress * Pulse.growth), height: Self.size * (Pulse.startScale + progress * Pulse.growth))
                 }
-                RadialGradient(colors: [Memnox.Palette.primary.opacity(Layout.glowOpacity), .clear], center: .center, startRadius: 0, endRadius: Self.size * Layout.glowRadiusScale)
-                    .frame(width: Self.size * Layout.glowScale, height: Self.size * Layout.glowScale)
                 ScanOrb(state: phase == .scanning ? .thinking : .idle)
                     .frame(width: Self.size / Layout.orbFill, height: Self.size / Layout.orbFill)
             }
@@ -419,26 +397,21 @@ private struct ScanHeading: View {
     }
 }
 
-/// One agent as a card in its own colour: its logo, what it reaches, what it is connected to, and what it is doing now.
+/// One agent on the shared flat surface: its logo on a tile, what it reaches, what it is connected to, and what it is doing now.
 private struct AgentCard: View {
     let agent: AgentNode
     let shown: Bool
 
     private enum Layout {
-        /// The card takes its agent's colour faintly, and its status colour more strongly when it has one.
-        static let veilOpacity = 0.22
-        static let statusVeilOpacity = 0.38
-        static let logo: CGFloat = 20
-        static let badge: CGFloat = 36
-        static let badgeGlowOpacity = 0.6
-        static let badgeGlow: CGFloat = 10
+        /// An agent with work going takes its status colour on its edge, so a busy one is found first.
+        static let statusEdgeOpacity = 0.6
+        static let logo: CGFloat = 36
         static let titleSpacing: CGFloat = 1
         static let connectionOpacity = 0.7
         static let statusDot: CGFloat = 6
         static let statusPaddingX: CGFloat = 9
         static let statusPaddingY: CGFloat = 3
         static let statusFillOpacity = 0.14
-        static let padding: CGFloat = 14
         static let width: CGFloat = 230
         static let shadowOpacity = 0.5
         static let shadowRadius: CGFloat = 20
@@ -455,45 +428,39 @@ private struct AgentCard: View {
     private static let separator = " \u{00B7} "
 
     var body: some View {
-        let colour = IslandPalette.color(agent.kind)
-        IslandCard(veil: status == nil ? colour.opacity(Layout.veilOpacity) : statusColour.opacity(Layout.statusVeilOpacity)) {
-            VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-                HStack(spacing: Memnox.Spacing.regular) {
-                    AgentLogo(kind: agent.kind, name: agent.name)
-                        .frame(width: Layout.logo, height: Layout.logo)
-                        .frame(width: Layout.badge, height: Layout.badge)
-                        .background(Circle().fill(colour))
-                        .shadow(color: colour.opacity(Layout.badgeGlowOpacity), radius: Layout.badgeGlow)
-                    VStack(alignment: .leading, spacing: Layout.titleSpacing) {
-                        Text(agent.name)
-                            .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                            .foregroundStyle(.white)
-                        Text(reach)
-                            .font(Memnox.sans(Memnox.TextSize.caption))
-                            .foregroundStyle(.white.opacity(Memnox.Ink.secondary))
-                            .lineLimit(1)
-                    }
-                }
-                ForEach(connections, id: \.self) { line in
-                    Text(line)
-                        .font(.system(size: Memnox.TextSize.caption, design: .monospaced))
-                        .foregroundStyle(.white.opacity(Layout.connectionOpacity))
+        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+            HStack(spacing: Memnox.Spacing.regular) {
+                BrandLogo(agent: agent.kind, name: agent.name, size: Layout.logo)
+                VStack(alignment: .leading, spacing: Layout.titleSpacing) {
+                    Text(agent.name)
+                        .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
+                        .foregroundStyle(.white)
+                    Text(reach)
+                        .font(Memnox.sans(Memnox.TextSize.caption))
+                        .foregroundStyle(.white.opacity(Memnox.Ink.secondary))
                         .lineLimit(1)
                 }
-                if let status {
-                    HStack(spacing: Memnox.Spacing.small) {
-                        Circle().fill(statusColour).frame(width: Layout.statusDot, height: Layout.statusDot)
-                        Text(status).font(Memnox.sans(Memnox.TextSize.caption, .medium))
-                    }
-                    .foregroundStyle(statusColour)
-                    .padding(.horizontal, Layout.statusPaddingX)
-                    .padding(.vertical, Layout.statusPaddingY)
-                    .background(Capsule().fill(statusColour.opacity(Layout.statusFillOpacity)))
-                }
             }
-            .padding(Layout.padding)
-            .frame(width: Layout.width, alignment: .leading)
+            ForEach(connections, id: \.self) { line in
+                Text(line)
+                    .font(.system(size: Memnox.TextSize.caption, design: .monospaced))
+                    .foregroundStyle(.white.opacity(Layout.connectionOpacity))
+                    .lineLimit(1)
+            }
+            if let status {
+                HStack(spacing: Memnox.Spacing.small) {
+                    Circle().fill(statusColour).frame(width: Layout.statusDot, height: Layout.statusDot)
+                    Text(status).font(Memnox.sans(Memnox.TextSize.caption, .medium))
+                }
+                .foregroundStyle(statusColour)
+                .padding(.horizontal, Layout.statusPaddingX)
+                .padding(.vertical, Layout.statusPaddingY)
+                .background(Capsule().fill(statusColour.opacity(Layout.statusFillOpacity)))
+            }
         }
+        .padding(SurfaceStyle.padding)
+        .frame(width: Layout.width, alignment: .leading)
+        .surface(accent: status == nil ? nil : statusColour.opacity(Layout.statusEdgeOpacity))
         .shadow(color: .black.opacity(Layout.shadowOpacity), radius: Layout.shadowRadius, y: Layout.shadowDrop)
         .scaleEffect(shown ? 1 : Layout.hiddenScale)
         .opacity(shown ? 1 : 0)
@@ -617,7 +584,7 @@ struct AgentLogo: View {
         } else {
             Text(String(name.prefix(1)).uppercased())
                 .font(Memnox.display(Self.initialSize))
-                .foregroundStyle(Color(hex: 0x0B1A2E))
+                .foregroundStyle(Self.initialInk)
         }
     }
 
@@ -632,6 +599,8 @@ struct AgentLogo: View {
 
     private static var cache: [String: NSImage] = [:]
     private static let initialSize: CGFloat = 26
+    /// A deep navy, so the initial reads on the light disc the notch draws behind a logo.
+    private static let initialInk = Color(hex: 0x0B1A2E)
     /// The app bundle's folder of logos, copied in by the build script.
     private static let folder = "AgentLogos"
     /// Every logo file is a name and an extension, nothing more.

@@ -64,6 +64,7 @@ struct IslandOverview: View {
                 model.detail = true
                 model.settle()
             }
+            .pointingHand()
             .help("See what it is changing")
             IslandCard(veil: nil) {
                 VStack(spacing: Memnox.Spacing.xxSmall) {

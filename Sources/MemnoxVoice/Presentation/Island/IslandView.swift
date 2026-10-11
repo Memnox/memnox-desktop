@@ -20,6 +20,8 @@ struct IslandView: View {
         static let countdownWidth: CGFloat = 160
         static let countdownThickness: CGFloat = 2
         static let countdownLift: CGFloat = 4
+        /// The space between the island and the drive state under it.
+        static let drivenGap: CGFloat = 6
     }
 
     private enum Shade {
@@ -74,10 +76,47 @@ struct IslandView: View {
             .modifier(HopEffect(times: CGFloat(model.hops)))
             .animation(.easeInOut(duration: Memnox.Motion.slow), value: model.hops)
             .animation(Timing.shake, value: model.shakes)
+            // Under the island in every mode, so somebody at the Mac always knows a phone is driving it.
+            if let driving = model.driving {
+                IslandPhonePill(label: driving.label, symbol: IslandPhonePill.driving)
+                    .padding(.top, Layout.drivenGap)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .allowsHitTesting(false)
+            }
+            VStack(spacing: 0) {
+                // Under the island in every mode, so whose account a sign in reached is seen the moment it finishes.
+                if let signedIn = model.signedIn {
+                    IslandSignedInPill(model: model, card: signedIn)
+                        .padding(.top, Layout.drivenGap)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+                // Under the island in every mode, so a tool they asked for and cannot use yet is one tap from working.
+                if !model.signIns.isEmpty {
+                    IslandSignInRow(model: model)
+                        .padding(.top, Layout.drivenGap)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            // Measured, since the window lets clicks through everywhere but where something takes them.
+            .background(GeometryReader { proxy in
+                Color.clear.preference(key: ClickableBelow.self, value: proxy.frame(in: .named(Self.space)))
+            })
+            // Under the island in every mode, so somebody at the Mac knows why it stays silent.
+            if let voiceOn = model.voiceOn {
+                IslandPhonePill(label: voiceOn.label, symbol: IslandPhonePill.talking)
+                    .padding(.top, Layout.drivenGap)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .allowsHitTesting(false)
+            }
             Spacer(minLength: 0)
         }
         .frame(width: Island.window.width, height: Island.window.height, alignment: .top)
+        .coordinateSpace(name: Self.space)
+        .onPreferenceChange(ClickableBelow.self) { model.clickableBelow = $0 }
     }
+
+    /// The window's own space, top left origin, which the panel maps onto the screen.
+    private static let space = "island"
 
     /// The talking modes share one content, so the island grows around the words instead of fading them out and in.
     private var contentId: IslandMode {
@@ -111,7 +150,11 @@ struct IslandView: View {
         case .hearing:
             IslandHearing(model: model)
         case .conversation, .draft, .rule:
-            IslandConversation(model: model, exchange: model.turn, live: model.active)
+            if let phone = model.phoneTurn {
+                IslandConversation(model: model, exchange: phone.exchange, live: false, from: phone.label)
+            } else {
+                IslandConversation(model: model, exchange: model.turn, live: model.active)
+            }
         case .answer:
             if model.active {
                 IslandConversation(model: model, exchange: model.turn, live: true)
@@ -119,6 +162,34 @@ struct IslandView: View {
                 IslandConversation(model: model, exchange: picked, live: false)
             }
         }
+    }
+}
+
+/// The pill under the island while a phone drives this Mac or holds its voice: which phone, for as long as it lasts.
+struct IslandPhonePill: View {
+    let label: String
+    let symbol: String
+
+    static let driving = "iphone.radiowaves.left.and.right"
+    static let talking = "iphone"
+    private static let horizontalPadding: CGFloat = 12
+    private static let verticalPadding: CGFloat = 5
+
+    var body: some View {
+        HStack(spacing: Memnox.Spacing.xSmall) {
+            Image(systemName: symbol)
+                .font(.system(size: Memnox.TextSize.caption, weight: .semibold))
+                .foregroundStyle(IslandPalette.amber)
+            Text(label)
+                .font(Memnox.sans(Memnox.TextSize.caption, .medium))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, Self.horizontalPadding)
+        .padding(.vertical, Self.verticalPadding)
+        .background(Capsule().fill(Color.black))
+        .overlay(Capsule().strokeBorder(IslandPalette.amber.opacity(Memnox.Ink.tertiary)))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -150,6 +221,7 @@ struct IslandHeader: View {
                 model.picked = nil
                 model.settle()
             }
+            .help("All sessions")
             IslandTab(symbol: Symbol.history, on: model.sideOpen) { model.toggleSide() }
                 .help("History, sessions and what needs you")
             if model.mode == .session || model.mode == .answer {
@@ -158,8 +230,10 @@ struct IslandHeader: View {
                     model.picked = nil
                     model.settle()
                 }
+                .help("Back")
             }
             IslandTab(symbol: Symbol.voice, on: model.mode == .voice) { model.tapped() }
+                .help("Talk to Memnox")
             Spacer(minLength: model.notch.width + Memnox.Spacing.xLarge)
             Text(count == 1 ? "1 working" : "\(count) working")
                 .font(Memnox.sans(Layout.countSize, .medium))
@@ -169,7 +243,7 @@ struct IslandHeader: View {
                 .animation(.snappy, value: count)
                 .padding(.trailing, Layout.countTrailing)
         }
-        .padding(.leading, model.mode == .answer ? Layout.pastOrb : Memnox.Spacing.large)
+        .padding(.leading, model.mode == .answer || model.mode == .session ? Layout.pastOrb : Memnox.Spacing.large)
         .frame(height: model.notch.height)
     }
 }
@@ -219,7 +293,11 @@ struct IslandCompact: View {
                     .frame(width: Layout.waveformWidth, height: Layout.waveformHeight)
                     .padding(.trailing, Layout.waveformTrailing)
             } else {
-                IslandLogos(cards: Array(model.working.prefix(Layout.shownLogos)))
+                IslandLogos(
+                    cards: Array(model.working.prefix(Layout.shownLogos)),
+                    waiting: model.held?.sessionId,
+                    stumbling: model.stumbling
+                )
                     .frame(height: height)
                     .padding(.trailing, Memnox.Spacing.large)
             }
@@ -233,6 +311,9 @@ struct IslandCompact: View {
 /// The working agents' logos, overlapping like faces in a doorway, so a glance says who is busy.
 struct IslandLogos: View {
     let cards: [SessionCard]
+    /// The session a held call is waiting on, whose logo bounces until it is answered.
+    var waiting: String?
+    var stumbling: Set<String> = []
 
     /// Each logo tucks this far under the one before it.
     private static let overlap: CGFloat = -5
@@ -246,6 +327,7 @@ struct IslandLogos: View {
             ForEach(cards, id: \.sessionId) { card in
                 SessionLogo(card: card, size: Self.logoSide)
                     .overlay(Circle().strokeBorder(Color.black, lineWidth: Self.ringWidth))
+                    .modifier(LogoMood(bouncing: card.sessionId == waiting, stumbling: stumbling.contains(card.sessionId)))
                     .transition(.scale.combined(with: .opacity))
             }
         }
@@ -253,37 +335,22 @@ struct IslandLogos: View {
     }
 }
 
-/// Talking: the big orb alone with a soft light behind it, until words are heard. With live words on
-/// the island turns to `IslandHearing` as the first word lands; with them off it stays the orb alone.
+/// Talking: the big orb alone on the black, until words are heard. With live words on the island turns
+/// to `IslandHearing` as the first word lands; with them off it stays the orb alone.
 struct IslandVoiceCard: View {
     @ObservedObject var model: IslandModel
 
-    private enum Glow {
-        /// Dim while idle, brighter once the voice is in use.
-        static let idleOpacity = 0.12
-        static let activeOpacity = 0.28
-        /// The pool fades out just inside the orb's own reach.
-        static let reach: CGFloat = 0.95
-        /// Matches the voice orb's centre below the header in `Island.orb`.
-        static let drop: CGFloat = 92
-    }
-
     var body: some View {
-        let top = Island.top(model.notch)
-        ZStack(alignment: .top) {
-            // The orb draws additively, so a dim pool of its own blue behind it reads as the glow off a light.
-            RadialGradient(
-                colors: [glow.opacity(model.state == .idle ? Glow.idleOpacity : Glow.activeOpacity), .clear],
-                center: .center, startRadius: 0, endRadius: Island.voiceOrb * Glow.reach
-            )
-            .frame(width: Island.voiceOrb * 2, height: Island.voiceOrb * 2)
-            .position(x: Island.voiceWidth / 2, y: top + Glow.drop)
-            .animation(.easeInOut(duration: Memnox.Motion.slow), value: model.state)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .contentShape(Rectangle())
-        .onTapGesture { model.tapped() }
+        // No pool of light behind the orb, since a flat disc there spilled past the notch; the orb is its own light.
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .contentShape(Rectangle())
+            .onTapGesture { model.tapped() }
     }
+}
 
-    private var glow: Color { model.state == .needsYou ? Memnox.Palette.sky : Memnox.Palette.primary }
+/// Where the clickable pills under the island sit, in the island's space.
+private struct ClickableBelow: PreferenceKey {
+    static let defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
 }

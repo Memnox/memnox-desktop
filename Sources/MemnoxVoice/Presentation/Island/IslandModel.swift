@@ -44,15 +44,41 @@ struct HeldCard: Equatable, Sendable {
     let summary: String
     /// False only where the daemon placed the call inside its repository, so a tap allows it.
     let touchID: Bool
+    /// The session that is waiting, so its logo beside the notch bounces until somebody answers.
+    let sessionId: String?
+    /// The machine it waits on, which the header groups waiting calls by.
+    let machine: String
 
-    init(_ event: DaemonEvent) {
+    /// `server` names the server that raised it, so the person sees where the call waits; nil for this Mac.
+    init(_ event: DaemonEvent, server: String? = nil) {
+        let place = CallPlace.raised(on: server)
         subject = event.subject
+        sessionId = event.sessionId
         agent = event.agent
-        who = event.agentName ?? event.agent
+        who = CallLabel.label(event.agentName ?? event.agent, at: place)
         what = event.what ?? event.summary
         why = event.why
         summary = event.summary
         touchID = event.needsTouchID
+        machine = place.machine
+    }
+
+    /// A teammate's call the workspace routed here: named with its machine and team, and every allow asks for Touch ID.
+    init(team call: WorkspaceHeldCall) {
+        subject = call.id
+        sessionId = nil
+        agent = call.agent
+        who = call.who
+        what = call.what
+        why = call.whyHeld
+        summary = call.what
+        touchID = true
+        machine = call.place.machine
+    }
+
+    /// What the Touch ID sheet says this answer is for, naming the call by its one label.
+    func reason(for answer: HoldAnswer) -> String {
+        CallLabel.touchIDReason(who, what: what, answer: answer)
     }
 }
 
@@ -67,6 +93,24 @@ struct DraftCard: Equatable, Sendable {
         let to = draft.to.joined(separator: ", ")
         return isReply ? "send the reply to \(to)" : "send the email to \(to)"
     }
+}
+
+/// Something going out in the person's name as the island shows it, with the subject a Send signs.
+struct WorkCard: Equatable, Sendable {
+    let subject: String
+    let draft: WorkDraft
+
+    var reason: String { draft.touchIDReason }
+}
+
+/// A finished sign in as the pill under the notch shows it, with the proposal "that's me" signs where there is one.
+struct SignedInCard: Equatable, Sendable {
+    let notice: SignedInNotice
+
+    var tool: String { ToolkitName.of(notice.toolkit) }
+    var who: String? { notice.account?.shown }
+    /// Nothing ties the account to the person yet, so the pill offers Not me; their first send ties it.
+    var unverified: Bool { notice.account?.accountCheck != .matched }
 }
 
 /// A proposed rule as the island shows it, with the subject a confirm signs.
@@ -122,7 +166,12 @@ final class IslandModel: ObservableObject {
     @Published private(set) var mode: IslandMode = .peek
     @Published var state: VoiceState = .idle
     @Published var caption = ""
-    @Published var held: HeldCard?
+    /// Every held call waiting, the one on the card and the ones behind it.
+    @Published var waiting = WaitingCalls<HeldCard>()
+    /// Said on the card for a moment when its call was settled somewhere else, before the card goes.
+    @Published var settledNote: String?
+    /// The call whose button was pressed last, so its own settling is never mistaken for an answer elsewhere.
+    var pressed: String?
     @Published var finished: FinishedCard?
     /// Set while Touch ID is up for a button, so a second press cannot raise a second sheet.
     @Published var answering = false
@@ -140,12 +189,22 @@ final class IslandModel: ObservableObject {
     @Published var countdown: CGFloat?
     @Published var hops = 0
     @Published var shakes = 0
+    /// Sessions whose logo is jittering for a moment, after a failure, a pause or a collision.
+    @Published var stumbling: Set<String> = []
     /// What the person is saying right now, word by word, while live words are on.
     @Published var heard = ""
     /// The person's choice to see their words in the notch as they say them.
     @Published var liveWords = true
     @Published var history = History()
     @Published var draft: DraftCard?
+    /// Something about to go out in the person's name in one of their tools, drawn as that tool draws it.
+    @Published var work: WorkCard?
+    /// The tools the person asked for and has not signed in to, as icons under the notch until they sign in.
+    @Published var signIns: [ToolSignIn] = []
+    /// A sign in that just finished, shown under the notch for a moment, or until they say whether it is theirs.
+    @Published var signedIn: SignedInCard?
+    /// Where the pills that take a click sit under the island, top left origin, so the window lets those clicks in.
+    var clickableBelow: CGRect = .zero
     /// Set while Touch ID is up for a draft's Send or a rule's Enforce, so a second press cannot raise a second sheet.
     @Published var sending = false
     @Published var rule: RuleCard?
@@ -163,6 +222,12 @@ final class IslandModel: ObservableObject {
     /// The pointer touching the folded tab at the left edge, which swells it before it opens.
     @Published var sideHovering = false
     @Published var query = ""
+    /// A phone driving this Mac, shown under the notch in every mode until its time comes or it stops.
+    @Published var driving: DriveGrant?
+    /// The phone that took the voice, shown under the notch in every mode until it gives the voice back.
+    @Published var voiceOn: PhoneVoice?
+    /// A phone's conversation mirrored here, shown under the notch without a sound until a moment after it ends.
+    @Published var phone: PhoneExchange?
     /// When this time talking began, so the notch shows this conversation's exchanges and not the last one's.
     var talkingSince: Date?
 
@@ -174,17 +239,33 @@ final class IslandModel: ObservableObject {
     var focus: (String) -> Void = { _ in }
     var openAnswer: (Exchange) -> Void = { _ in }
     var answerDraft: (DraftCard, Bool) -> Void = { _, _ in }
+    var answerWork: (WorkCard, Bool) -> Void = { _, _ in }
+    var openSignIn: (ToolSignIn) -> Void = { _ in }
+    /// Not me on the signed in pill: sign in again with their own account.
+    var notMine: (SignedInCard) -> Void = { _ in }
     var answerRule: (RuleCard, RuleScope?) -> Void = { _, _ in }
     var forgetHistory: () -> Void = {}
     var toggleSide: () -> Void = {}
     var showExchange: (UUID) -> Void = { _ in }
     var askAgain: (String) -> Void = { _ in }
 
+    /// The held call on the card now.
+    var held: HeldCard? { waiting.shown }
+
+    /// One call older for a positive offset, newer for a negative one; nothing moves while one is being signed.
+    func step(_ offset: Int) {
+        guard !answering, settledNote == nil else { return }
+        waiting.step(offset)
+    }
+
     /// The exchange this conversation is on: the newest, and only once asked since talking began.
     var turn: Exchange? {
         guard let since = talkingSince, let newest = history.exchanges.first, newest.askedAt >= since else { return nil }
         return newest
     }
+
+    /// The phone's turn, while the island shows it in place of a turn of the person's own.
+    var phoneTurn: PhoneExchange? { active || mode != .conversation ? nil : phone }
 
     /// The exchange opened from the history, which the tall answer shows when nobody is talking.
     var pickedExchange: Exchange? { history.exchanges.first { $0.id == picked } }
@@ -208,7 +289,7 @@ final class IslandModel: ObservableObject {
         let next: IslandMode
         if held != nil {
             next = .held
-        } else if draft != nil {
+        } else if draft != nil || work != nil {
             next = .draft
         } else if rule != nil {
             next = .rule
@@ -218,6 +299,9 @@ final class IslandModel: ObservableObject {
             // What Memnox says is heard rather than read, so a turn keeps the orb up instead of printing the answer;
             // the answer stays in the history at the side. A rule is always shown as it is said, since the person signs it.
             next = ruling || (liveWords && !heard.isEmpty) ? .hearing : .voice
+        } else if phone != nil {
+            // The person talking here comes first; a phone's turn is only watched, so it waits behind them.
+            next = .conversation
         } else if opened, pickedExchange != nil {
             next = .answer
         } else if opened {

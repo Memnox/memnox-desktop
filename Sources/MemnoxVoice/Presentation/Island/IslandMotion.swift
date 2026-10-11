@@ -87,3 +87,28 @@ struct PulseEffect: ViewModifier {
         }
     }
 }
+
+/// A session's logo beside the notch: hopping while a call of its waits on the person, and shivering
+/// grey for a moment after something went wrong, so a glance at the bar says which agent it was.
+struct LogoMood: ViewModifier {
+    let bouncing: Bool
+    let stumbling: Bool
+
+    /// How high a hop goes, and how many hops a second, kept small since the logo is sixteen points.
+    private static let hopHeight: CGFloat = 3
+    private static let hopsPerSecond: Double = 1.1
+    private static let shiverReach: CGFloat = 1.5
+    private static let shiverRate: Double = 55
+
+    func body(content: Content) -> some View {
+        // Paused when there is nothing to show, so a quiet bar costs no frames.
+        TimelineView(.animation(minimumInterval: nil, paused: !bouncing && !stumbling)) { timeline in
+            let seconds = timeline.date.timeIntervalSinceReferenceDate
+            let hop = bouncing ? -abs(sin(seconds * .pi * Self.hopsPerSecond)) * Self.hopHeight : 0
+            let shiver = stumbling ? sin(seconds * Self.shiverRate) * Self.shiverReach : 0
+            content
+                .offset(x: shiver, y: hop)
+                .saturation(stumbling ? 0 : 1)
+        }
+    }
+}

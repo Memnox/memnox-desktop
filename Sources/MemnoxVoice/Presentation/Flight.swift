@@ -45,6 +45,7 @@ final class FlightPanel {
             defer: true
         )
         panel.isOpaque = false
+        panel.appearance = NSAppearance(named: .darkAqua)
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.level = .statusBar

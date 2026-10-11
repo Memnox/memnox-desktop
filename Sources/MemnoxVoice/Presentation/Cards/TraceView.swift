@@ -13,8 +13,6 @@ struct TraceView: View {
     private static let track: CGFloat = 170
 
     private enum Layout {
-        static let logoSize: CGFloat = 16
-        static let titleSize: CGFloat = 22
         /// The bars grow in after the card has begun to swing in, one row a beat after the last.
         static let barDelay: TimeInterval = 0.25
         static let barStagger: TimeInterval = 0.05
@@ -24,17 +22,12 @@ struct TraceView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
-            HStack(alignment: .firstTextBaseline) {
-                LogoMark(size: Layout.logoSize)
-                Text(title)
-                    .font(Memnox.display(Layout.titleSize))
-                    .foregroundStyle(Memnox.Palette.foreground)
-                    .lineLimit(1)
-                Spacer()
+            CardHeader(title: title, subtitle: Self.subtitle(steps: trace.rows.count), close: close) {
+                LogoMark(size: FloatingCard.markSize)
+            } accessory: {
                 Text(SessionText.duration(milliseconds: trace.totalMs))
                     .font(.system(size: Memnox.TextSize.body, weight: .semibold, design: .monospaced))
                     .foregroundStyle(Memnox.Palette.primary)
-                CloseButton(action: close)
             }
             VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
                 ForEach(Array(trace.rows.enumerated()), id: \.offset) { index, row in
@@ -48,6 +41,11 @@ struct TraceView: View {
             }
         }
         .modifier(CardFace(entrance: entrance, hovering: hovering))
+    }
+
+    /// How many steps the trace holds, so its size is read before its bars.
+    private static func subtitle(steps: Int) -> String {
+        steps == 1 ? "1 step" : "\(steps) steps"
     }
 }
 

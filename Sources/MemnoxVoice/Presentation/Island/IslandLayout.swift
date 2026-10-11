@@ -12,9 +12,12 @@ enum Island {
     static let voiceWidth: CGFloat = 440
     /// Big enough that the orb reads as the one thing on screen while you talk.
     static let voiceOrb: CGFloat = 150
-    static let window = CGSize(width: width + 2 * flare + windowMargin, height: tallestIsland + windowMargin)
+    static let window = CGSize(width: width + 2 * flare + windowMargin, height: tallestIsland + hangingBelow)
     /// Room left around the island inside its window.
     private static let windowMargin: CGFloat = 40
+    /// Room under the tallest island for the pills that hang below it, the signed in pill over the sign in icons,
+    /// since a pill past the window's edge is drawn cut off and its clicks fall through to whatever is behind.
+    private static let hangingBelow: CGFloat = 112
     /// The tallest the island may grow, which sizes the window it grows inside: the answer opened up.
     private static let tallestIsland: CGFloat = Height.answer
     /// Long enough that passing the pointer across the menu bar never opens it.
@@ -26,6 +29,15 @@ enum Island {
     /// How long a finished session stays up before the island folds back.
     static let finishedFor = UInt64(finishedSeconds * nanosecondsPerSecond)
     private static let finishedSeconds: TimeInterval = 5.2
+    /// How long a phone's finished turn stays up, long enough to read the end of its answer before it folds back.
+    static let phoneTurnFor = UInt64(phoneTurnSeconds * nanosecondsPerSecond)
+    private static let phoneTurnSeconds: TimeInterval = 8
+    /// How long a card says who answered its call elsewhere before it goes, long enough to read one short line.
+    static let settledFor = UInt64(settledSeconds * nanosecondsPerSecond)
+    private static let settledSeconds: TimeInterval = 2.8
+    /// How long a session's logo jitters after something went wrong, matching the orb's own stumble.
+    static let stumbleFor = UInt64(stumbleSeconds * nanosecondsPerSecond)
+    private static let stumbleSeconds: TimeInterval = 0.9
     private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
     /// How much wider than the notch the small modes are, leaving room for the orb and the session dots.
@@ -87,10 +99,6 @@ enum Island {
         static let voiceBelowTop: CGFloat = 92
         static let overviewX: CGFloat = 64
         static let overviewDiameter: CGFloat = 70
-        static let sessionX: CGFloat = 46
-        /// Measured from the content top rather than centred, unlike the other open modes.
-        static let sessionBelowTop: CGFloat = 36
-        static let sessionDiameter: CGFloat = 44
         static let emptyX: CGFloat = 70
         static let emptyDiameter: CGFloat = 62
         static let heldX: CGFloat = 62
@@ -156,12 +164,11 @@ enum Island {
             )
         case .voice: return (CGPoint(x: voiceWidth / 2, y: top + OrbSpot.voiceBelowTop), voiceOrb)
         case .overview: return (CGPoint(x: OrbSpot.overviewX, y: middle), OrbSpot.overviewDiameter)
-        case .session: return (CGPoint(x: OrbSpot.sessionX, y: top + OrbSpot.sessionBelowTop), OrbSpot.sessionDiameter)
         case .empty: return (CGPoint(x: OrbSpot.emptyX, y: middle), OrbSpot.emptyDiameter)
         case .held: return (CGPoint(x: OrbSpot.heldX, y: middle), OrbSpot.heldDiameter)
         case .finished: return (CGPoint(x: OrbSpot.finishedX, y: middle), OrbSpot.finishedDiameter)
         case .hearing: return (CGPoint(x: Width.hearing / 2, y: top + OrbSpot.hearingBelowTop), OrbSpot.hearingDiameter)
-        case .conversation, .draft, .answer, .rule:
+        case .session, .conversation, .draft, .answer, .rule:
             return (CGPoint(x: OrbSpot.headerX, y: notch.height / 2), OrbSpot.headerDiameter)
         }
     }
@@ -170,10 +177,11 @@ enum Island {
 /// The colours the island is painted in: its cards, its veil and each agent's own colour.
 enum IslandPalette {
     static let card = Color(hex: 0x141518)
-    static let primaryFill = Color(hex: 0xF5F6F8)
-    static let primaryText = Color(hex: 0x0B0C0E)
+    /// The answer that lets something happen: white on dark, near black on the light windows outside the notch.
+    static let primaryFill = Color(light: 0x0D0D0D, dark: 0xF5F6F8)
+    static let primaryText = Color(light: 0xFFFFFF, dark: 0x0B0C0E)
     static let quiet = Color(hex: 0x5F646D)
-    static let soft = Color(hex: 0xC9CDD4)
+    static let soft = Color(light: 0x5F646D, dark: 0xC9CDD4)
     static let red = Color(red: 244 / 255, green: 80 / 255, blue: 94 / 255)
     static let green = Color(red: 52 / 255, green: 211 / 255, blue: 153 / 255)
     static let amber = Color(red: 245 / 255, green: 165 / 255, blue: 36 / 255)

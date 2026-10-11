@@ -12,12 +12,6 @@ struct CardView: View {
     let hovering: (Bool) -> Void
     @StateObject private var entrance = CardEntrance()
 
-    private enum Layout {
-        static let logoSize: CGFloat = 16
-        static let titleSize: CGFloat = 22
-        static let titleLineLimit = 2
-    }
-
     private enum Symbol {
         static let watch = "play.circle"
         static let open = "arrow.up.forward.app"
@@ -30,14 +24,8 @@ struct CardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
-            HStack(alignment: .firstTextBaseline) {
-                LogoMark(size: Layout.logoSize)
-                Text(summary.title)
-                    .font(Memnox.display(Layout.titleSize))
-                    .foregroundStyle(Memnox.Palette.foreground)
-                    .lineLimit(Layout.titleLineLimit)
-                Spacer()
-                CloseButton(action: close)
+            CardHeader(title: summary.title, subtitle: summary.host?.app, close: close) {
+                LogoMark(size: FloatingCard.markSize)
             }
             MarkdownText(source: summary.text)
             if !summary.files.isEmpty { FileList(files: summary.files, counting: entrance.shown) }
@@ -54,21 +42,16 @@ struct CardView: View {
     }
 }
 
-/// What a card sits on and how it moves, in the island's own language: solid black with a hairline
-/// edge and a faint blue light rising from the bottom, settling into place with the island's spring.
-/// It stays flat, so every button is drawn exactly where it takes a click.
+/// What a card sits on and how it moves: the shared flat surface with a hairline edge that brightens
+/// under the pointer, settling into place with the island's spring. It stays flat, so every button is
+/// drawn exactly where it takes a click.
 struct CardFace: ViewModifier {
     @ObservedObject var entrance: CardEntrance
     let hovering: (Bool) -> Void
 
     private enum Layout {
-        static let cornerRadius: CGFloat = 26
-        /// The glow's centre sits below the card, so only its upper reach lights the bottom edge.
-        static let glowCenter = UnitPoint(x: 0.5, y: 1.3)
-        static let glowFacing = 0.26
-        static let glowResting = 0.18
-        static let edgeFacing = 0.12
-        static let edgeResting = 0.06
+        /// The edge lifts a little under the pointer, so the card in hand reads apart from its neighbours.
+        static let edgeFacing = 0.16
         static let shadowOpacity = 0.5
         static let shadowRadius: CGFloat = 30
         static let shadowDrop: CGFloat = 12
@@ -83,23 +66,11 @@ struct CardFace: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: Layout.cornerRadius, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: SurfaceStyle.radius, style: .continuous)
         content
-            .padding(Memnox.Spacing.xxLarge)
+            .padding(FloatingCard.padding)
             .frame(width: CardPanel.width, alignment: .leading)
-            .background(
-                shape.fill(Color.black)
-                    .overlay(
-                        RadialGradient(
-                            colors: [Memnox.Palette.primary.opacity(entrance.facing ? Layout.glowFacing : Layout.glowResting), .clear],
-                            center: Layout.glowCenter,
-                            startRadius: 0,
-                            endRadius: CardPanel.width
-                        )
-                    )
-                    .clipShape(shape)
-            )
-            .overlay(shape.strokeBorder(Color.white.opacity(entrance.facing ? Layout.edgeFacing : Layout.edgeResting), lineWidth: Memnox.Stroke.hairline))
+            .surface(accent: entrance.facing ? Color.white.opacity(Layout.edgeFacing) : nil)
             .shadow(color: .black.opacity(Layout.shadowOpacity), radius: Layout.shadowRadius, y: Layout.shadowDrop)
             .contentShape(shape)
             .onHover { inside in

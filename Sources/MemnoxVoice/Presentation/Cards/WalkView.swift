@@ -21,8 +21,6 @@ struct WalkView: View {
     private static let nanosecondsPerSecond: Double = 1_000_000_000
 
     private enum Layout {
-        static let logoSize: CGFloat = 16
-        static let titleSize: CGFloat = 22
         static let noteLineSpacing: CGFloat = 3
         /// A page button with nowhere to turn stays in place but dims.
         static let unavailableOpacity = 0.35
@@ -44,18 +42,13 @@ struct WalkView: View {
     var body: some View {
         let current = walk.pages[min(page, walk.pages.count - 1)]
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
-            HStack(alignment: .firstTextBaseline) {
-                LogoMark(size: Layout.logoSize)
-                Text(walk.title)
-                    .font(Memnox.display(Layout.titleSize))
-                    .foregroundStyle(Memnox.Palette.foreground)
-                    .lineLimit(1)
-                Spacer()
+            CardHeader(title: walk.title, subtitle: walk.host?.app, close: close) {
+                LogoMark(size: FloatingCard.markSize)
+            } accessory: {
                 Text("\(page + 1) of \(walk.pages.count)")
                     .font(Memnox.sans(Memnox.TextSize.caption, .medium))
                     .foregroundStyle(Memnox.Palette.muted)
                     .contentTransition(.numericText(value: Double(page)))
-                CloseButton(action: close)
             }
             VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
                 FileList(files: [CardFile(path: current.path, added: current.added, removed: current.removed)], counting: entrance.shown)

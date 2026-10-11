@@ -27,17 +27,32 @@ struct IslandHeldCall: View {
     }
 
     private static let touchIDSymbol = "touchid"
+    private static let olderSymbol = "chevron.left"
+    private static let newerSymbol = "chevron.right"
+    private static let settledSymbol = "checkmark.circle.fill"
 
     var body: some View {
-        IslandCard(veil: IslandPalette.amber.opacity(Shade.veil)) {
+        IslandCard(veil: (model.settledNote == nil ? IslandPalette.amber : IslandPalette.green).opacity(Shade.veil)) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
+                if let header = model.waiting.header { queueRow(header) }
                 HStack(spacing: Memnox.Spacing.medium) {
                     Circle().fill(IslandPalette.color(card.agent)).frame(width: Layout.dotSide, height: Layout.dotSide).modifier(PulseEffect())
-                    Text(card.who).font(Memnox.sans(Memnox.TextSize.callout, .semibold)).foregroundStyle(Color.white)
-                    Text(card.why ?? "is waiting on you")
-                        .font(Memnox.sans(Memnox.TextSize.body))
-                        .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                    Text(card.who)
+                        .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
+                        .foregroundStyle(Color.white)
                         .lineLimit(1)
+                        .layoutPriority(1)
+                    if let note = model.settledNote {
+                        Label(note, systemImage: Self.settledSymbol)
+                            .font(Memnox.sans(Memnox.TextSize.body))
+                            .foregroundStyle(IslandPalette.green)
+                            .lineLimit(1)
+                    } else {
+                        Text(card.why ?? "is waiting on you")
+                            .font(Memnox.sans(Memnox.TextSize.body))
+                            .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                            .lineLimit(1)
+                    }
                 }
                 Text(card.what)
                     .font(.system(size: Memnox.TextSize.body, design: .monospaced))
@@ -54,9 +69,20 @@ struct IslandHeldCall: View {
                         .buttonStyle(IslandButton(primary: false))
                     Button { press(.once) } label: { touchID("Allow once") }
                         .buttonStyle(IslandButton(primary: true))
+                    // The answer that leaves a rule behind waits behind More, as on every other door.
+                    Menu {
+                        Button { press(.always) } label: { Label("Allow from now on", systemImage: "touchid") }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .accessibilityLabel("More answers")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .pointingHand()
                 }
-                .disabled(model.answering)
-                .opacity(model.answering ? Shade.answering : 1)
+                .disabled(model.answering || model.settledNote != nil)
+                .opacity(model.answering || model.settledNote != nil ? Shade.answering : 1)
             }
             .padding(.leading, CallLayout.textLeading)
             .padding(.trailing, CallLayout.textTrailing)
@@ -67,7 +93,36 @@ struct IslandHeldCall: View {
 
     private func press(_ answer: HoldAnswer) {
         model.answering = answer != .deny
+        model.pressed = card.subject
         model.answer(card, answer)
+    }
+
+    /// How many wait and where, with the way to step through them, so a second call is never hidden behind the first.
+    private func queueRow(_ header: String) -> some View {
+        HStack(spacing: Memnox.Spacing.small) {
+            Text(header)
+                .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
+                .foregroundStyle(IslandPalette.amber)
+                .lineLimit(1)
+            Spacer(minLength: Memnox.Spacing.small)
+            Button { model.step(1) } label: { Image(systemName: Self.olderSymbol) }
+                .buttonStyle(PressableStyle())
+                .disabled(!model.waiting.canStepOlder)
+                .help("An older call")
+                .accessibilityLabel("Older call")
+            if let position = model.waiting.positionText {
+                Text(position)
+                    .font(Memnox.sans(Memnox.TextSize.footnote).monospacedDigit())
+                    .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+            }
+            Button { model.step(-1) } label: { Image(systemName: Self.newerSymbol) }
+                .buttonStyle(PressableStyle())
+                .disabled(!model.waiting.canStepNewer)
+                .help("A newer call")
+                .accessibilityLabel("Newer call")
+        }
+        .foregroundStyle(Color.white)
+        .disabled(model.answering || model.settledNote != nil)
     }
 
     /// An allow that reaches outside the session is signed, so the button says so before it is pressed.

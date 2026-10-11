@@ -85,6 +85,7 @@ struct IslandButton: ButtonStyle {
             .background(Capsule().fill(primary ? IslandPalette.primaryFill : Color.white.opacity(configuration.isPressed ? Self.pressedFill : Self.restingFill)))
             .scaleEffect(configuration.isPressed ? pressedScale : 1)
             .animation(.spring(response: pressResponse, dampingFraction: pressDamping), value: configuration.isPressed)
+            .pointingHand()
     }
 }
 
@@ -99,6 +100,7 @@ struct PressableStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? pressedScale : 1)
             .animation(.spring(response: pressResponse, dampingFraction: pressDamping), value: configuration.isPressed)
+            .pointingHand()
     }
 }
 

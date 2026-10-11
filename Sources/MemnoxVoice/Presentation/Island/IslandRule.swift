@@ -120,7 +120,7 @@ struct IslandRuleCard: View {
             Button { answer(picked) } label: {
                 HStack(spacing: Memnox.Spacing.small) {
                     Image(systemName: Symbol.touchID)
-                    Text(picked.map { "Enforce \(placeWords($0))" } ?? "Enforce")
+                    Text(picked.map(enforceWords) ?? "Enforce")
                         .lineLimit(1)
                 }
             }
@@ -160,9 +160,18 @@ struct IslandRuleCard: View {
     }
 }
 
-/// "on this Mac" or "in shop", the way the button and the voice say where a rule holds.
+/// "on this Mac", "in shop" or "for the team", the way the button and the voice say where a rule holds.
 func placeWords(_ scope: RuleScope) -> String {
-    scope.scopeKind == .repository ? "in \(scope.label)" : "on this Mac"
+    switch scope.scopeKind {
+    case .repository: return "in \(scope.label)"
+    case .team: return "for the team"
+    case .machine, nil: return "on this Mac"
+    }
+}
+
+/// The signing button's words: a team rule is proposed rather than enforced, since a second admin decides.
+private func enforceWords(_ scope: RuleScope) -> String {
+    scope.scopeKind == .team ? "Propose for the team" : "Enforce \(placeWords(scope))"
 }
 
 /// The runtime's summary as a sentence, its first letter raised.
@@ -193,6 +202,7 @@ private struct PlaceRow: View {
     private enum Symbol {
         static let machine = "desktopcomputer"
         static let repository = "folder"
+        static let team = "person.3"
         static let picked = "checkmark.circle.fill"
         static let unpicked = "circle"
     }
@@ -200,7 +210,7 @@ private struct PlaceRow: View {
     var body: some View {
         Button(action: pick) {
             HStack(spacing: Memnox.Spacing.regular) {
-                Image(systemName: scope.scopeKind == .repository ? Symbol.repository : Symbol.machine)
+                Image(systemName: symbol)
                     .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
                     .frame(width: Layout.iconWidth)
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
@@ -233,8 +243,17 @@ private struct PlaceRow: View {
         .onHover { hovering = $0 }
     }
 
-    /// What holding there means, in a few words: every agent everywhere, or only those working in that folder.
+    private var symbol: String {
+        switch scope.scopeKind {
+        case .repository: return Symbol.repository
+        case .team: return Symbol.team
+        case .machine, nil: return Symbol.machine
+        }
+    }
+
+    /// What holding there means, in a few words: every agent everywhere, only those in that folder, or the whole team's.
     private var detail: String {
+        if scope.scopeKind == .team { return "Every agent the team runs, cloud ones too, once an admin approves" }
         guard scope.scopeKind == .repository, let folder = scope.folder else { return "Every agent, in every folder" }
         return "Only agents in \((folder as NSString).abbreviatingWithTildeInPath)"
     }

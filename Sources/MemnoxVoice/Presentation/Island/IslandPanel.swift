@@ -8,6 +8,8 @@ import SwiftUI
 /// from the editor underneath, and lets every click outside its own shape through.
 final class IslandPanel: NSPanel, Face {
     private let model: IslandModel
+    /// Read only, so a window can answer a held call through the notch's own signed path.
+    var islandModel: IslandModel { model }
     private let orb: MTKView
     private let renderer: OrbRenderer?
     private var poll: Timer?
@@ -16,6 +18,11 @@ final class IslandPanel: NSPanel, Face {
     private var lastMouse = NSPoint.zero
     private var refresher: Task<Void, Never>?
     private var finishing: Task<Void, Never>?
+    /// Takes a card down once it has said who answered its call elsewhere.
+    private var settling: Task<Void, Never>?
+    /// Clears the drive state when its grant runs out, in case no notice says it stopped.
+    private var driveEnd: Task<Void, Never>?
+    private var phoneEnd: Task<Void, Never>?
     private var clicks: EventMonitor?
     private var list: () async -> [SessionCard] = { [] }
     private var view: (String) async -> SessionView? = { _ in nil }
@@ -69,6 +76,8 @@ final class IslandPanel: NSPanel, Face {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
+        // The island is dark whatever the Mac is set to, as the hardware around the notch is.
+        appearance = NSAppearance(named: .darkAqua)
         // Above the menu bar, since the island has to cover the notch and the bar either side of it.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + Layout.levelAboveMenuBar)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
@@ -139,11 +148,17 @@ final class IslandPanel: NSPanel, Face {
     @MainActor func wireConversation(
         openAnswer: @escaping (Exchange) -> Void,
         answerDraft: @escaping (DraftCard, Bool) -> Void,
+        answerWork: @escaping (WorkCard, Bool) -> Void,
+        openSignIn: @escaping (ToolSignIn) -> Void,
+        notMine: @escaping (SignedInCard) -> Void,
         answerRule: @escaping (RuleCard, RuleScope?) -> Void,
         askAgain: @escaping (String) -> Void
     ) {
         model.openAnswer = openAnswer
         model.answerDraft = answerDraft
+        model.answerWork = answerWork
+        model.openSignIn = openSignIn
+        model.notMine = notMine
         model.answerRule = answerRule
         model.askAgain = askAgain
     }
@@ -173,7 +188,8 @@ final class IslandPanel: NSPanel, Face {
         DispatchQueue.main.async { [self] in
             model.sending = false
             switch outcome {
-            case .answered:
+            // Answered first elsewhere is answered all the same, so the card goes either way.
+            case .answered, .answeredElsewhere:
                 guard model.rule?.subject == card.subject else { return }
                 model.rule = nil
                 model.ruleScope = nil
@@ -242,6 +258,50 @@ final class IslandPanel: NSPanel, Face {
         }
     }
 
+    /// A phone started or stopped driving this Mac: the state stays up for the whole grant and goes at its time.
+    nonisolated func driven(_ grant: DriveGrant?) {
+        DispatchQueue.main.async { [self] in
+            driveEnd?.cancel()
+            withAnimation(.snappy) { model.driving = grant }
+            guard let grant else { return }
+            let wait = max(0, grant.until.timeIntervalSinceNow)
+            driveEnd = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(wait * Timing.nanosecondsPerSecond))
+                guard !Task.isCancelled, let self, self.model.driving == grant else { return }
+                withAnimation(.snappy) { self.model.driving = nil }
+            }
+        }
+    }
+
+    /// A phone took the voice or gave it back: the state stays up while it holds it, so the Mac's silence has a reason.
+    nonisolated func voiceOn(_ phone: PhoneVoice?) {
+        DispatchQueue.main.async { [self] in
+            withAnimation(.snappy) { model.voiceOn = phone }
+        }
+    }
+
+    /// A phone's turn as it stands: shown like the person's own, with no sound, and put away a moment after it ends.
+    nonisolated func phone(_ turn: PhoneExchange) {
+        DispatchQueue.main.async { [self] in
+            phoneEnd?.cancel()
+            place()
+            model.phone = turn
+            model.settle()
+            guard !turn.isAnswering else { return }
+            phoneEnd = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: Island.phoneTurnFor)
+                guard !Task.isCancelled, let self, self.model.phone?.id == turn.id else { return }
+                self.model.phone = nil
+                self.model.settle()
+            }
+        }
+    }
+
+    /// What an action was seen to leave behind, kept beside the answer it belongs to.
+    nonisolated func proof(_ proof: Proof) {
+        DispatchQueue.main.async { [self] in model.history.prove(proof) }
+    }
+
     nonisolated func replying(_ text: String) {
         DispatchQueue.main.async { [self] in model.history.reply(text) }
     }
@@ -274,7 +334,7 @@ final class IslandPanel: NSPanel, Face {
         DispatchQueue.main.async { [self] in
             model.sending = false
             switch outcome {
-            case .answered:
+            case .answered, .answeredElsewhere:
                 guard model.draft?.subject == card.subject else { return }
                 model.draft = nil
                 model.settle()
@@ -282,6 +342,74 @@ final class IslandPanel: NSPanel, Face {
             case .failed: model.shakes += 1
             }
         }
+    }
+
+    /// Something about to go out in the person's name: the island opens on its card until it is sent or closed.
+    nonisolated func work(subject: String, _ draft: WorkDraft) {
+        let card = WorkCard(subject: subject, draft: draft)
+        DispatchQueue.main.async { [self] in
+            place()
+            model.work = card
+            model.sending = false
+            model.settle()
+        }
+    }
+
+    /// A Send or a close ended: the card stays up when Touch ID was cancelled, and shakes when it did not go through.
+    nonisolated func workAnswered(_ card: WorkCard, _ outcome: HeldOutcome) {
+        DispatchQueue.main.async { [self] in
+            model.sending = false
+            switch outcome {
+            case .answered, .answeredElsewhere:
+                guard model.work?.subject == card.subject else { return }
+                model.work = nil
+                model.settle()
+            case .cancelled: break
+            case .failed: model.shakes += 1
+            }
+        }
+    }
+
+    /// The tools still to sign in to, as icons under the notch; a later list replaces the earlier one.
+    nonisolated func signIns(_ tools: [ToolSignIn]) {
+        DispatchQueue.main.async { [self] in
+            withAnimation(.snappy) { model.signIns = tools }
+        }
+    }
+
+    /// How long a sign in known to be theirs stays under the notch: long enough to read whose account it is.
+    private nonisolated static let signedInShown: TimeInterval = 3
+    /// Longer where nothing ties the account to them yet, so there is time to see the name and press Not me.
+    private nonisolated static let unverifiedShown: TimeInterval = 8
+
+    /// A sign in finished: its icon goes, the pill says whose account it reached, and what was asked carries on.
+    /// One that never finished leaves its icon for another tap, and the voice says why.
+    nonisolated func signedIn(_ notice: SignedInNotice) {
+        DispatchQueue.main.async { [self] in
+            guard notice.finished else { return }
+            let card = SignedInCard(notice: notice)
+            withAnimation(.snappy) {
+                model.signIns.removeAll { $0.toolkit == notice.toolkit }
+                model.signedIn = card
+            }
+            if let resume = notice.resume { model.askAgain(resume) }
+            let shown = card.unverified ? Self.unverifiedShown : Self.signedInShown
+            DispatchQueue.main.asyncAfter(deadline: .now() + shown) { [self] in
+                guard model.signedIn == card else { return }
+                withAnimation(.snappy) { model.signedIn = nil }
+            }
+        }
+    }
+
+    /// Not me was pressed, so the pill goes at once and a fresh sign in takes its place.
+    @MainActor func signedInDismissed(_ card: SignedInCard) {
+        guard model.signedIn == card else { return }
+        withAnimation(.snappy) { model.signedIn = nil }
+    }
+
+    /// A tool's sign in was opened, so its icon leaves the notch.
+    @MainActor func signingIn(_ tool: ToolSignIn) {
+        withAnimation(.snappy) { model.signIns.removeAll { $0.toolkit == tool.toolkit } }
     }
 
     nonisolated func show(_ state: VoiceState, caption text: String) {
@@ -296,24 +424,52 @@ final class IslandPanel: NSPanel, Face {
     }
 
     /// An agent started waiting on the person: the island opens with the buttons to answer it.
-    nonisolated func hold(_ event: DaemonEvent) {
-        let card = HeldCard(event)
+    nonisolated func hold(_ event: DaemonEvent, server: String? = nil) {
+        hold(card: HeldCard(event, server: server))
+    }
+
+    /// A held call already made into a card, such as one a teammate's agent raised that the workspace routed here.
+    /// It joins any already waiting; the card on screen stays while one is being answered or was stepped to.
+    nonisolated func hold(card: HeldCard) {
         DispatchQueue.main.async { [self] in
             place()
-            model.held = card
-            model.answering = false
+            model.waiting.add(card, subject: card.subject, machine: card.machine, keepShown: model.answering || model.settledNote != nil)
+            renderer?.waiting = true
             model.settle()
         }
     }
 
-    /// The call was answered, here or anywhere else, so its buttons go.
-    nonisolated func release(_ subject: String) {
+    /// The call stopped waiting, so its card goes and the next one waiting comes up. `note` says who answered it
+    /// elsewhere, shown on its card for a moment first; a call answered from this Mac's own buttons never shows one.
+    nonisolated func release(_ subject: String, note: String? = nil) {
         DispatchQueue.main.async { [self] in
-            guard model.held?.subject == subject else { return }
-            model.held = nil
-            model.answering = false
-            model.settle()
+            if let note, model.held?.subject == subject, model.pressed != subject {
+                model.settledNote = note
+                model.answering = false
+                settling?.cancel()
+                settling = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: Island.settledFor)
+                    guard !Task.isCancelled else { return }
+                    self?.drop(subject)
+                }
+                return
+            }
+            if model.held?.subject == subject { settling?.cancel() }
+            drop(subject)
         }
+    }
+
+    /// Takes a call off the island at once, with whatever note its card was showing.
+    private func drop(_ subject: String) {
+        let wasShown = model.held?.subject == subject
+        guard model.waiting.remove(subject) else { return }
+        if wasShown {
+            model.settledNote = nil
+            model.answering = false
+        }
+        if model.pressed == subject { model.pressed = nil }
+        renderer?.waiting = !model.waiting.isEmpty
+        model.settle()
     }
 
     /// A button press ended: the call stays up when Touch ID was cancelled or the answer failed.
@@ -322,8 +478,13 @@ final class IslandPanel: NSPanel, Face {
             model.answering = false
             switch outcome {
             case .answered: release(subject)
-            case .cancelled: break
-            case .failed: model.shakes += 1
+            case .answeredElsewhere(let first):
+                // Somebody got there first, so the card says how it was settled before it goes.
+                model.pressed = nil
+                release(subject, note: SettledLine.line(answer: first.word, by: nil, on: nil))
+            case .cancelled, .failed:
+                model.pressed = nil
+                if case .failed = outcome { model.shakes += 1 }
             }
         }
     }
@@ -341,6 +502,24 @@ final class IslandPanel: NSPanel, Face {
                 guard !Task.isCancelled, let model = self?.model else { return }
                 model.finished = nil
                 model.settle()
+            }
+        }
+    }
+
+    /// The orb's gesture at an answer, from the conversation.
+    nonisolated func react(_ reaction: Reaction) {
+        react(reaction, session: nil)
+    }
+
+    /// The orb's gesture at something an agent did, and a stumble on that session's logo when it went wrong.
+    nonisolated func react(_ reaction: Reaction, session: String?) {
+        DispatchQueue.main.async { [self] in
+            renderer?.react(reaction)
+            guard reaction == .stumble, let session else { return }
+            model.stumbling.insert(session)
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: Island.stumbleFor)
+                self?.model.stumbling.remove(session)
             }
         }
     }
@@ -368,9 +547,15 @@ final class IslandPanel: NSPanel, Face {
         ).insetBy(dx: -Layout.pointerSlop, dy: -Layout.pointerSlop)
         let mouse = NSEvent.mouseLocation
         let over = shape.contains(mouse)
-        if ignoresMouseEvents == over { ignoresMouseEvents = !over }
+        // The sign in icons and the signed in pill hang under the island and take clicks too, but never open it.
+        let below = model.clickableBelow
+        let overBelow = below.height > 0 && NSRect(
+            x: frame.minX + below.minX, y: frame.maxY - below.maxY, width: below.width, height: below.height
+        ).insetBy(dx: -Layout.pointerSlop, dy: -Layout.pointerSlop).contains(mouse)
+        let clickable = over || overBelow
+        if ignoresMouseEvents == clickable { ignoresMouseEvents = !clickable }
         let now = Date()
-        if over, mouse != lastMouse { lastActivity = now }
+        if clickable, mouse != lastMouse { lastActivity = now }
         lastMouse = mouse
 
         let small = model.mode == .peek || model.mode == .compact

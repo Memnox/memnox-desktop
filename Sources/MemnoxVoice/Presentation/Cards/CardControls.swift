@@ -35,7 +35,6 @@ struct CardButton: View {
         .buttonStyle(PressDown())
         .onHover { inside in
             withAnimation(.easeOut(duration: hoverDuration)) { hovered = inside }
-            pointing(inside)
         }
     }
 
@@ -46,7 +45,7 @@ struct CardButton: View {
     }
 }
 
-/// The close cross, with a target a finger's width across rather than the glyph's.
+/// The close cross, with a target a finger's width across rather than the glyph's, which Escape also presses once its window has focus.
 struct CloseButton: View {
     let action: () -> Void
     @State private var hovered = false
@@ -56,6 +55,7 @@ struct CloseButton: View {
         /// A finger's width across, wider than the glyph.
         static let target: CGFloat = 26
         static let hoveredFill = 0.12
+        static let label = "Close"
     }
 
     var body: some View {
@@ -68,9 +68,11 @@ struct CloseButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(PressDown())
+        .keyboardShortcut(.cancelAction)
+        .help(Layout.label)
+        .accessibilityLabel(Text(Layout.label))
         .onHover { inside in
             withAnimation(.easeOut(duration: hoverDuration)) { hovered = inside }
-            pointing(inside)
         }
     }
 }
@@ -85,11 +87,6 @@ struct PressDown: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? Self.pressedScale : 1)
             .animation(.spring(response: Self.springResponse, dampingFraction: Self.springDamping), value: configuration.isPressed)
+            .pointingHand()
     }
-}
-
-/// The pointing hand over anything clickable, set and undone in pairs so it never sticks.
-@MainActor
-func pointing(_ inside: Bool) {
-    if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
 }

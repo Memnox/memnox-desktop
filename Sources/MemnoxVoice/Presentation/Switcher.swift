@@ -173,11 +173,9 @@ private struct SessionTile: View {
         static let padding: CGFloat = 18
         static let width: CGFloat = 240
         static let height: CGFloat = 300
-        static let cornerRadius: CGFloat = 16
-        static let tintOpacity = 0.4
+        static let logoSize: CGFloat = 36
+        /// The card in front takes its status colour on its edge, the one cue that marks it apart.
         static let frontEdgeOpacity = 0.8
-        static let edgeOpacity = 0.12
-        static let frontGlowOpacity = 0.45
         static let shadowOpacity = 0.4
         static let frontShadowRadius: CGFloat = 22
         static let shadowRadius: CGFloat = 14
@@ -201,7 +199,7 @@ private struct SessionTile: View {
     private var face: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
             HStack(spacing: Memnox.Spacing.regular) {
-                AppIcon(path: card.host?.appPath)
+                BrandLogo(agent: card.agent, name: card.agentName, size: Layout.logoSize)
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(card.agentName)
                         .font(Memnox.display(Layout.nameSize))
@@ -228,22 +226,9 @@ private struct SessionTile: View {
         }
         .padding(Layout.padding)
         .frame(width: Layout.width, height: Layout.height)
-        .background(
-            ZStack {
-                Glass(material: .hudWindow, cornerRadius: Layout.cornerRadius)
-                Memnox.Palette.background.opacity(Layout.tintOpacity)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Layout.cornerRadius)
-                .strokeBorder(
-                    front ? colour.opacity(Layout.frontEdgeOpacity) : Color.white.opacity(Layout.edgeOpacity),
-                    lineWidth: front ? Memnox.Stroke.emphasis : Memnox.Stroke.hairline
-                )
-        )
+        .surface(accent: front ? colour.opacity(Layout.frontEdgeOpacity) : nil)
         .shadow(
-            color: front ? colour.opacity(Layout.frontGlowOpacity) : .black.opacity(Layout.shadowOpacity),
+            color: .black.opacity(Layout.shadowOpacity),
             radius: front ? Layout.frontShadowRadius : Layout.shadowRadius,
             y: Layout.shadowDrop
         )
@@ -252,26 +237,4 @@ private struct SessionTile: View {
     private var label: String { card.status.label }
 
     private var colour: Color { card.status.tint }
-}
-
-/// The app the session runs in, by its own icon, which is how a person tells iTerm from VS Code at a glance.
-private struct AppIcon: View {
-    let path: String?
-
-    private static let size: CGFloat = 36
-    private static let fallbackSymbolSize: CGFloat = 22
-    private static let fallbackSymbol = "terminal"
-
-    var body: some View {
-        if let path {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: path))
-                .resizable()
-                .frame(width: Self.size, height: Self.size)
-        } else {
-            Image(systemName: Self.fallbackSymbol)
-                .font(.system(size: Self.fallbackSymbolSize))
-                .foregroundStyle(Memnox.Palette.muted)
-                .frame(width: Self.size, height: Self.size)
-        }
-    }
 }

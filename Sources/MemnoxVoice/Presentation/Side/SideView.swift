@@ -6,6 +6,8 @@ import SwiftUI
 /// them now, then every exchange lately by day, each with how it went. One search filters all of it.
 struct SideView: View {
     @ObservedObject var model: IslandModel
+    @State private var filter = SideFilter.all
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Layout {
         static let cornerRadius: CGFloat = 22
@@ -13,10 +15,6 @@ struct SideView: View {
         static let flare = Island.flare
         static let padding: CGFloat = 10
         static let sectionGap: CGFloat = 14
-        /// A faint blue rising from below, the same light as the menu bar panel.
-        static let glowOpacity = 0.14
-        static let glowCenter = UnitPoint(x: 0.5, y: 1.1)
-        static let glowReach: CGFloat = 420
         /// Faint, so the folded tab is findable without drawing the eye.
         static let tabEdgeInk = 0.22
         /// The contents wait for the panel to be mostly grown, so they never squeeze through a narrow shape.
@@ -28,15 +26,7 @@ struct SideView: View {
         let shape = SideNotchShape(flare: open ? Layout.flare : SideMotion.tabFlare, radius: Layout.cornerRadius)
         let tab = SideMotion.tab(hovering: model.sideHovering)
         ZStack {
-            shape.fill(Color.black)
-                .overlay(
-                    RadialGradient(
-                        colors: [Memnox.Palette.primary.opacity(Layout.glowOpacity), .clear],
-                        center: Layout.glowCenter, startRadius: 0, endRadius: Layout.glowReach
-                    )
-                    .clipShape(shape)
-                    .opacity(open ? 1 : 0)
-                )
+            shape.fill(Memnox.Palette.pinnedDark)
                 // A hairline on the folded tab only, so the sliver shows against a dark window behind it.
                 .overlay(shape.stroke(Color.white.opacity(open ? 0 : Layout.tabEdgeInk), lineWidth: Memnox.Stroke.hairline))
             if open {
@@ -51,35 +41,28 @@ struct SideView: View {
 
     /// The panel's own contents, laid in only once it has grown, so the tab is just its shape.
     private var panel: some View {
-        VStack(spacing: Memnox.Spacing.regular) {
+        let needsYou = needsYou
+        let working = working
+        let days = days
+        let shown = showing(needsYou: needsYou, working: working, days: days)
+        return VStack(spacing: Memnox.Spacing.regular) {
             SideSearch(model: model)
+            filters(needsYou: needsYou.count, working: working.count, history: !days.isEmpty)
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: Layout.sectionGap) {
-                    if !needsYou.isEmpty {
+                    if shown.shows(.needsYou), !needsYou.isEmpty {
                         SideSection(title: "Needs you", count: needsYou.count, tint: IslandPalette.amber) {
-                            ForEach(needsYou, id: \.self) { line in NeedsYouRow(line: line) }
+                            ForEach(needsYou, id: \.subject) { card in HeldStrip(model: model, card: card) }
                         }
                     }
-                    if !working.isEmpty {
+                    if shown.shows(.working), !working.isEmpty {
                         SideSection(title: "Working now", count: working.count, tint: IslandPalette.green) {
                             ForEach(working, id: \.sessionId) { card in
                                 WorkingRow(card: card) { model.openWindow(card.sessionId, card.host) }
                             }
                         }
                     }
-                    ForEach(days, id: \.start) { day in
-                        SideSection(title: day.title, count: nil, tint: nil) {
-                            ForEach(day.exchanges) { exchange in
-                                ExchangeRow(
-                                    exchange: exchange,
-                                    opened: model.picked == exchange.id,
-                                    open: { model.showExchange(exchange.id) },
-                                    askAgain: { model.askAgain(exchange.question) }
-                                )
-                            }
-                        }
-                    }
-                    if days.isEmpty { SideEmpty(searching: !model.query.trimmingCharacters(in: .whitespaces).isEmpty, query: model.query) }
+                    if shown.shows(.history) { history(days) }
                 }
                 .padding(.bottom, Memnox.Spacing.medium)
             }
@@ -90,11 +73,51 @@ struct SideView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    /// Held calls in a sentence each, since they block work until the person acts.
-    private var needsYou: [String] {
-        var lines: [String] = []
-        if let held = model.held { lines.append("\(held.who) wants to \(held.what)") }
-        return lines.filter { mentions($0) }
+    /// One chip per section that has something in it, so a chip never leads to an empty list.
+    private func filters(needsYou: Int, working: Int, history: Bool) -> some View {
+        HStack(spacing: Memnox.Spacing.small) {
+            chip(.all, count: nil)
+            if needsYou > 0 { chip(.needsYou, count: needsYou) }
+            if working > 0 { chip(.working, count: working) }
+            if history { chip(.history, count: nil) }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Memnox.Spacing.xxSmall)
+    }
+
+    private func chip(_ choice: SideFilter, count: Int?) -> some View {
+        FilterChip(title: choice.title, chosen: filter == choice, count: count) {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: Memnox.Motion.quick)) { filter = choice }
+        }
+    }
+
+    @ViewBuilder private func history(_ days: [HistoryDay]) -> some View {
+        ForEach(days, id: \.start) { day in
+            SideSection(title: day.title, count: nil, tint: nil) {
+                ForEach(day.exchanges) { exchange in
+                    ExchangeRow(
+                        exchange: exchange,
+                        opened: model.picked == exchange.id,
+                        open: { model.showExchange(exchange.id) },
+                        askAgain: { model.askAgain(exchange.question) }
+                    )
+                }
+            }
+        }
+        if days.isEmpty { SideEmpty(searching: !model.query.trimmingCharacters(in: .whitespaces).isEmpty, query: model.query) }
+    }
+
+    /// The chosen filter, or All once its section has emptied, so an answered call never leaves a blank panel.
+    private func showing(needsYou: [HeldCard], working: [SessionCard], days: [HistoryDay]) -> SideFilter {
+        switch filter {
+        case .needsYou where needsYou.isEmpty, .working where working.isEmpty, .history where days.isEmpty: .all
+        default: filter
+        }
+    }
+
+    /// Every held call waiting, newest first, answered right here through the notch's own path, since each blocks work until the person acts.
+    private var needsYou: [HeldCard] {
+        model.waiting.newestFirst.map(\.card).filter { mentions($0.who) || mentions($0.what) }
     }
 
     private var working: [SessionCard] {
@@ -201,10 +224,11 @@ private struct SideSearch: View {
                     .foregroundStyle(Color.white)
                     .focused($focused)
                 if !model.query.isEmpty {
-                    Button { model.query = "" } label: {
-                        Image(systemName: Symbol.clear).foregroundStyle(Color.white.opacity(Memnox.Ink.tertiary))
-                    }
-                    .buttonStyle(PressableStyle())
+                    Button("Clear search", systemImage: Symbol.clear) { model.query = "" }
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(Color.white.opacity(Memnox.Ink.tertiary))
+                        .buttonStyle(PressableStyle())
+                        .help("Clear search")
                 }
             }
             .padding(.horizontal, Memnox.Spacing.large)
@@ -221,6 +245,7 @@ private struct SideSearch: View {
             }
             .buttonStyle(PressableStyle())
             .help(model.sidePinned ? "Let it close when you click elsewhere" : "Keep it open while you work")
+            .accessibilityLabel(model.sidePinned ? "Unpin the panel" : "Pin the panel open")
         }
     }
 }
@@ -231,6 +256,8 @@ private enum RowStyle {
     static let radius: CGFloat = 12
     static let horizontal: CGFloat = 8
     static let vertical: CGFloat = 7
+    /// Every row stands at least this tall, so a one line row and a two line row sit on one rhythm.
+    static let minHeight: CGFloat = 44
     static let hoverFill = 0.06
     static let selectedFill = 0.1
 }
@@ -274,42 +301,20 @@ private struct SideRow<Content: View>: View {
         let row = content(hovering)
             .padding(.horizontal, RowStyle.horizontal)
             .padding(.vertical, RowStyle.vertical)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: RowStyle.minHeight, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: RowStyle.radius).fill(Color.white.opacity(fill)))
             .contentShape(Rectangle())
             .onHover { hovering = $0 }
         if let action {
-            Button(action: action) { row }.buttonStyle(PressableStyle())
+            Button(action: action) { row }
+                .buttonStyle(PressableStyle())
+                .accessibilityAddTraits(selected ? .isSelected : [])
         } else {
             row
         }
     }
 
     private var fill: Double { selected ? RowStyle.selectedFill : hovering && action != nil ? RowStyle.hoverFill : 0 }
-}
-
-/// Something blocking work until the person acts, answered in the notch where Touch ID can sign it.
-private struct NeedsYouRow: View {
-    let line: String
-
-    private static let dotSide: CGFloat = 8
-
-    var body: some View {
-        SideRow(selected: false, action: nil) { _ in
-            HStack(spacing: Memnox.Spacing.regular) {
-                Circle().fill(IslandPalette.amber).frame(width: Self.dotSide, height: Self.dotSide).modifier(PulseEffect())
-                VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
-                    Text(line)
-                        .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                        .foregroundStyle(Color.white)
-                        .lineLimit(2)
-                    Text("Answer it in the notch")
-                        .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(IslandPalette.amber.liftedTowardWhite)
-                }
-            }
-        }
-    }
 }
 
 /// A session working now: who, on what, where and how long, and a click to its own window.
@@ -323,7 +328,7 @@ private struct WorkingRow: View {
     var body: some View {
         SideRow(selected: false, action: open) { hovering in
             HStack(spacing: Memnox.Spacing.regular) {
-                SessionLogo(card: card, size: Self.logoSide)
+                BrandLogo(agent: card.agent, name: card.agentName, size: Self.logoSide)
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(card.title)
                         .font(Memnox.sans(Memnox.TextSize.body, .semibold))
@@ -345,6 +350,8 @@ private struct WorkingRow: View {
             }
         }
         .help("Bring its window forward")
+        .accessibilityLabel("\(card.agentName), \(card.title), \(card.subtitle(now: Date()))")
+        .accessibilityHint("Brings its window forward")
     }
 }
 
@@ -355,9 +362,13 @@ private struct ExchangeRow: View {
     let open: () -> Void
     let askAgain: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private enum Layout {
         static let markSide: CGFloat = 22
         static let dotSide: CGFloat = 7
+        /// The Memnox mark sits inside its disc with the margin a logo tile keeps.
+        static let logoScale: CGFloat = 0.56
     }
 
     private enum Symbol {
@@ -387,6 +398,17 @@ private struct ExchangeRow: View {
                 }
             }
         }
+        .help(exchange.failed ? "Open what went wrong" : "Open this answer")
+        .accessibilityLabel(exchange.question)
+        .accessibilityValue(status)
+        .accessibilityAction(named: "Ask again", askAgain)
+    }
+
+    /// The row's state in words, for VoiceOver, since the dot and the shimmer say it only to the eye.
+    private var status: String {
+        if exchange.isAnswering { return "Still answering" }
+        if let failure = exchange.failure { return "Failed, \(failure)" }
+        return "Answered at \(exchange.askedAt.formatted(date: .omitted, time: .shortened))"
     }
 
     @ViewBuilder private var mark: some View {
@@ -397,9 +419,9 @@ private struct ExchangeRow: View {
                 .frame(width: Layout.markSide, height: Layout.markSide)
                 .background(Circle().fill(IslandPalette.red.opacity(Shade.failedMark)))
         } else {
-            Circle()
-                .fill(LinearGradient(colors: [Memnox.Palette.sky, Memnox.Palette.primary], startPoint: .topLeading, endPoint: .bottomTrailing))
+            LogoMark(size: Layout.markSide * Layout.logoScale)
                 .frame(width: Layout.markSide, height: Layout.markSide)
+                .background(Circle().fill(Memnox.Palette.primary))
         }
     }
 
@@ -424,7 +446,9 @@ private struct ExchangeRow: View {
     /// Blue and breathing while it answers, red when it never did; nothing once it is simply done.
     @ViewBuilder private var dot: some View {
         if exchange.isAnswering {
-            Circle().fill(Memnox.Palette.primary).frame(width: Layout.dotSide, height: Layout.dotSide).modifier(PulseEffect())
+            let dot = Circle().fill(Memnox.Palette.primary).frame(width: Layout.dotSide, height: Layout.dotSide)
+            // A still dot under Reduce Motion, since the breathing is decoration and the caption already says answering.
+            if reduceMotion { dot } else { dot.modifier(PulseEffect()) }
         } else if exchange.failed {
             Circle().fill(IslandPalette.red).frame(width: Layout.dotSide, height: Layout.dotSide)
         }

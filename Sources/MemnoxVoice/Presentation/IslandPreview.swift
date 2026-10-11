@@ -59,6 +59,9 @@ final class IslandPreview {
         panel.wireConversation(
             openAnswer: { _ in },
             answerDraft: { [weak panel] card, _ in panel?.draftAnswered(card, .answered) },
+            answerWork: { [weak panel] card, _ in panel?.workAnswered(card, .answered) },
+            openSignIn: { [weak panel] tool in panel?.signingIn(tool) },
+            notMine: { [weak panel] card in panel?.signedInDismissed(card) },
             answerRule: { [weak panel] card, _ in panel?.ruleAnswered(card, .answered) },
             askAgain: { _ in }
         )
@@ -122,6 +125,7 @@ final class IslandPreview {
         await talk(for: Tour.answering)
         panel.draftAnswered(DraftCard(subject: Self.draftSubject, draft: Self.mail), .answered)
         await pause(Tour.beat)
+        await toolsInTheirName()
         panel.show(.listening, caption: "")
         panel.ruling(true)
         await pause(Tour.beat)
@@ -215,6 +219,7 @@ final class IslandPreview {
             RuleScope(id: RuleScopeKind.machine.rawValue, kind: RuleScopeKind.machine.rawValue, label: "This Mac"),
             RuleScope(id: "repository-1", kind: RuleScopeKind.repository.rawValue, label: "shop", folder: "/Users/me/Documents/shop", suggested: true),
             RuleScope(id: "repository-2", kind: RuleScopeKind.repository.rawValue, label: "api", folder: "/Users/me/Documents/api"),
+            RuleScope(id: RuleScopeKind.team.rawValue, kind: RuleScopeKind.team.rawValue, label: "The team"),
         ]
     )
 
@@ -241,6 +246,61 @@ final class IslandPreview {
         service: MailService.gmail.rawValue, mode: DraftMode.reply.rawValue, to: ["sam@example.com"],
         subject: "Re: The new site", body: "Hi Sam,\n\nHere is the link to the new site, built and deployed this morning:\nhttps://example.com\n\nBest regards", thread: 1
     )
+
+    /// The icons of tools still to sign in to, then one card per tool, each drawn as that tool draws it.
+    private func toolsInTheirName() async {
+        panel.signIns(Self.signIns)
+        await pause(Tour.dwell)
+        // A sign in nothing ties to them offers Not me; one known to be theirs only says so and goes.
+        let mine = SignedInNotice(toolkit: "gmail", account: WorkAccount(key: "me@home.test", handle: "me@home.test", check: AccountCheck.unverified.rawValue))
+        panel.signedIn(mine)
+        await pause(Tour.dwell)
+        panel.signedInDismissed(SignedInCard(notice: mine))
+        panel.signedIn(SignedInNotice(toolkit: "github", account: WorkAccount(key: "42", handle: "moise10r", check: AccountCheck.matched.rawValue)))
+        await pause(Tour.beat)
+        for (index, work) in Self.works.enumerated() {
+            let subject = "\(Self.workSubject)_\(index)"
+            panel.work(subject: subject, work)
+            await pause(Tour.dwell)
+            panel.workAnswered(WorkCard(subject: subject, draft: work), .answered)
+            await pause(Tour.beat)
+        }
+        panel.signIns([])
+    }
+
+    private static let workSubject = "prp_work_preview"
+
+    private static let signIns: [ToolSignIn] = [
+        ToolSignIn(toolkit: "linear", url: "https://example.com/linear"),
+        ToolSignIn(toolkit: "notion", url: "https://example.com/notion"),
+        ToolSignIn(toolkit: "slack", url: "https://example.com/slack", again: true),
+    ]
+
+    private static let matched = AccountCheck.matched.rawValue
+
+    private static let works: [WorkDraft] = [
+        WorkDraft(
+            toolkit: "slack", tool: "SLACK_SEND_MESSAGE", kind: WorkDraftKind.message.rawValue,
+            account: WorkAccount(key: "U1", handle: "moise", check: matched), to: ["#launch"],
+            body: "The new site is *live*. Link in the thread."
+        ),
+        WorkDraft(
+            toolkit: "github", tool: "GITHUB_CREATE_A_REVIEW_COMMENT_FOR_A_PULL_REQUEST", kind: WorkDraftKind.comment.rawValue,
+            account: WorkAccount(key: "42", handle: "moise10r", check: matched), where: "memnox/runtime#412",
+            body: "Fixed in the last push: `retryAfter` is now read from the header.",
+            fields: [WorkField(name: "path", value: "src/billing/retry.ts"), WorkField(name: "line", value: "88")]
+        ),
+        WorkDraft(
+            toolkit: "linear", tool: "LINEAR_CREATE_COMMENT", kind: WorkDraftKind.comment.rawValue,
+            account: WorkAccount(key: "u_7", handle: "Moise", check: AccountCheck.unverified.rawValue), where: "ENG-231",
+            body: "Picked this up, PR is open."
+        ),
+        WorkDraft(
+            toolkit: "gmail", tool: "GMAIL_SEND_EMAIL", kind: WorkDraftKind.email.rawValue,
+            account: WorkAccount(key: "me@example.com", handle: "me@example.com", check: matched), to: ["sara@example.com"],
+            subject: "Summary of this week", body: "Hi Sara,\n\nThe migration is done and billing is on the new retries.\n\nBest"
+        ),
+    ]
 
     private func pause(_ seconds: Double) async {
         try? await Task.sleep(nanoseconds: UInt64(seconds * Self.nanosecondsPerSecond))

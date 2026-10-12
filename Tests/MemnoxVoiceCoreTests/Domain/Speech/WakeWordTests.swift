@@ -22,6 +22,47 @@ final class WakeWordTests: XCTestCase {
         XCTAssertNotNil(afterWakeWord("Minnox"))
     }
 
+    func testWakesOnItsNameSaidTheirOwnWay() {
+        // Heard from people who say it their own way: the first half and the second run together.
+        XCTAssertEqual(afterWakeWord("Mennix, what changed?"), "what changed?")
+        XCTAssertEqual(afterWakeWord("mim nax are they done"), "are they done")
+        XCTAssertEqual(afterWakeWord("Memnex"), "")
+        XCTAssertEqual(afterWakeWord("Emma nucks open my sessions"), "open my sessions")
+        // Ordinary words that only sound near it never wake it.
+        XCTAssertNil(afterWakeWord("a man nicks the bike"))
+        XCTAssertNil(afterWakeWord("my mom knocks first"))
+        XCTAssertNil(afterWakeWord("the next ten minutes"))
+    }
+
+    func testTakesItsNameSaidTwiceAsOneCall() {
+        XCTAssertTrue(nameAlone("Memnox Manox"))
+        XCTAssertEqual(withoutLeadingName("Memnox Manox, what changed?"), "what changed?")
+        XCTAssertEqual(afterWakeWord("Mnox"), "")
+    }
+
+    func testHearsItsNameCutToItsEndOnlyAtEitherEnd() {
+        XCTAssertEqual(withoutLeadingName("OK Knox can you please close all these panels"), "can you please close all these panels")
+        XCTAssertEqual(withoutLeadingName("OK ma'am Knox, can you commit?"), "can you commit?")
+        XCTAssertEqual(withoutLeadingName("Hey Mem nox, which one is working?"), "which one is working?")
+        XCTAssertNil(afterWakeWord("the gold sits in Fort Knox these days"))
+        XCTAssertNil(afterWakeWord("move it to the Knox folder"))
+    }
+
+    func testTakesItsNameOffTheEndWhenTheyCalledItThere() {
+        XCTAssertEqual(
+            withoutTrailingName("OK, so why are you taking longer to reply? memnox memnox"),
+            "OK, so why are you taking longer to reply?"
+        )
+        XCTAssertEqual(withoutTrailingName("Can you Knox? Knox?"), "Can you Knox?")
+        XCTAssertEqual(withoutTrailingName("commit that, ma'am Knox."), "commit that")
+        XCTAssertEqual(withoutTrailingName("are you there memnox memnox"), "are you there")
+        // Named as a place, the name is part of what they asked.
+        XCTAssertEqual(withoutTrailingName("start a session in Memnox"), "start a session in Memnox")
+        XCTAssertEqual(withoutTrailingName("start a session in Memnox. Memnox."), "start a session in Memnox.")
+        XCTAssertEqual(withoutTrailingName("Memnox memnox"), "Memnox memnox")
+        XCTAssertFalse(nameAlone("Do it. Knox."))
+    }
+
     func testTakesItsNameAtTheEndOfAQuestionAsPartOfTheQuestion() {
         XCTAssertTrue(nameAlone("Memnox"))
         XCTAssertTrue(nameAlone("Hey Memnox."))

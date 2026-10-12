@@ -110,6 +110,7 @@ Where it gets `memnox` is chosen when it is built, and written into its Info.pli
 
 ```sh
 scripts/signing-setup.sh   # once: a local signing identity, so macOS remembers your permissions
+scripts/vendor-noise.sh    # once: the Noise framework from the runtime checkout, which git never holds
 swift test                 # the core, headless, in about a second
 ./scripts/bundle.sh        # builds ../memnox-runtime, then build/Memnox.app against it
 open build/Memnox.app

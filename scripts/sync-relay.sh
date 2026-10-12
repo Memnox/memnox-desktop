@@ -8,7 +8,7 @@
 #   Domain/Relay: NoiseSchedule, RelayAddress, RelayFraming, Resubscribe, StreamEnd
 #   Domain/Pairing: PairedMachine, PairedMachines, PairingInvitation, PairingWire, Base64URL
 #   Application: RequestIds, and the ports PairedStore, Pairer, RelaySocket, PushRegistrar
-# and MemnoxNoise.xcframework into Vendor, from memnox-runtime's build when there is one, else the phone's copy.
+# and MemnoxNoise.xcframework into Vendor through scripts/vendor-noise.sh.
 #
 # Left out on purpose: the phone's PairingLines, since this Mac has its own by that name, and its
 # KeychainPairedStore, since a Mac keeps its servers under a service of its own (KeychainPairedServers).
@@ -61,13 +61,4 @@ do
 done
 
 # The one Noise build, snow behind a C ABI, so this Mac, the phone and the runtime run the same crate.
-noise="$runtime/native/noise/build/MemnoxNoise.xcframework"
-[ -d "$noise" ] || noise="$ios/Vendor/MemnoxNoise.xcframework"
-if [ ! -d "$noise" ]; then
-  echo "no MemnoxNoise.xcframework in memnox-runtime or memnox-ios, so build it with native/noise/scripts/build-xcframework.sh first" >&2
-  exit 1
-fi
-rm -rf "$here/Vendor/MemnoxNoise.xcframework"
-mkdir -p "$here/Vendor"
-cp -R "$noise" "$here/Vendor/MemnoxNoise.xcframework"
-echo "copied $noise"
+sh "$here/scripts/vendor-noise.sh"

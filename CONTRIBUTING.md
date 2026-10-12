@@ -24,6 +24,7 @@ You need macOS 14 or later, Xcode 26 or later, and the Memnox daemon from `memno
 
 ```sh
 scripts/signing-setup.sh   # once: a local signing identity, so macOS keeps its permissions across builds
+scripts/vendor-noise.sh    # once: the Noise framework Package.swift needs, which git never holds
 swift test                 # the core, headless; must pass before every commit
 ./scripts/bundle.sh        # builds and signs build/Memnox.app
 ```

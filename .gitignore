@@ -4,6 +4,6 @@ build/
 *.app
 .DS_Store
 xcuserdata/
-# Copied in by scripts/sync-relay.sh, 55 MB of static libraries built in memnox-runtime, not here.
+# Copied in by scripts/vendor-noise.sh, 55 MB of static libraries built in memnox-runtime, not here.
 Vendor/
 __pycache__/

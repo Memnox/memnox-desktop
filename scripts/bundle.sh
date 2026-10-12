@@ -21,6 +21,8 @@ if [ "$SOURCE" = local ]; then
   (cd "$RUNTIME_DIR" && pnpm install --frozen-lockfile && pnpm build)
 fi
 
+# The Noise framework is never in git, so a fresh clone gets it here before the first build.
+[ -d Vendor/MemnoxNoise.xcframework ] || sh scripts/vendor-noise.sh
 swift build -c release --product MemnoxVoice
 APP=build/Memnox.app
 rm -rf "$APP"

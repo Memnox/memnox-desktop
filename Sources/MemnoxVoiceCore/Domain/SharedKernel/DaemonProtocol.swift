@@ -1,7 +1,7 @@
 import Foundation
 
 // The daemon's line protocol, mirrored field for field from memnox-runtime's
-// packages/core/src/daemon/protocol.ts, since the two sides only ever meet as JSON.
+// packages/core/src/daemon/protocol.ts and its session-view.ts, since the two sides only ever meet as JSON.
 
 public enum DaemonMethod: String, Sendable {
     case ping
@@ -49,6 +49,8 @@ public enum DaemonMethod: String, Sendable {
     case voiceChoice = "voice-choice"
     /// A phone asking to drive this Mac until a time, or to stop; only ever sent from afar, named here so the wire is whole.
     case drive
+    /// A phone whose app left the screen handing the voice back to this Mac; only ever sent from afar, named here so the wire is whole.
+    case voiceRelease = "voice-release"
     /// One folder under the person's home as names and sizes, so a phone browses this Mac without the brain or the screen.
     case filesList = "files-list"
     /// One line rendered by this Mac's Kokoro and streamed back as PCM, so a phone in the background still speaks in the person's voice.
@@ -57,6 +59,24 @@ public enum DaemonMethod: String, Sendable {
     case home
     /// Turns the home's ready suggestion into a rule proposal, which the person confirms with Touch ID like any other.
     case handOver = "hand-over"
+    /// Whether a person is signed in on the daemon's side, which is what the voice and the terminal act through.
+    case person
+    /// Starts the daemon's own sign in as the person, answering the code to approve; the daemon polls on its own.
+    case personSignIn = "person-sign-in"
+    /// Signs the daemon's person out.
+    case personSignOut = "person-sign-out"
+    /// Whether this machine is connected to a workspace, which is what carries rules, memory and phones to it.
+    case machine
+    /// Connects this machine to a workspace, the device flow memnox login runs, answering the code; the daemon polls on its own.
+    case machineSignIn = "machine-sign-in"
+    /// Disconnects this machine, which forgets its credential; rules already pulled stay in force.
+    case machineSignOut = "machine-sign-out"
+    /// Dictation written the way the person would have typed it, by their own Claude Code kept warm for it.
+    case polish
+    /// Starts that Claude Code as the dictation key goes down, so the answer skips its cold start.
+    case polishWarm = "polish-warm"
+    /// The person's own words typed into one session, signed over followUpMessage; the brain never reads them.
+    case followUp = "follow-up"
 }
 
 public enum EventKind: String, Sendable {
@@ -108,6 +128,8 @@ public enum Display: String, Sendable {
     case press
     /// The icons of tools the person asked for and has not signed in to; each opens that tool's own sign in.
     case signIn = "signin"
+    /// A web page the person asked to open, its one address in the app links, opened in their browser.
+    case link
 }
 
 /// Where a folder opens, as the runtime's FOLDER_OPENER names it in a folder display's title.
@@ -120,6 +142,8 @@ public enum FolderOpener: String, Sendable {
 /// How a person asked: holding Control and Option says what follows is a rule they want in force.
 public enum AskIntent: String, Sendable {
     case rule
+    /// What they asked before a sign in, asked again by the app once it finished, never something said just now.
+    case resume
 }
 
 /// Where a rule can be put in force: every agent on this Mac, or only inside one repository.
@@ -339,11 +363,18 @@ public struct SessionView: Decodable, Equatable, Sendable {
     public let sessionId: String
     public let agent: String
     public let agentName: String
+    /// What it was opened for: the task it was given, or the person's first request in it.
     public let task: String?
+    /// The person's latest request in it, when it differs from the task.
+    public let lastAsk: String?
     public let state: String
     public let thinking: Bool
     public let repository: String?
+    /// The branch its repository has checked out.
+    public let branch: String?
     public let runningIn: String?
+    /// Where in that app, in words: a Terminal tab, an editor's terminal, or an agent's panel in it.
+    public let `where`: String?
     public let startedAt: String?
     public let lastActive: String?
     public let waitingOnYou: Int
@@ -355,6 +386,8 @@ public struct SessionView: Decodable, Equatable, Sendable {
     public let excerpt: CardExcerpt?
     /// The conversation's latest lines, where the agent keeps a transcript Memnox can read.
     public let conversation: [ConversationLine]?
+    /// What the agent said to end its latest turn, cut short, which is where the work stands.
+    public let lastSaid: String?
 
     /// The state as a known case, or nil for one this app does not know yet.
     public var sessionState: SessionState? { SessionState(rawValue: state) }
@@ -976,12 +1009,24 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var subject: String?
     public var answer: String?
     public var signature: String?
+    /// On confirm of a draft: the words the person rewrote on its card, which the signature then covers.
+    public var edited: String?
+    /// On person-sign-in: this app's own waiting device code, so one approval in the browser signs the daemon in too.
+    public var companionOf: String?
     public var point: String?
     public var said: String?
     /// On ask: they were waited on for the rest and said nothing more, so `said` is the whole of it.
     public var finished: Bool?
     /// On ask: how the person asked, chosen by the keys they held rather than by any word they said.
     public var intent: String?
+    /// On ask: the Mac already greeted them out loud this sitting, so the answer does not open with another hello.
+    public var greeted: Bool?
+    /// On polish: the kind of place the dictation lands, as `DictationFamily` names it.
+    public var family: String?
+    /// On polish: the person's own words, spelled as they spell them.
+    public var vocabulary: [String]?
+    /// On polish: text they selected, which what they said is an instruction about.
+    public var selection: String?
     /// On ask: the words so far, sent at a pause so the answer can start before they are known to be done.
     public var speculative: Bool?
     /// On ask: the app in front of the person as they spoke, by name, so a misheard word is read against it.
@@ -1125,6 +1170,22 @@ public struct DaemonEvent: Decodable, Equatable, Sendable {
     public var displayKind: Display? { display.flatMap(Display.init(rawValue:)) }
     /// Only a call the daemon placed inside its repository goes without a fingerprint; absent asks for one.
     public var needsTouchID: Bool { withinSession != true }
+
+    /// On a link, the page to open; nil for anything but a web address, so a link never starts an app or signs in as somebody.
+    public var webLink: URL? {
+        guard displayKind == .link, let text = app?.links.first, let url = URL(string: text),
+              let scheme = url.scheme?.lowercased(), Self.webSchemes.contains(scheme),
+              url.host != nil, url.user == nil, url.password == nil else { return nil }
+        return url
+    }
+
+    /// The session a card is about, or nil for one about none, such as a list of pull requests, so it offers no window.
+    public var cardSession: String? { sessionId == Self.noSession ? nil : sessionId }
+
+    /// The same two schemes the runtime's open_link allows.
+    private static let webSchemes: Set<String> = ["http", "https"]
+    /// What the runtime names as the session of a show that belongs to none.
+    private static let noSession = "all"
 }
 
 public struct AskChunk: Decodable, Equatable, Sendable {
@@ -1233,9 +1294,80 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let home: DaemonHome?
     /// On hand-over: the rule proposal the person now confirms, by its id.
     public let proposed: String?
+    /// On person, person-sign-in and person-sign-out: where the daemon's own sign in stands.
+    public let person: PersonStanding?
+    /// On machine, machine-sign-in and machine-sign-out: whether this machine is connected to a workspace.
+    public let machine: MachineStanding?
+    /// On polish: the dictation as it should be typed.
+    public let polished: String?
 
     /// The outcome as a known case, or nil for one this app does not know yet.
     public var outcomeKind: Outcome? { outcome.flatMap(Outcome.init(rawValue:)) }
+}
+
+/// Where a sign in on the daemon's side stands, the same for the person and for this machine, so one piece of
+/// code shows both: whether it is in, the name to say, a code under way, and why the last one stopped.
+public protocol SignInStanding: Sendable {
+    var signedIn: Bool { get }
+    var name: String? { get }
+    var code: PersonSignInCode? { get }
+    var failed: String? { get }
+}
+
+/// Whether this machine is connected to a workspace, the credential memnox login writes, which is what carries rules,
+/// workspace memory and phone pairing to it. The workspace's name stands where a person's would.
+public struct MachineStanding: Decodable, Equatable, Sendable, SignInStanding {
+    public let signedIn: Bool
+    public let name: String?
+    public let workspaceId: String?
+    public let machineId: String?
+    /// A connection under way: the code to approve and where.
+    public let code: PersonSignInCode?
+    /// Why the last connection stopped, or that the workspace let this machine go.
+    public let failed: String?
+
+    public init(signedIn: Bool, name: String? = nil, workspaceId: String? = nil, machineId: String? = nil,
+                code: PersonSignInCode? = nil, failed: String? = nil) {
+        self.signedIn = signedIn
+        self.name = name
+        self.workspaceId = workspaceId
+        self.machineId = machineId
+        self.code = code
+        self.failed = failed
+    }
+}
+
+/// Whether a person is signed in on the daemon's side, which is what the voice and the terminal act through.
+public struct PersonStanding: Decodable, Equatable, Sendable, SignInStanding {
+    public let signedIn: Bool
+    public let name: String?
+    public let workspaceId: String?
+    /// A sign in under way: the code to approve and where.
+    public let code: PersonSignInCode?
+    /// Why the last sign in stopped, until the next one starts.
+    public let failed: String?
+
+    public init(signedIn: Bool, name: String? = nil, workspaceId: String? = nil, code: PersonSignInCode? = nil, failed: String? = nil) {
+        self.signedIn = signedIn
+        self.name = name
+        self.workspaceId = workspaceId
+        self.code = code
+        self.failed = failed
+    }
+}
+
+/// The code the daemon's sign in waits on, for the person to approve in the console.
+public struct PersonSignInCode: Decodable, Equatable, Sendable {
+    public let userCode: String
+    public let page: String?
+    /// Epoch milliseconds.
+    public let expiresAt: Double
+
+    public init(userCode: String, page: String? = nil, expiresAt: Double) {
+        self.userCode = userCode
+        self.page = page
+        self.expiresAt = expiresAt
+    }
 }
 
 /// An agent's desktop app as an app start names it: its links, opened in order once the app is open,
@@ -1358,9 +1490,11 @@ public func isAtLeast(_ found: String?, _ needed: String) -> Bool {
     return true
 }
 
-/// What a confirmation signs, byte for byte what the runtime's `confirmationMessage` builds.
-public func confirmationMessage(subject: String, answer: String) -> String {
-    "memnox-confirm:v1:\(subject):\(answer)"
+/// What a confirmation signs, byte for byte what the runtime's `confirmationMessage` builds. Words the person
+/// rewrote on a draft card go last and whole, so the fingerprint covers exactly what is sent.
+public func confirmationMessage(subject: String, answer: String, edited: String? = nil) -> String {
+    guard let edited else { return "memnox-confirm:v1:\(subject):\(answer)" }
+    return "memnox-confirm:v2:\(subject):\(answer):\(edited)"
 }
 
 /// What Touch ID signs to pair a phone, byte for byte what the runtime verifies on pair-accept.
@@ -1377,6 +1511,22 @@ public func grantMessage(deviceId: String, capability: Capability) -> String {
 /// The Mac never signs it, and it lives here so every signed string is built in one place.
 public func driveMessage(deviceId: String, until: String) -> String {
     "memnox-drive:v1:\(deviceId):\(until)"
+}
+
+/// What a person signs to type their own words into one session, byte for byte what the runtime verifies on follow-up.
+/// The words are inside it, so a signature for one message never carries another.
+public func followUpMessage(sessionId: String, words: String) -> String {
+    "memnox-follow-up:v1:\(sessionId):\(words)"
+}
+
+/// How a follow up reached its session, as the runtime's FOLLOW_UP_OUTCOME names it.
+public enum FollowUpOutcome: String, CaseIterable, Sendable {
+    /// Working: it reads the words at its next step.
+    case queued
+    /// Waiting at its prompt: the Mac is typing the words in and sending them.
+    case typed
+    /// Waiting where nothing can type: it reads the words the next time it is prompted.
+    case later
 }
 
 /// What a phone signs over its pairing handshake hash to prove it holds its key, byte for byte what the runtime verifies.

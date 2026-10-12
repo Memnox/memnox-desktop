@@ -102,6 +102,12 @@ final class DaemonProtocolTests: XCTestCase {
         XCTAssertEqual(driveMessage(deviceId: "dev_1", until: "2026-10-05T10:15:00.000Z"), "memnox-drive:v1:dev_1:2026-10-05T10:15:00.000Z")
     }
 
+    func testNamesAFollowUpAndSignsItsWordsAsTheRuntimeDoes() {
+        XCTAssertEqual(DaemonMethod.followUp.rawValue, "follow-up")
+        XCTAssertEqual(followUpMessage(sessionId: "ses_1", words: "run the tests: all"), "memnox-follow-up:v1:ses_1:run the tests: all")
+        XCTAssertEqual(FollowUpOutcome.allCases.map(\.rawValue), ["queued", "typed", "later"])
+    }
+
     func testNamesUngrantAsTheRuntimeDoes() {
         XCTAssertEqual(DaemonMethod.deviceUngrant.rawValue, "device-ungrant")
         XCTAssertEqual(Outcome.ungranted.rawValue, "ungranted")

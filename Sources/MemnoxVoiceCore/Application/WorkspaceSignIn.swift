@@ -1,6 +1,6 @@
 import Foundation
 
-/// How signing in to the team ended.
+/// How signing in as the person ended.
 public enum SignInOutcome: Equatable, Sendable {
     case signedIn(WorkspaceCredential)
     /// Why not, in words the person can act on.

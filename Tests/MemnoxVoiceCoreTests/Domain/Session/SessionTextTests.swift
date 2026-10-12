@@ -22,6 +22,16 @@ final class SessionTextTests: XCTestCase {
         XCTAssertNil(SessionText.ago(nil, now: now))
     }
 
+    /// The wall of 2026-10-14 showed five panels the person called not descriptive, so each says where and when.
+    func testSaysWhereASessionWorksAndWhenInWords() throws {
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-10-03T12:00:00Z"))
+        let json = #"{"sessionId":"s","agent":"claude-code","agentName":"Claude Code","task":"add order cancellation","state":"idle","thinking":false,"repository":"shop","branch":"main","runningIn":"Terminal","where":"a tab in Terminal, opened on shop","startedAt":"2026-10-03T09:00:00Z","lastActive":"2026-10-03T11:50:00Z","waitingOnYou":0,"helpers":[],"steps":[],"files":[],"lastSaid":"The cancel button is in."}"#
+        let view = try JSONDecoder().decode(SessionView.self, from: Data(json.utf8))
+        XCTAssertEqual(view.place, "shop on main")
+        XCTAssertEqual(view.context(now: now), "a tab in Terminal, opened on shop \u{00B7} started 3 h ago \u{00B7} active 10 min ago")
+        XCTAssertEqual(view.lastSaid, "The cancel button is in.")
+    }
+
     func testNamesAHostItReachedBySiteAndAFileByItsLastPart() throws {
         XCTAssertEqual(SessionText.line(for: try step("network", "GET https://api.github.com/repos")), "Reached github.com")
         XCTAssertEqual(SessionText.line(for: try step("filesystem", "Edited /work/shop/src/cart.ts")), "Edited cart.ts")

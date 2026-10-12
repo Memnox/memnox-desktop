@@ -116,3 +116,22 @@ extension SessionCard {
         return parts.joined(separator: SessionText.separator)
     }
 }
+
+extension SessionView {
+    /// Its repository and the branch there, the way a person names where the work happens.
+    public var place: String? {
+        guard let repository else { return runningIn }
+        guard let branch else { return repository }
+        return "\(repository) on \(branch)"
+    }
+
+    /// Where it runs, when it began and how lately it did anything, the quiet line under what it is about.
+    public func context(now: Date) -> String? {
+        let parts = [
+            `where` ?? runningIn,
+            SessionText.ago(startedAt, now: now).map { "started \($0)" },
+            status.isActive ? SessionText.workingWord : SessionText.ago(lastActive, now: now).map { "active \($0)" },
+        ].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: SessionText.separator)
+    }
+}

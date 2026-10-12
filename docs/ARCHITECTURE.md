@@ -58,13 +58,50 @@ every one of them, and the app wires the real ones in `App/AppDelegate.swift`.
 
 | Port | Real adapter | Test fake |
 |---|---|---|
-| `DaemonLink` | `UnixSocketLink` (Infrastructure/Daemon) | `ScriptedLink`, `StepLink`, `SlowLink` |
+| `DaemonLink` | `TargetLink` (Application) over `UnixSocketLink` (Infrastructure/Daemon) for this Mac, and a `NoiseRelayLink` (Infrastructure/Relay) per paired server | `ScriptedLink`, `StepLink`, `SlowLink` |
+| `PairedStore` | `KeychainPairedServers` (Infrastructure/Persistence) | `MemoryPairedServers` |
+| `Pairer` | `RelayPairer` (Infrastructure/Relay), introducing this Mac as a desktop | a scripted pairer in `ServerPairingTests` |
+| `WorkspaceInbox` | `HttpWorkspaceInbox` (Infrastructure/Cloud) over an `HttpTransport`, `URLSessionTransport` in the app | `ScriptedTransport` |
+| `PersonCredentialStore` | `KeychainPersonCredential` (Infrastructure/Persistence), its own Keychain service apart from the servers | `MemoryPersonCredential` |
 | `ConfirmKey` | `SecureEnclaveConfirmKey` (Infrastructure/Security), or `RefusingKey` when none can be made | `PersonKey`, `SoftwareConfirmKey` |
 | `OwnerStore` | `DefaultsOwner` (Infrastructure/Persistence) | `MemoryOwner` |
 | `Speaker` | `Voice`, Kokoro or the system voice (Platform/Audio) | `RecordingSpeaker` |
 | `Face` | `IslandPanel` (Presentation/Island) | `RecordingFace` |
 | `Presenter` | `SessionPresenter` (Presentation/Cards) | `RecordingPresenter` |
 | `Chimes` | `SystemChimes` (Platform/Sounds) | `RecordingChimes` |
+
+The relay client (`Infrastructure/Relay`, `Infrastructure/Noise`, `Domain/Relay` and the pairing
+records in `Domain/Pairing`) is copied from memnox-ios by `scripts/sync-relay.sh`, which names the
+two small edits the copies carry. The app subscribes to this Mac's daemon and to every paired server at once, and
+`MachineEvents` decides what each brings: all of it from the machine picked, and from the rest what
+waits on the person. `TargetLink` remembers which machine raised each subject, so an answer goes back
+through the link its call came from while the voice keeps talking to the machine picked. It sends a
+server only what `RemoteReach` allows, so a key, learnt words and pairing stay with this Mac's own daemon, and `TargetPresenter` shows a
+server's sessions without ever typing into, opening or focusing them. Every request takes its id
+from the one `RequestIds`, since a relay session refuses an id already in flight.
+
+The person can also sign in to their Memnox Cloud workspace (`WorkspaceSignIn`, a device code approved
+in the console), which registers this Mac's confirmation key with the workspace. `WorkspaceAnswering`
+then reads the held calls the workspace routed to them, which the app polls while it runs and again on
+wake, and shows them on the island as "codex on build-box, from Ana's team". Their subjects are remembered in `TargetLink`
+as the workspace's, which refuses to carry them to any daemon, and `Conversation.answerHeld` answers them
+through the inbox: a yes signed with Touch ID over `memnox-confirm:v1:<id>:<answer>`, a deny unsigned.
+`Conversation.announceTeam` says each one aloud like a call on this Mac and the microphone opens after it.
+Every ask names the open calls to the daemon the voice talks to as `teamCalls`, an empty list included, so a
+spoken answer comes back as a proposal carrying `teamAnswer`. The Mac carries that out with the workspace
+first, then confirms the proposal to the daemon that raised it: a yes is one Touch ID over both
+`memnox-confirm:v1:<callId>:<answer>` and `memnox-confirm:v1:<proposal>:confirmed`, a deny goes unsigned
+both ways, and a cancelled touch declines the proposal and sends the workspace nothing. The contract is the
+runtime's `docs/remote-contract.md`, "Answering a team's question by voice".
+The inbox is read with `include=recent`, so a call settled by somebody else leaves its card saying who and
+where. Somebody who only answers for their team can do it from the first run's "Join your team", with nothing
+else on this Mac set up. The contract is `memnox-cloud/docs/person-inbox.md`.
+
+Every held call, from this Mac, a server or the workspace, is named by `CallLabel` (`Domain/Held`) in one
+shape on the card, the Touch ID sheet, the caption and the voice: "Claude Code on your Mac", "codex on
+build-box", and ", from Ana's team" after a workspace call. `WaitingCalls` queues them, so a second call joins
+the first rather than replacing it, and gives the island its "3 waiting: 2 on build-box, 1 on your Mac"
+header; `SettledLine` words the moment a card says who answered it elsewhere, from only what was reported.
 
 Anything else from the outside world arrives as a closure in `Conversation.init`, with a default
 that is safe in tests: the clock (`now`), the macOS version (`macOSMajorVersion`) and the person's

@@ -93,13 +93,25 @@ without any agents running, start it with `open -n build/Memnox.app --args --isl
 
 ## Quick start
 
-You need macOS 14 or later (26 or later for SpeechAnalyzer), Xcode 26 or later, and the Memnox
-daemon running (`memnox daemon`, or installed by `memnox setup`).
+You need macOS 14 or later (26 or later for SpeechAnalyzer) and Xcode 26 or later. The app brings
+the Memnox runtime itself: on every launch it finds `memnox` or installs it, wires the machine with
+`memnox setup --yes` the first time, starts the daemon, and brings a daemon older than the app up
+to date. Setup only names a command when one of those steps fails.
+
+Where it gets `memnox` is chosen when it is built, and written into its Info.plist:
+
+- **Local**, the default. `bundle.sh` builds the `memnox-runtime` checkout beside this one (or
+  `MEMNOX_RUNTIME_DIR`) with pnpm first, and restarts the daemon on that build when `memnox` on
+  your PATH is that checkout. The app runs the checkout: it links it with `npm link` when `memnox`
+  is some other copy, and never replaces it with the published package.
+- **npm**, for a release: `MEMNOX_RUNTIME_SOURCE=npm ./scripts/bundle.sh`. The app uses a
+  `memnox` already installed, installs `memnox@latest` from npm when there is none, and runs
+  `memnox update --yes` when the daemon is older than the app.
 
 ```sh
 scripts/signing-setup.sh   # once: a local signing identity, so macOS remembers your permissions
 swift test                 # the core, headless, in about a second
-./scripts/bundle.sh        # builds build/Memnox.app
+./scripts/bundle.sh        # builds ../memnox-runtime, then build/Memnox.app against it
 open build/Memnox.app
 ```
 

@@ -3,10 +3,14 @@
 # Signed ad hoc, each build is a stranger, and Accessibility and Automation are asked for again.
 set -e
 NAME="Memnox Local Signing"
-if security find-identity -p codesigning | grep -q "$NAME"; then
+# Only a valid identity counts: a certificate left without its key or its trust signs apps macOS then treats as strangers.
+if security find-identity -v -p codesigning | grep -q "$NAME"; then
   echo "$NAME is already in your keychain."
   exit 0
 fi
+# Whatever is left of an earlier one goes first, or the import collides with it and the trust never takes.
+while security delete-identity -c "$NAME" >/dev/null 2>&1; do :; done
+while security delete-certificate -c "$NAME" >/dev/null 2>&1; do :; done
 DIR=$(mktemp -d)
 trap 'rm -rf "$DIR"' EXIT
 cat > "$DIR/cert.conf" <<CONF

@@ -1,8 +1,6 @@
 import AppKit
 import MemnoxVoiceCore
 
-/// Far above the conversation's own request ids, which count up from one, so a subscription never shares one.
-private let firstSubscriptionId = 1_000
 /// How long to wait before subscribing again after the daemon went away.
 private let resubscribeSeconds: TimeInterval = 2
 private let nanosecondsPerSecond: TimeInterval = 1_000_000_000
@@ -26,16 +24,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let kokoro = KokoroServer()
     /// Puts Kokoro on this Mac the first time, so the natural voice is the default with nothing to run.
     private let kokoroInstaller = KokoroInstaller()
+    private let runtime = RuntimeInstaller()
+    /// The setup card while it is open, told when the voice changes so its picker lists the right voices.
+    private weak var setupModel: SetupModel?
     /// Off until the person turns it on, since it keeps the microphone open whenever the orb is idle.
     private static let wakeKey = "wakeOnName"
     /// On unless turned off: what the person says shows in the notch word by word as it is heard.
     private static let liveWordsKey = "liveWords"
+    /// On unless turned off: words reach a session without its window coming forward, so the person stays where they are.
+    private static let stayPutKey = "deliverInBackground"
     private let link = UnixSocketLink()
+    /// One id source for every request, since a relay session refuses an id already in flight.
+    private let ids = RequestIds()
+    /// This Mac's daemon, or a server picked in setup: what the voice and the session views talk to.
+    private lazy var target = TargetLink(local: link)
+    /// The presenter the conversation and the island use, which only shows a server's sessions and never acts on them.
+    private lazy var shown = TargetPresenter(presenter) { [target] in target.isRemote }
+    /// The servers paired over the relay, each record holding this Mac's Noise key for it.
+    private let servers = KeychainPairedServers()
+    /// One relay link per server, kept while it stays paired, so its held calls arrive whichever machine is picked.
+    private var relays: [String: NoiseRelayLink] = [:]
+    /// The subscription to each server, by machine id, beside the one to this Mac's own daemon.
+    private var listening: [String: Task<Void, Never>] = [:]
+    private var serverPairing: ServerPairing!
+    /// Memnox Cloud for the person signed in on this Mac; a different deployment is set under this defaults key.
+    private static let cloudKey = "cloudURL"
+    private let cloud = HttpWorkspaceInbox(base: UserDefaults.standard.string(forKey: AppDelegate.cloudKey).flatMap(URL.init(string:)) ?? HttpWorkspaceInbox.defaultBase)
+    /// The team credential, in its own Keychain item apart from the paired servers.
+    private let personCredential = KeychainPersonCredential()
+    /// Teammates' calls the workspace routed to the person, answered through it and never through a daemon.
+    private var teamCalls: WorkspaceAnswering!
+    private var team: TeamModel?
+    private var readingInbox: Task<Void, Never>?
+    /// Often enough that a teammate is not kept waiting, rarely enough to stay quiet on the network.
+    private static let inboxEvery: TimeInterval = 20
+    /// The machine picked, by its id; absent is this Mac.
+    private static let machineKey = "talkingTo"
     // Set once in applicationDidFinishLaunching, before anything can reach them.
     private var panel: IslandPanel!
     private var preview: IslandPreview?
     private var voice: Voice!
     private var conversation: Conversation!
+    /// Pairs phones and looks after the devices paired, signing with the same key as the conversation.
+    private var pairing: Pairing!
     private var hotkey: Hotkey?
     private let owner = DefaultsOwner()
     private let presenter = SessionPresenter()
@@ -51,6 +82,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let setup = SetupWindow()
     private var menuBar: MenuBarPanel?
     private var menu: MenuModel?
+    /// The home the window opens on, read again when the stream says what it counts has changed.
+    private var home: HomeModel?
+    /// The held calls not yet settled, counted for the menu's Need you since the island shows only one at a time.
+    private var waitingCalls = Set<String>()
     /// Turns run one after another, so a held call never talks over an answer.
     private var tail: Task<Void, Never>?
     /// Touch ID sheets one after another, apart from the conversation, since two at once collide.
@@ -58,11 +93,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var talking = false
     /// Turns queued or running, since the name is only listened for when there are none.
     private var turns = 0
+    /// A phone holds the voice, so the Mac does not answer to its name and the phone hears it alone.
+    private var phoneHoldsVoice = false
 
     /// How long the microphone stays open for a follow up after an answer, long enough to think one up.
     private static let followUpSeconds: TimeInterval = 15
     /// How long it waits for the rest when the brain thought they stopped mid thought; past it, what they said is answered as it stands.
     private static let restOfThoughtSeconds: TimeInterval = 6
+    /// A request this long already says what to do, so a hold on it waits only a breath for more.
+    private static let longRequestWords = 8
+    private static let briefRestSeconds: TimeInterval = 2.5
+
+    private static func restOfThought(after said: String) -> TimeInterval {
+        said.split(whereSeparator: \.isWhitespace).count >= longRequestWords ? briefRestSeconds : restOfThoughtSeconds
+    }
     private static let firstWordSeconds: TimeInterval = 10
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -75,6 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         let voice = Voice()
+        voice.route = audio
         self.voice = voice
         panel = IslandPanel(loudness: { [audio] in max(audio.micLevel, voice.level) })
         ears.hearing = { [weak self] words in
@@ -99,15 +144,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSLog("Memnox: no confirmation key, so allows stay in the terminal: \(error)")
             key = RefusingKey()
         }
+        teamCalls = WorkspaceAnswering(inbox: cloud, store: personCredential, key: key)
         conversation = Conversation(
-            link: link, speaker: voice, key: key, face: panel, owner: owner, presenter: presenter, chimes: chimes,
+            link: target, speaker: voice, key: key, face: panel, owner: owner, presenter: shown, chimes: chimes,
             address: { chosenAddress() },
             name: { chosenName() },
-            lookingAt: { [frontApp] in frontApp.name }
+            lookingAt: { [frontApp] in frontApp.name },
+            lookingAtWindow: { [frontApp] in frontApp.windowTitle },
+            ids: ids,
+            // A server never takes a yes without a signature, whatever the event says.
+            signsEveryYes: { [target] subject in target.reachesAnotherMachine(subject: subject) },
+            raisedOn: { [target] subject in target.machine(for: subject)?.serverName },
+            workspace: teamCalls
         )
+        // A team's question answered by voice leaves the island the way a press of its button does.
+        conversation.teamAnswered = { [weak self] subject, outcome in
+            Task { @MainActor [weak self] in
+                self?.panel.answered(subject, outcome)
+                self?.teamForget(subject)
+            }
+        }
+        let team = TeamModel(signIn: WorkspaceSignIn(inbox: cloud, store: personCredential, key: key))
+        team.changed = { [weak self] in self?.readInbox() }
+        self.team = team
+        SettingsWindow.shared.team = team
+        // Phones pair with this Mac's own daemon, whichever machine the voice talks to.
+        pairing = Pairing(link: link, key: key, ids: ids)
+        serverPairing = ServerPairing(
+            pairer: RelayPairer(dialer: WebSocketDialer(), key: ReasonedKey(key, reason: ServerPairingLines.proofReason), kind: IntroducedKind.desktop),
+            store: servers
+        )
+        restoreMachine()
         presenter.livePanel.fetch = { [weak self] session in await self?.conversation.sessionView(session) }
+        presenter.livePanel.island = panel.islandModel
+        presenter.remote = { [target] in target.isRemote }
         presenter.sessions = { [weak self] in await self?.conversation.sessionsList() ?? [] }
         presenter.orbFrame = { [weak self] in self?.panel.orbFrame }
+        presenter.inBackground = { UserDefaults.standard.bool(forKey: Self.stayPutKey) }
+        presenter.frontApp = { [frontApp] in frontApp.name }
+        presenter.personsApp = { [frontApp] in frontApp.running }
         presenter.corrected = { [weak self] typed, sent in
             Task { await self?.conversation.learn(typed: typed, sent: sent) }
         }
@@ -118,7 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.wireSessions(
             list: { [weak self] in await self?.conversation.sessionsList() ?? [] },
             view: { [weak self] session in await self?.conversation.sessionView(session) },
-            open: { [presenter] session, host in Task { _ = await presenter.focus(session: session, host: host) } }
+            open: { [shown] session, host in Task { _ = await shown.focus(session: session, host: host) } }
         )
         panel.keepHistory(in: HistoryFile())
         panel.wireConversation(
@@ -126,6 +201,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Task { await presenter.card(SummaryCard(title: exchange.question, text: exchange.answer)) }
             },
             answerDraft: { [weak self] card, send in self?.answerDraft(card, send: send) },
+            answerWork: { [weak self] card, send in self?.answerWork(card, send: send) },
+            openSignIn: { [weak self] tool in self?.openSignIn(tool) },
+            notMine: { [weak self] card in self?.notMine(card) },
             answerRule: { [weak self] card, scope in self?.answerRule(card, scope: scope) },
             // The question goes back whole, as if said again, so nothing here reads its words.
             askAgain: { [weak self] question in
@@ -138,8 +216,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         holdKeys.ended = { [weak self] in self?.panel.ruling(false) }
         holdKeys.start()
         if !HoldKeys.canWatch { diary.note("Accessibility is off, so holding Control and Option for a rule is not seen yet") }
-        UserDefaults.standard.register(defaults: [Self.speakUpKey: false, Self.bargeKey: true, SystemChimes.key: true, Self.liveWordsKey: true])
+        UserDefaults.standard.register(defaults: [Self.speakUpKey: false, Self.bargeKey: true, SystemChimes.key: true, Self.liveWordsKey: true, Self.stayPutKey: true])
         panel.showLiveWords(UserDefaults.standard.bool(forKey: Self.liveWordsKey))
+        wake.spoken = { [weak self] in
+            self?.voice.spoken(since: Date().addingTimeInterval(-Self.echoLingers)) ?? ""
+        }
         wake.woke = { [weak self] after in
             self?.enqueue { [weak self] in await self?.converse(opening: after, greet: after.isEmpty) }
         }
@@ -158,15 +239,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 UserDefaults.standard.set(on, forKey: Self.liveWordsKey)
                 self?.panel.showLiveWords(on)
             },
+            stayPutOn: UserDefaults.standard.bool(forKey: Self.stayPutKey),
+            setStayPut: { UserDefaults.standard.set($0, forKey: Self.stayPutKey) },
             voiceChoice: VoiceChoice.mac,
             chooseVoice: { [weak self] choice in Task { await self?.chooseVoice(choice, announce: true) } },
             setUp: { [weak self] in self?.showSetup() },
             saySomething: { [weak self] in self?.saySomething() },
             sayRule: { [weak self] in self?.sayRule() },
-            copyWhatHappened: { [weak self] in self?.copyWhatHappened() }
+            copyWhatHappened: { [weak self] in self?.copyWhatHappened() },
+            pairPhone: { [weak self] in self?.pairPhone() },
+            revoke: { [weak self] device in self?.revoke(device) },
+            letDrive: { [weak self] device, on in self?.letDrive(device, on) },
+            loadDevices: { [weak self] in self?.loadDevices() },
+            loadOverview: { [weak self] in self?.loadOverview() }
         )
         self.menu = menu
         menuBar = MenuBarPanel(model: menu)
+        let home = HomeModel(
+            load: { [weak self] in await self?.conversation.home() },
+            handOver: { [weak self] action in await self?.conversation.handOver(action) ?? .unreachable },
+            protectAgents: { [runtime] in await runtime.protectAgents() },
+            remote: { [target] in target.isRemote },
+            openWaiting: { [weak self] in self?.panel.openIsland() },
+            openSession: { [weak self] session in self?.watchLive(session) }
+        )
+        self.home = home
+        SettingsWindow.shared.home = home
         let chosen = UserDefaults.standard.string(forKey: Self.voiceChoiceKey) ?? VoiceChoice.kokoro
         Task {
             await chooseVoice(chosen, announce: false)
@@ -176,10 +274,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         listenForName()
         listenToDaemon()
+        readInbox()
         watchPresence()
         if UserDefaults.standard.bool(forKey: SetupModel.doneKey) {
-            Task { await conversation.introduce() }
-        } else {
+            // Every launch, so an app updated past its runtime brings the runtime along before anyone asks.
+            Task { [runtime, conversation, target] in
+                // A server keeps its own runtime and trusts the key it paired with, so neither is this Mac's to tend.
+                guard !target.isRemote else { return }
+                if let conversation, await runtime.ensure(conversation) != .unreachable { await conversation.introduce() }
+            }
+        } else if !team.isSignedIn {
+            // Somebody who only answers for their team has what they came for, so setup is not pushed on them each launch.
             showSetup()
         }
     }
@@ -231,12 +336,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             next = await answer(said, finished: finished)
             // They carried on before any answer was said, so it is one question in two breaths, not two.
             if let more = next, !conversation.spokeThisTurn { next = "\(said) \(more)" }
-            let holding = conversation.takeHold()
+            // A hold beside words it said is an answer that ends in a question, so it waits as after any answer.
+            let holding = conversation.takeHold() && !conversation.spokeThisTurn
             // Held once on words already marked whole is a brain ignoring the note, and asking again would loop.
             held = holding && !finished ? said : nil
             // They said they were done, so the orb goes now rather than after another wait.
             if next == nil, conversation.takeEnd() { break }
-            waiting = holding ? Self.restOfThoughtSeconds : Self.followUpSeconds
+            waiting = holding ? Self.restOfThought(after: said) : Self.followUpSeconds
             panel.show(.listening, caption: "")
         }
         chimes.play(.closed)
@@ -275,7 +381,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // A breath before, so the first sentence queued for this reply is part of what counts as its own.
         // Back far enough to cover a sentence from before this reply that is still playing.
         let began = Date().addingTimeInterval(-Self.echoLingers)
-        barge.watch(through: audio, spoken: { voice.spoken(since: began) }, speaking: { voice.level > 0 }) { [weak self] in
+        barge.watch(
+            through: audio,
+            spoken: { voice.spoken(since: began) },
+            speaking: { voice.level > 0 },
+            playing: { voice.playingLevel },
+            pause: { voice.hush() },
+            resume: { voice.carryOn() }
+        ) { [weak self] in
             cutting = Task { await self?.conversation.interrupt() }
         }
         await speaking()
@@ -284,29 +397,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return await barge.finish(audio)
     }
 
+    /// An event from one machine: all of it from the one picked, and from the rest what waits on the person.
+    /// Its subject is remembered with the machine, so the answer goes back through the link it came from.
+    private func arrived(_ event: DaemonEvent, from machine: MachineTarget) {
+        let chosen = target.target.machineId == machine.machineId
+        guard MachineEvents.delivers(event, chosen: chosen, thisMac: machine == .thisMac) else { return }
+        target.remember(subject: event.subject, from: machine)
+        arrived(event)
+        if event.eventKind == .settled { target.forget(subject: event.subject) }
+    }
+
     /// Something began or stopped waiting: said out loud, then listened to for the answer.
     private func arrived(_ event: DaemonEvent) {
         // Shown at once, since it belongs to the answer being said now and a queue would hold it until after.
         // A card, a window or a Touch ID sheet belongs to the conversation happening now, so it
         // comes up at once; queued, it would wait until the person stopped talking.
-        if event.eventKind == .show {
+        // Saying the name near the phone must not wake the Mac as well, so the name is not listened for while a phone holds the voice.
+        if let voiceOn = event.voiceOn {
+            phoneHoldsVoice = voiceOn.holding
+            if voiceOn.holding { wake.stop() } else { listenForName() }
+        }
+        // What waits, works and was answered is what the home counts, so it is read again while somebody can see it.
+        if event.eventKind != .show, SettingsWindow.shared.isShowing { home?.refreshSoon() }
+        // A drive grant, a phone's turn and the voice moving are shown rather than said, so they never wait behind speech.
+        if event.eventKind == .show || event.isShownOnly {
             Task { [conversation] in await conversation?.handle(event) }
             return
         }
         // The island shows a held call the moment it arrives, so a hand can answer it before the voice has finished.
         switch event.eventKind {
-        case .held: panel.hold(event)
-        case .settled: panel.release(event.subject)
+        case .held:
+            panel.hold(event, server: target.machine(for: event.subject)?.serverName)
+            waitingCalls.insert(event.subject)
+        case .settled:
+            // The daemon does not say who answered or whether it ran out, so the card claims neither.
+            panel.release(event.subject, note: SettledLine.unknown)
+            waitingCalls.remove(event.subject)
         case .paused: panel.shake()
         case .notice where event.noticeKind == .finished: panel.finished(event)
         case .notice, .proposal, .show, nil: break
         }
+        // Seen as well as said, and only from the daemon's facts, so a pass the ledger never saw is never celebrated.
+        if let gesture = reaction(to: event) { panel.react(gesture, session: event.sessionId) }
         if event.eventKind == .proposal {
             let previous = confirmations
             confirmations = Task { [conversation] in
                 await previous?.value
                 await conversation?.handle(event)
             }
+            return
+        }
+        // A phone holds the voice, so the island shows it and the Mac neither speaks nor opens its microphone.
+        if event.quietOnMac {
+            Task { [conversation] in await conversation?.handle(event) }
             return
         }
         guard event.isSaid(speakUp: UserDefaults.standard.bool(forKey: Self.speakUpKey)) else { return }
@@ -319,7 +462,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
             let cutIn = await overVoice { [conversation] in await conversation?.handle(event) }
             // Only something waiting on their answer keeps the microphone open; news is said and the orb goes back to sleep.
-            if cutIn != nil || event.awaitsAnswer {
+            // A held call answered or run out before its turn came is not waited on.
+            let live = event.eventKind != .held || conversation.stillAsking(event.subject)
+            if cutIn != nil || (event.awaitsAnswer && live) {
                 await converse(opening: cutIn ?? "")
             } else {
                 audio.stop()
@@ -332,12 +477,86 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// and the call stays up if it did not go through.
     private func answerHeld(_ card: HeldCard, _ answer: HoldAnswer) {
         let previous = confirmations
-        confirmations = Task { [conversation, panel] in
+        confirmations = Task { [weak self, conversation, panel] in
             await previous?.value
             guard let conversation, let panel else { return }
-            let outcome = await conversation.answerHeld(card.subject, answer, reason: card.summary, touchID: card.touchID)
+            let outcome = await conversation.answerHeld(card.subject, answer, reason: card.reason(for: answer), touchID: card.touchID)
             panel.answered(card.subject, outcome)
+            switch outcome {
+            // The card already went, or says who got there first, so only the bookkeeping is left.
+            case .answered, .answeredElsewhere: self?.teamForget(card.subject)
+            case .cancelled, .failed: break
+            }
         }
+    }
+
+    /// Reads the team's inbox now and then every little while, for as long as the app runs; signed out, it reads nothing.
+    private func readInbox() {
+        readingInbox?.cancel()
+        readingInbox = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self, let teamCalls = self.teamCalls else { return }
+                self.teamArrived(await teamCalls.refresh())
+                try? await Task.sleep(nanoseconds: UInt64(Self.inboxEvery * nanosecondsPerSecond))
+            }
+        }
+    }
+
+    /// What a read of the team's inbox changed: new calls on the island beside this Mac's and the servers', gone ones off it.
+    private func teamArrived(_ change: InboxChange) {
+        if change.signedOut {
+            // The workspace revoked it, so it is forgotten here rather than sent again every poll.
+            personCredential.delete()
+            team?.signedOutByTeam()
+        }
+        teamSettled(change.gone, notes: change.answeredElsewhere, quietly: change.signedOut)
+        for call in change.arrived {
+            // Known to belong to the workspace, so no daemon link is ever sent its answer.
+            target.rememberWorkspace(subject: call.id)
+            waitingCalls.insert(call.id)
+            diary.note("the team routed \(call.id) to you: \(call.who)")
+            // Queued beside this Mac's and the servers' calls, so none takes another's place on the island.
+            panel.hold(card: HeldCard(team: call))
+            announceTeam(call)
+        }
+    }
+
+    /// A teammate's call said aloud like one of this Mac's, after whatever is being said now, and then listened for
+    /// like one, since every ask names it to the brain; a phone holding the voice keeps the Mac quiet.
+    private func announceTeam(_ call: WorkspaceHeldCall) {
+        guard !phoneHoldsVoice else { return }
+        enqueue { [self] in
+            // Answered or gone before its turn came, so it is not asked about.
+            guard waitingCalls.contains(call.id) else { return }
+            panel.present()
+            do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
+            let cutIn = await overVoice { [conversation] in await conversation?.announceTeam(call) }
+            // Answered by hand or elsewhere while it was said, so nothing is left to listen for.
+            if cutIn != nil || conversation.stillAsking(call.id) {
+                await converse(opening: cutIn ?? "")
+            } else {
+                audio.stop()
+                panel.dismiss()
+            }
+        }
+    }
+
+    /// Teammates' calls answered or gone: off the island with who answered where the workspace said, and the voice
+    /// stops asking about them. A sign out takes them down without a word, since nobody answered them.
+    private func teamSettled(_ ids: [String], notes: [String: String], quietly: Bool) {
+        for id in ids where target.belongsToWorkspace(subject: id) {
+            teamForget(id)
+            let note = quietly ? nil : notes[id] ?? SettledLine.unknown
+            panel.release(id, note: note)
+            conversation.teamSettled(id, line: note)
+        }
+    }
+
+    /// A teammate's call nothing waits on any more, so it is no longer counted or routed.
+    private func teamForget(_ id: String) {
+        guard target.belongsToWorkspace(subject: id) else { return }
+        target.forget(subject: id)
+        waitingCalls.remove(id)
     }
 
     /// Control and Option held: whatever was going on gives way, and the rule is listened to for as long as they are down.
@@ -391,11 +610,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Enforce or Not now on a rule: Touch ID over the place picked, one sheet after another, and the card stays up if it did not go.
     private func answerRule(_ card: RuleCard, scope: RuleScope?) {
         let previous = confirmations
-        confirmations = Task { [conversation, panel] in
+        confirmations = Task { [weak self, conversation, panel] in
             await previous?.value
             guard let conversation, let panel else { return }
             let reason = "\(card.draft.summary) \(scope.map(placeWords) ?? "")"
             panel.ruleAnswered(card, await conversation.answerRule(card.subject, scope: scope, reason: reason))
+            // A rule handed over takes its action off the ready card, and no event says so.
+            if SettingsWindow.shared.isShowing { self?.home?.refresh() }
         }
     }
 
@@ -407,6 +628,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let conversation, let panel else { return }
             panel.draftAnswered(card, await conversation.answerDraft(card.subject, send: send, reason: card.reason))
         }
+    }
+
+    /// What goes out in the person's name: Touch ID for a Send, one sheet after another, and the card stays up if it did not go.
+    private func answerWork(_ card: WorkCard, send: Bool) {
+        let previous = confirmations
+        confirmations = Task { [conversation, panel] in
+            await previous?.value
+            guard let conversation, let panel else { return }
+            panel.workAnswered(card, await conversation.answerDraft(card.subject, send: send, reason: card.reason))
+        }
+    }
+
+    /// Not me takes nothing away by itself: it asks for a fresh sign in, which replaces an account not tied to them.
+    private func notMine(_ card: SignedInCard) {
+        panel.signedInDismissed(card)
+        guard !talking else { return }
+        // Said as the person would say it, so the brain opens a fresh sign in with their own account.
+        let again = "Sign me in to \(card.tool) again, with my own account"
+        enqueue { [weak self] in await self?.converse(opening: again) }
+    }
+
+    /// The tool's own sign in, in the browser; its icon goes once tapped, and comes back if they ask again unsigned.
+    private func openSignIn(_ tool: ToolSignIn) {
+        guard let url = URL(string: tool.url), url.scheme == "https" else {
+            // Written down, since a tap that does nothing at all reads as a notch that cannot be clicked.
+            diary.note("not opening the \(tool.toolkit) sign in, since its link is not https")
+            return
+        }
+        guard NSWorkspace.shared.open(url) else {
+            diary.note("the browser would not open the \(tool.toolkit) sign in")
+            return
+        }
+        panel.signingIn(tool)
     }
 
     /// A tap on the resting notch starts listening; a tap on an open island puts it away.
@@ -430,7 +684,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Listens for "Memnox" while the orb is idle, when the person has turned it on.
     private func listenForName() {
-        guard turns == 0, UserDefaults.standard.bool(forKey: Self.wakeKey) else { return }
+        guard turns == 0, !phoneHoldsVoice, UserDefaults.standard.bool(forKey: Self.wakeKey) else { return }
         wake.start(through: audio)
     }
 
@@ -449,6 +703,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // A voice that could not start is not remembered, so the next launch tries the default again.
         if inUse == choice { UserDefaults.standard.set(choice, forKey: Self.voiceChoiceKey) }
         menu?.voiceChoice = inUse
+        tellVoice(KokoroVoice.chosen().voice)
+        await setupModel?.voiceChanged()
         diary.note("speaking with \(inUse)")
         guard announce else { return }
         enqueue { [self] in
@@ -457,6 +713,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await voice.speak(inUse == choice
                 ? "Good evening. This is how I sound now."
                 : "That voice is not available, so I will keep using this one.")
+            panel.dismiss()
+        }
+    }
+
+    /// The Kokoro voice picked, told to the daemon so a paired phone speaks with it too.
+    private func tellVoice(_ voice: String) {
+        Task { [pairing] in await pairing?.tellVoice(voice) }
+    }
+
+    /// From the menu: setup opens on its phone row and a pairing starts.
+    private func pairPhone() {
+        showSetup()
+        Task { [weak self] in await self?.setupModel?.pairPhone() }
+    }
+
+    /// A session from the home's Working now, opened in the live window with the host its card names.
+    private func watchLive(_ session: HomeWorking) {
+        Task { [weak self] in
+            guard let self, let conversation = self.conversation else { return }
+            let host = await conversation.sessionsList().first { $0.sessionId == session.sessionId }?.host
+            await self.shown.live(session: session.sessionId, host: host)
+        }
+    }
+
+    /// The menu's four numbers, from the daemon's sessions and the calls still held.
+    private func loadOverview() {
+        Task { [weak self] in
+            guard let self, let conversation = self.conversation else { return }
+            let sessions = await conversation.sessionsList()
+            self.menu?.overview = MenuOverview(sessions: sessions, waiting: self.waitingCalls.count)
+        }
+    }
+
+    /// The phones paired and not revoked, for the menu's list.
+    private func loadDevices() {
+        Task { [weak self] in
+            guard let self, let pairing = self.pairing else { return }
+            let found = await pairing.devices()
+            self.menu?.devices = found.filter { !$0.isRevoked && $0.deviceKind == .phone }
+        }
+    }
+
+    /// Revoke in the menu: no Touch ID, since it only narrows what can reach this Mac.
+    private func revoke(_ device: Device) {
+        Task { [weak self] in
+            guard let self, let pairing = self.pairing else { return }
+            _ = await pairing.revoke(device)
+            self.loadDevices()
+        }
+    }
+
+    /// Let it drive this Mac in the menu: on, Touch ID signs the grant of mac since it widens what the phone can do;
+    /// off goes unsigned since it only narrows it, and ends any drive under way.
+    private func letDrive(_ device: Device, _ on: Bool) {
+        Task { [weak self] in
+            guard let self, let pairing = self.pairing else { return }
+            _ = on ? await pairing.grant(.mac, to: device) : await pairing.ungrant(.mac, from: device)
+            self.loadDevices()
+        }
+    }
+
+    /// A short line through the orb, apart from any conversation, the way the menu's own lines are said.
+    private func sayAside(_ line: String) {
+        enqueue { [self] in
+            panel.present()
+            panel.show(.speaking, caption: caption(line))
+            await voice.speak(line)
             panel.dismiss()
         }
     }
@@ -492,16 +815,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Reconnects after the daemon restarts, since it is the daemon's to come and go.
+    /// This Mac's own daemon is always listened to, so its agents' held calls reach the island whichever machine is picked.
     private func listenToDaemon() {
-        let link = self.link
-        let deliver: @MainActor (DaemonEvent) -> Void = { [weak self] event in self?.arrived(event) }
-        Task.detached {
-            var id = firstSubscriptionId
-            while true {
-                id += 1
+        _ = listen(to: .thisMac, through: link)
+    }
+
+    /// Reconnects after a machine's daemon restarts or its relay drops, until the task is cancelled when the server is forgotten.
+    private func listen(to machine: MachineTarget, through link: DaemonLink) -> Task<Void, Never> {
+        let ids = self.ids
+        let deliver: @MainActor (DaemonEvent) -> Void = { [weak self] event in self?.arrived(event, from: machine) }
+        return Task.detached {
+            while !Task.isCancelled {
                 do {
-                    for try await response in link.stream(DaemonRequest(id: id, method: .subscribe)) {
+                    for try await response in link.stream(DaemonRequest(id: ids.next(), method: .subscribe)) {
                         guard let event = response.event else { continue }
                         await deliver(event)
                     }
@@ -520,6 +846,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         center.addObserver(forName: Self.screenUnlocked, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.cameBack() }
+        }
+        // Asleep, nothing was read, so the team's inbox is read the moment the Mac wakes rather than on the next tick.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.readInbox() }
         }
     }
 
@@ -551,8 +881,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The agents, CLIs and servers on this machine, so the recognizer hears "Railway" and not "right away".
     private func learnNames() async {
         let words = await conversation.vocabulary()
-        let names = Array(Set(recognizerHints + words))
-        recognizerHints = Array(Set(names + SpokenTerms.terms))
+        let names = Array(Set(firstRecognizerHints + words))
+        // Every term still trains the model below; the hints are kept to the few it weighs well.
+        recognizerHints = chosenHints(firstRecognizerHints, words, SpokenTerms.terms)
         diary.note("listening for \(recognizerHints.count) names")
         // Hints only nudge the recognizer, so the same names also train a model it hears them with.
         await Vocabulary.train(names: names)
@@ -590,14 +921,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func showSetup() {
-        let model = SetupModel(owner: owner, conversation: conversation, voice: voice, kokoro: kokoroInstaller) { [weak self] in
+        // The window keeps the model it was built with until setup finishes, so an open one is shown again.
+        if let setupModel {
+            setup.show(setupModel)
+            return
+        }
+        let model = SetupModel(owner: owner, conversation: conversation, pairing: pairing, voice: voice, kokoro: kokoroInstaller, runtime: runtime) { [weak self] in
             self?.setupFinished()
         }
+        model.serverPairing = serverPairing
+        model.talkingTo = UserDefaults.standard.string(forKey: Self.machineKey)
+        model.serversChanged = { [weak self] in self?.restoreMachine() }
+        model.chooseMachine = { [weak self] machineId in self?.talkTo(machineId) }
+        model.say = { [weak self] line in self?.sayAside(line) }
+        model.devicesChanged = { [weak self] in self?.loadDevices() }
+        model.voicePicked = { [weak self] voice in self?.tellVoice(voice) }
         model.useKokoro = { [weak self] in
             guard let self else { return }
             if await self.kokoroInstaller.install() { await self.chooseVoice(VoiceChoice.kokoro, announce: false) }
         }
+        setupModel = model
         setup.show(model)
+    }
+
+    /// The machine the voice talks to from now on, nil for this Mac, remembered across launches.
+    private func talkTo(_ machineId: String?) {
+        UserDefaults.standard.set(machineId, forKey: Self.machineKey)
+        restoreMachine()
+    }
+
+    /// Points the conversation at the machine remembered, falling back to this Mac when that server is no longer paired,
+    /// and tells the events which device ids are this Mac's own on each server.
+    private func restoreMachine() {
+        let paired = servers.all()
+        OwnDevices.shared.set(Set(paired.map(\.deviceId)))
+        // A link per server still paired, so a forgotten one is closed rather than left open on the relay.
+        for (machineId, relay) in relays where !paired.contains(where: { $0.machineId == machineId }) {
+            relays[machineId] = nil
+            listening[machineId]?.cancel()
+            listening[machineId] = nil
+            target.unregister(machineId: machineId)
+            Task { await relay.close() }
+        }
+        // Every server is listened to, not only the one picked, so none of their held calls is missed.
+        for server in paired {
+            let relay = relays[server.machineId] ?? NoiseRelayLink(mac: server, dialer: WebSocketDialer())
+            relays[server.machineId] = relay
+            let machine = MachineTarget.server(machineId: server.machineId, deviceId: server.deviceId, name: server.machine)
+            target.register(machine, link: relay)
+            if listening[server.machineId] == nil { listening[server.machineId] = listen(to: machine, through: relay) }
+        }
+        let chosen = UserDefaults.standard.string(forKey: Self.machineKey)
+        guard let server = paired.first(where: { $0.machineId == chosen }) else {
+            if chosen != nil { UserDefaults.standard.removeObject(forKey: Self.machineKey) }
+            if target.isRemote { target.choose(.thisMac) }
+            setupModel?.talkingTo = nil
+            return
+        }
+        let wanted = MachineTarget.server(machineId: server.machineId, deviceId: server.deviceId, name: server.machine)
+        if target.target != wanted { target.choose(wanted) }
+        setupModel?.talkingTo = server.machineId
     }
 
     /// Setup is done: the window goes, and the orb says hello once so the person hears it work.

@@ -266,6 +266,42 @@ final class TalkingTests: XCTestCase {
         XCTAssertTrue(speaker.said[1].contains("Developer: Restart Extension Host"))
     }
 
+    func testNamesTheAdHocBuildOnlyWhenTheGrantCannotBeKept() async throws {
+        final class RefusedPresenter: Presenter {
+            func live(session: String, host: DisplayHost?) async {}
+            func focus(session: String, host: DisplayHost?) async -> Typed { .landed }
+            func open(_ host: DisplayHost?) async -> Bool { true }
+            func card(_ card: SummaryCard) async {}
+            func type(_ text: String, into host: DisplayHost?, request: String) async -> Typed { Typed(.notAllowed, "Memnox is not allowed to type yet") }
+            func prefill(_ text: String, session: String, host: DisplayHost?) async -> Typed { .landed }
+            func launch(_ command: String, in folder: String?) async -> Typed { .landed }
+            func walk(_ walk: WalkCard) async {}
+            func scan(_ agents: [AgentNode], title: String) async {}
+            func trace(_ trace: TraceData, title: String) async {}
+            func board(title: String) async {}
+        }
+        let type = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_6","agent":"claude-code","summary":"commit it","at":"2026-10-01T00:00:00Z","display":"type","host":{"app":"Terminal","tty":"ttys004"}}}"#).event)
+        var said: [Bool: [String]] = [:]
+        for adHoc in [false, true] {
+            let speaker = RecordingSpeaker()
+            let conversation = Conversation(
+                link: SlowLink(seconds: 0, answer: [try line(#"{"id":1,"ok":true,"outcome":"kept"}"#)]),
+                speaker: speaker, key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil),
+                presenter: RefusedPresenter(), macOSMajorVersion: 27, adHocBuild: adHoc
+            )
+            await conversation.handle(type)
+            said[adHoc] = speaker.said
+        }
+        let signed = try XCTUnwrap(said[false]?.first)
+        let adHoc = try XCTUnwrap(said[true]?.first)
+        XCTAssertTrue(signed.contains("Device Control and Data Access"))
+        XCTAssertFalse(signed.contains("ad hoc"))
+        XCTAssertTrue(adHoc.contains("signed ad hoc, so macOS forgets that grant each time it is rebuilt"))
+        // The step line a typed hint carries says the same, since both are the one thing only the person can fix.
+        XCTAssertFalse(Conversation.line(for: .allowTyping, macOSMajorVersion: 26).contains("ad hoc"))
+        XCTAssertTrue(Conversation.line(for: .allowTyping, macOSMajorVersion: 26, adHocBuild: true).contains("ad hoc"))
+    }
+
     func testAsksAgainRatherThanStayingSilentWhenTheBrainHoldsOnWordsMarkedWhole() async throws {
         let hold = [
             try line(#"{"id":1,"ok":true,"chunk":{"kind":"tool","tool":"mcp__memnox-operator__keep_listening"}}"#),
@@ -497,6 +533,39 @@ final class TalkingTests: XCTestCase {
         let seen = try XCTUnwrap(link.sent.first { $0.method == "seen" })
         XCTAssertEqual(seen.subject, "dsp_9")
         XCTAssertEqual(seen.sight?.image, "/s/1.png")
+    }
+
+    func testReadsASessionsOwnTabRatherThanAnotherAppsWindow() async throws {
+        final class TabPresenter: Presenter {
+            func live(session: String, host: DisplayHost?) async {}
+            func focus(session: String, host: DisplayHost?) async -> Typed { .landed }
+            func open(_ host: DisplayHost?) async -> Bool { true }
+            func card(_ card: SummaryCard) async {}
+            func type(_ text: String, into host: DisplayHost?, request: String) async -> Typed { .landed }
+            func prefill(_ text: String, session: String, host: DisplayHost?) async -> Typed { .landed }
+            func launch(_ command: String, in folder: String?) async -> Typed { .landed }
+            func walk(_ walk: WalkCard) async {}
+            func scan(_ agents: [AgentNode], title: String) async {}
+            func trace(_ trace: TraceData, title: String) async {}
+            func board(title: String) async {}
+            var looked: [String?] = []
+            func look(app: String?) async -> Sight? {
+                looked.append(app)
+                return Sight(app: "Cursor", outline: "Window")
+            }
+            func readTab(of host: DisplayHost) async -> Sight? {
+                Sight(app: "iTerm", text: "Workspace Trust Required\n[a] Trust this workspace\n[q] Quit")
+            }
+        }
+        let link = ScriptedLink()
+        let presenter = TabPresenter()
+        let conversation = Conversation(link: link, speaker: RecordingSpeaker(), key: PersonKey(), face: RecordingFace(), owner: MemoryOwner(nil), presenter: presenter)
+        let look = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"show","subject":"dsp_7","agent":"cursor","summary":"","at":"2026-10-14T16:02:25Z","display":"look","title":"Cursor","sessionId":"ses_6e3ffd47-38b","host":{"appPath":"/Applications/iTerm.app","tty":"ttys004","marks":["ses_6e3ffd47-38b"]}}}"#).event)
+        await conversation.handle(look)
+        XCTAssertEqual(presenter.looked, [])
+        let seen = try XCTUnwrap(link.sent.first { $0.method == "seen" })
+        XCTAssertEqual(seen.sight?.app, "iTerm")
+        XCTAssertEqual(seen.sight?.text?.contains("Trust this workspace"), true)
     }
 
     func testKeepsTheWindowAndSaysSoWhenTheDaemonDidNotHear() async throws {

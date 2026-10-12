@@ -71,6 +71,13 @@ public final class Conversation {
     private var handingOver: Task<DaemonResponse?, Never>?
     /// A phone's turn put together from its notices, so each one shows the whole of it so far.
     private var phoneConversation = PhoneConversation()
+    /// The phone holding this Mac's voice, set the moment the daemon says the voice moved, so nothing an event raises is said here meanwhile.
+    public var phoneHolds: PhoneVoice?
+
+    /// Whether an event is only shown here: stamped for a phone, or arriving while a phone holds the voice.
+    public func isQuiet(_ event: DaemonEvent) -> Bool {
+        event.quietOnMac(phoneHolds: phoneHolds != nil)
+    }
     /// When their last word was recognised, set by whoever listened, so the wait for the end is timed.
     public var lastWordAt: Date?
     /// When the first sentence of the answer was ready to speak, for the trace of this turn.
@@ -78,6 +85,8 @@ public final class Conversation {
     private let now: () -> Date
     /// The Mac's major version, taken in init so a test can name the System Settings pane of either release.
     private let macOSMajorVersion: Int
+    /// Whether this build is signed ad hoc, which makes macOS forget the typing grant each time it is rebuilt.
+    private let adHocBuild: Bool
     /// How the person asked to be addressed, read through a closure so the composition root owns the file and tests choose it.
     private let address: () -> String?
     /// Their name, which the wake line keeps for a greeting and says far less often than the address.
@@ -110,9 +119,16 @@ public final class Conversation {
         let moment = now()
         let since = lastCalled.map { moment.timeIntervalSince($0) }
         lastCalled = moment
+        // The same rule WakeLines greets by, kept here so the brain is told it need not greet again.
+        if since.map({ $0 >= WakeLines.freshAfter }) ?? true { greetedAt = moment }
         let hour = Calendar.current.component(.hour, from: moment)
         return wakeLines.line(address: address(), name: name(), hour: hour, sinceLastCall: since, at: moment)
     }
+    /// When the Mac last greeted them out loud, which the brain hears of so the same hello is never said twice.
+    private var greetedAt: Date?
+    /// A greeting holds for this long, the same span the daemon counts as one sitting.
+    static let greetingHolds: TimeInterval = 30 * 60
+
     /// Long enough to say "yes, go ahead" and have the brain propose it.
     static let answerWindow: TimeInterval = 120
     /// How long after a sign in finished its request is still worth carrying on with, when nothing was said since.
@@ -128,6 +144,7 @@ public final class Conversation {
         chimes: Chimes? = nil,
         now: @escaping () -> Date = Date.init,
         macOSMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
+        adHocBuild: Bool = false,
         address: @escaping () -> String? = { nil },
         name: @escaping () -> String? = { nil },
         lookingAt: @escaping () -> String? = { nil },
@@ -153,6 +170,7 @@ public final class Conversation {
         self.lookingAt = lookingAt
         self.lookingAtWindow = lookingAtWindow
         self.macOSMajorVersion = macOSMajorVersion
+        self.adHocBuild = adHocBuild
         self.fillers = fillers
         self.link = link
         self.speaker = speaker
@@ -247,7 +265,14 @@ public final class Conversation {
             return .unreachable
         }
         if let refusal = Self.refusal(response) { return refusal }
-        return response.ok && response.waiting != nil ? .ready : .tooOld
+        guard response.ok, response.waiting != nil else { return .tooOld }
+        // A runtime built from a checkout keeps its version while it gains methods, so the newest one this app needs
+        // is asked for too; only a plain unknown method counts, since a dropped answer is not an older Memnox.
+        if let machine = try? await link.request(DaemonRequest(id: takeId(), method: .machine)),
+           !machine.ok, machine.error?.hasPrefix(Self.unknownMethodError) == true {
+            return .tooOld
+        }
+        return .ready
     }
 
     /// A no with a reason is kept in the daemon's words, since only an unknown method means an older Memnox.
@@ -282,7 +307,8 @@ public final class Conversation {
     /// it is said or done before then, so a guess the person talks past costs nothing but the try.
     public func guess(_ said: String) async {
         let trimmed = said.trimmingCharacters(in: .whitespacesAndNewlines)
-        let words = withoutLeadingName(trimmed)
+        // Cut the same way `heard` cuts, so a guess and the words that follow it match and the guess is kept.
+        let words = withoutTrailingName(withoutLeadingName(trimmed))
         guard words.contains(where: \.isLetter), !nameAlone(trimmed) else { return }
         var request = newRequest(.ask)
         request.said = withUnsent(words)
@@ -298,7 +324,8 @@ public final class Conversation {
     /// `intent` is how they asked, set by the keys they held, never by a word they said.
     public func heard(_ said: String, finished: Bool = false, intent: AskIntent? = nil) async {
         let trimmed = said.trimmingCharacters(in: .whitespacesAndNewlines)
-        let words = withoutLeadingName(trimmed)
+        // Its name called at either end is somebody getting its attention, not part of the question.
+        let words = withoutTrailingName(withoutLeadingName(trimmed))
         // A lone "." is the recognizer hearing noise, and answering it makes the voice talk to nobody.
         guard words.contains(where: \.isLetter) else { return }
         interrupted = false
@@ -322,6 +349,7 @@ public final class Conversation {
         // Every ask names the team's questions, the empty list included, so the brain never answers one already gone.
         request.teamCalls = workspace?.briefs()
         if finished { request.finished = true }
+        if let greetedAt, now().timeIntervalSince(greetedAt) < Self.greetingHolds { request.greeted = true }
         request.intent = intent?.rawValue
         answering = false
         mayFill = true
@@ -585,7 +613,7 @@ public final class Conversation {
         switch event.eventKind {
         case .held:
             // The phone holding the voice asks; the island shows the card for a hand at the Mac, with no sound.
-            if event.quietOnMac {
+            if isQuiet(event) {
                 diary.note("\(event.subject) held while \(phoneHolding(event)) speaks, shown on the island without a sound")
                 return
             }
@@ -611,7 +639,7 @@ public final class Conversation {
             face.show(.listening, caption: caption("\(who) wants to \(event.what ?? event.summary)"))
         case .proposal:
             // The phone that asked answers it, so it is never declined here; a rule still goes on the card for a hand at the Mac.
-            if event.quietOnMac {
+            if isQuiet(event) {
                 if let rule = event.rule { face.rule(subject: event.subject, rule) }
                 diary.note("\(event.subject) proposed while \(phoneHolding(event)) speaks, left for it to answer")
                 return
@@ -632,6 +660,12 @@ public final class Conversation {
                 // What goes out in their name waits on its card, read whole; the sheet comes up on Send.
                 face.work(subject: event.subject, work)
             } else if asked {
+                // The same proposal can arrive twice, from the live feed and from a look at what waits, and confirming
+                // it twice put Touch ID up twice for one request; so each is put to the sensor once.
+                guard takenUp.insert(event.subject).inserted else {
+                    diary.note("\(event.subject) is already being confirmed")
+                    return
+                }
                 // The read back says what the sensor is for, so the sheet waits until it has been said.
                 await untilQuiet()
                 await confirm(event)
@@ -639,7 +673,7 @@ public final class Conversation {
                 await decline(event)
             }
         case .paused:
-            if event.quietOnMac {
+            if isQuiet(event) {
                 diary.note("paused \(event.subject) while \(phoneHolding(event)) speaks, shown without a sound")
                 return
             }
@@ -677,11 +711,12 @@ public final class Conversation {
             }
             if let voiceOn = event.voiceOn {
                 let phone = PhoneVoice(voiceOn)
+                phoneHolds = phone
                 diary.note(phone.map { "\($0.name) took the voice from this Mac" } ?? "\(voiceOn.name) gave the voice back to this Mac")
                 face.voiceOn(phone)
                 return
             }
-            if event.quietOnMac {
+            if isQuiet(event) {
                 diary.note("\(event.subject) told while \(phoneHolding(event)) speaks, left unsaid on this Mac")
                 return
             }
@@ -696,7 +731,7 @@ public final class Conversation {
             if asking == event.subject {
                 asking = nil
                 speaker.stop()
-                if !event.quietOnMac { chimes?.play(.settled) }
+                if !isQuiet(event) { chimes?.play(.settled) }
                 face.show(.idle, caption: "answered elsewhere")
             }
         case .none:
@@ -709,6 +744,8 @@ public final class Conversation {
     /// out with the workspace; a button on the island answers it too, and either way no daemon answers it.
     public func announceTeam(_ call: WorkspaceHeldCall) async {
         guard workspace?.owns(call.id) ?? false else { return }
+        // The phone holding the voice asks it; the island shows the card here without a sound.
+        guard phoneHolds == nil else { return }
         asking = call.id
         interrupted = false
         chimes?.play(.held)
@@ -817,7 +854,7 @@ public final class Conversation {
         }
         guard let presenter else { return }
         // A phone asked or holds the voice, so its own speaker answers; the Mac does the work and shows it, and says nothing.
-        let quiet = event.quietOnMac
+        let quiet = isQuiet(event)
         if quiet { diary.note("doing \(event.subject) for \(phoneHolding(event)) without a sound") }
         await witnessBefore(event)
         switch event.displayKind {
@@ -876,7 +913,8 @@ public final class Conversation {
                 env: event.app?.env ?? [:],
                 // The summary falls back to the title, so only words the runtime sent are typed.
                 typed: event.summary == event.title ? nil : event.summary,
-                newChat: event.via == Self.viaNewChat
+                newChat: event.via == Self.viaNewChat,
+                sendPrefilled: event.via == Self.viaSendPrefilled
             )
             await oneAtATime { [self] in
                 face.show(.thinking, caption: "opening \(start.name)")
@@ -915,7 +953,7 @@ public final class Conversation {
             await oneAtATime { [self] in
                 face.show(.thinking, caption: "answering it")
                 let pressed = await keys.asyncMap { keys in
-                    await event.sessionId.asyncMap { await presenter.press(keys, session: $0, host: event.host) }
+                    await event.sessionId.asyncMap { await presenter.press(keys, session: $0, host: event.host, request: event.subject) }
                 } ?? nil
                 await delivered(event, pressed ?? Typed(.failed, keys == nil ? "those were not keys" : "no session to answer"),
                                 otherwise: "My apologies, I could not answer it in its terminal.")
@@ -931,6 +969,16 @@ public final class Conversation {
                 if !quiet { speaker.queue("My apologies, I could not open that folder.") }
                 return
             }
+        case .link:
+            // Only a web address is opened, whatever the event carried, so a link never starts an app.
+            guard let url = event.webLink, await presenter.openLink(url) else {
+                diary.note("could not open the link for \(event.subject)")
+                await shown(event, Typed(.failed, "not a web page this Mac could open"))
+                if !quiet { speaker.queue("My apologies, I could not open that page.") }
+                return
+            }
+            diary.note("opened a page on \(url.host ?? "the web") for \(event.subject)")
+            await shown(event, Typed(.typed))
         case .draft, .signIn:
             // Shown by the face before the presenter is needed, above.
             break
@@ -941,7 +989,7 @@ public final class Conversation {
                 text: event.summary,
                 files: event.files ?? [],
                 excerpt: event.excerpt,
-                sessionId: event.sessionId,
+                sessionId: event.cardSession,
                 host: event.host
             ))
         case .none:
@@ -954,7 +1002,9 @@ public final class Conversation {
         guard let presenter else { return }
         face.react(.glance)
         let app = event.title.flatMap { $0.isEmpty ? nil : $0 }
-        let sight = await presenter.look(app: app)
+        // A session's own tab is read by its terminal first, so its question is seen without Screen Recording.
+        var sight = await event.host.asyncMap { await presenter.readTab(of: $0) } ?? nil
+        if sight == nil { sight = await presenter.look(app: app) }
         diary.note("looked at \(sight?.app ?? app ?? "the screen")\(sight?.image == nil ? " with no capture" : "")")
         var request = newRequest(.seen)
         request.subject = event.subject
@@ -1018,7 +1068,7 @@ public final class Conversation {
     }
 
     private func delivered(_ event: DaemonEvent, _ typed: Typed, otherwise: String) async {
-        let quiet = event.quietOnMac
+        let quiet = isQuiet(event)
         if !quiet { chimes?.play(typed.wentIn || typed.outcome == .waiting ? .done : .failed) }
         if typed.outcome != .verified { diary.note("\(event.subject) \(typed.outcome.rawValue): \(typed.reason ?? "nothing read back")") }
         if let proof = typed.proof {
@@ -1060,6 +1110,7 @@ public final class Conversation {
     static let viaTerminalApp = "terminal-app"
     static let viaPanel = "panel"
     static let viaNewChat = "new-chat"
+    static let viaSendPrefilled = "send-prefilled"
 
     /// Said when the brain held for more on words that were already all of it.
     static let sayItAgain = "Sorry, I did not quite follow. Could you say that once more?"
@@ -1072,7 +1123,7 @@ public final class Conversation {
         diary.note("needs the person: \(hint)")
         guard willSay(hint) else { return }
         hintsSaid.insert(hint)
-        speaker.queue(Self.line(for: hint, macOSMajorVersion: macOSMajorVersion))
+        speaker.queue(Self.line(for: hint, macOSMajorVersion: macOSMajorVersion, adHocBuild: adHocBuild))
     }
 
     /// A step for this one typing is said every time; a setup step once a run, since they heard it already.
@@ -1081,10 +1132,10 @@ public final class Conversation {
     }
 
     /// The steps for one hint, named the way the person sees them on screen.
-    static func line(for hint: TypingHint, macOSMajorVersion: Int) -> String {
+    static func line(for hint: TypingHint, macOSMajorVersion: Int, adHocBuild: Bool = false) -> String {
         switch hint {
         case .allowTyping:
-            return "That went in all at once, because I am not permitted to type yet. To watch me type it, open System Settings, Privacy and Security, \(typingPane(macOSMajorVersion: macOSMajorVersion)), and switch Memnox on."
+            return "That went in all at once, because I am not permitted to type yet. To watch me type it, open System Settings, Privacy and Security, \(typingPane(macOSMajorVersion: macOSMajorVersion)), and switch Memnox on.\(adHocNote(adHocBuild))"
         case .restartExtensions(let app):
             return "\(app) is still running the older Memnox extension. In \(app), press Command Shift P, run Developer: Restart Extension Host, then ask me again."
         case .installExtension(let app):
@@ -1096,6 +1147,9 @@ public final class Conversation {
         }
     }
 
+    /// Proposals already taken up, so one that arrives again is never put to Touch ID a second time.
+    private var takenUp: Set<String> = []
+
     /// Whether they have heard how to let Memnox type, so the second time is one short line rather than the whole of it.
     private var toldHowToAllow = false
 
@@ -1104,12 +1158,17 @@ public final class Conversation {
         defer { toldHowToAllow = true }
         return toldHowToAllow
             ? "Your words are on the clipboard again."
-            : "I am not permitted to type yet. In System Settings, Privacy and Security, \(Self.typingPane(macOSMajorVersion: macOSMajorVersion)), switch Memnox on, or off and on again if it already is. Your words are on the clipboard meanwhile."
+            : "I am not permitted to type yet. I have opened \(Self.typingPane(macOSMajorVersion: macOSMajorVersion)) for you with a fresh entry for Memnox: switch it on once, and I can type from then on.\(Self.adHocNote(adHocBuild)) Your words are on the clipboard meanwhile."
+    }
+
+    /// Said only of a build signed ad hoc, since that is the one case where a grant that shows on does nothing.
+    static func adHocNote(_ adHocBuild: Bool) -> String {
+        adHocBuild ? " This build of Memnox is signed ad hoc, so macOS forgets that grant each time it is rebuilt." : ""
     }
 
     /// Where macOS lists the apps that may press keys: renamed in macOS 27, and a grant left from an
     /// earlier build shows as on there while doing nothing, which only switching it off and on clears.
-    static func typingPane(macOSMajorVersion: Int) -> String {
+    public static func typingPane(macOSMajorVersion: Int) -> String {
         macOSMajorVersion >= typingPaneRenamedIn ? "Device Control and Data Access" : "Accessibility"
     }
     /// The first macOS release that calls the typing pane Device Control and Data Access.
@@ -1270,24 +1329,35 @@ public final class Conversation {
     }
 
     /// A drafted message answered from its card: Send goes only with Touch ID over exactly this draft, and closing it goes unsigned.
-    public func answerDraft(_ subject: String, send: Bool, reason: String) async -> HeldOutcome {
+    public func answerDraft(_ subject: String, send: Bool, reason: String, edited: String? = nil) async -> HeldOutcome {
         var request = newRequest(.confirm)
         request.subject = subject
         let answer: ProposalAnswer = send ? .confirmed : .declined
         request.answer = answer.rawValue
         if send {
-            switch await signature(subject, answer: answer.rawValue, reason: reason) {
+            // Only a Send carries rewritten words, since closing a draft sends nothing at all.
+            request.edited = edited
+            switch await signature(subject, answer: answer.rawValue, edited: edited, reason: reason) {
             case .signed(let signature): request.signature = signature
             case .refused(let outcome): return outcome
             }
         }
         let response = try? await link.request(request)
         if let first = await answeredFirst(response, chose: answer.rawValue) { return .answeredElsewhere(first) }
-        guard response?.ok == true else { return await notThrough(response) }
+        guard response?.ok == true else {
+            diary.note("the draft \(subject) did not go out: \(response?.error ?? "no answer")")
+            return await notThrough(response)
+        }
+        diary.note("the draft \(subject) \(send ? "went out" : "was closed"): \(response?.outcome ?? "")")
         marked(allowed: send)
         face.show(.idle, caption: "")
+        // Said, since a chime alone left the person asking whether it ever went.
+        if send { await say(Self.sentLine) }
         return .answered
     }
+
+    /// Said once a draft went out, so a send is never left to be guessed at.
+    static let sentLine = "Sent."
 
     /// What the person changed in a message the app typed before they sent it: each word they swapped
     /// for one that sounds alike is sent to be learned, so it is heard right the next time they say it.
@@ -1308,7 +1378,7 @@ public final class Conversation {
 
     /// Touch ID over this answer, asked only once the daemon trusts this Mac's key: a signature from any
     /// other key is refused after the fingerprint, which reads as the button doing nothing.
-    private func signature(_ subject: String, answer: String, reason: String) async -> Signing {
+    private func signature(_ subject: String, answer: String, edited: String? = nil, reason: String) async -> Signing {
         if await registerKey() == .anotherKey {
             chimes?.play(.failed)
             face.show(.idle, caption: "")
@@ -1316,7 +1386,7 @@ public final class Conversation {
             return .refused(.failed(Self.anotherKeyLine))
         }
         face.show(.needsYou, caption: caption("Touch ID to \(reason)"))
-        guard let signature = try? await key.sign(confirmationMessage(subject: subject, answer: answer), reason: reason) else {
+        guard let signature = try? await key.sign(confirmationMessage(subject: subject, answer: answer, edited: edited), reason: reason) else {
             face.show(.idle, caption: "")
             return .refused(.cancelled)
         }

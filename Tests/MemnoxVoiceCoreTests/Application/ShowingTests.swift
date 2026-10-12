@@ -103,6 +103,36 @@ final class ShowingTests: XCTestCase {
         XCTAssertEqual(speaker.said, [])
     }
 
+    func testOpensOnlyAWebPageALinkNames() async throws {
+        let hands = ActingPresenter()
+        let opening = Conversation(link: link, speaker: RecordingSpeaker(), key: key, face: face, owner: MemoryOwner(nil), presenter: hands)
+        await opening.handle(try event(#"{"kind":"show","subject":"dsp_11","agent":"agt_memnox-operator","summary":"github.com","at":"2026-10-14T00:00:00Z","display":"link","title":"github.com","sessionId":"all","app":{"links":["https://github.com/moise10r/orbit/pull/49"]}}"#))
+        XCTAssertEqual(hands.links.map(\.absoluteString), ["https://github.com/moise10r/orbit/pull/49"])
+        XCTAssertEqual(link.sent.last?.answer, "typed")
+        await opening.handle(try event(#"{"kind":"show","subject":"dsp_12","agent":"agt_memnox-operator","summary":"x","at":"2026-10-14T00:00:00Z","display":"link","title":"x","sessionId":"all","app":{"links":["file:///etc/hosts"]}}"#))
+        XCTAssertEqual(hands.links.count, 1)
+        XCTAssertEqual(link.sent.last?.answer, "failed")
+    }
+
+    func testAsksToSendWhatCursorsPromptLinkLeftAndTypesNothingItself() async throws {
+        let hands = ActingPresenter()
+        let opening = Conversation(link: link, speaker: RecordingSpeaker(), key: key, face: face, owner: MemoryOwner(nil), presenter: hands)
+        await opening.handle(try event(#"{"kind":"show","subject":"dsp_20","agent":"cursor","summary":"Cursor","at":"2026-10-14T00:00:00Z","display":"app","title":"Cursor","sessionId":"ses_1","host":{"appPath":"/Applications/Cursor.app","cwd":"/r/labvanced"},"via":"send-prefilled","app":{"links":["cursor://file/r/labvanced/","cursor://anysphere.cursor-deeplink/prompt?text=check%20the%20last%20commit&workspace=labvanced"]}}"#))
+        let start = try XCTUnwrap(hands.starts.first)
+        XCTAssertTrue(start.sendPrefilled)
+        XCTAssertNil(start.typed)
+        XCTAssertEqual(start.prefilledWords, "check the last commit")
+    }
+
+    func testPutsAListOnACardThatOffersNoSessionWindow() async throws {
+        let hands = ActingPresenter()
+        let showing = Conversation(link: link, speaker: RecordingSpeaker(), key: key, face: face, owner: MemoryOwner(nil), presenter: hands)
+        let list = try event(#"{"kind":"show","subject":"dsp_13","agent":"agt_memnox-operator","summary":"- #49 Close it","at":"2026-10-14T00:00:00Z","display":"card","title":"Open pull requests","sessionId":"all"}"#)
+        XCTAssertNil(list.cardSession)
+        await showing.handle(list)
+        XCTAssertEqual(hands.cards, ["Open pull requests"])
+    }
+
     func testStillSpeaksForTheSameActionAskedOnThisMac() async throws {
         let speaker = RecordingSpeaker()
         let local = Conversation(link: link, speaker: speaker, key: key, face: face, owner: MemoryOwner(nil), presenter: PhoneHands())
@@ -204,6 +234,39 @@ final class ShowingTests: XCTestCase {
         XCTAssertEqual(speaker.said, [])
         XCTAssertEqual(chimes.played, [])
         XCTAssertTrue(link.sent.isEmpty)
+    }
+
+    func testNothingIsSaidOrChimedWhileAPhoneHoldsTheVoiceEvenWithNoStamp() async throws {
+        let speaker = RecordingSpeaker()
+        let chimes = RecordingChimes()
+        let quiet = Conversation(link: link, speaker: speaker, key: key, face: face, owner: MemoryOwner(nil), chimes: chimes)
+        let moved = #"{"kind":"notice","subject":"voc_1","agent":"memnox","summary":"s","at":"t","voiceOn":{"deviceId":"dev_1","name":"iPhone","holding":true}}"#
+        await quiet.handle(try event(moved))
+        await quiet.handle(try event(#"{"kind":"held","subject":"apr_1","agent":"claude-code","summary":"push to main","at":"t"}"#))
+        await quiet.handle(try event(#"{"kind":"notice","notice":"finished","subject":"ses_1","agent":"claude-code","summary":"Finished.","at":"t"}"#))
+        await quiet.handle(try event(#"{"kind":"settled","subject":"apr_1","agent":"claude-code","summary":"","at":"t"}"#))
+        XCTAssertEqual(speaker.said, [])
+        XCTAssertEqual(chimes.played, [])
+        XCTAssertTrue(link.sent.isEmpty)
+        XCTAssertFalse(quiet.stillAsking("apr_1"))
+    }
+
+    func testAHeldCallIsAskedAgainOnceTheVoiceIsBackOnTheMac() async throws {
+        let chimes = RecordingChimes()
+        let back = Conversation(link: link, speaker: RecordingSpeaker(), key: key, face: face, owner: MemoryOwner(nil), chimes: chimes)
+        link.answers["brief"] = [
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"Claude wants to push."}}"#),
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#),
+        ]
+        let moved = #"{"kind":"notice","subject":"voc_1","agent":"memnox","summary":"s","at":"t","voiceOn":"#
+        await back.handle(try event(moved + #"{"deviceId":"dev_1","name":"iPhone","holding":true}}"#))
+        await back.handle(try event(#"{"kind":"held","subject":"apr_1","agent":"claude-code","summary":"push to main","at":"t","heardOn":{"deviceId":"dev_1","name":"iPhone"}}"#))
+        await back.handle(try event(moved + #"{"deviceId":"dev_1","name":"iPhone","holding":false}}"#))
+        XCTAssertNil(back.phoneHolds)
+        await back.handle(try event(#"{"kind":"held","subject":"apr_1","agent":"claude-code","summary":"push to main","at":"t"}"#))
+        XCTAssertEqual(link.sent.map(\.method), ["brief"])
+        XCTAssertEqual(chimes.played, [.held])
+        XCTAssertTrue(back.stillAsking("apr_1"))
     }
 
     func testAHeldCallWithNoPhoneMarkIsStillBriefedAndAsked() async throws {

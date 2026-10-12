@@ -42,4 +42,8 @@ final class ActingPresenter: Presenter {
     func close(session: String, host: DisplayHost?, request: String) async -> Typed { acts.append("close"); return .landed }
     func interrupt(session: String, host: DisplayHost?, request: String) async -> Typed { acts.append("interrupt"); return .landed }
     func openFolder(_ path: String, in opener: FolderOpener) async -> Bool { acts.append("folder"); return true }
+    var links: [URL] = []
+    func openLink(_ url: URL) async -> Bool { links.append(url); return true }
+    var starts: [AppStart] = []
+    func openApp(_ start: AppStart) async -> Typed { starts.append(start); return .landed }
 }

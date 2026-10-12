@@ -35,6 +35,14 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(face.states.last, .listening)
     }
 
+    func testSendsAQuestionThatEndsInItsNameWithoutTheCallSoTheGuessAtItStillMatches() async throws {
+        link.answers["ask"] = [try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#)]
+        await conversation.guess("why are you taking so long? memnox")
+        await conversation.heard("Why are you taking so long? Memnox Manox")
+        XCTAssertEqual(link.sent.map(\.said), ["why are you taking so long?", "Why are you taking so long?"])
+        XCTAssertEqual(link.sent.last?.speculative, nil)
+    }
+
     func testSendsTheWindowInFrontSoHereMeansThatFolder() async throws {
         link.answers["ask"] = [try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#)]
         let here = Conversation(
@@ -132,6 +140,22 @@ final class ConversationTests: XCTestCase {
         XCTAssertNotNil(sent.signature)
         XCTAssertTrue(face.states.contains(.needsYou))
         XCTAssertEqual(speaker.said.last, "Very well. It is done.")
+    }
+
+    func testPutsOneProposalToTouchIDOnceWhenItArrivesTwice() async throws {
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"confirmed"}"#)]
+        await conversation.heard("turn on enforce")
+        let proposal = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"proposal","subject":"prp_7","agent":"agt_memnox-operator","summary":"enforce on this Mac","at":"t"}}"#).event)
+        await conversation.handle(proposal)
+        await conversation.handle(proposal)
+        XCTAssertEqual(key.signed, ["memnox-confirm:v1:prp_7:confirmed"])
+        XCTAssertEqual(speaker.said.filter { $0 == "Very well. It is done." }.count, 1)
+    }
+
+    func testTellsTheBrainTheMacAlreadyGreetedThem() async throws {
+        _ = conversation.answerToCall()
+        await conversation.heard("what happened in the last session")
+        XCTAssertEqual(link.sent.last(where: { $0.method == "ask" })?.greeted, true)
     }
 
     func testCancellingTouchIDDeclinesAndSendsNoSignature() async throws {
@@ -370,6 +394,17 @@ final class ConversationTests: XCTestCase {
         let old = await conversation.daemonVoice()
         XCTAssertEqual(old, .tooOld)
         link.answers["waiting"] = [try line(#"{"id":2,"ok":true,"waiting":[]}"#)]
+        let ready = await conversation.daemonVoice()
+        XCTAssertEqual(ready, .ready)
+    }
+
+    func testCallsADaemonThatCannotConnectTheMacTooOld() async throws {
+        link.answers["ping"] = [try line(#"{"id":1,"ok":true,"version":"0.13.14"}"#)]
+        link.answers["waiting"] = [try line(#"{"id":2,"ok":true,"waiting":[]}"#)]
+        link.answers["machine"] = [try line(#"{"id":3,"ok":false,"error":"no method machine"}"#)]
+        let old = await conversation.daemonVoice()
+        XCTAssertEqual(old, .tooOld)
+        link.answers["machine"] = [try line(#"{"id":4,"ok":true,"machine":{"signedIn":false}}"#)]
         let ready = await conversation.daemonVoice()
         XCTAssertEqual(ready, .ready)
     }

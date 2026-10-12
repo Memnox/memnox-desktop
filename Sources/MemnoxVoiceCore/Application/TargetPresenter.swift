@@ -84,8 +84,8 @@ public final class TargetPresenter: Presenter {
         remote() ? refused : await inner.interrupt(session: session, host: host, request: request)
     }
 
-    public func press(_ keys: [TerminalPress], session: String, host: DisplayHost?) async -> Typed {
-        remote() ? refused : await inner.press(keys, session: session, host: host)
+    public func press(_ keys: [TerminalPress], session: String, host: DisplayHost?, request: String) async -> Typed {
+        remote() ? refused : await inner.press(keys, session: session, host: host, request: request)
     }
 
     public func dismissAll() async {
@@ -96,8 +96,18 @@ public final class TargetPresenter: Presenter {
         remote() ? false : await inner.openFolder(path, in: opener)
     }
 
+    /// A web page is the same page from any machine, so it opens on this Mac whichever one is the target.
+    public func openLink(_ url: URL) async -> Bool {
+        await inner.openLink(url)
+    }
+
     /// The screen in front is this Mac's, which says nothing about a server's session.
     public func look(app: String?) async -> Sight? {
         remote() ? nil : await inner.look(app: app)
+    }
+
+    /// A tab on this Mac, which says nothing about a server's session.
+    public func readTab(of host: DisplayHost) async -> Sight? {
+        remote() ? nil : await inner.readTab(of: host)
     }
 }

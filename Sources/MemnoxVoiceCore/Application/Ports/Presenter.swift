@@ -41,14 +41,20 @@ public protocol Presenter: AnyObject {
     /// Presses Escape in the session's own terminal, as the person would to stop it, and says whether it went in;
     /// the request is what an editor's extension checks its interrupt link against.
     func interrupt(session: String, host: DisplayHost?, request: String) async -> Typed
-    /// Presses the keys in the session's own terminal tab and nowhere else, answering what its agent asks there.
-    func press(_ keys: [TerminalPress], session: String, host: DisplayHost?) async -> Typed
+    /// Presses the keys in the session's own terminal tab and nowhere else, answering what its agent asks there;
+    /// the request is what an editor's extension reads the keys from.
+    func press(_ keys: [TerminalPress], session: String, host: DisplayHost?, request: String) async -> Typed
     /// Every card, live window, board and scan off the screen; no session is touched.
     func dismissAll() async
     /// A folder opened in Finder, the editor or a new terminal tab, and whether it opened.
     func openFolder(_ path: String, in opener: FolderOpener) async -> Bool
+    /// A web page opened in the person's own browser, and whether it opened.
+    func openLink(_ url: URL) async -> Bool
     /// The window in front, or the named app's, captured with its controls; nil when nothing could be seen.
     func look(app: String?) async -> Sight?
+    /// The words in a session's own terminal tab, read by the terminal's scripting so no Screen Recording is
+    /// needed and no other window is read in its place; nil when it is not in a tab that can be read.
+    func readTab(of host: DisplayHost) async -> Sight?
     /// The window an action is aimed at, captured just before or just after it, with the words read off it;
     /// nil when it cannot be seen or is one never captured, such as a password manager.
     func evidence(of host: DisplayHost?, request: String, at moment: WitnessMoment) async -> Witness?
@@ -63,7 +69,7 @@ extension Presenter {
         Typed(.failed, "this Mac cannot press keys in a session's terminal")
     }
 
-    public func press(_ keys: [TerminalPress], session: String, host: DisplayHost?) async -> Typed {
+    public func press(_ keys: [TerminalPress], session: String, host: DisplayHost?, request: String) async -> Typed {
         Typed(.failed, "this Mac cannot press keys in a session's terminal")
     }
 
@@ -84,7 +90,11 @@ extension Presenter {
 
     public func openFolder(_ path: String, in opener: FolderOpener) async -> Bool { false }
 
+    public func openLink(_ url: URL) async -> Bool { false }
+
     public func look(app: String?) async -> Sight? { nil }
+
+    public func readTab(of host: DisplayHost) async -> Sight? { nil }
 
     public func evidence(of host: DisplayHost?, request: String, at moment: WitnessMoment) async -> Witness? { nil }
 
@@ -103,14 +113,28 @@ public struct AppStart: Equatable, Sendable {
     public let typed: String?
     /// A new chat started first, rather than typing into the one open.
     public let newChat: Bool
+    /// The words the app's own prompt link left in its chat sent with Return, once they are read there.
+    public let sendPrefilled: Bool
 
-    public init(name: String, appPath: String?, folder: String?, links: [String], env: [String: String], typed: String?, newChat: Bool = false) {
+    public init(name: String, appPath: String?, folder: String?, links: [String], env: [String: String], typed: String?,
+                newChat: Bool = false, sendPrefilled: Bool = false) {
         self.newChat = newChat
+        self.sendPrefilled = sendPrefilled
         self.name = name
         self.appPath = appPath
         self.folder = folder
         self.links = links
         self.env = env
         self.typed = typed
+    }
+
+    /// The query item a prompt link carries its words in, as Cursor's does.
+    private static let promptTextItem = "text"
+
+    /// The words the last prompt link carried, read from the link itself so the chat is checked against exactly what was put there.
+    public var prefilledWords: String? {
+        links.reversed().lazy
+            .compactMap { URLComponents(string: $0)?.queryItems?.first { $0.name == Self.promptTextItem }?.value }
+            .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 }

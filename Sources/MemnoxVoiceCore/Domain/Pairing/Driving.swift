@@ -39,6 +39,9 @@ extension DaemonEvent {
     /// Held by a phone or done for its ask, so the phone speaks and the Mac only shows it, with no sound and no chime.
     public var quietOnMac: Bool { quietOnMac(own: OwnDevices.shared.ids) }
 
+    /// Quiet as well for as long as a phone holds this Mac's voice, which covers a server's or a late event with no stamp.
+    public func quietOnMac(phoneHolds: Bool) -> Bool { phoneHolds || quietOnMac }
+
     /// A server stamps this Mac's own asks with the device id it paired as, so those ids are this Mac speaking, not a phone.
     public func quietOnMac(own: Set<String>) -> Bool {
         [heardOn?.deviceId, origin?.deviceId].contains { id in id.map { !own.contains($0) } ?? false }

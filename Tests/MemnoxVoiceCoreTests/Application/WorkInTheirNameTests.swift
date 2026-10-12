@@ -54,6 +54,23 @@ final class WorkInTheirNameTests: XCTestCase {
         XCTAssertNotNil(link.sent.last?.signature)
     }
 
+    func testSendsTheirRewrittenWordsUnderAFingerprintOverExactlyThem() async throws {
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true}"#)]
+        let outcome = await conversation.answerDraft("prp_work", send: true, reason: "send this on Slack as Moise",
+                                                     edited: "Could you review PR 12: the tests fail")
+        XCTAssertEqual(outcome, .answered)
+        XCTAssertEqual(key.signed, ["memnox-confirm:v2:prp_work:confirmed:Could you review PR 12: the tests fail"])
+        XCTAssertEqual(link.sent.last?.edited, "Could you review PR 12: the tests fail")
+    }
+
+    func testClosingARewrittenDraftSendsNoWordsAndNoFingerprint() async throws {
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true}"#)]
+        _ = await conversation.answerDraft("prp_work", send: false, reason: "send this on Slack as Moise", edited: "anything")
+        XCTAssertEqual(key.signed, [])
+        XCTAssertNil(link.sent.last?.edited)
+        XCTAssertEqual(link.sent.last?.answer, "declined")
+    }
+
     func testShowsTheToolsStillToSignInToWithNothingToPresent() async throws {
         await conversation.handle(try event(#"{"kind":"show","subject":"dsp_1","agent":"agt_memnox-operator","summary":"Sign in to use","at":"2026-10-09T09:00:00Z","display":"signin","signIn":[{"toolkit":"linear","url":"https://consent/linear"},{"toolkit":"slack","url":"https://consent/slack","again":true}]}"#))
         let tools = try XCTUnwrap(face.signIns.first)

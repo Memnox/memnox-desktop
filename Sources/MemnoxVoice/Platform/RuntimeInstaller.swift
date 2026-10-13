@@ -37,13 +37,22 @@ final class RuntimeInstaller: ObservableObject {
         if state == .unreachable {
             let wired = FileManager.default.fileExists(atPath: Self.home(Self.keptFile))
             // The first time it wires every agent in observe, which records and enforces nothing until the person says.
-            doing = wired ? "Starting the Memnox daemon" : "Setting Memnox up on this Mac"
+            doing = wired ? "Starting the Memnox service" : "Setting Memnox up on this Mac"
             _ = await Self.shell(wired ? "\(memnox) daemon --install" : "\(memnox) setup --yes --no-probe")
             state = await settle(conversation)
         }
         if state == .tooOld { state = await update(memnox, conversation) }
         failed = why(state)
         return state
+    }
+
+    /// Updates and restarts the daemon whatever it answered, for a method the app needs that its version predates,
+    /// which the version alone does not show while the runtime is built from a checkout.
+    func updateNow(_ conversation: Conversation) async {
+        guard doing == nil, let found = await memnoxCommand() else { return }
+        let state = await update(Self.quoted(found), conversation)
+        failed = why(state)
+        doing = nil
     }
 
     /// Puts the agents found here under Memnox with the same `memnox setup --yes` the first run uses: it asks nothing,
@@ -150,7 +159,7 @@ final class RuntimeInstaller: ObservableObject {
             return "The runtime in \(checkout) is older than this app. Pull it, run pnpm build there, then check again"
         case (.tooOld, .npm): return "This Memnox is older than the app and would not update. In a terminal: memnox update"
         case (.refused(let error), _): return "Memnox answered: \(error). Check again, or in a terminal: memnox doctor"
-        case (.unreachable, _): return "The daemon would not start. In a terminal: memnox daemon --install"
+        case (.unreachable, _): return "The Memnox service would not start. Press Check again to try once more"
         }
     }
 
@@ -165,6 +174,12 @@ final class RuntimeInstaller: ObservableObject {
         let path = output.split(whereSeparator: \.isNewline).last.map(String.init)?.trimmingCharacters(in: .whitespaces)
         guard ok, let path, path.hasPrefix("/") else { return nil }
         return path
+    }
+
+    /// macOS's own reset of one privacy grant for one app, which needs no password for the app asking about itself.
+    /// Both words are fixed by the caller, so nothing typed by anybody reaches the shell.
+    static func forgetGrant(_ service: String, of bundle: String) async {
+        _ = await shell("/usr/bin/tccutil reset \(quoted(service)) \(quoted(bundle))")
     }
 
     /// True when the line ran cleanly; what it printed goes to the diary when it did not.

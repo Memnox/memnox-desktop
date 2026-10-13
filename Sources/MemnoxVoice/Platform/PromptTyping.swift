@@ -28,6 +28,8 @@ enum PromptTyping {
         static let launchLooks = 60
         /// Longer for the box itself, since a page such as a new Claude Code chat draws well after its window.
         static let appBoxLooks = 150
+        /// About ten seconds for a prompt link's words to reach the chat, which may first wait on the person to allow the link.
+        static let prefillLooks = 100
         /// About a second to take the front back from Memnox's own window.
         static let takeBackLooks = 4
         /// Half a minute for the person to answer a system prompt such as Touch ID before typing gives up.
@@ -77,11 +79,13 @@ enum PromptTyping {
         if AXIsProcessTrusted() { return true }
         guard !asked else { return false }
         asked = true
-        if AXIsProcessTrustedWithOptions([trustedCheckPrompt: true] as CFDictionary) { return true }
-        // A grant left over from an earlier build shows as on and does nothing, and then no sheet appears,
-        // so the page it is switched on in is opened as well.
-        if let page = URL(string: accessibilitySettings) {
-            NSWorkspace.shared.open(page)
+        // A grant left over from an earlier build shows as on and does nothing, and no sheet appears for it, which is
+        // what "I gave you access" meant. Memnox's own entries are forgotten first, so the sheet and the switch that
+        // follow are for this build; then the page it is switched on in is opened.
+        Task { @MainActor in
+            await SettingsPane.typing.forgetEarlierBuilds()
+            if AXIsProcessTrustedWithOptions([trustedCheckPrompt: true] as CFDictionary) { return }
+            if let page = URL(string: accessibilitySettings) { NSWorkspace.shared.open(page) }
         }
         return false
     }
@@ -174,6 +178,31 @@ enum PromptTyping {
             }
             last = now
         }
+    }
+
+    /// kVK_ANSI_V, for Command V.
+    private static let vKey: CGKeyCode = 9
+    /// Long enough for the app in front to read the clipboard before what was on it is put back.
+    private static let pasteSettle: TimeInterval = 0.4
+
+    /// Dictated words put where the cursor is in the app in front, all at once as a paste does, and the clipboard
+    /// given back exactly as it was, images and files included. False when that app is no longer in front, so the
+    /// words are left on the clipboard instead.
+    static func paste(_ text: String, into app: NSRunningApplication?) async -> Bool {
+        guard allowed(), let app, inFront(app) else {
+            leaveOnClipboard(text)
+            return false
+        }
+        let board = NSPasteboard.general
+        let earlier = ClipboardSnapshot(of: board)
+        board.clearContents()
+        board.setString(text, forType: .string)
+        let ours = board.changeCount
+        pressCommand(vKey)
+        try? await Task.sleep(nanoseconds: Timing.nanoseconds(pasteSettle))
+        // Only while the dictation is still what is there, so a copy made meanwhile is never undone.
+        if board.changeCount == ours { earlier.restore(to: board) }
+        return true
     }
 
     /// The words left on the clipboard, for when they cannot be typed safely.
@@ -417,6 +446,7 @@ enum PromptTyping {
         AXUIElementSetAttributeValue(element, manualAccessibilityAttribute as CFString, kCFBooleanTrue)
         AXUIElementSetAttributeValue(element, enhancedInterfaceAttribute as CFString, kCFBooleanTrue)
         try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.editorSettle))
+        // Polled, since a window just opened, such as Codex's, draws its composer well after a button takes focus.
         var box = textArea(in: element)
         for _ in 0..<Timing.appBoxLooks where box == nil {
             try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.boxPoll))
@@ -428,9 +458,97 @@ enum PromptTyping {
             diary.note("no message box in \(app.localizedName ?? "the app"): \(role) has focus, and its window shows no text area")
             return Typed(.clipboard, "no message box was found in the app")
         }
+        let hadFocus = holdsFocus(input, in: element)
         AXUIElementSetAttributeValue(input, kAXFocusedAttribute as CFString, kCFBooleanTrue)
         try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.focusSettle))
+        // A box found in the window rather than in focus is typed into only once it holds the focus, since a key on a button presses it.
+        if !hadFocus {
+            let role = string(input, kAXRoleAttribute) ?? "a control"
+            guard holdsFocus(input, in: element) else {
+                diary.note("\(app.localizedName ?? "the app") showed its message box as \(role), which would not take focus")
+                return Typed(.clipboard, "the message box would not take focus")
+            }
+            diary.note("found \(app.localizedName ?? "the app")'s message box as \(role) in its window and put the keyboard there")
+        }
         return await type(text, into: app, box: input)
+    }
+
+    /// Sends what an app's own prompt link left in its chat: only with the app already in front, its chat input in focus
+    /// and holding exactly those words, then Return. Nil when anything does not check out, so the words wait for the person.
+    static func sendPrefilled(_ words: String, inAppAt path: String) async -> Typed? {
+        guard AXIsProcessTrusted(), let app = running(at: path) else { return nil }
+        let element = AXUIElementCreateApplication(app.processIdentifier)
+        // Electron only builds its web content's accessibility tree when something asks for it.
+        AXUIElementSetAttributeValue(element, manualAccessibilityAttribute as CFString, kCFBooleanTrue)
+        let wanted = spaced(words)
+        var box: AXUIElement?
+        for _ in 0..<Timing.prefillLooks where box == nil {
+            box = prefilledBox(holding: wanted, in: element, of: app)
+            if box == nil { try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.boxPoll)) }
+        }
+        guard let box else {
+            diary.note("left the words in \(app.localizedName ?? "the app")'s chat, since its focused input did not hold them with the app in front")
+            return nil
+        }
+        try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.beforeReturn))
+        // Read once more right before Return, so a word the person changed meanwhile is never sent for them.
+        guard prefilledBox(holding: wanted, in: element, of: app) != nil else { return nil }
+        press(returnKey)
+        diary.note("sent what \(app.localizedName ?? "the app")'s prompt link left in its chat")
+        return Typed.landed.verified(await cleared(box, in: element, after: wanted))
+    }
+
+    /// The chat input in focus when the app is in front and the input holds exactly these words.
+    private static func prefilledBox(holding words: String, in app: AXUIElement, of running: NSRunningApplication) -> AXUIElement? {
+        guard inFront(running), let box = focusedComposer(in: app),
+              let value = string(box, kAXValueAttribute), spaced(value) == words
+        else { return nil }
+        return box
+    }
+
+    /// The editable input the focus sits in, the focused element itself or the nearest composer above it.
+    private static func focusedComposer(in app: AXUIElement) -> AXUIElement? {
+        var current = focused(in: app)
+        for _ in 0..<deepestAncestry {
+            guard let node = current else { return nil }
+            if isComposer(node) { return node }
+            current = AXTree.element(node, kAXParentAttribute)
+        }
+        return nil
+    }
+
+    /// The input read after Return until it empties, which is the app taking the words; nil when it never did.
+    private static func cleared(_ box: AXUIElement, in app: AXUIElement, after words: String) async -> Proof? {
+        for _ in 0..<Timing.sentLooks {
+            try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.boxPoll))
+            // A chat that draws a fresh input once it sends is read through the focus instead.
+            let now = string(box, kAXValueAttribute) ?? focusedComposer(in: app).flatMap { string($0, kAXValueAttribute) }
+            if let now, spaced(now).isEmpty { return Proof(checked: "its chat input holding the words, then emptying after Return", seen: words) }
+        }
+        return nil
+    }
+
+    /// Runs of whitespace as one space and none at either end, since an input may wrap or pad what it holds.
+    private static func spaced(_ text: String) -> String {
+        text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    }
+
+    /// Whether the focus sits in this input, on it or on something inside it, as web content reports a caret.
+    private static func holdsFocus(_ input: AXUIElement, in app: AXUIElement) -> Bool {
+        if boolean(input, kAXFocusedAttribute) { return true }
+        var current = focused(in: app)
+        for _ in 0..<deepestAncestry {
+            guard let node = current else { return false }
+            if CFEqual(node, input) { return true }
+            current = AXTree.element(node, kAXParentAttribute)
+        }
+        return false
+    }
+
+    private static func boolean(_ element: AXUIElement, _ name: String) -> Bool {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return false }
+        return (value as? Bool) ?? false
     }
 
     /// Asked again until it is really in front: an app a link just launched is still opening its window,
@@ -457,7 +575,8 @@ enum PromptTyping {
         guard let window = element(app, kAXFocusedWindowAttribute) ?? element(app, kAXMainWindowAttribute)
                 ?? elements(app, kAXWindowsAttribute)?.first
         else { return nil }
-        let found = textAreas(under: window, depth: 0)
+        var visited = 0
+        let found = textAreas(under: window, depth: 0, visited: &visited)
         return found.count <= 1 ? found.first : found.max { top(of: $0) < top(of: $1) }
     }
 
@@ -473,14 +592,35 @@ enum PromptTyping {
         return point.y
     }
 
-    private static func textAreas(under element: AXUIElement, depth: Int) -> [AXUIElement] {
-        if isTextArea(element) || isEditable(element) { return [element] }
-        guard depth < maxTreeDepth, let children = elements(element, kAXChildrenAttribute) else { return [] }
-        return children.flatMap { textAreas(under: $0, depth: depth + 1) }
+    /// Deep enough for a chat app's composer, which Electron nests far below its window, as AXTree reads words.
+    private static let composerDepth = 80
+    /// Enough elements for a long conversation, few enough that one look still answers in a moment.
+    private static let composerElements = 6_000
+
+    private static func textAreas(under element: AXUIElement, depth: Int, visited: inout Int) -> [AXUIElement] {
+        visited += 1
+        if isComposer(element) { return [element] }
+        guard depth < composerDepth, visited < composerElements, let children = elements(element, kAXChildrenAttribute) else { return [] }
+        var found: [AXUIElement] = []
+        for child in children { found += textAreas(under: child, depth: depth + 1, visited: &visited) }
+        return found
     }
 
     private static func isTextArea(_ element: AXUIElement) -> Bool {
         string(element, kAXRoleAttribute) == kAXTextAreaRole
+    }
+
+    /// Chromium's pointer from inside editable web content to its outermost editable element, which has no kAX constant.
+    private static let highestEditableAncestorAttribute = "AXHighestEditableAncestor"
+
+    /// A text area, an editable field, or the root of editable web content, which is how a contenteditable composer
+    /// shows: a group whose value may be set, or the element its own content names as its outermost editable one.
+    private static func isComposer(_ element: AXUIElement) -> Bool {
+        if isTextArea(element) || isEditable(element) { return true }
+        if let highest = AXTree.element(element, highestEditableAncestorAttribute), CFEqual(highest, element) { return true }
+        guard string(element, kAXRoleAttribute) == kAXGroupRole else { return false }
+        var settable = DarwinBoolean(false)
+        return AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success && settable.boolValue
     }
 
     /// What Claude Code's message box calls itself to accessibility.

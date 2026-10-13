@@ -49,8 +49,12 @@ final class AnalyzerEars {
     nonisolated(unsafe) private static var modelsReady: Set<String> = []
 
     /// The next thing said, nothing when the wait ran out, or unavailable when it could not start.
-    /// With `holding`, it listens for exactly as long as that says the keys are down, and no pause ends it.
-    func listen(through audio: AudioIO, waiting: TimeInterval, holding: (() -> Bool)? = nil, cut: Flag? = nil) async -> Listened {
+    /// With `holding`, it listens for exactly as long as that says the keys are down, and `tail` after, and no pause ends it.
+    /// `hints` are words this listen in particular may hear, put ahead of the machine's own.
+    func listen(
+        through audio: AudioIO, waiting: TimeInterval, holding: (() -> Bool)? = nil, cut: Flag? = nil,
+        tail: TimeInterval = 0, hints: [String] = []
+    ) async -> Listened {
         // Heard from the first buffer, before the analyzer has loaded, so the first word is never lost to a cold start.
         let recording = Recording()
         let early = Feeder()
@@ -74,7 +78,7 @@ final class AnalyzerEars {
         // Loaded before the first word, rather than while the person is already speaking.
         try? await analyzer.prepareToAnalyze(in: format)
         let context = AnalysisContext()
-        context.contextualStrings[.general] = recognizerHints
+        context.contextualStrings[.general] = hints + recognizerHints
         try? await analyzer.setContext(context)
 
         let (input, feed) = AsyncStream<AnalyzerInput>.makeStream()
@@ -119,6 +123,7 @@ final class AnalyzerEars {
         var meter = VoiceMeter()
         var lastVoice: Date?
         var guessed = ""
+        var letGoAt: Date?
         while true {
             try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * Self.nanosecondsPerSecond))
             if meter.hear(audio.micLevel) { lastVoice = Date() }
@@ -131,8 +136,9 @@ final class AnalyzerEars {
                 return .silence
             }
             if let holding {
-                // Let go is the end of it, at once, which is what makes a held rule instant.
-                if !holding() { break }
+                // Let go is the end of it once the tail has passed, which is none for a held rule, so it stays instant.
+                if letGoAt == nil, !holding() { letGoAt = Date() }
+                if let letGoAt, Date().timeIntervalSince(letGoAt) >= tail { break }
                 continue
             }
             if words.isEmpty, Date().timeIntervalSince(began) > waiting { break }
@@ -308,14 +314,17 @@ private final class Heard: @unchecked Sendable {
     func take(_ text: String, final: Bool) -> String {
         lock.lock()
         defer { lock.unlock() }
+        let before = joinedSpeech(settled, volatile)
         if final {
             settled = joinedSpeech(settled, text)
             volatile = ""
         } else {
             volatile = text
         }
-        changed = Date()
-        return joinedSpeech(settled, volatile)
+        let now = joinedSpeech(settled, volatile)
+        // Only new words count as talking, since a result that repeats them kept the turn open after they stopped.
+        if now != before { changed = Date() }
+        return now
     }
 
     func read() -> (String, Date) {

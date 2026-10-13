@@ -11,7 +11,14 @@ private let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 /// while it is on the voice is played here too; other apps keep their volume, since ducking is held at its least.
 final class AudioIO {
     /// Replaced after a failed start, since an engine whose output unit would not initialize keeps failing.
-    private(set) var engine = AVAudioEngine()
+    private(set) var engine = AVAudioEngine() {
+        didSet { watchConfiguration(of: engine) }
+    }
+    /// Engines set aside rather than freed, since CoreAudio still calls a replaced engine's unit about a device change
+    /// moments later, and an engine freed under that call crashes the app; a handful kept is a few megabytes.
+    private var retired: [AVAudioEngine] = []
+    private static let retiredKept = 4
+    private var configurationWatch: (any NSObjectProtocol)?
     private(set) var micLevel: Float = 0
     /// Loud enough to be somebody talking rather than a room, on the same scale as `micLevel`.
     static let voiceLevel: Float = 0.45
@@ -46,6 +53,34 @@ final class AudioIO {
     private var silentStartWatch: DispatchWorkItem?
     /// Long enough for the first buffer of any microphone, and short enough that nobody notices the restart.
     private static let silentStartAfter: TimeInterval = 2.5
+
+    init() {
+        watchConfiguration(of: engine)
+    }
+
+    /// The engine stops itself when the microphone or speakers change, and a player started on a stopped engine
+    /// raises an Objective C exception that corrupts the main actor, so it is started again here instead.
+    private func watchConfiguration(of engine: AVAudioEngine) {
+        if let configurationWatch { NotificationCenter.default.removeObserver(configurationWatch) }
+        configurationWatch = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { [weak self] _ in
+            self?.configurationChanged()
+        }
+    }
+
+    private func configurationChanged() {
+        guard running, !engine.isRunning else { return }
+        let withEcho = cancelsEcho
+        diary.note("the audio devices changed, so the microphone is opened again")
+        tearDown(keepingVoiceProcessing: withEcho)
+        do {
+            try begin(cancellingEcho: withEcho)
+        } catch {
+            diary.note("the microphone would not start again after the devices changed: \(error)")
+            running = false
+        }
+    }
 
     /// The microphone on, with echo cancellation where this Mac's audio allows it and without where it does not,
     /// since a microphone that never starts is far worse than one that hears the voice's own echo.
@@ -129,13 +164,15 @@ final class AudioIO {
         guard running else { return }
         silentStartWatch?.cancel()
         silentStartWatch = nil
-        tearDown()
+        // Voice processing is left on for the next start, since switching it off and on rebuilds the audio unit
+        // every time the orb closes, and each rebuild is another chance for CoreAudio to call a unit that is gone.
+        tearDown(keepingVoiceProcessing: cancelsEcho)
         running = false
         micLevel = 0
     }
 
-    /// Everything begin set up taken down, voice processing included, so the next start begins clean.
-    private func tearDown() {
+    /// Everything begin set up taken down, so the next start begins clean.
+    private func tearDown(keepingVoiceProcessing: Bool = false) {
         // A node never attached to the engine throws on stop and removeTap, and a throw through Swift
         // leaves the main actor's bookkeeping broken, so the app crashes at its next main-thread check.
         if speech.engine != nil {
@@ -145,13 +182,17 @@ final class AudioIO {
         engine.inputNode.removeTap(onBus: Self.bus)
         engine.stop()
         if speech.engine != nil { engine.detach(speech) }
-        if engine.inputNode.isVoiceProcessingEnabled { try? engine.inputNode.setVoiceProcessingEnabled(false) }
+        if !keepingVoiceProcessing, engine.inputNode.isVoiceProcessingEnabled {
+            try? engine.inputNode.setVoiceProcessingEnabled(false)
+        }
         cancelsEcho = false
     }
 
-    /// Everything torn down and a new engine in its place.
+    /// Everything torn down and a new engine in its place, the old one kept a while for CoreAudio's late calls.
     private func fresh() {
         tearDown()
+        retired.append(engine)
+        if retired.count > Self.retiredKept { retired.removeFirst() }
         engine = AVAudioEngine()
     }
 
@@ -191,7 +232,9 @@ final class AudioIO {
 
     /// One sentence played through this engine, `done` once it has been heard or stopped; false when it cannot be.
     func play(_ buffers: [AVAudioPCMBuffer], start: Bool, done: @escaping () -> Void) -> Bool {
-        guard running, cancelsEcho, let format = speechFormat, !buffers.isEmpty else { return false }
+        // Scheduling on a detached player or starting one on a stopped engine raises an exception, not an error.
+        guard running, cancelsEcho, engine.isRunning, speech.engine != nil, let format = speechFormat, !buffers.isEmpty
+        else { return false }
         let ready = buffers.compactMap { Self.fitted($0, to: format) }
         guard ready.count == buffers.count, let last = ready.last else { return false }
         for buffer in ready.dropLast() { speech.scheduleBuffer(buffer) }
@@ -205,7 +248,7 @@ final class AudioIO {
     }
 
     func resumeSpeech() {
-        if running, cancelsEcho, speech.engine != nil { speech.play() }
+        if running, cancelsEcho, engine.isRunning, speech.engine != nil { speech.play() }
     }
 
     /// Everything scheduled dropped, which calls each sentence's `done`.
@@ -828,6 +871,9 @@ final class Ears {
     private var retryAt: Date?
     private static let missesBeforeFallback = 3
     private static let retryAfter: TimeInterval = 10 * 60
+    /// How long the older recognizer waits for a first word after the analyzer missed one: they were just talking,
+    /// so a repeat comes at once, and waiting the whole turn's wait left them in silence for twenty seconds.
+    private static let sayAgainSeconds: TimeInterval = 5
 
     static func askPermission() async -> Bool {
         await LegacyEars.askPermission()
@@ -850,8 +896,21 @@ final class Ears {
     /// Set to end the listen now with nothing heard, for a rule held down while it was listening.
     let cut = Flag()
 
-    /// The next thing said; with `holding`, everything said until it says the keys were let go.
-    func listen(through audio: AudioIO, waiting: TimeInterval, holding: (() -> Bool)? = nil) async -> String? {
+    /// Each change in the words while one listen runs, for dictation typed as it is spoken; nil otherwise.
+    var revising: ((String) -> Void)?
+
+    /// The next thing said; with `holding`, everything said until it says the keys were let go, and `tail` after it,
+    /// so the last word is not cut off as the key comes up. `hints` are words this listen in particular may hear.
+    func listen(
+        through audio: AudioIO, waiting: TimeInterval, holding: (() -> Bool)? = nil,
+        tail: TimeInterval = 0, hints: [String] = []
+    ) async -> String? {
+        let hearing = self.hearing
+        let revising = self.revising
+        let heard: (String) -> Void = { words in
+            hearing?(words)
+            revising?(words)
+        }
         // A held rule listens whatever was asked before it; any other listen honours a cut asked for already.
         if holding != nil { _ = cut.take() } else if cut.take() { return nil }
         if !analyzerReady, let retry = retryAt, Date() >= retry {
@@ -860,12 +919,14 @@ final class Ears {
             misses = 0
             diary.note("trying SpeechAnalyzer again")
         }
+        var missedOne = false
         if #available(macOS 26, *), analyzerReady {
             let ears = AnalyzerEars()
-            ears.hearing = hearing
+            ears.hearing = heard
             ears.guessing = guessing
             lastWordAt = nil
-            switch await ears.listen(through: audio, waiting: waiting, holding: holding, cut: holding == nil ? cut : nil) {
+            switch await ears.listen(through: audio, waiting: waiting, holding: holding, cut: holding == nil ? cut : nil,
+                                     tail: tail, hints: hints) {
             case .heard(let words):
                 misses = 0
                 lastWordAt = ears.lastWordAt
@@ -874,8 +935,9 @@ final class Ears {
             case .unavailable(let recorded):
                 // The older recognizer hears this one; only a run of them sets the better one aside, for a while.
                 misses += 1
+                missedOne = true
                 // What they already said is heard from the recording, so they never have to say it twice.
-                if let words = await legacy.transcribe(recorded) {
+                if let words = await legacy.transcribe(recorded, hints: hints) {
                     diary.note("older recognizer heard the recording: \(words)")
                     return words
                 }
@@ -889,9 +951,10 @@ final class Ears {
                 missed?()
             }
         }
-        legacy.hearing = hearing
+        legacy.hearing = heard
         legacy.guessing = guessing
-        let words = await legacy.listen(through: audio, waiting: waiting, holding: holding, cut: holding == nil ? cut : nil)
+        let words = await legacy.listen(through: audio, waiting: missedOne ? min(waiting, Self.sayAgainSeconds) : waiting,
+                                        holding: holding, cut: holding == nil ? cut : nil, tail: tail, hints: hints)
         diary.note("older recognizer heard \(words ?? "nothing")")
         return words
     }
@@ -901,6 +964,8 @@ final class Ears {
 let firstRecognizerHints = [
     "Memnox", "Claude Code", "Codex", "Cursor", "VS Code", "Visual Studio Code", "iTerm", "Hermes", "ChatGPT",
     "git status", "git push", "npm", "kubectl", "Railway", "Vercel",
+    // The person's own tools, heard as "get up", "heat up" and "linen" when they come after the hundredth hint.
+    "GitHub", "Linear", "Slack", "pull request", "repository", "ticket", "Jira", "Notion", "Gmail",
 ]
 
 /// Names this machine uses, as hints to the recognizer rather than words anything acts on.
@@ -910,8 +975,8 @@ nonisolated(unsafe) var recognizerHints = firstRecognizerHints
 /// The recognizer before macOS 26.
 final class LegacyEars {
     private let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer(locale: Locale(identifier: fallbackLanguage))
-    /// A recording of a few seconds is read in well under this; past it the person is waiting.
-    private static let transcribeTimeout: TimeInterval = 6
+    /// A recording of a few seconds is read on this Mac in about a second; past this the person is waiting.
+    private static let transcribeTimeout: TimeInterval = 4
     /// How often the latest words are looked at.
     private static let pollSeconds: TimeInterval = 0.15
     /// The words so far, for the pill.
@@ -928,12 +993,12 @@ final class LegacyEars {
     }
 
     /// Words in audio already recorded, or nil when there are none or it takes too long.
-    func transcribe(_ buffers: [AVAudioPCMBuffer]) async -> String? {
+    func transcribe(_ buffers: [AVAudioPCMBuffer], hints: [String] = []) async -> String? {
         guard let recognizer, recognizer.isAvailable, !buffers.isEmpty else { return nil }
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = false
         request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
-        request.contextualStrings = recognizerHints
+        request.contextualStrings = hints + recognizerHints
         useVocabulary(in: request, with: recognizer)
         for buffer in buffers { request.append(buffer) }
         request.endAudio()
@@ -960,7 +1025,10 @@ final class LegacyEars {
     /// The next thing said, or nil when nothing was said before the wait ran out. The recognizer
     /// calls a result final on its own, often at a breath mid sentence, so a final result starts a
     /// fresh request and the words carry on: only the person pausing ends what they are saying.
-    func listen(through audio: AudioIO, waiting: TimeInterval, holding: (() -> Bool)? = nil, cut: Flag? = nil) async -> String? {
+    func listen(
+        through audio: AudioIO, waiting: TimeInterval, holding: (() -> Bool)? = nil, cut: Flag? = nil,
+        tail: TimeInterval = 0, hints: [String] = []
+    ) async -> String? {
         guard let recognizer, recognizer.isAvailable else {
             diary.note("older recognizer not available: \(SFSpeechRecognizer.authorizationStatus().rawValue)")
             return nil
@@ -971,8 +1039,9 @@ final class LegacyEars {
         var lastVoice: Date?
         var meter = VoiceMeter()
         var guessed = ""
+        var letGoAt: Date?
         while true {
-            let round = startRound(with: recognizer, through: audio)
+            let round = startRound(with: recognizer, through: audio, hints: hints)
             var finished = false
             var final = false
             while !finished {
@@ -989,7 +1058,9 @@ final class LegacyEars {
                     return nil
                 }
                 if let holding {
-                    finished = !holding()
+                    // The tail after the key comes up catches the last word, and is none for a held rule.
+                    if letGoAt == nil, !holding() { letGoAt = Date() }
+                    finished = letGoAt.map { Date().timeIntervalSince($0) >= tail } ?? false
                 } else {
                     if all.isEmpty, Date().timeIntervalSince(began) > waiting { finished = true }
                     if !all.isEmpty, quietFor(now: Date(), lastWord: lastWord, lastVoice: lastVoice) > endOfSpeechPause(after: all) { finished = true }
@@ -1020,11 +1091,11 @@ final class LegacyEars {
         let latest: Latest
     }
 
-    private func startRound(with recognizer: SFSpeechRecognizer, through audio: AudioIO) -> Round {
+    private func startRound(with recognizer: SFSpeechRecognizer, through audio: AudioIO, hints: [String]) -> Round {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
-        request.contextualStrings = recognizerHints
+        request.contextualStrings = hints + recognizerHints
         useVocabulary(in: request, with: recognizer)
         audio.onMicrophone = { request.append($0) }
         let latest = Latest()

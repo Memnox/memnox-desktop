@@ -47,12 +47,23 @@ cp Support/ToolLogos/* "$APP/Contents/Resources/ToolLogos/"
 # Kokoro's installer and server ride inside the app, so it installs the voice on first launch itself.
 mkdir -p "$APP/Contents/Resources/kokoro"
 cp scripts/kokoro-setup.sh Support/kokoro/server.py "$APP/Contents/Resources/kokoro/"
+# The voice pack scripts/voice-pack.sh built, baked into the installer when this build names where it is hosted, so a
+# first run takes the voice in one download from a host near the person rather than four slow ones.
+if [ -n "${MEMNOX_VOICE_PACK:-}" ]; then
+  sed -i '' "s|^PACK_DEFAULT=.*|PACK_DEFAULT=\"$MEMNOX_VOICE_PACK\"|" "$APP/Contents/Resources/kokoro/kokoro-setup.sh"
+fi
 IDENTITY="Memnox Local Signing"
-if security find-identity -p codesigning | grep -q "$IDENTITY"; then
+# Only a valid identity signs; one left without its trust is made again here, since a build signed ad hoc is a
+# build macOS forgets the Accessibility grant for, which looks in the app like typing that is never allowed.
+if ! security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
+  sh scripts/signing-setup.sh || true
+fi
+ADHOC=no
+if security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
   codesign --force --sign "$IDENTITY" "$APP"
 else
   codesign --force --sign - "$APP"
-  echo "Signed ad hoc, so macOS will ask for Accessibility again. Run scripts/signing-setup.sh once to stop that."
+  ADHOC=yes
 fi
 
 # A daemon already running the checkout is restarted on what was just built, so the app meets the new code.
@@ -63,3 +74,14 @@ if [ "$SOURCE" = local ] && command -v memnox >/dev/null 2>&1; then
   esac
 fi
 echo "Built $APP against the $SOURCE runtime. Open it with: open $APP"
+if [ "$ADHOC" = yes ]; then
+  cat >&2 <<WARN
+
+WARNING: Memnox.app is signed ad hoc, because "$IDENTITY" is missing or not trusted in your keychain.
+  macOS treats every ad hoc build as a new app, so the Accessibility grant is forgotten on each rebuild:
+  the switch shows on in System Settings while Memnox is still not allowed to type.
+  Fix once: sh scripts/signing-setup.sh   (it says what to do in Keychain Access if the trust prompt was declined)
+  then:     sh scripts/bundle.sh
+  Until then, switch Memnox off and on again under Privacy and Security after every build.
+WARN
+fi

@@ -157,7 +157,8 @@ final class BargeEars {
                             diary.note(louder ? "paused for a voice over mine" : "paused for: \(words)")
                             pause()
                         }
-                    } else if words != self.resumedOn, mayBeCuttingIn(heard: words, spoken: spoken()) {
+                    } else if words != self.resumedOn, !nameAlone(words), mayBeCuttingIn(heard: words, spoken: spoken()) {
+                        // Never on its name alone, which while it thinks is them checking it heard, and cutting in threw the answer away.
                         self.spokeInQuiet = true
                         // Talking while it thinks is the question changing, so the old answer is dropped
                         // and their words go with the earlier ones as one question, rather than after a stale reply.

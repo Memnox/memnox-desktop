@@ -109,8 +109,8 @@ private enum KokoroFile {
     static let serverExtension = "py"
     static let model = "kokoro-v1.0.onnx"
     static let voices = "voices-v1.0.bin"
-    /// Written by the setup that adds misaki's pronunciation, so a Mac set up before it runs it again.
-    static let setupMark = "setup-2"
+    /// Written by the setup that checks the voice files are whole, so a Mac set up before it runs it again.
+    static let setupMark = "setup-3"
     static let serverLog = "server.log"
     static let installLog = "install.log"
     static let health = "health"
@@ -227,7 +227,7 @@ enum KokoroInstall: Equatable {
 }
 
 /// Installs Kokoro with the script inside the app, so the natural voice is the default without the
-/// person running anything. About 340 MB, once; the Mac's own voice speaks until it is ready.
+/// person running anything. About 380 MB, once; the Mac's own voice speaks until it is ready.
 @MainActor
 final class KokoroInstaller: ObservableObject {
     @Published private(set) var state: KokoroInstall = KokoroServer.isInstalled ? .done : .idle
@@ -249,7 +249,7 @@ final class KokoroInstaller: ObservableObject {
 
     private func run() async -> Bool {
         guard let script = Bundle.main.url(forResource: KokoroFile.setupScript, withExtension: KokoroFile.setupExtension, subdirectory: KokoroFile.setupFolder) else {
-            state = .failed("This build has no Kokoro installer. Rebuild it with scripts/bundle.sh")
+            state = .failed("This build has no voice installer. Rebuild it with scripts/bundle.sh")
             return false
         }
         state = .installing("Getting ready")
@@ -264,7 +264,7 @@ final class KokoroInstaller: ObservableObject {
             diary.note("Kokoro installed")
             return true
         }
-        state = .failed("Kokoro could not install, usually for want of a connection. Details are in \(log.path)")
+        state = .failed("The voice could not install, usually for want of a connection. Details are in \(log.path)")
         diary.note("Kokoro did not install; see \(log.path)")
         return false
     }

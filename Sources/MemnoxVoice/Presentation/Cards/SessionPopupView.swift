@@ -2,8 +2,8 @@ import AppKit
 import MemnoxVoiceCore
 import SwiftUI
 
-/// One session on its own card, showing what it is doing the way the live window does: what it
-/// is on this moment, the last words of its conversation, its latest steps and what it changed,
+/// One session on its own card: what it is about in the person's own words, where and since when it
+/// works, what it is on this moment, where the work stands, its latest steps and what it changed,
 /// kept short so several fit on a screen and refreshed while it is up.
 struct SessionPopupView: View {
     let card: SessionCard
@@ -20,7 +20,10 @@ struct SessionPopupView: View {
         static let conversationLineLimit = 3
         static let steps = 3
         static let files = 3
-        static let taskLineLimit = 2
+        static let taskLineLimit = 3
+        static let lastAskLineLimit = 2
+        static let contextLineLimit = 2
+        static let lastSaidLineLimit = 4
         static let metaSeparator = "  \u{00B7}  "
     }
 
@@ -31,21 +34,23 @@ struct SessionPopupView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
-            CardHeader(title: model.view?.agentName ?? card.agentName, subtitle: meta, close: close) {
+            CardHeader(title: model.view?.agentName ?? card.agentName, subtitle: model.view?.place ?? card.repository, close: close) {
                 BrandLogo(agent: model.view?.agent ?? card.agent, name: model.view?.agentName ?? card.agentName, size: FloatingCard.markSize)
             } accessory: {
                 StatusTag(status: model.view?.status ?? card.status)
             }
-            if let task = model.view?.task ?? card.task {
-                Text(task)
-                    .font(Memnox.sans(Memnox.TextSize.callout))
-                    .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
-                    .lineLimit(Layout.taskLineLimit)
-            }
+            about
             if let view = model.view {
                 LiveNow(view: view)
                 let talk = Array((view.conversation ?? []).suffix(Layout.conversationLines))
-                if !talk.isEmpty {
+                if let said = view.lastSaid {
+                    LiveSection(title: "Where it stands") {
+                        Text(said)
+                            .font(Memnox.sans(Memnox.TextSize.callout))
+                            .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
+                            .lineLimit(Layout.lastSaidLineLimit)
+                    }
+                } else if !talk.isEmpty {
                     LiveSection(title: "Conversation") {
                         VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
                             ForEach(Array(talk.enumerated()), id: \.offset) { _, line in
@@ -60,10 +65,6 @@ struct SessionPopupView: View {
                         FileList(files: Array(view.files.prefix(Layout.files)), counting: entrance.shown)
                     }
                 }
-            } else if card.task == nil {
-                Text("Nothing recorded for this session yet")
-                    .font(Memnox.sans(Memnox.TextSize.callout))
-                    .foregroundStyle(Memnox.Palette.muted)
             }
             HStack(spacing: Memnox.Spacing.medium) {
                 Spacer()
@@ -77,7 +78,37 @@ struct SessionPopupView: View {
         .modifier(CardFace(entrance: entrance, hovering: hovering))
     }
 
-    /// Where it works and how lately it did anything, the quiet line under the agent's name.
+    /// What the session is about: the task or the person's first request, what they asked last, and where and since when it runs.
+    private var about: some View {
+        LiveSection(title: "About") {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+                if let task = model.view?.task ?? card.task {
+                    Text(task)
+                        .font(Memnox.sans(Memnox.TextSize.callout, .medium))
+                        .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
+                        .lineLimit(Layout.taskLineLimit)
+                } else {
+                    Text("No request recorded for this session yet")
+                        .font(Memnox.sans(Memnox.TextSize.callout))
+                        .foregroundStyle(Memnox.Palette.muted)
+                }
+                if let lastAsk = model.view?.lastAsk {
+                    Text("Latest ask: \(lastAsk)")
+                        .font(Memnox.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.secondary))
+                        .lineLimit(Layout.lastAskLineLimit)
+                }
+                if let context = model.view?.context(now: Date()) ?? meta {
+                    Text(context)
+                        .font(Memnox.sans(Memnox.TextSize.caption))
+                        .foregroundStyle(Memnox.Palette.muted)
+                        .lineLimit(Layout.contextLineLimit)
+                }
+            }
+        }
+    }
+
+    /// Where it works and how lately it did anything, from the list alone before the session itself is read.
     private var meta: String? {
         let repository = model.view?.repository ?? card.repository
         let runningIn = model.view?.runningIn ?? card.runningIn

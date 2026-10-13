@@ -40,7 +40,22 @@ enum ScreenSight {
     }
 
     /// Whether macOS lets Memnox record the screen; asking is the setup checklist's job.
-    static var allowed: Bool { CGPreflightScreenCaptureAccess() }
+    static var allowed: Bool { liveGrant || CGPreflightScreenCaptureAccess() }
+
+    /// Set once ScreenCaptureKit answered, since the preflight keeps saying no until the app restarts even after the
+    /// switch was turned on, and ScreenCaptureKit reads the grant as it stands now.
+    nonisolated(unsafe) private static var liveGrant = false
+
+    /// Asks ScreenCaptureKit whether the grant holds now, so a switch just turned on counts without reopening Memnox.
+    /// Only after the person pressed Allow, since asking before then is what puts macOS's own sheet up.
+    static func confirmGrant() async -> Bool {
+        if allowed { return true }
+        guard (try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)) != nil else {
+            return false
+        }
+        liveGrant = true
+        return true
+    }
 
     /// The app by the name the brain gave, or the app the person was last in.
     static func app(named name: String?, otherwise front: String?) -> NSRunningApplication? {
@@ -52,17 +67,38 @@ enum ScreenSight {
         return NSWorkspace.shared.frontmostApplication.flatMap { $0.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : $0 }
     }
 
-    /// The app's front window as a capture and an outline; the outline alone when Memnox may not record.
+    /// The app's front window as a capture and an outline; when Memnox may not record, the words come from the
+    /// window's accessibility tree instead, so a chat app's answer is still read without Screen Recording.
     static func look(at app: NSRunningApplication) async -> Sight {
         let window = AXTree.frontWindow(of: app)
         let title = window.flatMap { AXTree.string($0, kAXTitleAttribute) }
         let outline = window.map(AXTree.outline(of:))
         let image = await image(of: app, title: title)
         let path = image.flatMap { write($0, into: Folder.sight, named: UUID().uuidString) }
-        diary.note("looked at \(app.localizedName ?? "an app")\(image == nil ? ", outline only" : "")")
         var text: String?
-        if let image { text = await read(image, level: .accurate) }
+        if let image {
+            text = await read(image, level: .accurate)
+        } else if let window {
+            text = await accessibleText(of: window)
+        }
+        let how = image != nil ? "" : text == nil ? ", outline only" : ", words read through Accessibility"
+        diary.note("looked at \(app.localizedName ?? "an app")\(how)")
         return Sight(app: app.localizedName ?? "", window: title, image: path, outline: outline, text: text)
+    }
+
+    /// The most of a window's accessible words handed on, from its end, where a chat's latest answer is.
+    private static let mostAccessibleCharacters = 6_000
+    /// Electron builds its web content's tree only once asked, so an empty first read waits this long and reads again.
+    private static let treeBuildWait: Duration = .milliseconds(400)
+
+    /// The window's words read through Accessibility, or nil when it shows none, such as before Accessibility is granted.
+    private static func accessibleText(of window: AXUIElement) async -> String? {
+        var words = AXTree.text(of: window).trimmingCharacters(in: .whitespacesAndNewlines)
+        if words.isEmpty {
+            try? await Task.sleep(for: treeBuildWait)
+            words = AXTree.text(of: window).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return words.isEmpty ? nil : String(words.suffix(mostAccessibleCharacters))
     }
 
     /// The target window right after an action, kept under the request's name as its evidence.

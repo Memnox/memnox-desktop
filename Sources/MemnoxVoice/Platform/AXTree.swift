@@ -19,6 +19,13 @@ enum AXTree {
         static let indent = "  "
     }
 
+    private enum Words {
+        /// A chat app's messages sit far deeper in its web content than any control the outline needs.
+        static let depth = 80
+        /// Enough elements for a long conversation, few enough that a huge page still answers in a moment.
+        static let elements = 6_000
+    }
+
     /// Roles that only hold other controls, left out of the outline unless they carry a title.
     private static let containers: Set<String> = [kAXGroupRole, kAXScrollAreaRole, kAXSplitGroupRole, kAXLayoutAreaRole, "AXUnknown"]
 
@@ -45,10 +52,12 @@ enum AXTree {
         return lines.joined(separator: "\n")
     }
 
-    /// Every piece of text a window shows, joined, for reading back what an action left there.
+    /// Every piece of text a window shows, joined in reading order, for reading back what an action left there
+    /// and for reading a window when Memnox may not record the screen.
     static func text(of window: AXUIElement) -> String {
         var found: [String] = []
-        collectText(window, depth: 0, into: &found)
+        var visited = 0
+        collectText(window, depth: 0, visited: &visited, into: &found)
         return found.joined(separator: "\n")
     }
 
@@ -67,11 +76,18 @@ enum AXTree {
         }
     }
 
-    private static func collectText(_ element: AXUIElement, depth: Int, into found: inout [String]) {
-        guard depth < Outline.depth else { return }
-        if let value = string(element, kAXValueAttribute), !value.isEmpty { found.append(value) }
+    private static func collectText(_ element: AXUIElement, depth: Int, visited: inout Int, into found: inout [String]) {
+        guard depth < Words.depth, visited < Words.elements else { return }
+        visited += 1
+        if let value = string(element, kAXValueAttribute), !value.isEmpty {
+            found.append(value)
+        } else if string(element, kAXRoleAttribute) == kAXStaticTextRole,
+                  let label = [kAXTitleAttribute, kAXDescriptionAttribute].lazy.compactMap({ string(element, $0) }).first(where: { !$0.isEmpty }) {
+            // Web content often puts a line of text in its label rather than its value.
+            found.append(label)
+        }
         for child in elements(element, kAXChildrenAttribute) ?? [] {
-            collectText(child, depth: depth + 1, into: &found)
+            collectText(child, depth: depth + 1, visited: &visited, into: &found)
         }
     }
 

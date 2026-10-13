@@ -59,6 +59,7 @@ final class SessionPresenter: Presenter {
         static let interruptPath = "/interrupt"
         static let terminalPath = "/terminal"
         static let typePath = "/type"
+        static let pressPath = "/press"
         static let launchPath = "/launch"
     }
 
@@ -109,6 +110,8 @@ final class SessionPresenter: Presenter {
         static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
         /// Long enough for an editor's restarted extensions to come back before the link is sent to them.
         static let extensionsRestart: TimeInterval = 1.5
+        /// How long each other editor window is given to answer, past the extension's own wait for a claim.
+        static let windowAttempts = 40
     }
 
     /// How far above the bottom of the screen the comet starts when the orb's frame is not known.
@@ -133,6 +136,8 @@ final class SessionPresenter: Presenter {
         let delivered: Delivered?
         /// Set by the extension when no integrated terminal holds the device, which leaves the request for the Mac.
         let noTerminal: Bool?
+        /// The extension host of the window holding the terminal, which is typing it whatever another window wrote.
+        let claimedBy: Int?
     }
 
     /// A sleep length in seconds as the nanoseconds `Task.sleep` takes.
@@ -254,16 +259,16 @@ final class SessionPresenter: Presenter {
             }
         }
         if app.contains(AppName.iTerm) {
-            return Self.run(Self.iTermEscapeScript(tty)) ? .landed : Typed(.failed, Self.noTab(AppName.iTermTitle))
+            return Self.run(Self.iTermEscapeScript(tty, marks: host?.marks ?? [])) ? .landed : Typed(.failed, Self.noTab(AppName.iTermTitle))
         }
         guard app.contains(AppName.terminal) else { return await interruptOtherTerminal(host) }
         guard PromptTyping.allowed() else {
             return Typed(.failed, "Memnox may not press keys until it is switched on under Accessibility in System Settings")
         }
-        guard Self.run(Self.terminalScript(tty)) else { return Typed(.failed, Self.noTab(AppName.terminalTitle)) }
+        guard Self.run(Self.terminalScript(tty, marks: host?.marks ?? [])) else { return Typed(.failed, Self.noTab(AppName.terminalTitle)) }
         try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.tabSettle))
         // Only into its own tab: Escape pressed anywhere else would stop whatever the person is doing there.
-        guard Self.run(Self.terminalInFront(tty)),
+        guard Self.run(Self.terminalInFront(tty, marks: host?.marks ?? [])),
               let front = NSWorkspace.shared.frontmostApplication,
               (front.localizedName ?? "").lowercased().contains(AppName.terminal)
         else { return Typed(.failed, "its Terminal tab did not come to the front") }
@@ -272,15 +277,19 @@ final class SessionPresenter: Presenter {
     }
 
     /// Keys pressed in the session's own tab to answer what its agent asks there, such as whether to trust a
-    /// folder. iTerm takes them as text through its scripting with nothing brought forward; Terminal only as
-    /// real key presses, so its tab comes forward first and nothing is pressed unless that tab is in front.
-    func press(_ keys: [TerminalPress], session: String, host: DisplayHost?) async -> Typed {
+    /// folder. iTerm takes them as text through its scripting with nothing brought forward; an editor's terminal
+    /// through the Memnox extension; Terminal only as real key presses, so its tab comes forward first and
+    /// nothing is pressed unless that tab is in front.
+    func press(_ keys: [TerminalPress], session: String, host: DisplayHost?, request: String) async -> Typed {
         let app = (host?.app ?? host?.appPath ?? "").lowercased()
         guard let tty = AppleScriptText.device(host?.tty) else {
             return Typed(.failed, "the tab it runs in was never noted, so there is nowhere to answer it")
         }
+        if !app.contains(AppName.iTerm), Self.editors.contains(where: app.contains), let host {
+            return await pressInEditorTerminal(request: request, tty: tty, host: host, app: app)
+        }
         if app.contains(AppName.iTerm) {
-            return Self.run(Self.iTermWriteScript(tty, keys)) ? .landed : Typed(.failed, Self.noTab(AppName.iTermTitle))
+            return Self.run(Self.iTermWriteScript(tty, keys, marks: host?.marks ?? [])) ? .landed : Typed(.failed, Self.noTab(AppName.iTermTitle))
         }
         guard app.contains(AppName.terminal) else {
             return Typed(.failed, "its question can be answered only in a Terminal or iTerm tab, and it runs in \(host?.app ?? "another app")")
@@ -288,15 +297,41 @@ final class SessionPresenter: Presenter {
         guard PromptTyping.allowed() else {
             return Typed(.failed, "Memnox may not press keys until it is switched on under Accessibility in System Settings")
         }
-        guard Self.run(Self.terminalScript(tty)) else { return Typed(.failed, Self.noTab(AppName.terminalTitle)) }
+        guard Self.run(Self.terminalScript(tty, marks: host?.marks ?? [])) else { return Typed(.failed, Self.noTab(AppName.terminalTitle)) }
         try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.tabSettle))
         // Only into its own tab: keys pressed anywhere else would answer for whatever the person is doing there.
-        guard Self.run(Self.terminalInFront(tty)),
+        guard Self.run(Self.terminalInFront(tty, marks: host?.marks ?? [])),
               let front = NSWorkspace.shared.frontmostApplication,
               (front.localizedName ?? "").lowercased().contains(AppName.terminal)
         else { return Typed(.failed, "its Terminal tab did not come to the front") }
         await PromptTyping.press(keys)
         return .landed
+    }
+
+    /// Keys pressed in an editor's integrated terminal by the Memnox extension, which reads them from the request
+    /// itself; the window holding that terminal answers, whichever of the editor's windows the link reached.
+    private func pressInEditorTerminal(request: String, tty: String, host: DisplayHost, app: String) async -> Typed {
+        let name = host.app ?? Self.anEditor
+        guard let link = Self.extensionLink(app: app, path: Link.pressPath, query: [QueryKey.request: request, QueryKey.tty: tty]) else {
+            return Typed(.failed, "the Memnox extension is not in \(name) yet, which the daemon puts in as it starts",
+                         hint: .installExtension(app: name))
+        }
+        return await borrowingScreen {
+            _ = await open(host)
+            try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.editorSettle))
+            guard NSWorkspace.shared.open(link) else { return Typed(.failed, "the editor would not take the Memnox link") }
+            let delivered = await Self.extensionDelivery(of: request, resending: link)
+            if delivered.reason == Self.noEditorTerminal,
+               let found = await inOtherWindows(request: request, tty: tty, host: host, app: app, path: Link.pressPath) {
+                return found
+            }
+            // Silent is a window on an extension from before keys could be pressed, which takes the new one on a restart.
+            if delivered.reason == Self.extensionSilent,
+               let again = await retypeAfterRestart(request: request, tty: tty, host: host, app: app, path: Link.pressPath) {
+                return again.withEditorHint(name)
+            }
+            return delivered.withEditorHint(name)
+        }
     }
 
     private func turnTo(_ session: String) async {
@@ -343,8 +378,8 @@ final class SessionPresenter: Presenter {
         guard let host else { return false }
         let app = (host.app ?? host.appPath ?? "").lowercased()
         if let tty = AppleScriptText.device(host.tty) {
-            if app.contains(AppName.iTerm), Self.run(Self.iTermScript(tty)) { return true }
-            if app.contains(AppName.terminal), Self.run(Self.terminalScript(tty)) { return true }
+            if app.contains(AppName.iTerm), Self.run(Self.iTermScript(tty, marks: host.marks ?? [])) { return true }
+            if app.contains(AppName.terminal), Self.run(Self.terminalScript(tty, marks: host.marks ?? [])) { return true }
         }
         let url = host.appPath.map { URL(fileURLWithPath: $0) }
         if let cwd = host.cwd, let url, Self.editors.contains(where: app.contains) {
@@ -414,6 +449,11 @@ final class SessionPresenter: Presenter {
         }
     }
 
+    /// The page in the person's default browser, or the app that claims its address, as clicking the link would.
+    func openLink(_ url: URL) async -> Bool {
+        NSWorkspace.shared.open(url)
+    }
+
     /// The app first when the runtime named it, with what it reads as it opens, then each of its own
     /// links a moment apart, and the words on the clipboard when no link could carry them.
     func openApp(_ start: AppStart) async -> Typed {
@@ -435,7 +475,7 @@ final class SessionPresenter: Presenter {
                 return Typed(.failed, "\(start.name) did not answer its link, so it may not be installed")
             }
         }
-        guard let words = start.typed else { return .landed }
+        guard let words = start.typed else { return await sendPrefilled(start) }
         guard let path = start.appPath else {
             PromptTyping.leaveOnClipboard(words)
             return Typed(.clipboard, "where \(start.name) is installed was not said, so it could not be typed into")
@@ -453,6 +493,15 @@ final class SessionPresenter: Presenter {
         let typed = await PromptTyping.typeIntoApp(words, inAppAt: path)
         if !typed.wentIn { PromptTyping.leaveOnClipboard(words) }
         return typed
+    }
+
+    /// What a prompt link left in the app's chat, such as Cursor's, sent with Return once it is read in the focused
+    /// chat input with the app in front; otherwise left there for the person, which reads as only opened.
+    private func sendPrefilled(_ start: AppStart) async -> Typed {
+        guard start.sendPrefilled, let path = start.appPath, let words = start.prefilledWords else { return .landed }
+        // The chat the link opened is still drawing and filling its input.
+        try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.appSettle))
+        return await PromptTyping.sendPrefilled(words, inAppAt: path) ?? .landed
     }
 
     private static func installedEditor() -> URL? {
@@ -833,7 +882,10 @@ final class SessionPresenter: Presenter {
         // The agent running in front on its terminal means the session is in a terminal, and its panel
         // would open a new conversation instead of following up, so the words wait on the clipboard.
         if TerminalFront.agentInFront(Self.foreground(tty)) {
-            diary.note("no editor window holds \(tty), though the agent runs there, so not typing into the agent panel")
+            diary.note("the \(host.app ?? Self.anEditor) window in front does not hold \(tty), though the agent runs there, so each other window is asked")
+            if let found = await inOtherWindows(request: request, tty: tty, host: host, app: app, path: Link.typePath) {
+                return found
+            }
             if let again = await retypeAfterRestart(request: request, tty: tty, host: host, app: app) {
                 return again.wentIn ? again : Self.unansweredAfterRestart(text, app: host.app ?? Self.anEditor, answered: again)
             }
@@ -850,13 +902,34 @@ final class SessionPresenter: Presenter {
             .withEditorHint(host.app ?? Self.anEditor, older: delivered.toldFailedFirst)
     }
 
+    /// Each other window of the editor brought forward in turn with the request sent again under an id of its own,
+    /// since a link reaches only the window in front and one still on an older extension never looks for requests.
+    /// Nil when the editor has no other window or none of them holds the terminal.
+    private func inOtherWindows(request: String, tty: String, host: DisplayHost, app: String, path: String) async -> Typed? {
+        guard let editor = Self.running(host) else { return nil }
+        for (index, window) in EditorWindows.others(of: editor).enumerated() {
+            guard EditorWindows.raise(window, of: editor),
+                  let again = Self.copyOfRequest(request, seenIn: host.app ?? Self.anEditor, attempt: index + 1),
+                  let link = Self.extensionLink(app: app, path: path, query: [QueryKey.request: again, QueryKey.tty: tty])
+            else { continue }
+            try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.editorSettle))
+            guard NSWorkspace.shared.open(link) else { continue }
+            let answered = await Self.extensionDelivery(of: again, attempts: Timing.windowAttempts)
+            if answered.reason == Self.noEditorTerminal || answered.reason == Self.extensionSilent { continue }
+            diary.note("another \(host.app ?? Self.anEditor) window holds \(tty), and it answered \(again)")
+            return answered
+        }
+        return nil
+    }
+
     /// What the person used to be told to do by hand, done where they watch: the editor's extensions restart, so
     /// a copy put in since the window opened is the one answering, and the words go once more under a request of
     /// their own, since the extension answers each request once. Nil when the editor could not be restarted.
-    private func retypeAfterRestart(request: String, tty: String, host: DisplayHost, app: String) async -> Typed? {
+    private func retypeAfterRestart(request: String, tty: String, host: DisplayHost, app: String,
+                                    path: String = Link.typePath) async -> Typed? {
         guard let editor = Self.running(host), await PromptTyping.restartExtensionHost(in: editor),
               let again = Self.copyOfRequest(request, seenIn: host.app ?? Self.anEditor),
-              let link = Self.extensionLink(app: app, path: Link.typePath, query: [QueryKey.request: again, QueryKey.tty: tty])
+              let link = Self.extensionLink(app: app, path: path, query: [QueryKey.request: again, QueryKey.tty: tty])
         else { return nil }
         diary.note("restarted the extensions in \(host.app ?? Self.anEditor) and sent the words again as \(again)")
         try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.extensionsRestart))
@@ -877,10 +950,12 @@ final class SessionPresenter: Presenter {
 
     /// The request written again under an id of its own, unanswered and marked seen, so only the extension acts on
     /// it and the daemon never shows it to the Mac a second time. Nil when the request cannot be read or written.
-    private static func copyOfRequest(_ request: String, seenIn editor: String) -> String? {
+    private static func copyOfRequest(_ request: String, seenIn editor: String, attempt: Int = 0) -> String? {
         let parts = request.split(separator: Retry.separator)
         guard parts.count == Retry.idParts else { return nil }
-        let again = [parts[0], parts[1] + Retry.marker, parts[2]].joined(separator: String(Retry.separator))
+        // Each window tried gets an id of its own, so a late answer from one is never read as another's.
+        let mark = Retry.marker + (attempt == 0 ? "" : String(attempt))
+        let again = [parts[0], parts[1] + mark, parts[2]].joined(separator: String(Retry.separator))
         let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(Folder.displays)
         let from = folder.appendingPathComponent("\(request).\(Folder.recordExtension)")
         guard let data = try? Data(contentsOf: from),
@@ -935,10 +1010,11 @@ final class SessionPresenter: Presenter {
     private static let noEditorTerminal = "no integrated terminal holds its device"
 
     /// What the extension wrote on the request once it typed it, read from the runtime's own folder.
-    private static func extensionDelivery(of request: String, resending link: URL? = nil) async -> Typed {
+    private static func extensionDelivery(of request: String, resending link: URL? = nil,
+                                          attempts: Int = Timing.deliveryAttempts) async -> Typed {
         let file = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("\(Folder.displays)/\(request).\(Folder.recordExtension)")
-        for attempt in 0..<Timing.deliveryAttempts {
+        for attempt in 0..<attempts {
             // The extension ignores a request it already answered, so sending the link again is safe.
             if let link, attempt > 0, attempt % Timing.linkResendEvery == 0 { NSWorkspace.shared.open(link) }
             let record = (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode(DeliveryRecord.self, from: $0) }
@@ -949,7 +1025,8 @@ final class SessionPresenter: Presenter {
                     ? .landed
                     : Typed(.failed, delivered.reason ?? "the extension could not type it", toldFailedFirst: older)
             }
-            if record?.noTerminal == true { return Typed(.failed, noEditorTerminal) }
+            // A window holding the terminal claimed it, so it is typing there whatever the window the link reached said.
+            if record?.noTerminal == true, record?.claimedBy == nil { return Typed(.failed, noEditorTerminal) }
             try? await Task.sleep(nanoseconds: nanoseconds(Timing.deliveryPoll))
         }
         return Typed(.failed, Self.extensionSilent)
@@ -1124,10 +1201,12 @@ final class SessionPresenter: Presenter {
         """
     }
 
-    private static func terminalInFront(_ tty: String) -> String {
-        """
+    private static func terminalInFront(_ tty: String, marks: [String] = []) -> String {
+        let shows = markTest(marks, in: ["history of t"]).map { " or \($0)" } ?? ""
+        return """
         tell application "Terminal"
-            return (tty of selected tab of front window) is "\(tty)"
+            set t to selected tab of front window
+            return ((tty of t) is "\(tty)")\(shows)
         end tell
         """
     }
@@ -1138,25 +1217,8 @@ final class SessionPresenter: Presenter {
     /// Editors whose Claude Code extension opens one conversation by its link.
     private static let conversationEditors = [AppName.code, AppName.cursor, AppName.windsurf]
 
-    private static func iTermScript(_ tty: String) -> String {
-        """
-        tell application "iTerm"
-            activate
-            repeat with w in windows
-                repeat with t in tabs of w
-                    repeat with s in sessions of t
-                        if tty of s is "\(tty)" then
-                            select w
-                            select t
-                            select s
-                            return true
-                        end if
-                    end repeat
-                end repeat
-            end repeat
-        end tell
-        return false
-        """
+    private static func iTermScript(_ tty: String, marks: [String] = []) -> String {
+        inITerm(tty, marks: marks, first: "activate", "select w\nselect t\nselect s")
     }
 
     /// Closing the session closes its tab when it is the only one there, which is how iTerm closes a tab.
@@ -1172,41 +1234,73 @@ final class SessionPresenter: Presenter {
 
     /// Escape written into the iTerm session on this terminal as a key, so its tab never has to come forward.
     /// The keys as one AppleScript expression of character ids, so no text but the keys can reach the script.
-    private static func iTermWriteScript(_ tty: String, _ keys: [TerminalPress]) -> String {
+    private static func iTermWriteScript(_ tty: String, _ keys: [TerminalPress], marks: [String] = []) -> String {
         let text = keys.map(\.sequence).joined().unicodeScalars.map { "(character id \($0.value))" }.joined(separator: " & ")
+        return inITerm(tty, marks: marks, "tell s to write text (\(text)) newline no")
+    }
+
+    private static func iTermEscapeScript(_ tty: String, marks: [String] = []) -> String {
+        inITerm(tty, marks: marks, "tell s to write text (character id \(escapeCharacter)) newline no")
+    }
+
+    /// Acts on the iTerm session on this terminal as `s`, in tab `t` of window `w`; when none is on it, on
+    /// the one session alone that shows a mark, such as the id `memnox run` printed, and on no session when
+    /// several do, since keys in the wrong tab would answer for someone else.
+    private static func inITerm(_ tty: String, marks: [String], first: String = "", _ action: String) -> String {
+        let shows = markTest(marks, in: ["text of s", "name of s"])
+        let byMark = shows.map { test in
+            """
+            set found to 0
+            repeat with w in windows
+                repeat with t in tabs of w
+                    repeat with s in sessions of t
+                        if \(test) then
+                            set found to found + 1
+                            set fw to w
+                            set ft to t
+                            set fs to s
+                        end if
+                    end repeat
+                end repeat
+            end repeat
+            if found is 1 then
+                set w to fw
+                set t to ft
+                set s to fs
+                \(action)
+                return true
+            end if
+            """
+        } ?? ""
         return """
         tell application "iTerm"
+            \(first)
             repeat with w in windows
                 repeat with t in tabs of w
                     repeat with s in sessions of t
                         if tty of s is "\(tty)" then
-                            tell s to write text (\(text)) newline no
+                            \(action)
                             return true
                         end if
                     end repeat
                 end repeat
             end repeat
+            \(byMark)
         end tell
         return false
         """
     }
 
-    private static func iTermEscapeScript(_ tty: String) -> String {
-        """
-        tell application "iTerm"
-            repeat with w in windows
-                repeat with t in tabs of w
-                    repeat with s in sessions of t
-                        if tty of s is "\(tty)" then
-                            tell s to write text (character id \(escapeCharacter)) newline no
-                            return true
-                        end if
-                    end repeat
-                end repeat
-            end repeat
-        end tell
-        return false
-        """
+    /// An AppleScript test that any of the places holds any of the marks, or nil with no mark worth looking for.
+    private static func markTest(_ marks: [String], in places: [String]) -> String? {
+        let worth = marks.filter { $0.count >= Mark.fewestCharacters }.map(AppleScriptText.quoted)
+        guard !worth.isEmpty else { return nil }
+        return places.flatMap { place in worth.map { "((\(place)) contains \"\($0)\")" } }.joined(separator: " or ")
+    }
+
+    /// How long a mark must be before a tab showing it is taken to be the session's, as the runtime counts it.
+    private enum Mark {
+        static let fewestCharacters = 10
     }
 
     private static func iTermCloseScript(_ tty: String) -> String {
@@ -1247,8 +1341,28 @@ final class SessionPresenter: Presenter {
         """
     }
 
-    private static func terminalScript(_ tty: String) -> String {
-        """
+    private static func terminalScript(_ tty: String, marks: [String] = []) -> String {
+        let shows = markTest(marks, in: ["history of t"])
+        let byMark = shows.map { test in
+            """
+            set found to 0
+            repeat with w in windows
+                repeat with t in tabs of w
+                    if \(test) then
+                        set found to found + 1
+                        set fw to w
+                        set ft to t
+                    end if
+                end repeat
+            end repeat
+            if found is 1 then
+                set selected of ft to true
+                set index of fw to 1
+                return true
+            end if
+            """
+        } ?? ""
+        return """
         tell application "Terminal"
             activate
             repeat with w in windows
@@ -1260,6 +1374,7 @@ final class SessionPresenter: Presenter {
                     end if
                 end repeat
             end repeat
+            \(byMark)
         end tell
         return false
         """
@@ -1277,6 +1392,65 @@ final class SessionPresenter: Presenter {
     func look(app name: String?) async -> Sight? {
         guard let app = ScreenSight.app(named: name, otherwise: frontApp()) else { return nil }
         return await ScreenSight.look(at: app)
+    }
+
+    /// The words in the session's iTerm or Terminal tab, read by the terminal itself, so a question an agent
+    /// asks there is read without Screen Recording and never from another app's window.
+    func readTab(of host: DisplayHost) async -> Sight? {
+        let app = (host.app ?? host.appPath ?? "").lowercased()
+        guard let tty = AppleScriptText.device(host.tty) else { return nil }
+        let marks = host.marks ?? []
+        let (name, source) = app.contains(AppName.iTerm)
+            ? (AppName.iTermTitle, Self.inITerm(tty, marks: marks, "return text of s"))
+            : app.contains(AppName.terminal) ? (AppName.terminalTitle, Self.terminalText(tty, marks: marks)) : ("", "")
+        guard !source.isEmpty, let text = Self.runText(source)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            return nil
+        }
+        diary.note("read the \(name) tab on \(tty)")
+        return Sight(app: name, window: nil, text: String(text.suffix(Self.mostTabCharacters)))
+    }
+
+    /// The end of a tab is where its question is, and this much holds every choice of one.
+    private static let mostTabCharacters = 3_000
+
+    /// Terminal's whole history for the tab on this terminal, or the one tab alone showing a mark.
+    private static func terminalText(_ tty: String, marks: [String]) -> String {
+        let shows = markTest(marks, in: ["history of t"])
+        let byMark = shows.map { test in
+            """
+            set found to 0
+            repeat with w in windows
+                repeat with t in tabs of w
+                    if \(test) then
+                        set found to found + 1
+                        set ft to t
+                    end if
+                end repeat
+            end repeat
+            if found is 1 then return history of ft
+            """
+        } ?? ""
+        return """
+        tell application "Terminal"
+            repeat with w in windows
+                repeat with t in tabs of w
+                    if tty of t is "\(tty)" then return history of t
+                end repeat
+            end repeat
+            \(byMark)
+        end tell
+        return ""
+        """
+    }
+
+    /// The text a script returned, or nil when it failed.
+    private static func runText(_ source: String) -> String? {
+        var error: NSDictionary?
+        let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
+        if let error { diary.note("could not read the terminal: \(error)") }
+        // No tab found answers false, which is not the words of a tab.
+        guard let result, ![DescType(typeTrue), DescType(typeFalse), DescType(typeBoolean)].contains(result.descriptorType) else { return nil }
+        return result.stringValue
     }
 
     /// The window an action is aimed at, captured either side of acting without bringing anything forward,

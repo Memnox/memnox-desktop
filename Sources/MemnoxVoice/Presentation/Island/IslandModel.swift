@@ -99,8 +99,17 @@ struct DraftCard: Equatable, Sendable {
 struct WorkCard: Equatable, Sendable {
     let subject: String
     let draft: WorkDraft
+    /// The words the person rewrote on the card, nil while they are the ones proposed.
+    var edited: String?
 
     var reason: String { draft.touchIDReason }
+
+    /// The same card with the words as they stand in its box, which count as rewritten only where they differ.
+    func with(words: String) -> WorkCard {
+        var card = self
+        card.edited = words == draft.body ? nil : words
+        return card
+    }
 }
 
 /// A finished sign in as the pill under the notch shows it, with the proposal "that's me" signs where there is one.
@@ -212,6 +221,8 @@ final class IslandModel: ObservableObject {
     @Published var ruleScope: String?
     /// Set while Control and Option are held, so the island says it is taking down a rule.
     @Published var ruling = false
+    /// What to say while dictating, nil otherwise, so dictating never looks like talking to Memnox.
+    @Published var dictating: String?
     /// The answer opened up tall rather than in its card under the question.
     @Published var expanded = false
     /// The exchange opened from the history at the side, shown tall under the notch.
@@ -298,7 +309,7 @@ final class IslandModel: ObservableObject {
         } else if active {
             // What Memnox says is heard rather than read, so a turn keeps the orb up instead of printing the answer;
             // the answer stays in the history at the side. A rule is always shown as it is said, since the person signs it.
-            next = ruling || (liveWords && !heard.isEmpty) ? .hearing : .voice
+            next = ruling || dictating != nil || (liveWords && !heard.isEmpty) ? .hearing : .voice
         } else if phone != nil {
             // The person talking here comes first; a phone's turn is only watched, so it waits behind them.
             next = .conversation

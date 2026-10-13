@@ -109,7 +109,8 @@ final class IslandPanel: NSPanel, Face {
         }
     }
 
-    override var canBecomeKey: Bool { false }
+    /// Only while a draft is up, so its words can be typed into and the island never takes keys otherwise.
+    override var canBecomeKey: Bool { model.work != nil }
 
     /// Not pushed below the menu bar, which is exactly where the island lives.
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
@@ -167,6 +168,14 @@ final class IslandPanel: NSPanel, Face {
     nonisolated func ruling(_ on: Bool) {
         DispatchQueue.main.async { [self] in
             withAnimation(.snappy) { model.ruling = on }
+            model.settle()
+        }
+    }
+
+    /// Dictation began or ended: the island says it is typing into the app in front, with what to say.
+    nonisolated func dictating(_ hint: String?) {
+        DispatchQueue.main.async { [self] in
+            withAnimation(.snappy) { model.dictating = hint }
             model.settle()
         }
     }
@@ -231,6 +240,7 @@ final class IslandPanel: NSPanel, Face {
     nonisolated func dismiss() {
         DispatchQueue.main.async { [self] in
             model.active = false
+            model.dictating = nil
             model.caption = ""
             model.heard = ""
             model.expanded = false
@@ -443,6 +453,11 @@ final class IslandPanel: NSPanel, Face {
     /// elsewhere, shown on its card for a moment first; a call answered from this Mac's own buttons never shows one.
     nonisolated func release(_ subject: String, note: String? = nil) {
         DispatchQueue.main.async { [self] in
+            // A draft withdrawn by voice or run out settles too, and its card goes; one being sent is left to its answer.
+            if model.work?.subject == subject, !model.sending {
+                model.work = nil
+                model.settle()
+            }
             if let note, model.held?.subject == subject, model.pressed != subject {
                 model.settledNote = note
                 model.answering = false

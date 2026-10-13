@@ -1,12 +1,22 @@
+import AppKit
 import MemnoxVoiceCore
 import SwiftUI
 
 /// What is about to go out in the person's name, laid out the way its own tool lays it out: a Slack
 /// message, a GitHub or Linear comment, a mail. It names the account it goes out as and shows every
-/// argument, since Send signs exactly what the runtime proposed; closing it goes unsigned.
+/// argument; its words sit in a box ready to change, and Send signs exactly what goes; closing it goes unsigned.
 struct IslandWorkCard: View {
     @ObservedObject var model: IslandModel
     let card: WorkCard
+    /// The words as they stand in the card, the proposed ones until the person rewrites them.
+    @State private var words: String
+    @FocusState private var typing: Bool
+
+    init(model: IslandModel, card: WorkCard) {
+        self.model = model
+        self.card = card
+        _words = State(initialValue: card.draft.body ?? "")
+    }
 
     private enum Layout {
         static let padding: CGFloat = 14
@@ -18,6 +28,11 @@ struct IslandWorkCard: View {
         static let bodyLineSpacing: CGFloat = 4
         static let commentRadius: CGFloat = 8
         static let fieldNameWidth: CGFloat = 96
+        /// Tall enough for a few lines of a message, short enough that Send stays on the card.
+        static let editorMinHeight: CGFloat = 72
+        static let editorMaxHeight: CGFloat = 180
+        /// As many recipients as fit on one row; the rest are counted, and named on hover.
+        static let shownPeople = 3
     }
 
     private enum Shade {
@@ -37,6 +52,17 @@ struct IslandWorkCard: View {
     }
 
     private var draft: WorkDraft { card.draft }
+    /// Words that were there and are now all gone, so there is nothing to send.
+    private var empty: Bool { draft.body != nil && words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var changed: Bool { draft.body != nil && words != draft.body }
+
+    /// What the footer says now: Touch ID up, nothing left to send, the person's own words, or the promise.
+    private var footnote: String {
+        if model.sending { return "Waiting for Touch ID" }
+        if empty { return "Write something to send." }
+        if changed { return "Your words go out as you wrote them." }
+        return "Nothing goes out until you send it."
+    }
     private var tool: String { ToolkitName.of(draft.toolkit) }
 
     var body: some View {
@@ -83,6 +109,8 @@ struct IslandWorkCard: View {
             .buttonStyle(PressableStyle())
             .help("Close without sending")
             .accessibilityLabel("Close without sending")
+            // Not while Touch ID is up, so a stray click cannot turn a send into a decline halfway.
+            .disabled(model.sending)
         }
     }
 
@@ -111,10 +139,13 @@ struct IslandWorkCard: View {
     }
 
     private var footer: some View {
-        HStack {
-            Text("Nothing goes out until you send it.")
+        HStack(spacing: Memnox.Spacing.medium) {
+            Text(footnote)
                 .font(Memnox.sans(Memnox.TextSize.caption))
                 .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .animation(.easeOut(duration: Memnox.Motion.quick), value: footnote)
             Spacer()
             Button { answer(send: true) } label: {
                 HStack(spacing: Memnox.Spacing.small) {
@@ -129,8 +160,11 @@ struct IslandWorkCard: View {
                 .overlay(Capsule().strokeBorder(Color.white.opacity(Memnox.Ink.edge)))
             }
             .buttonStyle(PressableStyle())
-            .help("Send with Touch ID")
+            .help(empty ? "Write something to send" : "Send with Touch ID")
             .accessibilityLabel("\(ToolBrand.sendLabel(draft.toolkit)) on \(tool), with Touch ID")
+            // Command Return sends from the box, the way a message is sent in most apps.
+            .keyboardShortcut(.return, modifiers: .command)
+            .disabled(empty)
         }
         .disabled(model.sending)
         .opacity(model.sending ? Shade.sending : 1)
@@ -241,14 +275,30 @@ struct IslandWorkCard: View {
             .accessibilityHidden(true)
     }
 
-    /// The words, with their bold, links and code drawn as the tool would draw them.
+    /// The words in a box from the start, so the person changes them where they read them and just sends.
     private var bodyText: some View {
-        Text(rendered(draft.body ?? ""))
+        TextEditor(text: $words)
             .font(Memnox.sans(Layout.bodySize))
             .lineSpacing(Layout.bodyLineSpacing)
-            .foregroundStyle(Color.white.opacity(Memnox.Ink.primary))
-            .textSelection(.enabled)
-            .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(Color.white)
+            .scrollContentBackground(.hidden)
+            .focused($typing)
+            // Escape leaves the box and keeps the words, rather than closing the draft.
+            .onExitCommand { typing = false }
+            .padding(Memnox.Spacing.small)
+            .frame(minHeight: Layout.editorMinHeight, maxHeight: Layout.editorMaxHeight)
+            .background(RoundedRectangle(cornerRadius: Layout.commentRadius, style: .continuous)
+                .fill(Color.white.opacity(Shade.chip)))
+            // A click into the box hands the island the keys; until then typing stays in the app the person is in.
+            .simultaneousGesture(TapGesture().onEnded(startTyping))
+            .help("Change the words, then send them")
+            .accessibilityLabel("The words that will be sent")
+    }
+
+    /// The island takes keys only now, so typing lands in the box and not in the app behind it.
+    private func startTyping() {
+        NSApp.windows.first { $0 is IslandPanel }?.makeKey()
+        typing = true
     }
 
     private func chips(_ label: String, _ people: [String]) -> some View {
@@ -256,7 +306,7 @@ struct IslandWorkCard: View {
             Text(label)
                 .font(Memnox.sans(Memnox.TextSize.body))
                 .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
-            ForEach(people, id: \.self) { person in
+            ForEach(people.prefix(Layout.shownPeople), id: \.self) { person in
                 Text(person)
                     .font(Memnox.sans(Memnox.TextSize.body, .medium))
                     .foregroundStyle(Color.white)
@@ -265,7 +315,15 @@ struct IslandWorkCard: View {
                     .padding(.vertical, Memnox.Spacing.xSmall)
                     .background(Capsule().fill(Color.white.opacity(Shade.chip)))
             }
+            if people.count > Layout.shownPeople {
+                Text("and \(people.count - Layout.shownPeople) more")
+                    .font(Memnox.sans(Memnox.TextSize.body))
+                    .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                    .lineLimit(1)
+                    .help(people.joined(separator: ", "))
+            }
         }
+        .accessibilityElement(children: .combine)
     }
 
     /// Every argument the layout did not show, so nothing is sent that the person did not see.
@@ -299,13 +357,9 @@ struct IslandWorkCard: View {
         }
     }
 
-    private func rendered(_ text: String) -> AttributedString {
-        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
-    }
-
     private func answer(send: Bool) {
         model.sending = send
-        model.answerWork(card, send)
+        // A draft with no words of its own has nothing to rewrite, so it goes exactly as proposed.
+        model.answerWork(draft.body == nil ? card : card.with(words: words), send)
     }
 }

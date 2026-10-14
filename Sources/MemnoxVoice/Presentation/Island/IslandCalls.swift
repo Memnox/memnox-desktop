@@ -59,6 +59,8 @@ struct IslandHeldCall: View {
                     .foregroundStyle(Color.white)
                     .lineLimit(1)
                     .truncationMode(.middle)
+                    // Cut in the middle to fit, so the whole command is one hover away before anything is allowed.
+                    .help(card.what)
                     .padding(.horizontal, Memnox.Spacing.large)
                     .padding(.vertical, Memnox.Spacing.medium)
                     .background(RoundedRectangle(cornerRadius: Layout.commandRadius).fill(Color.white.opacity(Memnox.Ink.faintFill)))

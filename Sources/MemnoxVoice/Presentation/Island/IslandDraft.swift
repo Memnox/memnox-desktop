@@ -110,6 +110,8 @@ struct IslandDraftCard: View {
             }
             .buttonStyle(PressableStyle())
             .help("Close without sending")
+            .accessibilityLabel("Close without sending")
+            .disabled(model.sending)
         }
         .frame(height: Layout.rowHeight + Memnox.Spacing.medium)
     }
@@ -166,6 +168,7 @@ struct IslandDraftCard: View {
             } label: { Image(systemName: Symbol.copy) }
                 .buttonStyle(IslandButton(primary: false))
                 .help("Copy the message")
+                .accessibilityLabel("Copy the message")
             Spacer()
             Button { answer(send: true) } label: {
                 HStack(spacing: Memnox.Spacing.small) {
@@ -179,6 +182,8 @@ struct IslandDraftCard: View {
                 .background(Capsule().fill(Self.sendBlue))
             }
             .buttonStyle(PressableStyle())
+            .help(model.sending ? "Waiting for Touch ID" : "Send with Touch ID")
+            .accessibilityLabel("Send with Touch ID")
         }
         .disabled(model.sending)
         .opacity(model.sending ? Shade.sending : 1)

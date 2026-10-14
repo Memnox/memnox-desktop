@@ -73,14 +73,16 @@ struct HopEffect: GeometryEffect {
 
 /// A slow breath on the held call's dot, so the eye finds what is waiting.
 struct PulseEffect: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Seconds from rest to full breath; a whole breath in and out takes twice this.
     private static let halfBreath: TimeInterval = 0.9
     private static let swell = 0.35
     private static let fade = 0.4
 
     func body(content: Content) -> some View {
-        TimelineView(.animation) { timeline in
-            let breath = (sin(timeline.date.timeIntervalSinceReferenceDate * .pi / Self.halfBreath) + 1) / 2
+        // Held still at full size with Reduce Motion, so the dot is there without moving.
+        TimelineView(.animation(minimumInterval: nil, paused: reduceMotion)) { timeline in
+            let breath = reduceMotion ? 0 : (sin(timeline.date.timeIntervalSinceReferenceDate * .pi / Self.halfBreath) + 1) / 2
             content
                 .scaleEffect(1 + Self.swell * breath)
                 .opacity(1 - Self.fade * breath)
@@ -93,6 +95,7 @@ struct PulseEffect: ViewModifier {
 struct LogoMood: ViewModifier {
     let bouncing: Bool
     let stumbling: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// How high a hop goes, and how many hops a second, kept small since the logo is sixteen points.
     private static let hopHeight: CGFloat = 3
@@ -102,10 +105,11 @@ struct LogoMood: ViewModifier {
 
     func body(content: Content) -> some View {
         // Paused when there is nothing to show, so a quiet bar costs no frames.
-        TimelineView(.animation(minimumInterval: nil, paused: !bouncing && !stumbling)) { timeline in
+        // With Reduce Motion nothing moves; the grey of a stumble still shows which agent it was.
+        TimelineView(.animation(minimumInterval: nil, paused: reduceMotion || (!bouncing && !stumbling))) { timeline in
             let seconds = timeline.date.timeIntervalSinceReferenceDate
-            let hop = bouncing ? -abs(sin(seconds * .pi * Self.hopsPerSecond)) * Self.hopHeight : 0
-            let shiver = stumbling ? sin(seconds * Self.shiverRate) * Self.shiverReach : 0
+            let hop = bouncing && !reduceMotion ? -abs(sin(seconds * .pi * Self.hopsPerSecond)) * Self.hopHeight : 0
+            let shiver = stumbling && !reduceMotion ? sin(seconds * Self.shiverRate) * Self.shiverReach : 0
             content
                 .offset(x: shiver, y: hop)
                 .saturation(stumbling ? 0 : 1)

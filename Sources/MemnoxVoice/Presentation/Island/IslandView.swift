@@ -6,6 +6,7 @@ import SwiftUI
 /// The island: a black shape that flows out of the screen's top edge, the orb, and the content of the mode.
 struct IslandView: View {
     @ObservedObject var model: IslandModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let orb: MTKView
     let loudness: () -> Float
 
@@ -74,8 +75,9 @@ struct IslandView: View {
             .frame(width: size.width + 2 * Island.flare, height: size.height, alignment: .topLeading)
             .modifier(ShakeEffect(times: CGFloat(model.shakes)))
             .modifier(HopEffect(times: CGFloat(model.hops)))
-            .animation(.easeInOut(duration: Memnox.Motion.slow), value: model.hops)
-            .animation(Timing.shake, value: model.shakes)
+            // With Reduce Motion the hop and the shake are skipped; the card and the sound still say what happened.
+            .animation(reduceMotion ? nil : .easeInOut(duration: Memnox.Motion.slow), value: model.hops)
+            .animation(reduceMotion ? nil : Timing.shake, value: model.shakes)
             // Under the island in every mode, so somebody at the Mac always knows a phone is driving it.
             if let driving = model.driving {
                 IslandPhonePill(label: driving.label, symbol: IslandPhonePill.driving)
@@ -216,25 +218,22 @@ struct IslandHeader: View {
     var body: some View {
         let count = model.working.count
         HStack(spacing: Memnox.Spacing.xSmall) {
-            IslandTab(symbol: Symbol.overview, on: model.mode == .overview || model.mode == .empty) {
+            IslandTab(symbol: Symbol.overview, label: "All sessions", on: model.mode == .overview || model.mode == .empty) {
                 model.detail = false
                 model.picked = nil
                 model.settle()
             }
-            .help("All sessions")
-            IslandTab(symbol: Symbol.history, on: model.sideOpen) { model.toggleSide() }
-                .help("History, sessions and what needs you")
+            IslandTab(symbol: Symbol.history, label: "History, sessions and what needs you", on: model.sideOpen) { model.toggleSide() }
             if model.mode == .session || model.mode == .answer {
-                IslandTab(symbol: Symbol.back, on: false) {
+                IslandTab(symbol: Symbol.back, label: "Back", on: false) {
                     model.detail = false
                     model.picked = nil
                     model.settle()
                 }
-                .help("Back")
             }
-            IslandTab(symbol: Symbol.voice, on: model.mode == .voice) { model.tapped() }
-                .help("Talk to Memnox")
+            IslandTab(symbol: Symbol.voice, label: "Talk to Memnox", on: model.mode == .voice) { model.tapped() }
             Spacer(minLength: model.notch.width + Memnox.Spacing.xLarge)
+            // Nothing at all when nothing works, since "0 working" reads like a fault.
             Text(count == 1 ? "1 working" : "\(count) working")
                 .font(Memnox.sans(Layout.countSize, .medium))
                 .foregroundStyle(Color.white.opacity(Self.countOpacity))
@@ -242,6 +241,8 @@ struct IslandHeader: View {
                 .contentTransition(.numericText())
                 .animation(.snappy, value: count)
                 .padding(.trailing, Layout.countTrailing)
+                .opacity(count == 0 ? 0 : 1)
+                .accessibilityHidden(count == 0)
         }
         .padding(.leading, model.mode == .answer || model.mode == .session ? Layout.pastOrb : Memnox.Spacing.large)
         .frame(height: model.notch.height)
@@ -251,6 +252,8 @@ struct IslandHeader: View {
 /// A round icon tab in the header, filled when it is where you are.
 struct IslandTab: View {
     let symbol: String
+    /// Said by VoiceOver and shown on hover, since the tab is an icon alone.
+    let label: String
     let on: Bool
     let action: () -> Void
 
@@ -267,6 +270,9 @@ struct IslandTab: View {
                 .background(Capsule().fill(Color.white.opacity(on ? Self.onFillOpacity : 0)))
         }
         .buttonStyle(PressableStyle())
+        .help(label)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 
@@ -305,6 +311,18 @@ struct IslandCompact: View {
         .frame(height: height)
         .contentShape(Rectangle())
         .onTapGesture { model.tapped() }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { model.tapped() }
+    }
+
+    /// What the bar beside the notch means, for someone who cannot see the orb or the logos.
+    private var spoken: String {
+        if model.active { return model.dictating == nil ? "Memnox is listening" : "Dictating" }
+        if model.held != nil { return "An agent is waiting for you" }
+        let count = model.working.count
+        return count == 1 ? "1 agent working" : "\(count) agents working"
     }
 }
 

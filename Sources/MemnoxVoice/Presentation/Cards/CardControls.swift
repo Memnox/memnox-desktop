@@ -13,9 +13,12 @@ struct CardButton: View {
     let primary: Bool
     let action: () -> Void
     @State private var hovered = false
+    @Environment(\.isEnabled) private var enabled
 
     private enum Layout {
         static let textSize: CGFloat = 12.5
+        /// A button that cannot be pressed now fades, so it never looks like a click that did nothing.
+        static let disabled = 0.4
         static let horizontalPadding: CGFloat = 14
         static let primaryResting = 0.92
         static let plainHovered = 0.15
@@ -33,8 +36,9 @@ struct CardButton: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(PressDown())
+        .opacity(enabled ? 1 : Layout.disabled)
         .onHover { inside in
-            withAnimation(.easeOut(duration: hoverDuration)) { hovered = inside }
+            withAnimation(.easeOut(duration: hoverDuration)) { hovered = inside && enabled }
         }
     }
 

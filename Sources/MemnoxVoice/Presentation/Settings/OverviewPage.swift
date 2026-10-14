@@ -5,8 +5,8 @@ import SwiftUI
 struct OverviewPage: View {
     @ObservedObject var menu: MenuModel
     @ObservedObject var setup: SetupModel
-    /// The team sign in, absent only before the app has built it.
-    let team: TeamModel?
+    /// The person's sign in, absent only before the app has built it.
+    let account: AccountModel?
     /// The home's blocks, absent only before the app has built them.
     let home: HomeModel?
     let go: (SettingsPage) -> Void
@@ -45,10 +45,10 @@ struct OverviewPage: View {
             .buttonStyle(KitButton(kind: .secondary))
             .help("Or press Option Space from anywhere")
             if setup.isFinished { homeBlocks }
-            if let team, !setup.isFinished, firstRun.isEmpty {
-                FirstRunChoice(team: team) { path in
+            if let account, !setup.isFinished, firstRun.isEmpty {
+                FirstRunChoice(account: account) { path in
                     firstRun = path
-                    if path == FirstRun.team { go(.team) }
+                    if path == FirstRun.account { go(.account) }
                 }
             } else {
                 SetupProgressCard(setup: setup, go: go)
@@ -68,17 +68,18 @@ struct OverviewPage: View {
     }
 }
 
-/// The two ways in on a first run, side by side, since somebody may be here only to answer their team.
+/// The two ways in on a first run, side by side, since somebody may be here only to answer what is routed to them.
 enum FirstRun {
     static let key = "firstRunPath"
     static let thisMac = "mac"
-    static let team = "team"
+    /// Still stored as "team", so a choice made before the page was renamed resolves the same way.
+    static let account = "team"
 }
 
-/// "Set up this Mac" beside "Join your team": the first walks the checklist for this Mac's own agents, the second
-/// signs in to the workspace so teammates' calls reach the island before anything else here is set up.
+/// "Set up this Mac" beside "Sign in": the first walks the checklist for this Mac's own agents, the second
+/// signs in to the workspace so the calls routed to the person reach the island before anything else here is set up.
 private struct FirstRunChoice: View {
-    @ObservedObject var team: TeamModel
+    @ObservedObject var account: AccountModel
     let chose: (String) -> Void
 
     private static let tracking: CGFloat = 1.2
@@ -99,15 +100,15 @@ private struct FirstRunChoice: View {
                     action: "Set up"
                 ) { chose(FirstRun.thisMac) }
                 path(
-                    symbol: "person.3",
-                    title: "Join your team",
-                    detail: team.isSignedIn
-                        ? "Signed in. Your teammates' calls come to the island."
-                        : "Answer the calls your teammates' agents route to you, before setting up anything else.",
-                    action: team.isSignedIn ? "Open Team" : "Join"
+                    symbol: "person.crop.circle.badge.checkmark",
+                    title: "Sign in",
+                    detail: account.isSignedIn
+                        ? "Signed in. What your workspace routes to you comes to the notch."
+                        : "Answer what your workspace routes to you, from the notch, before setting up anything else.",
+                    action: account.isSignedIn ? "Open Account" : "Sign in"
                 ) {
-                    if !team.isSignedIn { team.start() }
-                    chose(FirstRun.team)
+                    if !account.isSignedIn { account.start() }
+                    chose(FirstRun.account)
                 }
             }
         }
@@ -194,13 +195,18 @@ private struct SetupProgressCard: View {
                     .buttonStyle(.plain)
                     .pointingHand()
                     .help("Open \(step.page.title)")
+                    // One spoken line per step, so VoiceOver says where it stands and where it leads.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(step.title), \(step.state == .done ? "done" : "not done yet")")
+                    .accessibilityHint("Opens \(step.page.title)")
                 }
             }
             if !setup.isFinished {
                 HStack {
                     Spacer()
+                    // The card's one primary is the open step; Finish takes it over once nothing is left.
                     Button("Finish setup") { setup.finish() }
-                        .buttonStyle(KitButton(kind: .primary))
+                        .buttonStyle(KitButton(kind: open == nil ? .primary : .secondary))
                         .disabled(setup.nameState != .done)
                         .help(setup.nameState == .done ? "Finish and hear Memnox say hello" : "Add your name first")
                 }
@@ -213,10 +219,11 @@ private struct SetupProgressCard: View {
     /// Each setup step with the page it lives on and what to do when it is still open.
     private static func steps(_ setup: SetupModel) -> [OverviewStep] {
         [
-            OverviewStep("Tell Memnox your name", setup.nameState, .profile, "So it greets you and speaks to you by name."),
-            OverviewStep("Let it hear you", setup.listening, .profile, "Microphone and speech recognition, on this Mac only."),
-            OverviewStep("Let it see and act", setup.seeing, .profile, "Read your screen when you ask, and check that what it sent landed."),
-            OverviewStep("Start the Memnox daemon", setup.daemon, .connection, setup.daemonDetail),
+            OverviewStep("Tell Memnox your name", setup.nameState, .account, "So it greets you and speaks to you by name."),
+            OverviewStep("Let it hear you", setup.listening, .permissions, "Microphone and speech recognition, on this Mac only."),
+            OverviewStep("Let it type for you", setup.typing, .permissions, "Type what you confirm into your agents, and read back that it landed."),
+            OverviewStep("Let it see your screen", setup.seeing, .permissions, "Read the window you ask about, and check that what it sent landed."),
+            OverviewStep("Start the Memnox service", setup.daemon, .connection, setup.daemonDetail),
             OverviewStep("Register Touch ID", setup.key, .connection, "Your finger approves anything outside a session's repository."),
             OverviewStep("Choose who answers for you", setup.agentsState, .voice, setup.agentsDetail),
             OverviewStep("Pick a voice", setup.voiceState, .voice, setup.voiceDetail),

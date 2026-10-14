@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// The one Memnox window: a sidebar of glass on the left with the pages in their groups and the person at the foot, and
+/// The one Memnox window: a sidebar of glass on the left with the pages in their groups, and
 /// the chosen page on its own rounded panel to the right, light or dark as the Mac is set.
 struct SettingsView: View {
     @ObservedObject var models: SettingsModels
@@ -18,6 +18,10 @@ struct SettingsView: View {
         /// The page's panel sits this far in from the window's top, right and bottom, as a sheet set on glass.
         static let panelInset: CGFloat = 10
         static let panelRadius: CGFloat = 16
+        /// A soft shadow under the page's panel, enough to lift it off the glass and no more.
+        static let panelShadow = 0.18
+        static let panelShadowRadius: CGFloat = 10
+        static let panelShadowDrop: CGFloat = 2
     }
 
     /// The sidebar's glass tint: dark graphite in the dark and soft grey in the light, neutral rather than blue, deep
@@ -30,7 +34,7 @@ struct SettingsView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            SettingsSidebar(selection: $navigation.page, name: models.setup?.name ?? "")
+            SettingsSidebar(selection: $navigation.page)
                 .frame(width: Layout.sidebarWidth)
                 .padding(.top, Layout.titlebarRoom)
                 .frame(maxHeight: .infinity, alignment: .top)
@@ -51,7 +55,7 @@ struct SettingsView: View {
                         .strokeBorder(Memnox.ink(Memnox.Ink.rim), lineWidth: Memnox.Stroke.hairline))
             )
             .clipShape(RoundedRectangle(cornerRadius: Layout.panelRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.18), radius: 10, y: 2)
+            .shadow(color: .black.opacity(Layout.panelShadow), radius: Layout.panelShadowRadius, y: Layout.panelShadowDrop)
             .padding([.top, .bottom, .trailing], Layout.panelInset)
         }
         // Edge to edge, so the inset is measured from the window and not from under the title bar.
@@ -66,14 +70,16 @@ struct SettingsView: View {
     @ViewBuilder private var page: some View {
         if let menu = models.menu, let setup = models.setup {
             switch navigation.page {
-            case .overview: OverviewPage(menu: menu, setup: setup, team: models.team, home: models.home, go: go)
-            case .profile: SetupYouCard(model: setup)
-            case .team:
-                if let team = models.team { TeamPage(team: team) }
+            case .overview: OverviewPage(menu: menu, setup: setup, account: models.account, home: models.home, go: go)
+            case .account:
+                if let account = models.account { AccountPage(account: account, setup: setup) }
+            case .permissions: SetupPermissionsCard(model: setup)
             case .connection: SetupMacCard(model: setup)
             case .phones: PhonesPage(menu: menu, setup: setup)
             case .voice: VoicePage(menu: menu, setup: setup)
             case .listening: ListeningPage(menu: menu, setup: setup)
+            case .dictation:
+                if let dictations = models.dictations { DictationPage(store: dictations) }
             case .help: HelpPage(menu: menu)
             }
         } else {
@@ -92,11 +98,10 @@ struct SettingsView: View {
     }
 }
 
-/// The wordmark, then the page list in its groups, each under a quiet label, the chosen page on a pill of glass, and the
-/// person at the foot, as a sidebar of a Mac app reads.
+/// The wordmark, then the page list in its groups, each under a quiet label, and the chosen page on a pill of glass.
+/// Who the person is lives on the Account page alone, so the sidebar never names them twice.
 private struct SettingsSidebar: View {
     @Binding var selection: SettingsPage
-    let name: String
 
     private enum Layout {
         static let rowHeight: CGFloat = 34
@@ -105,7 +110,6 @@ private struct SettingsSidebar: View {
         static let chosenFill = 0.1
         static let chosenRadius: CGFloat = 10
         static let chosenShadow = 0.12
-        static let avatarSide: CGFloat = 28
     }
 
     var body: some View {
@@ -127,7 +131,6 @@ private struct SettingsSidebar: View {
                 }
             }
             Spacer(minLength: 0)
-            person
         }
         .padding(.horizontal, Memnox.Spacing.medium)
         .padding(.bottom, Memnox.Spacing.large)
@@ -159,36 +162,6 @@ private struct SettingsSidebar: View {
         }
         .buttonStyle(MenuPress())
         .accessibilityAddTraits(chosen ? .isSelected : [])
-    }
-
-    /// The person at the foot, the way a Mac app signs its sidebar, and a way to their profile.
-    private var person: some View {
-        Button { selection = .profile } label: {
-            HStack(spacing: Memnox.Spacing.medium) {
-                Text(initial)
-                    .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-                    .foregroundStyle(Memnox.Palette.ink)
-                    .frame(width: Layout.avatarSide, height: Layout.avatarSide)
-                    .background(Circle().fill(Memnox.Palette.raised))
-                    .overlay(Circle().strokeBorder(Memnox.ink(Memnox.Ink.edge), lineWidth: Memnox.Stroke.hairline))
-                Text(name.isEmpty ? "You" : name)
-                    .font(Memnox.sans(Memnox.TextSize.callout, .medium))
-                    .foregroundStyle(Memnox.Palette.ink)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: Memnox.TextSize.caption, weight: .semibold))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
-            }
-            .padding(.horizontal, Memnox.Spacing.regular)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(MenuPress())
-        .accessibilityLabel("Your profile")
-    }
-
-    private var initial: String {
-        name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "M"
     }
 }
 
@@ -234,32 +207,13 @@ private struct PhonesPage: View {
     }
 }
 
-/// Who thinks for the voice and which Kokoro voice speaks, then the Mac's own voice as the other choice.
+/// Who thinks for the voice and which voice speaks, the Mac's own or a Kokoro one, in one row.
 private struct VoicePage: View {
     @ObservedObject var menu: MenuModel
     @ObservedObject var setup: SetupModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
-            SetupVoiceCard(model: setup)
-            VoiceMenuRow(choice: menu.voiceChoice, kokoroVoice: menu.kokoroVoice, pick: pick)
-                .padding(.vertical, Memnox.Spacing.xSmall)
-                .surface()
-        }
-    }
-
-    /// The Mac's own voice by its tag, and any Kokoro voice saved first so the chosen one is what speaks.
-    private func pick(_ tag: String) {
-        guard tag != VoiceChoice.mac else {
-            menu.voiceChoice = VoiceChoice.mac
-            menu.chooseVoice(VoiceChoice.mac)
-            return
-        }
-        KokoroVoice.choose(tag)
-        menu.kokoroVoice = tag
-        menu.voiceChoice = VoiceChoice.kokoro
-        menu.chooseVoice(VoiceChoice.kokoro)
-        Task { await setup.voiceChanged() }
+        SetupVoiceCard(model: setup, menu: menu)
     }
 }
 
@@ -300,12 +254,20 @@ private struct HelpPage: View {
     @ObservedObject var menu: MenuModel
 
     var body: some View {
-        VStack(spacing: Memnox.Spacing.xxSmall) {
-            MenuRow(symbol: MenuSymbol.rule, title: "Say a rule", action: menu.sayRule)
-            MenuRow(symbol: MenuSymbol.saySomething, title: "Say something", action: menu.saySomething)
-            MenuRow(symbol: MenuSymbol.copy, title: "Copy what happened", action: menu.copyWhatHappened)
+        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+            VStack(spacing: Memnox.Spacing.xxSmall) {
+                MenuRow(symbol: MenuSymbol.rule, title: "Say a rule", action: menu.sayRule)
+                MenuRow(symbol: MenuSymbol.saySomething, title: "Say something", action: menu.saySomething)
+                MenuRow(symbol: MenuSymbol.copy, title: "Copy what happened", action: menu.copyWhatHappened)
+            }
+            .padding(Memnox.Spacing.xSmall)
+            .surface()
+            // What each row is for, since the rows themselves carry only a title.
+            Text("Say a rule turns a sentence like \u{201C}never deploy on Fridays\u{201D} into a rule. Say something checks that Memnox hears and answers you. Copy what happened puts the recent steps on your clipboard to send to support.")
+                .font(Memnox.sans(Memnox.TextSize.caption))
+                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, Memnox.Spacing.xSmall)
         }
-        .padding(Memnox.Spacing.xSmall)
-        .surface()
     }
 }

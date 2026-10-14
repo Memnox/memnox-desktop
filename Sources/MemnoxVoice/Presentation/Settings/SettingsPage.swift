@@ -1,13 +1,15 @@
 /// The pages of the one Memnox window, grouped the way the console groups its own: the overview first, then the
-/// person, this Mac, the voice, and help.
+/// person as one page, this Mac, the voice, and help. The person is one page because a name, a sign in and the row at
+/// the sidebar's foot are all the same person, and three places for one person read as three accounts.
 enum SettingsPage: String, CaseIterable, Identifiable {
     case overview
-    case profile
-    case team
+    case account
+    case permissions
     case connection
     case phones
     case voice
     case listening
+    case dictation
     case help
 
     var id: String { rawValue }
@@ -15,21 +17,22 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// The sidebar's groups in order, each with the pages under it; the overview stands alone at the top.
     static let groups: [(title: String?, pages: [SettingsPage])] = [
         (nil, [.overview]),
-        ("You", [.profile, .team]),
-        ("This Mac", [.connection, .phones]),
-        ("Voice", [.voice, .listening]),
+        ("You", [.account]),
+        ("This Mac", [.permissions, .connection, .phones]),
+        ("Voice", [.voice, .listening, .dictation]),
         ("Support", [.help]),
     ]
 
     var title: String {
         switch self {
         case .overview: return "Overview"
-        case .profile: return "Profile"
-        case .team: return "Team"
+        case .account: return "Account"
+        case .permissions: return "Permissions"
         case .connection: return "Connection"
         case .phones: return "Phones"
         case .voice: return "Voice"
         case .listening: return "Listening"
+        case .dictation: return "Dictation"
         case .help: return "Help"
         }
     }
@@ -38,12 +41,13 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .overview: return "What your agents are doing, and what is left to set up."
-        case .profile: return "Who you are, and what this Mac lets Memnox hear and see."
-        case .team: return "Your Memnox Cloud workspace, and the calls it routes to you."
-        case .connection: return "The daemon your agents talk to, and the key Touch ID signs with."
+        case .account: return "Your name, who you are in Memnox Cloud, and what that lets Memnox do on this Mac."
+        case .permissions: return "What this Mac lets Memnox hear, type and see."
+        case .connection: return "The Memnox service your agents talk to, and the key Touch ID signs with."
         case .phones: return "Phones paired with this Mac and what each may do."
         case .voice: return "Who thinks for the voice, and the voice it answers in."
         case .listening: return "When Memnox listens and how it speaks up."
+        case .dictation: return "Speak instead of typing, in any app, written the way you would have typed it."
         case .help: return "Rules, a quick test, and what happened for support."
         }
     }
@@ -51,12 +55,13 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .overview: return "house"
-        case .profile: return "person.crop.circle"
-        case .team: return "person.3"
+        case .account: return "person.crop.circle"
+        case .permissions: return "lock.shield"
         case .connection: return "bolt.horizontal.circle"
         case .phones: return "iphone"
         case .voice: return "person.wave.2"
         case .listening: return "ear"
+        case .dictation: return "keyboard"
         case .help: return "questionmark.circle"
         }
     }

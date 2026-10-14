@@ -12,14 +12,19 @@ final class SettingsWindow {
         didSet { models.menu = menu }
     }
 
-    /// Signing in to the team, set once at launch by the app.
-    var team: TeamModel? {
-        didSet { models.team = team }
+    /// Signing in as the person, set once at launch by the app.
+    var account: AccountModel? {
+        didSet { models.account = account }
     }
 
     /// Setup's checks, set each time setup is shown, since that is where the checks are run.
     var setup: SetupModel? {
         didSet { models.setup = setup }
+    }
+
+    /// The person's dictionary and latest dictations, set once at launch by the app.
+    var dictations: DictationStore? {
+        didSet { models.dictations = dictations }
     }
 
     /// The home the overview opens on, set once at launch by the app.
@@ -92,6 +97,7 @@ final class SettingsNavigation: ObservableObject {
 final class SettingsModels: ObservableObject {
     @Published var menu: MenuModel?
     @Published var setup: SetupModel?
-    @Published var team: TeamModel?
+    @Published var account: AccountModel?
     @Published var home: HomeModel?
+    @Published var dictations: DictationStore?
 }

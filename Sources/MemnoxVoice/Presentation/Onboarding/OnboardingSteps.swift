@@ -14,7 +14,7 @@ struct WelcomeStep: View {
 
     var body: some View {
         StepTitle(title: "Welcome to Memnox",
-                  detail: "Your agents can already do the work. Memnox makes it safe to let them do it without you.")
+                  detail: "Let AI agents work autonomously. Keep their actions within your boundaries.")
         KitCard {
             ForEach(Highlight.allCases) { part in
                 if part != Highlight.allCases.first { KitDivider() }
@@ -34,34 +34,72 @@ struct WelcomeStep: View {
     }
 }
 
-/// Everything this Mac needs on one page: the three grants, and Memnox installed under the agents it found.
+/// Everything this Mac needs on one page: the four grants, and Memnox installed under the agents it found.
 struct ThisMacStep: View {
     @ObservedObject var flow: OnboardingFlow
     @ObservedObject var setup: SetupModel
 
     var body: some View {
         StepTitle(title: "Set up this Mac",
-                  detail: "Three permissions, asked once, and Memnox installs itself under your agents.")
+                  detail: "Four permissions, asked once, and Memnox installs itself and its voice under your agents.")
         KitCard(symbol: "lock.shield", title: "Permissions", detail: "Used only when you talk or approve.") {
             KitRow(symbol: "mic", title: "Hear you", detail: "Microphone and speech recognition.", hint: hint(setup.listening)) {
                 grant(setup.listening) { Task { await setup.allowListening() } }
             }
             KitDivider()
-            KitRow(symbol: "cursorarrow.click.2", title: "Type and see for you",
-                   detail: "Accessibility and Screen Recording, so a follow up lands in the agent's own app.",
-                   hint: hint(setup.seeing)) {
-                grant(setup.seeing) { setup.allowSeeing() }
+            KitRow(symbol: "keyboard", title: "Type for you",
+                   detail: "Accessibility, so a follow up lands in the agent's own app.",
+                   hint: hint(setup.typing)) {
+                switch setup.typing {
+                case .waiting: grant(setup.typing) { setup.allowTyping() }
+                // Without a button here the row only pointed at System Settings; Ask again clears an earlier copy's switch.
+                case .needs:
+                    Button("Ask again", systemImage: "arrow.counterclockwise") { Task { await setup.askAgain(.typing) } }
+                        .buttonStyle(KitButton(kind: .secondary))
+                case .done: CheckBox(state: .done)
+                }
             }
+            // Only once Allow was not enough does the picture of the switch to flip appear under the row.
+            if case .needs = setup.typing { guide(.typing) }
             KitDivider()
-            KitRow(symbol: "touchid", title: "Approve with Touch ID", detail: "The key stays in this Mac's Secure Enclave.",
+            KitRow(symbol: "rectangle.dashed.badge.record", title: "See your screen",
+                   detail: "Screen Recording, so it can read the window you ask about and check that words landed.",
+                   hint: hint(setup.seeing)) {
+                // macOS hands the grant over only to the next start, so once it has been asked for, restarting is the
+                // one step left; after a restart that did not take, the switch is an earlier copy's and Ask again clears it.
+                switch setup.seeing {
+                case .waiting: grant(setup.seeing) { setup.allowSeeing() }
+                case .needs where setup.seeingStale:
+                    Button("Ask again", systemImage: "arrow.counterclockwise") { Task { await setup.askAgain(.seeing) } }
+                        .buttonStyle(KitButton(kind: .primary))
+                case .needs:
+                    Button("Restart Memnox", systemImage: "arrow.clockwise") { setup.reopen() }.buttonStyle(KitButton(kind: .primary))
+                case .done: CheckBox(state: .done)
+                }
+            }
+            if case .needs = setup.seeing { guide(.seeing) }
+            KitDivider()
+            KitRow(symbol: "touchid", title: "Approve with Touch ID", detail: "Your fingerprint approves what agents ask. The key never leaves this Mac.",
                    hint: hint(setup.key)) {
                 if setup.key == .done { CheckBox(state: .done) } else { checkAgain }
             }
         }
         KitCard(symbol: "desktopcomputer", title: "Memnox on this Mac", detail: setup.agentsDetail) {
-            KitRow(title: "Memnox daemon", detail: setup.runtime.doing.map { "\($0)…" } ?? "Installed, started and updated for you.",
+            KitRow(title: "Memnox service", detail: setup.runtime.doing.map { "\($0)…" } ?? "Installed, started and updated for you.",
                    hint: hint(setup.daemon), leading: { MemnoxTile() }) {
                 if setup.daemon == .done { CheckBox(state: .done) } else { checkAgain }
+            }
+            KitDivider()
+            // The voice downloads here, during the first run, so Settings never shows it still installing after.
+            KitRow(symbol: "waveform", title: "Voice", detail: setup.voiceDetail, hint: hint(setup.voiceState)) {
+                voiceControl
+            }
+            // Said here so nobody learns of the extension from an error later: the daemon puts it in on its own.
+            if setup.editorsPresent {
+                KitDivider()
+                KitRow(symbol: "terminal", title: "Memnox in your editor", detail: editorDetail) {
+                    if setup.editorsWithExtension.isEmpty { ProgressView().controlSize(.small) } else { CheckBox(state: .done) }
+                }
             }
             ForEach(setup.agents.filter(\.installed)) { agent in
                 KitDivider()
@@ -79,18 +117,45 @@ struct ThisMacStep: View {
                 KitDivider()
                 // An empty list is the daemon not answering far more often than a Mac with no agent, so it says which.
                 KitRow(symbol: "person.crop.circle.badge.questionmark", title: setup.agents.isEmpty ? "Your agents" : "No agent found yet",
-                       detail: hint(setup.agentsState) ?? "Asking the daemon which agents are on this Mac.") {
+                       detail: hint(setup.agentsState) ?? "Looking for the agents on this Mac.") {
                     Button("Check again", systemImage: "arrow.clockwise") { Task { await setup.loadAgents(recheck: true) } }
                         .buttonStyle(KitButton(kind: .secondary))
                         .disabled(setup.checkingAgents)
                 }
             }
         }
-        Next(title: "Continue", flow: flow)
+        // The voice is part of this Mac being set up, so the step holds until it is in.
+        Next(title: setup.voiceStillComing ? "Installing the voice" : "Continue", flow: flow, disabled: setup.voiceStillComing)
     }
 
     private var checkAgain: some View {
         Button("Check again", systemImage: "arrow.clockwise") { Task { await setup.check() } }.buttonStyle(KitButton(kind: .secondary))
+    }
+
+    /// The tick once Kokoro is in, a spinner while it downloads, and a way to try again when it could not.
+    @ViewBuilder private var voiceControl: some View {
+        switch setup.kokoro.state {
+        case .done:
+            CheckBox(state: .done)
+        case .installing, .idle:
+            ProgressView().controlSize(.small)
+        case .failed:
+            Button("Try again", systemImage: "arrow.clockwise") { Task { await setup.useKokoro?() } }.buttonStyle(KitButton(kind: .secondary))
+        }
+    }
+
+    /// The daemon's extension for VS Code, Cursor and Windsurf, which lets the voice reach a session's own tab.
+    private var editorDetail: String {
+        setup.editorsWithExtension.isEmpty
+            ? "The Memnox terminals extension goes into VS Code, Cursor and Windsurf by itself, so your voice reaches the session's own tab."
+            : "The Memnox terminals extension is in, so your voice reaches the session's own tab. Restart the editor if it was open."
+    }
+
+    /// The picture of the switch to flip, set in under the row's words.
+    private func guide(_ pane: SettingsPane) -> some View {
+        PermissionGuide(pane: pane)
+            .padding(.leading, Kit.tileSide + Memnox.Spacing.large)
+            .padding(.bottom, Memnox.Spacing.regular)
     }
 
     /// Allow until it is granted, then the checkbox.
@@ -109,14 +174,14 @@ struct ThisMacStep: View {
     }
 }
 
-/// The two keys to try, the iPhone and the team for whoever wants them now, and the button that starts Memnox.
+/// The two keys to try, the iPhone and the sign in for whoever wants them now, and the button that starts Memnox.
 /// The voice, waking by name and speaking up keep their defaults and live in Settings, so nobody decides them here.
 struct ReadyStep: View {
     @ObservedObject var flow: OnboardingFlow
     @ObservedObject var setup: SetupModel
 
     var body: some View {
-        StepTitle(title: greeting, detail: "Give an agent a task and walk away. Memnox asks only when you need to decide.")
+        StepTitle(title: greeting, detail: "Hand an agent the task and close your laptop. Everything inside your boundary runs on its own, and the one thing outside it finds you on your phone.")
         KitCard(symbol: "keyboard", title: "Two keys to try", detail: "Memnox answers in the notch.") {
             KitRow(symbol: "mic", title: "Ask out loud", detail: "Press, talk, and let go.") {
                 HStack(spacing: Memnox.Spacing.medium) {
@@ -132,16 +197,22 @@ struct ReadyStep: View {
                 }
             }
         }
-        KitCard(symbol: "iphone", title: "Optional", detail: "Answer from your iPhone, or for your team. Both wait in Settings.") {
-            PhonePairing(setup: setup)
-            if let team = flow.team {
+        KitCard(symbol: "building.2", title: "Optional", detail: "Your workspace and your iPhone. Both wait in Settings.") {
+            // First, since the rules, the workspace memory and a paired phone all come to this Mac through it.
+            if let account = flow.account {
+                if let daemon = account.daemon, let machine = account.machine {
+                    AccountSignIn(account: account, daemon: daemon, machine: machine)
+                }
                 KitDivider()
-                TeamSignIn(team: team)
             }
+            PhonePairing(setup: setup)
         }
-        Button("Start using Memnox", systemImage: "sparkles") { setup.finish() }
+        // Memnox starts with its voice in place, so the button waits for the download begun on the step before.
+        Button(setup.voiceStillComing ? "Installing the voice first" : "Start using Memnox",
+               systemImage: setup.voiceStillComing ? "arrow.down.circle" : "sparkles") { setup.finish() }
             .buttonStyle(KitButton(kind: .primary, wide: true))
             .keyboardShortcut(.defaultAction)
+            .disabled(setup.voiceStillComing)
     }
 
     private var greeting: String {
@@ -229,47 +300,65 @@ private struct PhonePairing: View {
     }
 }
 
-/// Signing in to the team with a code approved in the console, and signed in once it is.
-private struct TeamSignIn: View {
-    @ObservedObject var team: TeamModel
+/// The one sign in: a single approval in the browser signs in this app and Memnox on this Mac, and connects
+/// this Mac to the workspace, which carries the rules, the workspace memory and phone pairing.
+private struct AccountSignIn: View {
+    @ObservedObject var account: AccountModel
+    @ObservedObject var daemon: DaemonAccountModel
+    @ObservedObject var machine: DaemonAccountModel
+
+    private var whole: AccountWhole { AccountWhole.of(account.step, daemon: daemon, machine: machine) }
+
+    /// The code as large as the phone's digits, since both are read off the screen and typed or compared.
+    private static let codeSize: CGFloat = 24
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            KitRow(symbol: "building.2", title: title, detail: detail, hint: failure) {
-                switch team.step {
+            KitRow(symbol: "building.2", title: title, detail: whole.detail, hint: hint) {
+                switch whole {
                 case .signedOut, .failed:
-                    Button("Sign in", systemImage: "person.crop.circle") { team.start() }.buttonStyle(KitButton(kind: .secondary))
-                case .starting:
+                    Button("Sign in", systemImage: "person.crop.circle") { account.start() }.buttonStyle(KitButton(kind: .secondary))
+                case .working:
                     ProgressView().controlSize(.small)
                 case .showingCode:
-                    Button("Cancel", systemImage: "xmark") { team.cancel() }.buttonStyle(KitButton(kind: .secondary))
+                    Button("Cancel", systemImage: "xmark") { account.cancel() }.buttonStyle(KitButton(kind: .secondary))
+                case .incomplete:
+                    Button("Finish", systemImage: "checkmark.circle") { account.finish() }.buttonStyle(KitButton(kind: .secondary))
+                case .tooOld(let model):
+                    UpdateButton(model: model)
                 case .signedIn:
                     CheckBox(state: .done)
                 }
             }
-            if case .showingCode(let code) = team.step {
-                Text(code)
-                    .font(Memnox.mono(24, .semibold))
-                    .foregroundStyle(Memnox.Palette.ink)
-                    .textSelection(.enabled)
-                    .padding(.leading, Kit.tileSide + Memnox.Spacing.large)
+            if let code = whole.code {
+                // The code with what to do with it, so it never sits on the page as a bare string.
+                VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
+                    Text(code)
+                        .font(Memnox.mono(Self.codeSize, .semibold))
+                        .foregroundStyle(Memnox.Palette.ink)
+                        .textSelection(.enabled)
+                    Text(WorkspaceLines.enterCode(code))
+                        .font(Memnox.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, Kit.tileSide + Memnox.Spacing.large)
+                .padding(.bottom, Memnox.Spacing.regular)
             }
         }
-    }
-
-    private var title: String { team.isSignedIn ? "Signed in to your team" : "Sign in to your team" }
-
-    private var detail: String {
-        switch team.step {
-        case .signedOut, .failed: return "Memnox Cloud opens in your browser to approve this Mac."
-        case .starting: return "Asking Memnox Cloud for a code."
-        case .showingCode(let code): return WorkspaceLines.enterCode(code)
-        case .signedIn(let name, _): return "As \(name)."
+        .task {
+            await daemon.refresh()
+            await machine.refresh()
         }
     }
 
-    private var failure: String? {
-        if case .failed(let why) = team.step { return why }
+    private var title: String {
+        if case .signedOut = whole { return "Sign in to your workspace" }
+        return whole.title
+    }
+
+    private var hint: String? {
+        if case .needs(let why) = whole.state { return why }
         return nil
     }
 }
@@ -289,6 +378,8 @@ private struct Keys: View {
 struct Next: View {
     let title: String
     @ObservedObject var flow: OnboardingFlow
+    /// Held while something the step needs is still on its way.
+    var disabled = false
 
     var body: some View {
         Button { flow.next() } label: {
@@ -299,7 +390,8 @@ struct Next: View {
             }
         }
         .buttonStyle(KitButton(kind: .primary, wide: true))
-            .keyboardShortcut(.defaultAction)
+        .keyboardShortcut(.defaultAction)
+        .disabled(disabled)
     }
 }
 

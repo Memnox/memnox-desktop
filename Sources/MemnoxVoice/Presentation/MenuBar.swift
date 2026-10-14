@@ -240,6 +240,9 @@ struct MenuView: View {
                     close()
                     model.copyWhatHappened()
                 }
+                // What Memnox does above the line, the app itself below it, as a Mac menu groups them.
+                MenuDivider()
+                    .padding(.vertical, Memnox.Spacing.xxSmall)
                 MenuRow(symbol: MenuSymbol.settings, title: "Settings", action: showSettings)
                 MenuRow(symbol: MenuSymbol.quit, title: "Quit Memnox", quiet: true) {
                     NSApp.terminate(nil)
@@ -272,7 +275,8 @@ struct MenuView: View {
                 Circle()
                     .fill(model.wakeOn ? IslandPalette.green : Memnox.ink(Layout.idleDotInk))
                     .frame(width: Layout.dotSize, height: Layout.dotSize)
-                Text(model.wakeOn ? "Listening" : "Here when you call")
+                // Says how to start a talk, since "Listening" read as if the microphone were recording all along.
+                Text(model.wakeOn ? "Say \u{201C}Memnox\u{201D}" : "\u{2325} Space to talk")
                     .font(Memnox.sans(Memnox.TextSize.caption, .medium))
                     .foregroundStyle(Memnox.ink(MenuLayout.mutedInk))
                     .lineLimit(1)
@@ -282,6 +286,8 @@ struct MenuView: View {
             .background(Capsule().fill(Memnox.ink(MenuLayout.softFill)))
             .animation(.easeOut(duration: Memnox.Motion.quick), value: model.wakeOn)
             .help(model.wakeOn ? "Memnox wakes when you say its name" : "Press Option Space to talk")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(model.wakeOn ? "Memnox wakes when you say its name" : "Press Option Space to talk")
         }
         .padding(.horizontal, Memnox.Spacing.xSmall)
         .padding(.top, Memnox.Spacing.xSmall)
@@ -369,14 +375,17 @@ struct SwitchRow: View {
                     .font(Memnox.sans(Memnox.TextSize.body, .medium))
                     .foregroundStyle(Memnox.Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
+                // Wraps, since a long detail cut off mid sentence hides what the switch does.
                 Text(detail)
                     .font(Memnox.sans(Memnox.TextSize.caption))
                     .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: Memnox.Spacing.medium)
             Toggle(title, isOn: $isOn)
                 .toggleStyle(MemnoxSwitch())
                 .labelsHidden()
+                .accessibilityHint(detail)
         }
         .padding(.horizontal, MenuLayout.rowInset)
         .padding(.vertical, Self.verticalPadding)
@@ -441,72 +450,6 @@ struct DeviceRow: View {
 enum VoiceChoice {
     static let kokoro = "kokoro"
     static let mac = "mac"
-}
-
-/// One row that opens a menu of every voice, the Mac's own first and then each Kokoro voice, and the pick is
-/// said aloud by the app once it is in place.
-struct VoiceMenuRow: View {
-    let choice: String
-    let kokoroVoice: String
-    let pick: (String) -> Void
-
-    private static let chevronSymbol = "chevron.up.chevron.down"
-    private static let chevronSize: CGFloat = 9
-    private static let macLabel = "Mac voice"
-
-    var body: some View {
-        Menu {
-            Picker("Voice", selection: Binding(get: { selected }, set: { pick($0) })) {
-                Text(Self.macLabel).tag(VoiceChoice.mac)
-                Section("Kokoro, free and on this Mac") {
-                    ForEach(KokoroVoice.choices) { voice in
-                        Text(voice.label).tag(voice.id)
-                    }
-                }
-            }
-            .pickerStyle(.inline)
-            .labelsHidden()
-        } label: {
-            HStack(spacing: MenuLayout.iconSpacing) {
-                Image(systemName: MenuSymbol.voice)
-                    .font(.system(size: Memnox.TextSize.body, weight: .medium))
-                    .foregroundStyle(Memnox.ink(MenuLayout.litInk))
-                    .frame(width: MenuLayout.iconColumnWidth)
-                VStack(alignment: .leading, spacing: MenuLayout.titleDetailSpacing) {
-                    Text("Voice")
-                        .font(Memnox.sans(Memnox.TextSize.body, .medium))
-                        .foregroundStyle(Memnox.Palette.ink)
-                    Text(current)
-                        .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
-                        .lineLimit(1)
-                        .contentTransition(.opacity)
-                }
-                Spacer(minLength: Memnox.Spacing.medium)
-                Image(systemName: Self.chevronSymbol)
-                    .font(.system(size: Self.chevronSize, weight: .semibold))
-                    .foregroundStyle(Memnox.ink(MenuLayout.dimInk))
-            }
-            .padding(.horizontal, MenuLayout.rowInset)
-            .frame(minHeight: MenuLayout.settingRowHeight)
-            .contentShape(Rectangle())
-        }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .pointingHand()
-        .menuIndicator(.hidden)
-        .animation(.easeOut(duration: Memnox.Motion.quick), value: current)
-        .help("Choose the voice Memnox speaks with")
-    }
-
-    /// The Mac's tag while it speaks, else the Kokoro voice saved.
-    private var selected: String { choice == VoiceChoice.mac ? VoiceChoice.mac : kokoroVoice }
-
-    /// A voice saved before the list existed still shows its Kokoro id rather than nothing.
-    private var current: String {
-        guard choice != VoiceChoice.mac else { return Self.macLabel }
-        return KokoroVoice.choices.first { $0.id == kokoroVoice }?.label ?? kokoroVoice
-    }
 }
 
 /// A switch, Memnox blue when on with a white knob as a settings switch is, drawn here since the system one goes grey in a
@@ -628,6 +571,7 @@ enum MenuSymbol {
     static let talkOver = "waveform.badge.mic"
     static let sounds = "speaker.wave.1"
     static let liveWords = "text.bubble"
+    static let dictation = "keyboard"
     static let stayPut = "macwindow.on.rectangle"
     static let rule = "shield.lefthalf.filled"
     static let pairPhone = "qrcode"

@@ -13,12 +13,21 @@ enum OnboardingStage: Equatable {
 enum OnboardingStep: Int, CaseIterable, Identifiable {
     /// What Memnox does, each part played on the real notch.
     case welcome
-    /// The three grants and Memnox under the agents it found, on one page.
+    /// The four grants and Memnox under the agents it found, on one page.
     case setup
-    /// Two keys to try, the iPhone and the team if wanted, and the button that starts Memnox.
+    /// Two keys to try, the iPhone and the sign in if wanted, and the button that starts Memnox.
     case ready
 
     var id: Int { rawValue }
+
+    /// The step's name under the progress bar, so a new person always knows where they are and what is left.
+    var title: String {
+        switch self {
+        case .welcome: return "What Memnox does"
+        case .setup: return "Set up this Mac"
+        case .ready: return "Try it"
+        }
+    }
 }
 
 /// The first run's state, shared by the opening and the window so the name typed in one is the name in the other.
@@ -30,24 +39,47 @@ final class OnboardingFlow: ObservableObject {
     @Published var highlight: Highlight?
     @Published var setup: SetupModel?
     @Published var menu: MenuModel?
-    @Published var team: TeamModel?
+    @Published var account: AccountModel?
     /// Told when the opening hands over to the window, so the controller swaps one window for the other.
     var opened: (() -> Void)?
+
+    /// The step the window was on, kept so a reopen for Screen Recording comes back to the same page.
+    private static let stepKey = "onboardingStep"
 
     func next() {
         guard let following = OnboardingStep(rawValue: step.rawValue + 1) else { return }
         step = following
+        remember()
     }
 
     func back() {
         guard let previous = OnboardingStep(rawValue: step.rawValue - 1) else { return }
         step = previous
+        remember()
     }
 
     /// The opening is done, by a name given or by skipping it, and the steps take over.
     func openSteps() {
         stage = .steps
+        remember()
         opened?()
+    }
+
+    /// Picks up the step a reopen left off at, if there was one.
+    func recall() {
+        guard stage == .intro, UserDefaults.standard.object(forKey: Self.stepKey) != nil,
+              let kept = OnboardingStep(rawValue: UserDefaults.standard.integer(forKey: Self.stepKey)) else { return }
+        step = kept
+        stage = .steps
+    }
+
+    /// Forgets the step, once the first run is over.
+    func forget() {
+        UserDefaults.standard.removeObject(forKey: Self.stepKey)
+    }
+
+    private func remember() {
+        UserDefaults.standard.set(step.rawValue, forKey: Self.stepKey)
     }
 }
 
@@ -76,11 +108,13 @@ final class OnboardingWindow {
     func show(_ model: SetupModel) {
         flow.setup = model
         flow.menu = SettingsWindow.shared.menu
-        flow.team = SettingsWindow.shared.team
+        flow.account = SettingsWindow.shared.account
+        flow.recall()
         if flow.stage == .steps { showSteps() } else { showVeil() }
     }
 
     func close() {
+        flow.forget()
         veil?.close()
         veil = nil
         window?.close()

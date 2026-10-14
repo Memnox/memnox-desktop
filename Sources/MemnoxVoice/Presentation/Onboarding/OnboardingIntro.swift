@@ -85,6 +85,7 @@ private struct NameQuestion: View {
                     .font(Memnox.sans(Memnox.TextSize.title))
                     .foregroundStyle(Color.white)
                     .focused($focused)
+                    .accessibilityLabel("Your name")
                     .onSubmit(send)
                 Button(action: send) {
                     Image(systemName: "arrow.up")

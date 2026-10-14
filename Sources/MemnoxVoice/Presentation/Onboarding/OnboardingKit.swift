@@ -13,6 +13,8 @@ enum Kit {
     /// Every button in the first run is this tall, whether it moves on or acts inside a row.
     static let buttonHeight: CGFloat = 36
     static let rowGap: CGFloat = 14
+    /// Springs settle with a little give and no wobble.
+    static let springDamping = 0.8
 }
 
 /// A card as voiceos draws its settings: an icon, a title and a line, then its rows, on one graphite panel.
@@ -97,7 +99,8 @@ struct KitRow<Leading: View, Trailing: View>: View {
                 }
             }
             Spacer(minLength: Memnox.Spacing.medium)
-            trailing
+            // The control keeps its width and the words wrap, since a button squeezed to an ellipsis says nothing.
+            trailing.fixedSize(horizontal: true, vertical: false)
         }
         .padding(.vertical, Memnox.Spacing.regular)
     }
@@ -151,27 +154,34 @@ struct KitDivider: View {
 /// mark when it needs the person.
 struct CheckBox: View {
     let state: StepState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// How much of the mark its symbol fills, so the tick and the warning read at the same weight.
+    private static let symbolShare: CGFloat = 0.55
+    /// A circle rather than a box, so a status is never mistaken for something to tick.
+    private static let waitingDash: [CGFloat] = [2.5, 2.5]
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Kit.checkRadius, style: .continuous)
         ZStack {
             switch state {
             case .done:
-                shape.fill(Memnox.Palette.primary)
+                Circle().fill(Memnox.Palette.primary)
                 Image(systemName: "checkmark")
-                    .font(.system(size: Kit.checkSide * 0.55, weight: .bold))
+                    .font(.system(size: Kit.checkSide * Self.symbolShare, weight: .bold))
                     .foregroundStyle(Color.white)
             case .waiting:
-                shape.strokeBorder(Memnox.ink(Memnox.Ink.tertiary), lineWidth: Memnox.Stroke.emphasis)
+                Circle().strokeBorder(Memnox.ink(Memnox.Ink.tertiary),
+                                      style: StrokeStyle(lineWidth: Memnox.Stroke.emphasis, dash: Self.waitingDash))
             case .needs:
-                shape.strokeBorder(Memnox.ink(Memnox.Ink.primary), lineWidth: Memnox.Stroke.emphasis)
-                Text("!")
-                    .font(.system(size: Kit.checkSide * 0.6, weight: .bold))
-                    .foregroundStyle(Memnox.Palette.ink)
+                Circle().fill(Memnox.Palette.warm)
+                Image(systemName: "exclamationmark")
+                    .font(.system(size: Kit.checkSide * Self.symbolShare, weight: .bold))
+                    .foregroundStyle(Color.white)
             }
         }
         .frame(width: Kit.checkSide, height: Kit.checkSide)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: state)
+        .animation(reduceMotion ? nil : .spring(response: Memnox.Motion.standard, dampingFraction: Kit.springDamping), value: state)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
     }
 
@@ -179,7 +189,7 @@ struct CheckBox: View {
         switch state {
         case .done: return "Done"
         case .waiting: return "Not yet"
-        case .needs(let why): return why
+        case .needs(let why): return "Needs you: \(why)"
         }
     }
 }
@@ -208,6 +218,7 @@ private struct KitButtonFace: View {
     let kind: KitButton.Kind
     let wide: Bool
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hovering = false
 
     private static let horizontalPadding: CGFloat = 18
@@ -232,8 +243,9 @@ private struct KitButtonFace: View {
             .overlay(Capsule().strokeBorder(edge, lineWidth: Memnox.Stroke.hairline))
             .contentShape(Capsule())
             .opacity(isEnabled ? 1 : Self.disabledOpacity)
-            .scaleEffect(configuration.isPressed ? Self.pressedScale : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+            // With Reduce Motion on, a press only dims, since the give of the spring is movement.
+            .scaleEffect(configuration.isPressed && !reduceMotion ? Self.pressedScale : 1)
+            .animation(reduceMotion ? nil : .spring(response: Memnox.Motion.quick, dampingFraction: Kit.springDamping), value: configuration.isPressed)
             .animation(.easeOut(duration: Memnox.Motion.quick), value: hovering)
             .onHover { over in hovering = over && isEnabled }
             .onDisappear { hovering = false }

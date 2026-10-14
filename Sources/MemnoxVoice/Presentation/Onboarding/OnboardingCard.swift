@@ -16,9 +16,12 @@ struct OnboardingCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            progress
-                .padding(.horizontal, Layout.side / 2)
-                .padding(.top, Layout.top / 2)
+            VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+                progress
+                stepNames
+            }
+            .padding(.horizontal, Layout.side / 2)
+            .padding(.top, Layout.top / 2)
             if let setup = flow.setup {
                 HStack(alignment: .center, spacing: Layout.gap) {
                     CuedScroll {
@@ -34,6 +37,9 @@ struct OnboardingCard: View {
                     OnboardingArt { flow.highlight = $0 }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(.vertical, Layout.top)
+                        // The landscape overflows its clip and SwiftUI hit tests the overflow, so without this the
+                        // picture lies over the step's buttons and takes their clicks.
+                        .allowsHitTesting(false)
                 }
                 .padding(.horizontal, Layout.side)
             }
@@ -57,7 +63,24 @@ struct OnboardingCard: View {
         }
         .frame(height: Layout.barHeight)
         .accessibilityElement()
-        .accessibilityLabel("Step \(flow.step.rawValue + 1) of \(OnboardingStep.allCases.count)")
+        .accessibilityLabel("Step \(flow.step.rawValue + 1) of \(OnboardingStep.allCases.count), \(flow.step.title)")
+    }
+
+    /// Every step by name, the current one in full ink and the ones done ticked, under the bar.
+    private var stepNames: some View {
+        HStack(spacing: Memnox.Spacing.xLarge) {
+            ForEach(OnboardingStep.allCases) { step in
+                HStack(spacing: Memnox.Spacing.xSmall) {
+                    if step.rawValue < flow.step.rawValue {
+                        Image(systemName: "checkmark").font(.system(size: Memnox.TextSize.micro, weight: .bold))
+                    }
+                    Text(step.title)
+                }
+                .font(Memnox.sans(Memnox.TextSize.footnote, step == flow.step ? .semibold : .regular))
+                .foregroundStyle(Memnox.ink(step == flow.step ? Memnox.Ink.primary : Memnox.Ink.tertiary))
+            }
+        }
+        .accessibilityHidden(true)
     }
 
     private var footer: some View {
@@ -124,9 +147,13 @@ struct StepTitle: View {
 /// the foot reads More below and takes the person there, so nothing past the fold goes unseen.
 private struct CuedScroll<Content: View>: View {
     @ViewBuilder let content: () -> Content
-    @State private var contentHeight: CGFloat = 0
+    /// Only the two edges are kept, not the offset, so a scroll tick changes nothing and redraws nothing until an
+    /// edge is reached; keeping the offset rebuilt the mask on every tick and made the column stutter.
+    @State private var moreAbove = false
+    @State private var moreBelow = false
     @State private var viewport: CGFloat = 0
-    @State private var offset: CGFloat = 0
+    /// The last frame scrolled, held outside state so remembering it costs no redraw.
+    @State private var scrolled = Scrolled()
 
     private static var space: String { "cued" }
     private static var end: String { "end" }
@@ -152,12 +179,12 @@ private struct CuedScroll<Content: View>: View {
             .scrollIndicators(.visible)
             .background(GeometryReader { outside in
                 Color.clear
-                    .onAppear { viewport = outside.size.height }
-                    .onChange(of: outside.size.height) { _, height in viewport = height }
+                    .onAppear { viewport = outside.size.height; cue() }
+                    .onChange(of: outside.size.height) { _, height in viewport = height; cue() }
             })
             .onPreferenceChange(CuedFrame.self) { frame in
-                contentHeight = frame.height
-                offset = -frame.minY
+                scrolled.frame = frame
+                cue()
             }
             .mask(edges)
             .overlay(alignment: .bottom) {
@@ -175,8 +202,14 @@ private struct CuedScroll<Content: View>: View {
         }
     }
 
-    private var moreAbove: Bool { offset > Self.slack }
-    private var moreBelow: Bool { contentHeight - offset - viewport > Self.slack }
+    /// Reads the two edges from the last frame and writes only what changed, so a scroll tick redraws nothing.
+    private func cue() {
+        let frame = scrolled.frame
+        let above = -frame.minY > Self.slack
+        let below = frame.height + frame.minY - viewport > Self.slack
+        if above != moreAbove { moreAbove = above }
+        if below != moreBelow { moreBelow = below }
+    }
 
     /// Solid where the column ends, faded where more of it waits past the edge.
     private var edges: some View {
@@ -188,6 +221,11 @@ private struct CuedScroll<Content: View>: View {
                 .frame(height: Self.fade)
         }
     }
+}
+
+/// The last scrolled frame, a reference so writing it never asks SwiftUI to redraw.
+private final class Scrolled {
+    var frame: CGRect = .zero
 }
 
 /// The scrolled content's frame, read in the column's own space so its top says how far it has scrolled.

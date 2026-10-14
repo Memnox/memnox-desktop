@@ -94,8 +94,16 @@ first, then confirms the proposal to the daemon that raised it: a yes is one Tou
 both ways, and a cancelled touch declines the proposal and sends the workspace nothing. The contract is the
 runtime's `docs/remote-contract.md`, "Answering a team's question by voice".
 The inbox is read with `include=recent`, so a call settled by somebody else leaves its card saying who and
-where. Somebody who only answers for their team can do it from the first run's "Join your team", with nothing
-else on this Mac set up. The contract is `memnox-cloud/docs/person-inbox.md`.
+where. Somebody who only answers what their workspace routes to them can do it from the first run's "Sign in", with
+nothing else on this Mac set up. The contract is `memnox-cloud/docs/person-inbox.md`. That sign in is this app's own
+credential, a Secure Enclave key registered as one device. The daemon keeps a second one, `~/.memnox/person.json`, which
+the voice acts through in the person's own tools and `memnox inbox` answers with; the workspace binds one sign in to
+one device, so the Account page offers both, each with its own approval, through `DaemonSignIn` and the daemon's
+`person`, `person-sign-in` and `person-sign-out` methods. A third credential is the machine's own,
+`~/.memnox/account.json`, the one `memnox login` writes and the one the rules, the workspace memory and phone pairing
+all read; a Mac signed in as a person and connected to no workspace gets nothing from it. The same `DaemonSignIn`
+drives that one with `side: .machine`, through `machine`, `machine-sign-in` and `machine-sign-out`, and the Account
+page shows it as "This Mac in your workspace" with Connect, so nobody is sent to a terminal for it.
 
 Every held call, from this Mac, a server or the workspace, is named by `CallLabel` (`Domain/Held`) in one
 shape on the card, the Touch ID sheet, the caption and the voice: "Claude Code on your Mac", "codex on
@@ -146,3 +154,23 @@ chosen address (`address`).
 | A screen or a view | `Presentation/`, using the tokens in `DesignSystem.swift` |
 | Microphone, speaker, keyboard or another app | `Platform/` |
 | Wiring | `App/AppDelegate.swift` |
+
+## Dictation
+
+Holding the right Option key, or tapping it twice for hands free, dictates into whatever field has the cursor. The
+words are cleaned on this Mac by fixed rules in `Domain/Speech/DictationText.swift`, laid out for the kind of place
+they land (`DictationFamily`, read from the app and, for a browser, the page title), and fitted to the text either
+side of the cursor. When the person turns on Polish with Claude Code, the daemon's `polish` method hands them to the
+person's own Claude Code, which the daemon keeps warm for dictation alone with no tools and a quick model, and the Mac
+waits `DictationPolish.patience` for the answer before typing its own cleanup instead; with text selected, what was
+said is an instruction about the selection, which only the model can carry out. Neither the app nor Memnox Cloud
+calls a model for it. The dictionary and the latest dictations live in `DictationStore` on this
+Mac only, and words the person fixes after dictating are learned into it.
+
+With Type as I speak on, `Platform/LiveTyping.swift` writes the words into the field while the person talks, from
+`liveDictation`, which holds back the word still being said, and revises only the end that changed (`liveRevision`).
+It writes through Accessibility where the field takes it and as key presses where it does not, never through the
+clipboard, and it stops the moment the person types or leaves the app. The finished text, polished or not, replaces
+the live words only while the field still holds exactly what Memnox wrote. Listening runs `releaseTail` past the key
+coming up so the last word is kept, and the person's dictionary and the names around the cursor (`cursorHints`) go to
+the recognizer as hints.

@@ -15,6 +15,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let barge = BargeEars()
     /// Control and Option held down: a rule said for as long as they are held.
     private let holdKeys = HoldKeys()
+    private let dictationKey = DictationKey()
+    /// The person's dictionary and latest dictations, on this Mac only.
+    let dictations = DictationStore()
+    private lazy var polish = DictationPolish(link: link)
     /// Off unless the person turns it on: news that needs nobody stays quiet until they call Memnox.
     private static let speakUpKey = "speakUp"
     /// On unless turned off: cutting in by speaking over the voice.
@@ -54,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let personCredential = KeychainPersonCredential()
     /// Teammates' calls the workspace routed to the person, answered through it and never through a daemon.
     private var teamCalls: WorkspaceAnswering!
-    private var team: TeamModel?
+    private var account: AccountModel?
     private var readingInbox: Task<Void, Never>?
     /// Often enough that a teammate is not kept waiting, rarely enough to stay quiet on the network.
     private static let inboxEvery: TimeInterval = 20
@@ -138,7 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { [ears] in await ears.prepare() }
         let key: ConfirmKey
         do {
-            key = try SecureEnclaveConfirmKey()
+            key = ForegroundKey(try SecureEnclaveConfirmKey())
         } catch {
             // No Secure Enclave or no keychain: nothing can ever be confirmed from this Mac.
             NSLog("Memnox: no confirmation key, so allows stay in the terminal: \(error)")
@@ -147,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         teamCalls = WorkspaceAnswering(inbox: cloud, store: personCredential, key: key)
         conversation = Conversation(
             link: target, speaker: voice, key: key, face: panel, owner: owner, presenter: shown, chimes: chimes,
+            adHocBuild: BuildSignature.isAdHoc,
             address: { chosenAddress() },
             name: { chosenName() },
             lookingAt: { [frontApp] in frontApp.name },
@@ -164,10 +169,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.teamForget(subject)
             }
         }
-        let team = TeamModel(signIn: WorkspaceSignIn(inbox: cloud, store: personCredential, key: key))
-        team.changed = { [weak self] in self?.readInbox() }
-        self.team = team
-        SettingsWindow.shared.team = team
+        let account = AccountModel(signIn: WorkspaceSignIn(inbox: cloud, store: personCredential, key: key))
+        account.changed = { [weak self] in self?.readInbox() }
+        // The daemon keeps its own sign in, the one the voice acts through, so the page offers it beside this app's.
+        account.daemon = DaemonAccountModel(signIn: DaemonSignIn(link: link, ids: ids))
+        // And this Mac's own connection to the workspace, which is what the rules, memory and phone pairing read.
+        // A workspace with no name yet reads as no name, never as the person.
+        account.machine = DaemonAccountModel(signIn: DaemonSignIn(link: link, side: .machine, ids: ids), unnamed: "")
+        // Too old is answered with Update, which the app does itself, rather than with a step for a terminal.
+        let update: () async -> Void = { [weak self] in
+            guard let self, let conversation = self.conversation else { return }
+            await self.runtime.updateNow(conversation)
+        }
+        account.daemon?.update = update
+        account.machine?.update = update
+        self.account = account
+        SettingsWindow.shared.account = account
+        SettingsWindow.shared.dictations = dictations
         // Phones pair with this Mac's own daemon, whichever machine the voice talks to.
         pairing = Pairing(link: link, key: key, ids: ids)
         serverPairing = ServerPairing(
@@ -205,18 +223,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openSignIn: { [weak self] tool in self?.openSignIn(tool) },
             notMine: { [weak self] card in self?.notMine(card) },
             answerRule: { [weak self] card, scope in self?.answerRule(card, scope: scope) },
-            // The question goes back whole, as if said again, so nothing here reads its words.
+            // The question goes back whole, marked as carried on after a sign in so the daemon never takes it as a new
+            // request to sign in again, and nothing here reads its words.
             askAgain: { [weak self] question in
                 guard let self, !self.talking else { return }
-                self.enqueue { [weak self] in await self?.converse(opening: question) }
+                self.enqueue { [weak self] in await self?.converse(opening: question, openingIntent: .resume) }
             }
         )
         hotkey = Hotkey { [weak self] in self?.talk() }
         holdKeys.began = { [weak self] in self?.ruleHeld() }
         holdKeys.ended = { [weak self] in self?.panel.ruling(false) }
         holdKeys.start()
+        dictationKey.began = { [weak self] in self?.dictationHeld() }
+        dictationKey.start()
         if !HoldKeys.canWatch { diary.note("Accessibility is off, so holding Control and Option for a rule is not seen yet") }
-        UserDefaults.standard.register(defaults: [Self.speakUpKey: false, Self.bargeKey: true, SystemChimes.key: true, Self.liveWordsKey: true, Self.stayPutKey: true])
+        UserDefaults.standard.register(defaults: [DictationKey.enabledKey: true, DictationStore.polishKey: true, DictationStore.liveKey: true, Self.speakUpKey: false, Self.bargeKey: true, SystemChimes.key: true, Self.liveWordsKey: true, Self.stayPutKey: true])
         panel.showLiveWords(UserDefaults.standard.bool(forKey: Self.liveWordsKey))
         wake.spoken = { [weak self] in
             self?.voice.spoken(since: Date().addingTimeInterval(-Self.echoLingers)) ?? ""
@@ -283,8 +304,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard !target.isRemote else { return }
                 if let conversation, await runtime.ensure(conversation) != .unreachable { await conversation.introduce() }
             }
-        } else if !team.isSignedIn {
-            // Somebody who only answers for their team has what they came for, so setup is not pushed on them each launch.
+        } else if !account.isSignedIn {
+            // Somebody who only answers what is routed to them has what they came for, so setup is not pushed on them each launch.
             showSetup()
         }
     }
@@ -298,7 +319,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         enqueue { [self] in await converse() }
     }
 
-    private func converse(opening: String = "", greet: Bool = false) async {
+    private func converse(opening: String = "", greet: Bool = false, openingIntent: AskIntent? = nil) async {
         talking = true
         panel.present()
         guard await Ears.mayHear() else {
@@ -322,6 +343,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await voice.speak(conversation.answerToCall())
         }
         var next: String? = opening.isEmpty ? nil : opening
+        /// How the opening words were asked, which only ever applies to them and never to what is said after.
+        var intentNow = opening.isEmpty ? nil : openingIntent
         /// Words the brain held for, answered as they stand if nothing more comes, so a wrong hold is never silence.
         var held: String?
         diary.note("listening")
@@ -333,7 +356,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let finished = heard == nil && held != nil
             conversation.lastWordAt = next == nil && !finished ? ears.lastWordAt : nil
             guard let said = heard ?? held else { break }
-            next = await answer(said, finished: finished)
+            next = await answer(said, finished: finished || intentNow != nil, intent: intentNow)
+            intentNow = nil
             // They carried on before any answer was said, so it is one question in two breaths, not two.
             if let more = next, !conversation.spokeThisTurn { next = "\(said) \(more)" }
             // A hold beside words it said is an answer that ends in a question, so it waits as after any answer.
@@ -365,8 +389,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let echoLingers: TimeInterval = 15
 
     /// Answers one thing said, listening over the voice so the person can cut in; returns what they cut in with.
-    private func answer(_ said: String, finished: Bool = false) async -> String? {
-        await overVoice { [conversation] in await conversation?.heard(said, finished: finished) }
+    private func answer(_ said: String, finished: Bool = false, intent: AskIntent? = nil) async -> String? {
+        await overVoice { [conversation] in await conversation?.heard(said, finished: finished, intent: intent) }
     }
 
     /// Anything spoken, with an ear open the whole time: the moment the person talks over it the
@@ -415,6 +439,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Saying the name near the phone must not wake the Mac as well, so the name is not listened for while a phone holds the voice.
         if let voiceOn = event.voiceOn {
             phoneHoldsVoice = voiceOn.holding
+            // Told at once rather than in its turn, so an event right behind it is already quiet here.
+            conversation?.phoneHolds = PhoneVoice(voiceOn)
             if voiceOn.holding { wake.stop() } else { listenForName() }
         }
         // What waits, works and was answered is what the home counts, so it is read again while somebody can see it.
@@ -448,7 +474,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         // A phone holds the voice, so the island shows it and the Mac neither speaks nor opens its microphone.
-        if event.quietOnMac {
+        if conversation?.isQuiet(event) ?? event.quietOnMac {
             Task { [conversation] in await conversation?.handle(event) }
             return
         }
@@ -507,7 +533,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if change.signedOut {
             // The workspace revoked it, so it is forgotten here rather than sent again every poll.
             personCredential.delete()
-            team?.signedOutByTeam()
+            account?.signedOutByWorkspace()
         }
         teamSettled(change.gone, notes: change.answeredElsewhere, quietly: change.signedOut)
         for call in change.arrived {
@@ -607,6 +633,171 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         await converse(opening: cutIn ?? "")
     }
 
+    /// Right Option held, or tapped twice for hands free: everything said until it ends is written where the cursor is,
+    /// cleaned on this Mac and, when the person turned it on, polished by their own Claude Code. With text
+    /// selected, what they say is an instruction about it, and the selection is replaced by the result.
+    private func dictationHeld() {
+        guard !talking else {
+            dictationKey.stop()
+            return
+        }
+        let front = NSWorkspace.shared.frontmostApplication
+        // Started while they are still talking, so the polish skips Claude Code's cold start.
+        if dictations.polishes { Task { [polish] in await polish.warm() } }
+        enqueue { [weak self] in await self?.dictate(into: front) }
+    }
+
+    private func dictate(into app: NSRunningApplication?) async {
+        // Let go before this turn began: nothing was said for it.
+        guard dictationKey.active else { return }
+        let focus = FocusedText.read(in: app)
+        guard !focus.isSecure else {
+            // A password field is never written into by voice, whatever was said.
+            diary.note("not dictating into a password field")
+            dictationKey.stop()
+            chimes.play(.failed)
+            return
+        }
+        talking = true
+        defer { talking = false }
+        guard await Ears.mayHear() else { return }
+        panel.present()
+        do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
+        chimes.play(.listening)
+        panel.show(.listening, caption: focus.selection == nil ? "Dictating" : "Say what to do with the selection")
+        panel.dictating(focus.selection == nil ? "Speak, and it types where your cursor is" : "Say what to do with the selection")
+        let live = dictations.typesLive ? LiveTyping(app: app, focus: focus) : nil
+        let said = await listenForDictation(focus: focus, live: live)
+        dictationKey.stop()
+        audio.stop()
+        guard let said, said.contains(where: \.isLetter) else {
+            // Words typed live and then heard as nothing are taken back, so a cough leaves no trace.
+            if let live, !live.typed.isEmpty, live.stillOurs { await live.show("") }
+            live?.end()
+            panel.dismiss()
+            chimes.play(.closed)
+            return
+        }
+        panel.show(.thinking, caption: "")
+        let family = DictationFamily(bundleID: app?.bundleIdentifier, windowTitle: focus.windowTitle)
+        let written = await dictationText(said, family: family, focus: focus)
+        panel.dismiss()
+        guard let written else {
+            // Editing a selection needs the model, and without its answer the selection is left untouched.
+            chimes.play(.failed)
+            diary.note("the selection was left as it was, since it could not be edited just now")
+            return
+        }
+        let place = app?.localizedName ?? "the app in front"
+        let landed = await put(written, into: app, live: live)
+        live?.end()
+        guard let landed else {
+            // Kept rather than lost: a paste into whatever is in front now does it by hand.
+            dictations.record(DictationEntry(at: Date(), heard: said, written: written, app: app?.localizedName))
+            diary.note("\(place) was not in front, so the dictation is on the clipboard")
+            chimes.play(.failed)
+            return
+        }
+        dictations.record(DictationEntry(at: Date(), heard: said, written: landed, app: app?.localizedName))
+        diary.note("dictated into \(place) as \(family.rawValue): \(landed)")
+        if focus.selection == nil, let element = focus.element { watchForCorrections(landed, in: element, focus: focus) }
+    }
+
+    /// Everything said while the key is held, plus a moment after it comes up so the last word is not cut off, heard
+    /// with the person's own words and the names around the cursor as hints, and typed into the field as it comes
+    /// when typing live. The typing runs on its own loop, so the recognizer never waits on a key press.
+    private func listenForDictation(focus: FocusedText, live: LiveTyping?) async -> String? {
+        let dictionary = dictations.dictionary
+        let hints = dictionary.spellings + cursorHints(before: focus.before, after: focus.after)
+        let words = DictatedSoFar()
+        var typing: Task<Void, Never>?
+        if let live {
+            live.begin()
+            ears.revising = { words.set($0) }
+            let names = dictionary.spellings + recognizerHints.filter { $0.contains(where: \.isUppercase) }
+            typing = Task { @MainActor in
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: UInt64(Self.liveLook * 1_000_000_000))
+                    guard let heard = words.takeChanged() else { continue }
+                    let text = liveDictation(heard, final: false, dictionary: names, replacements: dictionary.replacements)
+                    await live.show(fitted(text, after: focus.before, before: focus.after))
+                }
+            }
+        }
+        let down = dictationKey.down
+        let said = await ears.listen(through: audio, waiting: 0, holding: { down.isSet }, tail: Self.releaseTail, hints: hints)
+        ears.revising = nil
+        typing?.cancel()
+        await typing?.value
+        return said
+    }
+
+    /// The finished words where the cursor is: over what was typed live while that is still Memnox's own, as it
+    /// stands when the person has typed since, and pasted when nothing was typed live. Nil when they could not go in.
+    private func put(_ written: String, into app: NSRunningApplication?, live: LiveTyping?) async -> String? {
+        if let live {
+            if live.stillOurs, await live.show(written) { return written }
+            if !live.typed.isEmpty {
+                guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app?.processIdentifier else {
+                    // They moved to another app mid sentence, so the whole of it waits on the clipboard.
+                    PromptTyping.leaveOnClipboard(written)
+                    return nil
+                }
+                // The person carried on in the field, so what is there now is theirs to keep, and nothing is replaced.
+                diary.note("left the live words as typed, since the field changed after them")
+                return live.typed
+            }
+        }
+        return await PromptTyping.paste(written, into: app) ? written : nil
+    }
+
+    /// How long the key may be up before listening ends, enough for the last syllable to reach the recognizer.
+    private static let releaseTail: TimeInterval = 0.4
+    /// How often the words heard are typed live, quick enough to follow speech and slow enough to type each change once.
+    private static let liveLook: TimeInterval = 0.12
+
+    /// What goes in: for a selection, the model's edit of it or nothing; otherwise the Mac's cleanup, replaced by the
+    /// model's polish when that is on and answers in time, then the person's replacements, then fitted to the cursor.
+    private func dictationText(_ said: String, family: DictationFamily, focus: FocusedText) async -> String? {
+        let dictionary = dictations.dictionary
+        // Their own spellings first, then the names Memnox knows on this Mac, proper names only.
+        let names = dictionary.spellings + recognizerHints.filter { $0.contains(where: \.isUppercase) }
+        if let selection = focus.selection {
+            guard dictations.polishes else { return nil }
+            return await polish.polish(said, family: family, vocabulary: names, selection: selection,
+                                       patience: DictationPolish.editPatience)
+        }
+        let local = cleanedDictation(said, dictionary: names, replacements: dictionary.replacements, style: family.style)
+        var text = local
+        if dictations.polishes, let polished = await polish.polish(said, family: family, vocabulary: names) {
+            text = replaced(polished, by: dictionary.replacements)
+        }
+        return fitted(text, after: focus.before, before: focus.after)
+    }
+
+    /// Reads the field again a while later, and what the person changed in the words just written is learned: the
+    /// dictionary writes it their way next time, and the recognizer hears it better.
+    private func watchForCorrections(_ written: String, in element: AXUIElement, focus: FocusedText) {
+        guard let start = focus.range?.location, let value = focus.value else { return }
+        let prefix = String(value.prefix(start))
+        let suffix = focus.range.map { String(value.dropFirst($0.location + $0.length)) } ?? ""
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Self.correctionWatch * 1_000_000_000))
+            guard let self, let now = FocusedText.value(of: element),
+                  now.hasPrefix(prefix), now.hasSuffix(suffix), now.count >= prefix.count + suffix.count else { return }
+            let edited = String(now.dropFirst(prefix.count).dropLast(suffix.count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let typed = written.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard edited != typed, !edited.isEmpty else { return }
+            let corrections = correctedWords(typed: typed, sent: edited)
+            self.dictations.learn(corrections)
+            await self.conversation?.learn(typed: typed, sent: edited)
+        }
+    }
+
+    /// Long enough to fix a word just written, short enough that the field is still the same text.
+    private static let correctionWatch: TimeInterval = 20
+
     /// Enforce or Not now on a rule: Touch ID over the place picked, one sheet after another, and the card stays up if it did not go.
     private func answerRule(_ card: RuleCard, scope: RuleScope?) {
         let previous = confirmations
@@ -636,7 +827,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         confirmations = Task { [conversation, panel] in
             await previous?.value
             guard let conversation, let panel else { return }
-            panel.workAnswered(card, await conversation.answerDraft(card.subject, send: send, reason: card.reason))
+            let outcome = await conversation.answerDraft(card.subject, send: send, reason: card.reason, edited: card.edited)
+            panel.workAnswered(card, outcome)
         }
     }
 
@@ -709,7 +901,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard announce else { return }
         enqueue { [self] in
             panel.present()
-            panel.show(.speaking, caption: inUse == choice ? "New voice" : "Kokoro is not running")
+            panel.show(.speaking, caption: inUse == choice ? "New voice" : "The voice is not running")
             await voice.speak(inUse == choice
                 ? "Good evening. This is how I sound now."
                 : "That voice is not available, so I will keep using this one.")
@@ -935,6 +1127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.chooseMachine = { [weak self] machineId in self?.talkTo(machineId) }
         model.say = { [weak self] line in self?.sayAside(line) }
         model.devicesChanged = { [weak self] in self?.loadDevices() }
+        model.machineConnected = { [weak self] in await self?.account?.machine?.connected() }
         model.voicePicked = { [weak self] voice in self?.tellVoice(voice) }
         model.useKokoro = { [weak self] in
             guard let self else { return }

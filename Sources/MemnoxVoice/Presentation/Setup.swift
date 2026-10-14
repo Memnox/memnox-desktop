@@ -42,7 +42,28 @@ enum ServerStep: Equatable {
 final class SetupModel: ObservableObject {
     @Published var name: String
     @Published var listening: StepState = .waiting
+    /// Pressing keys for the person, which needs Accessibility.
+    @Published var typing: StepState = .waiting
+    /// Reading the screen, which needs Screen Recording.
     @Published var seeing: StepState = .waiting
+    /// Whether Allow has been pressed for each, since only then is a missing grant something the person must go and do.
+    /// Kept across launches, so a switch turned on before Memnox reopened is checked rather than asked for again.
+    @Published private(set) var askedToType = UserDefaults.standard.bool(forKey: SetupModel.askedToTypeKey) {
+        didSet { UserDefaults.standard.set(askedToType, forKey: SetupModel.askedToTypeKey) }
+    }
+    @Published private(set) var askedToSee = UserDefaults.standard.bool(forKey: SetupModel.askedToSeeKey) {
+        didSet { UserDefaults.standard.set(askedToSee, forKey: SetupModel.askedToSeeKey) }
+    }
+    /// Memnox was restarted for Screen Recording and macOS still said no, which only a grant for an earlier copy does.
+    @Published private(set) var seeingStale = false
+    /// Reads the grants again while one still waits on the person, since switching it on sends no word back.
+    private var grantWatch: Task<Void, Never>?
+    /// Often enough that the row turns soon after the switch does, rarely enough to cost nothing.
+    private static let grantPoll: TimeInterval = 2
+    private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
+    /// Whether an editor the daemon's extension goes into is on this Mac, and the editors it has landed in.
+    @Published private(set) var editorsPresent = false
+    @Published private(set) var editorsWithExtension: [String] = []
     @Published var daemon: StepState = .waiting
     @Published var key: StepState = .waiting
     @Published var catchUp: Bool
@@ -67,6 +88,8 @@ final class SetupModel: ObservableObject {
     var say: ((String) -> Void)?
     /// Told when a phone is paired, so the menu's devices list catches up.
     var devicesChanged: (() -> Void)?
+    /// Whether this Mac is connected to a workspace, asked before a phone pairs; nil when the daemon cannot say.
+    var machineConnected: (() async -> Bool?)?
     /// Told the Kokoro voice picked, so the daemon can hand it to a paired phone.
     var voicePicked: ((String) -> Void)?
     private let pairing: Pairing
@@ -106,6 +129,42 @@ final class SetupModel: ObservableObject {
         // A nested object's changes do not reach the view on their own, so they are passed on.
         watchingKokoro = kokoro.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         watchingRuntime = runtime.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+        // Coming back from System Settings is the moment a grant changed, so the rows catch up without reopening.
+        becameActive = NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in self?.refreshGrants() }
+    }
+
+    private var becameActive: AnyCancellable?
+
+    /// The grants macOS holds, read again; cheap, so it runs whenever the person comes back to the app.
+    func refreshGrants() {
+        listening = hearingState()
+        typing = typingState()
+        seeing = seeingState()
+        keepWatchingGrants()
+        guard askedToSee, !ScreenSight.allowed else { return }
+        Task { [weak self] in
+            guard await ScreenSight.confirmGrant() else { return }
+            self?.seeing = self?.seeingState() ?? .done
+        }
+    }
+
+    /// Polls only while typing or seeing waits on a switch the person was sent to, and stops once both hold.
+    private func keepWatchingGrants() {
+        let waiting = [typing, seeing].contains { if case .needs = $0 { true } else { false } }
+        guard waiting else {
+            grantWatch?.cancel()
+            grantWatch = nil
+            return
+        }
+        guard grantWatch == nil else { return }
+        // One read at a time, each arming the next while something still waits.
+        grantWatch = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Self.grantPoll * Self.nanosecondsPerSecond))
+            guard !Task.isCancelled, let self else { return }
+            self.grantWatch = nil
+            self.refreshGrants()
+        }
     }
 
     /// What the daemon row says under its name: what is being done for it, else what it is for.
@@ -115,16 +174,20 @@ final class SetupModel: ObservableObject {
 
     /// Everything that can be checked without asking the person, checked as the card opens.
     func check() async {
-        listening = hearingState()
-        seeing = seeingState()
+        refreshGrants()
         daemon = .waiting
         // Installed, started or updated here rather than told to the person, who only sees it if that fails.
         switch await runtime.ensure(conversation) {
         case .ready: daemon = .done
-        case .tooOld, .unreachable, .refused: daemon = .needs(runtime.failed ?? "The daemon is not answering yet")
+        case .tooOld, .unreachable, .refused: daemon = .needs(runtime.failed ?? "The Memnox service is not answering yet")
         }
         key = await keyState()
+        // The daemon puts its editor extension in as it starts, so once it answers the folders say whether it landed.
+        editorsPresent = EditorExtension.editorsPresent
+        editorsWithExtension = EditorExtension.installedIn
         await voiceChanged()
+        // The voice is part of setting up, so a download not yet begun starts here and runs beside the agent check.
+        if case .idle = kokoro.state { Task { await useKokoro?() } }
         // Last, since the first time it asks every agent a question and that takes a while.
         await loadAgents()
     }
@@ -157,7 +220,7 @@ final class SetupModel: ObservableObject {
             agents = found
             agentsState = agentsState(found)
         case .refused(let why): agentsState = .needs(why)
-        case .unreachable: agentsState = .needs("Waiting for the daemon")
+        case .unreachable: agentsState = .needs("Waiting for the Memnox service")
         }
     }
 
@@ -172,19 +235,89 @@ final class SetupModel: ObservableObject {
         return .needs("None of your agents answered. Fix one below, then check again")
     }
 
-    /// Both grants are the person's alone: macOS shows its own sheet once and then only System Settings can.
-    func allowSeeing() {
+    /// Each grant is the person's alone: macOS shows its own sheet once and then only System Settings can. Until Allow
+    /// has been pressed the row only waits, so the picture of what to do appears once pressing it was not enough.
+    func allowTyping() {
         _ = PromptTyping.allowed()
-        if !ScreenSight.allowed { _ = CGRequestScreenCaptureAccess() }
+        askedToType = true
+        typing = typingState()
+    }
+
+    func allowSeeing() {
+        if !ScreenSight.allowed {
+            // A switch already on counts at once, which the preflight alone would only see after a restart.
+            if askedToSee { refreshGrants() }
+            _ = CGRequestScreenCaptureAccess()
+            // macOS shows its sheet once per app, so a second press opens the pane the sheet would have.
+            if askedToSee { SettingsPane.seeing.open() }
+            askedToSee = true
+        }
         seeing = seeingState()
     }
 
-    /// Typing and reading back need Accessibility; seeing the screen and the proof shots need Screen Recording.
+    /// The switch shows on and macOS still says no: the entry is an earlier build's, so it is forgotten and asked for again,
+    /// which puts this build in the list for the person to switch on once.
+    func askAgain(_ pane: SettingsPane) async {
+        await pane.forgetEarlierBuilds()
+        switch pane {
+        case .typing:
+            _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
+        case .seeing:
+            // A fresh entry starts a fresh try, so the next restart is not read as the stale one again.
+            UserDefaults.standard.removeObject(forKey: Self.restartedForSeeingKey)
+            _ = CGRequestScreenCaptureAccess()
+        }
+        pane.open()
+        refreshGrants()
+    }
+
+    /// Typing and reading back need Accessibility, under the name this macOS gives the pane.
+    private func typingState() -> StepState {
+        if AXIsProcessTrusted() { return .done }
+        guard askedToType else { return .waiting }
+        // An ad hoc build is a new app to macOS each time it is rebuilt, so the switch can show on while doing nothing.
+        let adHoc = BuildSignature.isAdHoc
+            ? " This build is signed ad hoc, so that happens at every rebuild: run scripts/signing-setup.sh and build again."
+            : ""
+        return .needs("Switch Memnox on under \(SettingsPane.typing.title). \(Self.staleGrant)\(adHoc)")
+    }
+
+    /// Seeing the screen and the proof shots need Screen Recording, which macOS reads only when the app next starts.
     private func seeingState() -> StepState {
-        switch (AXIsProcessTrusted(), ScreenSight.allowed) {
-        case (true, true): return .done
-        case (false, _): return .needs("Turn on Memnox in System Settings, Privacy and Security, Accessibility")
-        case (true, false): return .needs("Turn on Memnox in System Settings, Privacy and Security, Screen Recording, then reopen Memnox")
+        let restarted = UserDefaults.standard.bool(forKey: Self.restartedForSeeingKey)
+        if ScreenSight.allowed {
+            UserDefaults.standard.removeObject(forKey: Self.restartedForSeeingKey)
+            seeingStale = false
+            return .done
+        }
+        seeingStale = restarted
+        guard askedToSee else { return .waiting }
+        if restarted {
+            return .needs("Memnox restarted and macOS still says no, so the switch that shows on is either an earlier copy's or the one under \(Self.audioOnlyList), which grants sound and not the screen. Press Ask again and switch Memnox on in the top list.")
+        }
+        return .needs("Switch Memnox on in the top list under \(SettingsPane.seeing.title), not under \(Self.audioOnlyList), which grants sound only. Once it shows on, press Restart Memnox, since macOS hands the grant over only when Memnox starts again.")
+    }
+
+    /// The second list in the same pane, where a switch looks like the screen grant and is not.
+    private static let audioOnlyList = "System Audio Recording Only"
+
+    /// Set as Memnox restarts for Screen Recording, so a no after the restart is known to be a stale grant.
+    static let restartedForSeeingKey = "restartedForSeeing"
+
+    /// A switch that shows on while macOS says no is a grant for an earlier copy of the app, which Ask again clears.
+    private static let staleGrant = "If it already shows on, press Ask again and switch it on once more."
+
+    /// Quits and opens Memnox again, since macOS hands over a Screen Recording grant only to the next start. The name is
+    /// kept first, so the first run picks up where it was with nothing retyped.
+    func reopen() {
+        saveName()
+        if case .needs = seeing { UserDefaults.standard.set(true, forKey: Self.restartedForSeeingKey) }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { opened, _ in
+            // Only once the new one is up, so a build that is not a bundle keeps the one that is running.
+            guard opened != nil else { return }
+            Task { @MainActor in NSApp.terminate(nil) }
         }
     }
 
@@ -237,10 +370,12 @@ final class SetupModel: ObservableObject {
         }
     }
 
-    /// Opens a pairing and shows its QR, or shows and says the daemon's reason when it will not open one.
+    /// Opens a pairing and shows its QR, or shows and says the daemon's reason when it will not open one. A Mac not yet
+    /// connected to a workspace is told where to connect before the daemon is asked, since its refusal names no page.
     func pairPhone() async {
         stopWatchingPairing()
         phone = .opening
+        if await machineConnected?() == false { return failPairing(PairingLines.connectFirst) }
         switch await pairing.begin() {
         case .started(let invite):
             guard let qr = invite.qr else { return failPairing(PairingLines.refused) }
@@ -428,11 +563,21 @@ final class SetupModel: ObservableObject {
     var voiceDetail: String {
         switch kokoro.state {
         case .done:
-            return speaksWithKokoro ? "Kokoro, a natural voice running on this Mac." : "The Mac's own voice, as picked in the menu bar."
-        case .installing(let step):
-            return "Installing Kokoro, about 340 MB once: \(step.lowercased()). The Mac voice speaks until then."
+            return speaksWithKokoro ? "A natural voice, running on this Mac." : "The Mac's own voice."
+        case .installing:
+            // The steps and sizes stay in the log; a person setting up is told only that it takes a while.
+            return "Getting your voice ready. This takes a few minutes the first time, so carry on with the rest."
         case .idle, .failed:
-            return "Kokoro installs itself the first time. The Mac voice speaks until then."
+            return "The voice installs itself the first time. The Mac voice speaks until then."
+        }
+    }
+
+    /// Whether the voice is still on its way, which holds the first run until it is in; a failed install does not,
+    /// since a Mac with no connection must still be able to finish.
+    var voiceStillComing: Bool {
+        switch kokoro.state {
+        case .idle, .installing: return true
+        case .done, .failed: return false
         }
     }
 
@@ -476,6 +621,8 @@ final class SetupModel: ObservableObject {
 
     static let doneKey = "setupDone"
     static let catchUpKey = "catchUp"
+    static let askedToTypeKey = "askedToType"
+    static let askedToSeeKey = "askedToSee"
 
     private func hearingState() -> StepState {
         let microphone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
@@ -490,8 +637,8 @@ final class SetupModel: ObservableObject {
         }
         switch await conversation.registerKey() {
         case .registered: return .done
-        case .anotherKey: return .needs("Another key is trusted. Run memnox voice forget-key, then check again")
-        case .unreachable: return .needs("Waiting for the daemon")
+        case .anotherKey: return .needs("Memnox still trusts a Touch ID key from an earlier setup. In Terminal, run memnox voice forget-key, then press Check again")
+        case .unreachable: return .needs("Waiting for the Memnox service")
         case .tooOld: return .needs("Waiting for a Memnox that knows voice")
         case .refused(let why): return .needs(why)
         }
@@ -517,31 +664,66 @@ private struct SetupDivider: View {
     }
 }
 
-/// Who the person is and what the Mac lets Memnox hear and see.
-struct SetupYouCard: View {
+/// What the Mac lets Memnox hear, type and see. Allow asks macOS; when that was not enough, a picture of the switch to
+/// flip takes the place of a paragraph, since the two grants kept in System Settings are the ones people get stuck on.
+struct SetupPermissionsCard: View {
     @ObservedObject var model: SetupModel
 
     var body: some View {
         VStack(spacing: 0) {
-            SetupStep("Your name", detail: "What I call you.", state: model.nameState) {
-                NameField(text: $model.name)
-                    .onSubmit { model.saveName() }
-                    .onChange(of: model.name) { _, _ in if model.isFinished { model.saveName() } }
-            }
-            SetupDivider()
             SetupStep("Hear you", detail: "Microphone and speech recognition, on this Mac only.", state: model.listening) {
                 if model.listening != .done {
                     Button("Allow") { Task { await model.allowListening() } }.buttonStyle(KitButton(kind: .primary))
                 }
             }
             SetupDivider()
-            SetupStep("See and act", detail: "Read your screen when you ask, and check that what it sent landed.", state: model.seeing) {
-                if model.seeing != .done {
-                    Button("Allow") { model.allowSeeing() }.buttonStyle(KitButton(kind: .primary))
+            SetupStep("Type for you", detail: "Type what you confirm into your agents, and read back that it landed.", state: model.typing) {
+                switch model.typing {
+                case .waiting:
+                    Button("Allow") { model.allowTyping() }.buttonStyle(KitButton(kind: .primary))
+                case .needs:
+                    Button("Ask again") { Task { await model.askAgain(.typing) } }.buttonStyle(KitButton(kind: .secondary))
+                case .done:
+                    EmptyView()
                 }
+            } extra: {
+                if case .needs = model.typing { PermissionGuide(pane: .typing) }
+            }
+            SetupDivider()
+            SetupStep("See your screen", detail: "Read the window you ask about, and check that what it sent landed.", state: model.seeing) {
+                switch model.seeing {
+                case .waiting:
+                    Button("Allow") { model.allowSeeing() }.buttonStyle(KitButton(kind: .primary))
+                case .needs:
+                    HStack(spacing: Memnox.Spacing.small) {
+                        Button("Ask again") { Task { await model.askAgain(.seeing) } }
+                            .buttonStyle(KitButton(kind: model.seeingStale ? .primary : .secondary))
+                        // macOS hands the grant over only to the next start, so restarting is the last step there.
+                        if !model.seeingStale {
+                            Button("Restart Memnox") { model.reopen() }.buttonStyle(KitButton(kind: .primary))
+                        }
+                    }
+                case .done:
+                    EmptyView()
+                }
+            } extra: {
+                if case .needs = model.seeing { PermissionGuide(pane: .seeing) }
             }
         }
         .surface()
+    }
+}
+
+/// The person's name, on the Account page beside who they are in Memnox Cloud.
+struct SetupNameRow: View {
+    @ObservedObject var model: SetupModel
+
+    var body: some View {
+        SetupStep("Your name", detail: "What Memnox calls you.", state: model.nameState) {
+            NameField(text: $model.name)
+                .onSubmit { model.saveName() }
+                .onChange(of: model.name) { _, _ in if model.isFinished { model.saveName() } }
+        }
     }
 }
 
@@ -551,7 +733,7 @@ struct SetupMacCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SetupStep("Memnox daemon", detail: model.daemonDetail, state: model.daemon) {
+            SetupStep("Memnox service", detail: model.daemonDetail, state: model.daemon) {
                 if model.daemon != .done { checkAgain }
             }
             .tile(MemnoxTile())
@@ -628,6 +810,8 @@ struct SetupServerCard: View {
 /// Which agent thinks for the voice, and the voice itself with a way to hear it.
 struct SetupVoiceCard: View {
     @ObservedObject var model: SetupModel
+    /// The menu's voice choice, which adds the Mac's own voice to the picker; nil offers Kokoro alone.
+    var menu: MenuModel?
     /// Whether the agent rows show once an agent already answers, since then they are detail.
     @State private var showingAgents = false
 
@@ -635,7 +819,7 @@ struct SetupVoiceCard: View {
         VStack(spacing: 0) {
             SetupStep("Who answers for you", detail: model.agentsDetail, state: model.agentsState) {
                 if model.agentsState == .done {
-                    Button(showingAgents ? "Hide" : "Details") { showingAgents.toggle() }
+                    Button(showingAgents ? "Hide agents" : "Show agents") { showingAgents.toggle() }
                         .buttonStyle(KitButton(kind: .secondary))
                 }
             } extra: {
@@ -644,7 +828,7 @@ struct SetupVoiceCard: View {
             SetupDivider()
             SetupStep("Voice", detail: model.voiceDetail, state: model.voiceState) {
                 HStack(spacing: Memnox.Spacing.small) {
-                    VoicePicker(model: model)
+                    VoicePicker(model: model, menu: menu)
                     Button { Task { await model.hear() } } label: {
                         Image(systemName: SetupCardLayout.playSymbol)
                     }
@@ -663,7 +847,14 @@ struct SetupVoiceCard: View {
     @ViewBuilder private var voiceExtra: some View {
         switch model.kokoro.state {
         case .installing:
-            ProgressView().controlSize(.small)
+            // Says what the spinner is for and what speaks meanwhile, so a long download never looks stuck.
+            HStack(spacing: Memnox.Spacing.medium) {
+                ProgressView().controlSize(.small)
+                Text("Downloading the voice. Memnox speaks with your Mac's own voice until it is in.")
+                    .font(Memnox.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         case .failed:
             HStack(spacing: Memnox.Spacing.medium) {
                 Button("Try again") { Task { await model.useKokoro?() } }.buttonStyle(KitButton(kind: .secondary))
@@ -779,7 +970,7 @@ struct StatusMark: View {
 }
 
 /// A text field in the console's input style: dark, bordered, a blue ring when focused.
-private struct NameField: View {
+struct NameField: View {
     @Binding var text: String
     @FocusState private var focused: Bool
 
@@ -792,6 +983,7 @@ private struct NameField: View {
             .font(Memnox.sans(Memnox.TextSize.body))
             .foregroundStyle(Memnox.Palette.foreground)
             .focused($focused)
+            .accessibilityLabel("Your name")
             .padding(.horizontal, Memnox.Spacing.regular)
             .padding(.vertical, Memnox.Spacing.small)
             .frame(width: SetupLayout.fieldWidth)
@@ -1044,17 +1236,24 @@ private struct ServerExtra: View {
     }
 }
 
-/// Kokoro's voices, as a quiet menu rather than a system pop up button.
+/// The voices, as a quiet menu rather than a system pop up button: the Mac's own first where the menu's choice is
+/// given, then each Kokoro voice. One picker, so what it shows is always what speaks.
 private struct VoicePicker: View {
     @ObservedObject var model: SetupModel
+    var menu: MenuModel?
 
     private static let chevronSymbol = "chevron.up.chevron.down"
     private static let chevronSize: CGFloat = 9
+    private static let macLabel = "Mac voice"
 
     var body: some View {
         Menu {
+            if menu != nil {
+                Button(Self.macLabel) { pickMac() }
+                Divider()
+            }
             ForEach(KokoroVoice.choices) { choice in
-                Button(choice.label) { Task { await model.pickVoice(choice.id) } }
+                Button(choice.label) { pickKokoro(choice.id) }
             }
         } label: {
             HStack {
@@ -1072,12 +1271,29 @@ private struct VoicePicker: View {
         .buttonStyle(.plain)
         .pointingHand()
         .menuIndicator(.hidden)
-        .help("Choose the Kokoro voice, which speaks once picked")
+        .help("Choose the voice Memnox speaks with")
     }
 
-    /// A voice saved before this list existed still shows its Kokoro id rather than nothing.
+    private func pickMac() {
+        guard let menu else { return }
+        menu.voiceChoice = VoiceChoice.mac
+        menu.chooseVoice(VoiceChoice.mac)
+    }
+
+    /// Kokoro saved first, so the voice chosen is the one that speaks once the menu switches to it.
+    private func pickKokoro(_ id: String) {
+        if let menu {
+            menu.kokoroVoice = id
+            menu.voiceChoice = VoiceChoice.kokoro
+            menu.chooseVoice(VoiceChoice.kokoro)
+        }
+        Task { await model.pickVoice(id) }
+    }
+
+    /// The Mac's voice while it speaks; else the Kokoro voice, a voice saved before this list existed still showing its id.
     private var current: String {
-        KokoroVoice.choices.first { $0.id == model.kokoroVoiceId }?.label ?? model.kokoroVoiceId
+        if let menu, menu.voiceChoice == VoiceChoice.mac { return Self.macLabel }
+        return KokoroVoice.choices.first { $0.id == model.kokoroVoiceId }?.label ?? model.kokoroVoiceId
     }
 }
 

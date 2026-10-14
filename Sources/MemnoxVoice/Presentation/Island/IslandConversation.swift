@@ -12,15 +12,17 @@ struct IslandHearing: View {
         static let wordsSide: CGFloat = 28
         static let wordsHeight: CGFloat = 84
         static let chipTrailing: CGFloat = 18
+        /// A long hint shrinks a little before it is cut, so it stays whole on a narrow notch.
+        static let hintShrink: CGFloat = 0.8
     }
 
     var body: some View {
         VStack(spacing: 0) {
             Group {
                 if model.ruling, model.heard.isEmpty {
-                    Text("Say the rule, then let go")
-                        .font(Memnox.sans(Memnox.TextSize.title, .medium))
-                        .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                    hint("Say the rule, then let go")
+                } else if let dictating = model.dictating, model.heard.isEmpty {
+                    hint(dictating)
                 } else {
                     LiveWords(text: model.heard, size: Memnox.TextSize.title, alignment: .center, listening: model.state == .listening)
                 }
@@ -37,11 +39,45 @@ struct IslandHearing: View {
                     .frame(height: model.notch.height)
                     .padding(.trailing, Layout.chipTrailing)
                     .transition(.opacity.combined(with: .scale))
+            } else if model.dictating != nil {
+                DictationModeChip()
+                    .frame(height: model.notch.height)
+                    .padding(.trailing, Layout.chipTrailing)
+                    .transition(.opacity.combined(with: .scale))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contentShape(Rectangle())
         .onTapGesture { model.tapped() }
+    }
+
+    /// What to say before any word is heard, dimmer than the words themselves so it never reads as heard.
+    private func hint(_ text: String) -> some View {
+        Text(text)
+            .font(Memnox.sans(Memnox.TextSize.title, .medium))
+            .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(Layout.hintShrink)
+    }
+}
+
+/// Beside the notch while dictating, as the rule chip is while taking down a rule: words go into the app in front.
+struct DictationModeChip: View {
+    private static let symbol = "text.cursor"
+    private static let fill = 0.18
+
+    var body: some View {
+        HStack(spacing: Memnox.Spacing.xSmall) {
+            Image(systemName: Self.symbol)
+            Text("Dictating")
+        }
+        .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
+        .foregroundStyle(Memnox.Palette.primary.liftedTowardWhite)
+        .padding(.horizontal, Memnox.Spacing.regular)
+        .padding(.vertical, Memnox.Spacing.xSmall)
+        .background(Capsule().fill(Memnox.Palette.primary.opacity(Self.fill)))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -75,6 +111,8 @@ struct IslandConversation: View {
             }
             if let work = model.work {
                 IslandWorkCard(model: model, card: work)
+                    // A new draft starts from its own words, never from what was typed into the last one.
+                    .id(work.subject)
                     .transition(.opacity.combined(with: .scale(scale: Self.cardArrivalScale, anchor: .top)))
             } else if let draft = model.draft {
                 IslandDraftCard(model: model, card: draft)
@@ -280,6 +318,11 @@ struct AnswerCard: View {
     @ObservedObject var model: IslandModel
     let exchange: Exchange
     let live: Bool
+    /// Set for a moment after Copy, so the button says the answer is on the clipboard.
+    @State private var copied = false
+
+    /// Long enough to read "Copied", short enough that the button is itself again by the next look.
+    private static let copiedFor: TimeInterval = 1.5
 
     private enum Layout {
         static let markSide: CGFloat = 14
@@ -291,6 +334,7 @@ struct AnswerCard: View {
         static let more = "chevron.down"
         static let less = "chevron.up"
         static let copy = "doc.on.doc"
+        static let copied = "checkmark"
         static let open = "arrow.up.forward.square"
         static let done = "checkmark.circle.fill"
     }
@@ -372,7 +416,12 @@ struct AnswerCard: View {
             Button {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(exchange.answer, forType: .string)
-            } label: { Label("Copy", systemImage: Symbol.copy) }
+                copied = true
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(Self.copiedFor))
+                    copied = false
+                }
+            } label: { Label(copied ? "Copied" : "Copy", systemImage: copied ? Symbol.copied : Symbol.copy) }
                 .buttonStyle(IslandButton(primary: false))
                 .disabled(exchange.answer.isEmpty)
             Button { model.openAnswer(exchange) } label: { Label("Open answer", systemImage: Symbol.open) }

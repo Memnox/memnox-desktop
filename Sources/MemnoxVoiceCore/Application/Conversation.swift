@@ -739,6 +739,8 @@ public final class Conversation {
                 return
             }
             interrupted = false
+            // Kept, so a tap on the island or an answer elsewhere stops it being read out after the fact.
+            if event.noticeKind == .question { asking = event.subject }
             var request = newRequest(.brief)
             request.briefing = Briefing.notice.rawValue
             request.subject = event.subject
@@ -1290,6 +1292,24 @@ public final class Conversation {
         if let first = await answeredFirst(response, chose: answer.rawValue) { return .answeredElsewhere(first) }
         guard response?.ok == true else { return await notThrough(response) }
         marked(allowed: answer != .deny)
+        face.show(.idle, caption: "")
+        return .answered
+    }
+
+    /// A pick in an agent's own picker, tapped on the island. It is the person's own choice going to their own agent,
+    /// which is ruled on as ever when it acts, so it goes with no Touch ID and no signature.
+    public func answerQuestion(_ subject: String, number: Int, answer: String) async -> HeldOutcome {
+        var request = newRequest(.confirm)
+        request.subject = subject
+        request.answer = answer
+        request.questionNumber = number
+        let response = try? await link.request(request)
+        guard response?.ok == true else { return await notThrough(response) }
+        // Picked by hand, so the voice stops reading out a question that already has its answer.
+        if asking == subject {
+            asking = nil
+            speaker.stop()
+        }
         face.show(.idle, caption: "")
         return .answered
     }

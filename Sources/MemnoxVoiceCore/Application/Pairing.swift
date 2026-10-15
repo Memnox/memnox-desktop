@@ -129,8 +129,8 @@ public final class Pairing {
     /// Gives a device one more capability, which widens what it can do, so Touch ID signs it.
     public func grant(_ capability: Capability, to device: Device) async -> DeviceChange {
         let message = grantMessage(deviceId: device.id, capability: capability)
-        guard let signature = await signed(message, reason: "let \(device.name) \(capability.rawValue)") else {
-            diary.note("Touch ID did not sign, so \(device.name) was not given \(capability.rawValue)")
+        guard let signature = await signed(message, reason: "let \(device.name) \(capability.allowing)") else {
+            diary.note("Touch ID did not sign, so \(device.name) may still not \(capability.allowing)")
             return .cancelled
         }
         var request = newRequest(.deviceGrant)
@@ -139,7 +139,7 @@ public final class Pairing {
         request.signature = signature
         guard let response = try? await link.request(request) else { return .unreachable }
         if response.outcomeKind == .granted {
-            diary.note("gave \(device.name) \(capability.rawValue)")
+            diary.note("let \(device.name) \(capability.allowing)")
             return .done
         }
         return .refused(refusal(response))
@@ -189,5 +189,20 @@ public final class Pairing {
 
     private func newRequest(_ method: DaemonMethod) -> DaemonRequest {
         DaemonRequest(id: ids.next(), method: method)
+    }
+}
+
+extension Capability {
+    /// What it lets a device do, as words after "let iPhone", since the raw name read "gave iPhone mac".
+    public var allowing: String {
+        switch self {
+        case .see: "see what waits on you"
+        case .ask: "ask the voice"
+        case .answer: "answer what waits on you"
+        case .steer: "steer your sessions"
+        case .rules: "change your rules"
+        case .rewind: "rewind work"
+        case .mac: "act on this Mac"
+        }
     }
 }

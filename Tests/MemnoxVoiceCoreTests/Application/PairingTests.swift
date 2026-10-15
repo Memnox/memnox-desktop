@@ -29,6 +29,13 @@ final class PairingTests: XCTestCase {
         XCTAssertEqual(link.sent.first?.name, "Studio Mac")
     }
 
+    func testNamesWhatAGrantLetsADeviceDoInWordsRatherThanItsRawName() {
+        XCTAssertEqual("let \(device.name) \(Capability.mac.allowing)", "let Sam's iPhone act on this Mac")
+        for capability in Capability.allCases {
+            XCTAssertNotEqual(capability.allowing, capability.rawValue)
+        }
+    }
+
     func testCarriesTheDaemonsReasonWhenThisMacIsNotOnMemnoxCloud() async throws {
         link.answers["pair-begin"] = [try line(#"{"id":1,"ok":false,"outcome":"refused","reason":"Connect this Mac to Memnox Cloud first."}"#)]
         let start = await pairing.begin()

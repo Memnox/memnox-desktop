@@ -8,8 +8,8 @@ final class HeldQuestionTests: XCTestCase {
     func testAsksTheWayAColleagueWould() throws {
         let held = try event(#"{"kind":"held","subject":"apr_1","agent":"claude-code","summary":"claude-code wants to git.push main","at":"t","agentName":"Claude","what":"push main","why":"Pushing to main needs a person.","task":"add order cancellation","place":"shop"}"#)
         XCTAssertEqual(
-            heldQuestion(owner: "Moise", event: held),
-            "Moise, Claude in shop, working on add order cancellation, wants to push main. Pushing to main needs a person. Allow it, or deny?"
+            heldQuestion(owner: "Maya", event: held),
+            "Maya, Claude in shop, working on add order cancellation, wants to push main. Pushing to main needs a person. Allow it, or deny?"
         )
     }
 
@@ -40,23 +40,23 @@ final class HeldQuestionTests: XCTestCase {
     func testATeamCallIsAskedWithItsLabelAndEndsOnTheQuestionEveryCallEndsOn() throws {
         let call = try JSONDecoder().decode(WorkspaceHeldCall.self, from: Data(heldJSON(ownerName: "Ana").utf8))
         XCTAssertEqual(
-            teamQuestion(owner: "Moise", call: call),
-            "Moise, codex on build-box, from Ana's team is waiting on you. Codex wants to push to main. Pushes to main are held. Allow it, or deny?"
+            teamQuestion(owner: "Maya", call: call),
+            "Maya, codex on build-box, from Ana's team is waiting on you. Codex wants to push to main. Pushes to main are held. Allow it, or deny?"
         )
     }
 
     func testSuggestsTheFirstName() {
-        XCTAssertEqual(suggestedName(fullName: "Moise Rushanika"), "Moise")
+        XCTAssertEqual(suggestedName(fullName: "Maya Okafor"), "Maya")
         XCTAssertEqual(suggestedName(fullName: "Cher"), "Cher")
     }
 
     func testSaysOnlyTheLastPartOfAPath() {
         XCTAssertEqual(
-            withShortPaths("delete /private/tmp/claude-501/-Users-moise-Documents/scratchpad/b/src."),
+            withShortPaths("delete /private/tmp/claude-501/-Users-maya-Documents/scratchpad/b/src."),
             "delete src."
         )
         XCTAssertEqual(
-            withShortPaths("Audio.swift is outside /Users/moise/Documents/Memnox-saas/memnox-macos, where it works"),
+            withShortPaths("Audio.swift is outside /Users/maya/Documents/Memnox-saas/memnox-macos, where it works"),
             "Audio.swift is outside memnox-macos, where it works"
         )
         XCTAssertEqual(withShortPaths("read and/or write ~/notes.md or /src"), "read and/or write notes.md or /src")

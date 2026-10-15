@@ -47,9 +47,9 @@ final class LiveDictationTests: XCTestCase {
     }
 
     func testAccentsAreNeverSplit() {
-        let revision = liveRevision(from: "Moïse", to: "Moise")
-        XCTAssertEqual(revision.removed, "ïse")
-        XCTAssertEqual(revision.added, "ise")
+        let revision = liveRevision(from: "Zoëy", to: "Zoey")
+        XCTAssertEqual(revision.removed, "ëy")
+        XCTAssertEqual(revision.added, "ey")
     }
 
     func testCursorHintsKeepNamesAndCodes() {

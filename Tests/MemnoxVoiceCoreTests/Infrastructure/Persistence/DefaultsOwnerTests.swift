@@ -9,7 +9,7 @@ final class DefaultsOwnerTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: "memnox-owner-test-\(UUID().uuidString)"))
         let owner = DefaultsOwner(defaults: defaults)
         XCTAssertNil(owner.name)
-        owner.name = "Moise"
-        XCTAssertEqual(DefaultsOwner(defaults: defaults).name, "Moise")
+        owner.name = "Maya"
+        XCTAssertEqual(DefaultsOwner(defaults: defaults).name, "Maya")
     }
 }

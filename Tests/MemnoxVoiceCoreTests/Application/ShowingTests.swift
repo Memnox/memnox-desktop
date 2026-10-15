@@ -106,8 +106,8 @@ final class ShowingTests: XCTestCase {
     func testOpensOnlyAWebPageALinkNames() async throws {
         let hands = ActingPresenter()
         let opening = Conversation(link: link, speaker: RecordingSpeaker(), key: key, face: face, owner: MemoryOwner(nil), presenter: hands)
-        await opening.handle(try event(#"{"kind":"show","subject":"dsp_11","agent":"agt_memnox-operator","summary":"github.com","at":"2026-10-14T00:00:00Z","display":"link","title":"github.com","sessionId":"all","app":{"links":["https://github.com/moise10r/orbit/pull/49"]}}"#))
-        XCTAssertEqual(hands.links.map(\.absoluteString), ["https://github.com/moise10r/orbit/pull/49"])
+        await opening.handle(try event(#"{"kind":"show","subject":"dsp_11","agent":"agt_memnox-operator","summary":"github.com","at":"2026-10-14T00:00:00Z","display":"link","title":"github.com","sessionId":"all","app":{"links":["https://github.com/acme/shop/pull/49"]}}"#))
+        XCTAssertEqual(hands.links.map(\.absoluteString), ["https://github.com/acme/shop/pull/49"])
         XCTAssertEqual(link.sent.last?.answer, "typed")
         await opening.handle(try event(#"{"kind":"show","subject":"dsp_12","agent":"agt_memnox-operator","summary":"x","at":"2026-10-14T00:00:00Z","display":"link","title":"x","sessionId":"all","app":{"links":["file:///etc/hosts"]}}"#))
         XCTAssertEqual(hands.links.count, 1)

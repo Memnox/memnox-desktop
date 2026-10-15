@@ -12,7 +12,7 @@ final class WorkInTheirNameTests: XCTestCase {
     var key: PersonKey!
     var conversation: Conversation!
 
-    private let proposal = #"{"kind":"proposal","subject":"prp_work","agent":"agt_memnox-operator","summary":"As moise10r on GitHub: reply on 412","at":"2026-10-09T09:00:00Z","work":{"toolkit":"github","tool":"GITHUB_CREATE_A_REVIEW_COMMENT_FOR_A_PULL_REQUEST","kind":"comment","account":{"key":"42","handle":"moise10r","check":"matched"},"where":"memnox/runtime#412","body":"Fixed in the last push","fields":[{"name":"line","value":"88"}]}}"#
+    private let proposal = #"{"kind":"proposal","subject":"prp_work","agent":"agt_memnox-operator","summary":"As maya on GitHub: reply on 412","at":"2026-10-09T09:00:00Z","work":{"toolkit":"github","tool":"GITHUB_CREATE_A_REVIEW_COMMENT_FOR_A_PULL_REQUEST","kind":"comment","account":{"key":"42","handle":"maya","check":"matched"},"where":"memnox/runtime#412","body":"Fixed in the last push","fields":[{"name":"line","value":"88"}]}}"#
 
     override func setUp() {
         link = ScriptedLink()
@@ -30,10 +30,10 @@ final class WorkInTheirNameTests: XCTestCase {
         XCTAssertEqual(subject, "prp_work")
         XCTAssertEqual(work.draftKind, .comment)
         XCTAssertEqual(work.where, "memnox/runtime#412")
-        XCTAssertEqual(work.account?.shown, "moise10r")
+        XCTAssertEqual(work.account?.shown, "maya")
         XCTAssertEqual(work.account?.accountCheck, .matched)
         XCTAssertEqual(work.fields, [WorkField(name: "line", value: "88")])
-        XCTAssertEqual(work.touchIDReason, "send this on GitHub as moise10r")
+        XCTAssertEqual(work.touchIDReason, "send this on GitHub as maya")
         XCTAssertEqual(key.signed, [])
         XCTAssertEqual(link.sent.filter { $0.method == "confirm" }.count, before)
     }
@@ -48,7 +48,7 @@ final class WorkInTheirNameTests: XCTestCase {
 
     func testSendsOnlyWithTheFingerprintForThatProposal() async throws {
         link.answers["confirm"] = [try line(#"{"id":1,"ok":true}"#)]
-        let outcome = await conversation.answerDraft("prp_work", send: true, reason: "send this on GitHub as moise10r")
+        let outcome = await conversation.answerDraft("prp_work", send: true, reason: "send this on GitHub as maya")
         XCTAssertEqual(outcome, .answered)
         XCTAssertEqual(key.signed, ["memnox-confirm:v1:prp_work:confirmed"])
         XCTAssertNotNil(link.sent.last?.signature)
@@ -56,7 +56,7 @@ final class WorkInTheirNameTests: XCTestCase {
 
     func testSendsTheirRewrittenWordsUnderAFingerprintOverExactlyThem() async throws {
         link.answers["confirm"] = [try line(#"{"id":1,"ok":true}"#)]
-        let outcome = await conversation.answerDraft("prp_work", send: true, reason: "send this on Slack as Moise",
+        let outcome = await conversation.answerDraft("prp_work", send: true, reason: "send this on Slack as Maya",
                                                      edited: "Could you review PR 12: the tests fail")
         XCTAssertEqual(outcome, .answered)
         XCTAssertEqual(key.signed, ["memnox-confirm:v2:prp_work:confirmed:Could you review PR 12: the tests fail"])
@@ -65,7 +65,7 @@ final class WorkInTheirNameTests: XCTestCase {
 
     func testClosingARewrittenDraftSendsNoWordsAndNoFingerprint() async throws {
         link.answers["confirm"] = [try line(#"{"id":1,"ok":true}"#)]
-        _ = await conversation.answerDraft("prp_work", send: false, reason: "send this on Slack as Moise", edited: "anything")
+        _ = await conversation.answerDraft("prp_work", send: false, reason: "send this on Slack as Maya", edited: "anything")
         XCTAssertEqual(key.signed, [])
         XCTAssertNil(link.sent.last?.edited)
         XCTAssertEqual(link.sent.last?.answer, "declined")

@@ -256,7 +256,7 @@ final class IslandPreview {
         panel.signedIn(mine)
         await pause(Tour.dwell)
         panel.signedInDismissed(SignedInCard(notice: mine))
-        panel.signedIn(SignedInNotice(toolkit: "github", account: WorkAccount(key: "42", handle: "moise10r", check: AccountCheck.matched.rawValue)))
+        panel.signedIn(SignedInNotice(toolkit: "github", account: WorkAccount(key: "42", handle: "maya", check: AccountCheck.matched.rawValue)))
         await pause(Tour.beat)
         for (index, work) in Self.works.enumerated() {
             let subject = "\(Self.workSubject)_\(index)"
@@ -281,18 +281,18 @@ final class IslandPreview {
     private static let works: [WorkDraft] = [
         WorkDraft(
             toolkit: "slack", tool: "SLACK_SEND_MESSAGE", kind: WorkDraftKind.message.rawValue,
-            account: WorkAccount(key: "U1", handle: "moise", check: matched), to: ["#launch"],
+            account: WorkAccount(key: "U1", handle: "maya", check: matched), to: ["#launch"],
             body: "The new site is *live*. Link in the thread."
         ),
         WorkDraft(
             toolkit: "github", tool: "GITHUB_CREATE_A_REVIEW_COMMENT_FOR_A_PULL_REQUEST", kind: WorkDraftKind.comment.rawValue,
-            account: WorkAccount(key: "42", handle: "moise10r", check: matched), where: "memnox/runtime#412",
+            account: WorkAccount(key: "42", handle: "maya", check: matched), where: "memnox/runtime#412",
             body: "Fixed in the last push: `retryAfter` is now read from the header.",
             fields: [WorkField(name: "path", value: "src/billing/retry.ts"), WorkField(name: "line", value: "88")]
         ),
         WorkDraft(
             toolkit: "linear", tool: "LINEAR_CREATE_COMMENT", kind: WorkDraftKind.comment.rawValue,
-            account: WorkAccount(key: "u_7", handle: "Moise", check: AccountCheck.unverified.rawValue), where: "ENG-231",
+            account: WorkAccount(key: "u_7", handle: "Maya", check: AccountCheck.unverified.rawValue), where: "ENG-231",
             body: "Picked this up, PR is open."
         ),
         WorkDraft(

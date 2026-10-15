@@ -17,13 +17,13 @@ final class DictationRecordsTests: XCTestCase {
     }
 
     func testWritesShortcutsAndReplacementsTheirWay() {
-        let words = [DictationWord(said: "my email", written: "moise@memnox.com")]
-        XCTAssertEqual(replaced("send it to my email please", by: words), "send it to moise@memnox.com please")
+        let words = [DictationWord(said: "my email", written: "maya@acme.com")]
+        XCTAssertEqual(replaced("send it to my email please", by: words), "send it to maya@acme.com please")
         // Only the phrase whole, never inside another word.
         XCTAssertEqual(replaced("my emails", by: words), "my emails")
         XCTAssertEqual(
             cleanedDictation("um reply to my email", replacements: words, style: .bare),
-            "Reply to moise@memnox.com"
+            "Reply to maya@acme.com"
         )
     }
 

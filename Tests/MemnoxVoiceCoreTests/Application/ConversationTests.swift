@@ -16,7 +16,7 @@ final class ConversationTests: XCTestCase {
         speaker = RecordingSpeaker()
         face = RecordingFace()
         key = PersonKey()
-        conversation = Conversation(link: link, speaker: speaker, key: key, face: face, owner: MemoryOwner("Moise"), fillers: ["One sec."])
+        conversation = Conversation(link: link, speaker: speaker, key: key, face: face, owner: MemoryOwner("Maya"), fillers: ["One sec."])
     }
 
     func testSendsTheWordsWholeAndSpeaksTheAnswerSentenceBySentence() async throws {
@@ -114,7 +114,7 @@ final class ConversationTests: XCTestCase {
     func testAsksAboutAHeldCallOutLoud() async throws {
         let held = try XCTUnwrap(try line(#"{"id":0,"ok":true,"event":{"kind":"held","subject":"apr_1","agent":"claude-code","summary":"claude-code wants to push to main","at":"t"}}"#).event)
         await conversation.handle(held)
-        XCTAssertEqual(speaker.said, ["Moise, claude-code wants to push to main. Allow it, or deny?"])
+        XCTAssertEqual(speaker.said, ["Maya, claude-code wants to push to main. Allow it, or deny?"])
         XCTAssertEqual(face.states.last, .listening)
     }
 
@@ -324,7 +324,7 @@ final class ConversationTests: XCTestCase {
 
     func testTellsAHeldCallInTheBrainsOwnWordsWhenItCan() async throws {
         link.answers["brief"] = [
-            try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"Moise, Claude has been on order cancellation for twenty minutes. It wants to push to main now. Should I let it? "}}"#),
+            try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"Maya, Claude has been on order cancellation for twenty minutes. It wants to push to main now. Should I let it? "}}"#),
             try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#),
         ]
         let held = try event(#"{"kind":"held","subject":"apr_1","agent":"claude-code","summary":"s","at":"t"}"#)
@@ -334,13 +334,13 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(sent.method, "brief")
         XCTAssertEqual(sent.briefing, "held")
         XCTAssertEqual(sent.subject, "apr_1")
-        XCTAssertEqual(sent.owner, "Moise")
-        XCTAssertEqual(speaker.said.first, "Moise, Claude has been on order cancellation for twenty minutes.")
+        XCTAssertEqual(sent.owner, "Maya")
+        XCTAssertEqual(speaker.said.first, "Maya, Claude has been on order cancellation for twenty minutes.")
     }
 
     func testChimesAtEachMomentThePersonShouldNoticeWithoutLooking() async throws {
         let chimes = RecordingChimes()
-        let conversation = Conversation(link: link, speaker: speaker, key: key, face: face, owner: MemoryOwner("Moise"), chimes: chimes)
+        let conversation = Conversation(link: link, speaker: speaker, key: key, face: face, owner: MemoryOwner("Maya"), chimes: chimes)
         link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"confirmed"}"#)]
         await conversation.heard("let it push")
         await conversation.handle(try event(#"{"kind":"held","subject":"apr_1","agent":"a","summary":"s","at":"t"}"#))

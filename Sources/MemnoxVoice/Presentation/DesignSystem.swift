@@ -18,9 +18,10 @@ enum Memnox {
         static let ink = Color(light: 0x0D0D0D, dark: 0xFFFFFF)
         static let primary = Color(hex: 0x1E86EE)
         static let ring = Color(hex: 0x1E86EE).opacity(0.45)
-        static let success = Color(hex: 0x37CD8F)
-        static let warm = Color(hex: 0xDD815D)
-        static let destructive = Color(hex: 0xE31957)
+        /// The status hues deepen on the light page, so a status said in words keeps 4.5 to 1 on white and on its own tint.
+        static let success = Color(light: 0x0A6C48, dark: 0x37CD8F)
+        static let warm = Color(light: 0x9A4524, dark: 0xDD815D)
+        static let destructive = Color(light: 0xB31347, dark: 0xE31957)
         /// The panel a card stands on, one step off the page.
         static let surface = Color(light: 0xF5F5F7, dark: 0x232427)
         /// A field, disc or pill set on a panel, one step further.

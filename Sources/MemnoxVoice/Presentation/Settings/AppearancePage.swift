@@ -37,6 +37,8 @@ struct AppearancePicker: View {
         static let shortLine: CGFloat = 0.35
         static let dot: CGFloat = 12
         static let ring: CGFloat = 2
+        /// The chosen label in the accent, deepened on white and lifted on graphite so it keeps 4.5 to 1 on either.
+        static let pickedText = Color(light: 0x1E6FD0, dark: 0x5AA8F5)
     }
 
     /// The miniature's own colours, fixed so each picture shows its look whatever the window is in.
@@ -70,7 +72,7 @@ struct AppearancePicker: View {
                                       lineWidth: picked ? Layout.ring : Memnox.Stroke.hairline))
                 Text(look.title)
                     .font(Memnox.sans(Memnox.TextSize.body, picked ? .semibold : .regular))
-                    .foregroundStyle(picked ? Memnox.Palette.primary : Memnox.ink(Memnox.Ink.primary))
+                    .foregroundStyle(picked ? Layout.pickedText : Memnox.ink(Memnox.Ink.primary))
             }
             .contentShape(Rectangle())
         }

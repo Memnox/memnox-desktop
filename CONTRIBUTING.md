@@ -11,16 +11,20 @@ belongs in. Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.m
    issue first, so no one's work is wasted.
 2. **Open a pull request.** The template asks how you checked it and walks you through the
    rules below. A draft pull request is a fine way to ask for early feedback.
-3. **CI runs on every pull request.** It builds the core, the app and the tests on a macOS 26
-   runner, runs `swift test`, builds the app bundle, and checks the copy rules. It has to be green
+3. **CI runs on every pull request.** It builds the Noise framework from `memnox-runtime`, builds
+   the core, the app and the tests on a macOS 26 runner, runs `swift test`, builds the app bundle,
+   and checks the copy rules. It has to be green
    before a review.
 4. **A maintainer reviews it.** Expect questions about which layer a change belongs in and how it
    is tested; that is the review working, not a judgement of you.
 
 ## Set up
 
-You need macOS 14 or later, Xcode 26 or later, and the Memnox daemon from `memnox-runtime` running
-(`memnox daemon`). No package outside Apple's own frameworks is used, and none may be added.
+You need macOS 14 or later, Xcode 26 or later, and a checkout of
+[memnox-runtime](https://github.com/Memnox/memnox) beside this one, with its daemon running
+(`memnox daemon`). The app uses no Swift package, and none may be added: everything is Apple's own
+frameworks, plus the one Noise build the runtime makes, which `scripts/vendor-noise.sh` copies in
+(or builds with `rustup` and `cargo` when there is no build to copy).
 
 ```sh
 scripts/signing-setup.sh   # once: a local signing identity, so macOS keeps its permissions across builds

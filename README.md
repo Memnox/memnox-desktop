@@ -14,7 +14,7 @@ tells you out loud, and lets you answer them by voice, with Touch ID guarding ev
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
 ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
-![No dependencies](https://img.shields.io/badge/dependencies-Apple%20only-1E86EE)
+![No Swift packages](https://img.shields.io/badge/Swift%20packages-none-1E86EE)
 ![License MIT](https://img.shields.io/badge/license-MIT-37CD8F)
 ![PRs welcome](https://img.shields.io/badge/PRs-welcome-DD815D)
 
@@ -30,7 +30,7 @@ tells you out loud, and lets you answer them by voice, with Touch ID guarding ev
 
 ---
 
-> **"Moise, Claude has been on order cancellation in shop for twenty minutes, four files and
+> **"Maya, Claude has been on order cancellation in shop for twenty minutes, four files and
 > the tests pass. Now it wants to push to main. Should I let it?"**
 >
 > You say *yes*. Touch ID asks for your finger. The push goes through. You never left your editor.
@@ -50,7 +50,7 @@ decision.
 | 🏝️ **Lives in the notch** | An island grows out of the notch with one dot per working session, their latest steps rolling up, and the code they are changing line by line. |
 | 🤫 **Quiet by default** | It says nothing until something needs you: a held call, a question, a paused session, a failure, or what you asked to hear about. |
 | 🗣️ **A voice worth hearing** | Kokoro, an open model, runs on your Mac for free. Nothing it says leaves the machine. |
-| 🧱 **Built to be read** | Pure Swift on Apple frameworks only, a headless core in DDD layers, and a test suite that runs in about a second. |
+| 🧱 **Built to be read** | Pure Swift on Apple frameworks, a headless core in DDD layers, and a test suite that runs in about a second. |
 
 ## The island
 
@@ -240,7 +240,7 @@ flowchart TB
   `Sources/MemnoxVoiceCore/Domain/Speech/Echo.swift`. Find one and you have found the other.
 - **No magic values.** Design tokens live in one place, every number is named for its role, and
   values the daemon defines are enums, so a typo is a compile error.
-- **No dependencies.** Apple frameworks only, by rule.
+- **No Swift packages.** Apple frameworks, plus the one Noise build the runtime and the phone share, by rule.
 
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) has the dependency rule, the ports and their
 adapters, and a table of where new code goes.
@@ -291,4 +291,14 @@ a good first contribution too. Everyone taking part follows the
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE). The app builds on open source work it does not commit. The Noise framework is
+copied from [memnox-runtime](https://github.com/Memnox/memnox) by `scripts/vendor-noise.sh`, and
+the voice is installed on first launch by `scripts/kokoro-setup.sh`:
+
+| Project | Used for | License |
+|---|---|---|
+| [snow](https://github.com/mcginty/snow), through the Noise crate in memnox-runtime | the relay tunnel to the iPhone | Apache-2.0 |
+| [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) | the voice model's weights | Apache-2.0 |
+| [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx) | running the model on this Mac | MIT |
+| [misaki](https://github.com/hexgrad/misaki) and [spaCy](https://github.com/explosion/spaCy) | pronunciation | Apache-2.0, MIT |
+| [uv](https://github.com/astral-sh/uv) | a Python just for the voice, when the Mac has none | Apache-2.0 or MIT |

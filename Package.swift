@@ -9,7 +9,7 @@ let package = Package(
         .library(name: "MemnoxVoiceCore", targets: ["MemnoxVoiceCore"]),
     ],
     targets: [
-        // snow behind a C ABI, copied in by scripts/sync-relay.sh, so this Mac, the phone and the runtime run one Noise.
+        // snow behind a C ABI, copied in by scripts/vendor-noise.sh, so this Mac, the phone and the runtime run one Noise.
         .binaryTarget(name: "MemnoxNoise", path: "Vendor/MemnoxNoise.xcframework"),
         // Everything that decides what to say and when, with no AppKit, so it is tested headless.
         .target(name: "MemnoxVoiceCore", dependencies: ["MemnoxNoise"]),

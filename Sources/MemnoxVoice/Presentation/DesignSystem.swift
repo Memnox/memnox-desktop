@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The Memnox design system on the Mac: graphite pages and cards in the dark, white and light grey in the light, one
 /// white or black button for the thing to do, and the Memnox blue for what is ticked or switched on.
-/// The ordinary windows follow the Mac's appearance; the notch and its panels are pinned dark, as the hardware is.
+/// The ordinary windows follow the Appearance the person chose; the notch is pinned dark, as the hardware is.
 enum Memnox {
     enum Palette {
         static let background = Color(light: 0xFFFFFF, dark: 0x1C1D20)
@@ -165,7 +165,7 @@ extension Color {
 struct Glass: NSViewRepresentable {
     var material: NSVisualEffectView.Material = .hudWindow
     var cornerRadius: CGFloat = 0
-    /// Dark glass for the notch's surfaces; false lets an ordinary window's glass follow the Mac's appearance.
+    /// Dark glass for the surfaces that stay dark in every look; false lets the glass follow its window's appearance.
     var alwaysDark = true
 
     func makeNSView(context: Context) -> NSView {
@@ -192,7 +192,7 @@ func glassView(cornerRadius: CGFloat, material: NSVisualEffectView.Material = .h
         glass.appearance = pinned
         return glass
     }
-    let view = NSVisualEffectView()
+    let view = FrostedGlass()
     view.material = material
     view.blendingMode = .behindWindow
     view.state = .active
@@ -200,10 +200,25 @@ func glassView(cornerRadius: CGFloat, material: NSVisualEffectView.Material = .h
     view.wantsLayer = true
     view.layer?.cornerRadius = cornerRadius
     view.layer?.masksToBounds = true
-    // The edge light glass has, which the frosted material alone does not draw.
     view.layer?.borderWidth = Memnox.Stroke.hairline
-    view.layer?.borderColor = (alwaysDark ? NSColor.white : NSColor.labelColor).withAlphaComponent(Memnox.Ink.edge).cgColor
+    view.drawEdge()
     return view
+}
+
+/// The frosted material before Liquid Glass, with the edge light glass has, which the material alone does not draw.
+private final class FrostedGlass: NSVisualEffectView {
+    // A layer colour is fixed when it is set, so the edge is drawn again whenever the appearance turns.
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        drawEdge()
+    }
+
+    /// The edge in the label colour, white on dark glass and near black on light, resolved for this view's appearance.
+    func drawEdge() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.borderColor = NSColor.labelColor.withAlphaComponent(Memnox.Ink.edge).cgColor
+        }
+    }
 }
 
 /// The filled blue button, for the one thing a screen asks you to do.

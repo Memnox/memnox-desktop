@@ -54,6 +54,8 @@ enum Island {
         static let session: CGFloat = 256
         static let empty: CGFloat = 150
         static let held: CGFloat = 206
+        /// Who asks, the question, and up to four choices with a line each under them.
+        static let question: CGFloat = 330
         static let finished: CGFloat = 170
         /// The orb and up to three lines of what is being said under it.
         static let hearingBelowTop: CGFloat = 196
@@ -122,6 +124,7 @@ enum Island {
         case .session: return CGSize(width: width, height: Height.session)
         case .empty: return CGSize(width: width, height: Height.empty)
         case .held: return CGSize(width: width, height: Height.held)
+        case .question: return CGSize(width: width, height: Height.question)
         case .finished: return CGSize(width: width, height: Height.finished)
         case .hearing: return CGSize(width: Width.hearing, height: top(notch) + Height.hearingBelowTop)
         case .conversation: return CGSize(width: Width.conversation, height: Height.conversation)
@@ -165,7 +168,7 @@ enum Island {
         case .voice: return (CGPoint(x: voiceWidth / 2, y: top + OrbSpot.voiceBelowTop), voiceOrb)
         case .overview: return (CGPoint(x: OrbSpot.overviewX, y: middle), OrbSpot.overviewDiameter)
         case .empty: return (CGPoint(x: OrbSpot.emptyX, y: middle), OrbSpot.emptyDiameter)
-        case .held: return (CGPoint(x: OrbSpot.heldX, y: middle), OrbSpot.heldDiameter)
+        case .held, .question: return (CGPoint(x: OrbSpot.heldX, y: middle), OrbSpot.heldDiameter)
         case .finished: return (CGPoint(x: OrbSpot.finishedX, y: middle), OrbSpot.finishedDiameter)
         case .hearing: return (CGPoint(x: Width.hearing / 2, y: top + OrbSpot.hearingBelowTop), OrbSpot.hearingDiameter)
         case .session, .conversation, .draft, .answer, .rule:

@@ -207,6 +207,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         panel.wire(
             answer: { [weak self] card, answer in self?.answerHeld(card, answer) },
+            answerQuestion: { [weak self] card, number, answer in self?.answerQuestion(card, number: number, answer: answer) },
             tapped: { [weak self] in self?.tappedIsland() }
         )
         panel.wireSessions(
@@ -462,6 +463,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             waitingCalls.remove(event.subject)
         case .paused: panel.shake()
         case .notice where event.noticeKind == .finished: panel.finished(event)
+        // Shown as taps while the voice reads it, so either a hand or a word answers it.
+        case .notice where event.noticeKind == .question: panel.question(event)
         case .notice, .proposal, .show, nil: break
         }
         // Seen as well as said, and only from the daemon's facts, so a pass the ledger never saw is never celebrated.
@@ -514,6 +517,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .answered, .answeredElsewhere: self?.teamForget(card.subject)
             case .cancelled, .failed: break
             }
+        }
+    }
+
+    /// A choice tapped on an agent's question: sent in turn behind any other answer, and the card moves on once it lands.
+    private func answerQuestion(_ card: AgentQuestionCard, number: Int, answer: String) {
+        let previous = confirmations
+        confirmations = Task { [conversation, panel] in
+            await previous?.value
+            guard let conversation, let panel else { return }
+            let outcome = await conversation.answerQuestion(card.subject, number: number, answer: answer)
+            panel.questionAnswered(card, number: number, answer: answer, outcome)
         }
     }
 

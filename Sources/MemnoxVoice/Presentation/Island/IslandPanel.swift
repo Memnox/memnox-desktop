@@ -20,6 +20,8 @@ final class IslandPanel: NSPanel, Face {
     private var finishing: Task<Void, Never>?
     /// Takes a card down once it has said who answered its call elsewhere.
     private var settling: Task<Void, Never>?
+    /// Clears a pick's error from the question card after a moment.
+    private var questionFailing: Task<Void, Never>?
     /// Clears the drive state when its grant runs out, in case no notice says it stopped.
     private var driveEnd: Task<Void, Never>?
     private var phoneEnd: Task<Void, Never>?
@@ -116,9 +118,51 @@ final class IslandPanel: NSPanel, Face {
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 
     /// The answer buttons and a tap on the resting orb, wired by the app delegate.
-    @MainActor func wire(answer: @escaping (HeldCard, HoldAnswer) -> Void, tapped: @escaping () -> Void) {
+    @MainActor func wire(
+        answer: @escaping (HeldCard, HoldAnswer) -> Void,
+        answerQuestion: @escaping (AgentQuestionCard, Int, String) -> Void,
+        tapped: @escaping () -> Void
+    ) {
         model.answer = answer
+        model.answerQuestion = answerQuestion
         model.tapped = tapped
+    }
+
+    /// An agent asked in its own picker: the island opens on its choices; one with nothing to pick stays spoken only.
+    nonisolated func question(_ event: DaemonEvent) {
+        guard let card = AgentQuestionCard(event) else { return }
+        DispatchQueue.main.async { [self] in
+            place()
+            model.question = card
+            model.ticked = []
+            model.questionError = nil
+            model.settle()
+        }
+    }
+
+    /// A pick went through: the card moves on to the next question, or goes once every question has its answer.
+    nonisolated func questionAnswered(_ card: AgentQuestionCard, number: Int, answer: String, _ outcome: HeldOutcome) {
+        DispatchQueue.main.async { [self] in
+            guard model.question?.subject == card.subject else { return }
+            switch outcome {
+            case .answered, .answeredElsewhere:
+                let moved = card.answering(number, with: answer)
+                model.question = moved.next == nil ? nil : moved
+                model.ticked = []
+                model.questionError = nil
+            case .cancelled: break
+            case .failed(let why):
+                model.questionError = why
+                model.shakes += 1
+                questionFailing?.cancel()
+                questionFailing = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: Island.settledFor)
+                    guard !Task.isCancelled else { return }
+                    self?.model.questionError = nil
+                }
+            }
+            model.settle()
+        }
     }
 
     /// Where the sessions come from, and how a session's own window is brought forward.
@@ -456,6 +500,13 @@ final class IslandPanel: NSPanel, Face {
             // A draft withdrawn by voice or run out settles too, and its card goes; one being sent is left to its answer.
             if model.work?.subject == subject, !model.sending {
                 model.work = nil
+                model.settle()
+            }
+            // Answered here, by voice or in the agent's own picker, or run out: the question has nothing left to ask.
+            if model.question?.subject == subject {
+                model.question = nil
+                model.ticked = []
+                model.questionError = nil
                 model.settle()
             }
             if let note, model.held?.subject == subject, model.pressed != subject {

@@ -125,7 +125,7 @@ struct IslandView: View {
         switch model.mode {
         case .conversation, .draft, .rule: return .conversation
         case .answer: return model.active ? .conversation : .answer
-        case .peek, .compact, .voice, .hearing, .overview, .session, .empty, .held, .finished: return model.mode
+        case .peek, .compact, .voice, .hearing, .overview, .session, .empty, .held, .question, .finished: return model.mode
         }
     }
 
@@ -147,6 +147,8 @@ struct IslandView: View {
             IslandEmpty(model: model)
         case .held:
             if let held = model.held { IslandHeldCall(model: model, card: held) }
+        case .question:
+            if let question = model.question { IslandQuestion(model: model, card: question) }
         case .finished:
             if let finished = model.finished { IslandFinished(model: model, card: finished) }
         case .hearing:
@@ -320,7 +322,7 @@ struct IslandCompact: View {
     /// What the bar beside the notch means, for someone who cannot see the orb or the logos.
     private var spoken: String {
         if model.active { return model.dictating == nil ? "Memnox is listening" : "Dictating" }
-        if model.held != nil { return "An agent is waiting for you" }
+        if model.held != nil || model.question != nil { return "An agent is waiting for you" }
         let count = model.working.count
         return count == 1 ? "1 agent working" : "\(count) agents working"
     }

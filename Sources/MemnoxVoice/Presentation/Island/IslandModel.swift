@@ -28,6 +28,8 @@ enum IslandMode: Equatable {
     case empty
     /// An agent is waiting on the person, with the buttons to answer it.
     case held
+    /// An agent asked something in its own picker, with its choices as buttons.
+    case question
     /// A session just finished, shown for a few seconds and then put away.
     case finished
 
@@ -182,6 +184,12 @@ final class IslandModel: ObservableObject {
     /// The call whose button was pressed last, so its own settling is never mistaken for an answer elsewhere.
     var pressed: String?
     @Published var finished: FinishedCard?
+    /// An agent's own question, asked here as taps while the voice reads it, so either answer lands.
+    @Published var question: AgentQuestionCard?
+    /// The options ticked on a question that takes several, sent together with Done.
+    @Published var ticked: Set<String> = []
+    /// Why the last pick did not go through, said on the card for a moment.
+    @Published var questionError: String?
     /// Set while Touch ID is up for a button, so a second press cannot raise a second sheet.
     @Published var answering = false
     @Published var notch = NotchGeometry.beforePlacement
@@ -245,6 +253,7 @@ final class IslandModel: ObservableObject {
     var active = false
     var opened = false
     var answer: (HeldCard, HoldAnswer) -> Void = { _, _ in }
+    var answerQuestion: (AgentQuestionCard, Int, String) -> Void = { _, _, _ in }
     var tapped: () -> Void = {}
     var openWindow: (String, DisplayHost?) -> Void = { _, _ in }
     var focus: (String) -> Void = { _ in }
@@ -287,7 +296,7 @@ final class IslandModel: ObservableObject {
         case .hearing, .conversation, .draft, .rule: return false
         case .answer: return !active
         case .peek, .compact: return false
-        case .voice, .overview, .session, .empty, .held, .finished: return true
+        case .voice, .overview, .session, .empty, .held, .question, .finished: return true
         }
     }
 
@@ -300,6 +309,9 @@ final class IslandModel: ObservableObject {
         let next: IslandMode
         if held != nil {
             next = .held
+        } else if question != nil {
+            // An agent is blocked on it as on a held call, so it shows while the voice reads it out too.
+            next = .question
         } else if draft != nil || work != nil {
             next = .draft
         } else if rule != nil {

@@ -8,6 +8,7 @@ struct SideView: View {
     @ObservedObject var model: IslandModel
     @State private var filter = SideFilter.all
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
 
     private enum Layout {
         static let cornerRadius: CGFloat = 22
@@ -17,6 +18,8 @@ struct SideView: View {
         static let sectionGap: CGFloat = 14
         /// Faint, so the folded tab is findable without drawing the eye.
         static let tabEdgeInk = 0.22
+        /// The open panel's rim in the light; the dark panel needs none, since it stands out from most windows as it is.
+        static let lightEdgeInk = 0.12
         /// The contents wait for the panel to be mostly grown, so they never squeeze through a narrow shape.
         static let contentDelay: TimeInterval = 0.12
     }
@@ -26,9 +29,10 @@ struct SideView: View {
         let shape = SideNotchShape(flare: open ? Layout.flare : SideMotion.tabFlare, radius: Layout.cornerRadius)
         let tab = SideMotion.tab(hovering: model.sideHovering)
         ZStack {
-            shape.fill(Memnox.Palette.pinnedDark)
-                // A hairline on the folded tab only, so the sliver shows against a dark window behind it.
-                .overlay(shape.stroke(Color.white.opacity(open ? 0 : Layout.tabEdgeInk), lineWidth: Memnox.Stroke.hairline))
+            shape.fill(Memnox.Palette.background)
+                // A hairline on the folded tab, so the sliver shows against a window of its own colour behind it, and on the
+                // open panel in the light, where it has no shadow to lift it off a white window.
+                .overlay(shape.stroke(Memnox.ink(edgeInk(open: open)), lineWidth: Memnox.Stroke.hairline))
             if open {
                 panel.transition(.opacity.animation(.easeOut(duration: Memnox.Motion.quick).delay(Layout.contentDelay)))
             }
@@ -37,6 +41,11 @@ struct SideView: View {
         .clipShape(shape)
         // The tab grows out of the middle of the left edge, the way the notch grows down from the top.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private func edgeInk(open: Bool) -> Double {
+        guard open else { return Layout.tabEdgeInk }
+        return scheme == .light ? Layout.lightEdgeInk : 0
     }
 
     /// The panel's own contents, laid in only once it has grown, so the tab is just its shape.
@@ -217,31 +226,31 @@ private struct SideSearch: View {
         HStack(spacing: Memnox.Spacing.medium) {
             HStack(spacing: Memnox.Spacing.medium) {
                 Image(systemName: Symbol.search)
-                    .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
                 TextField("Search", text: $model.query)
                     .textFieldStyle(.plain)
                     .font(Memnox.sans(Memnox.TextSize.callout))
-                    .foregroundStyle(Color.white)
+                    .foregroundStyle(Memnox.Palette.ink)
                     .focused($focused)
                 if !model.query.isEmpty {
                     Button("Clear search", systemImage: Symbol.clear) { model.query = "" }
                         .labelStyle(.iconOnly)
-                        .foregroundStyle(Color.white.opacity(Memnox.Ink.tertiary))
+                        .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
                         .buttonStyle(PressableStyle())
                         .help("Clear search")
                 }
             }
             .padding(.horizontal, Memnox.Spacing.large)
             .frame(height: Layout.height)
-            .background(RoundedRectangle(cornerRadius: Layout.radius).fill(Color.white.opacity(focused ? Self.focusedFill : Self.fill)))
+            .background(RoundedRectangle(cornerRadius: Layout.radius).fill(Memnox.ink(focused ? Self.focusedFill : Self.fill)))
             .contentShape(Rectangle())
             .onTapGesture { focused = true }
             Button { model.sidePinned.toggle() } label: {
                 Image(systemName: model.sidePinned ? Symbol.pinned : Symbol.unpinned)
                     .font(.system(size: Memnox.TextSize.footnote, weight: .semibold))
-                    .foregroundStyle(model.sidePinned ? Memnox.Palette.primary : Color.white.opacity(Memnox.Ink.secondary))
+                    .foregroundStyle(model.sidePinned ? Memnox.Palette.primary : Memnox.ink(Memnox.Ink.secondary))
                     .frame(width: Layout.pinSide, height: Layout.height)
-                    .background(RoundedRectangle(cornerRadius: Layout.radius).fill(Color.white.opacity(Self.fill)))
+                    .background(RoundedRectangle(cornerRadius: Layout.radius).fill(Memnox.ink(Self.fill)))
             }
             .buttonStyle(PressableStyle())
             .help(model.sidePinned ? "Let it close when you click elsewhere" : "Keep it open while you work")
@@ -275,12 +284,12 @@ private struct SideSection<Rows: View>: View {
                 if let tint { Circle().fill(tint).frame(width: RowStyle.headingDot, height: RowStyle.headingDot) }
                 Text(title)
                     .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-                    .foregroundStyle(Color.white.opacity(Memnox.Ink.tertiary))
+                    .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
                 if let count {
                     Text("\(count)")
                         .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
                         .monospacedDigit()
-                        .foregroundStyle(Color.white.opacity(Memnox.Ink.tertiary))
+                        .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
                 }
             }
             .padding(.horizontal, Memnox.Spacing.medium)
@@ -302,7 +311,7 @@ private struct SideRow<Content: View>: View {
             .padding(.horizontal, RowStyle.horizontal)
             .padding(.vertical, RowStyle.vertical)
             .frame(maxWidth: .infinity, minHeight: RowStyle.minHeight, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: RowStyle.radius).fill(Color.white.opacity(fill)))
+            .background(RoundedRectangle(cornerRadius: RowStyle.radius).fill(Memnox.ink(fill)))
             .contentShape(Rectangle())
             .onHover { hovering = $0 }
         if let action {
@@ -332,21 +341,21 @@ private struct WorkingRow: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(card.title)
                         .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(Memnox.Palette.ink)
                         .lineLimit(1)
                     if card.thinking {
                         ShimmerText(text: card.subtitle(now: Date()))
                     } else {
                         Text(card.subtitle(now: Date()))
                             .font(Memnox.sans(Memnox.TextSize.caption))
-                            .foregroundStyle(IslandPalette.quiet)
+                            .foregroundStyle(Memnox.Palette.muted)
                             .lineLimit(1)
                     }
                 }
                 Spacer(minLength: 0)
                 Image(systemName: Self.arrow)
                     .font(.system(size: Memnox.TextSize.caption, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(hovering ? Memnox.Ink.secondary : 0))
+                    .foregroundStyle(Memnox.ink(hovering ? Memnox.Ink.secondary : 0))
             }
         }
         .help("Bring its window forward")
@@ -383,7 +392,7 @@ private struct ExchangeRow: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(exchange.question)
                         .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(Memnox.Palette.ink)
                         .lineLimit(1)
                     detail
                 }
@@ -415,11 +424,13 @@ private struct ExchangeRow: View {
         if exchange.failed {
             Image(systemName: Symbol.failed)
                 .font(.system(size: Memnox.TextSize.caption, weight: .bold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(SideInk.onTint)
                 .frame(width: Layout.markSide, height: Layout.markSide)
                 .background(Circle().fill(IslandPalette.red.opacity(Shade.failedMark)))
         } else {
             LogoMark(size: Layout.markSide * Layout.logoScale)
+                // White on the blue disc in either look, as the mark is drawn in ink.
+                .environment(\.colorScheme, .dark)
                 .frame(width: Layout.markSide, height: Layout.markSide)
                 .background(Circle().fill(Memnox.Palette.primary))
         }
@@ -433,12 +444,12 @@ private struct ExchangeRow: View {
         } else if let failure = exchange.failure {
             Text(failure)
                 .font(Memnox.sans(Memnox.TextSize.caption))
-                .foregroundStyle(IslandPalette.red.liftedTowardWhite)
+                .foregroundStyle(SideInk.failure)
                 .lineLimit(1)
         } else {
             Text("Answered in \(clock(exchange.elapsed(now: Date()))) \u{00B7} \(exchange.askedAt.formatted(date: .omitted, time: .shortened))")
                 .font(Memnox.sans(Memnox.TextSize.caption))
-                .foregroundStyle(IslandPalette.quiet)
+                .foregroundStyle(Memnox.Palette.muted)
                 .lineLimit(1)
         }
     }
@@ -471,15 +482,15 @@ private struct SideEmpty: View {
         VStack(spacing: Memnox.Spacing.medium) {
             Image(systemName: Self.symbol)
                 .font(.system(size: Memnox.TextSize.title))
-                .foregroundStyle(Color.white.opacity(Memnox.Ink.tertiary))
+                .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
             Text(searching ? "Nothing mentions \u{201C}\(query)\u{201D}" : "Nothing asked yet")
                 .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(Memnox.Palette.ink)
                 .multilineTextAlignment(.center)
             if !searching {
                 Text("Press Option Space and ask anything. Every answer stays here, on this Mac.")
                     .font(Memnox.sans(Memnox.TextSize.body))
-                    .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
                     .multilineTextAlignment(.center)
             }
         }
@@ -507,7 +518,7 @@ private struct SideFooter: View {
             }
             Text("to ask")
                 .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
             Spacer()
             if !model.history.exchanges.isEmpty {
                 Button(confirming ? "Clear all?" : "Clear history") {
@@ -524,9 +535,16 @@ private struct SideFooter: View {
                 }
                 .buttonStyle(PressableStyle())
                 .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                .foregroundStyle(confirming ? IslandPalette.red : Color.white.opacity(Memnox.Ink.secondary))
+                .foregroundStyle(confirming ? SideInk.failure : Memnox.ink(Memnox.Ink.secondary))
             }
         }
         .padding(.horizontal, Memnox.Spacing.small)
     }
+}
+
+/// The panel's colours that are not ink: white on a coloured mark, and red text that keeps 4.5 to 1 on either page.
+private enum SideInk {
+    static let onTint = Color.white
+    /// The island's red lifted on the dark page and deepened on the light one, so a failure reads as text on both.
+    static let failure = Color(light: 0xC0213A, dark: 0xF77C86)
 }

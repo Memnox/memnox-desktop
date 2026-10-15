@@ -54,7 +54,7 @@ final class SidePanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         hidesOnDeactivate = false
         ignoresMouseEvents = true
-        appearance = NSAppearance(named: .darkAqua)
+        // No appearance of its own, so it follows the chosen look: it stands on the screen's edge, not in the hardware notch.
         let host = FirstClickHosting(rootView: SideView(model: model))
         // The window keeps its own size, since the tab grows into the panel inside it rather than with it.
         host.sizingOptions = []
@@ -161,7 +161,7 @@ final class SidePanel: NSPanel {
 
 /// The tab's sizes and the springs it moves with, shared by the panel that hit tests it and the view that draws it.
 enum SideMotion {
-    /// Barely there at rest, a sliver of black at the edge like the notch, and a little fuller under the pointer.
+    /// Barely there at rest, a sliver at the edge like the notch, and a little fuller under the pointer.
     private static let restingTab = CGSize(width: 6, height: 64)
     private static let hoveringTab = CGSize(width: 12, height: 96)
     /// The tab's own flare, smaller than the panel's so the resting sliver stays a few points deep.

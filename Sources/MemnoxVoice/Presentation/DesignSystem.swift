@@ -7,8 +7,6 @@ import SwiftUI
 enum Memnox {
     enum Palette {
         static let background = Color(light: 0xFFFFFF, dark: 0x1C1D20)
-        /// The settings page's dark graphite, for the panels pinned dark so they read as the same surface.
-        static let pinnedDark = Color(hex: 0x1C1D20)
         static let card = Color(light: 0xF9F9F9, dark: 0x1F2023)
         static let secondary = Color(light: 0xECECEC, dark: 0x2C2D31)
         static let border = Color(light: 0xE5E5E5, dark: 0x34353A)

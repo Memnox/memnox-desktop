@@ -65,7 +65,8 @@ func stepTint(_ step: SessionViewStep, current: Bool) -> Color {
     return current ? Color.white : IslandPalette.quiet
 }
 
-/// A pill button: white for the answer that lets something happen, a faint fill for the rest; it gives a little when pressed.
+/// A pill button: solid ink for the answer that lets something happen, a faint fill for the rest; it gives a little when pressed.
+/// Drawn in ink, so it reads white in the notch and near black on a light panel outside it.
 struct IslandButton: ButtonStyle {
     let primary: Bool
 
@@ -79,10 +80,10 @@ struct IslandButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(Memnox.sans(Self.labelSize, .medium))
-            .foregroundStyle(primary ? IslandPalette.primaryText : Color.white)
+            .foregroundStyle(primary ? IslandPalette.primaryText : Memnox.Palette.ink)
             .padding(.horizontal, Self.horizontalPadding)
             .padding(.vertical, Self.verticalPadding)
-            .background(Capsule().fill(primary ? IslandPalette.primaryFill : Color.white.opacity(configuration.isPressed ? Self.pressedFill : Self.restingFill)))
+            .background(Capsule().fill(primary ? IslandPalette.primaryFill : Memnox.ink(configuration.isPressed ? Self.pressedFill : Self.restingFill)))
             .scaleEffect(configuration.isPressed ? pressedScale : 1)
             .animation(.spring(response: pressResponse, dampingFraction: pressDamping), value: configuration.isPressed)
             .pointingHand()

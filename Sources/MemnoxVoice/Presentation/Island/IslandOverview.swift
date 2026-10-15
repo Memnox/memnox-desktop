@@ -158,7 +158,7 @@ struct IslandStepRoll: View {
     }
 }
 
-/// A line whose brightness sweeps across it, the way a task in progress reads at a glance.
+/// A line whose brightness sweeps across it, the way a task in progress reads at a glance; in ink, so it reads in either look.
 struct ShimmerText: View {
     let text: String
 
@@ -177,9 +177,9 @@ struct ShimmerText: View {
                 .foregroundStyle(
                     LinearGradient(
                         stops: [
-                            .init(color: Color.white.opacity(Memnox.Ink.tertiary), location: max(0, phase - Self.halfWidth)),
-                            .init(color: Color.white, location: phase),
-                            .init(color: Color.white.opacity(Memnox.Ink.tertiary), location: min(1, phase + Self.halfWidth)),
+                            .init(color: Memnox.ink(Memnox.Ink.tertiary), location: max(0, phase - Self.halfWidth)),
+                            .init(color: Memnox.Palette.ink, location: phase),
+                            .init(color: Memnox.ink(Memnox.Ink.tertiary), location: min(1, phase + Self.halfWidth)),
                         ],
                         startPoint: .leading, endPoint: .trailing
                     )

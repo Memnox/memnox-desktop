@@ -29,7 +29,7 @@ struct CardButton: View {
         Button(action: action) {
             Label(title, systemImage: icon)
                 .font(Memnox.sans(Layout.textSize, .medium))
-                .foregroundStyle(primary ? IslandPalette.primaryText : Color.white)
+                .foregroundStyle(primary ? IslandPalette.primaryText : Memnox.Palette.ink)
                 .padding(.horizontal, Layout.horizontalPadding)
                 .padding(.vertical, Memnox.Spacing.medium)
                 .background(Capsule().fill(fill))
@@ -45,7 +45,7 @@ struct CardButton: View {
     private var fill: Color {
         primary
             ? IslandPalette.primaryFill.opacity(hovered ? 1 : Layout.primaryResting)
-            : Color.white.opacity(hovered ? Layout.plainHovered : Layout.plainResting)
+            : Memnox.ink(hovered ? Layout.plainHovered : Layout.plainResting)
     }
 }
 
@@ -68,7 +68,7 @@ struct CloseButton: View {
                 .font(.system(size: Memnox.TextSize.caption, weight: .semibold))
                 .foregroundStyle(hovered ? Memnox.Palette.foreground : Memnox.Palette.muted)
                 .frame(width: Layout.target, height: Layout.target)
-                .background(Circle().fill(Color.white.opacity(hovered ? Layout.hoveredFill : 0)))
+                .background(Circle().fill(Memnox.ink(hovered ? Layout.hoveredFill : 0)))
                 .contentShape(Circle())
         }
         .buttonStyle(PressDown())

@@ -130,6 +130,8 @@ final class OnboardingWindow {
         guard let screen = NSScreen.main else { return showSteps() }
         // A keyable panel, so the name field takes typing; it is dark, as an opening over the desktop should be.
         let veil = KeyablePanel(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        // Pinned, since a panel of this kind otherwise follows the chosen look and the opening is a dark veil in every one.
+        veil.appearance = NSAppearance(named: .darkAqua)
         veil.isOpaque = false
         veil.backgroundColor = .clear
         veil.hasShadow = false

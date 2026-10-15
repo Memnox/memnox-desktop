@@ -83,7 +83,7 @@ struct TraceRow: View {
                 .padding(.leading, CGFloat(min(row.depth, Layout.deepestIndent)) * Layout.indentStep)
                 .frame(width: Layout.nameWidth, alignment: .leading)
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(Memnox.Ink.faintFill)).frame(width: track, height: Layout.barHeight)
+                Capsule().fill(Memnox.ink(Memnox.Ink.faintFill)).frame(width: track, height: Layout.barHeight)
                 Capsule()
                     .fill(colour)
                     .frame(width: shown ? max(Layout.shortestBar, track * row.durationMs / total) : 0, height: Layout.barHeight)

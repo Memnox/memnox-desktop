@@ -70,7 +70,7 @@ struct CardFace: ViewModifier {
         content
             .padding(FloatingCard.padding)
             .frame(width: CardPanel.width, alignment: .leading)
-            .surface(accent: entrance.facing ? Color.white.opacity(Layout.edgeFacing) : nil)
+            .surface(accent: entrance.facing ? Memnox.ink(Layout.edgeFacing) : nil)
             .shadow(color: .black.opacity(Layout.shadowOpacity), radius: Layout.shadowRadius, y: Layout.shadowDrop)
             .contentShape(shape)
             .onHover { inside in

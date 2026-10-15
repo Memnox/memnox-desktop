@@ -31,6 +31,8 @@ final class ScanPanel {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
+        // Dark in every look, because it is a veil of dark glass over the whole screen and a light one would whiten the desktop.
+        panel.appearance = NSAppearance(named: .darkAqua)
         // Above every window, the way a presentation is, since this screen is the answer.
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]

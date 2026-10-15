@@ -16,15 +16,10 @@ final class LiveModel: ObservableObject {
 }
 
 /// A borderless panel that can still take the pointer, so it leans as the person moves over it,
-/// without making Memnox the active app and taking their keyboard.
+/// without making Memnox the active app and taking their keyboard. It follows the chosen look unless its owner pins it.
 final class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
 
-    // Every panel of this kind belongs to the notch, which is dark whatever the Mac is set to.
-    override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
-        super.init(contentRect: contentRect, styleMask: style, backing: backingStoreType, defer: flag)
-        appearance = NSAppearance(named: .darkAqua)
-    }
 }
 
 /// The SF Symbols the live window draws.
@@ -50,8 +45,12 @@ private enum LiveStyle {
     static let sectionCornerRadius: CGFloat = 16
     /// Barely there, so a section reads as a shape rather than a box.
     static let sectionEdgeOpacity = 0.035
-    /// Just under full white, so step and helper lines sit below the headline text.
+    /// Just under full ink, so step and helper lines sit below the headline text.
     static let softTextOpacity = 0.88
+    /// The window's own page: black in the dark, as the notch is, and white in the light.
+    static let page = Color(light: 0xFFFFFF, dark: 0x000000)
+    /// A section one step off the page, the notch's card colour in the dark.
+    static let section = Color(light: 0xF5F5F7, dark: 0x141518)
     /// How many entries a list shows when it has the window to itself.
     static let fullListLength = 8
     /// How many it shows beside the conversation, which says most of it.
@@ -234,7 +233,7 @@ struct LiveSessionView: View {
         .background(surface)
         .overlay(
             RoundedRectangle(cornerRadius: Layout.cornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(Layout.edgeOpacity), lineWidth: Memnox.Stroke.hairline)
+                .strokeBorder(Memnox.ink(Layout.edgeOpacity), lineWidth: Memnox.Stroke.hairline)
         )
         .shadow(color: .black.opacity(Layout.shadowOpacity), radius: Layout.shadowRadius, x: 0, y: Layout.shadowDrop)
         // Settles in the way the island opens, and stays flat so every button is where it is drawn.
@@ -287,10 +286,10 @@ struct LiveSessionView: View {
         .reveal(model.shown, order: Order.dock)
     }
 
-    /// Solid black and flat, with a band along the top in the colour of how the session stands.
+    /// Solid and flat, black or white with the chosen look, with a band along the top in the colour of how the session stands.
     private var surface: some View {
         let shape = RoundedRectangle(cornerRadius: Layout.cornerRadius, style: .continuous)
-        return shape.fill(Color.black)
+        return shape.fill(LiveStyle.page)
             .overlay(alignment: .top) {
                 Rectangle()
                     .fill(statusColour(model.view))
@@ -464,10 +463,10 @@ struct LiveNow: View {
         .padding(.horizontal, Self.horizontalPadding)
         .padding(.vertical, Self.verticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous).fill(IslandPalette.card))
+        .background(RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous).fill(LiveStyle.section))
         .overlay(
             RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(LiveStyle.sectionEdgeOpacity), lineWidth: Memnox.Stroke.hairline)
+                .strokeBorder(Memnox.ink(LiveStyle.sectionEdgeOpacity), lineWidth: Memnox.Stroke.hairline)
         )
     }
 
@@ -778,8 +777,8 @@ private struct LiveDisclosure<Content: View>: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(shape.fill(IslandPalette.card))
-        .overlay(shape.strokeBorder(Color.white.opacity(LiveStyle.sectionEdgeOpacity), lineWidth: Memnox.Stroke.hairline))
+        .background(shape.fill(LiveStyle.section))
+        .overlay(shape.strokeBorder(Memnox.ink(LiveStyle.sectionEdgeOpacity), lineWidth: Memnox.Stroke.hairline))
         .clipShape(shape)
     }
 
@@ -789,7 +788,7 @@ private struct LiveDisclosure<Content: View>: View {
                 Text(title.uppercased())
                     .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
                     .tracking(LiveSectionLayout.titleTracking)
-                    .foregroundStyle(Color.white.opacity(LiveSectionLayout.titleOpacity))
+                    .foregroundStyle(Memnox.ink(LiveSectionLayout.titleOpacity))
                 Text(count, format: .number)
                     .font(Memnox.sans(Memnox.TextSize.micro, .medium))
                     .foregroundStyle(Memnox.Palette.muted)
@@ -838,15 +837,15 @@ struct LiveSection<Content: View>: View {
             Text(title.uppercased())
                 .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
                 .tracking(Layout.titleTracking)
-                .foregroundStyle(Color.white.opacity(Layout.titleOpacity))
+                .foregroundStyle(Memnox.ink(Layout.titleOpacity))
                 .padding(.leading, Memnox.Spacing.xSmall)
             content()
                 .padding(Memnox.Spacing.large)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous).fill(IslandPalette.card))
+                .background(RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous).fill(LiveStyle.section))
                 .overlay(
                     RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous)
-                        .strokeBorder(Color.white.opacity(LiveStyle.sectionEdgeOpacity), lineWidth: Memnox.Stroke.hairline)
+                        .strokeBorder(Memnox.ink(LiveStyle.sectionEdgeOpacity), lineWidth: Memnox.Stroke.hairline)
                 )
         }
     }

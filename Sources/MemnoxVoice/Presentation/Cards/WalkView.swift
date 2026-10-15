@@ -127,7 +127,7 @@ struct PageDots: View {
         HStack(spacing: Layout.spacing) {
             ForEach(0..<count, id: \.self) { index in
                 Capsule()
-                    .fill(index == current ? Memnox.Palette.primary : Color.white.opacity(Layout.restingOpacity))
+                    .fill(index == current ? Memnox.Palette.primary : Memnox.ink(Layout.restingOpacity))
                     .frame(width: index == current ? Layout.currentLength : Layout.size, height: Layout.size)
             }
         }

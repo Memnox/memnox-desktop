@@ -66,6 +66,10 @@ struct CodeExcerpt: View {
         static let ruleWidth: CGFloat = 2
         static let unchangedTint = 0.2
         static let edge = 0.05
+        /// White on the blue badge in either look.
+        static let onBadge = Color.white
+        /// The code's own page, near black in the dark and a cool white in the light, as an editor draws it.
+        static let codePage = Color(light: 0xF6F7F9, dark: 0x0D0E10)
     }
 
     /// The marks a diff line starts with.
@@ -83,25 +87,25 @@ struct CodeExcerpt: View {
             HStack(spacing: Memnox.Spacing.medium) {
                 Text(extensionBadge)
                     .font(.system(size: Layout.badgeTextSize, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color.white)
+                    .foregroundStyle(Layout.onBadge)
                     .padding(.horizontal, Memnox.Spacing.xSmall)
                     .padding(.vertical, Memnox.Spacing.xxSmall)
                     .background(RoundedRectangle(cornerRadius: Layout.badgeCornerRadius).fill(Memnox.Palette.primary))
                 Text(SessionText.shortPath(excerpt.path))
                     .font(.system(size: codeTextSize, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Color.white)
+                    .foregroundStyle(Memnox.Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Memnox.Spacing.large)
             .frame(height: Layout.headerHeight)
-            .background(Color.white.opacity(Layout.headerFill))
+            .background(Memnox.ink(Layout.headerFill))
             VStack(alignment: .leading, spacing: Layout.lineGap) {
                 ForEach(Array(excerpt.lines.enumerated()), id: \.offset) { _, line in
                     let tint = colour(of: line)
                     Text(line.dropFirst())
                         .font(.system(size: codeTextSize, design: .monospaced))
-                        .foregroundStyle(line.hasPrefix(Diff.removed) ? Color.white.opacity(Memnox.Ink.tertiary) : IslandPalette.soft)
+                        .foregroundStyle(line.hasPrefix(Diff.removed) ? Memnox.ink(Memnox.Ink.tertiary) : IslandPalette.soft)
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .padding(.horizontal, Memnox.Spacing.large)
@@ -113,8 +117,8 @@ struct CodeExcerpt: View {
             }
             .padding(.vertical, Memnox.Spacing.small)
         }
-        .background(shape.fill(Color(hex: 0x0D0E10)))
-        .overlay(shape.strokeBorder(Color.white.opacity(Layout.edge), lineWidth: Memnox.Stroke.hairline))
+        .background(shape.fill(Layout.codePage))
+        .overlay(shape.strokeBorder(Memnox.ink(Layout.edge), lineWidth: Memnox.Stroke.hairline))
         .clipShape(shape)
     }
 
@@ -127,6 +131,6 @@ struct CodeExcerpt: View {
     private func colour(of line: String) -> Color {
         if line.hasPrefix(Diff.added) { return IslandPalette.green }
         if line.hasPrefix(Diff.removed) { return IslandPalette.red }
-        return Color.white.opacity(Layout.unchangedTint)
+        return Memnox.ink(Layout.unchangedTint)
     }
 }

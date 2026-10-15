@@ -74,9 +74,26 @@ public final class Conversation {
     /// The phone holding this Mac's voice, set the moment the daemon says the voice moved, so nothing an event raises is said here meanwhile.
     public var phoneHolds: PhoneVoice?
 
-    /// Whether an event is only shown here: stamped for a phone, or arriving while a phone holds the voice.
+    /// The phone driving this Mac, kept from the notice so its yes is asked there for as long as the grant lasts.
+    private var drivenBy: DriveGrant?
+
+    /// The phone that answers for this Mac now, the one holding the voice or driving it, so a yes is its Face ID
+    /// rather than Touch ID here; nil when nobody does.
+    public var phoneAnswers: String? {
+        if let phoneHolds { return phoneHolds.name }
+        guard let drivenBy, drivenBy.isLive(at: now()) else { return nil }
+        return drivenBy.name
+    }
+
+    /// Whether an event is only shown here: stamped for a phone, or arriving while a phone holds the voice or drives.
     public func isQuiet(_ event: DaemonEvent) -> Bool {
-        event.quietOnMac(phoneHolds: phoneHolds != nil)
+        event.quietOnMac(phoneHolds: phoneAnswers != nil)
+    }
+
+    /// Said instead of Touch ID while a phone answers for this Mac, since that phone asks Face ID for the same yes.
+    static func answerOnPhone(_ phone: String) -> String {
+        let name = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "Answer it on \(name.isEmpty ? "your phone" : name), which asks for Face ID."
     }
     /// When their last word was recognised, set by whoever listened, so the wait for the end is timed.
     public var lastWordAt: Date?
@@ -694,6 +711,7 @@ public final class Conversation {
             }
             if let drivenBy = event.drivenBy {
                 let grant = DriveGrant(drivenBy, now: now())
+                self.drivenBy = grant
                 diary.note(grant.map { "\($0.name) drives this Mac until \(drivenBy.until ?? "")" } ?? "\(drivenBy.name) stopped driving this Mac")
                 face.driven(grant)
                 return
@@ -781,6 +799,10 @@ public final class Conversation {
         // This Mac's own label for the sheet, so what the sensor is touched for never rests on the daemon's words.
         let reason = CallLabel.touchIDReason(call.who, what: call.what, answer: answer)
         var signatures: [String]?
+        if answer != .deny, let phone = phoneAnswers {
+            diary.note("\(event.subject) left for \(phone) to answer with Face ID")
+            return
+        }
         if answer != .deny {
             face.show(.needsYou, caption: caption("Touch ID to \(reason)"))
             let messages = [
@@ -1180,6 +1202,11 @@ public final class Conversation {
         let answerKind: ProposalAnswer
         var signature: String?
         let needsTouchID = event.needsTouchID || signsEveryYes(event.subject)
+        // Queued before the phone took over, so it is left for that phone rather than put to Touch ID now.
+        if needsTouchID, let phone = phoneAnswers {
+            diary.note("\(event.subject) left for \(phone) to answer with Face ID")
+            return
+        }
         if needsTouchID, await registerKey() == .anotherKey {
             chimes?.play(.failed)
             await say(Self.anotherKeyLine)
@@ -1276,6 +1303,7 @@ public final class Conversation {
             asking = nil
             speaker.stop()
         }
+        if answer != .deny, signed == nil, let phone = phoneAnswers { return .failed(Self.answerOnPhone(phone)) }
         if answer != .deny, signed == nil { face.show(.needsYou, caption: caption("Touch ID to \(reason)")) }
         let outcome = await workspace.answer(subject, answer, reason: reason, signed: signed)
         switch outcome {
@@ -1379,6 +1407,10 @@ public final class Conversation {
     /// Touch ID over this answer, asked only once the daemon trusts this Mac's key: a signature from any
     /// other key is refused after the fingerprint, which reads as the button doing nothing.
     private func signature(_ subject: String, answer: String, edited: String? = nil, reason: String) async -> Signing {
+        if let phone = phoneAnswers {
+            face.show(.idle, caption: "")
+            return .refused(.failed(Self.answerOnPhone(phone)))
+        }
         if await registerKey() == .anotherKey {
             chimes?.play(.failed)
             face.show(.idle, caption: "")

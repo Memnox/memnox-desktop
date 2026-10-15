@@ -185,6 +185,29 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(speaker.said, [])
     }
 
+    func testAnAllowWhileAPhoneHoldsTheVoiceIsLeftToItsFaceIDAndNeverAsksTouchID() async throws {
+        let moved = #"{"kind":"notice","subject":"voc_1","agent":"memnox","summary":"s","at":"t","voiceOn":{"deviceId":"dev_1","name":"iPhone","holding":true}}"#
+        await conversation.handle(try event(moved))
+        let outcome = await conversation.answerHeld("apr_4", .once, reason: "push to main")
+
+        XCTAssertEqual(outcome, .failed("Answer it on iPhone, which asks for Face ID."))
+        XCTAssertEqual(key.signed, [])
+        XCTAssertTrue(link.sent.isEmpty)
+    }
+
+    func testAnAllowWhileAPhoneDrivesIsLeftToItsFaceIDAndADenyStillGoes() async throws {
+        let driven = #"{"kind":"notice","subject":"drv_1","agent":"memnox","summary":"s","at":"t","drivenBy":{"deviceId":"dev_1","name":"iPhone","until":"2099-01-01T00:00:00.000Z"}}"#
+        await conversation.handle(try event(driven))
+        XCTAssertEqual(conversation.phoneAnswers, "iPhone")
+        XCTAssertEqual(await conversation.answerHeld("apr_4", .once, reason: "push to main"),
+                       .failed("Answer it on iPhone, which asks for Face ID."))
+        XCTAssertEqual(key.signed, [])
+
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"deny"}"#)]
+        XCTAssertEqual(await conversation.answerHeld("apr_4", .deny, reason: "push to main"), .answered)
+        XCTAssertNil(link.sent.last?.signature)
+    }
+
     func testAllowsAHeldCallInsideTheSessionFromAButtonWithNoTouchID() async throws {
         link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"once"}"#)]
         let outcome = await conversation.answerHeld("apr_4", .once, reason: "delete old.ts", touchID: false)

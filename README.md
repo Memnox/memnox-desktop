@@ -18,7 +18,13 @@ tells you out loud, and lets you answer them by voice, with Touch ID guarding ev
 ![License MIT](https://img.shields.io/badge/license-MIT-37CD8F)
 ![PRs welcome](https://img.shields.io/badge/PRs-welcome-DD815D)
 
-[Quick start](#quick-start) · [What it does](#what-it-does) · [How it works](#how-it-works) · [Architecture](docs/ARCHITECTURE.md) · [Contributing](#contributing)
+[Quick start](#quick-start) · [What it does](#what-it-does) · [With your iPhone](#with-your-iphone) · [How it works](#how-it-works) · [Architecture](docs/ARCHITECTURE.md) · [Contributing](#contributing)
+
+<br>
+
+<img src="docs/images/memnox-mac-and-iphone.svg" width="100%" alt="Claude Code works in a terminal on a Mac until a production deploy needs a person. The Memnox island grows out of the notch to ask, the same question appears on the iPhone lock screen, Face ID allows it, and both say it was allowed once.">
+
+<sub>One run, one question. The notch asks, the iPhone asks too, and whichever answers first releases the agent.</sub>
 
 </div>
 
@@ -45,6 +51,57 @@ decision.
 | 🤫 **Quiet by default** | It says nothing until something needs you: a held call, a question, a paused session, a failure, or what you asked to hear about. |
 | 🗣️ **A voice worth hearing** | Kokoro, an open model, runs on your Mac for free. Nothing it says leaves the machine. |
 | 🧱 **Built to be read** | Pure Swift on Apple frameworks only, a headless core in DDD layers, and a test suite that runs in about a second. |
+
+## The island
+
+<img src="docs/images/memnox-notch.svg" width="100%" alt="The Memnox island on a Mac grows out of the notch to listen to a question, answers it out loud, shows every working session with its latest steps, then asks before Codex runs a migration and settles green once it is allowed.">
+
+The island is the whole interface. It sits closed as the notch until something needs you, then
+grows on a spring to the size of what it has to say: the orb and your words while it listens, the
+answer while it speaks, every working session with its latest steps, and a held call with its
+three answers. It shrinks back the moment it is done. Every agent keeps its own colour, so a dot
+tells you who is working before you read a word.
+
+## With your iPhone
+
+<table>
+<tr>
+<td width="44%" valign="top">
+<img src="docs/images/memnox-iphone.svg" width="100%" alt="On an iPhone, a held call shows in the Dynamic Island as the orb and an amber count, opens with Deny and Allow, Allow goes through Face ID, and the island then carries the voice.">
+</td>
+<td valign="top">
+
+Pair [Memnox for iPhone](https://github.com/Memnox/memnox-ios) once and the Mac stops being the
+only place you can answer. The two are the same Memnox: the daemon on this Mac stays the
+authority, and the phone is a second face, voice and signing key for it.
+
+- **Pair in a minute.** The Mac shows a QR code, the phone scans it, both screens show the same
+  six digits, and you approve on the Mac with Touch ID.
+- **The same question, in both places.** A held call opens the island here and the Dynamic
+  Island there. Answer on either; the first answer releases the agent and the other settles.
+- **Face ID on every remote yes.** Allow on the phone is signed by a key in its own Secure
+  Enclave. Deny needs nothing, because saying no can do no harm.
+- **Nothing through a push.** The phone updates its own island over an end to end encrypted
+  Noise tunnel, so the question never crosses Apple's servers or Memnox's.
+- **Call it from anywhere.** Talk to the same orb on the phone while the Mac keeps working, and
+  the island here says *Talking on Maya's iPhone* so you know where the voice went.
+- **Back at your desk.** When something finishes while you were away, the lock screen says what
+  it came to: how long it ran, how many actions, and how often it asked.
+
+</td>
+</tr>
+</table>
+
+## Slack, Gmail and the rest
+
+<img src="docs/images/memnox-tools.svg" width="100%" alt="On the Mac, Maya says tell #eng the deploy is out and thank Bo; the island drafts a Slack message as Maya to #eng, she sends it with Touch ID and it lands in the channel. On the iPhone, an email reply drafted on Gmail is sent with Face ID.">
+
+Sign in to Slack, Gmail, GitHub, Linear, Google Docs or Notion once, and the island can work in
+them in your name. Say *"tell #eng the deploy is out and thank Bo"*, or let an agent propose a
+reply, and the island opens on a draft in that tool's own colours: the account it goes out as,
+who it goes to, and the exact words in a box you can rewrite. Nothing goes out until you press
+**Send**, which asks for Touch ID and signs exactly the words on the card. The daemon then sends
+it through your own account. The same draft can be answered from your iPhone with Face ID.
 
 ## What it does
 

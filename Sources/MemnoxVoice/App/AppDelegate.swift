@@ -114,6 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let firstWordSeconds: TimeInterval = 10
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Appearance.apply()
         // The island on its own, touring its states, with nothing listening and no daemon needed.
         if IslandPreview.requested {
             panel = IslandPanel(loudness: { IslandPreview.level })

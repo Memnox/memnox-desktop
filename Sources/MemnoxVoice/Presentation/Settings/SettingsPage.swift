@@ -7,6 +7,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     case permissions
     case connection
     case phones
+    case appearance
     case voice
     case listening
     case dictation
@@ -18,7 +19,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     static let groups: [(title: String?, pages: [SettingsPage])] = [
         (nil, [.overview]),
         ("You", [.account]),
-        ("This Mac", [.permissions, .connection, .phones]),
+        ("This Mac", [.permissions, .connection, .phones, .appearance]),
         ("Voice", [.voice, .listening, .dictation]),
         ("Support", [.help]),
     ]
@@ -30,6 +31,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .permissions: return "Permissions"
         case .connection: return "Connection"
         case .phones: return "Phones"
+        case .appearance: return "Appearance"
         case .voice: return "Voice"
         case .listening: return "Listening"
         case .dictation: return "Dictation"
@@ -45,6 +47,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .permissions: return "What this Mac lets Memnox hear, type and see."
         case .connection: return "The Memnox service your agents talk to, and the key Touch ID signs with."
         case .phones: return "Phones paired with this Mac and what each may do."
+        case .appearance: return "Light, dark, or the same as this Mac."
         case .voice: return "Who thinks for the voice, and the voice it answers in."
         case .listening: return "When Memnox listens and how it speaks up."
         case .dictation: return "Speak instead of typing, in any app, written the way you would have typed it."
@@ -59,6 +62,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .permissions: return "lock.shield"
         case .connection: return "bolt.horizontal.circle"
         case .phones: return "iphone"
+        case .appearance: return "circle.lefthalf.filled"
         case .voice: return "person.wave.2"
         case .listening: return "ear"
         case .dictation: return "keyboard"

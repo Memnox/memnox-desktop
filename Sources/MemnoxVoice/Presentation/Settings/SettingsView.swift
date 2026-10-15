@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// The one Memnox window: a sidebar of glass on the left with the pages in their groups, and
-/// the chosen page on its own rounded panel to the right, light or dark as the Mac is set.
+/// the chosen page on its own rounded panel to the right, light or dark as the Appearance page sets it.
 struct SettingsView: View {
     @ObservedObject var models: SettingsModels
     @ObservedObject var navigation: SettingsNavigation
@@ -76,6 +76,7 @@ struct SettingsView: View {
             case .permissions: SetupPermissionsCard(model: setup)
             case .connection: SetupMacCard(model: setup)
             case .phones: PhonesPage(menu: menu, setup: setup)
+            case .appearance: AppearancePage()
             case .voice: VoicePage(menu: menu, setup: setup)
             case .listening: ListeningPage(menu: menu, setup: setup)
             case .dictation:

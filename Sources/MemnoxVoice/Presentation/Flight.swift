@@ -45,6 +45,7 @@ final class FlightPanel {
             defer: true
         )
         panel.isOpaque = false
+        // Dark in every look, because the comet is the orb's own light leaving the notch and carries no surface or text.
         panel.appearance = NSAppearance(named: .darkAqua)
         panel.backgroundColor = .clear
         panel.hasShadow = false

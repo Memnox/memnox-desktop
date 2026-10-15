@@ -76,7 +76,7 @@ final class IslandPanel: NSPanel, Face {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        // The island is dark whatever the Mac is set to, as the hardware around the notch is.
+        // Dark in every look the person picks, because the island grows out of the black hardware notch and must match it.
         appearance = NSAppearance(named: .darkAqua)
         // Above the menu bar, since the island has to cover the notch and the bar either side of it.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + Layout.levelAboveMenuBar)

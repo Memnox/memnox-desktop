@@ -1011,6 +1011,8 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var signature: String?
     /// On confirm of a draft: the words the person rewrote on its card, which the signature then covers.
     public var edited: String?
+    /// On confirm of an agent's question: which of its questions the answer is for, from one.
+    public var questionNumber: Int?
     /// On person-sign-in: this app's own waiting device code, so one approval in the browser signs the daemon in too.
     public var companionOf: String?
     public var point: String?
@@ -1163,6 +1165,10 @@ public struct DaemonEvent: Decodable, Equatable, Sendable {
     public let signedIn: SignedInNotice?
     /// On a proposal that an account is the person's own, answered from the signed in pill and never unasked.
     public let claim: AccountClaim?
+    /// On a question notice, what the agent asked in its own picker with its choices, so the island offers them as taps.
+    public let questions: [AgentQuestionItem]?
+    /// On a question notice, what is already picked by question text, so only what is left is asked.
+    public let answers: [String: String]?
 
     public var eventKind: EventKind? { EventKind(rawValue: kind) }
     public var noticeKind: NoticeKind? { notice.flatMap(NoticeKind.init(rawValue:)) }

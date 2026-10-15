@@ -26,6 +26,13 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
+      # The one Noise build lives in the runtime, so the Mac, the phone and the runtime run the same crate.
+      - name: Check out memnox-runtime
+        uses: actions/checkout@v4
+        with:
+          repository: Memnox/memnox
+          path: memnox-runtime
+
       - name: Select the newest stable Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -43,6 +50,18 @@ jobs:
           key: spm-${{ runner.os }}-${{ hashFiles('Package.swift', 'Sources/**/*.swift', 'Tests/**/*.swift') }}
           restore-keys: spm-${{ runner.os }}-
 
+      - name: Cache the Noise build
+        uses: actions/cache@v4
+        with:
+          path: memnox-runtime/native/noise/target
+          key: noise-${{ runner.os }}-${{ hashFiles('memnox-runtime/native/noise/Cargo.lock', 'memnox-runtime/native/noise/src/**') }}
+          restore-keys: noise-${{ runner.os }}-
+
+      - name: Vendor the Noise framework
+        env:
+          MEMNOX_RUNTIME: ${{ github.workspace }}/memnox-runtime
+        run: ./scripts/vendor-noise.sh
+
       - name: Build the core, the app and the tests
         run: swift build --build-tests
 
@@ -51,6 +70,9 @@ jobs:
 
       - name: Build the app bundle
         # Signed ad hoc here, since the runner has no local signing identity; that is enough to prove it bundles.
+        # The npm source writes the runtime's origin into the bundle without building a runtime checkout.
+        env:
+          MEMNOX_RUNTIME_SOURCE: npm
         run: ./scripts/bundle.sh
 
   copy:

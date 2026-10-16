@@ -430,12 +430,27 @@ final class IslandPanel: NSPanel, Face {
         }
     }
 
-    /// The tools still to sign in to, as icons under the notch; a later list replaces the earlier one.
+    /// The tools still to sign in to. The person just asked for something one of them does, so each sign in opens in
+    /// the browser at once rather than waiting as an icon over their tabs; only one that cannot open, one opened a
+    /// moment ago, or one asked for from a phone, which is not at this screen, stays as an icon under the notch.
     nonisolated func signIns(_ tools: [ToolSignIn]) {
         DispatchQueue.main.async { [self] in
             withAnimation(.snappy) { model.signIns = tools }
+            guard model.driving == nil else { return }
+            let now = Date()
+            openedSignIns = openedSignIns.filter { now.timeIntervalSince($0.value) < Self.signInReopenAfter }
+            for tool in tools where openedSignIns[tool.toolkit] == nil {
+                openedSignIns[tool.toolkit] = now
+                // Removes the icon once the browser has it, and leaves it where the browser would not.
+                model.openSignIn(tool)
+            }
         }
     }
+
+    /// When each tool's sign in was last opened by itself, so a list sent again never opens the same page twice.
+    @MainActor private var openedSignIns: [String: Date] = [:]
+    /// Long enough to sign in once; after it, asking again opens the page again.
+    private nonisolated static let signInReopenAfter: TimeInterval = 120
 
     /// How long a sign in known to be theirs stays under the notch: long enough to read whose account it is.
     private nonisolated static let signedInShown: TimeInterval = 3

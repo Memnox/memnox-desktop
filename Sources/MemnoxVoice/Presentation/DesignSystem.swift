@@ -1,29 +1,54 @@
 import AppKit
 import SwiftUI
 
-/// The Memnox design system on the Mac: graphite pages and cards in the dark, white and light grey in the light, one
-/// white or black button for the thing to do, and the Memnox blue for what is ticked or switched on.
+/// The Memnox design system on the Mac, set in the Mac's own neutral colours the way Vorssaint sets its windows: a
+/// graphite page with no colour cast, cards one step lighter than it, and the system blue for what is chosen or on.
 /// The ordinary windows follow the Appearance the person chose; the notch is pinned dark, as the hardware is.
 enum Memnox {
+    /// Sampled from Vorssaint's own Settings window, in the light and in the dark, so every value here is one it draws.
     enum Palette {
-        static let background = Color(light: 0xFFFFFF, dark: 0x1C1D20)
-        static let card = Color(light: 0xF9F9F9, dark: 0x1F2023)
-        static let secondary = Color(light: 0xECECEC, dark: 0x2C2D31)
-        static let border = Color(light: 0xE5E5E5, dark: 0x34353A)
-        static let foreground = Color(light: 0x0D0D0D, dark: 0xFDFDFD)
-        static let muted = Color(light: 0x5D5D5D, dark: 0x8E8F95)
+        /// The window behind the sidebar and the page.
+        static let background = Color(light: 0xFAFAFA, dark: 0x1E1E1E)
+        /// A card on the page, solid and with no rim, a step off the page as Vorssaint's are.
+        static let card = Color(light: 0xF1F1F1, dark: 0x262626)
+        /// A control set on a card: a button, a menu's pill. White in the light, a step up from the card in the dark.
+        static let secondary = Color(light: 0xFFFFFF, dark: 0x383838)
+        /// A control's hairline, which only the white controls of the light look need.
+        static let controlEdge = Color(darkWhite: 0, lightBlack: 0.12)
+        /// The rule between two rows of a card.
+        static let border = Color(light: 0xD9D9D9, dark: 0x3B3B3B)
+        static let foreground = Color(light: 0x222222, dark: 0xE1E1E1)
+        static let muted = Color(light: 0x797979, dark: 0x9E9E9F)
+        /// Text that is there but not asked about, such as a hint under a card or a control that cannot be used yet.
+        static let faint = Color(light: 0xB2B2B2, dark: 0x5E5E5F)
         /// The colour text, symbols and hairlines are drawn in: white on the dark page, near black on the light one.
         static let ink = Color(light: 0x0D0D0D, dark: 0xFFFFFF)
-        static let primary = Color(hex: 0x1E86EE)
-        static let ring = Color(hex: 0x1E86EE).opacity(0.45)
+        /// Vorssaint's blue, for what is chosen, switched on, or the one thing a page asks to be done.
+        static let primary = Color(hex: 0x3B82F7)
         /// The status hues deepen on the light page, so a status said in words keeps 4.5 to 1 on white and on its own tint.
-        static let success = Color(light: 0x0A6C48, dark: 0x37CD8F)
-        static let warm = Color(light: 0x9A4524, dark: 0xDD815D)
-        static let destructive = Color(light: 0xB31347, dark: 0xE31957)
-        /// The panel a card stands on, one step off the page.
-        static let surface = Color(light: 0xF5F5F7, dark: 0x232427)
-        /// A field, disc or pill set on a panel, one step further.
-        static let raised = Color(light: 0xEDEDF0, dark: 0x2C2D31)
+        static let success = Color(light: 0x1F7A35, dark: 0x30D158)
+        static let warm = Color(light: 0xB25000, dark: 0xFF9F0A)
+        static let destructive = Color(light: 0xC4001A, dark: 0xFF453A)
+        /// The sidebar's own panel.
+        static let surface = Color(light: 0xEDEDF0, dark: 0x28282B)
+        /// A lit edge, which an unticked checkbox draws around itself.
+        static let rim = Color(light: 0xFAFAFB, dark: 0x4B4B4D)
+        /// The page panel's one even edge, a soft grey that sets it off the sidebar without lighting its top.
+        static let panelEdge = Color(light: 0xD6D6DA, dark: 0x3A3A3D)
+        /// Back and Forward's capsule and its edge.
+        static let capsule = Color(light: 0xFFFFFF, dark: 0x262626)
+        static let capsuleEdge = Color(light: 0xE0E0E0, dark: 0x3B3B3B)
+        /// A row or a button under the pointer.
+        static let hover = Color(darkWhite: 0.07, lightBlack: 0.05)
+        /// The search field's fill, and its edge.
+        static let field = Color(darkWhite: 0.16, lightBlack: 0.07)
+        static let fieldEdge = Color(darkWhite: 0.08, lightBlack: 0.06)
+        /// A key printed inside a shortcut's field.
+        static let keycap = Color(light: 0xFFFFFF, dark: 0x454545)
+        /// A shortcut's field, a text field, a disc or pill set on a card.
+        static let raised = Color(light: 0xFFFFFF, dark: 0x2F2F2F)
+        /// The history at the side of the screen, the island's own dark so the two read as one surface.
+        static let panel = Color(light: 0xFFFFFF, dark: 0x141518)
         /// The orb's own two blues, the primary and a lighter sky over it; the sky deepens on white to stay readable.
         static let sky = Color(light: 0x1E6FD0, dark: 0x8CC8FF)
         static let deep = Color(hex: 0x1E86EE)
@@ -80,8 +105,9 @@ enum Memnox {
     /// How strongly white shows over the dark glass, by role, so text and fills keep one hierarchy.
     enum Ink {
         static let primary = 0.92
-        static let secondary = 0.5
-        static let tertiary = 0.45
+        /// Strong enough that a line under a title reads as crisply as Vorssaint's grey, rather than as a blur.
+        static let secondary = 0.62
+        static let tertiary = 0.5
         static let fill = 0.08
         static let faintFill = 0.06
         static let edge = 0.14
@@ -143,6 +169,23 @@ extension Color {
         )
     }
 
+    /// White over the dark glass and black over the light, each at its own strength, so a fill takes on whatever tint
+    /// the glass under it has.
+    init(darkWhite: Double, lightBlack: Double) {
+        self.init(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(white: 1, alpha: darkWhite) : NSColor(white: 0, alpha: lightBlack)
+        })
+    }
+
+    /// White over the dark glass at its strength, and a solid colour in the light, as Vorssaint's white controls are.
+    init(darkWhite: Double, light: UInt32) {
+        self.init(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(white: 1, alpha: darkWhite) : NSColor(Color(hex: light))
+        })
+    }
+
     /// One colour for each appearance, resolved by the system as the Mac switches between them.
     init(light: UInt32, dark: UInt32) {
         self.init(nsColor: NSColor(name: nil) { appearance in
@@ -172,6 +215,24 @@ struct Glass: NSViewRepresentable {
     }
 
     func updateNSView(_ view: NSView, context: Context) {}
+}
+
+/// The window's own glass, the material a Mac window's sidebar or page is made of, following the window's look, so
+/// the desktop shows through as it does in Finder and Vorssaint.
+struct WindowGlass: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = .behindWindow
+        view.state = .followsWindowActiveState
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.material = material
+    }
 }
 
 /// A faint blue in the glass, so every surface reads as Memnox rather than as a system panel.
@@ -220,65 +281,37 @@ private final class FrostedGlass: NSVisualEffectView {
     }
 }
 
-/// The filled blue button, for the one thing a screen asks you to do.
+/// The filled blue capsule, for the one thing a screen asks you to do, as Vorssaint's Try it.
 struct PrimaryButton: ButtonStyle {
-    /// Dimmed this far while pressed, so the press is felt without the button disappearing.
-    private static let pressedOpacity = 0.8
-
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-            .foregroundStyle(Color.white)
-            .padding(.horizontal, Memnox.Spacing.xLarge)
-            .padding(.vertical, Memnox.Spacing.medium)
-            .background(
-                RoundedRectangle(cornerRadius: Memnox.radius)
-                    .fill(Memnox.Palette.primary.opacity(configuration.isPressed ? Self.pressedOpacity : 1))
-            )
-            .pointingHand()
+        KitButton(kind: .primary).makeBody(configuration: configuration)
     }
 }
 
-/// The quiet button: a border and no fill, for everything that is not the main action.
+/// The grey capsule, for everything that is not the main action, as Vorssaint's Reset and Send feedback.
 struct QuietButton: ButtonStyle {
-    /// The fill darkens when pressed and stays half seen at rest, so it never competes with the primary button.
-    private static let pressedFillOpacity = 0.9
-    private static let restingFillOpacity = 0.55
-
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-            .foregroundStyle(Memnox.Palette.foreground)
-            .padding(.horizontal, Memnox.Spacing.large)
-            .padding(.vertical, Memnox.Spacing.small)
-            .background(
-                RoundedRectangle(cornerRadius: Memnox.radius)
-                    .fill(Memnox.Palette.secondary.opacity(configuration.isPressed ? Self.pressedFillOpacity : Self.restingFillOpacity))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: Memnox.radius)
-                    .strokeBorder(Memnox.Palette.border, lineWidth: Memnox.Stroke.hairline)
-            )
-            .pointingHand()
+        KitButton(kind: .secondary).makeBody(configuration: configuration)
     }
 }
 
-/// A key as it is printed on the keyboard, for ⌥ Space.
+/// A key as it is printed on the keyboard, as Vorssaint prints one inside a shortcut's field.
 struct Keycap: View {
     let label: String
 
-    /// A key's own proportions, a little wider than tall like the printed legend on a real key.
-    private static let horizontalPadding: CGFloat = 7
-    private static let verticalPadding: CGFloat = 3
+    private static let horizontalPadding: CGFloat = 6
+    private static let minimumWidth: CGFloat = 18
+    private static let height: CGFloat = 18
 
     var body: some View {
         Text(label)
-            .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
+            .font(.system(size: Memnox.TextSize.caption, weight: .medium))
             .foregroundStyle(Memnox.Palette.foreground)
             .padding(.horizontal, Self.horizontalPadding)
-            .padding(.vertical, Self.verticalPadding)
-            .background(RoundedRectangle(cornerRadius: Memnox.keycapRadius).fill(Memnox.Palette.secondary))
-            .overlay(RoundedRectangle(cornerRadius: Memnox.keycapRadius).strokeBorder(Memnox.Palette.border, lineWidth: Memnox.Stroke.hairline))
+            .frame(minWidth: Self.minimumWidth, minHeight: Self.height)
+            .background(RoundedRectangle(cornerRadius: Memnox.keycapRadius, style: .continuous).fill(Memnox.Palette.keycap))
+            .overlay(RoundedRectangle(cornerRadius: Memnox.keycapRadius, style: .continuous)
+                .strokeBorder(Memnox.Palette.controlEdge, lineWidth: Memnox.Stroke.hairline))
     }
 }
 

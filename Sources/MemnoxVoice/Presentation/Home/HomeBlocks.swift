@@ -1,15 +1,16 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// The five blocks of the home, the same on the Mac, the iPhone and `memnox status`: what waits on the person, what
-/// is working, today in plain words, the one thing that could run on its own, and what nothing covers. Counts only.
+/// The blocks of the home, the same on the Mac, the iPhone and `memnox status`: what waits on the person, what only
+/// they can do, what is working, today in plain words, what could run on its own, and what nothing covers.
 struct HomeBlocks: View {
     @ObservedObject var model: HomeModel
 
     var body: some View {
         if let home = model.home {
-            VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
+            VStack(alignment: .leading, spacing: SettingsMetrics.pageSpacing) {
                 HomeWaitingBlock(count: home.waiting, open: model.openWaiting)
+                if let needs = home.needsYou, !needs.isEmpty { HomeNeedsYouBlock(needs: needs) }
                 HomeWorkingBlock(working: home.working, open: model.openSession)
                 HomeBlock(title: "Today") {
                     HomeLine(HomeLines.today(home.today))
@@ -24,18 +25,17 @@ struct HomeBlocks: View {
     }
 }
 
-/// A block's quiet heading over its own surface.
+/// A block's title over its own card, as Vorssaint heads its groups.
 private struct HomeBlock<Content: View>: View {
     let title: String
     var accent: Color?
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-            MenuHeading(title: title)
+        SettingsSection(title: title) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.medium) { content }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(Memnox.Spacing.xLarge)
+                .padding(SettingsMetrics.cardPadding)
                 .surface(accent: accent)
         }
     }
@@ -53,9 +53,26 @@ private struct HomeLine: View {
 
     var body: some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.body))
-            .foregroundStyle(Memnox.ink(ink))
+            .font(.system(size: SettingsMetrics.rowTextSize))
+            .foregroundStyle(ink >= Memnox.Ink.primary ? Memnox.Palette.foreground : Memnox.Palette.muted)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// What only the person can do, said by the daemon until each is done, since setup run from here has no terminal to say it.
+private struct HomeNeedsYouBlock: View {
+    let needs: [String]
+
+    var body: some View {
+        HomeBlock(title: "What needs you", accent: nil) {
+            ForEach(needs, id: \.self) { need in
+                Label {
+                    HomeLine(need)
+                } icon: {
+                    Image(systemName: "exclamationmark.circle").foregroundStyle(Memnox.Palette.muted)
+                }
+            }
+        }
     }
 }
 
@@ -68,7 +85,7 @@ private struct HomeWaitingBlock: View {
         HomeBlock(title: "Waiting on you", accent: nil) {
             HStack(spacing: Memnox.Spacing.medium) {
                 Text("\(count)")
-                    .font(Memnox.sans(Memnox.TextSize.title, .semibold).monospacedDigit())
+                    .font(Memnox.sans(Memnox.TextSize.body, .semibold).monospacedDigit())
                     .foregroundStyle(Memnox.Palette.ink)
                     .contentTransition(.numericText(value: Double(count)))
                 HomeLine(HomeLines.waiting(count), ink: Memnox.Ink.secondary)

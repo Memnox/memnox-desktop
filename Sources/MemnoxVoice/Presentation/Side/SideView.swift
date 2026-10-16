@@ -29,7 +29,7 @@ struct SideView: View {
         let shape = SideNotchShape(flare: open ? Layout.flare : SideMotion.tabFlare, radius: Layout.cornerRadius)
         let tab = SideMotion.tab(hovering: model.sideHovering)
         ZStack {
-            shape.fill(Memnox.Palette.background)
+            shape.fill(Memnox.Palette.panel)
                 // A hairline on the folded tab, so the sliver shows against a window of its own colour behind it, and on the
                 // open panel in the light, where it has no shadow to lift it off a white window.
                 .overlay(shape.stroke(Memnox.ink(edgeInk(open: open)), lineWidth: Memnox.Stroke.hairline))

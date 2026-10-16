@@ -973,17 +973,17 @@ private struct SetupStep<Trailing: View, Extra: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: tile == nil ? .top : .center, spacing: Memnox.Spacing.large) {
+        HStack(alignment: tile == nil ? .top : .center, spacing: SettingsMetrics.rowSpacing) {
             if let tile { tile } else { StatusMark(state: state).padding(.top, Layout.markTopInset) }
             VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
                 HStack(alignment: .center, spacing: Memnox.Spacing.large) {
                     VStack(alignment: .leading, spacing: Layout.lineSpacing) {
                         Text(title)
-                            .font(Memnox.sans(Layout.titleSize, .semibold))
-                            .foregroundStyle(Memnox.Palette.ink)
+                            .font(.body)
+                            .foregroundStyle(Memnox.Palette.foreground)
                         Text(detail)
-                            .font(Memnox.sans(Memnox.TextSize.caption))
-                            .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                            .font(.caption)
+                            .foregroundStyle(Memnox.Palette.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 0)
@@ -1035,22 +1035,15 @@ struct StatusMark: View {
     var body: some View { CheckBox(state: state) }
 }
 
-/// A text field in the console's input style: dark, bordered, a blue ring when focused.
+/// A text field in the console's input style: dark, bordered, its edge blue when focused.
 struct NameField: View {
     @Binding var text: String
-    @FocusState private var focused: Bool
-
-    private static let focusGlowRadius: CGFloat = 6
-    private static let focusFade: TimeInterval = 0.15
 
     var body: some View {
         TextField("", text: $text, prompt: Text("Your name").foregroundStyle(Memnox.Palette.muted))
-            .focused($focused)
             .accessibilityLabel("Your name")
-            .kitField(focused: focused)
+            .kitField()
             .frame(width: SetupLayout.fieldWidth)
-            .shadow(color: focused ? Memnox.ink(Memnox.Ink.fill) : .clear, radius: Self.focusGlowRadius)
-            .animation(.easeOut(duration: Self.focusFade), value: focused)
     }
 }
 

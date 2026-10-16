@@ -14,23 +14,20 @@ struct OverviewPage: View {
     @AppStorage(FirstRun.key) private var firstRun = ""
 
     private enum Layout {
-        static let titleSize: CGFloat = 30
         static let keycapSpacing: CGFloat = 3
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
-            VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
-                Text("Overview")
-                    .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+        VStack(alignment: .leading, spacing: SettingsMetrics.pageSpacing) {
+            // The page's title as every page has it, since the header above already says this is the overview.
+            VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
                 Text(greeting)
-                    .font(Memnox.display(Layout.titleSize))
-                    .foregroundStyle(Memnox.Palette.ink)
+                    .font(.title2.bold())
+                    .foregroundStyle(Memnox.Palette.foreground)
                     .accessibilityAddTraits(.isHeader)
                 Text("What waits on you, what your agents are doing, and what could run on its own.")
-                    .font(Memnox.sans(Memnox.TextSize.body))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                    .font(.system(size: Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Palette.muted)
             }
             Button(action: menu.talk) {
                 HStack(spacing: Memnox.Spacing.small) {
@@ -76,147 +73,112 @@ enum FirstRun {
     static let account = "team"
 }
 
-/// "Set up this Mac" beside "Sign in": the first walks the checklist for this Mac's own agents, the second
-/// signs in to the workspace so the calls routed to the person reach the island before anything else here is set up.
+/// "Set up this Mac" over "Sign in", as two of Vorssaint's rows: the first walks the checklist for this Mac's own
+/// agents, the second signs in to the workspace so the calls routed to the person reach the island first.
 private struct FirstRunChoice: View {
     @ObservedObject var account: AccountModel
     let chose: (String) -> Void
 
-    private static let tracking: CGFloat = 1.2
-    private static let symbolSize: CGFloat = 22
-
     var body: some View {
-        VStack(alignment: .leading, spacing: Memnox.Spacing.xLarge) {
-            Text("Start here")
-                .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
-                .tracking(Self.tracking)
-                .textCase(.uppercase)
-                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-            HStack(alignment: .top, spacing: Memnox.Spacing.large) {
-                path(
-                    symbol: "laptopcomputer",
-                    title: "Set up this Mac",
-                    detail: "Your own agents, the voice, and Touch ID for what they ask.",
-                    action: "Set up"
-                ) { chose(FirstRun.thisMac) }
-                path(
-                    symbol: "person.crop.circle.badge.checkmark",
-                    title: "Sign in",
-                    detail: account.isSignedIn
-                        ? "Signed in. What your workspace routes to you comes to the notch."
-                        : "Answer what your workspace routes to you, from the notch, before setting up anything else.",
-                    action: account.isSignedIn ? "Open Account" : "Sign in"
-                ) {
-                    if !account.isSignedIn { account.start() }
-                    chose(FirstRun.account)
+        SettingsSection(title: "Start here") {
+            SettingsCard {
+                SettingsRow(symbol: "laptopcomputer", title: "Set up this Mac",
+                            caption: "Your own agents, the voice, and Touch ID for what they ask.") {
+                    Button("Set up") { chose(FirstRun.thisMac) }.buttonStyle(KitButton(kind: .primary))
+                }
+                SettingsDivider()
+                SettingsRow(symbol: "person.crop.circle.badge.checkmark", title: "Sign in",
+                            caption: account.isSignedIn
+                                ? "Signed in. What your workspace routes to you comes to the notch."
+                                : "Answer what your workspace routes to you, from the notch, before setting up anything else.") {
+                    Button(account.isSignedIn ? "Open Account" : "Sign in") {
+                        if !account.isSignedIn { account.start() }
+                        chose(FirstRun.account)
+                    }
+                    .buttonStyle(KitButton(kind: .secondary))
                 }
             }
         }
-        .padding(Memnox.Spacing.xxLarge)
-        .surface()
-    }
-
-    private func path(symbol: String, title: String, detail: String, action: String, go: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-            Image(systemName: symbol)
-                .font(.system(size: Self.symbolSize, weight: .regular))
-                .foregroundStyle(Memnox.Palette.ink)
-                .accessibilityHidden(true)
-            Text(title)
-                .font(Memnox.sans(Memnox.TextSize.title, .semibold))
-                .foregroundStyle(Memnox.Palette.ink)
-            Text(detail)
-                .font(Memnox.sans(Memnox.TextSize.body))
-                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-            Button(action, action: go).buttonStyle(KitButton(kind: .primary))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Memnox.Spacing.xLarge)
-        .surface()
     }
 }
 
-/// The console's "do this next" card: the first step still open with what it asks for, every step as a checklist
-/// that opens its page, and Finish while the first run is still open.
+/// The console's "do this next" card in Vorssaint's rows: the first step still open with its button, then every
+/// step as a row that opens its page, and Finish while the first run is still open.
 private struct SetupProgressCard: View {
     @ObservedObject var setup: SetupModel
     let go: (SettingsPage) -> Void
 
-    private static let tracking: CGFloat = 1.2
-    private static let checklistSpacing: CGFloat = 10
+    private static let chevron = "chevron.right"
+    private static let chevronSize: CGFloat = 11
+    private static let checklistRowHeight: CGFloat = 32
 
     var body: some View {
         let steps = Self.steps(setup)
         let open = steps.first { $0.state != .done }
         let ready = steps.filter { $0.state == .done }.count
-        VStack(alignment: .leading, spacing: Memnox.Spacing.xLarge) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(open == nil ? "Set up" : "Do this next")
-                    .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
-                    .tracking(Self.tracking)
-                    .textCase(.uppercase)
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                Spacer()
-                Text("\(ready) of \(steps.count)")
-                    .font(Memnox.sans(Memnox.TextSize.footnote).monospacedDigit())
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-            }
-            if let open {
-                VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
-                    Text(open.title)
-                        .font(Memnox.sans(Memnox.TextSize.title, .semibold))
-                        .foregroundStyle(Memnox.Palette.ink)
-                    Text(open.hint)
-                        .font(Memnox.sans(Memnox.TextSize.body))
-                        .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Button("Go to \(open.page.title)") { go(open.page) }
-                    .buttonStyle(KitButton(kind: .primary))
-            } else {
-                Text("Everything is ready. Press Option Space from anywhere and ask about your agents.")
-                    .font(Memnox.sans(Memnox.TextSize.body))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.primary))
-            }
-            VStack(alignment: .leading, spacing: Self.checklistSpacing) {
-                ForEach(steps, id: \.title) { step in
-                    Button { go(step.page) } label: {
-                        HStack(spacing: Memnox.Spacing.medium) {
-                            SetupMark(state: step.state)
-                            Text(step.title)
-                                .font(Memnox.sans(Memnox.TextSize.body))
-                                .foregroundStyle(Memnox.ink(step.state == .done ? Memnox.Ink.secondary : Memnox.Ink.primary))
-                            Spacer(minLength: 0)
-                        }
-                        .contentShape(Rectangle())
+        SettingsSection(title: open == nil ? "Set up" : "Do this next") {
+            Text("\(ready) of \(steps.count)")
+                .font(.system(size: SettingsMetrics.captionSize).monospacedDigit())
+                .foregroundStyle(Memnox.Palette.muted)
+        } content: {
+            SettingsCard {
+                if let open {
+                    SettingsRow(symbol: "arrow.forward.circle", title: open.title, caption: open.hint) {
+                        Button("Go to \(open.page.title)") { go(open.page) }.buttonStyle(KitButton(kind: .primary))
                     }
-                    .buttonStyle(.plain)
-                    .pointingHand()
-                    .help("Open \(step.page.title)")
-                    // One spoken line per step, so VoiceOver says where it stands and where it leads.
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(step.title), \(step.state == .done ? "done" : "not done yet")")
-                    .accessibilityHint("Opens \(step.page.title)")
+                } else {
+                    SettingsRow(symbol: "checkmark.circle", title: "Everything is ready",
+                                caption: "Press Option Space from anywhere and ask about your agents.", tint: Memnox.Palette.success)
                 }
-            }
-            if !setup.isFinished {
-                HStack {
-                    Spacer()
-                    // The card's one primary is the open step; Finish takes it over once nothing is left.
-                    Button("Finish setup") { setup.finish() }
-                        .buttonStyle(KitButton(kind: open == nil ? .primary : .secondary))
-                        .disabled(setup.nameState != .done)
-                        .help(setup.nameState == .done ? "Finish and hear Memnox say hello" : "Add your name first")
+                SettingsDivider(full: true)
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(steps, id: \.title) { step in checklistRow(step) }
+                }
+                if !setup.isFinished {
+                    SettingsDivider(full: true)
+                    HStack {
+                        Text(setup.nameState == .done ? "Finish and hear Memnox say hello." : "Add your name first, then finish.")
+                            .font(.system(size: SettingsMetrics.captionSize))
+                            .foregroundStyle(Memnox.Palette.muted)
+                        Spacer()
+                        // The card's one primary is the open step; Finish takes it over once nothing is left.
+                        Button("Finish setup") { setup.finish() }
+                            .buttonStyle(KitButton(kind: open == nil ? .primary : .secondary))
+                            .disabled(setup.nameState != .done)
+                    }
                 }
             }
         }
-        .padding(Memnox.Spacing.xxLarge)
-        .surface()
     }
 
-    /// Each setup step with the page it lives on and what to do when it is still open.
+    private func checklistRow(_ step: OverviewStep) -> some View {
+        Button { go(step.page) } label: {
+            HStack(spacing: Memnox.Spacing.medium) {
+                SetupMark(state: step.state)
+                Text(step.title)
+                    .font(.system(size: SettingsMetrics.rowTextSize))
+                    .foregroundStyle(step.state == .done ? Memnox.Palette.muted : Memnox.Palette.foreground)
+                Spacer(minLength: 0)
+                Text(step.page.title)
+                    .font(.system(size: SettingsMetrics.captionSize))
+                    .foregroundStyle(Memnox.Palette.faint)
+                Image(systemName: Self.chevron)
+                    .font(.system(size: Self.chevronSize, weight: .semibold))
+                    .foregroundStyle(Memnox.Palette.faint)
+            }
+            .frame(height: Self.checklistRowHeight)
+            .contentShape(Rectangle())
+            .hoverLight()
+        }
+        .buttonStyle(.plain)
+        .help("Open \(step.page.title)")
+        // One spoken line per step, so VoiceOver says where it stands and where it leads.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(step.title), \(step.state == .done ? "done" : "not done yet")")
+        .accessibilityHint("Opens \(step.page.title)")
+    }
+
+/// Each setup step with the page it lives on and what to do when it is still open.
     private static func steps(_ setup: SetupModel) -> [OverviewStep] {
         [
             OverviewStep("Tell Memnox your name", setup.nameState, .account, "So it greets you and speaks to you by name."),

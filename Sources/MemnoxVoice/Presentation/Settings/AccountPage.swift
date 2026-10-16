@@ -371,25 +371,17 @@ struct AccountPage: View {
 
 /// The page's measurements, outside the generic views since a generic type cannot hold a static.
 private enum AccountLayout {
-    static let tracking: CGFloat = 1.2
     static let codeSize: CGFloat = 26
     static let codeTracking: CGFloat = 2
 }
 
-/// A quiet uppercase label over a panel of rows, as the overview heads its own groups.
+/// A group's title over its card of rows, as Vorssaint heads its groups.
 private struct AccountGroup<Content: View>: View {
     let title: String
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-            Text(title)
-                .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
-                .tracking(AccountLayout.tracking)
-                .textCase(.uppercase)
-                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                .padding(.leading, Memnox.Spacing.xSmall)
-                .accessibilityAddTraits(.isHeader)
+        SettingsSection(title: title) {
             VStack(spacing: 0) { content() }
                 .surface()
         }
@@ -412,12 +404,12 @@ private struct AccountRow<Control: View>: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     // Wraps rather than cuts off, since a full name and a workspace together can be long.
                     Text(title)
-                        .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                        .foregroundStyle(Memnox.Palette.ink)
+                        .font(.system(size: SettingsMetrics.rowTextSize))
+                        .foregroundStyle(Memnox.Palette.foreground)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(detail)
-                        .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                        .font(.system(size: SettingsMetrics.captionSize))
+                        .foregroundStyle(Memnox.Palette.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: Memnox.Spacing.medium)
@@ -517,22 +509,14 @@ private struct IncludedList: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+        // One row each with its own tile and a rule between, so the three read as three things rather than a paragraph.
+        VStack(alignment: .leading, spacing: SettingsMetrics.cardSpacing) {
             ForEach(Self.lines, id: \.symbol) { line in
-                Label {
-                    Text(line.words)
-                        .font(Memnox.sans(Memnox.TextSize.callout))
-                        .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                        .fixedSize(horizontal: false, vertical: true)
-                } icon: {
-                    Image(systemName: line.symbol)
-                        .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
-                        .accessibilityHidden(true)
-                }
+                if line.symbol != Self.lines.first?.symbol { SettingsDivider() }
+                SettingsRow(symbol: line.symbol, title: line.words)
             }
         }
-        .padding(.horizontal, Memnox.Spacing.xLarge)
-        .padding(.vertical, Memnox.Spacing.large)
+        .padding(SettingsMetrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

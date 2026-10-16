@@ -5,13 +5,13 @@ import SwiftUI
 /// title and a line under it, rows with their icon on a bordered tile, a square checkbox, and one size of button.
 enum Kit {
     static let cardRadius: CGFloat = 16
-    static let cardPadding: CGFloat = 20
-    static let tileSide: CGFloat = 38
-    static let tileRadius: CGFloat = 10
+    static let cardPadding: CGFloat = SettingsMetrics.cardPadding
+    static let tileSide: CGFloat = SettingsMetrics.tileSide
+    static let tileRadius: CGFloat = SettingsMetrics.tileRadius
     static let checkSide: CGFloat = 20
     static let checkRadius: CGFloat = 6
-    /// Every button in the first run is this tall, whether it moves on or acts inside a row.
-    static let buttonHeight: CGFloat = 36
+    /// Every button is this tall, whether it moves on or acts inside a row, as Vorssaint's capsule buttons are.
+    static let buttonHeight: CGFloat = ControlMetrics.height
     static let rowGap: CGFloat = 14
     /// Springs settle with a little give and no wobble.
     static let springDamping = 0.8
@@ -53,8 +53,7 @@ struct KitCard<Content: View>: View {
         }
         .padding(Kit.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(shape.fill(Memnox.Palette.surface))
-        .overlay(shape.strokeBorder(Memnox.ink(Memnox.Ink.rim), lineWidth: Memnox.Stroke.hairline))
+        .background(shape.fill(Memnox.Palette.card))
     }
 }
 
@@ -112,30 +111,16 @@ extension KitRow where Leading == IconTile {
     }
 }
 
-/// A symbol on a small rounded tile with a hairline border, as voiceos marks each action.
-struct IconTile: View {
-    let symbol: String
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Kit.tileRadius, style: .continuous)
-        Image(systemName: symbol)
-            .font(.system(size: Memnox.TextSize.callout, weight: .medium))
-            .foregroundStyle(Memnox.ink(Memnox.Ink.primary))
-            .frame(width: Kit.tileSide, height: Kit.tileSide)
-            .background(shape.fill(Memnox.Palette.raised))
-            .overlay(shape.strokeBorder(Memnox.ink(Memnox.Ink.edge), lineWidth: Memnox.Stroke.hairline))
-            .accessibilityHidden(true)
-    }
-}
-
-/// The Memnox mark on the same bordered tile, for a row about Memnox itself rather than one of its parts.
+/// The Memnox mark on the same tile as `IconTile`, for a row about Memnox itself rather than one of its parts.
 struct MemnoxTile: View {
+    /// The mark fills a little over half the tile, as a tile's symbol does.
+    private static let markShare: CGFloat = 0.6
+
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Kit.tileRadius, style: .continuous)
-        LogoMark(size: Kit.tileSide * 0.5)
-            .frame(width: Kit.tileSide, height: Kit.tileSide)
-            .background(shape.fill(Memnox.Palette.raised))
-            .overlay(shape.strokeBorder(Memnox.ink(Memnox.Ink.edge), lineWidth: Memnox.Stroke.hairline))
+        LogoMark(size: SettingsMetrics.tileSide * Self.markShare)
+            .frame(width: SettingsMetrics.tileSide, height: SettingsMetrics.tileSide)
+            .background(Memnox.Palette.primary.opacity(SettingsMetrics.tileTint),
+                        in: RoundedRectangle(cornerRadius: SettingsMetrics.tileRadius, style: .continuous))
             .accessibilityHidden(true)
     }
 }
@@ -221,7 +206,7 @@ private struct KitButtonFace: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hovering = false
 
-    private static let horizontalPadding: CGFloat = 18
+    private static let horizontalPadding: CGFloat = ControlMetrics.horizontalPadding
     private static let pressedScale: CGFloat = 0.97
     private static let disabledOpacity = 0.4
     private static let glassFill = 0.1
@@ -232,8 +217,8 @@ private struct KitButtonFace: View {
     var body: some View {
         configuration.label
             .labelStyle(KitLabel())
-            .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-            .foregroundStyle(text)
+            .font(.system(size: ControlMetrics.textSize, weight: kind == .primary ? .semibold : .regular))
+            .foregroundStyle(isEnabled ? text : Memnox.Palette.faint)
             .lineLimit(1)
             .padding(.horizontal, Self.horizontalPadding)
             .frame(height: Kit.buttonHeight)
@@ -242,7 +227,7 @@ private struct KitButtonFace: View {
             .overlay(Capsule().fill(Memnox.ink(kind != .primary && hovering ? Self.hoverWash : 0)))
             .overlay(Capsule().strokeBorder(edge, lineWidth: Memnox.Stroke.hairline))
             .contentShape(Capsule())
-            .opacity(isEnabled ? 1 : Self.disabledOpacity)
+            .opacity(isEnabled || kind != .primary ? 1 : Self.disabledOpacity)
             // With Reduce Motion on, a press only dims, since the give of the spring is movement.
             .scaleEffect(configuration.isPressed && !reduceMotion ? Self.pressedScale : 1)
             .animation(reduceMotion ? nil : .spring(response: Memnox.Motion.quick, dampingFraction: Kit.springDamping), value: configuration.isPressed)
@@ -254,16 +239,16 @@ private struct KitButtonFace: View {
 
     private var text: Color {
         switch kind {
-        case .primary: return IslandPalette.primaryText
-        case .secondary: return Memnox.Palette.ink
+        case .primary: return Color.white
+        case .secondary: return Memnox.Palette.foreground
         case .glass: return Color.white
         }
     }
 
     private var fill: Color {
         switch kind {
-        case .primary: return IslandPalette.primaryFill
-        case .secondary: return Memnox.Palette.raised
+        case .primary: return Memnox.Palette.primary
+        case .secondary: return Memnox.Palette.secondary.opacity(isEnabled ? 1 : ControlMetrics.disabledFill)
         case .glass: return Color.white.opacity(Self.glassFill)
         }
     }
@@ -271,41 +256,26 @@ private struct KitButtonFace: View {
     private var edge: Color {
         switch kind {
         case .primary: return .clear
-        case .secondary: return Memnox.ink(Memnox.Ink.edge)
+        case .secondary: return Memnox.Palette.controlEdge
         case .glass: return Color.white.opacity(Memnox.Ink.edge * 2)
         }
     }
 }
 
-/// A picker in the shape of a field, as voiceos picks a voice: the choice on the left and a chevron on the right.
+/// A picker as Vorssaint draws a select: the choice on a capsule with the up and down chevrons after it.
 struct KitMenu<Items: View>: View {
     let current: String
+    /// The widest the capsule grows; it hugs its words when they are shorter.
     var width: CGFloat = 200
     @ViewBuilder let items: () -> Items
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Kit.tileRadius, style: .continuous)
-        Menu { items() } label: {
-            HStack {
-                Text(current)
-                    .font(Memnox.sans(Memnox.TextSize.body, .medium))
-                    .foregroundStyle(Memnox.Palette.ink)
-                    .lineLimit(1)
-                Spacer(minLength: Memnox.Spacing.small)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: Memnox.TextSize.caption, weight: .semibold))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-            }
-            .padding(.horizontal, Memnox.Spacing.large)
-            .frame(width: width, height: Kit.buttonHeight)
-            .background(shape.fill(Memnox.Palette.raised))
-            .overlay(shape.strokeBorder(Memnox.ink(Memnox.Ink.edge), lineWidth: Memnox.Stroke.hairline))
-            .contentShape(shape)
-        }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .pointingHand()
-        .menuIndicator(.hidden)
+        Menu { items() } label: { SelectFace(text: current, maximumWidth: width) }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .pointingHand()
+            .menuIndicator(.hidden)
+            .fixedSize()
     }
 }
 
@@ -319,28 +289,32 @@ struct KitLabel: LabelStyle {
     }
 }
 
-/// The face every text field shares: as tall as a button, so a field never looks thinner than the button beside it,
-/// with room inside for the words and a border that firms up while it has the keyboard.
+/// The face every text field shares, as Vorssaint draws an input: as tall as a button, so a field never looks thinner
+/// than the button beside it, white in the light and a step up from the card in the dark, with the blue ring while it
+/// has the keyboard.
 struct KitField: ViewModifier {
-    var focused = false
+    /// Held here so every field shows its focus without its caller tracking it.
+    @FocusState private var focused: Bool
 
-    private static let horizontalPadding: CGFloat = 12
-    private static let radius: CGFloat = 9
-    private static let restingEdge = 0.1
+    private static let horizontalPadding: CGFloat = 10
+    private static let radius: CGFloat = 7
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
         content
             .textFieldStyle(.plain)
-            .font(Memnox.sans(Memnox.TextSize.callout))
+            .focused($focused)
+            .font(.system(size: ControlMetrics.textSize))
             .foregroundStyle(Memnox.Palette.foreground)
             .padding(.horizontal, Self.horizontalPadding)
             .frame(minHeight: Kit.buttonHeight)
-            .background(shape.fill(Memnox.ink(Memnox.Ink.faintFill)))
-            .overlay(shape.strokeBorder(Memnox.ink(focused ? Memnox.Ink.secondary : Self.restingEdge), lineWidth: Memnox.Stroke.hairline))
+            .background(shape.fill(Memnox.Palette.raised))
+            // Focus only turns the hairline blue, so the field never grows a thicker ring.
+            .overlay(shape.strokeBorder(focused ? Memnox.Palette.primary : Memnox.Palette.controlEdge,
+                                        lineWidth: Memnox.Stroke.hairline))
     }
 }
 
 extension View {
-    func kitField(focused: Bool = false) -> some View { modifier(KitField(focused: focused)) }
+    func kitField() -> some View { modifier(KitField()) }
 }

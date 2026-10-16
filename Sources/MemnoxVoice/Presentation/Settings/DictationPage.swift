@@ -13,8 +13,6 @@ struct DictationPage: View {
     @State private var written = ""
 
     private enum Layout {
-        /// The same tracking as every other group label in the window.
-        static let tracking: CGFloat = 1.2
         static let fieldWidth: CGFloat = 200
         /// A history row shows this many lines of what was written before it is cut short.
         static let historyLines = 3
@@ -23,31 +21,33 @@ struct DictationPage: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
-            group("Dictate") {
-                SwitchRow(symbol: MenuSymbol.dictation, title: "Dictate anywhere",
-                          detail: "Hold the right Option key and speak, or tap it twice to keep going hands free",
-                          isOn: $dictation)
-                MenuDivider()
-                // Both only matter while dictation is on, so they rest greyed out with it off.
-                Group {
-                    SwitchRow(symbol: "text.cursor", title: "Type as I speak",
-                              detail: "Words appear at the cursor while you talk, and are tidied once you finish",
-                              isOn: $live)
-                    MenuDivider()
-                    SwitchRow(symbol: "sparkles", title: "Polish with Claude Code",
-                              detail: "Your own Claude Code tidies false starts and layout, and lets you edit selected text by voice. Off, the Mac tidies it alone.",
-                              isOn: $polish)
+        VStack(alignment: .leading, spacing: SettingsMetrics.pageSpacing) {
+            SettingsSection(title: "Dictate") {
+                SettingsCard {
+                    SwitchRow(symbol: MenuSymbol.dictation, title: "Dictate anywhere",
+                              detail: "Hold the right Option key and speak, or tap it twice to keep going hands free.",
+                              isOn: $dictation)
+                    SettingsDivider()
+                    // Both only matter while dictation is on, so they rest greyed out with it off.
+                    Group {
+                        SwitchRow(symbol: "text.cursor", title: "Type as I speak",
+                                  detail: "Words appear at the cursor while you talk, and are tidied once you finish.",
+                                  isOn: $live)
+                        SettingsDivider()
+                        SwitchRow(symbol: "sparkles", title: "Polish with Claude Code",
+                                  detail: "Your own Claude Code tidies false starts and layout, and lets you edit selected text by voice. Off, the Mac tidies it alone.",
+                                  isOn: $polish)
+                    }
+                    .disabled(!dictation)
+                    .opacity(dictation ? 1 : Layout.restingOpacity)
                 }
-                .disabled(!dictation)
-                .opacity(dictation ? 1 : Layout.restingOpacity)
             }
             group("Your words") {
                 addRow
                 if store.dictionary.words.isEmpty {
                     Text("Names and words Memnox should spell your way, such as a teammate's name or ORB. Fixes you make right after dictating are learned here too.")
-                        .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                        .font(.system(size: SettingsMetrics.captionSize))
+                        .foregroundStyle(Memnox.Palette.muted)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, Memnox.Spacing.xLarge)
                         .padding(.bottom, Memnox.Spacing.large)
@@ -61,8 +61,8 @@ struct DictationPage: View {
             group("Lately") {
                 if store.history.entries.isEmpty {
                     Text("What you dictate shows here, so a dictation that went nowhere can be copied again.")
-                        .font(Memnox.sans(Memnox.TextSize.callout))
-                        .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                        .font(.system(size: SettingsMetrics.rowTextSize))
+                        .foregroundStyle(Memnox.Palette.muted)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, Memnox.Spacing.xLarge)
                         .padding(.vertical, Memnox.Spacing.large)
@@ -150,14 +150,7 @@ struct DictationPage: View {
     }
 
     private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-            Text(title)
-                .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
-                .tracking(Layout.tracking)
-                .textCase(.uppercase)
-                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                .padding(.leading, Memnox.Spacing.xSmall)
-                .accessibilityAddTraits(.isHeader)
+        SettingsSection(title: title) {
             VStack(spacing: 0) { content() }
                 .padding(.vertical, Memnox.Spacing.xSmall)
                 .surface()

@@ -77,6 +77,9 @@ public enum DaemonMethod: String, Sendable {
     case polishWarm = "polish-warm"
     /// The person's own words typed into one session, signed over followUpMessage; the brain never reads them.
     case followUp = "follow-up"
+    /// The person's own app accounts connected through Memnox Cloud, such as their mail and their chat, each with
+    /// whether it works now; refused while this Mac has no person signed in.
+    case connectionsList = "connections-list"
 }
 
 public enum EventKind: String, Sendable {
@@ -1239,6 +1242,21 @@ public struct VoiceAgentStatus: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
+/// One of the person's own tools as the cloud holds it: the toolkit's slug, and whether a sign in to it works now.
+public struct ToolConnection: Decodable, Equatable, Identifiable, Sendable {
+    /// The cloud's lowercase toolkit slug, such as gmail, slack or github.
+    public let toolkit: String
+    /// False for a sign in that is pending, expired, failed or turned off.
+    public let connected: Bool
+
+    public var id: String { toolkit }
+
+    public init(toolkit: String, connected: Bool) {
+        self.toolkit = toolkit
+        self.connected = connected
+    }
+}
+
 /// Where a session's agent runs, for bringing its window forward.
 public struct DaemonLocation: Decodable, Equatable, Sendable {
     public let sessionId: String
@@ -1298,6 +1316,8 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let audio: AudioChunk?
     /// On home: the five blocks, as the runtime's home.ts gathers them.
     public let home: DaemonHome?
+    /// On connections-list: one per tool the person signed in to, sorted by tool.
+    public let connections: [ToolConnection]?
     /// On hand-over: the rule proposal the person now confirms, by its id.
     public let proposed: String?
     /// On person, person-sign-in and person-sign-out: where the daemon's own sign in stands.

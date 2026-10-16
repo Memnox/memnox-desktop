@@ -268,6 +268,14 @@ public final class Conversation {
         return .refused(response.error ?? "This Memnox is older than the app")
     }
 
+    /// The person's own connected tools, for the menu and the notch to show.
+    public func connections() async -> ConnectionsAnswer {
+        guard let response = try? await link.request(newRequest(.connectionsList)) else { return .unreachable }
+        if response.ok, let connections = response.connections { return .connections(connections) }
+        // An older daemon answers a method it does not know with a bare ok and no connections.
+        return .refused(response.reason ?? response.error ?? "This Memnox is older than the app")
+    }
+
     /// The person started talking: the brain starts now, so the answer skips its cold start.
     public func warm() async {
         _ = try? await link.request(newRequest(.warm))

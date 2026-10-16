@@ -487,6 +487,24 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(answer, .refused("Codex is not installed on this Mac"))
     }
 
+    func testReadsThePersonsConnectedToolsWithWhetherEachWorks() async throws {
+        link.answers["connections-list"] = [try line(#"{"id":1,"ok":true,"connections":[{"toolkit":"github","connected":true},{"toolkit":"slack","connected":false}]}"#)]
+        let answer = await conversation.connections()
+        XCTAssertEqual(answer, .connections([ToolConnection(toolkit: "github", connected: true), ToolConnection(toolkit: "slack", connected: false)]))
+    }
+
+    func testSaysWhyTheConnectedToolsCannotBeRead() async throws {
+        link.answers["connections-list"] = [try line(#"{"id":1,"ok":false,"reason":"Sign in to Memnox Cloud to see your tools"}"#)]
+        let answer = await conversation.connections()
+        XCTAssertEqual(answer, .refused("Sign in to Memnox Cloud to see your tools"))
+    }
+
+    func testCallsADaemonWithNoConnectionsOlderRatherThanEmpty() async throws {
+        link.answers["connections-list"] = [try line(#"{"id":1,"ok":true}"#)]
+        let answer = await conversation.connections()
+        XCTAssertEqual(answer, .refused("This Memnox is older than the app"))
+    }
+
     func testCallsADaemonWithNoVoiceAgentsOlderRatherThanEmpty() async throws {
         link.answers["voice-agents"] = [try line(#"{"id":1,"ok":true}"#)]
         let answer = await conversation.voiceAgents()

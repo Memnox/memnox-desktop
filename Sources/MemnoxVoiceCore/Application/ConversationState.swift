@@ -29,6 +29,14 @@ public enum VoiceAgentsAnswer: Equatable, Sendable {
     case unreachable
 }
 
+/// The person's connected tools, or why they could not be read.
+public enum ConnectionsAnswer: Equatable, Sendable {
+    case connections([ToolConnection])
+    /// It answered no, with why: nobody signed in as a person, the cloud said no, or a daemon too old to know.
+    case refused(String)
+    case unreachable
+}
+
 /// What became of handing the home's ready action over: a rule proposal now waiting on the person, or why not.
 public enum HandOver: Equatable, Sendable {
     /// The proposal's id; it arrives on the stream and is confirmed where it holds with Touch ID, like any rule.

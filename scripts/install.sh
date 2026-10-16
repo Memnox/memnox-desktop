@@ -8,7 +8,6 @@
 set -eu
 
 REPO="Memnox/memnox-macos"
-URL="${MEMNOX_DMG_URL:-https://github.com/$REPO/releases/latest/download/Memnox.dmg}"
 APP_NAME="Memnox.app"
 BUNDLE_ID="com.memnox.voice"
 MIN_MACOS=14
@@ -20,6 +19,14 @@ fail() { printf 'memnox install: %s\n' "$1" >&2; exit 1; }
 [ "$(uname -m)" = arm64 ] || fail "this preview runs on Apple silicon Macs only."
 MAJOR="$(sw_vers -productVersion | cut -d. -f1)"
 [ "$MAJOR" -ge "$MIN_MACOS" ] || fail "Memnox needs macOS $MIN_MACOS or later."
+
+# The newest release, a preview included, since GitHub's own latest address skips every release marked as a preview.
+newest() {
+  curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=1" \
+    | grep -o '"browser_download_url": *"[^"]*/Memnox\.dmg"' | head -1 | sed 's/.*"\(https[^"]*\)"$/\1/'
+}
+URL="${MEMNOX_DMG_URL:-$(newest || true)}"
+[ -n "$URL" ] || fail "could not find a release of Memnox to install."
 
 WORK="$(mktemp -d)"
 MOUNT="$WORK/mount"

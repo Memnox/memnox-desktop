@@ -105,6 +105,12 @@ final class IslandPanel: NSPanel, Face {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.place() }
         }
+        NotificationCenter.default.addObserver(forName: IslandScreens.changed, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.place()
+                self?.side?.place()
+            }
+        }
         // A click anywhere else puts the open island away; clicks on the island itself are not global.
         clicks = EventMonitor.global([.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             MainActor.assumeIsolated { self?.closeIsland() }
@@ -595,17 +601,29 @@ final class IslandPanel: NSPanel, Face {
         DispatchQueue.main.async { [self] in model.shakes += 1 }
     }
 
-    /// Pinned to the top centre of the screen with the notch, or the main one on a Mac without.
+    /// Pinned to the top centre of the screen chosen in Settings, the one with the notch unless the person chose another.
     @MainActor private func place() {
-        guard let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main else { return }
+        guard let screen = IslandScreens.host(open: isOpen) else { return }
         let notch = NotchGeometry.of(screen)
         if model.notch != notch { model.notch = notch }
         let origin = NSPoint(x: screen.frame.midX - Island.window.width / 2, y: screen.frame.maxY - Island.window.height)
-        setFrame(NSRect(origin: origin, size: Island.window), display: false)
+        let placed = NSRect(origin: origin, size: Island.window)
+        if frame != placed { setFrame(placed, display: false) }
+    }
+
+    /// Showing something, or with the side panel out, so following the pointer waits rather than moving it away.
+    @MainActor private var isOpen: Bool {
+        model.active || model.sideOpen || !(model.mode == .peek || model.mode == .compact)
     }
 
     /// Every frame: lets clicks through outside the island, opens it on a dwell, and closes it after a minute untouched.
     @MainActor private func follow() {
+        // Only a pointer that left the island's screen costs a look at the screens, so following it stays cheap.
+        if IslandScreens.choice == .pointer, !isOpen, let here = IslandScreens.current,
+           !IslandScreens.holds(NSEvent.mouseLocation, here) {
+            place()
+            side?.place()
+        }
         let size = model.size(of: model.mode)
         let shape = NSRect(
             x: frame.midX - size.width / 2 - Island.flare, y: frame.maxY - size.height,

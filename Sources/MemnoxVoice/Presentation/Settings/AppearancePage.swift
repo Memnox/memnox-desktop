@@ -1,6 +1,8 @@
+import MemnoxVoiceCore
 import SwiftUI
 
-/// Light, Dark or System, chosen by picture, with a line saying the notch stays dark whichever is picked.
+/// Light, Dark or System, chosen by picture, with a line saying the notch stays dark whichever is picked, and the
+/// display the island hangs from.
 struct AppearancePage: View {
     @AppStorage(Appearance.key) private var chosen = Appearance.system.rawValue
 
@@ -17,7 +19,76 @@ struct AppearancePage: View {
                 .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, Memnox.Spacing.xSmall)
+            IslandScreenPicker()
+                .surface()
         }
+    }
+}
+
+/// Which display the island hangs from: the notch, wherever the pointer is, or one display by name, for a MacBook
+/// closed on a monitor or a desk with more than one screen.
+struct IslandScreenPicker: View {
+    @AppStorage(IslandScreens.key) private var stored = IslandScreen.notch.stored
+
+    private static let chevronSymbol = "chevron.up.chevron.down"
+    private static let chevronSize: CGFloat = 9
+    private static let notchLabel = "With the notch"
+    private static let pointerLabel = "Where the pointer is"
+    private static let unnamedLabel = "A display"
+
+    /// The connected displays by name, read each time the menu is drawn so a monitor plugged in since shows.
+    private var displays: [(id: String, name: String)] {
+        NSScreen.screens.compactMap { screen in IslandScreens.id(of: screen).map { ($0, screen.localizedName) } }
+    }
+
+    var body: some View {
+        HStack(spacing: Memnox.Spacing.large) {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
+                Text("Island display")
+                    .font(Memnox.sans(Memnox.TextSize.body, .semibold))
+                    .foregroundStyle(Memnox.ink(Memnox.Ink.primary))
+                Text("The screen the island hangs from. A display that is unplugged hands it back to the notch.")
+                    .font(Memnox.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: Memnox.Spacing.large)
+            Menu {
+                Button(Self.notchLabel) { pick(.notch) }
+                Button(Self.pointerLabel) { pick(.pointer) }
+                let shown = displays
+                if !shown.isEmpty { Divider() }
+                ForEach(shown, id: \.id) { display in
+                    Button(display.name) { pick(.display(display.id)) }
+                }
+            } label: {
+                HStack(spacing: Memnox.Spacing.small) {
+                    Text(current).font(Memnox.sans(Memnox.TextSize.body)).foregroundStyle(Memnox.ink(Memnox.Ink.primary))
+                    Image(systemName: Self.chevronSymbol)
+                        .font(.system(size: Self.chevronSize))
+                        .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                }
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .pointingHand()
+            .menuIndicator(.hidden)
+            .fixedSize()
+        }
+        .padding(Memnox.Spacing.xLarge)
+    }
+
+    private var current: String {
+        switch IslandScreen(stored: stored) {
+        case .notch: Self.notchLabel
+        case .pointer: Self.pointerLabel
+        case .display(let id): displays.first { $0.id == id }?.name ?? Self.unnamedLabel
+        }
+    }
+
+    private func pick(_ choice: IslandScreen) {
+        stored = choice.stored
+        IslandScreens.choose(choice)
     }
 }
 

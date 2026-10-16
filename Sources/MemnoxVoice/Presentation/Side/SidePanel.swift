@@ -102,9 +102,9 @@ final class SidePanel: NSPanel {
         if isKeyWindow { resignKey() }
     }
 
-    /// At the middle of the left edge of the screen with the notch, or the main one on a Mac without.
-    private func place() {
-        let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main
+    /// At the middle of the left edge of the island's screen, so the two always share one display.
+    func place() {
+        let screen = IslandScreens.current ?? IslandScreens.host(open: false)
         guard let visible = screen?.visibleFrame else { return }
         let height = min(visible.height - 2 * Layout.margin, Layout.tallest)
         // Centred on the screen's height, so it sits level with the eye rather than hanging from the menu bar.

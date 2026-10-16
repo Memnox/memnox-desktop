@@ -27,6 +27,15 @@ final class HomeProtocolTests: XCTestCase {
         XCTAssertEqual(home.notCovered, HomeNotCovered(unprotected: 2, dormant: 1))
     }
 
+    func testReadsWhatNeedsThePersonWordForWord() throws {
+        let response = try line(#"{"id":10,"ok":true,"home":{"machine":"m","mode":"observe","waiting":0,"working":[],"today":{"actions":0,"asked":0,"allowed":0,"refused":0},"notCovered":{"unprotected":0,"dormant":0},"needsYou":["Restart OpenClaw, which loads the Memnox plugin only when it starts."]}}"#)
+        XCTAssertEqual(response.home?.needsYou, ["Restart OpenClaw, which loads the Memnox plugin only when it starts."])
+    }
+
+    func testAnOlderDaemonSaysNothingNeedsThePerson() throws {
+        XCTAssertNil(try XCTUnwrap(try line(withoutReady).home).needsYou)
+    }
+
     func testReadsAHomeWithNothingReady() throws {
         let home = try XCTUnwrap(try line(withoutReady).home)
         XCTAssertNil(home.ready)

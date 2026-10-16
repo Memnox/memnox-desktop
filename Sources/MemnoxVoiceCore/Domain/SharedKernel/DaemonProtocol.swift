@@ -1416,9 +1416,11 @@ public struct DaemonHome: Decodable, Equatable, Sendable {
     /// Absent while nothing has been said yes to often enough, and never refused, to run on its own.
     public let ready: HomeReady?
     public let notCovered: HomeNotCovered
+    /// What only the person can do for what is here to be in force, word for word; absent when nothing is owed.
+    public let needsYou: [String]?
 
     public init(machine: String, mode: String, waiting: Int, working: [HomeWorking], today: HomeToday,
-                ready: HomeReady? = nil, notCovered: HomeNotCovered) {
+                ready: HomeReady? = nil, notCovered: HomeNotCovered, needsYou: [String]? = nil) {
         self.machine = machine
         self.mode = mode
         self.waiting = waiting
@@ -1426,6 +1428,7 @@ public struct DaemonHome: Decodable, Equatable, Sendable {
         self.today = today
         self.ready = ready
         self.notCovered = notCovered
+        self.needsYou = needsYou
     }
 }
 

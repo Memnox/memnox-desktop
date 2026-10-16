@@ -104,14 +104,14 @@ public enum SessionText {
 }
 
 extension SessionCard {
-    /// What it is on, which is what tells two sessions of the same agent apart.
-    public var title: String { task ?? repository ?? agentName }
+    /// What it is on, which is what tells two sessions of the same agent apart, with terminal glyphs taken out.
+    public var title: String { SessionReading.readable(task) ?? SessionReading.repository(repository) ?? agentName }
 
     /// The agent, where it is if the title did not say, and how lately it did anything.
     public func subtitle(now: Date) -> String {
         var parts: [String] = []
         if title != agentName { parts.append(agentName) }
-        if let repository, repository != title { parts.append(repository) }
+        if let repository = SessionReading.repository(repository), repository != title { parts.append(repository) }
         parts.append(status.isActive ? SessionText.workingWord : SessionText.ago(lastActive, now: now) ?? state)
         return parts.joined(separator: SessionText.separator)
     }

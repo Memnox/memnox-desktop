@@ -11,7 +11,7 @@ public enum SessionDetailText {
 
     /// The repository and the app it runs in, which is what tells two sessions of one agent apart.
     public static func place(of session: SessionView) -> String? {
-        let parts = [session.repository, session.runningIn].compactMap { $0 }.filter { !$0.isEmpty }
+        let parts = [SessionReading.repository(session.repository), session.runningIn].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: SessionText.separator)
     }
 

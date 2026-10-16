@@ -7,6 +7,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     case permissions
     case connection
     case phones
+    case tools
     case appearance
     case voice
     case listening
@@ -20,6 +21,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         (nil, [.overview]),
         ("You", [.account]),
         ("This Mac", [.permissions, .connection, .phones, .appearance]),
+        ("Agents and tools", [.tools]),
         ("Voice", [.voice, .listening, .dictation]),
         ("Support", [.help]),
     ]
@@ -31,6 +33,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .permissions: return "Permissions"
         case .connection: return "Connection"
         case .phones: return "Phones"
+        case .tools: return "Connected tools"
         case .appearance: return "Appearance"
         case .voice: return "Voice"
         case .listening: return "Listening"
@@ -47,6 +50,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .permissions: return "What this Mac lets Memnox hear, type and see."
         case .connection: return "The Memnox service your agents talk to, and the key Touch ID signs with."
         case .phones: return "Phones paired with this Mac and what each may do."
+        case .tools: return "The agents on this Mac and the apps Memnox can act in as you."
         case .appearance: return "Light, dark, or the same as this Mac."
         case .voice: return "Who thinks for the voice, and the voice it answers in."
         case .listening: return "When Memnox listens and how it speaks up."
@@ -62,6 +66,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .permissions: return "lock.shield"
         case .connection: return "bolt.horizontal.circle"
         case .phones: return "iphone"
+        case .tools: return "square.grid.2x2"
         case .appearance: return "circle.lefthalf.filled"
         case .voice: return "person.wave.2"
         case .listening: return "ear"

@@ -20,6 +20,8 @@ final class MenuModel: ObservableObject {
     @Published var overview = MenuOverview()
     /// The Kokoro voice saved, so the voice menu ticks the one speaking.
     @Published var kokoroVoice = KokoroVoice.chosen().voice
+    /// The agents and connected apps, shared with the notch and Settings.
+    let tools: ToolsModel
     let talk: () -> Void
     let setWake: (Bool) -> Void
     let setSpeakUp: (Bool) -> Void
@@ -63,8 +65,10 @@ final class MenuModel: ObservableObject {
         revoke: @escaping (Device) -> Void,
         letDrive: @escaping (Device, Bool) -> Void,
         loadDevices: @escaping () -> Void,
-        loadOverview: @escaping () -> Void = {}
+        loadOverview: @escaping () -> Void = {},
+        tools: ToolsModel? = nil
     ) {
+        self.tools = tools ?? ToolsModel()
         self.wakeOn = wakeOn
         self.talk = talk
         self.setWake = setWake
@@ -178,6 +182,7 @@ final class MenuBarPanel: NSObject {
         host.rootView.model.kokoroVoice = KokoroVoice.chosen().voice
         host.rootView.model.loadDevices()
         host.rootView.model.loadOverview()
+        host.rootView.model.tools.refresh()
         watchForDismissal()
     }
 
@@ -213,8 +218,6 @@ struct MenuView: View {
 
     private enum Layout {
         static let cornerRadius: CGFloat = 22
-        static let edgeInk = 0.07
-        static let glassWash = 0.45
         static let logoSize: CGFloat = 24
         static let titleSize: CGFloat = 21
         static let dotSize: CGFloat = 6
@@ -227,6 +230,11 @@ struct MenuView: View {
         let shape = RoundedRectangle(cornerRadius: Layout.cornerRadius, style: .continuous)
         VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
             header
+            MenuTools(tools: model.tools) {
+                close()
+                SettingsWindow.shared.show(.tools)
+            }
+            .settling(model.opened, order: 0)
             VStack(spacing: Memnox.Spacing.xxSmall) {
                 MenuRow(symbol: MenuSymbol.talk, title: "Talk to Memnox", keys: ["\u{2325}", "Space"]) {
                     close()
@@ -253,15 +261,17 @@ struct MenuView: View {
                     NSApp.terminate(nil)
                 }
             }
-            .settling(model.opened, order: 0)
+            .padding(Memnox.Spacing.xSmall)
+            .menuCard()
+            .settling(model.opened, order: 1)
         }
         .padding(Memnox.Spacing.large)
         .frame(width: Self.width)
-        // Glass with a wash of the page's own colour over it, so the desktop shows through without whitening it.
-        .background(Memnox.Palette.background.opacity(Layout.glassWash))
-        .background(Glass(material: .popover, cornerRadius: Layout.cornerRadius, alwaysDark: false))
+        // Vorssaint's panel: the system material with a steady wash, so text never depends on the wallpaper behind.
+        .background(MenuPanelStyle.wash)
+        .background(.regularMaterial)
         .clipShape(shape)
-        .overlay(shape.strokeBorder(Memnox.ink(Layout.edgeInk), lineWidth: Memnox.Stroke.hairline))
+        .overlay(shape.strokeBorder(SurfaceStyle.border, lineWidth: SurfaceStyle.borderWidth))
     }
 
     private func showSettings() {
@@ -299,17 +309,17 @@ struct MenuView: View {
     }
 }
 
-/// A section's name in small capitals, quiet enough that the cards under it stay what the eye reads.
+/// A section's name in small capitals, as Vorssaint names its panel's sections.
 struct MenuHeading: View {
     let title: String
 
-    private static let tracking: CGFloat = 0.6
+    private static let tracking: CGFloat = 0.5
 
     var body: some View {
         Text(title.uppercased())
-            .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
-            .tracking(Self.tracking)
-            .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
+            .font(.system(size: Memnox.TextSize.micro, weight: .semibold))
+            .kerning(Self.tracking)
+            .foregroundStyle(.secondary)
             .padding(.horizontal, Memnox.Spacing.xSmall)
             .accessibilityAddTraits(.isHeader)
     }
@@ -360,44 +370,26 @@ struct MenuRow: View {
     }
 }
 
-/// A setting that is on or off: an icon, a label with a line under it, and a switch.
+/// A setting that is on or off, as a Vorssaint row: a tinted tile, a label with a line under it, and the Mac's own switch.
 struct SwitchRow: View {
     let symbol: String
     let title: String
     let detail: String
     @Binding var isOn: Bool
 
-    private static let verticalPadding: CGFloat = 9
+    @Environment(\.isEnabled) private var enabled
 
     var body: some View {
-        HStack(spacing: MenuLayout.iconSpacing) {
-            Image(systemName: symbol)
-                .font(.system(size: Memnox.TextSize.body, weight: .medium))
-                .foregroundStyle(Memnox.ink(isOn ? MenuLayout.litInk : MenuLayout.dimInk))
-                .frame(width: MenuLayout.iconColumnWidth)
-            VStack(alignment: .leading, spacing: MenuLayout.titleDetailSpacing) {
-                Text(title)
-                    .font(Memnox.sans(Memnox.TextSize.body, .medium))
-                    .foregroundStyle(Memnox.Palette.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                // Wraps, since a long detail cut off mid sentence hides what the switch does.
-                Text(detail)
-                    .font(Memnox.sans(Memnox.TextSize.caption))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: Memnox.Spacing.medium)
+        SettingsRow(symbol: symbol, title: title, caption: detail) {
             Toggle(title, isOn: $isOn)
                 .toggleStyle(MemnoxSwitch())
                 .labelsHidden()
                 .accessibilityHint(detail)
         }
-        .padding(.horizontal, MenuLayout.rowInset)
-        .padding(.vertical, Self.verticalPadding)
-        .frame(minHeight: MenuLayout.settingRowHeight)
+        // The whole row flips the switch, lit under the pointer with the hand showing, as it always has.
         .contentShape(Rectangle())
-        .onTapGesture { isOn.toggle() }
-        .pointingHand()
+        .onTapGesture { if enabled { isOn.toggle() } }
+        .hoverLight()
     }
 }
 
@@ -407,31 +399,11 @@ struct DeviceRow: View {
     let revoke: () -> Void
     let letDrive: (Bool) -> Void
 
-    private static let verticalPadding: CGFloat = 9
-
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: MenuLayout.iconSpacing) {
-                Image(systemName: MenuSymbol.phone)
-                    .font(.system(size: Memnox.TextSize.body, weight: .medium))
-                    .foregroundStyle(Memnox.ink(MenuLayout.litInk))
-                    .frame(width: MenuLayout.iconColumnWidth)
-                VStack(alignment: .leading, spacing: MenuLayout.titleDetailSpacing) {
-                    Text(device.name)
-                        .font(Memnox.sans(Memnox.TextSize.body, .medium))
-                        .foregroundStyle(Memnox.Palette.ink)
-                        .lineLimit(1)
-                    Text(detail)
-                        .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
-                        .lineLimit(1)
-                }
-                Spacer(minLength: Memnox.Spacing.medium)
-                Button("Revoke", action: revoke).buttonStyle(IslandButton(primary: false))
+        VStack(spacing: SettingsMetrics.cardSpacing) {
+            SettingsRow(symbol: MenuSymbol.phone, title: device.name, caption: detail) {
+                Button("Revoke", action: revoke)
             }
-            .padding(.horizontal, MenuLayout.rowInset)
-            .padding(.vertical, Self.verticalPadding)
-            .frame(minHeight: MenuLayout.settingRowHeight)
             // On asks for Touch ID since it widens what the phone can do; off goes straight through and ends any drive.
             SwitchRow(
                 symbol: MenuSymbol.drive,
@@ -548,6 +520,111 @@ private struct Settle: ViewModifier {
                 LinearKeyframe(0.0, duration: Timing.instant + Timing.stagger * Double(order))
                 SpringKeyframe(1.0, duration: Timing.settle, spring: .smooth)
             }
+    }
+}
+
+/// Vorssaint's menu panel surfaces: the wash over the material, and the card each group of rows sits on.
+enum MenuPanelStyle {
+    static let wash = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(white: 0, alpha: 0.42) : NSColor(white: 1, alpha: 0.68)
+    })
+    static let cardFill = Color(nsColor: NSColor(name: nil) { appearance in
+        NSColor(white: 1, alpha: appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? 0.075 : 0.38)
+    })
+    static let cardRadius: CGFloat = 10
+}
+
+extension View {
+    /// A group of the menu's rows on Vorssaint's panel card: a faint fill and the shared outline.
+    func menuCard() -> some View {
+        let shape = RoundedRectangle(cornerRadius: MenuPanelStyle.cardRadius, style: .continuous)
+        return background(MenuPanelStyle.cardFill, in: shape)
+            .overlay(shape.strokeBorder(SurfaceStyle.border, lineWidth: SurfaceStyle.borderWidth))
+    }
+}
+
+/// The agents and apps Memnox can act through, as a strip of small tiles, the way Vorssaint's panel shows its tools.
+/// One row tall whatever it holds, since the panel takes its size once as it opens.
+struct MenuTools: View {
+    @ObservedObject var tools: ToolsModel
+    let open: () -> Void
+
+    private enum Layout {
+        static let markSide: CGFloat = 26
+        static let chipWidth: CGFloat = 58
+        static let stripHeight: CGFloat = 52
+        static let labelSize: CGFloat = 10
+        static let dotSide: CGFloat = 6
+        /// A dark ring keeps the status dot apart from a logo of the same colour.
+        static let dotRingInk = 0.4
+        static let dotRingWidth: CGFloat = 0.5
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+            HStack {
+                MenuHeading(title: "Connected")
+                Spacer()
+                Button("Manage", action: open)
+                    .buttonStyle(.plain)
+                    .font(.system(size: Memnox.TextSize.micro, weight: .semibold))
+                    .foregroundStyle(Memnox.Palette.primary)
+                    .pointingHand()
+            }
+            .padding(.horizontal, Memnox.Spacing.xSmall)
+            Group {
+                if tools.agents.isEmpty && tools.connections.isEmpty {
+                    Text(tools.loading ? "Reading your tools" : tools.connectionsNote ?? "No tools connected yet")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, Memnox.Spacing.regular)
+                } else {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 0) {
+                            ForEach(tools.agents) { agent in
+                                chip(agent.label, ok: agent.works != false) {
+                                    AgentMark(kind: agent.kind, name: agent.label, side: Layout.markSide)
+                                }
+                            }
+                            ForEach(tools.connections) { connection in
+                                chip(ToolkitName.of(connection.toolkit), ok: connection.connected) {
+                                    ToolMark(toolkit: connection.toolkit, side: Layout.markSide)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, Memnox.Spacing.xSmall)
+                    }
+                    .scrollIndicators(.hidden)
+                }
+            }
+            .frame(height: Layout.stripHeight)
+            .menuCard()
+        }
+    }
+
+    private func chip<Mark: View>(_ name: String, ok: Bool, @ViewBuilder mark: () -> Mark) -> some View {
+        Button(action: open) {
+            VStack(spacing: Memnox.Spacing.xSmall) {
+                mark()
+                    .overlay(alignment: .bottomTrailing) {
+                        Circle()
+                            .fill(ok ? Memnox.Palette.success : Memnox.Palette.warm)
+                            .frame(width: Layout.dotSide, height: Layout.dotSide)
+                            .overlay(Circle().strokeBorder(Color.black.opacity(Layout.dotRingInk), lineWidth: Layout.dotRingWidth))
+                    }
+                Text(name)
+                    .font(.system(size: Layout.labelSize, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            .frame(width: Layout.chipWidth)
+        }
+        .buttonStyle(MenuPress())
+        .help(ok ? name : "\(name) needs you")
+        .accessibilityLabel(ok ? name : "\(name), needs you")
     }
 }
 

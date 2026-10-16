@@ -252,6 +252,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wake.woke = { [weak self] after in
             self?.enqueue { [weak self] in await self?.converse(opening: after, greet: after.isEmpty) }
         }
+        // One list of agents and connected apps for the menu, the notch and Settings.
+        let tools = ToolsModel(
+            readAgents: { [weak self] in await self?.conversation?.voiceAgents() ?? .unreachable },
+            readConnections: { [weak self] in await self?.conversation?.connections() ?? .unreachable }
+        )
         let menu = MenuModel(
             wakeOn: UserDefaults.standard.bool(forKey: Self.wakeKey),
             talk: { [weak self] in self?.talk() },
@@ -279,7 +284,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             revoke: { [weak self] device in self?.revoke(device) },
             letDrive: { [weak self] device, on in self?.letDrive(device, on) },
             loadDevices: { [weak self] in self?.loadDevices() },
-            loadOverview: { [weak self] in self?.loadOverview() }
+            loadOverview: { [weak self] in self?.loadOverview() },
+            tools: tools
         )
         self.menu = menu
         menuBar = MenuBarPanel(model: menu)

@@ -40,19 +40,20 @@ final class SettingsWindow {
     private var window: NSWindow?
 
     private enum Layout {
-        static let width: CGFloat = 900
-        static let height: CGFloat = 640
+        static let width: CGFloat = 940
+        static let height: CGFloat = 720
     }
 
     private init() {}
 
     /// Opens on the page given, or stays on the one last shown when none is.
     func show(_ page: SettingsPage? = nil) {
-        if let page { navigation.page = page }
+        if let page { navigation.go(page) }
         // The numbers, the phones and the voice are read fresh each time the window comes forward.
         menu?.kokoroVoice = KokoroVoice.chosen().voice
         menu?.loadDevices()
         menu?.loadOverview()
+        menu?.tools.refresh()
         home?.refresh()
         if let window {
             window.makeKeyAndOrderFront(nil)
@@ -61,6 +62,7 @@ final class SettingsWindow {
         }
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: Layout.width, height: Layout.height),
+            // A set size, as Vorssaint's window is, so every page is laid out once for the size it is seen at.
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -68,9 +70,12 @@ final class SettingsWindow {
         window.title = "Memnox"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
+        // An empty toolbar gives the title bar its taller height, so the window's buttons sit level with Back and Forward.
+        window.toolbar = NSToolbar()
+        window.toolbarStyle = .unified
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
-        // Clear, so the sidebar's glass shows the desktop and the page stands on its own panel; light or dark as the Mac is.
+        // Clear, so the sidebar's and the page's glass show the desktop through them.
         window.isOpaque = false
         window.backgroundColor = .clear
         window.contentView = FirstClickHosting(rootView: SettingsView(models: models, navigation: navigation) { [weak self] in self?.close() })
@@ -89,7 +94,32 @@ final class SettingsWindow {
 /// Which page the window shows, kept outside the view so the menu and setup can open it on a page.
 @MainActor
 final class SettingsNavigation: ObservableObject {
-    @Published var page: SettingsPage = .overview
+    @Published private(set) var page: SettingsPage = .overview
+    /// The pages left behind and the ones gone back from, so Back and Forward retrace them as a browser does.
+    @Published private var behind: [SettingsPage] = []
+    @Published private var ahead: [SettingsPage] = []
+
+    var canGoBack: Bool { !behind.isEmpty }
+    var canGoForward: Bool { !ahead.isEmpty }
+
+    func go(_ next: SettingsPage) {
+        guard next != page else { return }
+        behind.append(page)
+        ahead.removeAll()
+        page = next
+    }
+
+    func goBack() {
+        guard let last = behind.popLast() else { return }
+        ahead.append(page)
+        page = last
+    }
+
+    func goForward() {
+        guard let next = ahead.popLast() else { return }
+        behind.append(page)
+        page = next
+    }
 }
 
 /// The two models the pages read, published so a page fills in once setup hands its model over.

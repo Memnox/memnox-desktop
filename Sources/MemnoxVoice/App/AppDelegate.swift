@@ -125,9 +125,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // Opened from the disk image: the copy in Applications takes over, since only it can keep its permissions.
         if ApplicationsFolder.moveIfOutside() { return }
+        // Before anything reads the Kokoro voice, so the first sentence is already in Sky.
+        KokoroVoice.adoptSkyOnce()
         let voice = Voice()
         voice.route = audio
         self.voice = voice
+        VoiceMute.shared.voice = voice
         panel = IslandPanel(loudness: { [audio] in max(audio.micLevel, voice.level) })
         ears.hearing = { [weak self] words in
             self?.panel.show(.listening, caption: caption(words))

@@ -13,8 +13,8 @@ struct KokoroVoice: VoiceEngine {
     let voice: String
     var name: String { "Kokoro" }
 
-    /// Heart, Kokoro's own default and the first in setup's list, where another is picked.
-    static let defaultVoice = "af_heart"
+    /// Sky, the first in setup's list, where another is picked.
+    static let defaultVoice = "af_sky"
     static let voiceKey = "kokoroVoice"
 
     static let speedKey = "voiceSpeed"
@@ -49,6 +49,18 @@ struct KokoroVoice: VoiceEngine {
         KokoroVoice(voice: UserDefaults.standard.string(forKey: voiceKey) ?? defaultVoice)
     }
 
+    /// Heart was the default and was saved as if picked, so a Mac that never chose moves to Sky once; a pick made
+    /// after this ran, Heart included, is kept.
+    static func adoptSkyOnce() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: skyAdoptedKey) else { return }
+        defaults.set(true, forKey: skyAdoptedKey)
+        if defaults.string(forKey: voiceKey) == formerDefault { defaults.set(defaultVoice, forKey: voiceKey) }
+    }
+
+    private static let formerDefault = "af_heart"
+    private static let skyAdoptedKey = "skyAdopted"
+
     /// The voice the person picked in setup, kept for next time.
     static func choose(_ voice: String) {
         UserDefaults.standard.set(voice, forKey: voiceKey)
@@ -56,11 +68,11 @@ struct KokoroVoice: VoiceEngine {
 
     /// The voices setup offers, by Kokoro's id and the way the picker shows it.
     static let choices: [KokoroChoice] = [
-        KokoroChoice(id: "af_heart", label: "Default (American Female)"),
+        KokoroChoice(id: "af_sky", label: "Sky (American Female)"),
+        KokoroChoice(id: "af_heart", label: "Heart (American Female)"),
         KokoroChoice(id: "af_bella", label: "Bella (American Female)"),
         KokoroChoice(id: "af_nicole", label: "Nicole (American Female)"),
         KokoroChoice(id: "af_sarah", label: "Sarah (American Female)"),
-        KokoroChoice(id: "af_sky", label: "Sky (American Female)"),
         KokoroChoice(id: "am_adam", label: "Adam (American Male)"),
         KokoroChoice(id: "am_michael", label: "Michael (American Male)"),
         KokoroChoice(id: "bf_emma", label: "Emma (British Female)"),

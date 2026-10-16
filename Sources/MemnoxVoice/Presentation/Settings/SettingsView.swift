@@ -221,12 +221,16 @@ private struct VoicePage: View {
 /// The switches for when Memnox listens and speaks up, with catching up after time away.
 private struct ListeningPage: View {
     @ObservedObject var menu: MenuModel
+    @ObservedObject private var mute = VoiceMute.shared
     @ObservedObject var setup: SetupModel
 
     var body: some View {
         VStack(spacing: 0) {
             SwitchRow(symbol: MenuSymbol.wake, title: "Wake when I say \u{201C}Memnox\u{201D}", detail: "On this Mac only",
                       isOn: Binding(get: { menu.wakeOn }, set: { menu.setWake($0) }))
+            MenuDivider()
+            SwitchRow(symbol: MenuSymbol.mute, title: "Mute the voice", detail: "Answers still show in the notch",
+                      isOn: Binding(get: { mute.on }, set: { mute.set($0) }))
             MenuDivider()
             SwitchRow(symbol: MenuSymbol.speakUp, title: "Speak up on its own", detail: "When work finishes or ships",
                       isOn: Binding(get: { menu.speakUpOn }, set: { menu.speakUpOn = $0; menu.setSpeakUp($0) }))

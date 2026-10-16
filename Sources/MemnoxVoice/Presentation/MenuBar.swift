@@ -206,6 +206,7 @@ final class MenuBarPanel: NSObject {
 /// say a rule, copy what happened, Settings and Quit. What is waiting and working lives on the island and in Settings.
 struct MenuView: View {
     @ObservedObject var model: MenuModel
+    @ObservedObject private var mute = VoiceMute.shared
     let close: () -> Void
     let openSettings: () -> Void
     static let width: CGFloat = 300
@@ -239,6 +240,10 @@ struct MenuView: View {
                 MenuRow(symbol: MenuSymbol.copy, title: "Copy what happened") {
                     close()
                     model.copyWhatHappened()
+                }
+                // Muting keeps the panel open, so the row is seen to change.
+                MenuRow(symbol: mute.on ? MenuSymbol.unmute : MenuSymbol.mute, title: mute.on ? "Unmute voice" : "Mute voice") {
+                    mute.toggle()
                 }
                 // What Memnox does above the line, the app itself below it, as a Mac menu groups them.
                 MenuDivider()
@@ -581,6 +586,8 @@ enum MenuSymbol {
     static let setUp = "slider.horizontal.3"
     static let saySomething = "speaker.wave.2"
     static let copy = "doc.on.clipboard"
+    static let mute = "speaker.slash"
+    static let unmute = "speaker.wave.2"
     static let quit = "power"
     static let settings = "gearshape"
     static let more = "chevron.right"

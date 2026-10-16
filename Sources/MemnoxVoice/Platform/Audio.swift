@@ -463,8 +463,18 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
         }
     }
 
+    /// Set by the person through `VoiceMute` to keep Memnox quiet everywhere; what it would have said still shows.
+    static let mutedKey = "voiceMuted"
+    static var muted: Bool { UserDefaults.standard.bool(forKey: mutedKey) }
+
     /// Main queue order is call order, so sentences are said in the order they were given.
     private func enqueue(_ written: String, said: @escaping () -> Void) {
+        // Muted, the sentence counts as said at once, so a turn waiting on it moves on as if it had been spoken.
+        if Self.muted {
+            diary.note("muted, not saying: \(written)")
+            DispatchQueue.main.async(execute: said)
+            return
+        }
         // Kept as written for the echo check, since the recognizer hears the words and not their spelling out.
         let sentence = pronounced(written)
         diary.note("saying: \(sentence)")

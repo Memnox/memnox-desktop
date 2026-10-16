@@ -18,18 +18,28 @@ struct WelcomeStep: View {
         KitCard {
             ForEach(Highlight.allCases) { part in
                 if part != Highlight.allCases.first { KitDivider() }
-                KitRow(symbol: part.symbol, title: part.title, detail: part.detail) {
-                    if part == flow.highlight {
-                        Image(systemName: "play.fill")
+                // Each part is a button, so the person plays the one they care about on the notch and hears it.
+                Button { flow.pick(part) } label: {
+                    KitRow(symbol: part.symbol, title: part.title, detail: part.detail) {
+                        Image(systemName: part == flow.highlight ? "play.fill" : "play")
                             .font(.system(size: Memnox.TextSize.footnote))
-                            .foregroundStyle(Memnox.Palette.primary)
-                            .accessibilityLabel("playing now")
+                            .foregroundStyle(part == flow.highlight ? Memnox.Palette.primary : Memnox.ink(Memnox.Ink.tertiary))
+                            .accessibilityLabel(part == flow.highlight ? "playing now" : "play")
                     }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .pointingHand()
+                .help("Play this on the notch")
                 .opacity(flow.highlight == nil || part == flow.highlight ? 1 : Shade.resting)
             }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: Memnox.Motion.standard), value: flow.highlight)
+        // Said before setup starts, so nobody goes looking for a key: the thinking is the person's own agent's.
+        KitCard(symbol: "person.badge.key", title: "Works through your own agent",
+                detail: "Memnox has no model of its own. It answers through an agent you already use, such as Claude Code, Codex, Cursor or Hermes, signed in with that agent's own account. No API key to bring.") {
+            EmptyView()
+        }
         Next(title: "Set up this Mac", flow: flow)
     }
 }
@@ -48,36 +58,36 @@ struct ThisMacStep: View {
             }
             KitDivider()
             KitRow(symbol: "keyboard", title: "Type for you",
-                   detail: "Accessibility, so a follow up lands in the agent's own app.",
-                   hint: hint(setup.typing)) {
-                switch setup.typing {
-                case .waiting: grant(setup.typing) { setup.allowTyping() }
-                // Without a button here the row only pointed at System Settings; Ask again clears an earlier copy's switch.
-                case .needs:
-                    Button("Ask again", systemImage: "arrow.counterclockwise") { Task { await setup.askAgain(.typing) } }
+                   detail: "Accessibility, so a follow up lands in the agent's own app.") {
+                grant(setup.typing, asking: setup.isAsking(.typing)) { setup.allowTyping() }
+            }
+            // Only once Allow was not enough do the steps appear, under the row and as wide as it.
+            if case .needs = setup.typing {
+                guide(.typing) {
+                    // Start over clears an earlier copy's switch, which shows on and does nothing.
+                    Button("Start over", systemImage: "arrow.counterclockwise") { Task { await setup.askAgain(.typing) } }
                         .buttonStyle(KitButton(kind: .secondary))
-                case .done: CheckBox(state: .done)
+                        .disabled(setup.isAsking(.typing))
                 }
             }
-            // Only once Allow was not enough does the picture of the switch to flip appear under the row.
-            if case .needs = setup.typing { guide(.typing) }
             KitDivider()
             KitRow(symbol: "rectangle.dashed.badge.record", title: "See your screen",
-                   detail: "Screen Recording, so it can read the window you ask about and check that words landed.",
-                   hint: hint(setup.seeing)) {
-                // macOS hands the grant over only to the next start, so once it has been asked for, restarting is the
-                // one step left; after a restart that did not take, the switch is an earlier copy's and Ask again clears it.
-                switch setup.seeing {
-                case .waiting: grant(setup.seeing) { setup.allowSeeing() }
-                case .needs where setup.seeingStale:
-                    Button("Ask again", systemImage: "arrow.counterclockwise") { Task { await setup.askAgain(.seeing) } }
-                        .buttonStyle(KitButton(kind: .primary))
-                case .needs:
-                    Button("Restart Memnox", systemImage: "arrow.clockwise") { setup.reopen() }.buttonStyle(KitButton(kind: .primary))
-                case .done: CheckBox(state: .done)
+                   detail: "Screen Recording, so it can read the window you ask about and check that words landed.") {
+                grant(setup.seeing, asking: setup.isAsking(.seeing)) { setup.allowSeeing() }
+            }
+            if case .needs = setup.seeing {
+                guide(.seeing) {
+                    // macOS hands the grant over only to the next start, so restarting is the last step; after a
+                    // restart that did not take, the switch is an earlier copy's and Start over clears it.
+                    if !setup.seeingStale {
+                        Button("Restart Memnox", systemImage: "arrow.clockwise") { setup.reopen() }
+                            .buttonStyle(KitButton(kind: .primary))
+                    }
+                    Button("Start over", systemImage: "arrow.counterclockwise") { Task { await setup.askAgain(.seeing) } }
+                        .buttonStyle(KitButton(kind: setup.seeingStale ? .primary : .secondary))
+                        .disabled(setup.isAsking(.seeing))
                 }
             }
-            if case .needs = setup.seeing { guide(.seeing) }
             KitDivider()
             KitRow(symbol: "touchid", title: "Approve with Touch ID", detail: "Your fingerprint approves what agents ask. The key never leaves this Mac.",
                    hint: hint(setup.key)) {
@@ -151,9 +161,9 @@ struct ThisMacStep: View {
             : "The Memnox terminals extension is in, so your voice reaches the session's own tab. Restart the editor if it was open."
     }
 
-    /// The picture of the switch to flip, set in under the row's words.
-    private func guide(_ pane: SettingsPane) -> some View {
-        PermissionGuide(pane: pane)
+    /// The steps and the picture of the switch to flip, set in under the row's words.
+    private func guide<Actions: View>(_ pane: SettingsPane, @ViewBuilder actions: @escaping () -> Actions) -> some View {
+        PermissionGuide(pane: pane, steps: setup.steps(for: pane), actions: actions)
             .padding(.leading, Kit.tileSide + Memnox.Spacing.large)
             .padding(.bottom, Memnox.Spacing.regular)
     }
@@ -164,6 +174,22 @@ struct ThisMacStep: View {
             CheckBox(state: .done)
         } else {
             Button("Allow", systemImage: "checkmark.shield", action: action).buttonStyle(KitButton(kind: .secondary))
+        }
+    }
+
+    /// Allow at first, a quiet wait while macOS is asked or the switch is still off, and the checkbox once it holds.
+    @ViewBuilder private func grant(_ state: StepState, asking: Bool, _ action: @escaping () -> Void) -> some View {
+        switch state {
+        case .done: CheckBox(state: .done)
+        case .waiting where !asking:
+            Button("Allow", systemImage: "checkmark.shield", action: action).buttonStyle(KitButton(kind: .secondary))
+        case .waiting, .needs:
+            HStack(spacing: Memnox.Spacing.small) {
+                ProgressView().controlSize(.small)
+                Text("Waiting")
+                    .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
+                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+            }
         }
     }
 

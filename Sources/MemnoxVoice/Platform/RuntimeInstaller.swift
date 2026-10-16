@@ -204,12 +204,6 @@ final class RuntimeInstaller: ObservableObject {
         return path
     }
 
-    /// macOS's own reset of one privacy grant for one app, which needs no password for the app asking about itself.
-    /// Both words are fixed by the caller, so nothing typed by anybody reaches the shell.
-    static func forgetGrant(_ service: String, of bundle: String) async {
-        _ = await shell("/usr/bin/tccutil reset \(quoted(service)) \(quoted(bundle))")
-    }
-
     /// True when the line ran cleanly; what it printed goes to the diary when it did not.
     private static func shell(_ line: String) async -> Bool {
         diary.note("running: \(line)")

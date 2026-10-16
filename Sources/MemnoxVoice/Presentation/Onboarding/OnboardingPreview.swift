@@ -35,6 +35,17 @@ enum Highlight: Int, CaseIterable, Identifiable {
         }
     }
 
+    /// What the guide says as the notch plays this part, written to be heard rather than read.
+    var spoken: String {
+        switch self {
+        case .sessions: return "Every agent you run, like Claude Code, Codex or Cursor, shows up here in the notch. Click one to see what it is changing."
+        case .answer: return "When an agent wants to do something that matters, like pushing to main, it asks you here. One click, and it carries on."
+        case .rule: return "Say a rule out loud, like never push to main without asking me, and every agent keeps it from then on."
+        case .tools: return "I can act in your own tools as you, like replying on a pull request or sending a message. You see the draft first, and send it with Touch ID."
+        case .catchUp: return "And when you come back, just ask what your agents did. I will tell you in a sentence."
+        }
+    }
+
     var detail: String {
         switch self {
         case .sessions: return "Claude Code, Codex and Cursor in the notch, each one a click from what it is changing."

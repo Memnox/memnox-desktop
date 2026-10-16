@@ -318,3 +318,29 @@ struct KitLabel: LabelStyle {
         }
     }
 }
+
+/// The face every text field shares: as tall as a button, so a field never looks thinner than the button beside it,
+/// with room inside for the words and a border that firms up while it has the keyboard.
+struct KitField: ViewModifier {
+    var focused = false
+
+    private static let horizontalPadding: CGFloat = 12
+    private static let radius: CGFloat = 9
+    private static let restingEdge = 0.1
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+        content
+            .textFieldStyle(.plain)
+            .font(Memnox.sans(Memnox.TextSize.callout))
+            .foregroundStyle(Memnox.Palette.foreground)
+            .padding(.horizontal, Self.horizontalPadding)
+            .frame(minHeight: Kit.buttonHeight)
+            .background(shape.fill(Memnox.ink(Memnox.Ink.faintFill)))
+            .overlay(shape.strokeBorder(Memnox.ink(focused ? Memnox.Ink.secondary : Self.restingEdge), lineWidth: Memnox.Stroke.hairline))
+    }
+}
+
+extension View {
+    func kitField(focused: Bool = false) -> some View { modifier(KitField(focused: focused)) }
+}

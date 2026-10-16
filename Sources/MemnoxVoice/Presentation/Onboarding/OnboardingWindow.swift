@@ -42,6 +42,10 @@ final class OnboardingFlow: ObservableObject {
     @Published var account: AccountModel?
     /// Told when the opening hands over to the window, so the controller swaps one window for the other.
     var opened: (() -> Void)?
+    /// A part of the welcome the person clicked, which the notch jumps to and plays from.
+    @Published private(set) var jump: HighlightJump?
+    /// The parts the guide has already spoken, so the notch going round again stays quiet.
+    var narrated: Set<Highlight> = []
 
     /// The step the window was on, kept so a reopen for Screen Recording comes back to the same page.
     private static let stepKey = "onboardingStep"
@@ -76,11 +80,36 @@ final class OnboardingFlow: ObservableObject {
     /// Forgets the step, once the first run is over.
     func forget() {
         UserDefaults.standard.removeObject(forKey: Self.stepKey)
+        UserDefaults.standard.removeObject(forKey: Self.guidedKey)
     }
+
+    /// Plays one part of the welcome on the notch now, and says what it is.
+    func pick(_ part: Highlight) {
+        narrated.insert(part)
+        jump = HighlightJump(part: part)
+        setup?.guide(part.spoken)
+    }
+
+    /// True the first time a step opens in this first run, so a restart for Screen Recording does not hear it again.
+    func firstVisit(_ step: OnboardingStep) -> Bool {
+        var guided = Set(UserDefaults.standard.array(forKey: Self.guidedKey) as? [Int] ?? [])
+        guard guided.insert(step.rawValue).inserted else { return false }
+        UserDefaults.standard.set(Array(guided), forKey: Self.guidedKey)
+        return true
+    }
+
+    /// The steps the guide has introduced, kept across the restart Screen Recording needs.
+    private static let guidedKey = "onboardingGuided"
 
     private func remember() {
         UserDefaults.standard.set(step.rawValue, forKey: Self.stepKey)
     }
+}
+
+/// A click on one part of the welcome, new each time so clicking the same part twice still plays it again.
+struct HighlightJump: Equatable {
+    let part: Highlight
+    let id = UUID()
 }
 
 /// Shows the first run: a dark veil over the whole screen for the opening and the name, then one window for the

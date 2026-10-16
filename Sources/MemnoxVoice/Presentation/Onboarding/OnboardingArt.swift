@@ -7,11 +7,14 @@ import SwiftUI
 struct OnboardingArt: View {
     /// Told which part the notch is playing, so the welcome step lights the same one.
     var highlighted: (Highlight?) -> Void = { _ in }
+    /// A part clicked on the welcome step, which the notch plays from at once.
+    var jump: HighlightJump?
     @StateObject private var demo = IslandDemo()
 
     var body: some View {
         Stage(scene: "galata") { MacScene(demo: demo) }
             .onAppear { demo.play(.highlights) }
+            .onChange(of: jump) { _, jump in demo.play(.highlights, from: jump?.part) }
             .onChange(of: demo.chapter) { _, chapter in highlighted(chapter) }
             .onDisappear { demo.stop() }
     }

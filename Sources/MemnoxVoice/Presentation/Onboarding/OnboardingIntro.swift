@@ -108,6 +108,8 @@ private struct NameQuestion: View {
         .onAppear {
             name = flow.setup?.name ?? ""
             focused = true
+            // The first thing heard, so the voice is there from the start rather than from the second screen.
+            flow.setup?.guide(GuideLines.askName)
         }
     }
 

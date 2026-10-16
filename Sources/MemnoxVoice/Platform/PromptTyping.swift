@@ -58,10 +58,6 @@ enum PromptTyping {
         }
     }
 
-    /// The value of kAXTrustedCheckOptionPrompt, written out because Swift 6 refuses that global as shared mutable state.
-    private static let trustedCheckPrompt = "AXTrustedCheckOptionPrompt"
-    /// The Privacy and Security pane, opened at Accessibility.
-    private static let accessibilitySettings = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
     /// Electron's switch for building its accessibility tree, which has no kAX constant.
     private static let manualAccessibilityAttribute = "AXManualAccessibility"
     /// The switch an assistive app sets, which Chromium also waits for before building its tree.
@@ -75,18 +71,12 @@ enum PromptTyping {
 
     /// Whether Memnox may press keys for the person. The system sheet is shown at most once per
     /// launch: shown on every instruction it reads as a bug, and a person who said no meant it.
+    /// The ask goes through the pane's own, so it never runs over one setup started.
     static func allowed() -> Bool {
         if AXIsProcessTrusted() { return true }
         guard !asked else { return false }
         asked = true
-        // A grant left over from an earlier build shows as on and does nothing, and no sheet appears for it, which is
-        // what "I gave you access" meant. Memnox's own entries are forgotten first, so the sheet and the switch that
-        // follow are for this build; then the page it is switched on in is opened.
-        Task { @MainActor in
-            await SettingsPane.typing.forgetEarlierBuilds()
-            if AXIsProcessTrustedWithOptions([trustedCheckPrompt: true] as CFDictionary) { return }
-            if let page = URL(string: accessibilitySettings) { NSWorkspace.shared.open(page) }
-        }
+        Task { @MainActor in await SettingsPane.typing.ask() }
         return false
     }
 

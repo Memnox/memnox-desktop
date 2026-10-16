@@ -87,10 +87,10 @@ struct DictationPage: View {
     private var addRow: some View {
         HStack(spacing: Memnox.Spacing.small) {
             TextField("When I say (optional)", text: $said)
-                .textFieldStyle(.roundedBorder)
+                .kitField()
                 .frame(width: Layout.fieldWidth)
             TextField("Write it as", text: $written)
-                .textFieldStyle(.roundedBorder)
+                .kitField()
                 .onSubmit(add)
             Button("Add", action: add)
                 .buttonStyle(KitButton(kind: .primary))

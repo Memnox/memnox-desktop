@@ -72,13 +72,16 @@ final class IslandDemo: ObservableObject {
         return { level.value }
     }
 
-    func play(_ tour: Tour) {
+    /// Plays the tour round and round, the first time from the part given, so a part clicked on plays at once.
+    func play(_ tour: Tour, from start: Highlight? = nil) {
         running?.cancel()
         running = Task { [weak self] in
+            var from = start
             while !Task.isCancelled {
                 guard let self else { return }
                 self.reset()
-                await self.once(tour)
+                await self.once(tour, from: from)
+                from = nil
             }
         }
     }
@@ -89,9 +92,9 @@ final class IslandDemo: ObservableObject {
         chapter = nil
     }
 
-    private func once(_ tour: Tour) async {
+    private func once(_ tour: Tour, from start: Highlight?) async {
         switch tour {
-        case .highlights: await highlights()
+        case .highlights: await highlights(from: start)
         }
     }
 
@@ -147,17 +150,18 @@ final class IslandDemo: ObservableObject {
         await pause(Pace.short)
     }
 
-    private func highlights() async {
-        chapter = .sessions
-        await sessionsTour()
-        chapter = .answer
-        await asking()
-        chapter = .rule
-        await sayRule()
-        chapter = .tools
-        await replyAsThem()
-        chapter = .catchUp
-        await catchUp()
+    private func highlights(from start: Highlight?) async {
+        for part in Highlight.allCases where part.rawValue >= (start?.rawValue ?? 0) {
+            guard !Task.isCancelled else { return }
+            chapter = part
+            switch part {
+            case .sessions: await sessionsTour()
+            case .answer: await asking()
+            case .rule: await sayRule()
+            case .tools: await replyAsThem()
+            case .catchUp: await catchUp()
+            }
+        }
     }
 
     /// The rule half of the talking tour: said, drawn as its card, and kept.

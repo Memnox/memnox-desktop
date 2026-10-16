@@ -34,7 +34,7 @@ struct OnboardingCard: View {
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
                                             removal: .move(edge: .leading).combined(with: .opacity)))
                     // Outside the step's identity, so the notch plays on rather than starting over at every step.
-                    OnboardingArt { flow.highlight = $0 }
+                    OnboardingArt(highlighted: { flow.highlight = $0 }, jump: flow.jump)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(.vertical, Layout.top)
                         // The landscape overflows its clip and SwiftUI hit tests the overflow, so without this the
@@ -42,6 +42,7 @@ struct OnboardingCard: View {
                         .allowsHitTesting(false)
                 }
                 .padding(.horizontal, Layout.side)
+                .modifier(OnboardingNarration(flow: flow, setup: setup))
             }
             footer
         }
@@ -91,6 +92,7 @@ struct OnboardingCard: View {
                     .keyboardShortcut(.cancelAction)
             }
             Spacer()
+            MuteButton()
             Text("You can change all of this later in Settings.")
                 .font(Memnox.sans(Memnox.TextSize.footnote))
                 .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))

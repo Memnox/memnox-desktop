@@ -1076,7 +1076,8 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var name: String?
     /// On drive: when the grant ends, ISO 8601; left out ends it now.
     public var until: String?
-    /// On files-list: the folder relative to the person's home; left out lists the home itself.
+    /// On files-list: the folder relative to the person's home; left out lists the home itself. On session-view: one
+    /// file the session changed, whose diff comes back in place of the whole view.
     public var path: String?
     /// On speak: the one sentence to say, cut at the Kokoro server's thousand characters.
     public var line: String?
@@ -1279,6 +1280,8 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let words: [String]?
     /// On session-view: the session as it is right now.
     public let session: SessionView?
+    /// On session-view with a path: that file's diff, its hunks with the lines around each change.
+    public let diff: CardExcerpt?
     /// On sessions-list: the sessions lately, most recently active first.
     public let sessions: [SessionCard]?
     /// On voice-agents and choose-voice-agent: every agent the voice knows, preferred first.

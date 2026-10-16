@@ -210,6 +210,14 @@ public final class Conversation {
         return (try? await link.request(request))?.session
     }
 
+    /// One file's diff as the session left it, for the live window to open under the file's name; nil when none is known.
+    public func sessionDiff(_ sessionId: String, path: String) async -> CardExcerpt? {
+        var request = newRequest(.sessionView)
+        request.sessionId = sessionId
+        request.path = path
+        return (try? await link.request(request))?.diff
+    }
+
     /// The sessions lately, most recently active first, for the switcher to turn through.
     public func sessionsList() async -> [SessionCard] {
         (try? await link.request(newRequest(.sessionsList)))?.sessions ?? []

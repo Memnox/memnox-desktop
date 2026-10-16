@@ -63,7 +63,8 @@ final class IslandPreview {
             openSignIn: { [weak panel] tool in panel?.signingIn(tool) },
             notMine: { [weak panel] card in panel?.signedInDismissed(card) },
             answerRule: { [weak panel] card, _ in panel?.ruleAnswered(card, .answered) },
-            askAgain: { _ in }
+            askAgain: { _ in },
+            ask: { _ in }
         )
         panel.wireSessions(
             list: { [weak self] in self?.cards ?? [] },

@@ -32,6 +32,8 @@ enum IslandMode: Equatable {
     case question
     /// A session just finished, shown for a few seconds and then put away.
     case finished
+    /// Everything Memnox does as a grid of tiles, with the person's agents and apps one tile away.
+    case launcher
 
     var isOpen: Bool { self != .peek && self != .compact }
 }
@@ -200,6 +202,13 @@ final class IslandModel: ObservableObject {
     @Published var focused: SessionView?
     /// Whether the open island shows one session up close rather than all of them.
     @Published var detail = false
+    /// Whether the open island shows the grid of tiles rather than the sessions, and its tools page within it.
+    @Published var launcher = false
+    @Published var launcherTools = false
+    /// The one connected app the tools page shows up close, with what to ask about it.
+    @Published var pickedTool: ToolConnection?
+    /// The agents and connected apps the grid's tools page shows, shared with the menu and Settings.
+    var tools = ToolsModel()
     /// Flipped on just after the island opens, so the pills arrive one after another.
     @Published var revealed = false
     /// From one down to nothing over the last ten seconds before the open island puts itself away.
@@ -268,6 +277,12 @@ final class IslandModel: ObservableObject {
     var toggleSide: () -> Void = {}
     var showExchange: (UUID) -> Void = { _ in }
     var askAgain: (String) -> Void = { _ in }
+    /// Something new to ask, tapped rather than said, which goes whole to ask all the same.
+    var ask: (String) -> Void = { _ in }
+    var sayRule: () -> Void = {}
+    var copyWhatHappened: () -> Void = {}
+    /// Opens Settings on the page given, or on the last one shown.
+    var openSettings: (SettingsPage?) -> Void = { _ in }
 
     /// The held call on the card now.
     var held: HeldCard? { waiting.shown }
@@ -296,7 +311,28 @@ final class IslandModel: ObservableObject {
         case .hearing, .conversation, .draft, .rule: return false
         case .answer: return !active
         case .peek, .compact: return false
-        case .voice, .overview, .session, .empty, .held, .question, .finished: return true
+        case .voice, .overview, .session, .empty, .held, .question, .finished, .launcher: return true
+        }
+    }
+
+    /// The round buttons beside the island go with its header, so they never crowd the words while talking.
+    var showsSatellites: Bool { showsHeader && mode != .voice }
+
+    /// The page's name at the start of the header, as Vorssaint titles each page of its notch.
+    var title: String {
+        switch mode {
+        case .overview: return "Sessions"
+        case .empty: return "Memnox"
+        case .session: return focusCard?.title ?? "Session"
+        case .launcher:
+            if let tool = pickedTool { return ToolkitName.of(tool.toolkit) }
+            return launcherTools ? "Tools" : "Memnox"
+        case .held: return "Needs you"
+        case .question: return "A question"
+        case .finished: return "Finished"
+        case .voice: return "Listening"
+        case .answer: return "Answer"
+        case .peek, .compact, .hearing, .conversation, .draft, .rule: return ""
         }
     }
 
@@ -325,6 +361,8 @@ final class IslandModel: ObservableObject {
         } else if phone != nil {
             // The person talking here comes first; a phone's turn is only watched, so it waits behind them.
             next = .conversation
+        } else if opened, launcher {
+            next = .launcher
         } else if opened, pickedExchange != nil {
             next = .answer
         } else if opened {

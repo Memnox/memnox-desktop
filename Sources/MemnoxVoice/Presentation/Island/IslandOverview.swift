@@ -12,11 +12,11 @@ struct IslandOverview: View {
         /// Lines the subtitle up under the title, past the dot and its gap.
         static let subtitleIndent: CGFloat = focusDotSide + titleDotSpacing
         /// Clears the orb, which sits over the focus card's left side.
-        static let focusTextLeading: CGFloat = 102
+        static let focusTextLeading: CGFloat = 88
         static let focusTextTrailing: CGFloat = 14
-        static let focusCardWidth: CGFloat = 322
+        static let focusCardWidth: CGFloat = 280
         /// Matches the corners `IslandCard` draws.
-        static let cardRadius: CGFloat = 20
+        static let cardRadius: CGFloat = NotchMetrics.tileRadius
         /// As many rows as the list card holds at the overview's height.
         static let listedSessions = 4
         /// How far each row rises as it fades in.
@@ -30,9 +30,9 @@ struct IslandOverview: View {
         static let rowStagger: TimeInterval = 0.035
     }
 
-    /// Amber while a call waits on you, and the agent's own colour fainter while it works.
-    private static let heldVeilOpacity = 0.42
-    private static let workingVeilOpacity = 0.32
+    /// The rim in amber while a call waits on you, and in the agent's own colour while it works.
+    private static let heldVeilOpacity = 0.7
+    private static let workingVeilOpacity = 0.45
 
     var body: some View {
         HStack(spacing: Memnox.Spacing.regular) {
@@ -42,12 +42,12 @@ struct IslandOverview: View {
                         HStack(spacing: Layout.titleDotSpacing) {
                             Circle().fill(IslandPalette.color(card.agent)).frame(width: Layout.focusDotSide, height: Layout.focusDotSide)
                             Text(card.title)
-                                .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
+                                .font(Memnox.sans(Memnox.TextSize.body, .semibold))
                                 .foregroundStyle(Color.white)
                                 .lineLimit(1)
                         }
                         Text(card.subtitle(now: Date()))
-                            .font(Memnox.sans(Memnox.TextSize.footnote))
+                            .font(Memnox.sans(Memnox.TextSize.caption))
                             .foregroundStyle(Color.white.opacity(Memnox.Ink.tertiary))
                             .lineLimit(1)
                             .padding(.leading, Layout.subtitleIndent)
@@ -107,9 +107,9 @@ struct IslandStepRoll: View {
         static let shownSteps = 3
         static let iconSpacing: CGFloat = 9
         static let iconColumnWidth: CGFloat = 14
-        static let lineHeight: CGFloat = 30
+        static let lineHeight: CGFloat = 26
         /// Three lines high, with a little room above them for the oldest to fade through.
-        static let rollHeight: CGFloat = 96
+        static let rollHeight: CGFloat = 84
         /// Where the fade at the top gives way to full strength.
         static let fadeEnd = 0.28
     }
@@ -123,14 +123,14 @@ struct IslandStepRoll: View {
                 let current = index == shown.count - 1
                 HStack(spacing: Layout.iconSpacing) {
                     Image(systemName: stepIcon(step))
-                        .font(.system(size: Memnox.TextSize.footnote, weight: .medium))
+                        .font(.system(size: Memnox.TextSize.caption, weight: .medium))
                         .foregroundStyle(stepTint(step, current: current))
                         .frame(width: Layout.iconColumnWidth)
                     if current && thinking {
                         ShimmerText(text: SessionText.line(for: step))
                     } else {
                         Text(SessionText.line(for: step))
-                            .font(Memnox.sans(current ? Memnox.TextSize.callout : Memnox.TextSize.body, current ? .medium : .regular))
+                            .font(Memnox.sans(current ? Memnox.TextSize.body : Memnox.TextSize.footnote, current ? .medium : .regular))
                             .foregroundStyle(current ? IslandPalette.soft : IslandPalette.quiet)
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -141,7 +141,7 @@ struct IslandStepRoll: View {
             }
             if shown.isEmpty {
                 Text(thinking ? "Thinking" : "Nothing done yet")
-                    .font(Memnox.sans(Memnox.TextSize.body))
+                    .font(Memnox.sans(Memnox.TextSize.footnote))
                     .foregroundStyle(IslandPalette.quiet)
                     .frame(height: Layout.lineHeight)
             }
@@ -171,7 +171,7 @@ struct ShimmerText: View {
         TimelineView(.animation) { timeline in
             let phase = timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period
             Text(text)
-                .font(Memnox.sans(Memnox.TextSize.callout, .medium))
+                .font(Memnox.sans(Memnox.TextSize.body, .medium))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .foregroundStyle(
@@ -197,11 +197,11 @@ struct IslandSessionRow: View {
     let open: () -> Void
 
     private enum Layout {
-        static let logoSide: CGFloat = 26
+        static let logoSide: CGFloat = 22
         static let lineSpacing: CGFloat = 1
-        static let titleSize: CGFloat = 12.5
+        static let titleSize: CGFloat = 12
         static let workingDotSide: CGFloat = 7
-        static let rowHeight: CGFloat = 32
+        static let rowHeight: CGFloat = 30
         static let rowRadius: CGFloat = 11
         /// The arrow grows in from this scale as the row takes focus.
         static let arrowAppearScale: CGFloat = 0.6

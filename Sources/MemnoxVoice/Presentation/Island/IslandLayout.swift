@@ -4,7 +4,8 @@ import SwiftUI
 
 /// The measurements and timings the island is drawn and moved with.
 enum Island {
-    static let width: CGFloat = 640
+    /// Close to Vorssaint's open notch, wide enough for two cards side by side and no wider.
+    static let width: CGFloat = 560
     /// The concave curve where the island meets the screen edge on either side.
     static let flare: CGFloat = 14
     /// How far an open island's content sits in from its sides and bottom.
@@ -14,7 +15,7 @@ enum Island {
     static let voiceOrb: CGFloat = 150
     static let window = CGSize(width: width + 2 * flare + windowMargin, height: tallestIsland + hangingBelow)
     /// Room left around the island inside its window.
-    private static let windowMargin: CGFloat = 40
+    private static let windowMargin: CGFloat = 40 + 2 * NotchMetrics.satelliteReach
     /// Room under the tallest island for the pills that hang below it, the signed in pill over the sign in icons,
     /// since a pill past the window's edge is drawn cut off and its clicks fall through to whatever is behind.
     private static let hangingBelow: CGFloat = 112
@@ -50,13 +51,16 @@ enum Island {
     private enum Height {
         /// Measured from where content starts, since the voice mode sits below the notch row.
         static let voiceBelowTop: CGFloat = 190
+        /// Four session rows and the list card's inset below the header, which 180 cut off at the fourth.
         static let overview: CGFloat = 196
         static let session: CGFloat = 256
         static let empty: CGFloat = 150
         static let held: CGFloat = 206
-        /// Who asks, the question, and up to four choices with a line each under them.
-        static let question: CGFloat = 330
+        /// Who asks, the question, and up to four choices with two lines each under them.
+        static let question: CGFloat = 372
         static let finished: CGFloat = 170
+        /// The header and two rows of Vorssaint's tiles.
+        static let launcher: CGFloat = 230
         /// The orb and up to three lines of what is being said under it.
         static let hearingBelowTop: CGFloat = 196
         /// The question and an answer card tall enough for a short reply to sit whole.
@@ -71,8 +75,11 @@ enum Island {
 
     /// The talking modes are narrower than the open island, so the words keep a comfortable line length.
     private enum Width {
-        static let hearing: CGFloat = 520
-        static let conversation: CGFloat = 580
+        static let hearing: CGFloat = 500
+        static let conversation: CGFloat = 540
+        /// A row of Vorssaint's tiles, the gaps between them, and the island's inset either side.
+        static let launcher: CGFloat = NotchMetrics.tileWidth * CGFloat(NotchMetrics.tileColumns)
+            + NotchMetrics.tileSpacing * CGFloat(NotchMetrics.tileColumns - 1) + 2 * contentInset
     }
 
     /// Where content starts: never above this, and always a little below the notch itself.
@@ -99,8 +106,8 @@ enum Island {
         static let compactHoverDiameter: CGFloat = 23
         /// How far below the content top the large voice orb's centre sits.
         static let voiceBelowTop: CGFloat = 92
-        static let overviewX: CGFloat = 64
-        static let overviewDiameter: CGFloat = 70
+        static let overviewX: CGFloat = 54
+        static let overviewDiameter: CGFloat = 58
         static let emptyX: CGFloat = 70
         static let emptyDiameter: CGFloat = 62
         static let heldX: CGFloat = 62
@@ -126,6 +133,7 @@ enum Island {
         case .held: return CGSize(width: width, height: Height.held)
         case .question: return CGSize(width: width, height: Height.question)
         case .finished: return CGSize(width: width, height: Height.finished)
+        case .launcher: return CGSize(width: Width.launcher, height: Height.launcher)
         case .hearing: return CGSize(width: Width.hearing, height: top(notch) + Height.hearingBelowTop)
         case .conversation: return CGSize(width: Width.conversation, height: Height.conversation)
         case .draft: return CGSize(width: Width.conversation, height: Height.draft)
@@ -133,6 +141,16 @@ enum Island {
         case .rule: return CGSize(width: Width.conversation, height: Height.rule)
         }
     }
+
+    /// The round buttons start just under the notch row, as Vorssaint's do, so the menu bar never hides the top pair.
+    static func satelliteTop(_ notch: NotchGeometry) -> CGFloat { notch.height + satelliteGapBelowNotch }
+
+    /// The height the round buttons beside the island take from its top, for the window to let their clicks in.
+    static func satelliteColumn(_ notch: NotchGeometry) -> CGFloat {
+        satelliteTop(notch) + NotchMetrics.satelliteStep + NotchMetrics.satelliteDiameter + satelliteGapBelowNotch
+    }
+
+    private static let satelliteGapBelowNotch: CGFloat = 6
 
     static func area(_ mode: IslandMode, _ notch: NotchGeometry) -> CGFloat {
         let size = size(mode, notch)
@@ -168,10 +186,11 @@ enum Island {
         case .voice: return (CGPoint(x: voiceWidth / 2, y: top + OrbSpot.voiceBelowTop), voiceOrb)
         case .overview: return (CGPoint(x: OrbSpot.overviewX, y: middle), OrbSpot.overviewDiameter)
         case .empty: return (CGPoint(x: OrbSpot.emptyX, y: middle), OrbSpot.emptyDiameter)
-        case .held, .question: return (CGPoint(x: OrbSpot.heldX, y: middle), OrbSpot.heldDiameter)
+        case .held: return (CGPoint(x: OrbSpot.heldX, y: middle), OrbSpot.heldDiameter)
         case .finished: return (CGPoint(x: OrbSpot.finishedX, y: middle), OrbSpot.finishedDiameter)
         case .hearing: return (CGPoint(x: Width.hearing / 2, y: top + OrbSpot.hearingBelowTop), OrbSpot.hearingDiameter)
-        case .session, .conversation, .draft, .answer, .rule:
+        // A question gives the agent's logo and its choices the whole width, so the orb waits in the header.
+        case .session, .conversation, .draft, .answer, .rule, .launcher, .question:
             return (CGPoint(x: OrbSpot.headerX, y: notch.height / 2), OrbSpot.headerDiameter)
         }
     }
@@ -185,9 +204,10 @@ enum IslandPalette {
     static let primaryText = Color(light: 0xFFFFFF, dark: 0x0B0C0E)
     static let quiet = Color(hex: 0x5F646D)
     static let soft = Color(light: 0x5F646D, dark: 0xC9CDD4)
-    static let red = Color(red: 244 / 255, green: 80 / 255, blue: 94 / 255)
-    static let green = Color(red: 52 / 255, green: 211 / 255, blue: 153 / 255)
-    static let amber = Color(red: 245 / 255, green: 165 / 255, blue: 36 / 255)
+    /// The system's own status hues as they show on black.
+    static let red = Color(hex: 0xFF453A)
+    static let green = Color(hex: 0x30D158)
+    static let amber = Color(hex: 0xFF9F0A)
     static let indigo = Color(red: 99 / 255, green: 102 / 255, blue: 241 / 255)
 
     /// Each agent keeps one colour everywhere it appears; any other takes one of these by its name.

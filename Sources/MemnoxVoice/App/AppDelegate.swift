@@ -235,6 +235,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             askAgain: { [weak self] question in
                 guard let self, !self.talking else { return }
                 self.enqueue { [weak self] in await self?.converse(opening: question, openingIntent: .resume) }
+            },
+            // A tapped ask is a new request, so it carries no intent and goes whole to ask as if it were said.
+            ask: { [weak self] words in
+                guard let self, !self.talking else { return }
+                self.enqueue { [weak self] in await self?.converse(opening: words) }
             }
         )
         hotkey = Hotkey { [weak self] in self?.talk() }
@@ -257,6 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             readAgents: { [weak self] in await self?.conversation?.voiceAgents() ?? .unreachable },
             readConnections: { [weak self] in await self?.conversation?.connections() ?? .unreachable }
         )
+        panel.useTools(tools)
         let menu = MenuModel(
             wakeOn: UserDefaults.standard.bool(forKey: Self.wakeKey),
             talk: { [weak self] in self?.talk() },
@@ -289,6 +295,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         self.menu = menu
         menuBar = MenuBarPanel(model: menu)
+        panel.wireLauncher(
+            sayRule: { [weak self] in self?.sayRule() },
+            copyWhatHappened: { [weak self] in self?.copyWhatHappened() },
+            openSettings: { page in SettingsWindow.shared.show(page) }
+        )
         let home = HomeModel(
             load: { [weak self] in await self?.conversation.home() },
             handOver: { [weak self] action in await self?.conversation.handOver(action) ?? .unreachable },

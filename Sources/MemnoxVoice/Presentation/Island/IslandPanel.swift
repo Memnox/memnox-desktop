@@ -195,6 +195,25 @@ final class IslandPanel: NSPanel, Face {
         }
     }
 
+    /// The agents and apps the grid's tools page shows, the same list the menu and Settings read.
+    @MainActor func useTools(_ tools: ToolsModel) {
+        model.tools = tools
+    }
+
+    /// What the grid's tiles and the round buttons do beyond the island, wired by the app delegate.
+    @MainActor func wireLauncher(sayRule: @escaping () -> Void, copyWhatHappened: @escaping () -> Void,
+                                 openSettings: @escaping (SettingsPage?) -> Void) {
+        model.sayRule = { [weak self] in
+            self?.closeIsland()
+            sayRule()
+        }
+        model.copyWhatHappened = copyWhatHappened
+        model.openSettings = { [weak self] page in
+            self?.closeIsland()
+            openSettings(page)
+        }
+    }
+
     /// What a button on an answer or a draft does, wired by the app delegate.
     @MainActor func wireConversation(
         openAnswer: @escaping (Exchange) -> Void,
@@ -203,7 +222,8 @@ final class IslandPanel: NSPanel, Face {
         openSignIn: @escaping (ToolSignIn) -> Void,
         notMine: @escaping (SignedInCard) -> Void,
         answerRule: @escaping (RuleCard, RuleScope?) -> Void,
-        askAgain: @escaping (String) -> Void
+        askAgain: @escaping (String) -> Void,
+        ask: @escaping (String) -> Void
     ) {
         model.openAnswer = openAnswer
         model.answerDraft = answerDraft
@@ -212,6 +232,7 @@ final class IslandPanel: NSPanel, Face {
         model.notMine = notMine
         model.answerRule = answerRule
         model.askAgain = askAgain
+        model.ask = ask
     }
 
     /// Control and Option held or let go: the island says it is taking down a rule while they are held.
@@ -651,7 +672,12 @@ final class IslandPanel: NSPanel, Face {
         let overBelow = below.height > 0 && NSRect(
             x: frame.minX + below.minX, y: frame.maxY - below.maxY, width: below.width, height: below.height
         ).insetBy(dx: -Layout.pointerSlop, dy: -Layout.pointerSlop).contains(mouse)
-        let clickable = over || overBelow
+        // The round buttons either side of the open island take clicks too, over their column only.
+        let satellites = model.showsSatellites && NSRect(
+            x: shape.minX - NotchMetrics.satelliteReach, y: frame.maxY - Island.satelliteColumn(model.notch),
+            width: shape.width + 2 * NotchMetrics.satelliteReach, height: Island.satelliteColumn(model.notch)
+        ).contains(mouse)
+        let clickable = over || overBelow || satellites
         if ignoresMouseEvents == clickable { ignoresMouseEvents = !clickable }
         let now = Date()
         if clickable, mouse != lastMouse { lastActivity = now }
@@ -710,6 +736,9 @@ final class IslandPanel: NSPanel, Face {
         guard model.opened else { return }
         model.opened = false
         model.detail = false
+        model.launcher = false
+        model.launcherTools = false
+        model.pickedTool = nil
         model.picked = nil
         model.countdown = nil
         model.settle()

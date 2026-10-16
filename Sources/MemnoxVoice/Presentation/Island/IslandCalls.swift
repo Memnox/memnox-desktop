@@ -180,16 +180,15 @@ struct IslandFinished: View {
 
 /// How `IslandCard` is drawn; at file scope because a generic type cannot hold static stored properties.
 private enum CardStyle {
-    static let cornerRadius: CGFloat = 20
-    /// The glow's centre sits below the card, so only its upper reach rises into view.
-    static let veilCenter = UnitPoint(x: 0.5, y: 1.3)
-    static let veilReach: CGFloat = 360
-    static let veilFade = Animation.easeInOut(duration: 0.4)
+    /// Vorssaint's tile corner, so a card and a tile in the notch read as one family.
+    static let cornerRadius: CGFloat = NotchMetrics.tileRadius
+    static let rimFade = Animation.easeInOut(duration: 0.4)
     /// Barely there, so the card's edge shows without framing it.
-    static let edgeOpacity = 0.035
+    static let edgeOpacity = NotchMetrics.tileRim
 }
 
-/// A dark card inside the open island, with a glow rising from its bottom edge in the colour of what is happening.
+/// A flat card inside the open island, white at a breath over the black as Vorssaint's tiles are. What is happening
+/// shows as its rim in that colour rather than a glow, so the notch stays the hardware's own black.
 struct IslandCard<Content: View>: View {
     let veil: Color?
     @ViewBuilder let content: Content
@@ -197,23 +196,8 @@ struct IslandCard<Content: View>: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: CardStyle.cornerRadius, style: .continuous)
         content
-            .background(
-                shape.fill(IslandPalette.card)
-                    .overlay {
-                        // A fixed reach rather than one measured, since measuring inside a panel's own sizing pass crashed it.
-                        if let veil {
-                            RadialGradient(
-                                colors: [veil, veil.opacity(0)],
-                                center: CardStyle.veilCenter,
-                                startRadius: 0,
-                                endRadius: CardStyle.veilReach
-                            )
-                            .transition(.opacity)
-                        }
-                    }
-                    .clipShape(shape)
-                    .animation(CardStyle.veilFade, value: veil)
-            )
-            .overlay(shape.strokeBorder(Color.white.opacity(CardStyle.edgeOpacity), lineWidth: Memnox.Stroke.hairline))
+            .background(shape.fill(IslandPalette.card))
+            .overlay(shape.strokeBorder(veil ?? Color.white.opacity(CardStyle.edgeOpacity), lineWidth: Memnox.Stroke.hairline))
+            .animation(CardStyle.rimFade, value: veil)
     }
 }

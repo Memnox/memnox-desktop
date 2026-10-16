@@ -73,6 +73,15 @@ struct IslandView: View {
                 .padding(.leading, Island.flare)
             }
             .frame(width: size.width + 2 * Island.flare, height: size.height, alignment: .topLeading)
+            .overlay(alignment: .top) {
+                if model.showsSatellites {
+                    IslandSatellites(model: model, islandWidth: size.width)
+                        .padding(.top, Island.satelliteTop(model.notch))
+                        // They slide out from behind the island on their own; leaving, they only fade.
+                        .transition(.opacity)
+                }
+            }
+            .animation(.spring(response: 0.36, dampingFraction: 0.8), value: model.showsSatellites)
             .modifier(ShakeEffect(times: CGFloat(model.shakes)))
             .modifier(HopEffect(times: CGFloat(model.hops)))
             // With Reduce Motion the hop and the shake are skipped; the card and the sound still say what happened.
@@ -125,7 +134,7 @@ struct IslandView: View {
         switch model.mode {
         case .conversation, .draft, .rule: return .conversation
         case .answer: return model.active ? .conversation : .answer
-        case .peek, .compact, .voice, .hearing, .overview, .session, .empty, .held, .question, .finished: return model.mode
+        case .peek, .compact, .voice, .hearing, .overview, .session, .empty, .held, .question, .finished, .launcher: return model.mode
         }
     }
 
@@ -151,6 +160,8 @@ struct IslandView: View {
             if let question = model.question { IslandQuestion(model: model, card: question) }
         case .finished:
             if let finished = model.finished { IslandFinished(model: model, card: finished) }
+        case .launcher:
+            IslandLauncher(model: model, tools: model.tools)
         case .hearing:
             IslandHearing(model: model)
         case .conversation, .draft, .rule:
@@ -197,15 +208,14 @@ struct IslandPhonePill: View {
     }
 }
 
-/// The row along the notch while the island is open: where you are on the left, how many are working on the right.
+/// The row along the notch while the island is open, as Vorssaint heads its notch: the page's title on the left and how
+/// many are working on the right; the grid, the history and Settings hang beside the island as round buttons.
 struct IslandHeader: View {
     @ObservedObject var model: IslandModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Symbol {
-        static let overview = "square.grid.2x2"
         static let back = "chevron.left"
-        static let voice = "waveform"
-        static let history = "clock.arrow.circlepath"
     }
 
     private enum Layout {
@@ -213,27 +223,26 @@ struct IslandHeader: View {
         static let countTrailing: CGFloat = 18
         /// Clears the small orb that sits at the start of the header row on an opened answer.
         static let pastOrb: CGFloat = 46
+        static let titleLeading: CGFloat = 18
     }
 
     private static let countOpacity = 0.55
 
     var body: some View {
         let count = model.working.count
-        HStack(spacing: Memnox.Spacing.xSmall) {
-            IslandTab(symbol: Symbol.overview, label: "All sessions", on: model.mode == .overview || model.mode == .empty) {
-                model.detail = false
-                model.picked = nil
-                model.settle()
+        HStack(spacing: Memnox.Spacing.small) {
+            if showsBack {
+                IslandTab(symbol: Symbol.back, label: "Back", on: false, action: back)
             }
-            IslandTab(symbol: Symbol.history, label: "History, sessions and what needs you", on: model.sideOpen) { model.toggleSide() }
-            if model.mode == .session || model.mode == .answer {
-                IslandTab(symbol: Symbol.back, label: "Back", on: false) {
-                    model.detail = false
-                    model.picked = nil
-                    model.settle()
-                }
-            }
-            IslandTab(symbol: Symbol.voice, label: "Talk to Memnox", on: model.mode == .voice) { model.tapped() }
+            // One page's name blurs into the next, so moving between pages is seen as well as read.
+            Text(model.title)
+                .font(.system(size: NotchMetrics.titleSize, weight: .semibold))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+                .id(model.title)
+                .transition(reduceMotion ? AnyTransition.opacity : AnyTransition(.blurReplace))
+                .animation(.snappy, value: model.title)
+                .accessibilityAddTraits(.isHeader)
             Spacer(minLength: model.notch.width + Memnox.Spacing.xLarge)
             // Nothing at all when nothing works, since "0 working" reads like a fault.
             Text(count == 1 ? "1 working" : "\(count) working")
@@ -246,8 +255,28 @@ struct IslandHeader: View {
                 .opacity(count == 0 ? 0 : 1)
                 .accessibilityHidden(count == 0)
         }
-        .padding(.leading, model.mode == .answer || model.mode == .session ? Layout.pastOrb : Memnox.Spacing.large)
+        .padding(.leading, pastOrb ? Layout.pastOrb : Layout.titleLeading)
         .frame(height: model.notch.height)
+    }
+
+    /// The small orb sits at the start of the header in these modes, so the title starts past it.
+    private var pastOrb: Bool { model.mode == .answer || model.mode == .session || model.mode == .launcher || model.mode == .question }
+
+    private var showsBack: Bool {
+        model.mode == .session || model.mode == .answer || (model.mode == .launcher && model.launcherTools)
+    }
+
+    private func back() {
+        if model.mode == .launcher {
+            // One app steps back to the tools, and the tools step back to the grid.
+            withAnimation(.snappy) {
+                if model.pickedTool != nil { model.pickedTool = nil } else { model.launcherTools = false }
+            }
+            return
+        }
+        model.detail = false
+        model.picked = nil
+        model.settle()
     }
 }
 

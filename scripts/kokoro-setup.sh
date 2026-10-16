@@ -57,10 +57,26 @@ bytes() { stat -f %z "$1" 2>/dev/null || echo 0; }
 # Empty means no pack, and the pieces come one by one from where their makers publish them.
 PACK_DEFAULT=""
 PACK_URL="${MEMNOX_VOICE_PACK:-$PACK_DEFAULT}"
+# The same pack carried inside the app beside this script, as the downloadable disk image ships it, so the voice
+# installs on first launch with no download.
+PACK_FILE="${MEMNOX_VOICE_PACK_FILE:-$HERE/kokoro-pack.tar.xz}"
 
-# Takes the pack: resumed if it broke off, accepted only against its checksum, and unpacked where the venv's Python
-# is then pointed at its new home. Anything short of that returns false, and the pieces are fetched instead.
+# Unpacks a pack archive and points the venv's Python at its new home. False when anything is short.
+unpack() {
+  step "Unpacking the voice"
+  rm -rf "$DIR/venv" "$DIR/python"
+  tar -C "$DIR" --strip-components 1 -xJf "$1" || return 1
+  home="$(ls -d "$DIR"/python/cpython-*/bin 2>/dev/null | head -1)"
+  [ -n "$home" ] || return 1
+  sed -i '' "s|^home = .*|home = $home|" "$DIR/venv/pyvenv.cfg" || return 1
+  "$DIR/venv/bin/python" -c "import kokoro_onnx" 2>/dev/null || return 1
+}
+
+# Takes the pack: the one on this Mac when there is one, which came inside the signed app, else the hosted one,
+# resumed if it broke off and accepted only against its checksum. Anything short of that returns false, and the pieces
+# are fetched instead.
 pack() {
+  if [ -f "$PACK_FILE" ] && unpack "$PACK_FILE"; then return 0; fi
   [ -n "$PACK_URL" ] || return 1
   step "Downloading the voice"
   curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -C - "$PACK_URL" -o "$DIR/pack.tar.xz.part" || return 1
@@ -70,14 +86,8 @@ pack() {
     rm -f "$DIR/pack.tar.xz.part" "$DIR/pack.sha256"
     return 1
   fi
-  step "Unpacking the voice"
-  rm -rf "$DIR/venv" "$DIR/python"
-  tar -C "$DIR" --strip-components 1 -xJf "$DIR/pack.tar.xz.part" || return 1
+  unpack "$DIR/pack.tar.xz.part" || return 1
   rm -f "$DIR/pack.tar.xz.part" "$DIR/pack.sha256"
-  home="$(ls -d "$DIR"/python/cpython-*/bin 2>/dev/null | head -1)"
-  [ -n "$home" ] || return 1
-  sed -i '' "s|^home = .*|home = $home|" "$DIR/venv/pyvenv.cfg" || return 1
-  "$DIR/venv/bin/python" -c "import kokoro_onnx" 2>/dev/null || return 1
 }
 
 if pack; then

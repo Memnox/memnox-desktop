@@ -46,8 +46,11 @@ sed -i '' "s|^home = .*|home = PACK_HOME/python/$PYDIR/bin|" "$PACK/venv/pyvenv.
 
 echo "Voice files"
 bytes() { stat -f %z "$1" 2>/dev/null || echo 0; }
+# A whole copy this Mac's own voice already installed is taken rather than pulled again from GitHub, which is slow.
+INSTALLED="$HOME/.memnox/voice/kokoro"
 for pair in "$MODEL $MODEL_BYTES" "$VOICES $VOICES_BYTES"; do
   set -- $pair
+  if [ "$(bytes "$INSTALLED/$1")" -eq "$2" ]; then cp "$INSTALLED/$1" "$PACK/$1"; continue; fi
   curl -fL --retry 5 --retry-all-errors --retry-delay 2 -C - "$RELEASE/$1" -o "$PACK/$1"
   [ "$(bytes "$PACK/$1")" -eq "$2" ] || { echo "$1 came down at $(bytes "$PACK/$1") bytes rather than $2"; exit 1; }
 done

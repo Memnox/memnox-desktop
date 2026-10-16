@@ -150,7 +150,31 @@ without any agents running, start it with `open -n build/Memnox.app --args --isl
 
 ## Quick start
 
-You need macOS 14 or later (26 or later for SpeechAnalyzer) and Xcode 26 or later. The app brings
+### Developer preview
+
+The quickest way in, on an Apple silicon Mac with macOS 14 or later and one agent such as Claude
+Code, Codex or Cursor signed in with its own account:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-macos/main/scripts/install.sh | sh
+```
+
+It downloads the newest release, checks it against the checksum published with it, puts Memnox in
+Applications and opens it. The first run asks for its permissions and installs `memnox`, its daemon
+and the Kokoro voice, with no Node needed. The preview is signed with the project's own certificate
+rather than an Apple Developer ID and is not notarized yet, which is why it installs through
+`curl`: a disk image downloaded in a browser is stopped by Gatekeeper, and opens only after
+**Open Anyway** under System Settings, Privacy & Security.
+
+The builds released here are the project's own. The code is yours under MIT to read, change and
+build; the Memnox name and artwork are not, as [LICENSE-ASSETS.md](LICENSE-ASSETS.md) says.
+
+### From source
+
+You need macOS 14 or later (26 or later for SpeechAnalyzer) and Xcode 26 or later, and one agent
+that talks to a model, such as Claude Code, Codex, Cursor, Hermes or OpenClaw, signed in with its
+own account. Memnox has no model of its own and thinks through that agent, so there is no API key
+to bring. The app brings
 the Memnox runtime itself: on every launch it finds `memnox` or installs it, wires the machine with
 `memnox setup --yes` the first time, starts the daemon, and brings a daemon older than the app up
 to date. Setup only names a command when one of those steps fails.
@@ -164,6 +188,14 @@ Where it gets `memnox` is chosen when it is built, and written into its Info.pli
 - **npm**, for a release: `MEMNOX_RUNTIME_SOURCE=npm ./scripts/bundle.sh`. The app uses a
   `memnox` already installed, installs `memnox@latest` from npm when there is none, and runs
   `memnox update --yes` when the daemon is older than the app.
+- **A disk image to download**: `./scripts/dmg.sh` builds `build/Memnox-<version>.dmg`, the npm
+  build carrying the newest published runtime with its own Node (`scripts/runtime-pack.sh`) and
+  the Kokoro voice pack (`scripts/voice-pack.sh`). On first launch the app unpacks the runtime
+  into `~/.memnox/node` with `Support/runtime/unpack.sh`, starts the daemon, and installs the
+  voice, all with no Node on the Mac and no connection. A Mac with its own `memnox` keeps using
+  it, and `memnox update` updates the one in `~/.memnox/node` in place. It also writes
+  `build/Memnox.dmg` and its `.sha256`, the two names a release carries for `scripts/install.sh`.
+  Until the image is notarized, a browser download of it needs Open Anyway. Apple silicon only.
 
 ```sh
 scripts/signing-setup.sh   # once: a local signing identity, so macOS remembers your permissions

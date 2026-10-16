@@ -123,6 +123,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             preview.start()
             return
         }
+        // Opened from the disk image: the copy in Applications takes over, since only it can keep its permissions.
+        if ApplicationsFolder.moveIfOutside() { return }
         let voice = Voice()
         voice.route = audio
         self.voice = voice
@@ -299,14 +301,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         listenToDaemon()
         readInbox()
         watchPresence()
-        if UserDefaults.standard.bool(forKey: SetupModel.doneKey) {
-            // Every launch, so an app updated past its runtime brings the runtime along before anyone asks.
-            Task { [runtime, conversation, target] in
-                // A server keeps its own runtime and trusts the key it paired with, so neither is this Mac's to tend.
-                guard !target.isRemote else { return }
-                if let conversation, await runtime.ensure(conversation) != .unreachable { await conversation.introduce() }
-            }
-        } else if !account.isSignedIn {
+        let setUp = UserDefaults.standard.bool(forKey: SetupModel.doneKey)
+        // Every launch, the first included, so the daemon is up as the app opens and an app updated past its runtime
+        // brings the runtime along before anyone asks. Setup's own check joins this run rather than starting another.
+        // Somebody signed in who never set this Mac up only answers what is routed to them, so it is left alone.
+        Task { [runtime, conversation, target, account] in
+            // A server keeps its own runtime and trusts the key it paired with, so neither is this Mac's to tend.
+            guard !target.isRemote, setUp || !account.isSignedIn else { return }
+            if let conversation, await runtime.ensure(conversation) != .unreachable, setUp { await conversation.introduce() }
+        }
+        if !setUp, !account.isSignedIn {
             // Somebody who only answers what is routed to them has what they came for, so setup is not pushed on them each launch.
             showSetup()
         }

@@ -32,8 +32,7 @@ final class RuntimeInstaller: ObservableObject {
             failed = nil
             return state
         }
-        guard let found = await memnoxCommand() else { return state }
-        let memnox = Self.quoted(found)
+        guard let memnox = await memnoxCommand() else { return state }
         if state == .unreachable {
             let wired = FileManager.default.fileExists(atPath: Self.home(Self.keptFile))
             // The first time it wires every agent in observe, which records and enforces nothing until the person says.
@@ -49,8 +48,8 @@ final class RuntimeInstaller: ObservableObject {
     /// Updates and restarts the daemon whatever it answered, for a method the app needs that its version predates,
     /// which the version alone does not show while the runtime is built from a checkout.
     func updateNow(_ conversation: Conversation) async {
-        guard doing == nil, let found = await memnoxCommand() else { return }
-        let state = await update(Self.quoted(found), conversation)
+        guard doing == nil, let memnox = await memnoxCommand() else { return }
+        let state = await update(memnox, conversation)
         failed = why(state)
         doing = nil
     }
@@ -62,9 +61,9 @@ final class RuntimeInstaller: ObservableObject {
         guard doing == nil else { return "Memnox is still starting up. Try again in a moment." }
         doing = "Putting your agents under Memnox"
         defer { doing = nil }
-        guard let found = await memnoxCommand() else { return failed ?? Self.notProtected }
+        guard let memnox = await memnoxCommand() else { return failed ?? Self.notProtected }
         doing = "Putting your agents under Memnox"
-        guard await Self.shell("\(Self.quoted(found)) setup --yes --no-probe") else { return Self.notProtected }
+        guard await Self.shell("\(memnox) setup --yes --no-probe") else { return Self.notProtected }
         return nil
     }
 
@@ -88,12 +87,42 @@ final class RuntimeInstaller: ObservableObject {
         return state
     }
 
-    /// `memnox` from where this build says it comes from.
+    /// `memnox` from where this build says it comes from, quoted and ready to start a shell line.
     private func memnoxCommand() async -> String? {
         switch source {
-        case .local(let checkout): return await localMemnox(checkout)
-        case .npm: return await publishedMemnox()
+        case .local(let checkout): return await localMemnox(checkout).map(Self.quoted)
+        case .npm:
+            // The copy this app put in ~/.memnox/node is on the PATH too once a terminal has it, and is still this
+            // app's to keep up to date, so only a memnox from anywhere else is taken as the person's own.
+            if let found = await Self.found(Command.memnox),
+               !Self.resolved(found).hasPrefix(Self.resolved(Self.home(Installed.home))) {
+                return Self.quoted(found)
+            }
+            await unpackCarried()
+            if let installed = installedMemnox() { return installed }
+            return await publishedMemnox().map(Self.quoted)
         }
+    }
+
+    /// The runtime with its own Node that a downloaded build carries, put into `~/.memnox/node` by the script beside it,
+    /// which returns at once when what is there is as new. A build without one, or a failed unpack, falls through to npm.
+    private func unpackCarried() async {
+        guard let script = Bundle.main.path(forResource: Carried.script, ofType: Carried.scriptType, inDirectory: Carried.folder) else { return }
+        if installedMemnox() == nil { doing = "Putting Memnox on this Mac" }
+        if !(await Self.shell("\(Command.sh) \(Self.quoted(script))")) {
+            diary.note("the runtime this app carries would not unpack")
+        }
+    }
+
+    /// The runtime in `~/.memnox/node`, run with its own Node first on its PATH, so it needs no Node on the Mac and
+    /// `memnox update` updates it in place. Nil where nothing was ever unpacked there.
+    private func installedMemnox() -> String? {
+        let node = Self.home(Installed.home)
+        let bin = (node as NSString).appendingPathComponent(Installed.bin)
+        let memnox = (bin as NSString).appendingPathComponent(Command.memnox)
+        guard FileManager.default.isExecutableFile(atPath: memnox) else { return nil }
+        // The prefix keeps npm installing updates beside this Node, whatever prefix the person's own npmrc names.
+        return "PATH=\(Self.quoted(bin)):\"$PATH\" NPM_CONFIG_PREFIX=\(Self.quoted(node)) \(Self.quoted(memnox))"
     }
 
     /// The checkout's own CLI, linked onto the PATH with `npm link` when `memnox` there is any other copy,
@@ -116,9 +145,8 @@ final class RuntimeInstaller: ObservableObject {
         return found
     }
 
-    /// `memnox` as the person's shell finds it, or the published package installed with npm when it is nowhere.
+    /// The published package installed with npm, for a Mac with no `memnox` and a build that carries none.
     private func publishedMemnox() async -> String? {
-        if let found = await Self.found(Command.memnox) { return found }
         doing = "Installing Memnox"
         var hasNpm = await Self.found(Command.npm) != nil
         if !hasNpm { hasNpm = await installNode() }
@@ -236,6 +264,20 @@ final class RuntimeInstaller: ObservableObject {
         static let npm = "npm"
         static let brew = "brew"
         static let zsh = "/bin/zsh"
+        static let sh = "/bin/sh"
+    }
+
+    /// Where the runtime and its Node are unpacked, which `Support/runtime/unpack.sh` agrees on.
+    private enum Installed {
+        static let home = ".memnox/node"
+        static let bin = "bin"
+    }
+
+    /// The unpacking script a downloaded build carries beside the runtime, put there by scripts/bundle.sh.
+    private enum Carried {
+        static let folder = "runtime"
+        static let script = "unpack"
+        static let scriptType = "sh"
     }
 
     /// Where the CLI sits in a runtime checkout, and the file a build leaves there.
@@ -252,3 +294,4 @@ final class RuntimeInstaller: ObservableObject {
         static let keptOutput = 600
     }
 }
+

@@ -35,6 +35,8 @@ if [ "$SOURCE" = local ]; then
   /usr/libexec/PlistBuddy -c "Add :MemnoxRuntimeCheckout string $RUNTIME_DIR" "$APP/Contents/Info.plist"
 fi
 mkdir -p "$APP/Contents/Resources"
+# The icon Finder, the Dock and the disk image show: the iPhone app's icon drawn into the macOS shape.
+cp Support/AppIcon.icns "$APP/Contents/Resources/"
 cp Support/Logo/*.png "$APP/Contents/Resources/"
 # The website's scenes, so the first run pictures each step on the same ground the website does.
 mkdir -p "$APP/Contents/Resources/Scenes"
@@ -51,6 +53,17 @@ cp scripts/kokoro-setup.sh Support/kokoro/server.py "$APP/Contents/Resources/kok
 # first run takes the voice in one download from a host near the person rather than four slow ones.
 if [ -n "${MEMNOX_VOICE_PACK:-}" ]; then
   sed -i '' "s|^PACK_DEFAULT=.*|PACK_DEFAULT=\"$MEMNOX_VOICE_PACK\"|" "$APP/Contents/Resources/kokoro/kokoro-setup.sh"
+fi
+# Or the pack itself inside the app, as scripts/dmg.sh builds it, so the voice installs on first launch with no download.
+if [ -n "${MEMNOX_VOICE_PACK_FILE:-}" ]; then
+  cp "$MEMNOX_VOICE_PACK_FILE" "$APP/Contents/Resources/kokoro/kokoro-pack.tar.xz"
+fi
+# The runtime with its own Node that scripts/runtime-pack.sh built, and the script that unpacks it on first launch,
+# so a Mac with no Node and no connection still gets memnox and its daemon.
+if [ -n "${MEMNOX_RUNTIME_PACK:-}" ]; then
+  mkdir -p "$APP/Contents/Resources/runtime"
+  cp "$MEMNOX_RUNTIME_PACK/memnox-runtime.tar.xz" "$MEMNOX_RUNTIME_PACK/memnox-runtime.version" Support/runtime/unpack.sh \
+    "$APP/Contents/Resources/runtime/"
 fi
 IDENTITY="Memnox Local Signing"
 # Only a valid identity signs; one left without its trust is made again here, since a build signed ad hoc is a

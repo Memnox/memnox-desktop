@@ -291,6 +291,10 @@ a good first contribution too. Everyone taking part follows the
 
 ## License
 
+The Memnox name, the logo, the icon and the pictures are not under the MIT License: they are
+reserved, as [LICENSE-ASSETS.md](LICENSE-ASSETS.md) explains. Shipping your own fork? Give it your
+own name and icon. The official build is the one signed and notarized by Memnox.
+
 [MIT](LICENSE). The app builds on open source work it does not commit. The Noise framework is
 copied from [memnox-runtime](https://github.com/Memnox/memnox) by `scripts/vendor-noise.sh`, and
 the voice is installed on first launch by `scripts/kokoro-setup.sh`:

@@ -199,12 +199,13 @@ final class ConversationTests: XCTestCase {
         let driven = #"{"kind":"notice","subject":"drv_1","agent":"memnox","summary":"s","at":"t","drivenBy":{"deviceId":"dev_1","name":"iPhone","until":"2099-01-01T00:00:00.000Z"}}"#
         await conversation.handle(try event(driven))
         XCTAssertEqual(conversation.phoneAnswers, "iPhone")
-        XCTAssertEqual(await conversation.answerHeld("apr_4", .once, reason: "push to main"),
-                       .failed("Answer it on iPhone, which asks for Face ID."))
+        let onThisMac = await conversation.answerHeld("apr_4", .once, reason: "push to main")
+        XCTAssertEqual(onThisMac, .failed("Answer it on iPhone, which asks for Face ID."))
         XCTAssertEqual(key.signed, [])
 
         link.answers["confirm"] = [try line(#"{"id":1,"ok":true,"outcome":"deny"}"#)]
-        XCTAssertEqual(await conversation.answerHeld("apr_4", .deny, reason: "push to main"), .answered)
+        let refused = await conversation.answerHeld("apr_4", .deny, reason: "push to main")
+        XCTAssertEqual(refused, .answered)
         XCTAssertNil(link.sent.last?.signature)
     }
 

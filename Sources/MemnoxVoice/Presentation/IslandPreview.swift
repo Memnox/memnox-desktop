@@ -55,7 +55,7 @@ final class IslandPreview {
     init(panel: IslandPanel) {
         self.panel = panel
         // The buttons only put the card away here, since there is no real call to answer.
-        panel.wire(answer: { [weak panel] card, _ in panel?.release(card.subject) }, tapped: {})
+        panel.wire(answer: { [weak panel] card, _ in panel?.release(card.subject) }, answerQuestion: { _, _, _ in }, tapped: {})
         panel.wireConversation(
             openAnswer: { _ in },
             answerDraft: { [weak panel] card, _ in panel?.draftAnswered(card, .answered) },

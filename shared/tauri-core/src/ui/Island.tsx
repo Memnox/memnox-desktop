@@ -1,9 +1,11 @@
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { HOLD_ANSWER, type HoldAnswer } from '@memnox/core/wire';
-import { Check, ChevronLeft, ChevronRight, ClockArrowUp, ShieldCheck, X } from 'lucide-react';
-import type { HeldCalls, HeldOutcome, OrbState, ProposalCards, Talking } from '../core';
+import { Check, ChevronLeft, ChevronRight, ClockArrowUp, Settings as Gear, ShieldCheck, X } from 'lucide-react';
+import type { HeldCalls, HeldOutcome, OrbState, ProposalCards, Setup, Talking, VoiceSettings } from '../core';
 import { Cards } from './Cards';
 import { Orb, type OrbHandle } from './Orb';
+import { Settings } from './Settings';
+import { SetupRow } from './SetupRow';
 import { Talk } from './Talk';
 import { button, note } from './ui';
 
@@ -22,7 +24,17 @@ function told(outcome: HeldOutcome): string | undefined {
 }
 
 /** The island: the orb, the held call on screen, how many wait, and the three answers. Draws the core's state and nothing else. */
-export function Island({ calls, talking, cards }: { calls: HeldCalls; talking: Talking; cards: ProposalCards }) {
+export interface IslandParts {
+  calls: HeldCalls;
+  talking: Talking;
+  cards: ProposalCards;
+  setup: Setup;
+  voiceSettings: VoiceSettings;
+  /** Opens on the settings, for the preview page. */
+  settingsOpen?: boolean;
+}
+
+export function Island({ calls, talking, cards, setup, voiceSettings, settingsOpen = false }: IslandParts) {
   const state = useSyncExternalStore(
     (changed) => calls.observe(changed),
     () => calls.state,
@@ -33,6 +45,7 @@ export function Island({ calls, talking, cards }: { calls: HeldCalls; talking: T
   );
   const [said, setSaid] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [settings, setSettings] = useState(settingsOpen);
   const orb = useRef<OrbHandle>();
   const shown = state.waiting.shown;
   const orbState: OrbState = shown !== undefined ? 'needs-you' : talk.phase;
@@ -49,18 +62,22 @@ export function Island({ calls, talking, cards }: { calls: HeldCalls; talking: T
   }
 
   return (
-    <main className="mx-auto grid max-w-[400px] gap-2 rounded-[22px] bg-ground px-4 py-3 font-sans text-[13px] text-ink shadow-[0_8px_28px_rgb(0_0_0/35%)]" aria-live="polite">
+    <main className="mx-auto grid max-h-[calc(100vh-8px)] max-w-[400px] gap-2 overflow-y-auto rounded-[22px] bg-ground px-4 py-3 font-sans text-[13px] text-ink shadow-[0_8px_28px_rgb(0_0_0/35%)]" aria-live="polite">
       <header className="flex items-center gap-2.5">
         <Orb side={shown !== undefined ? 36 : 28} state={orbState} waiting={shown !== undefined} handle={(handle) => (orb.current = handle)} />
         {shown === undefined ? (
-          <span className="text-muted">{state.connected ? 'Nothing waits on you' : 'Waiting for Memnox to start'}</span>
+          <span className="flex-1 text-muted">{state.connected ? 'Nothing waits on you' : 'Waiting for Memnox to start'}</span>
         ) : (
           <>
             <span className="flex-1 font-semibold">{shown.card.label} needs you</span>
             {state.waiting.positionText !== undefined && <span className="text-muted">{state.waiting.positionText}</span>}
           </>
         )}
+        <button className={button('icon')} onClick={() => setSettings(!settings)} aria-label="Settings" aria-pressed={settings}>
+          <Gear size={15} />
+        </button>
       </header>
+      <SetupRow setup={setup} />
       {shown !== undefined && (
         <section className="grid gap-1.5">
           {state.waiting.header !== undefined && <p className="text-muted">{state.waiting.header}</p>}
@@ -93,6 +110,7 @@ export function Island({ calls, talking, cards }: { calls: HeldCalls; talking: T
         </section>
       )}
       <Cards cards={cards} />
+      {settings && <Settings voiceSettings={voiceSettings} setup={setup} />}
       <Talk talking={talking} />
       {said !== undefined && <p className={note}>{said}</p>}
     </main>

@@ -5,6 +5,7 @@
 mod awake;
 mod daemon;
 mod key;
+mod runtime;
 mod talk_key;
 mod tray;
 mod voice;
@@ -31,7 +32,11 @@ pub fn run() {
                 .ok_or("the island window is missing")?;
             app.manage(key::Key::for_platform(&window));
             let models = app.path().app_data_dir()?.join("voice");
-            app.manage(Arc::new(voice::Voice::new(VoiceModels::new(models))));
+            let chosen = app.path().app_config_dir()?.join("voice.txt");
+            app.manage(Arc::new(voice::Voice::new(
+                VoiceModels::new(models),
+                chosen,
+            )));
             make_island(&window);
             tray::build(app)?;
             tray::start_at_sign_in_once(app);
@@ -53,6 +58,12 @@ pub fn run() {
             voice::speak,
             voice::speak_stop,
             island_keyboard,
+            voice::voice_choice,
+            voice::choose_voice,
+            runtime::runtime_found,
+            runtime::runtime_install,
+            runtime::runtime_wired,
+            runtime::runtime_run,
         ])
         .run(tauri::generate_context!())
         .expect("Memnox could not start its window");

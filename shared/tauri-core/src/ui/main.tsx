@@ -1,9 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { HeldCalls, ProposalCards, RequestIds, Signer, Talking, Wakefulness, type Timer } from '../core';
+import { HeldCalls, ProposalCards, RequestIds, Setup, Signer, Talking, VoiceSettings, Wakefulness, type Timer } from '../core';
 import { TauriConfirmKey } from './adapters/tauri-confirm-key';
 import { TauriDaemonLink } from './adapters/tauri-daemon-link';
 import { TauriPower } from './adapters/tauri-power';
+import { TauriRuntime } from './adapters/tauri-runtime';
 import { TauriSpeaker } from './adapters/tauri-speaker';
 import { Island } from './Island';
 import './styles.css';
@@ -28,9 +29,13 @@ const speaker = new TauriSpeaker();
 const cards = new ProposalCards(link, signer, speaker, ids);
 const talking = new Talking(link, speaker, signer, ids, { timer, cards });
 const wakefulness = new Wakefulness(link, new TauriPower(), ids);
+const setup = new Setup(link, new TauriRuntime(), ids, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+const voiceSettings = new VoiceSettings(link, ids);
 calls.observeEvents((event) => void talking.handle(event));
 
 async function keepWatching(held: HeldCalls): Promise<never> {
+  // Memnox is installed, set up, started and brought up to date first, so the person only grants permissions.
+  await setup.ensure();
   await held.registerKey();
   for (;;) {
     await held.watch();
@@ -46,6 +51,6 @@ const root = document.getElementById('root');
 if (root === null) throw new Error('index.html has no root');
 createRoot(root).render(
   <StrictMode>
-    <Island calls={calls} talking={talking} cards={cards} />
+    <Island calls={calls} talking={talking} cards={cards} setup={setup} voiceSettings={voiceSettings} />
   </StrictMode>,
 );

@@ -5,7 +5,7 @@ import Foundation
 /// since a server refuses it anyway and asking only spends a round trip to hear no.
 public enum RemoteReach {
     public static let methods: Set<DaemonMethod> = [
-        .ping, .sessionsList, .sessionView, .waiting, .subscribe, .trace, .voiceAgents, .voiceChoice, .filesList, .home,
+        .ping, .sessionsList, .sessionView, .waiting, .subscribe, .trace, .voiceAgents, .voiceChoice, .filesList, .home, .connectionsList,
         .ask, .cancel, .warm, .brief, .speak, .handOver, .drive, .confirm,
     ]
 

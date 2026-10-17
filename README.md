@@ -24,6 +24,19 @@ curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/macos/sc
 [`macos/README.md`](macos/README.md) says what it does, how to build it from source and how it
 is put together.
 
+## Install on Linux or Windows
+
+On x86_64 Linux, which installs the deb, the rpm or the AppImage, each checked against the release's
+SHA256SUMS:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/linux/scripts/install.sh | sh
+```
+
+On Windows, download the signed installer from the newest `app-v` release. Arch users can build
+the PKGBUILD published beside it. A release is cut by pushing a tag `app-v<version>` that matches
+`shared/tauri-core/src-tauri/tauri.conf.json`, and a Windows build is never published unsigned.
+
 ## License
 
 The code is MIT, as [LICENSE](LICENSE) says. The Memnox name and artwork are not, as

@@ -20,9 +20,10 @@ fail() { printf 'memnox install: %s\n' "$1" >&2; exit 1; }
 MAJOR="$(sw_vers -productVersion | cut -d. -f1)"
 [ "$MAJOR" -ge "$MIN_MACOS" ] || fail "Memnox needs macOS $MIN_MACOS or later."
 
-# The newest release, a preview included, since GitHub's own latest address skips every release marked as a preview.
+# The newest release that carries the Mac app, a preview included, since GitHub's own latest address skips every
+# preview, and the newest release may be the Windows and Linux app's, which this repo releases too.
 newest() {
-  curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=1" \
+  curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=30" \
     | grep -o '"browser_download_url": *"[^"]*/Memnox\.dmg"' | head -1 | sed 's/.*"\(https[^"]*\)"$/\1/'
 }
 URL="${MEMNOX_DMG_URL:-$(newest || true)}"

@@ -16,4 +16,6 @@ here.
 
 `native/` is the `memnox-linux` crate the shared app depends on only on Linux: `SecretKey` (a P-256 key kept in the login keyring and used only after polkit asks, through `packaging/org.memnox.desktop.policy`), `KeepAwake` and `on_mains`, and `make_island` on layer shell, which needs GTK and so sits behind the `island` feature. The keyring is open to every process of the same user while the session is unlocked, which makes this the weakest desktop key.
 
-The XWayland dock on GNOME and the AppImage, deb, rpm and PKGBUILD releases come next; the deb and rpm already install the polkit policy.
+`.github/workflows/release-app.yml` builds the AppImage, deb and rpm on Ubuntu 22.04, so older glibc runs them, and publishes SHA256SUMS, the polkit policy and a PKGBUILD from `packaging/PKGBUILD.in` beside them. `scripts/install.sh` installs the right one and checks it first. The deb and rpm install the polkit policy themselves; for the AppImage the script puts it in place.
+
+The XWayland dock on GNOME comes next.

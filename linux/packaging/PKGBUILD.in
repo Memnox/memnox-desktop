@@ -1,0 +1,17 @@
+# Memnox for Arch Linux, built from the release's deb. The release workflow fills in the version,
+# the file and its checksum, so the PKGBUILD published beside each release installs exactly that deb.
+pkgname=memnox-desktop-bin
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc="Memnox: the face, the voice and the signing key over your agents"
+arch=('x86_64')
+url="https://github.com/Memnox/memnox-desktop"
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'gtk-layer-shell' 'libayatana-appindicator' 'alsa-lib' 'polkit')
+optdepends=('gnome-keyring: a Secret Service for the confirm key' 'kwallet: a Secret Service for the confirm key on KDE')
+source=("https://github.com/Memnox/memnox-desktop/releases/download/@TAG@/@DEB@")
+sha256sums=('@SHA256@')
+
+package() {
+  bsdtar -xf data.tar.gz -C "$pkgdir" 2>/dev/null || bsdtar -xf data.tar.xz -C "$pkgdir" 2>/dev/null || bsdtar -xf data.tar.zst -C "$pkgdir"
+}

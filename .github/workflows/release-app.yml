@@ -1,0 +1,151 @@
+# The Windows and Linux app is released from a tag named app-v<version>, matching tauri.conf.json.
+# Windows installers are signed with Azure Trusted Signing, and a tag never publishes one unsigned;
+# the Linux packages ship with SHA256SUMS beside them and a PKGBUILD that installs the deb.
+# The Mac app is released separately as Memnox.dmg, which its installer finds among these releases.
+name: Release the Windows and Linux app
+
+on:
+  push:
+    tags: ['app-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: windows-latest
+            bundles: nsis,msi
+          # The oldest supported Ubuntu, so the AppImage and the packages run on older glibc too.
+          - os: ubuntu-22.04
+            bundles: appimage,deb,rpm
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: shared/tauri-core
+    env:
+      SIGNS: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_SIGNING_ACCOUNT != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out memnox-runtime
+        uses: actions/checkout@v4
+        with:
+          repository: Memnox/memnox
+          path: memnox-runtime
+
+      - name: The tag names the version tauri.conf.json carries
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          [ "${GITHUB_REF_NAME}" = "app-v${version}" ] || { echo "::error::tag ${GITHUB_REF_NAME} but tauri.conf.json says ${version}"; exit 1; }
+
+      # An unsigned installer is one Windows warns about and nobody should trust, so a tag never ships one.
+      - name: A tagged Windows release is signed
+        if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/') && env.SIGNS != 'true'
+        run: |
+          echo "::error::set AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT and AZURE_SIGNING_PROFILE to release for Windows"
+          exit 1
+
+      - name: Install the Linux libraries
+        if: runner.os == 'Linux'
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libgtk-layer-shell-dev libasound2-dev rpm
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install the signing tool
+        if: runner.os == 'Windows' && env.SIGNS == 'true'
+        run: cargo install trusted-signing-cli --locked
+
+      - name: Copy the wire from the runtime
+        env:
+          MEMNOX_RUNTIME: ${{ github.workspace }}/memnox-runtime
+        run: pnpm wire
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Tauri signs every binary and installer through this command, with the account's credentials from the environment.
+      - name: Build
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
+        run: |
+          if [ "$RUNNER_OS" = Windows ] && [ "$SIGNS" = true ]; then
+            sign="trusted-signing-cli -e $ENDPOINT -a $ACCOUNT -c $PROFILE -d Memnox %1"
+            pnpm tauri build --bundles ${{ matrix.bundles }} --config "{\"bundle\":{\"windows\":{\"signCommand\":\"$sign\"}}}"
+          else
+            pnpm tauri build --bundles ${{ matrix.bundles }}
+          fi
+
+      - name: Collect the installers
+        working-directory: .
+        run: |
+          mkdir -p out
+          find target/release/bundle -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -exec cp {} out/ \;
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: out/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish the release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+
+      - name: Checksums and the PKGBUILD
+        run: |
+          version="${GITHUB_REF_NAME#app-v}"
+          # The AppImage cannot install the polkit policy itself, so the policy ships beside it, checked like the rest.
+          cp linux/packaging/org.memnox.desktop.policy out/
+          (cd out && sha256sum * > SHA256SUMS)
+          deb=$(cd out && ls *.deb | head -1)
+          sum=$(cd out && sha256sum "$deb" | cut -d' ' -f1)
+          sed -e "s/@VERSION@/$version/" -e "s/@DEB@/$deb/" -e "s/@SHA256@/$sum/" -e "s/@TAG@/$GITHUB_REF_NAME/" \
+            linux/packaging/PKGBUILD.in > out/PKGBUILD
+          cat out/SHA256SUMS
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" out/* --prerelease \
+            --title "Memnox for Windows and Linux ${GITHUB_REF_NAME#app-v}" \
+            --notes "Memnox for Windows and Linux. Check each download against SHA256SUMS. On Linux: curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/linux/scripts/install.sh | sh"

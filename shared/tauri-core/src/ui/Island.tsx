@@ -1,6 +1,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import { HOLD_ANSWER, type HoldAnswer } from '@memnox/core/wire';
-import type { HeldCalls, HeldOutcome } from '../core';
+import type { HeldCalls, HeldOutcome, Talking } from '../core';
+import { Talk } from './Talk';
 
 /** What the island says after a press, in the person's words rather than the daemon's. */
 function told(outcome: HeldOutcome): string | undefined {
@@ -17,7 +18,7 @@ function told(outcome: HeldOutcome): string | undefined {
 }
 
 /** The island: the held call on screen, how many wait, and the three answers. Draws the core's state and nothing else. */
-export function Island({ calls }: { calls: HeldCalls }) {
+export function Island({ calls, talking }: { calls: HeldCalls; talking: Talking }) {
   const state = useSyncExternalStore(
     (changed) => calls.observe(changed),
     () => calls.state,
@@ -29,6 +30,8 @@ export function Island({ calls }: { calls: HeldCalls }) {
   async function answer(subject: string, choice: HoldAnswer) {
     setBusy(true);
     setNote(undefined);
+    // Answered by hand, so the voice stops asking about it.
+    talking.answeredByHand(subject);
     setNote(told(await calls.answer(subject, choice)));
     setBusy(false);
   }
@@ -38,6 +41,7 @@ export function Island({ calls }: { calls: HeldCalls }) {
       <main className="island island--quiet" data-connected={state.connected}>
         <span className="orb" aria-hidden />
         <span className="quiet">{state.connected ? 'Nothing waits on you' : 'Waiting for Memnox to start'}</span>
+        <Talk talking={talking} />
         {note !== undefined && <p className="note">{note}</p>}
       </main>
     );
@@ -75,6 +79,7 @@ export function Island({ calls }: { calls: HeldCalls }) {
           ›
         </button>
       </footer>
+      <Talk talking={talking} />
       {note !== undefined && <p className="note">{note}</p>}
     </main>
   );

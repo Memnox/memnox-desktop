@@ -5,7 +5,11 @@
 mod awake;
 mod daemon;
 mod key;
+mod voice;
 
+use std::sync::Arc;
+
+use memnox_desktop_voice::VoiceModels;
 use tauri::Manager;
 
 /// The island's window, as `tauri.conf.json` names it.
@@ -19,6 +23,8 @@ pub fn run() {
                 .get_webview_window(ISLAND)
                 .ok_or("the island window is missing")?;
             app.manage(key::Key::for_platform(&window));
+            let models = app.path().app_data_dir()?.join("voice");
+            app.manage(Arc::new(voice::Voice::new(VoiceModels::new(models))));
             make_island(&window);
             Ok(())
         })
@@ -28,6 +34,11 @@ pub fn run() {
             key::confirm_key_sign,
             awake::keep_awake,
             awake::on_power,
+            voice::voice_installed,
+            voice::voice_install,
+            voice::listen_once,
+            voice::speak,
+            voice::speak_stop,
         ])
         .run(tauri::generate_context!())
         .expect("Memnox could not start its window");

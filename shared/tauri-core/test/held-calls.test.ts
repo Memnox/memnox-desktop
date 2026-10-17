@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { HeldCalls, NO_KEY_LINE } from '../src/core/application/held-calls';
+import type { HeldCalls } from '../src/core/application/held-calls';
+import { NO_KEY_LINE } from '../src/core/application/signer';
 import { ANOTHER_KEY_LINE } from '../src/core/domain/key-status';
-import { held, PersonKey, registered, ScriptedDaemon } from './doubles';
+import { held, heldCallsOver, PersonKey, registered, ScriptedDaemon } from './doubles';
 
 const confirmed = { confirm: (request: { id: number }) => [{ id: request.id, ok: true, outcome: 'allowed' }] };
 const nothingWaits = { waiting: (request: { id: number }) => [{ id: request.id, ok: true, waiting: [] }] };
@@ -12,7 +13,7 @@ describe('what the island shows', () => {
       waiting: (request) => [{ id: request.id, ok: true, waiting: [held('hld_1')] }],
     });
     daemon.push(held('hld_2', { agentName: 'Claude Code' }));
-    const calls = new HeldCalls(daemon, new PersonKey());
+    const calls = heldCallsOver(daemon, new PersonKey());
     await calls.watch();
     expect(calls.state.waiting.count).toBe(2);
     expect(calls.state.waiting.shown?.card.label).toBe('Claude Code on this computer');
@@ -22,7 +23,7 @@ describe('what the island shows', () => {
     const daemon = new ScriptedDaemon(nothingWaits);
     daemon.push(held('hld_1'));
     daemon.push({ ...held('hld_1'), kind: 'settled' });
-    const calls = new HeldCalls(daemon, new PersonKey());
+    const calls = heldCallsOver(daemon, new PersonKey());
     await calls.watch();
     expect(calls.state.waiting.count).toBe(0);
   });
@@ -31,14 +32,14 @@ describe('what the island shows', () => {
     const daemon = new ScriptedDaemon(nothingWaits);
     daemon.push({ ...held('prp_1'), kind: 'proposal' });
     const key = new PersonKey();
-    const calls = new HeldCalls(daemon, key);
+    const calls = heldCallsOver(daemon, key);
     await calls.watch();
     expect(key.signed).toEqual([]);
     expect(daemon.sent('confirm')).toEqual([]);
   });
 
   it('says the feed is closed when the daemon is down', async () => {
-    const calls = new HeldCalls(new ScriptedDaemon(), new PersonKey());
+    const calls = heldCallsOver(new ScriptedDaemon(), new PersonKey());
     await calls.watch();
     expect(calls.state.connected).toBe(false);
   });
@@ -49,7 +50,7 @@ describe('answering a held call', () => {
     const daemon = new ScriptedDaemon({ ...nothingWaits, ...confirmed, 'register-key': registered });
     for (const event of events) daemon.push(event);
     const key = new PersonKey();
-    const calls = new HeldCalls(daemon, key);
+    const calls = heldCallsOver(daemon, key);
     await calls.watch();
     return { daemon, calls, key };
   }
@@ -91,7 +92,7 @@ describe('answering a held call', () => {
   it('sends nothing when the person cancels the prompt', async () => {
     const daemon = new ScriptedDaemon({ ...nothingWaits, 'register-key': registered });
     daemon.push(held('hld_1'));
-    const calls = new HeldCalls(daemon, new PersonKey('BPOINT', false));
+    const calls = heldCallsOver(daemon, new PersonKey('BPOINT', false));
     await calls.watch();
     expect(await calls.answer('hld_1', 'once')).toEqual({ kind: 'cancelled' });
     expect(daemon.sent('confirm')).toEqual([]);
@@ -104,14 +105,14 @@ describe('answering a held call', () => {
       'register-key': (request) => [{ id: request.id, ok: false, outcome: 'another key' }],
     });
     const key = new PersonKey();
-    const calls = new HeldCalls(daemon, key);
+    const calls = heldCallsOver(daemon, key);
     expect(await calls.answer('hld_1', 'once')).toEqual({ kind: 'failed', why: ANOTHER_KEY_LINE });
     expect(key.signed).toEqual([]);
   });
 
   it('keeps every allow in the terminal on a computer with no key', async () => {
     const daemon = new ScriptedDaemon(nothingWaits);
-    const calls = new HeldCalls(daemon, new PersonKey(null));
+    const calls = heldCallsOver(daemon, new PersonKey(null));
     expect(await calls.answer('hld_1', 'once')).toEqual({ kind: 'failed', why: NO_KEY_LINE });
     expect(daemon.sent('confirm')).toEqual([]);
   });
@@ -123,7 +124,7 @@ describe('answering a held call', () => {
       confirm: (request) => [{ id: request.id, ok: true, outcome: 'already answered deny' }],
     });
     daemon.push(held('hld_1'));
-    const calls = new HeldCalls(daemon, new PersonKey());
+    const calls = heldCallsOver(daemon, new PersonKey());
     await calls.watch();
     const outcome = await calls.answer('hld_1', 'once');
     expect(outcome.kind === 'answered-elsewhere' && outcome.earlier.line).toBe('That was already answered elsewhere: it was denied.');
@@ -137,7 +138,7 @@ describe('answering a held call', () => {
       confirm: (request) => [{ id: request.id, ok: false, error: 'signature does not verify' }],
     });
     daemon.push(held('hld_1'));
-    const calls = new HeldCalls(daemon, new PersonKey());
+    const calls = heldCallsOver(daemon, new PersonKey());
     await calls.watch();
     expect(await calls.answer('hld_1', 'once')).toEqual({ kind: 'failed', why: 'signature does not verify' });
     expect(calls.state.waiting.count).toBe(1);

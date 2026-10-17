@@ -5,6 +5,7 @@ resolver = "2"
 members = [
   "shared/tauri-core/src-tauri",
   "shared/tauri-core/crates/desktop-key",
+  "shared/tauri-core/crates/desktop-voice",
   "windows/native",
   "linux/native",
 ]

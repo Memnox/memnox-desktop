@@ -1,6 +1,10 @@
 import type { DaemonEvent, DaemonRequest, DaemonResponse } from '@memnox/core/wire';
+import { HeldCalls } from '../src/core/application/held-calls';
 import type { ConfirmKey } from '../src/core/application/ports/confirm-key';
 import type { DaemonLink } from '../src/core/application/ports/daemon-link';
+import type { Speaker } from '../src/core/application/ports/speaker';
+import { RequestIds } from '../src/core/application/request-ids';
+import { Signer } from '../src/core/application/signer';
 
 /** The daemon, scripted per method: each answer is a list of lines, and every request is kept. */
 export class ScriptedDaemon implements DaemonLink {
@@ -67,4 +71,52 @@ export function held(subject: string, extra: Partial<DaemonEvent> = {}): DaemonE
 
 export const registered = (request: DaemonRequest): DaemonResponse[] => [
   { id: request.id, ok: true, outcome: 'registered' },
+];
+
+/** The island's use case over a scripted daemon and a key, wired the way the composition root wires it. */
+export function heldCallsOver(daemon: DaemonLink, key: ConfirmKey): HeldCalls {
+  const ids = new RequestIds();
+  let calls: HeldCalls | undefined;
+  const signer = new Signer(daemon, key, ids, (status) => calls?.keyChanged(status));
+  calls = new HeldCalls(daemon, signer, ids);
+  return calls;
+}
+
+/** A voice that writes down what it was given to say. */
+export class RecordingSpeaker implements Speaker {
+  readonly said: string[] = [];
+  stops = 0;
+
+  queue(sentence: string): void {
+    this.said.push(sentence);
+  }
+
+  drained(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  stop(): void {
+    this.stops += 1;
+  }
+}
+
+/** A timer that never fires unless the test fires it, so a stall happens only when a test says so. */
+export class HandTimer {
+  private pending: (() => void)[] = [];
+
+  readonly start = (_ms: number, fire: () => void): (() => void) => {
+    this.pending.push(fire);
+    return () => {
+      this.pending = this.pending.filter((each) => each !== fire);
+    };
+  };
+
+  fireAll(): void {
+    for (const fire of this.pending.splice(0)) fire();
+  }
+}
+
+export const chunks = (id: number, ...texts: string[]): DaemonResponse[] => [
+  ...texts.map((text) => ({ id, ok: true, chunk: { kind: 'text', text } })),
+  { id, ok: true, chunk: { kind: 'done' } },
 ];

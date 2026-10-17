@@ -20,6 +20,7 @@ serde_json = "1"
 tokio = { version = "1", features = ["io-util", "net", "rt", "sync", "time"] }
 sha2 = "0.10"
 memnox-desktop-key = { path = "../crates/desktop-key" }
+memnox-desktop-voice = { path = "../crates/desktop-voice" }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

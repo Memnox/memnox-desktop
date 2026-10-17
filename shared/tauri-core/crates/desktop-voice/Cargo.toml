@@ -1,0 +1,15 @@
+[package]
+name = "memnox-desktop-voice"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "The voice of Memnox on Windows and Linux: Parakeet hears, Kokoro speaks, both through sherpa-onnx on this computer."
+publish = false
+
+[dependencies]
+sherpa-onnx = "1.13.8"
+cpal = "0.15"
+rodio = { version = "0.20", default-features = false }
+ureq = "2"
+bzip2 = "0.6"
+tar = "0.4"

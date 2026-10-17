@@ -1,5 +1,4 @@
 import {
-  confirmationMessage,
   DAEMON_EVENT,
   DAEMON_METHOD,
   HOLD_ANSWER,
@@ -11,11 +10,11 @@ import {
 import { consentReason } from '../domain/call-label';
 import { EarlierAnswer } from '../domain/earlier-answer';
 import { heldCard, type HeldCard } from '../domain/held-card';
-import { ANOTHER_KEY_LINE, keyStatusOf, type KeyStatus } from '../domain/key-status';
+import type { KeyStatus } from '../domain/key-status';
 import { WaitingCalls } from '../domain/waiting-calls';
-import type { ConfirmKey } from './ports/confirm-key';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
-import { RequestIds } from './request-ids';
+import type { RequestIds } from './request-ids';
+import type { Signer } from './signer';
 
 /** How a press on a held call ended. */
 export type HeldOutcome =
@@ -34,12 +33,7 @@ export interface HeldState {
   readonly connected: boolean;
 }
 
-/** Said when this computer has no key the operating system guards, so an allow has to come from elsewhere. */
-export const NO_KEY_LINE =
-  'This computer has no key to sign a yes with, so allow it from the terminal or your phone.';
 const NOT_ANSWERED = 'Memnox did not answer';
-
-type Signing = { kind: 'signed'; signature: string } | { kind: 'refused'; outcome: HeldOutcome };
 
 /**
  * The held calls waiting on the person and their answers to them, ported from the Mac's
@@ -50,12 +44,24 @@ type Signing = { kind: 'signed'; signature: string } | { kind: 'refused'; outcom
 export class HeldCalls {
   private current: HeldState = { waiting: WaitingCalls.empty(), key: undefined, connected: false };
   private readonly listeners = new Set<() => void>();
+  private readonly eventListeners = new Set<(event: DaemonEvent) => void>();
 
   constructor(
     private readonly link: DaemonLink,
-    private readonly key: ConfirmKey,
-    private readonly ids: RequestIds = new RequestIds(),
+    private readonly signer: Signer,
+    private readonly ids: RequestIds,
   ) {}
+
+  /** The key's standing, as the signer last found it; the composition root wires the signer's reports here. */
+  keyChanged(status: KeyStatus): void {
+    this.update({ key: status });
+  }
+
+  /** Every event of the live feed once the queue has taken it, so the voice hears the same feed. */
+  observeEvents(listener: (event: DaemonEvent) => void): () => void {
+    this.eventListeners.add(listener);
+    return () => this.eventListeners.delete(listener);
+  }
 
   get state(): HeldState {
     return this.current;
@@ -76,7 +82,9 @@ export class HeldCalls {
       await this.catchUp();
       for await (const response of this.link.stream(this.request(DAEMON_METHOD.SUBSCRIBE))) {
         this.update({ connected: true });
-        if (response.event !== undefined) this.handle(response.event);
+        if (response.event === undefined) continue;
+        this.handle(response.event);
+        for (const listener of this.eventListeners) listener(response.event);
       }
     } catch {
       // The daemon is down or went away; the caller tries again.
@@ -109,17 +117,8 @@ export class HeldCalls {
   }
 
   /** Registers this computer's key, which the daemon trusts on first use. */
-  async registerKey(): Promise<KeyStatus> {
-    const point = await this.key.publicPoint();
-    const status = point === undefined ? { kind: 'no-key' as const } : await this.register(point);
-    this.update({ key: status });
-    return status;
-  }
-
-  private async register(point: string): Promise<KeyStatus> {
-    const request = { ...this.request(DAEMON_METHOD.REGISTER_KEY), point };
-    const response = await requestOnce(this.link, request).catch(() => undefined);
-    return response === undefined ? { kind: 'unreachable' } : keyStatusOf(response);
+  registerKey(): Promise<KeyStatus> {
+    return this.signer.registerKey();
   }
 
   /** A held call answered with a button. A yes that reaches past its session carries a signature, or is not sent. */
@@ -129,8 +128,9 @@ export class HeldCalls {
     // A card that is gone is signed for, since only the daemon's word that it stays inside its session waives the key.
     if (answer !== HOLD_ANSWER.DENY && card?.withinSession !== true) {
       const reason = consentReason(card?.label ?? 'this call', card?.what, answer);
-      const signing = await this.signature(subject, answer, reason);
-      if (signing.kind === 'refused') return signing.outcome;
+      const signing = await this.signer.sign(subject, answer, reason);
+      if (signing.kind === 'cancelled') return { kind: 'cancelled' };
+      if (signing.kind === 'refused') return { kind: 'failed', why: signing.why };
       request.signature = signing.signature;
     }
     const response = await requestOnce(this.link, request).catch(() => undefined);
@@ -146,16 +146,6 @@ export class HeldCalls {
     if (response?.ok !== true) return { kind: 'failed', why: response?.error ?? NOT_ANSWERED };
     this.update({ waiting: this.current.waiting.remove(subject) });
     return { kind: 'answered' };
-  }
-
-  /** The key over this answer, asked only once the daemon trusts it: a signature from any other key is refused after the prompt. */
-  private async signature(subject: string, answer: HoldAnswer, reason: string): Promise<Signing> {
-    const status = await this.registerKey();
-    if (status.kind === 'another-key') return { kind: 'refused', outcome: { kind: 'failed', why: ANOTHER_KEY_LINE } };
-    if (status.kind === 'no-key') return { kind: 'refused', outcome: { kind: 'failed', why: NO_KEY_LINE } };
-    const signature = await this.key.sign(confirmationMessage(subject, answer), reason).catch(() => undefined);
-    if (signature === undefined) return { kind: 'refused', outcome: { kind: 'cancelled' } };
-    return { kind: 'signed', signature };
   }
 
   private request(method: DaemonRequest['method']): DaemonRequest {

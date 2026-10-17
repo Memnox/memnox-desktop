@@ -26,7 +26,7 @@ type Told = { kind: 'spoke' } | { kind: 'silent' } | { kind: 'unreachable' } | {
 
 /** What the island shows of the voice: what was heard, what is being answered, and why a turn failed. */
 export interface TalkState {
-  readonly phase: 'idle' | 'thinking' | 'speaking';
+  readonly phase: 'idle' | 'listening' | 'thinking' | 'speaking';
   readonly heard: string | undefined;
   readonly reply: string;
   readonly failure: string | undefined;
@@ -121,6 +121,12 @@ export class Talking {
     const holding = this.holding;
     this.holding = false;
     return holding;
+  }
+
+  /** The microphone opened or closed, so the island shows it is listening. */
+  listening(on: boolean): void {
+    if (on && this.current.phase === 'idle') this.update({ phase: 'listening' });
+    if (!on && this.current.phase === 'listening') this.update({ phase: 'idle' });
   }
 
   /** What the person said, whole. No keyword decides anything here; the brain understands it. */

@@ -1,7 +1,12 @@
 import { useState, useSyncExternalStore } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { Check, MapPin, Send, TriangleAlert, X } from 'lucide-react';
+import { button, note } from './ui';
 import type { RuleDraft, WorkDraft } from '@memnox/core/wire';
 import { accountWarning, draftAudience, suggestedScope, type HeldOutcome, type ProposalCards } from '../core';
+
+/** Every card sits under a rule rather than in a box of its own, as cards do in memnox-client. */
+const CARD = 'grid gap-1.5 border-t border-line pt-2.5';
 
 /** What each kind of draft is called on its card. */
 const KIND_WORDS: Record<WorkDraft['kind'], string> = {
@@ -39,37 +44,45 @@ export function Cards({ cards }: { cards: ProposalCards }) {
 function RuleCard({ subject, rule, cards }: { subject: string; rule: RuleDraft; cards: ProposalCards }) {
   const [scope, setScope] = useState(suggestedScope(rule)?.id);
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string>();
+  const [said, setSaid] = useState<string>();
 
   async function answer(scopeId: string | undefined) {
     setBusy(true);
-    setNote(told(await cards.answerRule(subject, scopeId)));
+    setSaid(told(await cards.answerRule(subject, scopeId)));
     setBusy(false);
   }
 
   return (
-    <article className="card">
-      <p className="card-kind">A rule to put in force</p>
-      <p className="what">{rule.summary}</p>
-      <p className="why">{rule.reason}</p>
-      <fieldset className="scopes">
-        <legend>Where it holds</legend>
+    <article className={CARD}>
+      <p className="text-xs text-muted">A rule to put in force</p>
+      <p className="text-[15px] font-semibold">{rule.summary}</p>
+      <p className="text-muted">{rule.reason}</p>
+      <fieldset className="m-0 grid gap-1 border-0 p-0">
+        <legend className="flex items-center gap-1.5 p-0 text-xs text-muted">
+          <MapPin size={12} /> Where it holds
+        </legend>
         {rule.scopes.map((each) => (
-          <label key={each.id}>
-            <input type="radio" name={`scope-${subject}`} checked={scope === each.id} onChange={() => setScope(each.id)} />
+          <label key={each.id} className="flex cursor-pointer items-center gap-2">
+            <input
+              type="radio"
+              className="accent-primary"
+              name={`scope-${subject}`}
+              checked={scope === each.id}
+              onChange={() => setScope(each.id)}
+            />
             {each.label}
           </label>
         ))}
       </fieldset>
-      <nav className="answers answers--two">
-        <button disabled={busy} onClick={() => void answer(undefined)}>
-          Leave it out
+      <nav className="grid grid-cols-2 gap-2">
+        <button className={button('quiet')} disabled={busy} onClick={() => void answer(undefined)}>
+          <X size={14} /> Leave it out
         </button>
-        <button className="primary" disabled={busy || scope === undefined} onClick={() => void answer(scope)}>
-          Put in force
+        <button className={button('primary')} disabled={busy || scope === undefined} onClick={() => void answer(scope)}>
+          <Check size={14} /> Put in force
         </button>
       </nav>
-      {note !== undefined && <p className="note">{note}</p>}
+      {said !== undefined && <p className={note}>{said}</p>}
     </article>
   );
 }
@@ -78,26 +91,30 @@ function WorkCard({ subject, work, cards }: { subject: string; work: WorkDraft; 
   const drafted = work.body ?? '';
   const [body, setBody] = useState(drafted);
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string>();
+  const [said, setSaid] = useState<string>();
   const warning = accountWarning(work);
 
   async function answer(send: boolean) {
     setBusy(true);
     // Words go with the Send only when the person changed them, so the signature covers what really leaves.
-    setNote(told(await cards.answerDraft(subject, send, send && body !== drafted ? body : undefined)));
+    setSaid(told(await cards.answerDraft(subject, send, send && body !== drafted ? body : undefined)));
     setBusy(false);
   }
 
   return (
-    <article className="card">
-      <p className="card-kind">
+    <article className={CARD}>
+      <p className="text-xs text-muted">
         {KIND_WORDS[work.kind]} to {draftAudience(work)}
       </p>
-      {work.subject !== undefined && <p className="what">{work.subject}</p>}
-      {warning !== undefined && <p className="note">{warning}</p>}
+      {work.subject !== undefined && <p className="text-[15px] font-semibold">{work.subject}</p>}
+      {warning !== undefined && (
+        <p className={note}>
+          <TriangleAlert size={13} className="mt-px shrink-0" /> {warning}
+        </p>
+      )}
       {work.body !== undefined && (
         <textarea
-          className="body"
+          className="resize-y rounded-[10px] border border-line bg-transparent p-2 font-sans text-ink outline-none focus:border-primary"
           value={body}
           rows={4}
           onChange={(event) => setBody(event.target.value)}
@@ -107,24 +124,24 @@ function WorkCard({ subject, work, cards }: { subject: string; work: WorkDraft; 
         />
       )}
       {work.fields.length > 0 && (
-        <dl className="fields">
+        <dl className="m-0 grid gap-0.5 text-xs">
           {work.fields.map((field) => (
-            <div key={field.name}>
-              <dt>{field.name}</dt>
-              <dd>{field.value}</dd>
+            <div key={field.name} className="flex gap-2">
+              <dt className="text-muted">{field.name}</dt>
+              <dd className="m-0 [overflow-wrap:anywhere]">{field.value}</dd>
             </div>
           ))}
         </dl>
       )}
-      <nav className="answers answers--two">
-        <button disabled={busy} onClick={() => void answer(false)}>
-          Close
+      <nav className="grid grid-cols-2 gap-2">
+        <button className={button('quiet')} disabled={busy} onClick={() => void answer(false)}>
+          <X size={14} /> Close
         </button>
-        <button className="primary" disabled={busy} onClick={() => void answer(true)}>
-          Send
+        <button className={button('primary')} disabled={busy} onClick={() => void answer(true)}>
+          <Send size={14} /> Send
         </button>
       </nav>
-      {note !== undefined && <p className="note">{note}</p>}
+      {said !== undefined && <p className={note}>{said}</p>}
     </article>
   );
 }

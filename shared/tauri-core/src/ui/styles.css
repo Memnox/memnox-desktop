@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+/*
+ * The island is always dark, as the Mac's notch is, so it carries memnox-client's dark palette from
+ * packages/ui/src/styles/globals.css and nothing else: one blue, neutrals sampled from the web app.
+ */
+@theme {
+  --color-ground: #030303;
+  --color-card: #0f0f0f;
+  --color-ink: #fdfdfd;
+  --color-muted: #adadad;
+  --color-line: #313131;
+  --color-primary: #1e86ee;
+  --color-deny: #f0803f;
+  --color-danger: #e31957;
+  --font-sans: "Segoe UI Variable", "Segoe UI", Inter, "Noto Sans", system-ui, sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}

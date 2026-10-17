@@ -6,7 +6,7 @@ import { TauriDaemonLink } from './adapters/tauri-daemon-link';
 import { TauriPower } from './adapters/tauri-power';
 import { TauriSpeaker } from './adapters/tauri-speaker';
 import { Island } from './Island';
-import './island.css';
+import './styles.css';
 
 /** How long after the daemon closes the feed before it is opened again, long enough for a restart to finish. */
 const RECONNECT_MS = 2_000;

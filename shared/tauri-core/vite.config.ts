@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
@@ -6,7 +7,7 @@ import { defineConfig } from 'vitest/config';
 const wire = fileURLToPath(new URL('./.runtime/packages/core/dist/wire.js', import.meta.url));
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   resolve: { alias: { '@memnox/core/wire': wire } },
   // Tauri serves the dev build on a fixed port and must see its own errors in the terminal.
   clearScreen: false,

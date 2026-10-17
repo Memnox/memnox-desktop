@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { AudioLines, Download, Mic, Square, TriangleAlert } from 'lucide-react';
 import type { Talking } from '../core';
 import { voice, type InstallStep } from './adapters/tauri-listener';
+import { button, note } from './ui';
 
 type Mic = 'unknown' | 'missing' | 'installing' | 'ready' | 'listening';
 
@@ -44,18 +46,27 @@ export function Talk({ talking }: { talking: Talking }) {
     }
   }
 
+  async function hear(): Promise<string | undefined> {
+    setMic('listening');
+    talking.listening(true);
+    try {
+      return await voice.listenOnce();
+    } catch (error) {
+      setProblem(String(error));
+      return undefined;
+    } finally {
+      talking.listening(false);
+      setMic('ready');
+    }
+  }
+
   async function converse() {
-    if (mic === 'listening' || mic === 'missing' || mic === 'installing' || mic === 'unknown') return;
+    if (mic !== 'ready') return;
     if (talking.state.phase !== 'idle') await talking.interrupt();
     setProblem(undefined);
     let finished = false;
     for (;;) {
-      setMic('listening');
-      const said = await voice.listenOnce().catch((error: unknown) => {
-        setProblem(String(error));
-        return undefined;
-      });
-      setMic('ready');
+      const said = await hear();
       if (said === undefined) return;
       await talking.heard(said, finished);
       if (talking.takeEnd()) return;
@@ -63,37 +74,48 @@ export function Talk({ talking }: { talking: Talking }) {
       finished = talking.takeHold();
     }
   }
-
   latest.current = converse;
 
   if (mic === 'missing' || mic === 'installing') {
     const total = step?.total ?? undefined;
     return (
-      <section className="talk">
-        <button disabled={mic === 'installing'} onClick={() => void install()}>
-          {mic === 'installing' ? 'Installing the voice…' : 'Install the voice'}
+      <section className="grid gap-1.5">
+        <button className={`${button('quiet')} justify-self-start`} disabled={mic === 'installing'} onClick={() => void install()}>
+          <Download size={14} /> {mic === 'installing' ? 'Installing the voice' : 'Install the voice'}
         </button>
         {step !== undefined && mic === 'installing' && (
-          <span className="progress">
+          <span className="text-xs text-muted">
             {step.part}: {megabytes(step.done)}
             {total !== undefined && ` of ${megabytes(total)}`}
           </span>
         )}
-        {problem !== undefined && <p className="note">{problem}</p>}
+        {problem !== undefined && <Problem text={problem} />}
       </section>
     );
   }
 
+  const speaking = state.phase === 'thinking' || state.phase === 'speaking';
   return (
-    <section className="talk">
-      <button className="mic" disabled={mic !== 'ready'} onClick={() => void converse()} aria-label="Talk to Memnox">
-        {mic === 'listening' ? 'Listening…' : state.phase === 'idle' ? 'Talk' : 'Interrupt'}
-      </button>
-      <span className="progress">or press Ctrl Alt Space anywhere</span>
-      {state.heard !== undefined && <p className="heard">“{state.heard}”</p>}
-      {state.reply !== '' && <p className="reply">{state.reply}</p>}
-      {state.failure !== undefined && <p className="note">{state.failure}</p>}
-      {problem !== undefined && <p className="note">{problem}</p>}
+    <section className="grid gap-1.5">
+      <div className="flex items-center gap-2.5">
+        <button className={button(speaking ? 'quiet' : 'primary')} disabled={mic !== 'ready'} onClick={() => void converse()} aria-label="Talk to Memnox">
+          {mic === 'listening' ? <AudioLines size={14} /> : speaking ? <Square size={12} /> : <Mic size={14} />}
+          {mic === 'listening' ? 'Listening' : speaking ? 'Interrupt' : 'Talk'}
+        </button>
+        <span className="text-xs text-muted">or Ctrl Alt Space anywhere</span>
+      </div>
+      {state.heard !== undefined && <p className="text-xs text-muted">“{state.heard}”</p>}
+      {state.reply !== '' && <p className="max-h-[6.5em] overflow-auto">{state.reply}</p>}
+      {state.failure !== undefined && <Problem text={state.failure} />}
+      {problem !== undefined && <Problem text={problem} />}
     </section>
+  );
+}
+
+function Problem({ text }: { text: string }) {
+  return (
+    <p className={note}>
+      <TriangleAlert size={13} className="mt-px shrink-0" /> {text}
+    </p>
   );
 }

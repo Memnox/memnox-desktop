@@ -14,4 +14,5 @@ export { EarlierAnswer } from './domain/earlier-answer';
 export type { HeldCard } from './domain/held-card';
 export { accountWarning, draftAudience, suggestedScope, type ProposalCard } from './domain/proposal-card';
 export { ANOTHER_KEY_LINE, type KeyStatus } from './domain/key-status';
+export { OrbMotion, orbFit, type OrbState, type OrbUniforms, type Reaction } from './domain/orb-motion';
 export { WaitingCalls, type WaitingEntry } from './domain/waiting-calls';

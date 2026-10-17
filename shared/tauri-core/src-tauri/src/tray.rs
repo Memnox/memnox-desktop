@@ -66,6 +66,10 @@ fn toggle_at_sign_in(app: &AppHandle, item: &CheckMenuItem<tauri::Wry>) {
 
 /// The first run turns starting at sign in on; afterwards the person's choice in the tray stands.
 pub fn start_at_sign_in_once(app: &App) {
+    // A development build, such as `pnpm tauri dev` on a Mac, never adds itself to the login items.
+    if cfg!(debug_assertions) {
+        return;
+    }
     let marker = app
         .path()
         .app_config_dir()

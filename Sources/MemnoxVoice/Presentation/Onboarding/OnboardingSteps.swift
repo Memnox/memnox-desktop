@@ -94,7 +94,7 @@ struct ThisMacStep: View {
                 if setup.key == .done { CheckBox(state: .done) } else { checkAgain }
             }
         }
-        KitCard(symbol: "desktopcomputer", title: "Memnox on this Mac", detail: setup.agentsDetail) {
+        KitCard(symbol: "desktopcomputer", title: "Memnox on this Mac", detail: "Installed under your agents and kept up to date for you.") {
             KitRow(title: "Memnox service", detail: setup.runtime.doing.map { "\($0)…" } ?? "Installed, started and updated for you.",
                    hint: hint(setup.daemon), leading: { MemnoxTile() }) {
                 if setup.daemon == .done { CheckBox(state: .done) } else { checkAgain }
@@ -111,20 +111,11 @@ struct ThisMacStep: View {
                     if setup.editorsWithExtension.isEmpty { ProgressView().controlSize(.small) } else { CheckBox(state: .done) }
                 }
             }
-            ForEach(setup.agents.filter(\.installed)) { agent in
-                KitDivider()
-                KitRow(title: agent.label, detail: status(agent), leading: {
-                    BrandLogo(agent: agent.kind, name: agent.label, size: Kit.tileSide)
-                }, trailing: {
-                    if agent.chosen {
-                        CheckBox(state: .done)
-                    } else if agent.works == true {
-                        Button("Use", systemImage: "checkmark") { Task { await setup.useAgent(agent.kind) } }.buttonStyle(KitButton(kind: .secondary))
-                    }
-                })
-            }
+        }
+        // Its own card, so which agent answers reads apart from what Memnox installed.
+        KitCard(symbol: "person.wave.2", title: "Who answers when you talk", detail: setup.agentsDetail) {
+            AgentChecks(setup: setup)
             if setup.agents.filter(\.installed).isEmpty {
-                KitDivider()
                 // An empty list is the daemon not answering far more often than a Mac with no agent, so it says which.
                 KitRow(symbol: "person.crop.circle.badge.questionmark", title: setup.agents.isEmpty ? "Your agents" : "No agent found yet",
                        detail: hint(setup.agentsState) ?? "Looking for the agents on this Mac.") {
@@ -191,12 +182,6 @@ struct ThisMacStep: View {
                     .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
             }
         }
-    }
-
-    private func status(_ agent: VoiceAgentStatus) -> String {
-        guard let works = agent.works else { return setup.checkingAgents ? "Asking" : "Not asked yet" }
-        if !works { return agent.because ?? "Did not answer" }
-        return agent.chosen ? "Answers when you talk, kept to reading" : "Can answer when you talk"
     }
 }
 

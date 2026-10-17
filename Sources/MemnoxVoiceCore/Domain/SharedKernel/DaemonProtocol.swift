@@ -1222,6 +1222,8 @@ public struct VoiceAgentStatus: Decodable, Equatable, Identifiable, Sendable {
     public let works: Bool?
     /// Why it did not answer, in words a person can act on.
     public let because: String?
+    /// Its own account's words when it answered something else, such as a spent plan or a missing model.
+    public let reply: String?
     public let checkedAt: String?
     public let chosen: Bool
     /// What to install, or set up, when it is missing or cannot answer.
@@ -1230,13 +1232,14 @@ public struct VoiceAgentStatus: Decodable, Equatable, Identifiable, Sendable {
     public var id: String { kind }
 
     public init(kind: String, label: String, installed: Bool, sealed: Bool, works: Bool? = nil,
-                because: String? = nil, checkedAt: String? = nil, chosen: Bool = false, install: String = "") {
+                because: String? = nil, reply: String? = nil, checkedAt: String? = nil, chosen: Bool = false, install: String = "") {
         self.kind = kind
         self.label = label
         self.installed = installed
         self.sealed = sealed
         self.works = works
         self.because = because
+        self.reply = reply
         self.checkedAt = checkedAt
         self.chosen = chosen
         self.install = install

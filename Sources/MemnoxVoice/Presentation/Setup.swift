@@ -1021,7 +1021,7 @@ private struct SetupStep<Trailing: View, Extra: View>: View {
                 }
             }
         }
-        .padding(.horizontal, Memnox.Spacing.xLarge)
+        .padding(.horizontal, SettingsMetrics.cardPadding)
         .padding(.vertical, Memnox.Spacing.large)
     }
 }
@@ -1093,7 +1093,7 @@ private struct AgentRows: View {
                         .foregroundStyle(Memnox.ink(agent.works == false ? Memnox.Ink.primary : Memnox.Ink.secondary))
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .help(status(agent))
+                        .help(AgentCheckText.reply(agent).map { "\(agent.label) replied: \($0)" } ?? status(agent))
                     Spacer(minLength: Memnox.Spacing.small)
                     if agent.chosen {
                         Text("In use").font(Memnox.sans(Memnox.TextSize.caption, .semibold)).foregroundStyle(IslandPalette.green)
@@ -1117,9 +1117,7 @@ private struct AgentRows: View {
     }
 
     private func status(_ agent: VoiceAgentStatus) -> String {
-        guard let works = agent.works else { return model.checkingAgents ? "Asking" : "Not asked yet" }
-        if !works { return agent.because ?? "Did not answer" }
-        return agent.sealed ? "Answers, kept to reading" : "Answers, but can run ordinary shell commands"
+        AgentCheckText.status(agent, checking: model.checkingAgents)
     }
 
     /// The agents the voice knows that are not on this Mac, named in one line rather than a row each.

@@ -2,7 +2,7 @@
 
 Thank you for helping. This page is what you need to change the code and have the change
 accepted. Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first: it says which layer your change
-belongs in. Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+belongs in. Everyone taking part follows the [Code of Conduct](../CODE_OF_CONDUCT.md).
 
 ## How a change gets in
 
@@ -88,4 +88,4 @@ request to one change.
 
 ## Reporting a security issue
 
-Please do not open a public issue. See [SECURITY.md](SECURITY.md).
+Please do not open a public issue. See [SECURITY.md](../SECURITY.md).

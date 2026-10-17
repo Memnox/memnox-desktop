@@ -1,13 +1,13 @@
 #!/bin/sh
 # Installs the newest Memnox developer preview into Applications and opens it:
-#   curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-macos/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/macos/scripts/install.sh | sh
 # The preview is signed with the project's own certificate rather than an Apple Developer ID, so a disk image a browser
 # downloaded is stopped by Gatekeeper. curl marks nothing as downloaded, so the copy fetched here opens as one built
 # from source would, and the checksum published beside the image is what proves it is the one released.
 # MEMNOX_DMG_URL installs another image, such as one built locally, for a test.
 set -eu
 
-REPO="Memnox/memnox-macos"
+REPO="Memnox/memnox-desktop"
 APP_NAME="Memnox.app"
 BUNDLE_ID="com.memnox.voice"
 MIN_MACOS=14

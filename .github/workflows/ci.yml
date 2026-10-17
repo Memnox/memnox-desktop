@@ -22,6 +22,10 @@ jobs:
     # The app uses macOS 26 APIs behind availability checks, so it needs the macOS 26 SDK from Xcode 26.
     runs-on: macos-26
     timeout-minutes: 30
+    # The Mac app is one platform of memnox-desktop, so its steps run inside macos/.
+    defaults:
+      run:
+        working-directory: macos
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -46,8 +50,8 @@ jobs:
       - name: Cache the build
         uses: actions/cache@v4
         with:
-          path: .build
-          key: spm-${{ runner.os }}-${{ hashFiles('Package.swift', 'Sources/**/*.swift', 'Tests/**/*.swift') }}
+          path: macos/.build
+          key: spm-${{ runner.os }}-${{ hashFiles('macos/Package.swift', 'macos/Sources/**/*.swift', 'macos/Tests/**/*.swift') }}
           restore-keys: spm-${{ runner.os }}-
 
       - name: Cache the Noise build
@@ -86,7 +90,7 @@ jobs:
       - name: No dash stands in copy or comments
         # The characters are written as escapes so this file never contains the dashes it forbids.
         run: |
-          if grep -rnP '\x{2014}|\x{2013}' Sources Tests scripts docs README.md CLAUDE.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md; then
+          if grep -rnP '\x{2014}|\x{2013}' macos/Sources macos/Tests macos/scripts macos/docs macos/README.md macos/CLAUDE.md macos/CONTRIBUTING.md linux windows shared README.md CLAUDE.md SECURITY.md CODE_OF_CONDUCT.md; then
             echo "::error::An em or en dash stands in the lines above. Write the word it stood for (because, so, which) or two sentences."
             exit 1
           fi

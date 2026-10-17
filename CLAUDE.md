@@ -1,48 +1,38 @@
-# memnox-macos
+# memnox-desktop
 
-The Mac voice of Memnox: the notch island and its orb, the microphone, the speaker and Touch ID. The
-conventions in `../CLAUDE.md` (copy with no dashes, one-line commits, the author) apply here
-and this file only adds to them. `VISION.md` is a verbatim copy of `memnox-runtime/VISION.md`.
+Every desktop app of Memnox in one repo. The conventions in the workspace `CLAUDE.md` above this
+repo (copy with no dashes, one-line commits, the author) apply here and this file only adds to
+them. `VISION.md` is a verbatim copy of `memnox-runtime/VISION.md`.
 
-## What this app is allowed to be
+## What every desktop app is allowed to be
 
-**A face, a voice and a Touch ID button over the daemon, and nothing else.** No policy, no
-model call and no rule lives here: the daemon decides, the person's own agent CLI thinks,
-and this app shows, speaks, listens and signs. If a change needs this app to know what is
-allowed, it belongs in `memnox-runtime`.
+**A face, a voice and a signing key over the daemon, and nothing else.** No policy, no model call
+and no rule lives in any of them: the daemon decides, the person's own agent CLI thinks, and the
+app shows, speaks, listens and signs. A change that needs an app to know what is allowed belongs
+in `memnox-runtime`.
 
-**No keyword matching between the voice and the agents.** What the person said goes whole to
-`ask`. Recognizer hints (`contextualStrings`) are allowed because they only help the
-recognizer hear a word; nothing may act on a word.
+**What the person said goes whole to `ask`.** Nothing matches keywords on speech on any platform.
 
-**Every allow that reaches outside the session is signed, and nothing else is.** A deny or a
-declined proposal is sent unsigned, since saying no can do no harm. A held call the daemon marks
-`withinSession` stays inside its session's repository, so its allow goes unsigned too; the daemon
-decides that, never this app, and an event without the mark always asks for Touch ID. A confirmed proposal carries a Secure Enclave signature over
-`memnox-confirm:v1:<id>:<answer>`, or `memnox-confirm:v2:<id>:<answer>:<words>` when the person
-rewrote a draft's words on its card, which must stay byte for byte what the runtime's
-`confirmationMessage` builds.
+**Every allow that reaches outside the session is signed by a key the operating system guards:**
+the Secure Enclave behind Touch ID on macOS, a TPM key behind Windows Hello on Windows, and a
+Secret Service key behind a local check on Linux. Each signs the bytes the runtime's
+`confirmationMessage` builds, as DER encoded ECDSA P-256, so the daemon verifies all of them alike.
 
 ## Layout
 
 | Path | Holds |
 |---|---|
-| `Sources/MemnoxVoiceCore/Domain` | rules with no I/O: sessions, notices, speech text, the owner's question, and `SharedKernel/DaemonProtocol.swift`. |
-| `Sources/MemnoxVoiceCore/Application` | `Conversation`, which decides what to say and when, and the `Ports` it needs. |
-| `Sources/MemnoxVoiceCore/Infrastructure` | adapters behind the ports: the socket link, the confirmation key, files, the diary. No AppKit anywhere in the core, so it is tested headless. |
-| `Sources/MemnoxVoice/App` | the composition root that wires every adapter into the core. |
-| `Sources/MemnoxVoice/Presentation` | AppKit, SwiftUI and Metal: the notch island, the orb, cards, the menu bar, setup, the design system. |
-| `Sources/MemnoxVoice/Platform` | audio in and out, the recognizer, Kokoro, typing into other apps, the hotkey. |
-| `Tests/MemnoxVoiceCoreTests` | XCTest laid out like the source tree, against the doubles in `Support/`: a scripted daemon, a recording speaker and face, and a software key. |
-| `Support/Info.plist` | the usage descriptions macOS shows before it grants the microphone and speech. |
+| `macos/` | the Mac app, a Swift package; `macos/CLAUDE.md` adds its own rules. |
+| `shared/` | the Tauri core shared by Windows and Linux, the protocol vectors from `memnox-runtime`, the design tokens. |
+| `windows/` | only what differs on Windows: the island window, the confirm key, the installer and its signing. |
+| `linux/` | only what differs on Linux: the island on each compositor, the confirm key, the packages. |
 
-`docs/ARCHITECTURE.md` holds the dependency rule and where new code goes. `DaemonProtocol.swift` mirrors `memnox-runtime/packages/core/src/daemon/protocol.ts`. Change
-one and change the other in the same piece of work.
+A feature for Windows and Linux is written once in `shared/`; a platform folder holds only what
+that operating system does differently.
 
 ## Code
 
-- Comments are one line and say why, the same rule as the runtime.
-- Force unwraps only where the system guarantees the value, with the reason beside it.
-- The app target builds with no warnings in Swift 6 language checks: anything touching AppKit
-  is on the main actor, and anything the daemon's thread calls hops there.
-- `swift test` must pass at every commit.
+- `macos/` builds and tests from inside it: `cd macos && swift test`, which must pass at every commit.
+- The wire format is `memnox-runtime/packages/core/src/daemon/protocol.ts`. The Mac mirrors it in
+  `macos/Sources/MemnoxVoiceCore/Domain/SharedKernel/DaemonProtocol.swift`; the Tauri core imports
+  it from `@memnox/core` rather than copying it. Change the runtime and every mirror together.

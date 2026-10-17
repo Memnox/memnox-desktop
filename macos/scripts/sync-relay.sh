@@ -1,6 +1,6 @@
 #!/bin/sh
-# Copies the relay client from memnox-ios, so this Mac reaches a server over the relay exactly as the iPhone does.
-# The reverse of memnox-ios/scripts/sync-shared.sh, which copies from this repo to the phone.
+# Copies the relay client from memnox-mobile/ios, so this Mac reaches a server over the relay exactly as the iPhone does.
+# The reverse of memnox-mobile/ios/scripts/sync-shared.sh, which copies from this repo to the phone.
 #
 # Copied into Sources/MemnoxVoiceCore under the same folders they hold on the phone:
 #   Infrastructure/Relay: NoiseRelayLink, NoiseTunnel, RelayPairer, WebSocketRelay
@@ -19,8 +19,10 @@
 # Without --force a copy that differs from the phone's is kept and named, so those edits are never lost by accident.
 set -eu
 here="$(cd "$(dirname "$0")/.." && pwd)"
-ios="${MEMNOX_IOS:-$here/../memnox-ios}"
-runtime="${MEMNOX_RUNTIME:-$here/../memnox-runtime}"
+# The phone app lives in memnox-mobile/ios, or in a memnox-ios checkout not yet moved there.
+ios="${MEMNOX_IOS:-$here/../../memnox-mobile/ios}"
+[ -n "${MEMNOX_IOS:-}" ] || [ -d "$ios" ] || ios="$here/../../memnox-ios"
+runtime="${MEMNOX_RUNTIME:-$here/../../memnox-runtime}"
 from="$ios/Sources/MemnoxPhoneCore"
 core="$here/Sources/MemnoxVoiceCore"
 force="${1:-}"

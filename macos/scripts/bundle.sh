@@ -5,7 +5,7 @@
 # Where the app gets the Memnox runtime is chosen here and written into its Info.plist:
 #   ./scripts/bundle.sh                              the runtime checkout beside this one, built first
 #   MEMNOX_RUNTIME_SOURCE=npm ./scripts/bundle.sh    the package published to npm, for a release
-# MEMNOX_RUNTIME_DIR names the checkout when it is not ../memnox-runtime.
+# MEMNOX_RUNTIME_DIR names the checkout when it is not ../../memnox-runtime, beside memnox-desktop.
 set -e
 cd "$(dirname "$0")/.."
 
@@ -16,7 +16,7 @@ case "$SOURCE" in
 esac
 
 if [ "$SOURCE" = local ]; then
-  RUNTIME_DIR="$(cd "${MEMNOX_RUNTIME_DIR:-../memnox-runtime}" && pwd)"
+  RUNTIME_DIR="$(cd "${MEMNOX_RUNTIME_DIR:-../../memnox-runtime}" && pwd)"
   echo "Building the local runtime in $RUNTIME_DIR"
   (cd "$RUNTIME_DIR" && pnpm install --frozen-lockfile && pnpm build)
 fi

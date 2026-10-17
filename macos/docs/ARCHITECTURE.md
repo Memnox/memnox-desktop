@@ -71,7 +71,7 @@ every one of them, and the app wires the real ones in `App/AppDelegate.swift`.
 | `Chimes` | `SystemChimes` (Platform/Sounds) | `RecordingChimes` |
 
 The relay client (`Infrastructure/Relay`, `Infrastructure/Noise`, `Domain/Relay` and the pairing
-records in `Domain/Pairing`) is copied from memnox-ios by `scripts/sync-relay.sh`, which names the
+records in `Domain/Pairing`) is copied from memnox-mobile/ios by `scripts/sync-relay.sh`, which names the
 two small edits the copies carry. The app subscribes to this Mac's daemon and to every paired server at once, and
 `MachineEvents` decides what each brings: all of it from the machine picked, and from the rest what
 waits on the person. `TargetLink` remembers which machine raised each subject, so an answer goes back

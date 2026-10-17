@@ -633,18 +633,9 @@ final class SetupModel: ObservableObject {
             return speaksWithKokoro ? "A natural voice, running on this Mac." : "The Mac's own voice."
         case .installing:
             // The steps and sizes stay in the log; a person setting up is told only that it takes a while.
-            return "Getting your voice ready. This takes a few minutes the first time, so carry on with the rest."
+            return "Fetching a more natural voice. The Mac's own voice speaks until it arrives, so carry on with the rest."
         case .idle, .failed:
             return "The voice installs itself the first time. The Mac voice speaks until then."
-        }
-    }
-
-    /// Whether the voice is still on its way, which holds the first run until it is in; a failed install does not,
-    /// since a Mac with no connection must still be able to finish.
-    var voiceStillComing: Bool {
-        switch kokoro.state {
-        case .idle, .installing: return true
-        case .done, .failed: return false
         }
     }
 

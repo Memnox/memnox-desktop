@@ -134,8 +134,8 @@ struct ThisMacStep: View {
                 }
             }
         }
-        // The voice is part of this Mac being set up, so the step holds until it is in.
-        Next(title: setup.voiceStillComing ? "Installing the voice" : "Continue", flow: flow, disabled: setup.voiceStillComing)
+        // The Mac voice already speaks, so the download carries on behind the rest rather than holding the step.
+        Next(title: "Continue", flow: flow)
     }
 
     private var checkAgain: some View {
@@ -233,12 +233,10 @@ struct ReadyStep: View {
             }
             PhonePairing(setup: setup)
         }
-        // Memnox starts with its voice in place, so the button waits for the download begun on the step before.
-        Button(setup.voiceStillComing ? "Installing the voice first" : "Start using Memnox",
-               systemImage: setup.voiceStillComing ? "arrow.down.circle" : "sparkles") { setup.finish() }
+        // The app delegate owns the Kokoro download and switches to it when it lands, so finishing never waits on it.
+        Button("Start using Memnox", systemImage: "sparkles") { setup.finish() }
             .buttonStyle(KitButton(kind: .primary, wide: true))
             .keyboardShortcut(.defaultAction)
-            .disabled(setup.voiceStillComing)
     }
 
     private var greeting: String {

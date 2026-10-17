@@ -5,9 +5,7 @@
 set -eu
 here="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="${MEMNOX_RUNTIME:-$here/../../memnox-runtime}"
-# The phone app lives in memnox-mobile/ios, or in a memnox-ios checkout not yet moved there.
 ios="${MEMNOX_IOS:-$here/../../memnox-mobile/ios}"
-[ -n "${MEMNOX_IOS:-}" ] || [ -d "$ios" ] || ios="$here/../../memnox-ios"
 target="$here/Vendor/MemnoxNoise.xcframework"
 
 noise="$runtime/native/noise/build/MemnoxNoise.xcframework"

@@ -163,3 +163,68 @@ footer {
   max-height: 6.5em;
   overflow: auto;
 }
+
+.card {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.island--quiet .card {
+  grid-column: 1 / -1;
+}
+
+.card-kind {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.scopes {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.scopes legend {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0;
+}
+
+.answers--two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.body {
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  resize: vertical;
+}
+
+.fields {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.fields div {
+  display: flex;
+  gap: 8px;
+}
+
+.fields dt {
+  color: var(--muted);
+}
+
+.fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

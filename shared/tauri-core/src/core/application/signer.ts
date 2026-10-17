@@ -17,7 +17,7 @@ export type Signing =
 /**
  * The one place a yes is signed, for a button on the island and a spoken answer alike: the key is
  * registered first, since a signature from a key the daemon does not trust is refused only after the
- * prompt, and then exactly `confirmationMessage(subject, answer)` is signed.
+ * prompt, and then exactly `confirmationMessage(subject, answer, edited)` is signed.
  */
 export class Signer {
   constructor(
@@ -41,11 +41,12 @@ export class Signer {
     return response === undefined ? { kind: 'unreachable' } : keyStatusOf(response);
   }
 
-  async sign(subject: string, answer: string, reason: string): Promise<Signing> {
+  /** `edited` is the words the person rewrote on a draft, which the signature then covers whole. */
+  async sign(subject: string, answer: string, reason: string, edited?: string): Promise<Signing> {
     const status = await this.registerKey();
     if (status.kind === 'another-key') return { kind: 'refused', why: ANOTHER_KEY_LINE };
     if (status.kind === 'no-key') return { kind: 'refused', why: NO_KEY_LINE };
-    const signature = await this.key.sign(confirmationMessage(subject, answer), reason).catch(() => undefined);
+    const signature = await this.key.sign(confirmationMessage(subject, answer, edited), reason).catch(() => undefined);
     return signature === undefined ? { kind: 'cancelled' } : { kind: 'signed', signature };
   }
 }

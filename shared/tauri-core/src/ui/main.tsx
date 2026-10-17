@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { HeldCalls, RequestIds, Signer, Talking, Wakefulness, type Timer } from '../core';
+import { HeldCalls, ProposalCards, RequestIds, Signer, Talking, Wakefulness, type Timer } from '../core';
 import { TauriConfirmKey } from './adapters/tauri-confirm-key';
 import { TauriDaemonLink } from './adapters/tauri-daemon-link';
 import { TauriPower } from './adapters/tauri-power';
@@ -24,7 +24,9 @@ const link = new TauriDaemonLink();
 let calls: HeldCalls | undefined;
 const signer = new Signer(link, new TauriConfirmKey(), ids, (status) => calls?.keyChanged(status));
 calls = new HeldCalls(link, signer, ids);
-const talking = new Talking(link, new TauriSpeaker(), signer, ids, { timer });
+const speaker = new TauriSpeaker();
+const cards = new ProposalCards(link, signer, speaker, ids);
+const talking = new Talking(link, speaker, signer, ids, { timer, cards });
 const wakefulness = new Wakefulness(link, new TauriPower(), ids);
 calls.observeEvents((event) => void talking.handle(event));
 
@@ -44,6 +46,6 @@ const root = document.getElementById('root');
 if (root === null) throw new Error('index.html has no root');
 createRoot(root).render(
   <StrictMode>
-    <Island calls={calls} talking={talking} />
+    <Island calls={calls} talking={talking} cards={cards} />
   </StrictMode>,
 );

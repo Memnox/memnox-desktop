@@ -18,6 +18,7 @@ import { afterConfirm, heldQuestion, LINES, toolWord } from '../domain/spoken';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { Speaker } from './ports/speaker';
 import type { RequestIds } from './request-ids';
+import type { ProposalCards } from './proposal-cards';
 import type { Signer } from './signer';
 
 /** How a streamed turn ended. */
@@ -41,6 +42,8 @@ export interface TalkingOptions {
   readonly quietLimitMs?: number;
   /** How the person asked to be addressed. */
   readonly owner?: () => string | undefined;
+  /** Where a rule or a draft waits to be read before the key is asked; without it they are left alone. */
+  readonly cards?: ProposalCards;
 }
 
 /** Long enough to say "yes, go ahead" and have the brain propose it. */
@@ -66,6 +69,7 @@ export class Talking {
   private readonly now: () => number;
   private readonly quietLimitMs: number;
   private readonly timer: Timer;
+  private readonly cards: ProposalCards | undefined;
   private readonly owner: () => string | undefined;
   /** When the person last said something, since an allow may only follow their own words. */
   private lastHeard: number | undefined;
@@ -90,6 +94,7 @@ export class Talking {
     options: TalkingOptions,
   ) {
     this.timer = options.timer;
+    this.cards = options.cards;
     this.now = options.now ?? Date.now;
     this.quietLimitMs = options.quietLimitMs ?? QUIET_LIMIT_MS;
     this.owner = options.owner ?? (() => undefined);
@@ -191,6 +196,7 @@ export class Talking {
   }
 
   private settled(event: DaemonEvent): void {
+    this.cards?.remove(event.subject);
     if (this.asking !== event.subject) return;
     this.asking = undefined;
     this.speaker.stop();
@@ -198,13 +204,18 @@ export class Talking {
 
   /**
    * Only after the person spoke: an allow nobody asked for is declined, never put to the key. A phone's
-   * proposal is that phone's to answer, and one that needs its card waits for a screen that draws it.
+   * proposal is that phone's to answer. A rule or a draft goes on its card, where the key is asked only
+   * once the person picked where it holds or pressed Send; a teammate's call waits for a screen that has it.
    */
   private async proposal(event: DaemonEvent): Promise<void> {
     if (quietHere(event, this.phoneHolds)) return;
     const asked = this.lastHeard !== undefined && this.now() - this.lastHeard < ANSWER_WINDOW_MS;
     if (!asked) return this.decline(event);
-    if (event.rule !== undefined || event.work !== undefined || event.teamAnswer !== undefined) return this.say(LINES.needsCard);
+    if (event.teamAnswer !== undefined) return this.say(LINES.needsCard);
+    if (event.rule !== undefined || event.work !== undefined) {
+      if (this.cards?.show(event) !== true) await this.say(LINES.needsCard);
+      return;
+    }
     if (this.takenUp.has(event.subject)) return;
     this.takenUp.add(event.subject);
     // The read back says what the prompt is for, so the prompt waits until it has been said.

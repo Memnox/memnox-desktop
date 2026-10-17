@@ -18,3 +18,19 @@ pub fn make_island(window: isize) {
         );
     }
 }
+
+/// Lets the island take the keyboard while the person rewrites a draft, and gives it back after,
+/// so typing never lands in the island by accident.
+pub fn island_keyboard(window: isize, on: bool) {
+    let hwnd = HWND(window as *mut _);
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        let no_activate = WS_EX_NOACTIVATE.0 as isize;
+        let next = if on {
+            style & !no_activate
+        } else {
+            style | no_activate
+        };
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next);
+    }
+}

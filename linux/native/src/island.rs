@@ -17,3 +17,14 @@ pub fn make_island(window: &gtk::ApplicationWindow) {
     window.set_keyboard_mode(KeyboardMode::None);
     window.set_namespace("memnox-island");
 }
+
+/// Lets the island take the keyboard while the person rewrites a draft, and gives it back after.
+pub fn island_keyboard(window: &gtk::ApplicationWindow, on: bool) {
+    if gtk_layer_shell::is_supported() {
+        window.set_keyboard_mode(if on {
+            KeyboardMode::OnDemand
+        } else {
+            KeyboardMode::None
+        });
+    }
+}

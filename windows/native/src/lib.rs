@@ -10,7 +10,7 @@ mod power;
 mod tpm_key;
 
 #[cfg(windows)]
-pub use island::make_island;
+pub use island::{island_keyboard, make_island};
 #[cfg(windows)]
 pub use power::{on_mains, KeepAwake};
 #[cfg(windows)]

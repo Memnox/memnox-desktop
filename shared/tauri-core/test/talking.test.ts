@@ -1,5 +1,6 @@
 import type { DaemonEvent, DaemonRequest, DaemonResponse } from '@memnox/core/wire';
 import { describe, expect, it } from 'vitest';
+import { ProposalCards } from '../src/core/application/proposal-cards';
 import { RequestIds } from '../src/core/application/request-ids';
 import { Signer } from '../src/core/application/signer';
 import { ANSWER_WINDOW_MS, Talking } from '../src/core/application/talking';
@@ -167,10 +168,27 @@ describe('a proposal', () => {
     expect(daemon.sent('confirm')).toEqual([]);
   });
 
-  it('waits for its card when it is a rule, and signs nothing', async () => {
+  it('goes on its card when it is a rule, and nothing is signed until a place is picked', async () => {
+    const daemon = new ScriptedDaemon({ 'register-key': registered, ask: (request) => chunks(request.id, 'Proposed.') });
+    const speaker = new RecordingSpeaker();
+    const ids = new RequestIds();
+    const key = new PersonKey();
+    const signer = new Signer(daemon, key, ids);
+    const cards = new ProposalCards(daemon, signer, speaker, ids);
+    const talking = new Talking(daemon, speaker, signer, ids, { timer: new HandTimer().start, cards });
+    await talking.heard('always deny pushes to main here');
+    await talking.handle(proposal('prp_1', { rule: { summary: 'Deny push', effect: 'deny', action: 'git.push', reason: 'asked', scopes: [] } }));
+    expect(key.signed).toEqual([]);
+    expect(daemon.sent('confirm')).toEqual([]);
+    expect(cards.cards.map((card) => card.subject)).toEqual(['prp_1']);
+    await talking.handle({ ...proposal('prp_1'), kind: 'settled' });
+    expect(cards.cards).toEqual([]);
+  });
+
+  it('is left for a screen that has its card when it answers a teammate', async () => {
     const { daemon, key, speaker, talking } = talkingOver(answering);
-    await talking.heard('always allow pushes here');
-    await talking.handle(proposal('prp_1', { rule: { text: 'allow push', scopes: [] } as unknown as DaemonEvent['rule'] }));
+    await talking.heard('allow it for Ana');
+    await talking.handle(proposal('prp_1', { teamAnswer: {} as DaemonEvent['teamAnswer'] }));
     expect(key.signed).toEqual([]);
     expect(daemon.sent('confirm')).toEqual([]);
     expect(speaker.said).toContain(LINES.needsCard);

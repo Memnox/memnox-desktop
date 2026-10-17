@@ -39,6 +39,7 @@ pub fn run() {
             voice::listen_once,
             voice::speak,
             voice::speak_stop,
+            island_keyboard,
         ])
         .run(tauri::generate_context!())
         .expect("Memnox could not start its window");
@@ -55,4 +56,28 @@ fn make_island(window: &tauri::WebviewWindow) {
     if let Ok(gtk) = window.gtk_window() {
         memnox_linux::make_island(&gtk);
     }
+}
+
+/// Lets the island take the keyboard while a draft is rewritten, and gives it back after.
+#[tauri::command]
+fn island_keyboard(window: tauri::WebviewWindow, on: bool) -> Result<(), String> {
+    #[cfg(windows)]
+    if let Ok(hwnd) = window.hwnd() {
+        memnox_windows::island_keyboard(hwnd.0 as isize, on);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let island = window.clone();
+        window
+            .run_on_main_thread(move || {
+                if let Ok(gtk) = island.gtk_window() {
+                    memnox_linux::island_keyboard(&gtk, on);
+                }
+            })
+            .map_err(|error| error.to_string())?;
+    }
+    if on {
+        window.set_focus().map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }

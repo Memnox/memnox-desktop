@@ -10,7 +10,7 @@ mod power;
 mod secret_key;
 
 #[cfg(all(target_os = "linux", feature = "island"))]
-pub use island::make_island;
+pub use island::{island_keyboard, make_island};
 #[cfg(target_os = "linux")]
 pub use power::{on_mains, KeepAwake};
 #[cfg(target_os = "linux")]

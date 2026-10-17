@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { confirmationMessage, DAEMON_EVENT, DAEMON_METHOD, HOLD_ANSWER } from '@memnox/core/wire';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 interface Vectors {
@@ -43,7 +44,7 @@ describe('the core', () => {
     const core = fileURLToPath(new URL('../src/core', import.meta.url));
     const imports = filesUnder(core)
       .filter((file) => file.endsWith('.ts'))
-      .flatMap((file) => [...readFileSync(file, 'utf8').matchAll(/from '([^']+)'/g)].map((match) => match[1]));
+      .flatMap((file) => ts.preProcessFile(readFileSync(file, 'utf8')).importedFiles.map((imported) => imported.fileName));
     expect(imports.filter((specifier) => !specifier?.startsWith('.') && specifier !== '@memnox/core/wire')).toEqual([]);
   });
 });

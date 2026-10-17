@@ -83,6 +83,6 @@ export const LINES = {
   tooOld: 'The Memnox running on this computer is older than this app, so it cannot answer yet. Update Memnox and ask me again.',
   stalled: 'My apologies, I lost the thread there. Could you say that again?',
   limited: 'Your plan has reached its limit, so I could not finish that.',
-  /** A rule or a message to send needs its card, which this app does not draw yet. */
+  /** A teammate's call needs the workspace's card, which this app does not draw yet. */
   needsCard: 'That one needs its card, which I cannot show here yet, so answer it on your phone or in the terminal.',
 } as const;

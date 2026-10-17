@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The island may call this app's own commands and listen on their channels, and nothing else.",
+  "description": "The island may call this app's own commands, listen on their channels and hear the talk key, and nothing else. Start at sign in and the talk key are driven from Rust, so the webview holds neither permission.",
   "windows": ["island"],
   "permissions": ["core:default"]
 }

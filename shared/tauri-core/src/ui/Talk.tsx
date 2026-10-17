@@ -1,4 +1,5 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import type { Talking } from '../core';
 import { voice, type InstallStep } from './adapters/tauri-listener';
 
@@ -20,6 +21,13 @@ export function Talk({ talking }: { talking: Talking }) {
   const [step, setStep] = useState<InstallStep>();
   const [problem, setProblem] = useState<string>();
 
+  // The talk key fires from Rust; it reads the latest converse through a ref, so it never acts on an old state.
+  const latest = useRef<() => Promise<void>>(async () => undefined);
+  useEffect(() => {
+    const stop = listen('talk', () => void latest.current());
+    return () => void stop.then((unlisten) => unlisten());
+  }, []);
+
   useEffect(() => {
     voice.installed().then((installed) => setMic(installed ? 'ready' : 'missing'), () => setMic('missing'));
   }, []);
@@ -37,7 +45,8 @@ export function Talk({ talking }: { talking: Talking }) {
   }
 
   async function converse() {
-    if (state.phase !== 'idle') await talking.interrupt();
+    if (mic === 'listening' || mic === 'missing' || mic === 'installing' || mic === 'unknown') return;
+    if (talking.state.phase !== 'idle') await talking.interrupt();
     setProblem(undefined);
     let finished = false;
     for (;;) {
@@ -54,6 +63,8 @@ export function Talk({ talking }: { talking: Talking }) {
       finished = talking.takeHold();
     }
   }
+
+  latest.current = converse;
 
   if (mic === 'missing' || mic === 'installing') {
     const total = step?.total ?? undefined;
@@ -78,6 +89,7 @@ export function Talk({ talking }: { talking: Talking }) {
       <button className="mic" disabled={mic !== 'ready'} onClick={() => void converse()} aria-label="Talk to Memnox">
         {mic === 'listening' ? 'Listening…' : state.phase === 'idle' ? 'Talk' : 'Interrupt'}
       </button>
+      <span className="progress">or press Ctrl Alt Space anywhere</span>
       {state.heard !== undefined && <p className="heard">“{state.heard}”</p>}
       {state.reply !== '' && <p className="reply">{state.reply}</p>}
       {state.failure !== undefined && <p className="note">{state.failure}</p>}

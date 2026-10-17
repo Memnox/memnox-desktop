@@ -5,6 +5,8 @@
 mod awake;
 mod daemon;
 mod key;
+mod talk_key;
+mod tray;
 mod voice;
 
 use std::sync::Arc;
@@ -13,10 +15,15 @@ use memnox_desktop_voice::VoiceModels;
 use tauri::Manager;
 
 /// The island's window, as `tauri.conf.json` names it.
-const ISLAND: &str = "island";
+pub(crate) const ISLAND: &str = "island";
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(awake::Awake::default())
         .setup(|app| {
             let window = app
@@ -26,6 +33,12 @@ pub fn run() {
             let models = app.path().app_data_dir()?.join("voice");
             app.manage(Arc::new(voice::Voice::new(VoiceModels::new(models))));
             make_island(&window);
+            tray::build(app)?;
+            tray::start_at_sign_in_once(app);
+            // Another app holding the key is no reason not to start; the Talk button still works.
+            if let Err(why) = talk_key::register(app) {
+                eprintln!("Memnox: the talk key is taken: {why}");
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

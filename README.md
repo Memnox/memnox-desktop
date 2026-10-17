@@ -7,9 +7,9 @@ what waits, speak and listen, and sign every yes that reaches outside a session.
 | Folder | Holds | State |
 |---|---|---|
 | [`macos/`](macos) | Memnox for macOS: the notch island, the orb, the voice and Touch ID, in Swift 6 with Apple frameworks only. | shipping as a developer preview |
-| [`windows/`](windows) | The Windows layer of one Tauri app: the island window, Windows Hello over a TPM key, the installer. | planned |
-| [`linux/`](linux) | The Linux layer of the same Tauri app: layer shell on Wayland, the Secret Service key, the packages. | planned |
-| [`shared/`](shared) | The Tauri app's core, the protocol vectors every desktop is tested against, and the design tokens. | planned |
+| [`windows/`](windows) | The Windows layer of one Tauri app: the island window, Windows Hello over a TPM key, the installer. | held calls answered with a signed yes, built in CI |
+| [`linux/`](linux) | The Linux layer of the same Tauri app: layer shell on Wayland, the Secret Service key, the packages. | held calls answered with a signed yes, built in CI |
+| [`shared/`](shared) | The Tauri app's core, the protocol vectors every desktop is tested against, and the design tokens. | the core, the island and the vectors |
 
 The phone apps live in [memnox-mobile](https://github.com/Memnox/memnox-mobile).
 

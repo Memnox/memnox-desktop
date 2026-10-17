@@ -83,6 +83,76 @@ jobs:
           MEMNOX_RUNTIME_SOURCE: npm
         run: ./scripts/bundle.sh
 
+  tauri:
+    name: Windows and Linux app on ${{ matrix.os }}
+    # The one Tauri app both run, built and tested on each, since neither can be built from a Mac.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+        working-directory: shared/tauri-core
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      # The app imports the wire from the runtime's own build, so it is built from the runtime's main.
+      - name: Check out memnox-runtime
+        uses: actions/checkout@v4
+        with:
+          repository: Memnox/memnox
+          path: memnox-runtime
+
+      - name: Install the Linux libraries Tauri and the layer shell build against
+        if: runner.os == 'Linux'
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libgtk-layer-shell-dev
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Copy the wire from the runtime
+        env:
+          MEMNOX_RUNTIME: ${{ github.workspace }}/memnox-runtime
+        run: pnpm wire
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck, test and build the webview
+        run: |
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - name: Lint and test the Rust
+        working-directory: .
+        run: |
+          cargo fmt --all --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace
+
+      # Debug and unbundled, which is enough to prove the app links on this system; releases sign their own builds.
+      - name: Build the app
+        run: pnpm tauri build --debug --no-bundle
+
   copy:
     name: Copy rules
     runs-on: ubuntu-latest

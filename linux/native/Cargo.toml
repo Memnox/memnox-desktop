@@ -1,0 +1,22 @@
+[package]
+name = "memnox-linux"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "What Memnox does differently on Linux: the Secret Service confirm key behind polkit, keeping awake, the island on layer shell."
+publish = false
+
+[features]
+default = ["island"]
+# The layer shell island needs GTK, so it can be left out to check the rest without a GTK sysroot.
+island = ["dep:gtk", "dep:gtk-layer-shell"]
+
+[dependencies]
+memnox-desktop-key = { path = "../../shared/tauri-core/crates/desktop-key" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+p256 = { version = "0.13", features = ["ecdsa"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+secret-service = { version = "4", features = ["rt-tokio-crypto-rust"] }
+gtk = { version = "0.18", optional = true }
+gtk-layer-shell = { version = "0.8", optional = true }

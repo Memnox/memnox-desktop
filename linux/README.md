@@ -12,4 +12,8 @@ here.
 - **Keeping awake:** `systemd-inhibit` while on power with a phone paired.
 - **The packages:** AppImage, deb, rpm and a PKGBUILD, with SHA256SUMS published beside them.
 
-Nothing here is built yet.
+## What is built
+
+`native/` is the `memnox-linux` crate the shared app depends on only on Linux: `SecretKey` (a P-256 key kept in the login keyring and used only after polkit asks, through `packaging/org.memnox.desktop.policy`), `KeepAwake` and `on_mains`, and `make_island` on layer shell, which needs GTK and so sits behind the `island` feature. The keyring is open to every process of the same user while the session is unlocked, which makes this the weakest desktop key.
+
+The XWayland dock on GNOME and the AppImage, deb, rpm and PKGBUILD releases come next; the deb and rpm already install the polkit policy.

@@ -1,0 +1,31 @@
+[package]
+name = "memnox-desktop"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Memnox on Windows and Linux: the island, the daemon link and the confirm key."
+publish = false
+
+[lib]
+name = "memnox_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["io-util", "net", "rt", "sync", "time"] }
+sha2 = "0.10"
+memnox-desktop-key = { path = "../crates/desktop-key" }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+memnox-windows = { path = "../../../windows/native" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+memnox-linux = { path = "../../../linux/native" }

@@ -1,0 +1,31 @@
+{
+  "name": "@memnox/desktop-core",
+  "private": true,
+  "version": "0.1.0",
+  "description": "The Tauri app Memnox runs on Windows and Linux: a face and a signing key over the daemon.",
+  "type": "module",
+  "scripts": {
+    "wire": "sh scripts/sync-wire.sh",
+    "dev": "vite",
+    "build": "pnpm typecheck && vite build",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/core/tsconfig.json",
+    "test": "vitest run",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.12.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.3",
+    "@types/node": "22.10.7",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "typescript": "5.7.3",
+    "vite": "6.0.11",
+    "vitest": "3.0.5"
+  },
+  "packageManager": "pnpm@9.15.4"
+}

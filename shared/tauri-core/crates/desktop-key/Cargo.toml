@@ -1,0 +1,13 @@
+[package]
+name = "memnox-desktop-key"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "The confirm key every Memnox desktop signs a yes with, and the DER form the daemon verifies."
+publish = false
+
+[dependencies]
+base64 = "0.22"
+
+[dev-dependencies]
+serde_json = "1"

@@ -13,4 +13,8 @@ lives here.
   reach the computer from anywhere.
 - **The installer:** NSIS and MSI, signed with Azure Trusted Signing from the first release.
 
-Nothing here is built yet.
+## What is built
+
+`native/` is the `memnox-windows` crate the shared app depends on only on Windows: `TpmKey` (a P-256 key made inside the TPM through the Platform Crypto Provider, used only after Windows Hello says yes over the island's window), `KeepAwake` and `on_mains`, and `make_island`. The TPM key does not itself demand Hello, so a process of the same user calling NCrypt directly could sign without it; a paired phone stays the stronger place to say yes.
+
+The pipe's ACL, a service that restarts after a crash and the signed installer come next.

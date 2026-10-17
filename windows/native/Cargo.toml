@@ -1,0 +1,23 @@
+[package]
+name = "memnox-windows"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "What Memnox does differently on Windows: the TPM confirm key behind Windows Hello, keeping awake, the island window."
+publish = false
+
+[dependencies]
+memnox-desktop-key = { path = "../../shared/tauri-core/crates/desktop-key" }
+
+[target.'cfg(windows)'.dependencies]
+sha2 = "0.10"
+windows-future = "0.2"
+windows = { version = "0.61", features = [
+  "Foundation",
+  "Security_Credentials_UI",
+  "Win32_Foundation",
+  "Win32_Security_Cryptography",
+  "Win32_System_Power",
+  "Win32_System_WinRT",
+  "Win32_UI_WindowsAndMessaging",
+] }

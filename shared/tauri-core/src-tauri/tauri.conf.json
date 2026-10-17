@@ -1,0 +1,49 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Memnox",
+  "version": "0.1.0",
+  "identifier": "com.memnox.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "island",
+        "title": "Memnox",
+        "width": 420,
+        "height": 220,
+        "y": 8,
+        "center": false,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "shadow": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi", "appimage", "deb", "rpm"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "linux": {
+      "deb": { "files": { "/usr/share/polkit-1/actions/org.memnox.desktop.policy": "../../../linux/packaging/org.memnox.desktop.policy" } },
+      "rpm": { "files": { "/usr/share/polkit-1/actions/org.memnox.desktop.policy": "../../../linux/packaging/org.memnox.desktop.policy" } }
+    }
+  }
+}

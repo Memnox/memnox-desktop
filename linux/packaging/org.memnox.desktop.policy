@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Installed to /usr/share/polkit-1/actions by every Linux package. Each yes asks again, since
+     auth_self rather than auth_self_keep keeps no grace period an agent could ride on. -->
+<policyconfig>
+  <vendor>Memnox</vendor>
+  <vendor_url>https://memnox.com</vendor_url>
+  <action id="org.memnox.desktop.confirm">
+    <description>Allow an agent's held call</description>
+    <message>Memnox: $(reason)</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_self</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

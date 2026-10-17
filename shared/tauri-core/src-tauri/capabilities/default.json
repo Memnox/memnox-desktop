@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The island may call this app's own commands and listen on their channels, and nothing else.",
+  "windows": ["island"],
+  "permissions": ["core:default"]
+}

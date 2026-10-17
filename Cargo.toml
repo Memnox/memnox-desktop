@@ -1,0 +1,10 @@
+# The Rust of the Windows and Linux app: the Tauri crate in shared/, the key every desktop shares,
+# and each platform's own crate. One lockfile and one target folder for all four.
+[workspace]
+resolver = "2"
+members = [
+  "shared/tauri-core/src-tauri",
+  "shared/tauri-core/crates/desktop-key",
+  "windows/native",
+  "linux/native",
+]

@@ -1,1 +1,4 @@
 .DS_Store
+
+# The Rust workspace of the Windows and Linux app.
+/target

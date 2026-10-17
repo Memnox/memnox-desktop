@@ -200,6 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         restoreMachine()
         presenter.livePanel.fetch = { [weak self] session in await self?.conversation.sessionView(session) }
+        presenter.livePanel.diff = { [weak self] session, path in await self?.conversation.sessionDiff(session, path: path) }
         presenter.livePanel.island = panel.islandModel
         presenter.remote = { [target] in target.isRemote }
         presenter.sessions = { [weak self] in await self?.conversation.sessionsList() ?? [] }
@@ -220,6 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             view: { [weak self] session in await self?.conversation.sessionView(session) },
             open: { [shown] session, host in Task { _ = await shown.focus(session: session, host: host) } }
         )
+        panel.wireLive { [presenter] session, host in Task { await presenter.live(session: session, host: host) } }
         panel.keepHistory(in: HistoryFile())
         panel.wireConversation(
             openAnswer: { [presenter] exchange in

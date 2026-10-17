@@ -265,6 +265,8 @@ final class IslandModel: ObservableObject {
     var answerQuestion: (AgentQuestionCard, Int, String) -> Void = { _, _, _ in }
     var tapped: () -> Void = {}
     var openWindow: (String, DisplayHost?) -> Void = { _, _ in }
+    /// Opens the session's live window, where its whole conversation and the real diff of each file are read.
+    var watchLive: (String, DisplayHost?) -> Void = { _, _ in }
     var focus: (String) -> Void = { _ in }
     var openAnswer: (Exchange) -> Void = { _ in }
     var answerDraft: (DraftCard, Bool) -> Void = { _, _ in }

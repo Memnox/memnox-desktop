@@ -2,22 +2,22 @@ import AppKit
 import MemnoxVoiceCore
 import SwiftUI
 
-/// Matches the corners `IslandCard` draws, so the detail's cards read as one set.
-private let detailCardRadius: CGFloat = 20
-
-/// One session up close: who it is, where, what it was asked and what it did on the left, the code it is writing on the right.
+/// One session up close, sized to the notch: who and where with how it stands, what it is doing this moment and
+/// what it was asked on the left; the files it changed on the right, which open the live window and their diffs.
 struct IslandSessionDetail: View {
     @ObservedObject var model: IslandModel
     let session: SessionView
 
     private enum Layout {
         static let logoSide: CGFloat = 30
-        static let stepSpacing: CGFloat = 8
-        static let listedSteps = 3
+        static let stepSpacing: CGFloat = 7
+        /// Two lines of what it did fit under the ask without pushing past the notch's height.
+        static let listedSteps = 2
         static let cardPadding: CGFloat = 14
-        static let cardWidth: CGFloat = 236
-        static let headerSpacing: CGFloat = 2
+        static let cardWidth: CGFloat = 260
+        static let headerSpacing: CGFloat = 3
         static let askLines = 2
+        static let labelTracking: CGFloat = 0.6
     }
 
     private static let thinkingVeilOpacity = 0.3
@@ -27,7 +27,7 @@ struct IslandSessionDetail: View {
             IslandCard(veil: session.thinking ? IslandPalette.color(session.agent).opacity(Self.thinkingVeilOpacity) : nil) {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
                     identity
-                    if let task = session.task { asked(task) }
+                    ask
                     activity
                     Spacer(minLength: 0)
                 }
@@ -35,12 +35,12 @@ struct IslandSessionDetail: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             .frame(width: Layout.cardWidth)
-            IslandCodePanel(session: session)
+            IslandFilesPanel(session: session, watch: watch)
         }
         .islandContentInset(model.notch)
     }
 
-    /// The agent's logo, its name and badge, where it runs, and the way into it.
+    /// The logo, the agent's whole name, then how it stands and where it runs on one quiet line, and the way into it.
     private var identity: some View {
         HStack(alignment: .center, spacing: Memnox.Spacing.medium) {
             AgentLogo(kind: IslandPalette.kind(session.agent), name: session.agentName)
@@ -48,19 +48,20 @@ struct IslandSessionDetail: View {
                 .frame(width: Layout.logoSide, height: Layout.logoSide)
                 .background(Circle().fill(IslandPalette.color(session.agent)))
             VStack(alignment: .leading, spacing: Layout.headerSpacing) {
+                Text(session.agentName)
+                    .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+                    .layoutPriority(1)
                 HStack(spacing: Memnox.Spacing.small) {
-                    Text(session.agentName)
-                        .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                        .foregroundStyle(Color.white)
-                        .lineLimit(1)
                     IslandStatusBadge(status: session.status, label: SessionDetailText.statusLabel(of: session, now: Date()))
-                }
-                if let place = SessionDetailText.place(of: session) {
-                    Text(place)
-                        .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(Color.white.opacity(Shade.place))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    if let place = SessionDetailText.place(of: session) {
+                        Text(place)
+                            .font(Memnox.sans(Memnox.TextSize.caption))
+                            .foregroundStyle(Color.white.opacity(Shade.place))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
             }
             Spacer(minLength: 0)
@@ -76,26 +77,33 @@ struct IslandSessionDetail: View {
         }
     }
 
-    /// What the person last asked it, quoted, since that is what the work on the right is for.
-    private func asked(_ task: String) -> some View {
-        Text("\u{201C}\(task)\u{201D}")
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(IslandPalette.soft)
-            .lineLimit(Layout.askLines)
-            .truncationMode(.tail)
-            .fixedSize(horizontal: false, vertical: true)
-            .help(task)
+    /// The follow-up it is on when there is one, else what it was opened for, with icon glyphs from a terminal taken out.
+    @ViewBuilder private var ask: some View {
+        let opening = SessionReading.readable(session.task)
+        let latest = SessionReading.readable(session.lastAsk)
+        let followUp = latest != nil && latest != opening
+        if let words = followUp ? latest : opening {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
+                Text(followUp ? "Follow-up" : "Asked")
+                    .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
+                    .tracking(Layout.labelTracking)
+                    .textCase(.uppercase)
+                    .foregroundStyle(followUp ? Memnox.Palette.sky : Color.white.opacity(Shade.sectionLabel))
+                Text(words)
+                    .font(Memnox.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(IslandPalette.soft)
+                    .lineLimit(Layout.askLines)
+                    .truncationMode(.tail)
+                    .help(words)
+            }
+        }
     }
 
-    /// The latest few things it did, newest first, each with how long ago.
+    /// What it is doing this moment first, then what it did just before, each with how long ago.
     @ViewBuilder private var activity: some View {
         let steps = Array(SessionText.meaningful(session.steps).suffix(Layout.listedSteps).reversed())
         if !steps.isEmpty {
             VStack(alignment: .leading, spacing: Layout.stepSpacing) {
-                Text("Recent activity")
-                    .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
-                    .foregroundStyle(Color.white.opacity(Shade.sectionLabel))
-                    .textCase(.uppercase)
                 ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
                     IslandStepLine(step: step, latest: index == 0, working: index == 0 && session.thinking)
                 }
@@ -108,6 +116,11 @@ struct IslandSessionDetail: View {
         if let card { model.openWindow(card.sessionId, card.host) }
     }
 
+    private func watch() {
+        let card = model.cards.first { $0.sessionId == session.sessionId }
+        model.watchLive(session.sessionId, card?.host)
+    }
+
     private enum Symbol {
         static let open = "arrow.up.forward"
     }
@@ -117,7 +130,7 @@ struct IslandSessionDetail: View {
         static let sectionLabel = 0.4
         /// The logo fills a little over half its disc, the same as in the session list.
         static let logoScale: CGFloat = 0.56
-        static let openSide: CGFloat = 24
+        static let openSide: CGFloat = 26
     }
 }
 
@@ -195,188 +208,106 @@ struct IslandStepLine: View {
     }
 }
 
-/// The file the session changed most, as an editor tab with its counts and its changed lines; the files alone when no lines can be read.
-struct IslandCodePanel: View {
+/// The files the session changed with the totals over them, as many as the notch holds; a click opens the live
+/// window, where each file opens into its real diff.
+struct IslandFilesPanel: View {
     let session: SessionView
+    let watch: () -> Void
+    @State private var hovered = false
 
     private enum Layout {
-        /// As many changed lines as fit under the tab and the footer at the detail's height.
-        static let shownLines = 7
-        static let shownFiles = 6
-        static let lineSpacing: CGFloat = 1
-        static let badgeTextSize: CGFloat = 9
-        static let badgeRadius: CGFloat = 3
-        /// An editor marks a language with a short tag, so the extension is cut to this many letters.
-        static let badgeLetters = 3
-        static let tabInset: CGFloat = 14
-        static let tabHeight: CGFloat = 38
-        static let footerHeight: CGFloat = 26
-        static let nameSpacing: CGFloat = 1
+        /// As many rows as fit under the totals in the notch's height, with the line that counts the rest.
+        static let shownFiles = 5
+        static let rowSpacing: CGFloat = 7
+        static let padding: CGFloat = 14
     }
 
     private enum Shade {
-        /// Barely there, so the panel's edge shows without framing the code.
-        static let edge = 0.035
         static let folder = 0.4
-        static let tabFill = 0.03
-        static let footer = 0.45
+        static let hint = 0.55
     }
 
-    private static let linesAnimation = Animation.easeOut(duration: 0.25)
+    private enum Symbol {
+        static let file = "doc.text"
+        static let diffs = "plusminus"
+    }
 
     private static let nothingChanged = "No files changed yet"
     /// Memnox saw only where it connected, as for a desktop app it does not hook, so its files are unseen rather than unchanged.
     private static let filesUnseen = "Memnox sees only where this session connects, not the files it changes"
 
+    private var added: Int { session.files.compactMap(\.added).reduce(0, +) }
+    private var removed: Int { session.files.compactMap(\.removed).reduce(0, +) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let excerpt = session.excerpt {
-                let lines = SessionDetailText.diffLines(excerpt.lines)
-                tab(excerpt.path)
-                VStack(alignment: .leading, spacing: Layout.lineSpacing) {
-                    ForEach(Array(lines.prefix(Layout.shownLines).enumerated()), id: \.offset) { _, line in
-                        IslandCodeLine(line: line)
-                    }
-                }
-                .padding(.vertical, Memnox.Spacing.small)
-                .animation(Self.linesAnimation, value: excerpt.lines)
-                Spacer(minLength: 0)
-                footer(hiddenLines: max(0, lines.count - Layout.shownLines), excerptPath: excerpt.path)
-            } else if !session.files.isEmpty {
-                Text("Changed files")
-                    .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
-                    .foregroundStyle(Color.white.opacity(Shade.folder))
-                    .textCase(.uppercase)
-                    .padding([.horizontal, .top], Memnox.Spacing.xLarge)
-                VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
-                    ForEach(Array(session.files.prefix(Layout.shownFiles).enumerated()), id: \.offset) { _, file in
-                        HStack(spacing: Memnox.Spacing.medium) {
-                            Text(name(file.path)).font(.system(size: Memnox.TextSize.footnote, design: .monospaced))
-                                .foregroundStyle(Color.white).lineLimit(1)
-                            Text(SessionDetailText.folder(of: file.path)).font(Memnox.sans(Memnox.TextSize.caption))
-                                .foregroundStyle(Color.white.opacity(Shade.folder)).lineLimit(1).truncationMode(.head)
-                            Spacer(minLength: Memnox.Spacing.medium)
-                            counts(file.added, file.removed)
+        Button(action: watch) {
+            IslandCard(veil: nil) {
+                VStack(alignment: .leading, spacing: Layout.rowSpacing) {
+                    if session.files.isEmpty {
+                        Text(SessionText.onlyNetwork(session.steps) ? Self.filesUnseen : Self.nothingChanged)
+                            .font(Memnox.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(IslandPalette.soft)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        HStack(spacing: Memnox.Spacing.small) {
+                            Text(session.files.count == 1 ? "1 file changed" : "\(session.files.count) files changed")
+                                .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
+                                .foregroundStyle(Color.white)
+                            Spacer(minLength: Memnox.Spacing.small)
+                            counts(added, removed)
                         }
-                        .help(file.path)
+                        ForEach(Array(session.files.prefix(Layout.shownFiles).enumerated()), id: \.offset) { _, file in
+                            HStack(spacing: Memnox.Spacing.small) {
+                                Image(systemName: Symbol.file)
+                                    .font(.system(size: Memnox.TextSize.micro))
+                                    .foregroundStyle(Color.white.opacity(Shade.folder))
+                                Text(name(file.path)).font(Memnox.sans(Memnox.TextSize.footnote, .medium))
+                                    .foregroundStyle(Color.white).lineLimit(1).truncationMode(.middle)
+                                    .layoutPriority(1)
+                                Text(SessionDetailText.folder(of: file.path)).font(Memnox.sans(Memnox.TextSize.caption))
+                                    .foregroundStyle(Color.white.opacity(Shade.folder)).lineLimit(1).truncationMode(.head)
+                                Spacer(minLength: Memnox.Spacing.small)
+                                counts(file.added, file.removed)
+                            }
+                            .help(file.path)
+                        }
+                        Spacer(minLength: 0)
+                        HStack(spacing: Memnox.Spacing.xSmall) {
+                            Image(systemName: Symbol.diffs)
+                            Text(more)
+                        }
+                        .font(Memnox.sans(Memnox.TextSize.caption, .medium))
+                        .foregroundStyle(hovered ? Memnox.Palette.sky : Color.white.opacity(Shade.hint))
                     }
                 }
-                .padding(Memnox.Spacing.xLarge)
-                Spacer(minLength: 0)
-            } else {
-                Text(SessionText.onlyNetwork(session.steps) ? Self.filesUnseen : Self.nothingChanged)
-                    .font(Memnox.sans(Memnox.TextSize.body))
-                    .foregroundStyle(IslandPalette.soft)
-                    .multilineTextAlignment(.center)
-                    .padding(Memnox.Spacing.xLarge)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(Layout.padding)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: detailCardRadius, style: .continuous).fill(Color(hex: 0x0D0E10)))
-        .overlay(RoundedRectangle(cornerRadius: detailCardRadius, style: .continuous).strokeBorder(Color.white.opacity(Shade.edge), lineWidth: Memnox.Stroke.hairline))
-        .clipShape(RoundedRectangle(cornerRadius: detailCardRadius, style: .continuous))
+        .buttonStyle(PressableStyle())
+        .onHover { hovered = $0 }
+        .pointingHand()
+        .help("Open the live window to read the diffs")
+        .accessibilityLabel("\(session.files.count) files changed. Open the live window to read the diffs")
     }
 
-    /// The file's name over the folders it sits in, with how much it changed on the right.
-    private func tab(_ path: String) -> some View {
-        let changed = SessionDetailText.counts(for: path, in: session.files)
-        return HStack(spacing: Memnox.Spacing.medium) {
-            Text(kind(path))
-                .font(.system(size: Layout.badgeTextSize, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.white)
-                .padding(.horizontal, Memnox.Spacing.xSmall)
-                .padding(.vertical, Memnox.Spacing.xxSmall)
-                .background(RoundedRectangle(cornerRadius: Layout.badgeRadius).fill(Memnox.Palette.primary))
-            VStack(alignment: .leading, spacing: Layout.nameSpacing) {
-                Text(name(path)).font(.system(size: Memnox.TextSize.footnote, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Color.white)
-                    .lineLimit(1)
-                Text(SessionDetailText.folder(of: path)).font(Memnox.sans(Memnox.TextSize.micro))
-                    .foregroundStyle(Color.white.opacity(Shade.folder))
-                    .lineLimit(1)
-                    .truncationMode(.head)
-            }
-            Spacer(minLength: Memnox.Spacing.medium)
-            if let changed { counts(changed.added, changed.removed) }
-        }
-        .padding(.horizontal, Layout.tabInset)
-        .frame(height: Layout.tabHeight)
-        .background(Color.white.opacity(Shade.tabFill))
-        .help(path)
-    }
-
-    /// What is not shown: the rest of this file's lines, and the other files it changed.
-    @ViewBuilder private func footer(hiddenLines: Int, excerptPath: String) -> some View {
-        let others = session.files.filter { $0.path != SessionDetailText.counts(for: excerptPath, in: session.files)?.path }
-        let parts = [
-            hiddenLines > 0 ? "\(hiddenLines) more \(hiddenLines == 1 ? "line" : "lines") here" : nil,
-            others.isEmpty ? nil : "\(others.count) other \(others.count == 1 ? "file" : "files") changed",
-        ].compactMap { $0 }
-        if !parts.isEmpty {
-            Text(parts.joined(separator: SessionText.separator))
-                .font(Memnox.sans(Memnox.TextSize.caption))
-                .foregroundStyle(Color.white.opacity(Shade.footer))
-                .lineLimit(1)
-                .padding(.horizontal, Layout.tabInset)
-                .frame(maxWidth: .infinity, minHeight: Layout.footerHeight, alignment: .leading)
-                .background(Color.white.opacity(Shade.tabFill))
-                .help(others.map(\.path).joined(separator: "\n"))
-        }
+    /// The files left over, and that the diffs are a click away.
+    private var more: String {
+        let rest = session.files.count - Layout.shownFiles
+        return rest > 0 ? "\(rest) more, see every diff" : "See the diffs"
     }
 
     private func counts(_ added: Int?, _ removed: Int?) -> some View {
-        HStack(spacing: Memnox.Spacing.small) {
+        HStack(spacing: Memnox.Spacing.xSmall) {
             if let added { Text("+\(added)").foregroundStyle(IslandPalette.green) }
-            if let removed { Text("\u{2212}\(removed)").foregroundStyle(IslandPalette.red) }
+            if let removed, removed > 0 { Text("\u{2212}\(removed)").foregroundStyle(IslandPalette.red) }
         }
-        .font(.system(size: Memnox.TextSize.caption, weight: .medium, design: .monospaced))
+        .font(.system(size: Memnox.TextSize.caption, weight: .medium).monospacedDigit())
+        .fixedSize()
     }
 
     private func name(_ path: String) -> String { (path as NSString).lastPathComponent }
-
-    /// The extension as a badge, the way an editor tab marks a file's language.
-    private func kind(_ path: String) -> String {
-        let ext = (path as NSString).pathExtension
-        return ext.isEmpty ? "TXT" : String(ext.prefix(Layout.badgeLetters)).uppercased()
-    }
-}
-
-/// One changed line marked the way a diff marks it: a plus and green for what it added, a minus and red for what it took out.
-struct IslandCodeLine: View {
-    let line: SessionDetailText.DiffLine
-
-    private enum Layout {
-        static let markerWidth: CGFloat = 10
-        static let barWidth: CGFloat = 2
-    }
-
-    private enum Shade {
-        static let removedText = 0.5
-        static let rowTint = 0.09
-        static let bar = 0.7
-    }
-
-    var body: some View {
-        let tint = line.added ? IslandPalette.green : IslandPalette.red
-        HStack(spacing: Memnox.Spacing.medium) {
-            Text(line.added ? "+" : "\u{2212}")
-                .foregroundStyle(tint)
-                .frame(width: Layout.markerWidth, alignment: .center)
-            Text(line.text)
-                .foregroundStyle(line.added ? IslandPalette.soft : Color.white.opacity(Shade.removedText))
-                .strikethrough(!line.added, color: Color.white.opacity(Shade.removedText))
-                .lineLimit(1)
-                .truncationMode(.tail)
-        }
-        .font(.system(size: Memnox.TextSize.footnote, design: .monospaced))
-        .padding(.horizontal, Memnox.Spacing.large)
-        .padding(.vertical, Memnox.Spacing.xxSmall)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(tint.opacity(Shade.rowTint))
-        .overlay(alignment: .leading) { Rectangle().fill(tint.opacity(Shade.bar)).frame(width: Layout.barWidth) }
-        .help(line.text)
-    }
 }
 
 /// Opened with nothing running.

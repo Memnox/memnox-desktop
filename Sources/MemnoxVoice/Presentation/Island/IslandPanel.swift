@@ -183,6 +183,14 @@ final class IslandPanel: NSPanel, Face {
         refresh()
     }
 
+    /// Opens a session's live window from its detail, putting the island away first so the window is in front.
+    @MainActor func wireLive(_ live: @escaping (String, DisplayHost?) -> Void) {
+        model.watchLive = { [weak self] session, host in
+            self?.closeIsland()
+            live(session, host)
+        }
+    }
+
     /// The history read back from where it was kept, and kept there again after every answer.
     @MainActor func keepHistory(in file: HistoryFile) {
         historyFile = file

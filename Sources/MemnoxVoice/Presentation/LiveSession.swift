@@ -11,6 +11,11 @@ final class LiveModel: ObservableObject {
     /// Where the pointer is over the window, from minus one to one each way, for its lean and its sheen.
     @Published var tilt: CGSize = .zero
     @Published var size: CGSize = CGSize(width: LivePanel.width, height: LiveModel.initialHeight)
+    /// Which tab is showing, nil until the first view picks the one with the most to say.
+    @Published var tab: LiveTab?
+    /// Each opened file's diff as last read, and the files whose diff could not be read.
+    @Published var diffs: [String: [DiffLine]] = [:]
+    @Published var missingDiffs: Set<String> = []
     /// A starting height only, until the window is laid out around its content.
     private static let initialHeight: CGFloat = 600
 }
@@ -22,8 +27,14 @@ final class KeyablePanel: NSPanel {
 
 }
 
+/// The live window's content, which lets a drag on any empty part of it move the window, as a title bar does.
+final class MovableHosting<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var mouseDownCanMoveWindow: Bool { true }
+}
+
 /// The SF Symbols the live window draws.
-private enum LiveSymbol {
+enum LiveSymbol {
     static let thinking = "sparkles"
     static let acting = "arrow.right.circle"
     static let shell = "terminal"
@@ -37,11 +48,10 @@ private enum LiveSymbol {
     static let helper = "person.2"
     static let close = "xmark"
     static let openWindow = "arrow.up.forward.app"
-    static let disclosure = "chevron.right"
 }
 
 /// Values more than one part of the live window shares, so its sections match.
-private enum LiveStyle {
+enum LiveStyle {
     static let sectionCornerRadius: CGFloat = 16
     /// Barely there, so a section reads as a shape rather than a box.
     static let sectionEdgeOpacity = 0.035
@@ -64,27 +74,27 @@ private func nanoseconds(_ seconds: TimeInterval) -> UInt64 {
     UInt64((seconds * nanosecondsPerSecond).rounded())
 }
 
-/// A window on a session in the middle of the screen: what it is on, what it just did, its
-/// helpers and the files it changed, updated every couple of seconds while it stays open.
-/// It swings in from depth rather than appearing, so it reads as something brought forward.
+/// A window on a session: what it is on, what it just did, its helpers and the files it changed, updated every
+/// couple of seconds for as long as it stays open. It moves and resizes like any window and opens again where it
+/// was left, and it settles in from depth rather than appearing, so it reads as something brought forward.
 @MainActor
 final class LivePanel {
     private let panel: KeyablePanel
     private let model = LiveModel()
     private var polling: Task<Void, Never>?
-    private var hide: Task<Void, Never>?
     /// Asked for the session each refresh; set by the app once the conversation exists.
     var fetch: ((String) async -> SessionView?)?
+    /// Asked for one changed file's diff when the person opens it.
+    var diff: ((String, String) async -> CardExcerpt?)?
     /// Brings the session's own terminal tab or editor forward, from the button in the window.
     var openOwnWindow: ((String, DisplayHost?) async -> Void)?
     /// The notch's model, so a call this session holds can be answered in the window through the same signed path.
     var island: IslandModel?
-    static let width: CGFloat = 540
+    /// Wide enough that a line of code in a diff reads without scrolling sideways most of the time.
+    static let width: CGFloat = 620
 
     private enum Timing {
         static let refreshEvery: TimeInterval = 2
-        /// Long enough to watch a stretch of work, never a window left up all day.
-        static let showFor: TimeInterval = 5 * 60
         static let entranceResponse = 0.6
         static let entranceDamping = 0.78
         static let exitDuration: TimeInterval = 0.28
@@ -98,20 +108,25 @@ final class LivePanel {
         static let maxHeight: CGFloat = 820
         /// Keeps the panel clear of the screen's top and bottom edges.
         static let screenMargin: CGFloat = 40
-        /// Room each side for the swing in, so it is never clipped while it turns.
-        static let swingRoom: CGFloat = 30
+        /// Small enough to sit in a corner, big enough that the header, the tabs and a few lines still fit.
+        static let minSize = NSSize(width: 420, height: 420)
+        /// Where macOS keeps the window's place and size between openings.
+        static let frameName = "MemnoxLiveSession"
     }
 
     init() {
         panel = KeyablePanel(
             contentRect: NSRect(x: 0, y: 0, width: Self.width, height: Layout.initialHeight),
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless, .nonactivatingPanel, .resizable],
             backing: .buffered,
             defer: true
         )
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = false
+        // The system shadow follows the rounded card, now that the window is the card's own size.
+        panel.hasShadow = true
+        panel.isMovableByWindowBackground = true
+        panel.minSize = Layout.minSize
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
@@ -120,51 +135,55 @@ final class LivePanel {
 
     func present(session: String, host: DisplayHost?) async {
         model.view = await fetch?(session)
+        model.tab = nil
+        model.diffs = [:]
+        model.missingDiffs = []
         let view = LiveSessionView(
             model: model,
             island: island,
+            load: { [weak self] path in self?.loadDiff(session: session, path: path) },
             close: { [weak self] in self?.dismiss() },
             jump: { [weak self] in
                 Task { await self?.openOwnWindow?(session, host) }
                 self?.dismiss()
             }
         )
-        let hosting = FirstClickHosting(rootView: view)
-        panel.contentView = hosting
-        if let screen = NSScreen.main?.visibleFrame {
-            // Room above and below for the swing in, so it is never clipped while it turns.
+        panel.contentView = MovableHosting(rootView: view)
+        // Where the person last left it, else the middle of the screen at a size that shows a good stretch of work.
+        if !panel.setFrameUsingName(Layout.frameName), let screen = NSScreen.main?.visibleFrame {
             let height: CGFloat = min(Layout.maxHeight, screen.height - Layout.screenMargin)
-            panel.setFrame(
-                NSRect(
-                    x: screen.midX - Self.width / 2 - Layout.swingRoom,
-                    y: screen.midY - height / 2,
-                    width: Self.width + Layout.swingRoom * 2,
-                    height: height
-                ),
-                display: true
-            )
+            panel.setFrame(NSRect(x: screen.midX - Self.width / 2, y: screen.midY - height / 2, width: Self.width, height: height), display: true)
         }
+        panel.setFrameAutosaveName(Layout.frameName)
         model.shown = false
         model.tilt = .zero
         panel.orderFrontRegardless()
         panel.makeKey()
         withAnimation(.spring(response: Timing.entranceResponse, dampingFraction: Timing.entranceDamping)) { model.shown = true }
         poll(session)
-        hide?.cancel()
-        hide = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: nanoseconds(Timing.showFor))
-            guard !Task.isCancelled else { return }
-            self?.dismiss()
-        }
     }
 
     func dismiss() {
         polling?.cancel()
-        hide?.cancel()
         withAnimation(.easeIn(duration: Timing.exitDuration)) { model.shown = false }
         Task { [panel] in
             try? await Task.sleep(nanoseconds: nanoseconds(Timing.orderOutDelay))
             panel.orderOut(nil)
+        }
+    }
+
+    private func loadDiff(session: String, path: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            let excerpt = await self.diff?(session, path)
+            withAnimation(.easeOut(duration: Memnox.Motion.quick)) {
+                if let excerpt {
+                    self.model.diffs[path] = DiffLine.of(excerpt.lines)
+                    self.model.missingDiffs.remove(path)
+                } else if self.model.diffs[path] == nil {
+                    self.model.missingDiffs.insert(path)
+                }
+            }
         }
     }
 
@@ -183,6 +202,8 @@ final class LivePanel {
 struct LiveSessionView: View {
     @ObservedObject var model: LiveModel
     let island: IslandModel?
+    /// Reads one changed file's diff into the model.
+    let load: (String) -> Void
     let close: () -> Void
     let jump: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -192,9 +213,6 @@ struct LiveSessionView: View {
         static let padding: CGFloat = 22
         static let cornerRadius: CGFloat = 28
         static let edgeOpacity = 0.07
-        static let shadowOpacity = 0.5
-        static let shadowRadius: CGFloat = 30
-        static let shadowDrop: CGFloat = 18
         static let hiddenScale: CGFloat = 0.96
         static let hiddenLift: CGFloat = -14
         static let hiddenBlur: CGFloat = 8
@@ -205,12 +223,11 @@ struct LiveSessionView: View {
     /// The beat each part rises on, top to bottom, so the window assembles in reading order.
     private enum Order {
         static let header = 0
-        static let conversation = 1
+        static let brief = 1
         static let now = 2
-        static let steps = 3
-        static let helpers = 4
-        static let files = 5
-        static let dock = 6
+        static let tabs = 3
+        static let body = 4
+        static let dock = 5
     }
 
     /// Settled when shown, and always settled under Reduce Motion so the window only fades.
@@ -229,51 +246,59 @@ struct LiveSessionView: View {
             }
         }
         .padding(Layout.padding)
-        .frame(width: LivePanel.width, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(surface)
         .overlay(
             RoundedRectangle(cornerRadius: Layout.cornerRadius, style: .continuous)
                 .strokeBorder(Memnox.ink(Layout.edgeOpacity), lineWidth: Memnox.Stroke.hairline)
         )
-        .shadow(color: .black.opacity(Layout.shadowOpacity), radius: Layout.shadowRadius, x: 0, y: Layout.shadowDrop)
+        .overlay(alignment: .bottomTrailing) { ResizeGrip().padding(Memnox.Spacing.small) }
         // Settles in the way the island opens, and stays flat so every button is where it is drawn.
         .scaleEffect(settled ? 1 : Layout.hiddenScale)
         .offset(y: settled ? 0 : Layout.hiddenLift)
         .blur(radius: settled ? 0 : Layout.hiddenBlur)
         .opacity(model.shown ? 1 : 0)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// The conversation leads; what it ran, its helpers and its files fold away below it.
+    /// What it was asked and the follow-up it is on, what it is doing this moment, then the conversation, its
+    /// changes with their real diffs, or everything it ran, one tab at a time.
     @ViewBuilder
     private func content(_ view: SessionView) -> some View {
-        let talk = view.conversation ?? []
-        // Folded beside a conversation, which says most of it, and open when there is none to read.
-        let detailsOpen = talk.isEmpty
-        let most = talk.isEmpty ? LiveStyle.fullListLength : LiveStyle.sharedListLength
+        let tab = Binding(get: { model.tab ?? LiveTab.first(for: view) }, set: { model.tab = $0 })
         LiveHeader(view: view, close: close).reveal(model.shown, order: Order.header)
-        if !talk.isEmpty {
-            LiveConversation(lines: talk, thinking: view.thinking).reveal(model.shown, order: Order.conversation)
-        }
+        LiveBrief(view: view).reveal(model.shown, order: Order.brief)
         LiveNow(view: view).reveal(model.shown, order: Order.now)
-        if !view.steps.isEmpty {
-            LiveDisclosure(title: "Latest steps", count: view.steps.count, startsOpen: detailsOpen) {
-                LiveStepRows(steps: view.steps, most: most)
+        LiveTabBar(tab: tab, counts: [
+            .conversation: (view.conversation ?? []).filter { LineAuthor(rawValue: $0.who) == .person }.count,
+            .changes: view.files.count,
+            .activity: view.steps.count,
+        ])
+        .reveal(model.shown, order: Order.tabs)
+        Group {
+            switch tab.wrappedValue {
+            case .conversation:
+                if let talk = view.conversation, !talk.isEmpty {
+                    LiveTalk(lines: talk, thinking: view.thinking)
+                } else {
+                    empty("This agent keeps no transcript Memnox can read, so its steps and changes tell the story.")
+                }
+            case .changes:
+                if view.files.isEmpty {
+                    empty(SessionText.onlyNetwork(view.steps) ? "Memnox only sees where this app connects, so its files are not shown." : "Nothing changed in its files yet.")
+                } else {
+                    LiveChanges(files: view.files, diffs: model.diffs, missing: model.missingDiffs, load: load)
+                }
+            case .activity:
+                LiveActivity(steps: view.steps, helpers: view.helpers)
             }
-            .reveal(model.shown, order: Order.steps)
         }
-        if !view.helpers.isEmpty {
-            LiveDisclosure(title: "Helpers", count: view.helpers.count, startsOpen: detailsOpen) {
-                LiveHelperRows(helpers: view.helpers)
-            }
-            .reveal(model.shown, order: Order.helpers)
-        }
-        if !view.files.isEmpty {
-            LiveDisclosure(title: "Changed", count: view.files.count, startsOpen: detailsOpen) {
-                FileList(files: Array(view.files.prefix(most)), counting: model.shown)
-            }
-            .reveal(model.shown, order: Order.files)
-        }
+        .padding(Memnox.Spacing.large)
+        // Takes whatever height the window has, so making the window taller shows more of the session.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous).fill(LiveStyle.section))
+        .overlay(RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous)
+            .strokeBorder(Memnox.ink(LiveStyle.sectionEdgeOpacity), lineWidth: Memnox.Stroke.hairline))
+        .reveal(model.shown, order: Order.body)
         Group {
             if let island {
                 LiveDock(island: island, session: view.sessionId, spacing: Layout.sectionSpacing) {
@@ -284,6 +309,13 @@ struct LiveSessionView: View {
             }
         }
         .reveal(model.shown, order: Order.dock)
+    }
+
+    private func empty(_ words: String) -> some View {
+        Text(words)
+            .font(Memnox.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Palette.muted)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Solid and flat, black or white with the chosen look, with a band along the top in the colour of how the session stands.
@@ -381,27 +413,23 @@ private struct LiveHeader: View {
     let view: SessionView
     let close: () -> Void
 
-    private static let taskLineLimit = 2
     private static let metaSeparator = "  ·  "
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-            CardHeader(title: view.agentName, subtitle: meta, close: close) {
-                BrandLogo(agent: view.agent, name: view.agentName, size: FloatingCard.markSize)
-            } accessory: {
-                StatePill(view: view)
-            }
-            if let task = view.task {
-                Text(task)
-                    .font(Memnox.sans(Memnox.TextSize.callout))
-                    .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
-                    .lineLimit(Self.taskLineLimit)
-            }
+        CardHeader(title: view.agentName, subtitle: meta, close: close) {
+            BrandLogo(agent: view.agent, name: view.agentName, size: FloatingCard.markSize)
+        } accessory: {
+            StatePill(view: view)
         }
+        // The header is the window's title bar: dragging it moves the window anywhere on screen.
+        .background(WindowDragArea())
+        .help("Drag to move")
     }
 
+    /// Its repository and branch, the app it runs in, and how lately it did anything.
     private var meta: String? {
-        let parts = [view.repository, view.runningIn, SessionText.ago(view.lastActive, now: Date()).map { "active \($0)" }]
+        let repository = SessionReading.repository(view.repository).map { name in view.branch.map { "\(name) on \($0)" } ?? name }
+        let parts = [repository, view.runningIn, SessionText.ago(view.lastActive, now: Date()).map { "active \($0)" }]
             .compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: Self.metaSeparator)
     }
@@ -492,6 +520,8 @@ struct LiveSteps: View {
 struct LiveStepRows: View {
     let steps: [SessionViewStep]
     let most: Int
+    /// The activity tab reads from the latest down; the cards keep the latest at the bottom.
+    var newestFirst = false
 
     private static let rowSpacing: CGFloat = 5
     private static let iconWidth: CGFloat = 14
@@ -500,7 +530,8 @@ struct LiveStepRows: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Self.rowSpacing) {
-            ForEach(Array(steps.suffix(most).enumerated()), id: \.element.at) { _, step in
+            let shown = Array(steps.suffix(most))
+            ForEach(Array((newestFirst ? shown.reversed() : shown).enumerated()), id: \.offset) { _, step in
                 HStack(spacing: Memnox.Spacing.medium) {
                     Image(systemName: icon(step))
                         .font(.system(size: Memnox.TextSize.caption))
@@ -543,71 +574,10 @@ struct LiveStepRows: View {
 }
 
 /// Who said a conversation line, as the runtime writes it.
-private enum LineAuthor: String {
+enum LineAuthor: String {
     case person
     case agent
     case tool
-}
-
-/// The conversation itself, newest at the bottom and kept in view as it grows: the person on
-/// the right, the agent on the left, and each tool it runs as a quiet line between them.
-private struct LiveConversation: View {
-    let lines: [ConversationLine]
-    let thinking: Bool
-    private static let dotsKey = "typing-dots"
-    /// Enough of a line to tell it apart from its neighbours without keying on all of it.
-    private static let keyTextLength = 48
-    private static let arrivalScale: CGFloat = 0.96
-    private static let lineSpacing: CGFloat = 8
-    /// The tallest part of the window, because the conversation is what the person opened it to read.
-    private static let maxHeight: CGFloat = 380
-    private static let scrollDuration: TimeInterval = 0.35
-    /// A new line slides up from below and settles, rather than appearing in place.
-    private static let arrives = AnyTransition.asymmetric(
-        insertion: .move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: LiveConversation.arrivalScale, anchor: .bottomLeading)),
-        removal: .opacity
-    )
-
-    /// Each line keyed by what it is, not where it sits, so one arriving moves in instead of every line shifting.
-    private var keyed: [(key: String, line: ConversationLine)] {
-        var seen: [String: Int] = [:]
-        return lines.map { line in
-            let base = "\(line.at)|\(line.who)|\(line.text.prefix(Self.keyTextLength))"
-            let count = seen[base, default: 0]
-            seen[base] = count + 1
-            return (key: count == 0 ? base : "\(base)#\(count)", line: line)
-        }
-    }
-
-    /// Only the agent's latest words type themselves out; the rest are already said.
-    private var newestReply: String? {
-        keyed.last { $0.line.who == LineAuthor.agent.rawValue }?.key
-    }
-
-    private var bottom: String { thinking ? Self.dotsKey : (keyed.last?.key ?? Self.dotsKey) }
-
-    var body: some View {
-        LiveSection(title: "Conversation") {
-            ScrollViewReader { reader in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: Self.lineSpacing) {
-                        ForEach(keyed, id: \.key) { item in
-                            ConversationRow(line: item.line, typing: item.key == newestReply)
-                                .id(item.key)
-                                .transition(Self.arrives)
-                        }
-                        if thinking { TypingDots().id(Self.dotsKey).transition(.opacity) }
-                    }
-                    .padding(.vertical, Memnox.Spacing.xxSmall)
-                }
-                .frame(maxHeight: Self.maxHeight)
-                .onAppear { reader.scrollTo(bottom, anchor: .bottom) }
-                .onChange(of: lines) { _, _ in
-                    withAnimation(.easeOut(duration: Self.scrollDuration)) { reader.scrollTo(bottom, anchor: .bottom) }
-                }
-            }
-        }
-    }
 }
 
 struct ConversationRow: View {
@@ -694,36 +664,6 @@ private struct TypedText: View {
     }
 }
 
-/// Three dots that rise in turn while the agent is thinking through its answer.
-private struct TypingDots: View {
-    private enum Layout {
-        static let count = 3
-        static let spacing: CGFloat = 5
-        static let dotSize: CGFloat = 6
-        static let risen: CGFloat = -3
-        static let resting: CGFloat = 1
-        static let restingOpacity = 0.4
-        static let riseDuration: TimeInterval = 0.45
-        /// The gap between one dot rising and the next.
-        static let stagger: TimeInterval = 0.15
-    }
-
-    var body: some View {
-        HStack(spacing: Layout.spacing) {
-            ForEach(0..<Layout.count, id: \.self) { dot in
-                Circle()
-                    .fill(Memnox.Palette.muted)
-                    .frame(width: Layout.dotSize, height: Layout.dotSize)
-                    .phaseAnimator([false, true]) { circle, up in
-                        circle.offset(y: up ? Layout.risen : Layout.resting).opacity(up ? 1 : Layout.restingOpacity)
-                    } animation: { _ in .easeInOut(duration: Layout.riseDuration).delay(Double(dot) * Layout.stagger) }
-            }
-        }
-        .padding(.leading, Memnox.Spacing.xSmall)
-        .padding(.vertical, Memnox.Spacing.xSmall)
-    }
-}
-
 private struct LiveHelperRows: View {
     let helpers: [String]
 
@@ -735,86 +675,6 @@ private struct LiveHelperRows: View {
                     .foregroundStyle(Memnox.Palette.foreground.opacity(LiveStyle.softTextOpacity))
             }
         }
-    }
-}
-
-/// LiveDisclosure's measurements, at file scope because a generic type cannot hold stored statics.
-private enum LiveDisclosureLayout {
-    /// A quarter turn, so the chevron points down once the section is open.
-    static let openAngle: Double = 90
-    static let response = 0.4
-    static let damping = 0.88
-}
-
-/// A section that folds under its title, in the same card as every other section, so the record stays
-/// one tap away without taking room from the conversation.
-private struct LiveDisclosure<Content: View>: View {
-    let title: String
-    let count: Int
-    let content: () -> Content
-    @State private var open: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private typealias Layout = LiveDisclosureLayout
-
-    init(title: String, count: Int, startsOpen: Bool, @ViewBuilder content: @escaping () -> Content) {
-        self.title = title
-        self.count = count
-        self.content = content
-        _open = State(initialValue: startsOpen)
-    }
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous)
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            if open {
-                content()
-                    .padding(.horizontal, Memnox.Spacing.large)
-                    .padding(.bottom, Memnox.Spacing.large)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(shape.fill(LiveStyle.section))
-        .overlay(shape.strokeBorder(Memnox.ink(LiveStyle.sectionEdgeOpacity), lineWidth: Memnox.Stroke.hairline))
-        .clipShape(shape)
-    }
-
-    private var header: some View {
-        Button(action: toggle) {
-            HStack(spacing: Memnox.Spacing.medium) {
-                Text(title.uppercased())
-                    .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
-                    .tracking(LiveSectionLayout.titleTracking)
-                    .foregroundStyle(Memnox.ink(LiveSectionLayout.titleOpacity))
-                Text(count, format: .number)
-                    .font(Memnox.sans(Memnox.TextSize.micro, .medium))
-                    .foregroundStyle(Memnox.Palette.muted)
-                Spacer(minLength: Memnox.Spacing.small)
-                Image(systemName: LiveSymbol.disclosure)
-                    .font(.system(size: Memnox.TextSize.micro, weight: .semibold))
-                    .foregroundStyle(Memnox.Palette.muted)
-                    .rotationEffect(.degrees(open ? Layout.openAngle : 0))
-            }
-            .padding(Memnox.Spacing.large)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .pointingHand()
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("\(title), \(count)"))
-        .accessibilityValue(Text(open ? "Shown" : "Folded"))
-        .accessibilityAddTraits(.isButton)
-        .help(open ? "Fold \(title.lowercased())" : "Show \(title.lowercased())")
-    }
-
-    private func toggle() {
-        let motion: Animation = reduceMotion
-            ? .easeOut(duration: Memnox.Motion.quick)
-            : .spring(response: Layout.response, dampingFraction: Layout.damping)
-        withAnimation(motion) { open.toggle() }
     }
 }
 
@@ -870,5 +730,66 @@ private struct LiveFooter: View {
     private var jumpLabel: String {
         guard let app = view?.runningIn else { return "Open its window" }
         return "Open in \(app)"
+    }
+}
+
+/// Everything it ran, newest first and each with when, then the helpers it sent off.
+private struct LiveActivity: View {
+    let steps: [SessionViewStep]
+    let helpers: [String]
+
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
+                if steps.isEmpty {
+                    Text("Nothing recorded yet.")
+                        .font(Memnox.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Palette.muted)
+                } else {
+                    LiveStepRows(steps: steps, most: steps.count, newestFirst: true)
+                }
+                if !helpers.isEmpty {
+                    VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+                        Text(helpers.count == 1 ? "1 helper" : "\(helpers.count) helpers")
+                            .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
+                            .foregroundStyle(Memnox.Palette.foreground)
+                        LiveHelperRows(helpers: helpers)
+                    }
+                }
+            }
+            .padding(.trailing, Memnox.Spacing.small)
+        }
+    }
+}
+
+/// The corner a window is pulled from to resize it, drawn as two short lines since the window has no frame of its own.
+private struct ResizeGrip: NSViewRepresentable {
+    final class Grip: NSView {
+        private var start: (mouse: NSPoint, frame: NSRect)?
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .crosshair) }
+        override func mouseDown(with event: NSEvent) {
+            guard let window else { return }
+            start = (NSEvent.mouseLocation, window.frame)
+        }
+        override func mouseDragged(with event: NSEvent) {
+            guard let window, let start else { return }
+            let now = NSEvent.mouseLocation
+            let width = max(window.minSize.width, start.frame.width + now.x - start.mouse.x)
+            let height = max(window.minSize.height, start.frame.height - (now.y - start.mouse.y))
+            // The top edge stays put, so the window grows down and to the right under the pointer.
+            window.setFrame(NSRect(x: start.frame.minX, y: start.frame.maxY - height, width: width, height: height), display: true)
+        }
+        override func mouseUp(with event: NSEvent) { start = nil }
+        override var mouseDownCanMoveWindow: Bool { false }
+    }
+
+    private static let side: CGFloat = 16
+
+    func makeNSView(context: Context) -> Grip { Grip() }
+    func updateNSView(_ nsView: Grip, context: Context) {}
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: Grip, context: Context) -> CGSize? {
+        CGSize(width: Self.side, height: Self.side)
     }
 }

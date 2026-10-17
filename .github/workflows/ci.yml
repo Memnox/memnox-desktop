@@ -37,6 +37,10 @@ jobs:
           repository: Memnox/memnox
           path: memnox-runtime
 
+      # The tests read shared/vectors, so a copy that fell behind the runtime fails here rather than passing on old bytes.
+      - name: The protocol vectors match the runtime
+        run: cmp ../shared/vectors/protocol.json ../memnox-runtime/vectors/protocol.json
+
       - name: Select the newest stable Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:

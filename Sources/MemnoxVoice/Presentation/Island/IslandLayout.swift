@@ -215,6 +215,7 @@ enum IslandPalette {
         "claude-code": 0xD97757, "claude": 0xD97757, "claude-desktop": 0xD97757,
         "codex": 0x2DD4BF, "codex-cli": 0x2DD4BF, "cursor": 0xC0C4CC, "gemini": 0x8AB4F8,
         "antigravity": 0xE879F9, "hermes": 0xA78BFA, "openclaw": 0xF7B32B, "cline": 0x38BDF8,
+        "gemini-cli": 0x8AB4F8, "copilot-cli": 0x7EE787, "opencode": 0xFB7185,
     ]
     private static let others: [UInt32] = [0xF472B6, 0x34D399, 0xFB923C, 0x60A5FA, 0xE879F9]
 

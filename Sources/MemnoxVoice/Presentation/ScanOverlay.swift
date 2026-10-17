@@ -597,6 +597,7 @@ struct AgentLogo: View {
         "codex": "openai.svg", "codex-cli": "openai.svg",
         "hermes": "hermes.webp", "openclaw": "openclaw.webp", "cline": "cline.webp",
         "antigravity": "antigravity.svg",
+        "copilot-cli": "copilot.svg", "opencode": "opencode.svg",
     ]
 
     private static var cache: [String: NSImage] = [:]

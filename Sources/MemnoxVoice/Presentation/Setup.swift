@@ -60,6 +60,11 @@ final class SetupModel: ObservableObject {
     private var grantWatch: Task<Void, Never>?
     /// Often enough that the row turns soon after the switch does, rarely enough to cost nothing.
     private static let grantPoll: TimeInterval = 2
+    /// Set once setup has asked every agent afresh by itself, so reopening it does not spend their plans again.
+    private var agentsRechecked = false
+    private var agentWatch: Task<Void, Never>?
+    /// Long enough that looking for a newly installed agent costs nothing, short enough to notice one soon.
+    private static let agentPoll: TimeInterval = 20
     private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
     /// Whether an editor the daemon's extension goes into is on this Mac, and the editors it has landed in.
     @Published private(set) var editorsPresent = false
@@ -199,6 +204,31 @@ final class SetupModel: ObservableObject {
         await voiceChanged()
         // Last, since the first time it asks every agent a question and that takes a while.
         await loadAgents()
+        await recheckAgentsOnce()
+    }
+
+    /// The saved answers show at once, then every agent is asked afresh without a press, once per setup, since a
+    /// saved answer can be days old and asking spends a request on each agent's own plan.
+    private func recheckAgentsOnce() async {
+        // Only during the first run; after it Settings shows the saved answers and Check again asks afresh.
+        guard !agentsRechecked, !isFinished else { return }
+        agentsRechecked = true
+        await loadAgents(recheck: true)
+        watchForAgents()
+    }
+
+    /// With no agent installed, looks again every little while so one installed while setup is open shows by itself.
+    private func watchForAgents() {
+        agentWatch?.cancel()
+        guard agents.filter(\.installed).isEmpty else { return }
+        agentWatch = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(Self.agentPoll * Self.nanosecondsPerSecond))
+                guard !Task.isCancelled, let self else { return }
+                await self.loadAgents(recheck: true)
+                if !self.agents.filter(\.installed).isEmpty { return }
+            }
+        }
     }
 
     /// The agents from the daemon's last check, or every one asked again when the person says so.

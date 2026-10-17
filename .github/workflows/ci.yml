@@ -48,14 +48,14 @@ jobs:
           swift --version
 
       - name: Cache the build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: macos/.build
           key: spm-${{ runner.os }}-${{ hashFiles('macos/Package.swift', 'macos/Sources/**/*.swift', 'macos/Tests/**/*.swift') }}
           restore-keys: spm-${{ runner.os }}-
 
       - name: Cache the Noise build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: memnox-runtime/native/noise/target
           key: noise-${{ runner.os }}-${{ hashFiles('memnox-runtime/native/noise/Cargo.lock', 'memnox-runtime/native/noise/src/**') }}

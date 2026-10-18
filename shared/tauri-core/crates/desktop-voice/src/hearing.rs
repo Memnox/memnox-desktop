@@ -29,8 +29,41 @@ pub struct Hearing {
     recognizer: OfflineRecognizer,
 }
 
+/// How strongly a hinted name is preferred over what the model heard on its own.
+const HOTWORD_SCORE: f32 = 1.5;
+/// The vocabulary a model needs to spell hinted names in its own pieces; without it names are not hinted.
+const BPE_VOCAB: &str = "bpe.vocab";
+
 impl Hearing {
+    /// Parakeet with the names this machine uses hinted to it, when the model can take hints: a transducer
+    /// decoded by beam search with its piece vocabulary beside it. Otherwise, or if the hinted model will
+    /// not load, Parakeet as it is, so a hint can never cost the person their hearing.
+    pub fn with_hints(models: VoiceModels, hints: &[String]) -> Result<Self, String> {
+        let vocab = models.parakeet(BPE_VOCAB);
+        if !hints.is_empty() && vocab.exists() {
+            let file = models.parakeet("hotwords.txt");
+            if std::fs::write(&file, hints.join("\n")).is_ok() {
+                let mut config = Self::config(&models);
+                config.decoding_method = Some("modified_beam_search".into());
+                config.hotwords_file = Some(path(file));
+                config.hotwords_score = HOTWORD_SCORE;
+                config.model_config.modeling_unit = Some("bpe".into());
+                config.model_config.bpe_vocab = Some(path(vocab));
+                if let Some(recognizer) = OfflineRecognizer::create(&config) {
+                    return Ok(Self { models, recognizer });
+                }
+            }
+        }
+        Self::new(models)
+    }
+
     pub fn new(models: VoiceModels) -> Result<Self, String> {
+        let recognizer =
+            OfflineRecognizer::create(&Self::config(&models)).ok_or("Parakeet could not be loaded")?;
+        Ok(Self { models, recognizer })
+    }
+
+    fn config(models: &VoiceModels) -> OfflineRecognizerConfig {
         let mut config = OfflineRecognizerConfig::default();
         config.model_config.transducer = OfflineTransducerModelConfig {
             encoder: Some(path(models.parakeet("encoder.int8.onnx"))),
@@ -40,9 +73,7 @@ impl Hearing {
         config.model_config.tokens = Some(path(models.parakeet("tokens.txt")));
         config.model_config.model_type = Some("nemo_transducer".into());
         config.model_config.num_threads = 2;
-        let recognizer =
-            OfflineRecognizer::create(&config).ok_or("Parakeet could not be loaded")?;
-        Ok(Self { models, recognizer })
+        config
     }
 
     /// What was said in these 16 kHz mono samples, trimmed; empty when nothing was.

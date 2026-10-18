@@ -14,6 +14,7 @@ use sherpa_onnx::{
     OfflineTtsModelConfig,
 };
 
+use crate::echo::FarEnd;
 use crate::hearing::loudness_of_rms;
 use crate::VoiceModels;
 
@@ -36,17 +37,41 @@ pub const VOICES: [(&str, i32); 11] = [
 const BRITISH: char = 'b';
 /// The Mac's own default, so a person hears the same voice on every computer.
 const DEFAULT_VOICE: &str = "af_sky";
-/// The Mac's unhurried pace from Kokoro.swift.
-const USUAL_SPEED: f32 = 0.85;
+/// The Mac's unhurried pace from Kokoro.swift, and the speeds a chosen one is held between: half speed
+/// and normal, slow enough to hear every word without dragging.
+pub const USUAL_SPEED: f32 = 0.85;
+pub const SLOWEST_SPEED: f32 = 0.5;
+pub const FASTEST_SPEED: f32 = 1.0;
+
+/// A speed the person chose, held between half speed and normal as the Mac holds `voiceSpeed`.
+pub fn held_speed(speed: f32) -> f32 {
+    if speed.is_finite() {
+        speed.clamp(SLOWEST_SPEED, FASTEST_SPEED)
+    } else {
+        USUAL_SPEED
+    }
+}
+
+/// Whatever turns a sentence into sound: Kokoro, or the computer's own voice until Kokoro is in.
+pub trait Renders: Send + 'static {
+    /// One sentence as mono samples and their rate; None when it could not be said, or was said already
+    /// by a voice that plays itself.
+    fn render(&self, sentence: &str) -> Option<(Vec<f32>, u32)>;
+    /// What stops a voice that plays itself, since the sink never held its sound; nothing for the rest.
+    fn halter(&self) -> Arc<dyn Fn() + Send + Sync> {
+        Arc::new(|| {})
+    }
+}
 
 /// Kokoro, loaded once, which takes a second or two.
 pub struct Voice {
     tts: OfflineTts,
     speaker: i32,
+    speed: f32,
 }
 
 impl Voice {
-    pub fn new(models: &VoiceModels, voice: Option<&str>) -> Result<Self, String> {
+    pub fn new(models: &VoiceModels, voice: Option<&str>, speed: f32) -> Result<Self, String> {
         let model = |file: &str| Some(models.kokoro(file).to_string_lossy().into_owned());
         let chosen = voice.unwrap_or(DEFAULT_VOICE);
         // The language is the model's, not each sentence's, so a British voice loads it with British English.
@@ -75,14 +100,16 @@ impl Voice {
         Ok(Self {
             tts,
             speaker: speaker_for(chosen),
+            speed: held_speed(speed),
         })
     }
+}
 
-    /// One sentence as mono samples and their rate.
-    pub fn render(&self, sentence: &str) -> Option<(Vec<f32>, u32)> {
+impl Renders for Voice {
+    fn render(&self, sentence: &str) -> Option<(Vec<f32>, u32)> {
         let config = GenerationConfig {
             sid: self.speaker,
-            speed: USUAL_SPEED,
+            speed: self.speed,
             ..Default::default()
         };
         let audio =
@@ -148,24 +175,29 @@ impl Level {
 /// About one video frame of audio, so the meter moves with each syllable and not with each sample.
 const METER_SECONDS: f32 = 0.02;
 
-/// A sentence's samples on their way to the speakers, measured as they go so the level is what is heard.
+/// A sentence's samples on their way to the speakers, measured as they go so the level is what is heard,
+/// and handed to the echo canceller as the far end in the same blocks.
 struct Metered<S> {
     inner: S,
     level: Level,
+    far: FarEnd,
     block: usize,
     sum: f32,
     count: usize,
+    going: Vec<f32>,
 }
 
 impl<S: Source<Item = f32>> Metered<S> {
-    fn new(inner: S, level: Level) -> Self {
+    fn new(inner: S, level: Level, far: FarEnd) -> Self {
         let block = ((inner.sample_rate() as f32 * METER_SECONDS) as usize).max(1);
         Self {
             inner,
             level,
+            far,
             block,
             sum: 0.0,
             count: 0,
+            going: Vec::with_capacity(block),
         }
     }
 }
@@ -180,9 +212,12 @@ impl<S: Source<Item = f32>> Iterator for Metered<S> {
         };
         self.sum += sample * sample;
         self.count += 1;
+        self.going.push(sample);
         if self.count >= self.block {
             self.level
                 .set(loudness_of_rms((self.sum / self.count as f32).sqrt()));
+            self.far.played(&self.going, self.inner.sample_rate());
+            self.going.clear();
             self.sum = 0.0;
             self.count = 0;
         }
@@ -229,10 +264,13 @@ pub struct Speaking {
     epoch: Arc<AtomicU64>,
     sink: Arc<Mutex<Option<Arc<Sink>>>>,
     level: Level,
+    /// Told to stop as well, for a voice that plays itself rather than through the sink.
+    halts: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl Speaking {
-    pub fn start(voice: Voice, level: Level) -> Self {
+    pub fn start(voice: impl Renders, level: Level, far: FarEnd) -> Self {
+        let halts = voice.halter();
         let (queue, lines) = channel::<Line>();
         let epoch = Arc::new(AtomicU64::new(0));
         let sink: Arc<Mutex<Option<Arc<Sink>>>> = Arc::new(Mutex::new(None));
@@ -258,6 +296,7 @@ impl Speaking {
                         &line.sentence,
                         || line.epoch == current.load(Ordering::SeqCst),
                         &metered,
+                        &far,
                     );
                 }
                 let _ = line.done.send(());
@@ -268,6 +307,7 @@ impl Speaking {
             epoch,
             sink,
             level,
+            halts,
         }
     }
 
@@ -286,6 +326,7 @@ impl Speaking {
     /// Silences what plays now and drops everything waiting.
     pub fn stop(&self) {
         self.epoch.fetch_add(1, Ordering::SeqCst);
+        (self.halts)();
         if let Some(sink) = self.sink() {
             sink.stop();
             // A hushed voice stopped must not stay hushed, or the next reply would never be heard.
@@ -315,11 +356,12 @@ impl Speaking {
 }
 
 fn play(
-    voice: &Voice,
+    voice: &dyn Renders,
     sink: &Sink,
     sentence: &str,
     still_wanted: impl Fn() -> bool,
     level: &Level,
+    far: &FarEnd,
 ) {
     let Some((samples, rate)) = voice.render(sentence) else {
         return;
@@ -331,13 +373,22 @@ fn play(
     sink.append(Metered::new(
         SamplesBuffer::new(1, rate, samples),
         level.clone(),
+        far.clone(),
     ));
     sink.sleep_until_end();
 }
 
 #[cfg(test)]
 mod tests {
-    use super::speaker_for;
+    use super::{held_speed, speaker_for, USUAL_SPEED};
+
+    #[test]
+    fn holds_a_chosen_speed_between_half_and_normal() {
+        assert_eq!(held_speed(0.2), 0.5);
+        assert_eq!(held_speed(1.4), 1.0);
+        assert_eq!(held_speed(0.7), 0.7);
+        assert_eq!(held_speed(f32::NAN), USUAL_SPEED);
+    }
 
     #[test]
     fn speaks_with_the_mac_default_unless_a_known_voice_is_chosen() {

@@ -63,6 +63,14 @@ impl VoiceModels {
         self.required().iter().all(|path| path.exists())
     }
 
+    /// Kokoro alone, since the computer's own voice speaks until it is in.
+    pub fn kokoro_installed(&self) -> bool {
+        self.required()
+            .iter()
+            .filter(|path| path.starts_with(self.dir.join(KOKORO)))
+            .all(|path| path.exists())
+    }
+
     /// Fetches whatever is missing. Each archive unpacks into a folder of its own name beside the others,
     /// and only once whole, so a broken download is fetched again rather than half used.
     pub fn install(&self, mut progress: impl FnMut(Progress)) -> io::Result<()> {

@@ -43,6 +43,8 @@ pub fn run() {
             let chosen = app.path().app_config_dir()?.join("voice.txt");
             let voice = Arc::new(voice::Voice::new(VoiceModels::new(models), chosen));
             voice.report_levels(app.handle().clone());
+            // Parakeet and Kokoro load now rather than on the first turn, as the Mac prefetches.
+            voice.warm_up();
             app.manage(voice);
             make_island(&window);
             island::place(&window);
@@ -92,6 +94,9 @@ pub fn run() {
             island::island_hit_areas,
             voice::voice_choice,
             voice::choose_voice,
+            voice::set_voice_speed,
+            voice::echo_cancel,
+            voice::ear_hints,
             runtime::runtime_found,
             runtime::runtime_install,
             runtime::runtime_wired,

@@ -13,3 +13,16 @@ rodio = { version = "0.20", default-features = false }
 ureq = "2"
 bzip2 = "0.6"
 tar = "0.4"
+# WebRTC's echo canceller, AEC3, ported to Rust, so the microphone hears the person and not the voice.
+sonora = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+# The computer's own voice until Kokoro is in: OneCore through WinRT, rendered to a stream.
+windows = { version = "0.61", features = [
+  "Foundation",
+  "Foundation_Collections",
+  "Media_Core",
+  "Media_SpeechSynthesis",
+  "Storage_Streams",
+  "Win32_System_Com",
+] }

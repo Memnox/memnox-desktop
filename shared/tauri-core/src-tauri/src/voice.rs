@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use memnox_desktop_voice::{
-    Chimes, Cue, Ear, EarEvent, Hearing, Level, Speaking, Voice as Kokoro, VoiceModels, VOICES,
+    held_speed, Chimes, Cue, Ear, EarEvent, FarEnd, Hearing, Level, Speaking, SystemVoice,
+    Voice as Kokoro, VoiceModels, SYSTEM_VOICE, USUAL_SPEED, VOICES,
 };
 use serde::Serialize;
 use tauri::ipc::Channel;
@@ -15,7 +16,12 @@ use tauri::{AppHandle, Emitter};
 pub struct Voice {
     models: VoiceModels,
     hearing: Mutex<Option<Arc<Hearing>>>,
-    speaking: Mutex<Option<Arc<Speaking>>>,
+    /// The voice that speaks, and whether it is Kokoro, so a system voice standing in is replaced once Kokoro is in.
+    speaking: Mutex<Option<(Arc<Speaking>, bool)>>,
+    /// The names hinted to the recognizer, learnt from the daemon each listen.
+    hints: Mutex<Vec<String>>,
+    /// What the speakers play, for the echo canceller, and the person's switch for it.
+    far: FarEnd,
     /// One microphone at a time, so a second press waits rather than opening it twice.
     listening: Mutex<()>,
     /// The file the chosen Kokoro voice is kept in, so it lasts past a restart.
@@ -34,6 +40,8 @@ impl Voice {
             models,
             hearing: Mutex::new(None),
             speaking: Mutex::new(None),
+            hints: Mutex::new(Vec::new()),
+            far: FarEnd::default(),
             listening: Mutex::new(()),
             chosen,
             ear: Mutex::new(None),
@@ -71,14 +79,25 @@ impl Voice {
         }
     }
 
-    /// The Kokoro voice the person chose, None for the Mac's default.
+    /// The voice the person chose: a Kokoro id or the computer's own, None for the Mac's default.
     fn choice(&self) -> Option<String> {
         let kept = std::fs::read_to_string(&self.chosen).ok()?;
         let id = kept.trim();
-        VOICES
-            .iter()
-            .any(|(each, _)| *each == id)
-            .then(|| id.to_string())
+        (id == SYSTEM_VOICE || VOICES.iter().any(|(each, _)| *each == id)).then(|| id.to_string())
+    }
+
+    /// Where the speed is kept, beside the chosen voice.
+    fn speed_file(&self) -> PathBuf {
+        self.chosen.with_file_name("voice-speed.txt")
+    }
+
+    /// The speed the person chose, the Mac's unhurried pace when none was.
+    fn speed(&self) -> f32 {
+        std::fs::read_to_string(self.speed_file())
+            .ok()
+            .and_then(|kept| kept.trim().parse::<f32>().ok())
+            .map(held_speed)
+            .unwrap_or(USUAL_SPEED)
     }
 
     fn hearing(&self) -> Result<Arc<Hearing>, String> {
@@ -86,22 +105,64 @@ impl Voice {
         if let Some(hearing) = loaded.as_ref() {
             return Ok(hearing.clone());
         }
-        let hearing = Arc::new(Hearing::new(self.installed()?)?);
+        let hints = self.hints.lock().map(|hints| hints.clone()).unwrap_or_default();
+        let hearing = Arc::new(Hearing::with_hints(self.installed()?, &hints)?);
         *loaded = Some(hearing.clone());
         Ok(hearing)
     }
 
+    /// Kokoro in the chosen voice once it is in; the computer's own voice when chosen, until Kokoro is in,
+    /// or when Kokoro will not load, so the island is never silent while the download runs.
     fn speaking(&self) -> Result<Arc<Speaking>, String> {
         let mut loaded = self.speaking.lock().map_err(|_| "the voice failed")?;
-        if let Some(speaking) = loaded.as_ref() {
-            return Ok(speaking.clone());
+        let choice = self.choice();
+        let wants_kokoro = choice.as_deref() != Some(SYSTEM_VOICE) && self.models.kokoro_installed();
+        if let Some((speaking, kokoro)) = loaded.as_ref() {
+            // A stand in is kept only until Kokoro is in; a chosen system voice is kept for good.
+            if *kokoro || !wants_kokoro {
+                return Ok(speaking.clone());
+            }
         }
-        let speaking = Arc::new(Speaking::start(
-            Kokoro::new(&self.installed()?, self.choice().as_deref())?,
-            self.playing.clone(),
-        ));
-        *loaded = Some(speaking.clone());
+        let speed = self.speed();
+        let kokoro = wants_kokoro
+            .then(|| Kokoro::new(&self.models, choice.as_deref(), speed))
+            .and_then(Result::ok);
+        let is_kokoro = kokoro.is_some();
+        let speaking = Arc::new(match kokoro {
+            Some(voice) => Speaking::start(voice, self.playing.clone(), self.far.clone()),
+            None if SystemVoice::available() => Speaking::start(
+                SystemVoice::new(speed),
+                self.playing.clone(),
+                self.far.clone(),
+            ),
+            None => return Err("the voice is not installed yet".into()),
+        });
+        if let Some((old, _)) = loaded.replace((speaking.clone(), is_kokoro)) {
+            old.stop();
+        }
         Ok(speaking)
+    }
+
+    /// Loads Parakeet and Kokoro on a thread of their own at launch and after an install, as the Mac
+    /// prefetches its recognizer, so the first turn does not wait seconds for them.
+    pub fn warm_up(self: &Arc<Self>) {
+        let voice = self.clone();
+        std::thread::spawn(move || {
+            if voice.models.installed() {
+                let _ = voice.hearing();
+            }
+            let _ = voice.speaking();
+        });
+    }
+
+    /// Drops the loaded voice so the next sentence loads it again with a new voice or speed.
+    fn reload_speaking(&self) {
+        if let Ok(mut loaded) = self.speaking.lock() {
+            // The old voice is silenced first, since a sentence it is still saying would talk over the new one.
+            if let Some((old, _)) = loaded.take() {
+                old.stop();
+            }
+        }
     }
 
     fn installed(&self) -> Result<VoiceModels, String> {
@@ -137,7 +198,8 @@ pub async fn voice_install(
     steps: Channel<InstallStep>,
 ) -> Result<(), String> {
     let models = voice.models.clone();
-    tauri::async_runtime::spawn_blocking(move || {
+    let warming = voice.inner().clone();
+    let installed = tauri::async_runtime::spawn_blocking(move || {
         models.install(|step| {
             let _ = steps.send(InstallStep {
                 part: step.part,
@@ -148,7 +210,11 @@ pub async fn voice_install(
     })
     .await
     .map_err(|error| error.to_string())?
-    .map_err(|error| format!("the voice could not be installed: {error}"))
+    .map_err(|error| format!("the voice could not be installed: {error}"));
+    if installed.is_ok() {
+        warming.warm_up();
+    }
+    installed
 }
 
 /// What the person said in one utterance, or None when they said nothing before the wait ran out. The
@@ -227,7 +293,7 @@ pub async fn ear_open(
     tauri::async_runtime::spawn_blocking(move || {
         voice.close_ear();
         let hearing = voice.hearing()?;
-        let ear = Ear::open(hearing, voice.playing.clone(), partials, move |event| {
+        let ear = Ear::open(hearing, voice.playing.clone(), voice.far.clone(), partials, move |event| {
             let _ = events.send(event.into());
         })?;
         if let Ok(mut open) = voice.ear.lock() {
@@ -262,7 +328,7 @@ fn loaded_speaking(voice: &Voice) -> Option<Arc<Speaking>> {
         .speaking
         .lock()
         .ok()
-        .and_then(|speaking| speaking.clone())
+        .and_then(|speaking| speaking.as_ref().map(|(speaking, _)| speaking.clone()))
 }
 
 /// Holds the voice where it is, since somebody may be talking over it.
@@ -288,36 +354,72 @@ pub fn speak_stop(voice: tauri::State<'_, Arc<Voice>>) {
     }
 }
 
-/// The voices on offer by Kokoro id, and the one chosen, the Mac's default when none was.
+/// The voices on offer, the computer's own first when it has one as the Mac lists its own, then the
+/// Kokoro ids; the one chosen, the Mac's default when none was; and the speed.
 #[derive(Serialize)]
 pub struct VoiceChoice {
     voices: Vec<&'static str>,
     chosen: Option<String>,
+    speed: f32,
 }
 
 #[tauri::command]
 pub fn voice_choice(voice: tauri::State<'_, Arc<Voice>>) -> VoiceChoice {
+    let system = SystemVoice::available().then_some(SYSTEM_VOICE);
     VoiceChoice {
-        voices: VOICES.iter().map(|(id, _)| *id).collect(),
+        voices: system
+            .into_iter()
+            .chain(VOICES.iter().map(|(id, _)| *id))
+            .collect(),
         chosen: voice.choice(),
+        speed: voice.speed(),
     }
 }
 
 /// Keeps the chosen voice and lets the next sentence load it; an id not on offer is refused.
 #[tauri::command]
 pub fn choose_voice(voice: tauri::State<'_, Arc<Voice>>, id: String) -> Result<(), String> {
-    if !VOICES.iter().any(|(each, _)| *each == id) {
+    if id != SYSTEM_VOICE && !VOICES.iter().any(|(each, _)| *each == id) {
         return Err(format!("{id} is not a voice on offer"));
     }
-    if let Some(dir) = voice.chosen.parent() {
+    keep(&voice.chosen, &id)?;
+    voice.reload_speaking();
+    Ok(())
+}
+
+/// Keeps the speed, held between half speed and normal, and lets the next sentence speak at it.
+#[tauri::command]
+pub fn set_voice_speed(voice: tauri::State<'_, Arc<Voice>>, speed: f32) -> Result<(), String> {
+    keep(&voice.speed_file(), &held_speed(speed).to_string())?;
+    voice.reload_speaking();
+    Ok(())
+}
+
+/// Turns the echo canceller on or off, off for a headset; an ear open now follows at once.
+#[tauri::command]
+pub fn echo_cancel(voice: tauri::State<'_, Arc<Voice>>, on: bool) {
+    voice.far.set_cancelling(on);
+}
+
+/// The names this machine uses, hinted to Parakeet the next time it loads when the model takes hints.
+#[tauri::command]
+pub fn ear_hints(voice: tauri::State<'_, Arc<Voice>>, names: Vec<String>) {
+    let Ok(mut hints) = voice.hints.lock() else {
+        return;
+    };
+    if *hints == names {
+        return;
+    }
+    *hints = names;
+    // An open ear keeps its own recognizer; the next open loads one with the new names.
+    if let Ok(mut hearing) = voice.hearing.lock() {
+        *hearing = None;
+    }
+}
+
+fn keep(file: &std::path::Path, value: &str) -> Result<(), String> {
+    if let Some(dir) = file.parent() {
         std::fs::create_dir_all(dir).map_err(|error| error.to_string())?;
     }
-    std::fs::write(&voice.chosen, &id).map_err(|error| error.to_string())?;
-    // The old voice is silenced first, since a sentence it is still saying would talk over the new one.
-    if let Ok(mut loaded) = voice.speaking.lock() {
-        if let Some(old) = loaded.take() {
-            old.stop();
-        }
-    }
-    Ok(())
+    std::fs::write(file, value).map_err(|error| error.to_string())
 }

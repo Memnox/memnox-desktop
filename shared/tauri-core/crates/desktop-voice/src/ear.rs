@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 
 use sherpa_onnx::LinearResampler;
 
+use crate::echo::{Canceller, FarEnd};
 use crate::hearing::{loudness, Microphone, HEARING_RATE, VAD_WINDOW};
 use crate::speaking::Level;
 use crate::Hearing;
@@ -55,6 +56,7 @@ impl Ear {
     pub fn open(
         hearing: Arc<Hearing>,
         playing: Level,
+        far: FarEnd,
         partials: bool,
         mut report: impl FnMut(EarEvent) + Send + 'static,
     ) -> Result<Self, String> {
@@ -80,6 +82,8 @@ impl Ear {
                 }
             };
             let _ = opened.send(Ok(()));
+            // The voice's own sound is taken out first, so neither Silero nor the level hears it as the person.
+            let mut canceller = Canceller::new(far);
             let mut state = Stretch::new(partials);
             let mut pending: Vec<f32> = Vec::new();
             let mut loudest = 0.0_f32;
@@ -91,7 +95,8 @@ impl Ear {
                 }
                 match microphone.samples.recv_timeout(LOOK) {
                     Ok(chunk) => {
-                        loudest = loudest.max(loudness(&chunk));
+                        let cleaned = canceller.clean(&resampler.resample(&chunk, false));
+                        loudest = loudest.max(loudness(&cleaned));
                         if levelled.elapsed() >= LEVEL_EVERY {
                             report(EarEvent::Level {
                                 heard: loudest,
@@ -100,7 +105,7 @@ impl Ear {
                             loudest = 0.0;
                             levelled = Instant::now();
                         }
-                        pending.extend(resampler.resample(&chunk, false));
+                        pending.extend(cleaned);
                     }
                     Err(RecvTimeoutError::Timeout) => {}
                     Err(RecvTimeoutError::Disconnected) => {

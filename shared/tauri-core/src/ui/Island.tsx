@@ -473,7 +473,7 @@ export function Island({
     if (turn === undefined) return null;
     return (
       <IslandConversation question={turn.question} live={conversation.turns.live} listening={conversation.turns.listening} className={CONTENT_INSET}>
-        <AnswerCard exchange={turn} live expanded={tall} onExpand={() => setExpanded(!tall)} onOpen={() => onOpenAnswer(turn)} />
+        <AnswerCard exchange={turn} live expanded={tall} onExpand={() => setExpanded(!tall)} onOpen={() => onOpenAnswer(turn)} thinking={talk.phase === 'thinking' && talk.caption !== undefined ? talk.caption : 'Thinking'} />
       </IslandConversation>
     );
   }

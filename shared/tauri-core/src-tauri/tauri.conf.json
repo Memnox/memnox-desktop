@@ -14,9 +14,10 @@
       {
         "label": "island",
         "title": "Memnox",
-        "width": 420,
-        "height": 340,
-        "y": 8,
+        "width": 740,
+        "height": 672,
+        "x": 0,
+        "y": 0,
         "center": false,
         "resizable": false,
         "decorations": false,

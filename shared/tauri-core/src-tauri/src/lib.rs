@@ -4,6 +4,7 @@
 
 mod awake;
 mod daemon;
+mod island;
 mod key;
 mod runtime;
 mod talk_key;
@@ -26,6 +27,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(awake::Awake::default())
+        .manage(Arc::new(island::HitAreas::default()))
         .setup(|app| {
             let window = app
                 .get_webview_window(ISLAND)
@@ -38,6 +40,18 @@ pub fn run() {
                 chosen,
             )));
             make_island(&window);
+            island::place(&window);
+            island::follow(
+                window.clone(),
+                app.state::<Arc<island::HitAreas>>().inner().clone(),
+            );
+            // A screen added, removed or rescaled moves the top centre, so the island follows it there.
+            let placed = window.clone();
+            window.on_window_event(move |event| {
+                if matches!(event, tauri::WindowEvent::ScaleFactorChanged { .. }) {
+                    island::place(&placed);
+                }
+            });
             tray::build(app)?;
             tray::start_at_sign_in_once(app);
             // Another app holding the key is no reason not to start; the Talk button still works.
@@ -58,6 +72,7 @@ pub fn run() {
             voice::speak,
             voice::speak_stop,
             island_keyboard,
+            island::island_hit_areas,
             voice::voice_choice,
             voice::choose_voice,
             runtime::runtime_found,

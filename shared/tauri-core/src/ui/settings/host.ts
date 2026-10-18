@@ -30,6 +30,10 @@ export interface SettingsHost {
   openPage(url: string): void;
   openSettings(page?: string): void;
   openOnboarding(): void;
+  /** Opens a working session's live window, as a Working now row does; nothing in a preview. */
+  openLive?(sessionId: string): void;
+  /** Told when the island hears the stream change what the home counts, so the Overview reads it again. */
+  onHomeStale?(listener: () => void): () => void;
   /** The first run's window over the whole screen for the opening, or the steps window after it; nothing in a preview. */
   onboardingVeil?(on: boolean): void;
   close(): void;
@@ -68,6 +72,12 @@ export const tauriHost: SettingsHost = {
   openPage: (url) => void invoke('open_page', { url }).catch(() => undefined),
   openSettings: (page) => void invoke('open_settings', { page: page ?? null }),
   openOnboarding: () => void invoke('open_onboarding'),
+  openLive: (sessionId) => void invoke('open_live_session', { sessionId }).catch(() => undefined),
+  onHomeStale: (listener) => {
+    // The name matches `HOME_STALE_EVENT`, which the island sends.
+    const stop = listen('home-stale', () => listener());
+    return () => void stop.then((unlisten) => unlisten(), () => undefined);
+  },
   onboardingVeil: (on) => void invoke('onboarding_veil', { on }).catch(() => undefined),
   close: () => void invoke('close_window'),
   applyLook: (look) => void invoke('apply_appearance', { look }).catch(() => undefined),

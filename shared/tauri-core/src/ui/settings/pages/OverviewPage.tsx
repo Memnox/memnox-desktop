@@ -22,6 +22,8 @@ export function OverviewPage({ parts, go }: { parts: SettingsParts; go: (page: S
     void home.refresh();
     void account.refresh();
   }, []);
+  // While the page shows, a change on the daemon's stream reads the home again once the burst passes, as the Mac's.
+  useEffect(() => host.onHomeStale?.(() => home.refreshSoon()), []);
   const finished = preferences.setupDone;
   const name = preferences.name;
   const blocks = home.home === undefined && home.unavailable ? <OverviewNumbers parts={parts} /> : home.home !== undefined ? <HomeBlocks parts={parts} view={home.home} /> : null;
@@ -175,7 +177,13 @@ function HomeBlocks({ parts, view }: { parts: SettingsParts; view: HomeView }) {
           <p className="text-body text-muted">Nothing is working right now.</p>
         ) : (
           view.working.map((session) => (
-            <div key={session.sessionId} className="flex items-center gap-3 py-0.5">
+            <button
+              type="button"
+              key={session.sessionId}
+              className={`-mx-1.5 flex cursor-pointer items-center gap-3 rounded-lg px-1.5 py-0.5 text-left ${HOVER_LIGHT}`}
+              onClick={() => parts.host.openLive?.(session.sessionId)}
+              title="Open its live window"
+            >
               <span className="relative">
                 <BrandLogo agent={session.agent} name={session.agentName} size={32} />
                 <span className="absolute -right-0.5 -bottom-0.5 size-[9px] rounded-full bg-green ring-2 ring-surface" />
@@ -185,7 +193,7 @@ function HomeBlocks({ parts, view }: { parts: SettingsParts; view: HomeView }) {
                 <span className="line-clamp-2 text-footnote text-ink-secondary">{HomeLines.working(session)}</span>
               </span>
               <ChevronRight size={12} strokeWidth={2.6} className="text-ink-tertiary" />
-            </div>
+            </button>
           ))
         )}
       </HomeBlock>

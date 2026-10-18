@@ -18,6 +18,8 @@ const RESUME_WITHIN_MS = 60_000;
 const MACHINE = navigator.userAgent.includes('Windows') ? 'Windows' : 'Linux';
 /** What another window, such as Settings' Help page, sends to have the island copy its diary with that window's own lines after it. */
 export const COPY_WHAT_HAPPENED_EVENT = 'copy-what-happened';
+/** Told to every window when the stream changed what the home counts, which the Overview reads again. */
+export const HOME_STALE_EVENT = 'home-stale';
 
 /** What the island's composition root hands in; everything the voice owns is optional. */
 export interface ExtrasParts {
@@ -64,6 +66,8 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
     chiming.heard(event);
     diary.note(describe(event));
     carryOn(event);
+    // Anything but a display changes what the home counts, as the Mac refreshes it on every other event.
+    if (event.kind !== DAEMON_EVENT.SHOW) void emit(HOME_STALE_EVENT, null).catch(() => undefined);
     // The scan of every agent here takes the whole screen; `Displays` leaves this one display to it.
     if (event.kind === DAEMON_EVENT.SHOW && event.display === DISPLAY.AGENTS && event.agents !== undefined) void showScan(event.agents, event.title ?? 'Your agents').catch(() => undefined);
   });

@@ -70,7 +70,10 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     preferences: new Preferences(store),
     account,
     pairing: new PhonePairing(link, signer, key, ids, connected, () => host.computerName()),
-    home: new Home(link, ids, () => setup.protectAgents()),
+    home: new Home(link, ids, () => setup.protectAgents(), (ms, fire) => {
+      const handle = setTimeout(fire, ms);
+      return () => clearTimeout(handle);
+    }),
     tools: new Tools(link, ids),
   };
   const whole = parts as SettingsParts;

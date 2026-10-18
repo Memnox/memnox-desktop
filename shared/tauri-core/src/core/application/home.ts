@@ -2,6 +2,7 @@ import { DAEMON_METHOD, type DaemonRequest, type DaemonResponse, type HomeReady,
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
+import type { Timer } from './talking';
 
 /** The counts the overview falls back to when the daemon has no home to give, as the Mac's menu counts them. */
 export interface OverviewNumbers {
@@ -13,6 +14,8 @@ export interface OverviewNumbers {
 
 /** A session state the daemon writes for one at work, as the island reads it. */
 const WORKING = 'working';
+/** Long enough for a burst of events to pass, so one read follows it rather than one per event, as the Mac's `settleSeconds`. */
+export const HOME_SETTLE_MS = 1_500;
 
 /** The fallback counts from what waits and the sessions lately. */
 export function overviewNumbers(waiting: number, sessions: readonly SessionCard[]): OverviewNumbers {
@@ -37,11 +40,18 @@ export class Home extends Observed {
   private handNote: string | undefined;
   private protectingNow = false;
   private protectWhy: string | undefined;
+  /** Set while a read is due after a burst, so more events in the burst ask for nothing more. */
+  private soon = false;
 
   constructor(
     private readonly link: DaemonLink,
     private readonly ids: RequestIds,
     private readonly protectAgents: () => Promise<string | undefined>,
+    /** The read after a burst waits on this; without one it reads at once. */
+    private readonly timer: Timer = (_, fire) => {
+      fire();
+      return () => undefined;
+    },
   ) {
     super();
   }
@@ -83,6 +93,16 @@ export class Home extends Observed {
     this.away = home === undefined;
     if (this.away) await this.readNumbers();
     this.changed();
+  }
+
+  /** Something on the stream changed what the home counts: read once the burst has passed. */
+  refreshSoon(): void {
+    if (this.soon) return;
+    this.soon = true;
+    this.timer(HOME_SETTLE_MS, () => {
+      this.soon = false;
+      void this.refresh();
+    });
   }
 
   /** Asks the daemon to propose the ready action as a rule; the proposal comes up on the island's rule card. */

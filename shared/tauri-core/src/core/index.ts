@@ -1,5 +1,5 @@
 /** The core every desktop screen draws from: no DOM, no Tauri, only the daemon, the key and the voice through ports. */
-export { HeldCalls, type HeldOutcome, type HeldState } from './application/held-calls';
+export { HeldCalls, type HeldCallsOptions, type HeldOutcome, type HeldState } from './application/held-calls';
 export { RequestIds } from './application/request-ids';
 export { ProposalCards } from './application/proposal-cards';
 export { NO_KEY_LINE, Signer, type Signing } from './application/signer';
@@ -12,7 +12,40 @@ export { DaemonClosed, requestOnce, type DaemonLink } from './application/ports/
 export type { Power } from './application/ports/power';
 export type { Runtime, RuntimeStep } from './application/ports/runtime';
 export type { Speaker } from './application/ports/speaker';
-export { consentReason, THIS_COMPUTER } from './domain/call-label';
+export { consentReason, FROM_NOW_ON, THIS_COMPUTER, type HeldAnswer } from './domain/call-label';
+export { agentColour, agentKind } from './domain/agent-colour';
+export {
+  countsDown,
+  dwellFor,
+  headerPastOrb,
+  idleCountdown,
+  isGrowing,
+  isOpenMode,
+  ISLAND,
+  ISLAND_TIMING,
+  ISLAND_WINDOW,
+  islandSize,
+  islandTitle,
+  islandTop,
+  orbSpot,
+  RESTING,
+  SATELLITE,
+  settle,
+  showsHeader,
+  showsSatellites,
+  STAND_IN_NOTCH,
+  TILE,
+  type IslandFacts,
+  type IslandMode,
+  type NotchGeometry,
+  type OrbSpot,
+  type Size,
+} from './domain/island-layout';
+export { finishedCard, type FinishedCard } from './domain/finished-card';
+export { ELLIPSIS, middleCut } from './domain/middle-cut';
+export { notchPath, notchRadius } from './domain/notch-shape';
+export { settledLine, SETTLED_UNKNOWN } from './domain/settled-line';
+export { atRest, cubicBezier, SHRINK, springConstants, springStep, SPRINGS, type Moving, type Spring } from './domain/spring';
 export { EarlierAnswer } from './domain/earlier-answer';
 export type { HeldCard } from './domain/held-card';
 export { accountWarning, draftAudience, suggestedScope, type ProposalCard } from './domain/proposal-card';
@@ -20,7 +53,3 @@ export { ANOTHER_KEY_LINE, type KeyStatus } from './domain/key-status';
 export { isAtLeast, MINIMUM_RUNTIME, type RuntimeState } from './domain/runtime-state';
 export { OrbMotion, orbFit, type OrbState, type OrbUniforms, type Reaction } from './domain/orb-motion';
 export { WaitingCalls, type WaitingEntry } from './domain/waiting-calls';
-export { agentColour, agentKind } from './domain/agent-colour';
-export { ELLIPSIS, middleCut } from './domain/middle-cut';
-export { notchPath, notchRadius } from './domain/notch-shape';
-export { atRest, cubicBezier, SHRINK, springConstants, springStep, SPRINGS, type Moving, type Spring } from './domain/spring';

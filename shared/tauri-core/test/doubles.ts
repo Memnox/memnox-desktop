@@ -74,11 +74,11 @@ export const registered = (request: DaemonRequest): DaemonResponse[] => [
 ];
 
 /** The island's use case over a scripted daemon and a key, wired the way the composition root wires it. */
-export function heldCallsOver(daemon: DaemonLink, key: ConfirmKey): HeldCalls {
+export function heldCallsOver(daemon: DaemonLink, key: ConfirmKey, timer?: HandTimer): HeldCalls {
   const ids = new RequestIds();
   let calls: HeldCalls | undefined;
   const signer = new Signer(daemon, key, ids, (status) => calls?.keyChanged(status));
-  calls = new HeldCalls(daemon, signer, ids);
+  calls = new HeldCalls(daemon, signer, ids, { timer: timer?.start });
   return calls;
 }
 

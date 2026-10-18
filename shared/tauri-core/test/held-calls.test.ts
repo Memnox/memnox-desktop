@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { HeldCalls } from '../src/core/application/held-calls';
 import { NO_KEY_LINE } from '../src/core/application/signer';
 import { ANOTHER_KEY_LINE } from '../src/core/domain/key-status';
-import { held, heldCallsOver, PersonKey, registered, ScriptedDaemon } from './doubles';
+import { HandTimer, held, heldCallsOver, PersonKey, registered, ScriptedDaemon } from './doubles';
 
 const confirmed = { confirm: (request: { id: number }) => [{ id: request.id, ok: true, outcome: 'allowed' }] };
 const nothingWaits = { waiting: (request: { id: number }) => [{ id: request.id, ok: true, waiting: [] }] };
@@ -142,5 +142,69 @@ describe('answering a held call', () => {
     await calls.watch();
     expect(await calls.answer('hld_1', 'once')).toEqual({ kind: 'failed', why: 'signature does not verify' });
     expect(calls.state.waiting.count).toBe(1);
+  });
+});
+
+describe('the card a call leaves behind', () => {
+  it('heads the card with the agent, its colour kind and the fingerprint when an allow is signed', async () => {
+    const daemon = new ScriptedDaemon(nothingWaits);
+    daemon.push(held('hld_1', { agent: 'agt_claude-code', agentName: 'Claude Code' }));
+    daemon.push(held('hld_2', { withinSession: true }));
+    const calls = heldCallsOver(daemon, new PersonKey());
+    await calls.watch();
+    const [first, second] = calls.state.waiting.entries;
+    expect(first?.card).toMatchObject({ agent: 'claude-code', who: 'Claude Code', touchID: true });
+    expect(second?.card).toMatchObject({ agent: 'codex', who: 'codex', touchID: false });
+  });
+
+  it('says a call settled elsewhere for a moment, then lets it go', async () => {
+    const daemon = new ScriptedDaemon(nothingWaits);
+    daemon.push(held('hld_1'));
+    daemon.push({ ...held('hld_1'), kind: 'settled' });
+    const timer = new HandTimer();
+    const calls = heldCallsOver(daemon, new PersonKey(), timer);
+    await calls.watch();
+    expect(calls.state.settled).toEqual({ subject: 'hld_1', note: 'No longer waiting' });
+    expect(calls.state.waiting.count).toBe(1);
+    timer.fireAll();
+    expect(calls.state.settled).toBeUndefined();
+    expect(calls.state.waiting.count).toBe(0);
+  });
+
+  it('says how the call was settled when a press arrived second', async () => {
+    const daemon = new ScriptedDaemon({
+      ...nothingWaits,
+      'register-key': registered,
+      confirm: (request) => [{ id: request.id, ok: true, outcome: 'already answered deny' }],
+    });
+    daemon.push(held('hld_1'));
+    const timer = new HandTimer();
+    const calls = heldCallsOver(daemon, new PersonKey(), timer);
+    await calls.watch();
+    await calls.answer('hld_1', 'once');
+    expect(calls.state.settled?.note).toBe('Denied elsewhere');
+    expect(calls.state.answering).toBe(false);
+  });
+
+  it('never steps away from a card while it says how it was settled', async () => {
+    const daemon = new ScriptedDaemon(nothingWaits);
+    daemon.push(held('hld_1'));
+    daemon.push(held('hld_2'));
+    daemon.push({ ...held('hld_2'), kind: 'settled' });
+    const calls = heldCallsOver(daemon, new PersonKey(), new HandTimer());
+    await calls.watch();
+    calls.step(1);
+    expect(calls.state.waiting.shown?.subject).toBe('hld_2');
+  });
+
+  it('allows from now on with a signature over the word the runtime takes for it', async () => {
+    const daemon = new ScriptedDaemon({ ...nothingWaits, ...confirmed, 'register-key': registered });
+    daemon.push(held('hld_1'));
+    const key = new PersonKey();
+    const calls = heldCallsOver(daemon, key);
+    await calls.watch();
+    expect(await calls.answer('hld_1', 'always')).toEqual({ kind: 'answered' });
+    expect(daemon.sent('confirm')[0]).toMatchObject({ subject: 'hld_1', answer: 'always' });
+    expect(key.signed[0]?.reason).toBe('allow codex on this computer now, and put a rule for from now on to you: push to main');
   });
 });

@@ -1,5 +1,14 @@
 import { HOLD_ANSWER, type HoldAnswer } from '@memnox/core/wire';
 
+/**
+ * "Allow from now on": the daemon runs the call once and puts a narrow rule on a card to place and
+ * sign. The runtime takes the word on a confirm beside the three in `HOLD_ANSWER`, which does not list it.
+ */
+export const FROM_NOW_ON = 'always';
+
+/** Every answer a held call takes from a button here, the Mac's `HoldAnswer` with `always`. */
+export type HeldAnswer = HoldAnswer | typeof FROM_NOW_ON;
+
 /** How every label names the computer the app runs on. */
 export const THIS_COMPUTER = 'this computer';
 const SOME_AGENT = 'an agent';
@@ -16,7 +25,7 @@ export function callLabel(agent: string | undefined, machine: string = THIS_COMP
 }
 
 /** What the consent prompt says it is for, so the person answers knowing whose call and how far the yes reaches. */
-export function consentReason(label: string, what: string | undefined, answer: HoldAnswer): string {
+export function consentReason(label: string, what: string | undefined, answer: HeldAnswer): string {
   const reach = REACH[answer](label);
   const phrase = trimmed(what);
   if (phrase === undefined) return reach;
@@ -24,9 +33,10 @@ export function consentReason(label: string, what: string | undefined, answer: H
   return `${reach}: ${phrase.endsWith('.') ? phrase.slice(0, -1) : phrase}`;
 }
 
-const REACH: Record<HoldAnswer, (label: string) => string> = {
+const REACH: Record<HeldAnswer, (label: string) => string> = {
   [HOLD_ANSWER.ONCE]: (label) => `allow ${label} once`,
   [HOLD_ANSWER.SESSION]: (label) => `allow ${label} for this session`,
   [HOLD_ANSWER.DENY]: (label) => `deny ${label}`,
   [HOLD_ANSWER.EDIT]: (label) => `send ${label} back to fix its command`,
+  [FROM_NOW_ON]: (label) => `allow ${label} now, and put a rule for from now on to you`,
 };

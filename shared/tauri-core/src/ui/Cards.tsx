@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { HOLD_ANSWER, RULE_SCOPE, type RuleDraft, type RuleScope, type WorkDraft } from '@memnox/core/wire';
+import { HOLD_ANSWER, RULE_SCOPE, type RuleDraft, type RuleScope } from '@memnox/core/wire';
 import { agentColour, FROM_NOW_ON, suggestedScope, type FinishedCard, type HeldAnswer, type HeldCalls, type HeldCard, type HeldOutcome, type ProposalCards, type WaitingCalls } from '../core';
 import { ANSWERING_ROW, GlyphButton, IslandButton, IslandCard, MiddleCut, PRESSABLE, PulseDot, SFSymbol, VEIL, veilOf, type SFSymbolName } from './kit';
+import { ConversationStack } from './cards/QuestionBubble';
+import { WorkCard } from './cards/WorkCard';
 import { note } from './ui';
 
 /**
@@ -214,8 +215,21 @@ export function Empty({ onTalk, talkDisabled = false }: { onTalk: () => void; ta
   );
 }
 
-/** The newest proposal waiting on its card, read whole before the key is asked. */
-export function ProposalCard({ cards, onAnswered }: { cards: ProposalCards; onAnswered: (outcome: HeldOutcome) => void }) {
+/**
+ * The newest proposal waiting on its card, read whole before the key is asked, under the bubble of what
+ * the person asked when there is one, as `IslandConversation` lays them out.
+ */
+export function ProposalCard({
+  cards,
+  onAnswered,
+  question,
+}: {
+  cards: ProposalCards;
+  /** Every answer's outcome, and whether it sent or placed something rather than declining. */
+  onAnswered: (outcome: HeldOutcome, sent?: boolean) => void;
+  /** What the person asked, shown in the bubble above the card. */
+  question?: string;
+}) {
   const all = useSyncExternalStore(
     (changed) => cards.observe(changed),
     () => cards.cards,
@@ -223,10 +237,14 @@ export function ProposalCard({ cards, onAnswered }: { cards: ProposalCards; onAn
   const card = all[all.length - 1];
   if (card === undefined) return null;
   // Keyed by subject, so a new card never inherits the last one's choice or edits.
-  return card.kind === 'rule' ? (
-    <RuleCard key={card.subject} subject={card.subject} rule={card.rule} cards={cards} onAnswered={onAnswered} />
-  ) : (
-    <WorkCard key={card.subject} subject={card.subject} work={card.work} cards={cards} onAnswered={onAnswered} />
+  return (
+    <ConversationStack question={question} className={CONTENT_INSET}>
+      {card.kind === 'rule' ? (
+        <RuleCard key={card.subject} subject={card.subject} rule={card.rule} cards={cards} onAnswered={onAnswered} />
+      ) : (
+        <WorkCard key={card.subject} subject={card.subject} work={card.work} cards={cards} onAnswered={onAnswered} className="min-h-0 flex-1" />
+      )}
+    </ConversationStack>
   );
 }
 
@@ -253,7 +271,7 @@ function enforceWords(scope: RuleScope): string {
 const sentence = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** `IslandRuleCard`: what the rule does, why, where it could hold, and the signed answer. */
-function RuleCard({ subject, rule, cards, onAnswered }: { subject: string; rule: RuleDraft; cards: ProposalCards; onAnswered: (outcome: HeldOutcome) => void }) {
+function RuleCard({ subject, rule, cards, onAnswered }: { subject: string; rule: RuleDraft; cards: ProposalCards; onAnswered: (outcome: HeldOutcome, sent?: boolean) => void }) {
   const [scope, setScope] = useState(suggestedScope(rule)?.id);
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<string>();
@@ -266,7 +284,7 @@ function RuleCard({ subject, rule, cards, onAnswered }: { subject: string; rule:
     const outcome = await cards.answerRule(subject, scopeId);
     setSaid(told(outcome));
     setBusy(false);
-    onAnswered(outcome);
+    onAnswered(outcome, scopeId !== undefined);
   }
 
   const details: [string, string, boolean][] = [['Action', rule.action, true]];
@@ -275,7 +293,7 @@ function RuleCard({ subject, rule, cards, onAnswered }: { subject: string; rule:
   details.push(['Why', rule.reason, false]);
 
   return (
-    <IslandCard veil={veilOf(tint, 0.3)} className={`${CONTENT_INSET} flex animate-card-in flex-col gap-2.5 p-3.5`}>
+    <IslandCard veil={veilOf(tint, 0.3)} className="flex min-h-0 flex-1 flex-col gap-2.5 p-3.5">
       <div className="flex items-center gap-2">
         <span className="grid" style={{ color: tint }}>
           <SFSymbol name="shield.lefthalf.filled" size={13} />
@@ -348,159 +366,5 @@ function PlaceRow({ scope, picked, pick }: { scope: RuleScope; picked: boolean; 
         <SFSymbol name={picked ? 'checkmark.circle.fill' : 'circle'} size={13} />
       </span>
     </button>
-  );
-}
-
-/** Each tool's colour and the word on its own send button, as `ToolBrand` has them. */
-const TOOL_BRAND: Record<string, { colour: string; send: string; name: string }> = {
-  slack: { colour: '#4A154B', send: 'Send', name: 'Slack' },
-  github: { colour: '#238636', send: 'Comment', name: 'GitHub' },
-  linear: { colour: '#5E6AD2', send: 'Comment', name: 'Linear' },
-  gmail: { colour: '#EA4335', send: 'Send', name: 'Gmail' },
-  googledocs: { colour: '#4285F4', send: 'Save', name: 'Google Docs' },
-  notion: { colour: '#2F3437', send: 'Save', name: 'Notion' },
-};
-/** A tool with no look of its own is drawn in the Memnox blue, so it is never mistaken for one that has. */
-const FALLBACK_BRAND = { colour: '#1E86EE', send: 'Send' };
-
-const KIND_WORD: Record<WorkDraft['kind'], string> = {
-  message: 'Message',
-  comment: 'Comment',
-  email: 'Email',
-  issue: 'Issue',
-  other: 'Action',
-};
-
-function brandOf(toolkit: string): { colour: string; send: string; name: string } {
-  const known = TOOL_BRAND[toolkit];
-  if (known !== undefined) return known;
-  return { ...FALLBACK_BRAND, name: toolkit.charAt(0).toUpperCase() + toolkit.slice(1) };
-}
-
-/** `ToolMark`: the tool's tile, 22 square at radius 5.7, in its brand colour with its initial standing in for its logo. */
-function ToolMark({ toolkit, side = 22 }: { toolkit: string; side?: number }) {
-  const brand = brandOf(toolkit);
-  return (
-    <span className="grid shrink-0 place-items-center text-[11px] font-bold text-white" style={{ width: side, height: side, borderRadius: side * 0.26, backgroundColor: brand.colour }} aria-hidden>
-      {brand.name.charAt(0)}
-    </span>
-  );
-}
-
-/**
- * `IslandWorkCard`: something about to go out in the person's name, whole, with the words theirs to
- * rewrite. The logo and the Send pill carry the brand, so the rim stays the plain one.
- */
-function WorkCard({ subject, work, cards, onAnswered }: { subject: string; work: WorkDraft; cards: ProposalCards; onAnswered: (outcome: HeldOutcome) => void }) {
-  const drafted = work.body ?? '';
-  const [body, setBody] = useState(drafted);
-  const [sending, setSending] = useState(false);
-  const [said, setSaid] = useState<string>();
-  const brand = brandOf(work.toolkit);
-  const empty = work.body !== undefined && body.trim() === '';
-  const changed = work.body !== undefined && body !== drafted;
-  const footnote = sending ? 'Waiting for your fingerprint' : empty ? 'Write something to send.' : changed ? 'Your words go out as you wrote them.' : 'Nothing goes out until you send it.';
-  const who = work.account?.name ?? work.account?.handle;
-
-  async function answer(send: boolean) {
-    setSending(send);
-    // Words go with the Send only when the person changed them, so the signature covers what really leaves.
-    const outcome = await cards.answerDraft(subject, send, send && changed ? body : undefined);
-    setSaid(told(outcome));
-    setSending(false);
-    onAnswered(outcome);
-  }
-
-  return (
-    <IslandCard
-      className={`${CONTENT_INSET} flex animate-card-in flex-col gap-2.5 p-3.5`}
-      // Control and Enter sends from the box, as Command Return does on the Mac.
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' && event.ctrlKey && !empty && !sending) void answer(true);
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <ToolMark toolkit={work.toolkit} />
-        <span className="truncate text-callout font-semibold text-white">
-          {KIND_WORD[work.kind]} on {brand.name}
-        </span>
-        <span className="flex-1" />
-        <button type="button" className={`${PRESSABLE} grid size-6 place-items-center rounded-full bg-white/10 text-white/[0.92]`} disabled={sending} onClick={() => void answer(false)} title="Close without sending" aria-label="Close without sending">
-          <SFSymbol name="xmark" size={12} weight="bold" />
-        </button>
-      </div>
-      <div className="flex items-center gap-1.5 text-caption font-medium">
-        <span className="text-footnote font-medium text-white/[0.92]">{who === undefined ? 'As you' : `As ${who}`}</span>
-        {work.account?.check === 'matched' ? (
-          <span className="grid text-green" aria-label="your account">
-            <SFSymbol name="checkmark.seal.fill" size={11} />
-          </span>
-        ) : (
-          <span className="flex items-center gap-1 text-amber">
-            <SFSymbol name="exclamationmark.triangle.fill" size={11} /> not tied to you, check the name
-          </span>
-        )}
-      </div>
-      <hr className="m-0 h-px shrink-0 border-0 bg-white/[0.07]" />
-      <div className="grid min-h-0 flex-1 content-start gap-2.5 overflow-y-auto">
-        {work.to !== undefined && work.to.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-body text-white/[0.62]">To</span>
-            {work.to.slice(0, 3).map((each) => (
-              <span key={each} className="rounded-full bg-white/10 px-2.5 py-1 text-body font-medium text-white">
-                {each}
-              </span>
-            ))}
-            {work.to.length > 3 && <span className="text-body text-white/[0.62]">and {work.to.length - 3} more</span>}
-          </div>
-        )}
-        {work.where !== undefined && (
-          <p className={`m-0 flex items-center gap-1.5 ${SYSTEM_MONO} text-footnote font-medium text-white/[0.62]`}>
-            <SFSymbol name="arrow.turn.down.right" size={12} /> {work.where}
-          </p>
-        )}
-        {work.subject !== undefined && <p className="m-0 text-callout font-semibold text-white">{work.subject}</p>}
-        {work.body !== undefined && (
-          <textarea
-            className="max-h-[180px] min-h-[72px] w-full resize-none rounded-lg border-0 bg-white/10 p-1.5 font-sans text-callout leading-[21px] text-white outline-none"
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            // The island never takes the keyboard on its own, so it asks for it while the draft is being rewritten.
-            onPointerDown={() => void invoke('island_keyboard', { on: true }).catch(() => undefined)}
-            onBlur={() => void invoke('island_keyboard', { on: false }).catch(() => undefined)}
-          />
-        )}
-        {work.fields.length > 0 && (
-          <div className="grid gap-1">
-            <p className="m-0 text-caption font-semibold text-white/[0.62]">Also sends</p>
-            <dl className={`m-0 grid grid-cols-[96px_1fr] gap-x-2 gap-y-0.5 ${SYSTEM_MONO} text-caption`}>
-              {work.fields.map((field) => (
-                <div key={field.name} className="contents">
-                  <dt className="truncate text-white/[0.62]">{field.name}</dt>
-                  <dd className="m-0 text-white/[0.92] [overflow-wrap:anywhere]">{field.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        )}
-      </div>
-      <div className={`flex items-center gap-2 ${sending ? ANSWERING_ROW : ''}`}>
-        <span key={said ?? footnote} className="line-clamp-2 animate-[fade-in_200ms_ease-out] text-caption text-white/[0.62]">
-          {said ?? footnote}
-        </span>
-        <span className="flex-1" />
-        <button
-          type="button"
-          className={`${PRESSABLE} inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-callout font-semibold text-white disabled:opacity-40`}
-          style={{ backgroundColor: brand.colour, boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.14)' }}
-          disabled={empty || sending}
-          onClick={() => void answer(true)}
-          title={empty ? 'Write something to send' : 'Send with your fingerprint'}
-        >
-          <SFSymbol name="touchid" size={14} />
-          {brand.send}
-        </button>
-      </div>
-    </IslandCard>
   );
 }

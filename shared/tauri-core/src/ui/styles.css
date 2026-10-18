@@ -466,3 +466,118 @@ body {
     animation-name: fade-out;
   }
 }
+
+/* The tray panel, the tool page, the floating cards and the scan screen. */
+@theme {
+  --animate-halo: halo 2.4s ease-in-out infinite alternate;
+  --animate-float-in: float-in 550ms cubic-bezier(0.34, 1.45, 0.64, 1) both;
+  --animate-settle-in: settle-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  /* NotchArrival: rising 10 and growing from 0.92. */
+  @keyframes tile-in {
+    from {
+      opacity: 0;
+      translate: 0 10px;
+      scale: 0.92;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+      scale: 1;
+    }
+  }
+  /* The tool page's halo breathing between 35% and 70%. */
+  @keyframes halo {
+    from {
+      opacity: 0.35;
+    }
+    to {
+      opacity: 0.7;
+    }
+  }
+  /* A floating card swings in from 0.96 anchored top left, 10 higher, blurred. */
+  @keyframes float-in {
+    from {
+      opacity: 0;
+      scale: 0.96;
+      translate: 0 -10px;
+      filter: blur(8px);
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+      translate: 0 0;
+      filter: blur(0);
+    }
+  }
+  /* Each section of the tray panel rises 6 into place. */
+  @keyframes settle-in {
+    from {
+      opacity: 0;
+      translate: 0 6px;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+  /* The scan's pulse rings, growing from 0.8 to 2.4 as they fade. */
+  @keyframes scan-ring {
+    from {
+      scale: 0.8;
+      opacity: var(--ring-opacity, 0.45);
+    }
+    to {
+      scale: 2.4;
+      opacity: 0;
+    }
+  }
+  /* A light running along a scan link while its agent works. */
+  @keyframes scan-light {
+    from {
+      offset-distance: 0%;
+    }
+    to {
+      offset-distance: 100%;
+    }
+  }
+  /* An agent card growing out of the scan's centre. */
+  @keyframes scan-card-in {
+    from {
+      opacity: 0;
+      scale: 0.2;
+      filter: blur(10px);
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+      filter: blur(0);
+    }
+  }
+  @keyframes scan-draw {
+    from {
+      stroke-dashoffset: var(--draw-from, 600);
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      translate: 0 24px;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-halo,
+  .animate-float-in,
+  .animate-settle-in {
+    animation: none;
+  }
+}

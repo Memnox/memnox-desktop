@@ -3,12 +3,14 @@
 //! the window, and the platform crates in `windows/` and `linux/` hold what each system does its own way.
 
 mod awake;
+mod cloud;
 mod daemon;
 mod island;
 mod key;
 mod keys;
 mod panels;
 mod permissions;
+mod relay;
 mod runtime;
 mod sessions;
 mod settings_windows;
@@ -33,6 +35,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(awake::Awake::default())
+        .manage(relay::Relays::default())
         .manage(Arc::new(island::HitAreas::default()))
         .setup(|app| {
             let window = app
@@ -71,6 +74,15 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             daemon::daemon_stream,
+            relay::relay_servers,
+            relay::relay_pair,
+            relay::relay_forget,
+            relay::relay_stream,
+            relay::relay_done,
+            cloud::cloud_send,
+            cloud::person_credential_load,
+            cloud::person_credential_save,
+            cloud::person_credential_delete,
             key::confirm_key_point,
             key::confirm_key_sign,
             awake::keep_awake,

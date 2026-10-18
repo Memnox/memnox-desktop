@@ -77,7 +77,12 @@ export {
 export { agentInitial, agentLogo } from './domain/agent-logo';
 export { Sessions, SESSIONS_REFRESH, type SessionsState } from './application/sessions';
 export { AgentQuestions, type QuestionState } from './application/agent-questions';
-export { cardSession, Displays, webLink, type Presenter, type SummaryCard, type WalkCard } from './application/displays';
+export { CANNOT, cardSession, Displays, webLink, type DisplayOptions, type Presenter, type SummaryCard, type WalkCard } from './application/displays';
+export { NO_TERMINAL_CONTROL, reasonOf, SessionFocus } from './application/session-focus';
+export type { Shown, Terminals } from './application/ports/terminals';
+export * from './domain/session-focus';
+export { bestTab, isCertainTab } from './domain/tab-match';
+export { agentInFront, isAgentProgram } from './domain/terminal-front';
 export { HistoryKeeper, type HistoryStore, type TurnSource } from './application/history-keeper';
 export { isActive, sessionStatus, statusLabel, statusTint, type SessionStatus } from './domain/session-status';
 export {

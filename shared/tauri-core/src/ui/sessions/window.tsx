@@ -14,6 +14,7 @@ import { LiveSession } from './LiveSession';
 import { SIDE_TAB, SidePanel, SideTab } from './SidePanel';
 import { Switcher } from './Switcher';
 import { ASK_AGAIN_EVENT, DISMISS_EVENT } from './tauri-presenter';
+import { bringForward, SESSION_TURNED_EVENT } from './open-session';
 import '../styles.css';
 
 /**
@@ -66,7 +67,16 @@ function LiveWindow({ first }: { first: string }) {
     const stop = listen<string>(LIVE_SESSION_EVENT, (event) => setSessionId(event.payload));
     return () => void stop.then((unlisten) => unlisten());
   }, []);
-  return <LiveSession sessionId={sessionId} sessions={sessions} calls={calls} onClose={close} onOpenFolder={(path) => void invoke('open_folder', { path }).catch(() => undefined)} />;
+  return (
+    <LiveSession
+      sessionId={sessionId}
+      sessions={sessions}
+      calls={calls}
+      onClose={close}
+      onOpenFolder={(path) => void invoke('open_folder', { path }).catch(() => undefined)}
+      onOpenApp={bringForward}
+    />
+  );
 }
 
 /** Told to the side window by Rust to open or fold, and by the side window to the island when it does. */
@@ -182,11 +192,12 @@ function SwitcherWindow({ target }: { target: string }) {
   useEffect(() => {
     void sessions.list().then(setCards);
   }, []);
+  // The island opens the session once turned to it, its own app first and its live window when that fails.
   const done = useCallback(() => {
-    openLive(target);
+    void emitTo('island', SESSION_TURNED_EVENT, target).catch(() => undefined);
     close();
   }, [target]);
-  // With one session or none there is nothing to turn through, so its live window opens at once.
+  // With one session or none there is nothing to turn through, so it opens at once.
   useEffect(() => {
     if (cards !== undefined && cards.filter((card) => card.sessionId === target).length === 0) done();
     else if (cards !== undefined && cards.length < 2) done();

@@ -19,6 +19,7 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { AgentQuestions, Displays, HistoryKeeper, Sessions } from '../core';
 import { localHistory } from './sessions/history-store';
 import { ASK_AGAIN_EVENT, TauriPresenter } from './sessions/tauri-presenter';
+import { openSession, terminals } from './sessions/open-session';
 import { Preferences } from '../core/application/preferences';
 import type { VoiceChoices } from '../core/application/voice-preferences';
 import { firstName } from '../core/domain/setup-steps';
@@ -116,7 +117,8 @@ calls.observeEvents((event) => voiceTurns.arrived(event));
 // The sessions, an agent's own questions, what the daemon asks to show, and every question asked kept.
 const sessions = new Sessions(relay.target, ids, timer);
 const questions = new AgentQuestions(link, ids, timer, (subject) => talking.answeredByHand(subject));
-const displays = new Displays(link, ids, new TauriPresenter());
+// LAUNCH and APP reach a tool only through its own documented controls, and Stay where I am keeps the person's window.
+const displays = new Displays(link, ids, new TauriPresenter(), { terminals, stayPut: () => voicePreferences.choices.stayPut });
 calls.observeEvents((event) => {
   // "typing it in", "starting it" and the like while a display that takes a moment is carried out.
   const doing = event.kind === DAEMON_EVENT.SHOW ? displayCaption(event) : undefined;
@@ -138,6 +140,8 @@ const extras = islandExtras({
 sessions.start();
 void listen<string>(ASK_AGAIN_EVENT, (event) => void talking.heard(event.payload, true));
 const openLive = (sessionId: string) => void invoke('open_live_session', { sessionId }).catch(() => undefined);
+/** "Open in {app}": the session's own tab or editor first, by where the runtime noted it runs, and its live window when that fails. */
+const openOwnApp = (sessionId: string) => void openSession(sessionId, sessions.state.cards.find((card) => card.sessionId === sessionId)?.host);
 const openSettings = (page: string | null) => void invoke('open_settings', { page }).catch(() => undefined);
 
 /** Whether the side panel is up, which lights the history satellite and tile; it learns of a close however the panel went. */
@@ -201,7 +205,7 @@ function Root() {
       voiceSettings={voiceSettings}
       sessions={sessions}
       questions={questions}
-      onOpenSession={openLive}
+      onOpenSession={openOwnApp}
       onWatchLive={openLive}
       onSide={() => side.toggle()}
       sideOpen={sideOpen}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { CardExcerpt, ConversationLine, SessionView, SessionViewStep } from '@memnox/core/wire';
+import { wentIn, type CardExcerpt, type ConversationLine, type DisplayHost, type SessionView, type SessionViewStep } from '@memnox/core/wire';
 import { ChevronRight, Hand, ListCollapse, MessagesSquare, Users } from 'lucide-react';
 import {
   ago,
@@ -17,7 +17,9 @@ import {
   type HeldCalls,
   type HeldCard,
   type Sessions,
+  type Shown,
 } from '../../core';
+import { openWords } from '../../core/domain/floating-cards';
 import { BrandLogo, SFSymbol } from '../kit';
 import { tinted } from './parts';
 import { CardButton, CardHeader, HeldStrip, PRESS_DOWN } from './window-kit';
@@ -48,6 +50,7 @@ export function LiveSession({
   calls,
   onClose,
   onOpenFolder,
+  onOpenApp,
   now: fixedNow,
   initial,
 }: {
@@ -55,19 +58,25 @@ export function LiveSession({
   sessions: Sessions;
   calls?: HeldCalls;
   onClose: () => void;
-  /** Where its folder is known, the footer opens it, since this computer cannot bring the tab itself forward yet. */
+  /** Where its folder is known, the footer opens it in the file manager. */
   onOpenFolder?: (path: string) => void;
+  /** "Open in {app}": its own tab or editor brought forward through that tool's own controls, answered with why when it could not be. */
+  onOpenApp?: (host: DisplayHost) => Promise<Shown>;
   now?: number;
   /** A view to start from, as the preview gives one with no daemon behind it. */
   initial?: SessionView;
 }) {
   const [view, setView] = useState<SessionView | undefined>(initial);
-  const [folder, setFolder] = useState<string>();
+  const [host, setHost] = useState<DisplayHost>();
+  /** Why its app did not come forward, shown in the footer until another session is read. */
+  const [notOpened, setNotOpened] = useState<string>();
+  const folder = host?.cwd;
   const [tab, setTab] = useState<LiveTab>();
   const [now, setNow] = useState(fixedNow ?? Date.now());
 
   useEffect(() => {
     setTab(undefined);
+    setNotOpened(undefined);
     if (initial !== undefined) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -79,7 +88,7 @@ export function LiveSession({
       timer = setTimeout(() => void read(), REFRESH_MS);
     };
     void read();
-    void sessions.list().then((cards) => !stopped && setFolder(cards.find((card) => card.sessionId === sessionId)?.host?.cwd));
+    void sessions.list().then((cards) => !stopped && setHost(cards.find((card) => card.sessionId === sessionId)?.host));
     return () => {
       stopped = true;
       if (timer !== undefined) clearTimeout(timer);
@@ -94,6 +103,14 @@ export function LiveSession({
   }, [onClose]);
 
   const held = useHeldFor(calls, sessionId);
+  // Offered only where the runtime noted where it runs; the live window stays up either way.
+  const openApp =
+    onOpenApp === undefined || host === undefined || (host.app === undefined && host.cwd === undefined)
+      ? undefined
+      : () => {
+          setNotOpened(undefined);
+          void onOpenApp(host).then((shown) => setNotOpened(wentIn(shown.answer) ? undefined : sentence(shown.reason ?? 'its app would not come forward')));
+        };
 
   if (view === undefined) {
     return (
@@ -149,13 +166,20 @@ export function LiveSession({
       )}
       <Part order={5}>
         <div className="flex items-center gap-2">
-          <span className="flex-1" />
+          {notOpened === undefined ? <span className="flex-1" /> : <span className="min-w-0 flex-1 truncate text-footnote text-muted" title={notOpened}>{notOpened}</span>}
           <CardButton title="Close" symbol="xmark" onPress={onClose} />
-          {folder !== undefined && onOpenFolder !== undefined && <CardButton title="Open its folder" symbol="folder" primary onPress={() => onOpenFolder(folder)} />}
+          {folder !== undefined && onOpenFolder !== undefined && <CardButton title="Open its folder" symbol="folder" primary={openApp === undefined} onPress={() => onOpenFolder(folder)} />}
+          {openApp !== undefined && <CardButton title={openWords(host, 'Open session')} symbol="arrow.up.forward.app" primary onPress={openApp} />}
         </div>
       </Part>
     </Surface>
   );
+}
+
+/** A reason as a sentence on its own: capitalised, with a full stop. */
+function sentence(reason: string): string {
+  const text = reason.trim();
+  return text === '' ? text : `${text[0]?.toUpperCase() ?? ''}${text.slice(1)}${/[.!?]$/.test(text) ? '' : '.'}`;
 }
 
 /** The first call waiting on this session, docked above the footer. */

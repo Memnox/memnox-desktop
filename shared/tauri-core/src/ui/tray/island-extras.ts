@@ -10,6 +10,7 @@ import type { PressEnd } from '../../core/domain/chimes';
 import { toolkitName } from '../../core/domain/tool-brand';
 import { movedOn, SIGN_IN_NOTICE } from '../../core/domain/sign-in-notice';
 import { answerMenuOpened, forwardCards, onCardSession, onMenuAction, showScan } from '../adapters/tauri-windows';
+import { openSession } from '../sessions/open-session';
 
 /** How the talk key reads on Windows and Linux. */
 const TALK_KEYS = ['Ctrl', 'Alt', 'Space'];
@@ -79,8 +80,15 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
     if (heardWords !== undefined) lastHeard = Date.now();
   });
   forwardCards();
-  // A card's Watch live and Open both bring up the live window, since no session window is focused here yet.
-  onCardSession((ask) => void invoke('open_live_session', { sessionId: ask.sessionId }).catch(() => undefined));
+  // A card's Watch live brings up the live window; its Open brings the session's own app forward first,
+  // through that tool's own controls, and the live window only when that cannot be done.
+  onCardSession((ask) => {
+    if (ask.watch) {
+      void invoke('open_live_session', { sessionId: ask.sessionId }).catch(() => undefined);
+      return;
+    }
+    void openSession(ask.sessionId, ask.host).then((shown) => diary.note(`open ${ask.sessionId}: ${shown.answer}`));
+  });
 
   /** A sign in that finished goes on with what the person asked before it, as if they asked again. */
   function carryOn(event: DaemonEvent) {

@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
-import { emit } from '@tauri-apps/api/event';
-import type { TraceCard } from '@memnox/core/wire';
-import type { Presenter, SummaryCard, WalkCard } from '../../core';
+import { emit, listen } from '@tauri-apps/api/event';
+import type { DisplayHost, TraceCard } from '@memnox/core/wire';
+import type { Presenter, Shown, SummaryCard, WalkCard } from '../../core';
+import { openSession, SESSION_TURNED_EVENT } from './open-session';
 
 /** Told to the floating cards' window, which draws a summary, a walk or a trace in the top left. */
 export const FLOATING_CARD_EVENT = 'floating-card';
@@ -9,6 +10,8 @@ export const FLOATING_CARD_EVENT = 'floating-card';
 export const DISMISS_EVENT = 'dismiss-cards';
 /** Told to the island when the side panel asks a question again. */
 export const ASK_AGAIN_EVENT = 'ask-again';
+/** Longer than the switcher's turn through every session, after which the session is opened anyway. */
+const SWITCHER_WAIT_MS = 6_000;
 
 /**
  * The daemon's SHOW displays on Windows and Linux: the session windows are this app's own webview windows,
@@ -19,8 +22,26 @@ export class TauriPresenter implements Presenter {
     await invoke('open_live_session', { sessionId }).catch(() => undefined);
   }
 
-  async turnTo(sessionId: string): Promise<void> {
-    await invoke('open_switcher', { sessionId }).catch(() => undefined);
+  /**
+   * The Mac's order: the switcher turns through the sessions to this one, then its own tab or editor comes
+   * forward through that tool's own controls, or its live window when that cannot be done.
+   */
+  async focus(sessionId: string, host: DisplayHost | undefined): Promise<Shown> {
+    let finished: () => void = () => undefined;
+    const turned = new Promise<void>((resolve) => (finished = resolve));
+    const stop = await listen<string>(SESSION_TURNED_EVENT, (event) => event.payload === sessionId && finished());
+    const wait = setTimeout(finished, SWITCHER_WAIT_MS);
+    try {
+      // No switcher is no reason not to open it, so a refusal goes straight on.
+      await invoke('open_switcher', { sessionId }).then(
+        () => turned,
+        () => undefined,
+      );
+    } finally {
+      clearTimeout(wait);
+      stop();
+    }
+    return openSession(sessionId, host);
   }
 
   async card(card: SummaryCard): Promise<void> {

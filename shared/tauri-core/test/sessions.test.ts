@@ -265,7 +265,7 @@ class RecordingPresenter implements Presenter {
   readonly calls: string[] = [];
   opens = true;
   live = async (sessionId: string) => void this.calls.push(`live ${sessionId}`);
-  turnTo = async (sessionId: string) => void this.calls.push(`turn ${sessionId}`);
+  focus = async (sessionId: string) => (this.calls.push(`focus ${sessionId}`), { answer: 'failed' as const, reason: 'its app would not come forward, so its live window is open instead' });
   card = async (card: { title: string; sessionId?: string }) => void this.calls.push(`card ${card.title} ${card.sessionId ?? 'none'}`);
   board = async (title: string) => void this.calls.push(`board ${title}`);
   walk = async (walk: { pages: readonly unknown[] }) => void this.calls.push(`walk ${walk.pages.length}`);
@@ -298,7 +298,8 @@ describe('what the daemon asks to show', () => {
     await displays.handle(show('type', { sessionId: 'ses_1' }));
     await displays.handle(show('focus', { sessionId: 'ses_1' }));
     expect(link.sent('delivered').map((request) => request.answer)).toEqual(['failed', 'failed']);
-    expect(link.sent('delivered')[0]?.reason).toContain('cannot type');
+    expect(link.sent('delivered')[0]?.reason).toContain('does not type');
+    expect(link.sent('delivered')[1]?.reason).toContain('live window is open instead');
   });
 
   it('opens only a web link, and says so either way', async () => {

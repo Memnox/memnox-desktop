@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings",
+  "description": "Settings and the first run may call this app's own commands, listen on their channels, and hear and send the app's own events, such as the talk key and a page to show. Nothing else.",
+  "windows": ["settings", "onboarding"],
+  "permissions": ["core:default"]
+}

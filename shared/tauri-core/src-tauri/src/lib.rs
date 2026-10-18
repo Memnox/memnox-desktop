@@ -6,7 +6,9 @@ mod awake;
 mod daemon;
 mod island;
 mod key;
+mod permissions;
 mod runtime;
+mod settings_windows;
 mod talk_key;
 mod tray;
 mod voice;
@@ -79,6 +81,16 @@ pub fn run() {
             runtime::runtime_install,
             runtime::runtime_wired,
             runtime::runtime_run,
+            settings_windows::open_settings,
+            settings_windows::open_onboarding,
+            settings_windows::close_window,
+            settings_windows::apply_appearance,
+            settings_windows::start_at_sign_in,
+            settings_windows::set_start_at_sign_in,
+            settings_windows::restart_memnox,
+            settings_windows::open_page,
+            permissions::permission_facts,
+            permissions::open_privacy,
         ])
         .run(tauri::generate_context!())
         .expect("Memnox could not start its window");

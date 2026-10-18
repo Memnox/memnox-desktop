@@ -19,9 +19,52 @@ export function trimmed(text: string | undefined): string | undefined {
   return kept === undefined || kept === '' ? undefined : kept;
 }
 
-/** One label for a held call wherever it shows: "codex on this computer". Ported from the Mac's `CallLabel`. */
-export function callLabel(agent: string | undefined, machine: string = THIS_COMPUTER): string {
-  return `${trimmed(agent) ?? SOME_AGENT} on ${machine}`;
+const SOME_SERVER = 'a server';
+const SOME_MACHINE = "a teammate's machine";
+
+/** Where a held call waits, which is what every label of it names. Ported from the Mac's `CallPlace`. */
+export type CallPlace =
+  | { readonly kind: 'this-computer' }
+  /** A server this computer paired with over the relay, by the name it paired under. */
+  | { readonly kind: 'server'; readonly name: string }
+  /** A teammate's machine the workspace routed the call from, with whose team it is when the workspace says. */
+  | { readonly kind: 'team'; readonly machine: string; readonly person: string | undefined };
+
+export const ON_THIS_COMPUTER: CallPlace = { kind: 'this-computer' };
+
+/** A daemon event's place: the server that raised it, or this computer when none did. */
+export function raisedOn(server: string | undefined): CallPlace {
+  const name = trimmed(server);
+  return name === undefined ? ON_THIS_COMPUTER : { kind: 'server', name };
+}
+
+export function teamPlace(machine: string, person: string | undefined): CallPlace {
+  return { kind: 'team', machine, person };
+}
+
+/** The machine alone, as the island groups waiting calls by it. */
+export function placeMachine(place: CallPlace): string {
+  switch (place.kind) {
+    case 'this-computer':
+      return THIS_COMPUTER;
+    case 'server':
+      return trimmed(place.name) ?? SOME_SERVER;
+    case 'team':
+      return trimmed(place.machine) ?? SOME_MACHINE;
+  }
+}
+
+/**
+ * One label for a held call wherever it shows: "codex on this computer", "codex on build-box", and
+ * "codex on build-box, from Ana's team" through the workspace. Ported from the Mac's `CallLabel`.
+ */
+export function callLabel(agent: string | undefined, at: string | CallPlace = THIS_COMPUTER): string {
+  const place = typeof at === 'string' ? undefined : at;
+  const named = `${trimmed(agent) ?? SOME_AGENT} on ${place === undefined ? at : placeMachine(place)}`;
+  if (place?.kind !== 'team') return named;
+  const person = trimmed(place.person);
+  // Whose team it came through, and the person's own team where the workspace did not say whose.
+  return `${named}, ${person === undefined ? 'from your team' : `from ${person}'s team`}`;
 }
 
 /** What the consent prompt says it is for, so the person answers knowing whose call and how far the yes reaches. */

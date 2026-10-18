@@ -1,6 +1,7 @@
 import type { DaemonEvent } from '@memnox/core/wire';
 import { agentKind } from './agent-colour';
-import { callLabel, THIS_COMPUTER } from './call-label';
+import { callLabel, ON_THIS_COMPUTER, placeMachine, type CallPlace } from './call-label';
+import { callPlace, callWhat, callWhy, callWho, type WorkspaceHeldCall } from './workspace-wire';
 
 /** A held call as the island draws it: whose it is, what it wants, why it was held. */
 export interface HeldCard {
@@ -25,20 +26,49 @@ export interface HeldCard {
   readonly sessionId: string | undefined;
 }
 
-/** The card for a HELD event; every event this app shows waits on this computer, so that is its machine. */
-export function heldCard(event: DaemonEvent): HeldCard {
+/**
+ * The card for a HELD event, labelled with where it waits: this computer, or the server that raised it. A server
+ * takes no yes without a signature, so its card always carries the fingerprint, whatever the event says.
+ */
+export function heldCard(event: DaemonEvent, place: CallPlace = ON_THIS_COMPUTER): HeldCard {
+  const local = place.kind === 'this-computer';
+  const within = local && event.withinSession === true;
   return {
     subject: event.subject,
     agent: agentKind(event.agent),
-    who: event.agentName ?? event.agent,
-    label: callLabel(event.agentName ?? event.agent, THIS_COMPUTER),
+    // Away from this computer the card heads with where it waits, as the Mac's does.
+    who: local ? (event.agentName ?? event.agent) : callLabel(event.agentName ?? event.agent, place),
+    label: callLabel(event.agentName ?? event.agent, place),
     what: event.what ?? event.summary,
     why: event.why,
     task: event.task,
     place: event.place,
-    withinSession: event.withinSession === true,
-    touchID: event.withinSession !== true,
+    withinSession: within,
+    touchID: !within,
     expiresAt: event.expiresAt,
     sessionId: event.sessionId,
   };
+}
+
+/** The card for a teammate's call the workspace routed here, whose every yes is signed. Ported from the Mac's `HeldCard(team:)`. */
+export function teamHeldCard(call: WorkspaceHeldCall): HeldCard {
+  return {
+    subject: call.id,
+    agent: agentKind(call.agent),
+    who: callWho(call),
+    label: callWho(call),
+    what: callWhat(call),
+    why: callWhy(call) === '' ? undefined : callWhy(call),
+    task: undefined,
+    place: undefined,
+    withinSession: false,
+    touchID: true,
+    expiresAt: call.expiresAt === '' ? undefined : call.expiresAt,
+    sessionId: undefined,
+  };
+}
+
+/** The machine the island's queue header groups a teammate's call under. */
+export function teamMachine(call: WorkspaceHeldCall): string {
+  return placeMachine(callPlace(call));
 }

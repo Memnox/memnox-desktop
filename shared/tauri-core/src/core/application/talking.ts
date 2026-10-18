@@ -10,9 +10,17 @@ import {
   type DaemonEvent,
   type DaemonRequest,
   type DaemonResponse,
+  type HoldAnswer,
   type ProposalAnswer,
+  type TeamAnswerBrief,
+  type TeamCallBrief,
+  HOLD_ANSWER,
 } from '@memnox/core/wire';
-import { callLabel } from '../domain/call-label';
+import { callLabel, consentReason, raisedOn } from '../domain/call-label';
+import { teamQuestion } from '../domain/team-question';
+import { WorkspaceLines } from '../domain/workspace-lines';
+import { callWho, callWhat, type WorkspaceHeldCall } from '../domain/workspace-wire';
+import type { HeldOutcome } from './held-calls';
 import { readingCaption } from '../domain/caption-lines';
 import { SIGN_IN_NOTICE } from '../domain/sign-in-notice';
 import { ANOTHER_KEY_LINE, type KeyStatus } from '../domain/key-status';
@@ -65,6 +73,22 @@ export interface TalkingOptions {
   readonly lookingAt?: () => Promise<{ app?: string; title?: string } | undefined>;
   /** The hour of the day, for a greeting; the clock the test sets otherwise. */
   readonly hour?: () => number;
+  /** Teammates' calls the workspace routed here, named to the brain on every ask and answered through the workspace. */
+  readonly team?: TeamVoice;
+  /** The paired server a subject was raised on, so its label says where it waits; undefined for this computer. */
+  readonly raisedOn?: (subject: string) => string | undefined;
+  /** Whether a yes to this subject reaches another machine, which never takes one without a signature. */
+  readonly signsEveryYes?: (subject: string) => boolean;
+  /** A teammate's call answered by voice, so the island takes its card down as a button would. */
+  readonly teamAnswered?: (subject: string, outcome: HeldOutcome) => void;
+}
+
+/** What the voice needs of the workspace's calls, the Mac's `WorkspaceAnswering` as the conversation sees it. */
+export interface TeamVoice {
+  owns(subject: string): boolean;
+  call(subject: string): WorkspaceHeldCall | undefined;
+  briefs(): TeamCallBrief[];
+  answer(subject: string, answer: HoldAnswer, reason: string, signed?: string): Promise<HeldOutcome>;
 }
 
 /** How a person asked, set by the keys they held and never by a word they said. */
@@ -135,7 +159,7 @@ export class Talking {
     private readonly speaker: Speaker,
     private readonly signer: Signer,
     private readonly ids: RequestIds,
-    options: TalkingOptions,
+    private readonly options: TalkingOptions,
   ) {
     this.timer = options.timer;
     this.cards = options.cards;
@@ -223,6 +247,8 @@ export class Talking {
     this.chimes?.play('sent');
     this.update({ phase: 'thinking', heard: words, reply: '', failure: undefined });
     const request: DaemonRequest = { ...this.request(DAEMON_METHOD.ASK), said: words };
+    // Every ask names the team's questions, the empty list included, so the brain never answers one already gone.
+    if (this.options.team !== undefined) request.teamCalls = this.options.team.briefs();
     if (finished) request.finished = true;
     if (ask.intent !== undefined) request.intent = ask.intent;
     if (this.greetedAt !== undefined && this.now() - this.greetedAt < GREETING_HOLDS_MS) request.greeted = true;
@@ -248,6 +274,7 @@ export class Talking {
     const words = withoutTrailingName(withoutLeadingName(trimmed));
     if (!/\p{L}/u.test(words) || nameAlone(trimmed)) return;
     const request: DaemonRequest = { ...this.request(DAEMON_METHOD.ASK), said: words, speculative: true };
+    if (this.options.team !== undefined) request.teamCalls = this.options.team.briefs();
     const front = await this.front();
     if (front?.app !== undefined) request.lookingAt = front.app;
     if (front?.title !== undefined) request.lookingAtWindow = front.title;
@@ -338,7 +365,7 @@ export class Talking {
       return;
     }
     if (told.kind !== 'spoke' && !this.interrupted && this.asking === event.subject) {
-      await this.say(heldQuestion(this.owner(), event, callLabel(event.agentName ?? event.agent)));
+      await this.say(heldQuestion(this.owner(), event, callLabel(event.agentName ?? event.agent, raisedOn(this.options.raisedOn?.(event.subject)))));
     }
   }
 
@@ -364,7 +391,11 @@ export class Talking {
     if (quietHere(event, this.phoneHolds)) return;
     const asked = this.lastHeard !== undefined && this.now() - this.lastHeard < ANSWER_WINDOW_MS;
     if (!asked) return this.decline(event);
-    if (event.teamAnswer !== undefined) return this.say(LINES.needsCard);
+    if (event.teamAnswer !== undefined) {
+      // The read back names the call, so the prompt waits until it has been said, as any proposal's does.
+      await this.speaker.drained();
+      return this.carryOut(event.teamAnswer, event);
+    }
     if (event.rule !== undefined || event.work !== undefined) {
       if (this.cards?.show(event) !== true) await this.say(LINES.needsCard);
       return;
@@ -379,7 +410,7 @@ export class Talking {
   private async confirm(event: DaemonEvent): Promise<void> {
     let answer: ProposalAnswer = PROPOSAL_ANSWER.CONFIRMED;
     const request: DaemonRequest = { ...this.request(DAEMON_METHOD.CONFIRM), subject: event.subject };
-    if (event.withinSession !== true) {
+    if (event.withinSession !== true || this.options.signsEveryYes?.(event.subject) === true) {
       const signing = await this.signer.sign(event.subject, PROPOSAL_ANSWER.CONFIRMED, event.summary);
       if (signing.kind === 'refused') return this.say(signing.why);
       if (signing.kind === 'signed') request.signature = signing.signature;
@@ -391,6 +422,84 @@ export class Talking {
     if (earlier !== undefined) return earlier.matches(answer) ? undefined : this.say(earlier.line);
     if (response?.ok === true) return this.say(afterConfirm(answer, response.outcome));
     await this.say(`My apologies, that was not confirmed: ${response?.error ?? 'Memnox did not answer'}.`);
+  }
+
+  /**
+   * A teammate's call the workspace routed here, said like one of this computer's and then listened for like one,
+   * since every ask names it to the brain; a button on the island answers it too, and no daemon ever does.
+   */
+  announceTeam(call: WorkspaceHeldCall): Promise<void> {
+    this.turns = this.turns
+      .then(async () => {
+        // Answered or gone before its turn came, or a phone holds the voice and asks it there.
+        if (this.options.team?.owns(call.id) !== true || this.phoneHolds) return;
+        this.asking = call.id;
+        this.interrupted = false;
+        this.chimes?.play('held');
+        await this.say(teamQuestion(this.owner(), call));
+      })
+      .catch(() => undefined);
+    return this.turns;
+  }
+
+  /** A teammate's call settled somewhere else while it was being asked about, so the voice stops asking. */
+  teamSettled(subject: string): void {
+    if (this.asking !== subject) return;
+    this.asking = undefined;
+    this.speaker.stop();
+  }
+
+  /**
+   * A team's question answered by voice. The workspace takes the answer first and only then is the proposal
+   * confirmed to the daemon that raised it, so it never reads as done where the workspace did not take it. A yes
+   * is signed over both messages, a deny goes unsigned both ways, and a cancelled prompt sends the workspace nothing.
+   * Ported from the Mac's `carryOut`; the key here signs one message a prompt, so a yes asks twice.
+   */
+  private async carryOut(team: TeamAnswerBrief, event: DaemonEvent): Promise<void> {
+    const call = this.options.team?.call(team.callId);
+    const answer = HOLD_ANSWERS.find((each) => each === team.answer);
+    if (this.options.team === undefined || call === undefined || answer === undefined) {
+      await this.settleProposal(event.subject, PROPOSAL_ANSWER.DECLINED);
+      this.chimes?.play('failed');
+      return this.say(WorkspaceLines.gone);
+    }
+    // This computer's own label for the prompt, so what the key is touched for never rests on the daemon's words.
+    const reason = consentReason(callWho(call), callWhat(call), answer);
+    let signatures: [string, string] | undefined;
+    if (answer !== HOLD_ANSWER.DENY) {
+      const forTeam = await this.signer.sign(call.id, answer, reason);
+      const forProposal = forTeam.kind === 'signed' ? await this.signer.sign(event.subject, PROPOSAL_ANSWER.CONFIRMED, reason) : forTeam;
+      if (forTeam.kind !== 'signed' || forProposal.kind !== 'signed') {
+        await this.settleProposal(event.subject, PROPOSAL_ANSWER.DECLINED);
+        if (forProposal.kind === 'refused') return this.say(forProposal.why);
+        this.chimes?.play('declined');
+        return this.say(afterConfirm(PROPOSAL_ANSWER.DECLINED, undefined));
+      }
+      signatures = [forTeam.signature, forProposal.signature];
+    }
+    if (this.asking === call.id) this.asking = undefined;
+    const outcome = await this.options.team.answer(call.id, answer, reason, signatures?.[0]);
+    if (outcome.kind !== 'answered') {
+      // Nothing this computer did reached the workspace, so the proposal is declined rather than left to read as done.
+      await this.settleProposal(event.subject, PROPOSAL_ANSWER.DECLINED);
+      if (outcome.kind === 'answered-elsewhere') {
+        this.options.teamAnswered?.(call.id, outcome);
+        return this.say(outcome.earlier.line);
+      }
+      if (outcome.kind === 'failed') return this.say(`That did not go through: ${outcome.why}`);
+      return;
+    }
+    this.options.teamAnswered?.(call.id, outcome);
+    // The workspace already holds the answer, so a daemon that would not take the confirmation changes nothing done.
+    await this.settleProposal(event.subject, PROPOSAL_ANSWER.CONFIRMED, signatures?.[1]);
+    await this.say(WorkspaceLines.answeredByVoice);
+  }
+
+  /** Confirms or declines a proposal to the daemon that raised it, which the link finds by its subject. */
+  private async settleProposal(subject: string, answer: ProposalAnswer, signature?: string): Promise<void> {
+    const request: DaemonRequest = { ...this.request(DAEMON_METHOD.CONFIRM), subject, answer };
+    if (signature !== undefined) request.signature = signature;
+    await requestOnce(this.link, request).catch(() => undefined);
   }
 
   private async decline(event: DaemonEvent): Promise<void> {
@@ -522,3 +631,6 @@ function failureOf(told: Told): string | undefined {
   if (told.kind === 'refused') return told.why === LINES.stalled ? 'No answer came, so it stopped waiting' : told.why;
   return undefined;
 }
+
+/** The answers a teammate's call takes through the workspace. */
+const HOLD_ANSWERS: readonly HoldAnswer[] = [HOLD_ANSWER.ONCE, HOLD_ANSWER.SESSION, HOLD_ANSWER.DENY];

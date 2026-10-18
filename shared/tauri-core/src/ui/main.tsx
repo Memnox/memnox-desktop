@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { HeldCalls, ProposalCards, RequestIds, Setup, Signer, Talking, VoiceSettings, Wakefulness, type Timer } from '../core';
 import { TauriConfirmKey } from './adapters/tauri-confirm-key';
 import { TauriDaemonLink } from './adapters/tauri-daemon-link';
+import { islandRelay } from './relay-wiring';
 import { TauriPower } from './adapters/tauri-power';
 import { TauriRuntime } from './adapters/tauri-runtime';
 import { TauriSpeaker } from './adapters/tauri-speaker';
@@ -58,7 +59,9 @@ const key: ConfirmKey = {
   },
 };
 const signer = new Signer(link, key, ids, (status) => calls?.keyChanged(status));
-calls = new HeldCalls(link, signer, ids, { timer });
+// Paired servers and the team's inbox: `target` sends each request to the machine it belongs to.
+const relay = islandRelay({ local: link, ids, key, timer, store: localPreferences });
+calls = new HeldCalls(link, signer, ids, { timer, ...relay.heldOptions });
 const heldCalls: HeldCalls = calls;
 // The voice: Kokoro behind a mouth that remembers what it said and honours the mute, the ear, the keys and the typist.
 const voicePreferences = new VoicePreferences(localPreferences);
@@ -73,8 +76,9 @@ const speaker = new Mouth(new TauriSpeaker(), voicePreferences);
 const dictationWords = new DictationWords(localPreferences);
 const chimes = new TauriChimes();
 const typist = new TauriTypist();
-const cards = new ProposalCards(link, signer, speaker, ids);
-const talking = new Talking(link, speaker, signer, ids, {
+const cards = new ProposalCards(relay.target, signer, speaker, ids);
+const talking = new Talking(relay.target, speaker, signer, ids, {
+  ...relay.talkingOptions,
   timer,
   cards,
   chimes: { play: (cue) => voicePreferences.choices.chimes && chimes.play(cue) },
@@ -82,6 +86,7 @@ const talking = new Talking(link, speaker, signer, ids, {
   owner: () => firstName(personal.name),
 });
 caption = (text) => talking.captioned(text);
+relay.start({ calls: heldCalls, talking });
 const voiceTurns = new VoiceTurns({
   talking,
   mouth: speaker,
@@ -109,7 +114,7 @@ const voiceSettings = new VoiceSettings(link, ids);
 // What waits on the person is said in its turn and listened for; the rest goes straight to the talking.
 calls.observeEvents((event) => voiceTurns.arrived(event));
 // The sessions, an agent's own questions, what the daemon asks to show, and every question asked kept.
-const sessions = new Sessions(link, ids, timer);
+const sessions = new Sessions(relay.target, ids, timer);
 const questions = new AgentQuestions(link, ids, timer, (subject) => talking.answeredByHand(subject));
 const displays = new Displays(link, ids, new TauriPresenter());
 calls.observeEvents((event) => {

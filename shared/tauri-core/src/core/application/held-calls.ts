@@ -6,9 +6,10 @@ import {
   type DaemonRequest,
   type DaemonResponse,
 } from '@memnox/core/wire';
-import { consentReason, THIS_COMPUTER, type HeldAnswer } from '../domain/call-label';
+import { consentReason, FROM_NOW_ON, ON_THIS_COMPUTER, placeMachine, raisedOn, type CallPlace, type HeldAnswer } from '../domain/call-label';
 import { EarlierAnswer } from '../domain/earlier-answer';
-import { heldCard, type HeldCard } from '../domain/held-card';
+import { heldCard, teamHeldCard, teamMachine, type HeldCard } from '../domain/held-card';
+import type { WorkspaceHeldCall } from '../domain/workspace-wire';
 import { ISLAND_TIMING } from '../domain/island-layout';
 import type { KeyStatus } from '../domain/key-status';
 import { settledLine, SETTLED_UNKNOWN } from '../domain/settled-line';
@@ -44,6 +45,15 @@ export interface HeldState {
 export interface HeldCallsOptions {
   /** Keeps a card settled elsewhere up long enough to read; without one it goes at once. */
   readonly timer?: Timer;
+  /** Where answers go: the link that routes each subject back to the machine that raised it. The feed's own link otherwise. */
+  readonly answers?: DaemonLink;
+  /** Whether an event of this computer's own feed reaches the island, and the place to remember it by. */
+  readonly accept?: (event: DaemonEvent) => boolean;
+  /** Teammates' calls the workspace routed here, answered through it and never through a daemon. */
+  readonly team?: {
+    owns(subject: string): boolean;
+    answer(subject: string, answer: typeof HOLD_ANSWER.ONCE | typeof HOLD_ANSWER.SESSION | typeof HOLD_ANSWER.DENY, reason: string): Promise<HeldOutcome>;
+  };
 }
 
 const NOT_ANSWERED = 'Memnox did not answer';
@@ -105,6 +115,7 @@ export class HeldCalls {
       for await (const response of this.link.stream(this.request(DAEMON_METHOD.SUBSCRIBE))) {
         this.update({ connected: true });
         if (response.event === undefined) continue;
+        if (this.options.accept?.(response.event) === false) continue;
         this.handle(response.event);
         for (const listener of this.eventListeners) listener(response.event);
       }
@@ -118,7 +129,7 @@ export class HeldCalls {
   /** What waits right now, so a call held before this app opened is on screen too. */
   private async catchUp(): Promise<void> {
     const response = await requestOnce(this.link, this.request(DAEMON_METHOD.WAITING));
-    for (const event of response.waiting ?? []) this.handle(event);
+    for (const event of response.waiting ?? []) if (this.options.accept?.(event) !== false) this.handle(event);
   }
 
   /**
@@ -126,16 +137,33 @@ export class HeldCalls {
    * proposal is confirmed only after the person's own spoken words, and this app does not listen yet,
    * so nothing it did not ask for is ever put to the key.
    */
-  handle(event: DaemonEvent): void {
+  handle(event: DaemonEvent, place: CallPlace = ON_THIS_COMPUTER): void {
     if (event.kind === DAEMON_EVENT.HELD) {
       // The card on screen stays while one is being answered or says how it was settled.
       const keepShown = this.current.answering || this.current.settled !== undefined;
-      // Every call this app shows waits on this computer, which is the machine the queue's header counts by.
-      this.update({ waiting: this.current.waiting.add(heldCard(event), event.subject, THIS_COMPUTER, keepShown) });
+      // The queue's header counts by the machine each call waits on: this computer, or the server that raised it.
+      this.update({ waiting: this.current.waiting.add(heldCard(event, place), event.subject, placeMachine(place), keepShown) });
     } else if (event.kind === DAEMON_EVENT.SETTLED) {
       // The daemon does not say who answered or whether it ran out, so the card claims neither.
       this.release(event.subject, SETTLED_UNKNOWN);
     }
+  }
+
+  /** An event a paired server raised, labelled with its name and told to the voice like one of this computer's. */
+  fromServer(event: DaemonEvent, server: string): void {
+    this.handle(event, raisedOn(server));
+    for (const listener of this.eventListeners) listener(event);
+  }
+
+  /** A teammate's call the workspace routed here, queued beside this computer's and the servers'. */
+  holdTeam(call: WorkspaceHeldCall): void {
+    const keepShown = this.current.answering || this.current.settled !== undefined;
+    this.update({ waiting: this.current.waiting.add(teamHeldCard(call), call.id, teamMachine(call), keepShown) });
+  }
+
+  /** A call settled somewhere this feed does not hear, such as the workspace, with the note its card shows, or none. */
+  settledElsewhere(subject: string, note: string | undefined): void {
+    this.release(subject, note);
   }
 
   /** One call older for a positive offset, newer for a negative one; nothing moves while one is being signed. */
@@ -168,6 +196,12 @@ export class HeldCalls {
 
   private async send(subject: string, answer: HeldAnswer): Promise<HeldOutcome> {
     const card = this.current.waiting.entries.find((entry) => entry.subject === subject)?.card;
+    const team = this.options.team;
+    if (team?.owns(subject) === true) {
+      // A teammate's call has no rule here to relax, so from now on is a yes to this call there, and an edit is not one the workspace takes.
+      const said = answer === FROM_NOW_ON || answer === HOLD_ANSWER.EDIT ? HOLD_ANSWER.ONCE : answer;
+      return team.answer(subject, said, consentReason(card?.label ?? 'this call', card?.what, said));
+    }
     const request: DaemonRequest = { ...this.request(DAEMON_METHOD.CONFIRM), subject, answer };
     // A card that is gone is signed for, since only the daemon's word that it stays inside its session waives the key.
     if (answer !== HOLD_ANSWER.DENY && card?.withinSession !== true) {
@@ -177,7 +211,7 @@ export class HeldCalls {
       if (signing.kind === 'refused') return { kind: 'failed', why: signing.why };
       request.signature = signing.signature;
     }
-    const response = await requestOnce(this.link, request).catch(() => undefined);
+    const response = await requestOnce(this.options.answers ?? this.link, request).catch(() => undefined);
     return this.settle(response);
   }
 

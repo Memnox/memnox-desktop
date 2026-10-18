@@ -5,6 +5,7 @@ import { RequestIds } from '../src/core/application/request-ids';
 import { Signer } from '../src/core/application/signer';
 import { ANSWER_WINDOW_MS, Talking } from '../src/core/application/talking';
 import { LINES } from '../src/core/domain/spoken';
+import { WorkspaceLines } from '../src/core/domain/workspace-lines';
 import { chunks, HandTimer, held, PersonKey, RecordingSpeaker, registered, ScriptedDaemon } from './doubles';
 
 type Answers = ConstructorParameters<typeof ScriptedDaemon>[0];
@@ -185,13 +186,13 @@ describe('a proposal', () => {
     expect(cards.cards).toEqual([]);
   });
 
-  it('is left for a screen that has its card when it answers a teammate', async () => {
+  it('declines unsigned a teammate answer for a call that no longer waits here', async () => {
     const { daemon, key, speaker, talking } = talkingOver(answering);
     await talking.heard('allow it for Ana');
-    await talking.handle(proposal('prp_1', { teamAnswer: {} as DaemonEvent['teamAnswer'] }));
+    await talking.handle(proposal('prp_1', { teamAnswer: { callId: 'hc_1', answer: 'once', label: 'codex on box' } }));
     expect(key.signed).toEqual([]);
-    expect(daemon.sent('confirm')).toEqual([]);
-    expect(speaker.said).toContain(LINES.needsCard);
+    expect(daemon.sent('confirm').map((request) => [request.subject, request.answer, request.signature])).toEqual([['prp_1', 'declined', undefined]]);
+    expect(speaker.said).toContain(WorkspaceLines.gone);
   });
 
   it('says the answer that came first when another route got there', async () => {

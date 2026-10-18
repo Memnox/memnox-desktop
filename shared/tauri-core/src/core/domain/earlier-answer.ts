@@ -39,6 +39,11 @@ export class EarlierAnswer {
     return undefined;
   }
 
+  /** Settled before this answer by somebody, where nothing says how, such as a teammate's call the workspace already closed. */
+  static unknown(): EarlierAnswer {
+    return new EarlierAnswer(undefined);
+  }
+
   matches(chosen: string): boolean {
     return this.word === chosen;
   }

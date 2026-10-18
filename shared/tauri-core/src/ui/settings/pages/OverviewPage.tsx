@@ -1,4 +1,5 @@
 import type { HomeView } from '@memnox/core/wire';
+import { islandWindow } from '../../adapters/tauri-island-window';
 import { AudioLines, ChevronRight, CircleAlert, CircleArrowRight, CircleCheck, Laptop, UserRoundCheck } from 'lucide-react';
 import { useEffect } from 'react';
 import { FIRST_RUN } from '../../../core/application/preferences';
@@ -159,7 +160,7 @@ function HomeBlocks({ parts, view }: { parts: SettingsParts; view: HomeView }) {
         <div className="flex items-center gap-2">
           <span className="tabular font-mono text-body font-semibold text-ink">{view.waiting}</span>
           <span className="flex-1 text-body text-muted">{HomeLines.waiting(view.waiting)}</span>
-          {view.waiting > 0 && <KitButton onClick={() => host.talk()}>Answer</KitButton>}
+          {view.waiting > 0 && <KitButton onClick={() => islandWindow.openFromSettings()}>Answer</KitButton>}
         </div>
       </HomeBlock>
       {view.needsYou !== undefined && view.needsYou.length > 0 && (

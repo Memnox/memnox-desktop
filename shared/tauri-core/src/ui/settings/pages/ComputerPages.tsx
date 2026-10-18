@@ -6,6 +6,7 @@ import { deviceCaption, drives, PairingLines } from '../../../core/domain/pairin
 import type { PermissionStep } from '../../../core/domain/permission-steps';
 import { DONE, WAITING } from '../../../core/domain/step-state';
 import { Digits, IconTile, KitButton, MemnoxTile, QuietLine, SettingsCard, SettingsDivider, SettingsRow, Spinner, Surface, SwitchRow, useCopied } from '../kit';
+import { IslandScreenPicker } from '../IslandScreenPicker';
 import { useObserved, usePreferences, type SettingsParts } from '../parts';
 import { PermissionGuide, QrCode, SetupDivider, SetupStep } from '../steps';
 
@@ -271,6 +272,9 @@ export function AppearancePage({ parts }: { parts: SettingsParts }) {
         ))}
       </div>
       <p className="px-1 text-caption text-ink-secondary">{ISLAND_STAYS_DARK}</p>
+      <div className="rounded-2xl bg-card p-4">
+        <IslandScreenPicker />
+      </div>
     </div>
   );
 }

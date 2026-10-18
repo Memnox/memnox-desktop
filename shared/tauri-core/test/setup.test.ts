@@ -4,11 +4,13 @@ import type { Runtime, RuntimeStep } from '../src/core/application/ports/runtime
 import { RequestIds } from '../src/core/application/request-ids';
 import { Setup } from '../src/core/application/setup';
 import { VoiceSettings } from '../src/core/application/voice-settings';
+import { runtimeSourceOf, whyNotReadyFrom } from '../src/core/domain/runtime-source';
 import { isAtLeast } from '../src/core/domain/runtime-state';
 import { ScriptedDaemon } from './doubles';
 
 /** A runtime that writes down what it was asked to do, and brings the daemon up when told to. */
 class Machine implements Runtime {
+  source?: Runtime['source'];
   readonly steps: (RuntimeStep | 'install')[] = [];
   constructor(
     private installed: boolean,
@@ -90,6 +92,48 @@ describe('setting Memnox up', () => {
     const setup = new Setup(daemonAt({ now: undefined }), machine, new RequestIds(), noWait);
     await Promise.all([setup.ensure(), setup.ensure()]);
     expect(machine.steps).toEqual(['start']);
+  });
+});
+
+describe('a daemon whose version does not show what it lacks', () => {
+  it('updates one that answers no method for something the app needs', async () => {
+    const updated = { done: false };
+    const daemon = new ScriptedDaemon({
+      ping: (request) => [{ id: request.id, ok: true, version: '0.14.0' }],
+      machine: (request) => [updated.done ? { id: request.id, ok: true } : { id: request.id, ok: false, error: 'no method machine' }],
+    });
+    const machine = new Machine(true, true, (step) => {
+      if (step === 'update') updated.done = true;
+    });
+    expect(await new Setup(daemon, machine, new RequestIds(), noWait).ensure()).toEqual({ kind: 'ready' });
+    expect(machine.steps).toEqual(['update']);
+  });
+
+  it('restarts a local checkout rather than updating it from npm', async () => {
+    const updated = { done: false };
+    const daemon = new ScriptedDaemon({
+      ping: (request) => [{ id: request.id, ok: true, version: '0.14.0' }],
+      machine: (request) => [updated.done ? { id: request.id, ok: true } : { id: request.id, ok: false, error: 'no method machine' }],
+    });
+    const machine = new Machine(true, true, (step) => {
+      if (step === 'start') updated.done = true;
+    });
+    machine.source = async () => ({ kind: 'local', checkout: '/src/memnox-runtime' });
+    await new Setup(daemon, machine, new RequestIds(), noWait).ensure();
+    expect(machine.steps).toEqual(['start']);
+  });
+});
+
+describe('where memnox comes from', () => {
+  it('reads anything but a local checkout with a path as npm', () => {
+    expect(runtimeSourceOf({ kind: 'local', checkout: '/src/memnox-runtime' })).toEqual({ kind: 'local', checkout: '/src/memnox-runtime' });
+    expect(runtimeSourceOf({ kind: 'local', checkout: '' })).toEqual({ kind: 'npm' });
+    expect(runtimeSourceOf(undefined)).toEqual({ kind: 'npm' });
+  });
+
+  it('names the checkout when it is too old', () => {
+    expect(whyNotReadyFrom({ kind: 'too-old' }, { kind: 'local', checkout: '/r' })).toContain('pnpm build');
+    expect(whyNotReadyFrom({ kind: 'too-old' }, { kind: 'npm' })).toContain('older than the app');
   });
 });
 

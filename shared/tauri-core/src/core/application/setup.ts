@@ -1,5 +1,6 @@
 import { DAEMON_METHOD, type DaemonRequest, type DaemonResponse } from '@memnox/core/wire';
-import { isAtLeast, MINIMUM_RUNTIME, whyNotReady, type RuntimeState } from '../domain/runtime-state';
+import { whyNotReadyFrom, type RuntimeSource } from '../domain/runtime-source';
+import { isAtLeast, MINIMUM_RUNTIME, type RuntimeState } from '../domain/runtime-state';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { Runtime } from './ports/runtime';
 import type { RequestIds } from './request-ids';
@@ -15,7 +16,7 @@ export interface SetupState {
 const SETTLE_ATTEMPTS = 30;
 const SETTLE_MS = 1_000;
 const UNKNOWN_METHOD = 'no method';
-const NOT_INSTALLED = 'Memnox needs Node.js to install. Install it from nodejs.org, then press Check again.';
+const NOT_INSTALLED = 'Memnox would not install, nor fetch the Node.js it runs on. Check you are online, or install Node.js from nodejs.org, then press Check again.';
 const NOT_PROTECTED = 'Memnox could not put your agents under it. Press the button again in a moment.';
 
 /**
@@ -27,6 +28,7 @@ export class Setup {
   private current: SetupState = { runtime: undefined, doing: undefined, failed: undefined };
   private readonly listeners = new Set<() => void>();
   private running: Promise<RuntimeState> | undefined;
+  private source: RuntimeSource = { kind: 'npm' };
 
   constructor(
     private readonly link: DaemonLink,
@@ -47,9 +49,18 @@ export class Setup {
   /** Where the daemon stands: answering, and as new as the oldest runtime this app works with. */
   async check(): Promise<RuntimeState> {
     const pong = await this.ask(DAEMON_METHOD.PING);
-    const state = pong === undefined ? { kind: 'unreachable' as const } : stateOf(pong);
+    let state: RuntimeState = pong === undefined ? { kind: 'unreachable' } : stateOf(pong);
+    // A runtime built from a checkout keeps its version while it gains methods, so the newest ones this app
+    // needs are asked for too, as the Mac's `daemonVoice` does; only a plain unknown method counts.
+    if (state.kind === 'ready' && (await this.lacks(DAEMON_METHOD.WAITING) || await this.lacks(DAEMON_METHOD.MACHINE))) state = { kind: 'too-old' };
     this.update({ runtime: state });
     return state;
+  }
+
+  /** Whether the daemon answered that it has no such method, which only an older Memnox does. */
+  private async lacks(method: DaemonRequest['method']): Promise<boolean> {
+    const response = await this.ask(method);
+    return response !== undefined && !response.ok && (response.error ?? '').startsWith(UNKNOWN_METHOD);
   }
 
   /** The daemon ready for this app, or as close as it could get; one run at a time, shared by every caller. */
@@ -62,6 +73,7 @@ export class Setup {
   }
 
   private async bringUp(): Promise<RuntimeState> {
+    this.source = (await this.runtime.source?.().catch(() => undefined)) ?? { kind: 'npm' };
     let state = await this.check();
     if (state.kind === 'ready') return this.done(state);
     if (!(await this.runtime.found())) {
@@ -75,17 +87,26 @@ export class Setup {
       await this.runtime.run(wired ? 'start' : 'setup');
       state = await this.settle();
     }
-    if (state.kind === 'too-old') {
-      this.update({ doing: 'Updating Memnox' });
-      await this.runtime.run('update');
-      state = await this.settle();
-      // The daemon restarts itself on its new code; one that never ran as a service is started now.
-      if (state.kind === 'unreachable') {
-        await this.runtime.run('start');
-        state = await this.settle();
-      }
-    }
+    if (state.kind === 'too-old') state = await this.updateAndSettle();
     return this.done(state);
+  }
+
+  /**
+   * A daemon older than the app: a local checkout is restarted on the code its build just made, and a release
+   * updates from npm, so neither ever swaps a local checkout for the published one.
+   */
+  private async updateAndSettle(): Promise<RuntimeState> {
+    this.update({ doing: 'Updating Memnox' });
+    if (this.source.kind === 'local') {
+      await this.runtime.run('start');
+      return this.settle();
+    }
+    await this.runtime.run('update');
+    const state = await this.settle();
+    // The daemon restarts itself on its new code; one that never ran as a service is started now.
+    if (state.kind !== 'unreachable') return state;
+    await this.runtime.run('start');
+    return this.settle();
   }
 
   /** Brings a daemon too old for something the person asked for up to date, as the Account page's Update does. */
@@ -98,14 +119,8 @@ export class Setup {
   }
 
   private async updateNow(): Promise<RuntimeState> {
-    this.update({ doing: 'Updating Memnox' });
-    await this.runtime.run('update');
-    let state = await this.settle();
-    if (state.kind === 'unreachable') {
-      await this.runtime.run('start');
-      state = await this.settle();
-    }
-    return this.done(state);
+    this.source = (await this.runtime.source?.().catch(() => undefined)) ?? this.source;
+    return this.done(await this.updateAndSettle());
   }
 
   /** Puts the agents found here under Memnox, as the first run does; undefined when it went through, else why. */
@@ -128,7 +143,7 @@ export class Setup {
     return state;
   }
 
-  private done(state: RuntimeState, failed = whyNotReady(state)): RuntimeState {
+  private done(state: RuntimeState, failed = whyNotReadyFrom(state, this.source)): RuntimeState {
     this.update({ runtime: state, failed });
     return state;
   }

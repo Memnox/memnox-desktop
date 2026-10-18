@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { Runtime, RuntimeStep } from '../../core';
+import { runtimeSourceOf, type RuntimeSource } from '../../core/domain/runtime-source';
 
 /** The runtime through Rust, which runs only the fixed line each step names. */
 export class TauriRuntime implements Runtime {
@@ -17,6 +18,10 @@ export class TauriRuntime implements Runtime {
 
   run(step: RuntimeStep): Promise<boolean> {
     return invoke<boolean>('runtime_run', { step });
+  }
+
+  async source(): Promise<RuntimeSource> {
+    return runtimeSourceOf(await invoke<{ kind?: unknown; checkout?: unknown }>('runtime_source'));
   }
 }
 

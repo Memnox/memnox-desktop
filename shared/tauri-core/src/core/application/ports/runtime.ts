@@ -1,3 +1,5 @@
+import type { RuntimeSource } from '../../domain/runtime-source';
+
 /** The three things setup may have the runtime do, and nothing else, so no screen can run a command of its choosing. */
 export type RuntimeStep = 'setup' | 'start' | 'update';
 
@@ -11,4 +13,6 @@ export interface Runtime {
   wired(): Promise<boolean>;
   /** `memnox setup --yes --no-probe`, `memnox daemon --install` or `memnox update --yes`; false when it failed. */
   run(step: RuntimeStep): Promise<boolean>;
+  /** Where this build gets `memnox`; a runtime that cannot say is npm, as a release is. */
+  source?(): Promise<RuntimeSource>;
 }

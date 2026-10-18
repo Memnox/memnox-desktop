@@ -63,3 +63,19 @@
     --mx-menu-card: rgb(255 255 255 / 0.075);
   }
 }
+
+/*
+ * A real window cannot blur the desktop behind it, so outside the browser preview the panel's wash is
+ * near solid in the same tone, the way the Mac's material reads over a plain desktop.
+ */
+:root[data-solid] {
+  --mx-menu-wash: rgb(246 246 248 / 0.97);
+}
+:root[data-solid][data-theme="dark"] {
+  --mx-menu-wash: rgb(30 30 32 / 0.96);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-solid]:not([data-theme="light"]) {
+    --mx-menu-wash: rgb(30 30 32 / 0.96);
+  }
+}

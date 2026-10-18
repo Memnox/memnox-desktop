@@ -154,7 +154,8 @@ describe('menu panel', () => {
   });
 
   it('says how to start a talk in the badge', () => {
-    expect(listeningBadge(false, ['Ctrl', 'Alt', 'Space']).text).toBe('Ctrl Alt Space to talk');
+    expect(listeningBadge(false, ['\u2325', 'Space']).text).toBe('\u2325 Space to talk');
+    expect(listeningBadge(false, ['Ctrl', 'Alt', 'Space'])).toMatchObject({ text: 'Ctrl Alt Space', tooltip: 'Press Ctrl Alt Space to talk' });
     expect(listeningBadge(true, []).lit).toBe(true);
   });
 

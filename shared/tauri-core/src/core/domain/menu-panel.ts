@@ -46,10 +46,14 @@ export function menuRows(muted: boolean, talkKeys: readonly string[]): MenuRow[]
 
 /** The badge in the header: whether the voice wakes by name, else the key that starts a talk. */
 export function listeningBadge(wakesByName: boolean, talkKeys: readonly string[]): { text: string; tooltip: string; lit: boolean } {
-  return wakesByName
-    ? { text: 'Say “Memnox”', tooltip: 'Memnox wakes when you say its name', lit: true }
-    : { text: `${talkKeys.join(' ')} to talk`, tooltip: `Press ${talkKeys.join(' ')} to talk`, lit: false };
+  const keys = talkKeys.join(' ');
+  if (wakesByName) return { text: 'Say “Memnox”', tooltip: 'Memnox wakes when you say its name', lit: true };
+  // The Mac's key is one short glyph; Control Alt Space is long, so it stands alone and the tooltip says the rest.
+  return { text: keys.length <= BADGE_ROOM ? `${keys} to talk` : keys, tooltip: `Press ${keys} to talk`, lit: false };
 }
+
+/** The longest key name the badge still follows with "to talk", so it fits beside the title in 300. */
+const BADGE_ROOM = 9;
 
 /** One chip of the connected strip: an agent the voice can use, or an app the person connected. */
 export interface ToolChip {

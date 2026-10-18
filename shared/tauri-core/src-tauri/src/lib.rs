@@ -6,6 +6,7 @@ mod awake;
 mod daemon;
 mod island;
 mod key;
+mod panels;
 mod permissions;
 mod runtime;
 mod settings_windows;
@@ -81,6 +82,14 @@ pub fn run() {
             runtime::runtime_install,
             runtime::runtime_wired,
             runtime::runtime_run,
+            tray::tray_action,
+            tray::tray_panel_hide,
+            tray::tray_panel_fit,
+            panels::cards_show,
+            panels::cards_hide,
+            panels::cards_fit,
+            panels::scan_show,
+            panels::scan_hide,
             settings_windows::open_settings,
             settings_windows::open_onboarding,
             settings_windows::close_window,

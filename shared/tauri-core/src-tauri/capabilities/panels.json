@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "panels",
+  "description": "The tray panel, the floating cards and the scan may call this app's own commands, listen on their channels, and hear and send the app's own events, such as a row pressed or a card to show. Nothing else.",
+  "windows": ["tray", "cards", "scan"],
+  "permissions": ["core:default"]
+}

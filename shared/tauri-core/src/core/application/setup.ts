@@ -88,6 +88,26 @@ export class Setup {
     return this.done(state);
   }
 
+  /** Brings a daemon too old for something the person asked for up to date, as the Account page's Update does. */
+  bringUpToDate(): Promise<RuntimeState> {
+    this.running ??= this.updateNow().finally(() => {
+      this.running = undefined;
+      this.update({ doing: undefined });
+    });
+    return this.running;
+  }
+
+  private async updateNow(): Promise<RuntimeState> {
+    this.update({ doing: 'Updating Memnox' });
+    await this.runtime.run('update');
+    let state = await this.settle();
+    if (state.kind === 'unreachable') {
+      await this.runtime.run('start');
+      state = await this.settle();
+    }
+    return this.done(state);
+  }
+
   /** Puts the agents found here under Memnox, as the first run does; undefined when it went through, else why. */
   async protectAgents(): Promise<string | undefined> {
     if (this.running !== undefined) return 'Memnox is still starting up. Try again in a moment.';

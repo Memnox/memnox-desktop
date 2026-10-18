@@ -128,3 +128,21 @@ export {
   type History,
   type HistoryDay,
 } from './domain/history';
+export { VoiceTurns, IDLE_TURNS, TURN_TIMING, CANNOT_HEAR, LiveTyping, type VoiceTurnsParts, type VoiceTurnsState } from './application/voice-turns';
+export { VoicePreferences, VOICE_DEFAULTS, type VoiceChoices } from './application/voice-preferences';
+export { Mouth, ECHO_LINGERS_MS, type Hushable } from './application/mouth';
+export { DictationPolish } from './application/dictation-polish';
+export { hear, type Heard, type HearOptions } from './application/hearing';
+export { TalkOverWatch } from './application/talk-over-watch';
+export type { Ear, EarEvent } from './application/ports/ear';
+export type { Focus, Typist } from './application/ports/typist';
+export type { PreferenceStore } from './application/ports/preference-store';
+export type { AskOptions } from './application/talking';
+export { afterWakeWord, nameAlone, withoutLeadingName, withoutTrailingName } from './domain/wake-word';
+export { isBargeIn, mayBeCuttingIn, withoutEcho, withoutEchoRuns } from './domain/echo';
+export { WakeLines, WakeRest } from './domain/wake-lines';
+export { awaitsAnswer, isSaid, isShownOnly } from './domain/announcing';
+export { cleanedDictation, cursorHints, dictationFamily, familyStyle, fitted, liveDictation, liveRevision, type DictationFamily, type DictationStyle, type DictationWord } from './domain/dictation-text';
+export { DictationKey, HoldKeys, VOICE_KEY_TIMING, type KeyReport } from './domain/voice-keys';
+export { endOfSpeechPause, joinedSpeech } from './domain/turn-taking';
+export { clock as answerClock } from './domain/answer-clock';

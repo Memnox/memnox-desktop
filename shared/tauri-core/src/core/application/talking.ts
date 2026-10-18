@@ -1,5 +1,6 @@
 import {
   ASK_ENDS,
+  type AskIntent,
   BRIEFING,
   DAEMON_EVENT,
   DAEMON_METHOD,
@@ -15,6 +16,9 @@ import { EarlierAnswer } from '../domain/earlier-answer';
 import { quietHere } from '../domain/quiet';
 import { SentenceSplitter } from '../domain/sentence-splitter';
 import { afterConfirm, heldQuestion, LINES, toolWord } from '../domain/spoken';
+import { FRESH_AFTER_MS, WakeLines } from '../domain/wake-lines';
+import { nameAlone, withoutLeadingName, withoutTrailingName } from '../domain/wake-word';
+import type { Chimes } from './ports/chimes';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { Speaker } from './ports/speaker';
 import type { RequestIds } from './request-ids';
@@ -44,7 +48,25 @@ export interface TalkingOptions {
   readonly owner?: () => string | undefined;
   /** Where a rule or a draft waits to be read before the key is asked; without it they are left alone. */
   readonly cards?: ProposalCards;
+  /** Their name, which a greeting keeps and says far less often than the address. */
+  readonly name?: () => string | undefined;
+  /** The sounds heard before a word is said: sent as their words go, failed as a turn breaks. */
+  readonly chimes?: Chimes;
+  /** The app in front and its window title as they speak, so a misheard word reads in context. */
+  readonly lookingAt?: () => Promise<{ app?: string; title?: string } | undefined>;
+  /** The hour of the day, for a greeting; the clock the test sets otherwise. */
+  readonly hour?: () => number;
 }
+
+/** How a person asked, set by the keys they held and never by a word they said. */
+export interface AskOptions {
+  readonly intent?: AskIntent;
+}
+
+/** A greeting holds for this long, the same span the daemon counts as one sitting. */
+const GREETING_HOLDS_MS = 30 * 60 * 1_000;
+/** How long the front app may take to read before the question goes without it. */
+const LOOKING_AT_PATIENCE_MS = 150;
 
 /** Long enough to say "yes, go ahead" and have the brain propose it. */
 export const ANSWER_WINDOW_MS = 120_000;
@@ -85,6 +107,17 @@ export class Talking {
   private phoneHolds = false;
   /** Events are said one at a time, in order, so two never talk over each other. */
   private turns: Promise<void> = Promise.resolve();
+  /** Set once any words of the reply are said this turn, so a second breath is not taken for a new question. */
+  private answering = false;
+  private readonly chimes: Chimes | undefined;
+  private readonly name: () => string | undefined;
+  private readonly lookingAt: (() => Promise<{ app?: string; title?: string } | undefined>) | undefined;
+  private readonly hour: () => number;
+  /** Said back when the person calls it, the way somebody looks up from their desk. */
+  private readonly wakeLines = new WakeLines();
+  private lastCalled: number | undefined;
+  /** When it last greeted them out loud, which the brain hears of so the same hello is never said twice. */
+  private greetedAt: number | undefined;
 
   constructor(
     private readonly link: DaemonLink,
@@ -98,6 +131,29 @@ export class Talking {
     this.now = options.now ?? Date.now;
     this.quietLimitMs = options.quietLimitMs ?? QUIET_LIMIT_MS;
     this.owner = options.owner ?? (() => undefined);
+    this.name = options.name ?? (() => undefined);
+    this.chimes = options.chimes;
+    this.lookingAt = options.lookingAt;
+    this.hour = options.hour ?? (() => new Date(this.now()).getHours());
+  }
+
+  /** Whether any words of the reply were said this turn. */
+  get spokeThisTurn(): boolean {
+    return this.answering;
+  }
+
+  /** Whether the voice is still asking about this held call, since one answered elsewhere is not waited on. */
+  stillAsking(subject: string): boolean {
+    return this.asking === subject;
+  }
+
+  /** The line for being called now: a greeting for the hour the first time in a while, a word or two after. */
+  answerToCall(): string {
+    const at = this.now();
+    const since = this.lastCalled === undefined ? undefined : at - this.lastCalled;
+    this.lastCalled = at;
+    if (since === undefined || since >= FRESH_AFTER_MS) this.greetedAt = at;
+    return this.wakeLines.line({ address: this.owner(), name: this.name(), hour: this.hour(), sinceLastCallMs: since, at });
   }
 
   get state(): TalkState {
@@ -129,18 +185,37 @@ export class Talking {
     if (!on && this.current.phase === 'listening') this.update({ phase: 'idle' });
   }
 
-  /** What the person said, whole. No keyword decides anything here; the brain understands it. */
-  async heard(said: string, finished = false): Promise<void> {
-    const words = said.trim();
+  /**
+   * What the person said, whole. No keyword decides anything here; the brain understands it. `finished`
+   * says the brain held for the rest and none came; `intent` is how they asked, set by the keys they held.
+   */
+  async heard(said: string, finished = false, ask: AskOptions = {}): Promise<void> {
+    const trimmed = said.trim();
+    // Its name called at either end is somebody getting its attention, not part of the question.
+    const words = withoutTrailingName(withoutLeadingName(trimmed));
     // A lone "." is the recognizer hearing noise, and answering it makes the voice talk to nobody.
     if (!/\p{L}/u.test(words)) return;
     this.interrupted = false;
+    this.answering = false;
     this.lastHeard = this.now();
+    // Its name alone is somebody getting its attention, answered the way the wake word is.
+    if (nameAlone(trimmed)) {
+      await this.say(this.answerToCall());
+      return;
+    }
+    this.chimes?.play('sent');
     this.update({ phase: 'thinking', heard: words, reply: '', failure: undefined });
     const request: DaemonRequest = { ...this.request(DAEMON_METHOD.ASK), said: words };
     if (finished) request.finished = true;
+    if (ask.intent !== undefined) request.intent = ask.intent;
+    if (this.greetedAt !== undefined && this.now() - this.greetedAt < GREETING_HOLDS_MS) request.greeted = true;
+    const front = await this.front();
+    if (front?.app !== undefined) request.lookingAt = front.app;
+    if (front?.title !== undefined) request.lookingAtWindow = front.title;
     const told = await this.speakStream(request);
     this.update({ phase: 'idle', failure: failureOf(told) });
+    // Heard before the apology starts, so a broken turn never sounds like a slow one.
+    if (told.kind !== 'spoke' && told.kind !== 'silent') this.chimes?.play('failed');
     if (told.kind === 'unreachable') await this.say(LINES.unreachable);
     if (told.kind === 'refused') await this.say(told.why === LINES.tooOld || told.why === LINES.stalled ? told.why : `My apologies, I could not ask that: ${told.why}.`);
   }
@@ -283,6 +358,7 @@ export class Talking {
     if (chunk.kind === 'text') {
       // After keep_listening nothing more is said this turn, since anything would talk over them.
       if (this.holding || this.interrupted) return false;
+      if ((chunk.text ?? '') !== '') this.answering = true;
       this.update({ phase: 'speaking', reply: this.current.reply + (chunk.text ?? '') });
       for (const sentence of sentences.push(chunk.text ?? '')) this.flow(sentence);
     } else if (chunk.kind === 'tool') {
@@ -326,6 +402,20 @@ export class Talking {
   private async say(sentence: string): Promise<void> {
     this.speaker.queue(sentence);
     await this.speaker.drained();
+  }
+
+  /** The app in front, read quickly or not at all, since the question must never wait on it. */
+  private async front(): Promise<{ app?: string; title?: string } | undefined> {
+    if (this.lookingAt === undefined) return undefined;
+    let cancel: () => void = () => undefined;
+    const late = new Promise<undefined>((resolve) => {
+      cancel = this.timer(LOOKING_AT_PATIENCE_MS, () => resolve(undefined));
+    });
+    try {
+      return await Promise.race([this.lookingAt().catch(() => undefined), late]);
+    } finally {
+      cancel();
+    }
   }
 
   private request(method: DaemonRequest['method']): DaemonRequest {

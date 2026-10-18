@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
-import { DAEMON_EVENT, DISPLAY, type DaemonEvent, type ToolSignIn } from '@memnox/core/wire';
+import { ASK_INTENT, DAEMON_EVENT, DISPLAY, type DaemonEvent, type ToolSignIn } from '@memnox/core/wire';
 import type { HeldCalls, HeldOutcome, Talking, Timer } from '../../core';
 import { Chiming } from '../../core/application/chiming';
 import { Diary } from '../../core/application/diary';
@@ -13,7 +13,7 @@ import { answerMenuOpened, forwardCards, onCardSession, onMenuAction, showScan }
 /** How the talk key reads on Windows and Linux. */
 const TALK_KEYS = ['Ctrl', 'Alt', 'Space'];
 /** A sign in that finished this long after it was asked carries on what was asked; older, it is only shown. */
-const RESUME_WITHIN_MS = 120_000;
+const RESUME_WITHIN_MS = 60_000;
 /** What the diary's heading says this computer is. */
 const MACHINE = navigator.userAgent.includes('Windows') ? 'Windows' : 'Linux';
 
@@ -72,7 +72,8 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
     const resume = event.signedIn?.resume;
     if (event.kind !== DAEMON_EVENT.NOTICE || event.notice !== 'signed-in' || resume === undefined || event.signedIn?.account === undefined) return;
     if (Date.now() - Date.parse(event.at) > RESUME_WITHIN_MS) return;
-    void parts.talking.heard(resume, true);
+    // Marked as asked again, so nothing the brain proposes from it counts as words the person just said.
+    void parts.talking.heard(resume, true, { intent: ASK_INTENT.RESUME });
   }
 
   onMenuAction((action) => {

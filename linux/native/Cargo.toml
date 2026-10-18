@@ -9,7 +9,7 @@ publish = false
 [features]
 default = ["island"]
 # The layer shell island needs GTK, so it can be left out to check the rest without a GTK sysroot.
-island = ["dep:gtk", "dep:gtk-layer-shell"]
+island = ["dep:gtk", "dep:gtk-layer-shell", "dep:wayland-client", "dep:wayland-protocols-plasma", "dep:x11-dl", "dep:wayland-backend"]
 
 [dependencies]
 memnox-desktop-key = { path = "../../shared/tauri-core/crates/desktop-key" }
@@ -20,3 +20,11 @@ rand_core = { version = "0.6", features = ["getrandom"] }
 secret-service = { version = "4", features = ["rt-tokio-crypto-rust"] }
 gtk = { version = "0.18", optional = true }
 gtk-layer-shell = { version = "0.8", features = ["v0_6"], optional = true }
+# The tray icon as a StatusNotifierItem, which hears a left click as appindicator never does.
+ksni = { version = "0.3.6", features = ["blocking"] }
+libc = "0.2"
+# KWin's blur behind the tray panel: the Wayland protocol on GTK's own display, the X11 property otherwise.
+wayland-client = { version = "0.31", optional = true }
+wayland-backend = { version = "0.3", features = ["client_system", "dlopen"], optional = true }
+wayland-protocols-plasma = { version = "0.3", features = ["client"], optional = true }
+x11-dl = { version = "2.21", optional = true }

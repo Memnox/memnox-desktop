@@ -40,6 +40,8 @@ libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 memnox-windows = { path = "../../../windows/native" }
+# Acrylic behind the tray panel on Windows 11, as the Mac lays its menu panel on a material.
+window-vibrancy = "0.8"
 windows = { version = "0.61", features = [
   "Win32_Foundation",
   "Win32_System_Com",

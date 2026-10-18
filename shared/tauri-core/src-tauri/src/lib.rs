@@ -5,6 +5,7 @@
 mod awake;
 mod cloud;
 mod daemon;
+mod glass;
 mod island;
 mod key;
 mod keys;
@@ -37,6 +38,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(awake::Awake::default())
         .manage(relay::Relays::default())
+        .manage(glass::Glassed::default())
         .manage(Arc::new(island::HitAreas::default()))
         .setup(|app| {
             let window = app
@@ -133,6 +135,7 @@ pub fn run() {
             tray::tray_action,
             tray::tray_panel_hide,
             tray::tray_panel_fit,
+            glass::glass_applied,
             panels::cards_show,
             panels::cards_hide,
             panels::cards_fit,
@@ -148,6 +151,7 @@ pub fn run() {
             sessions::open_link,
             settings_windows::open_settings,
             settings_windows::open_onboarding,
+            settings_windows::onboarding_veil,
             settings_windows::close_window,
             settings_windows::apply_appearance,
             settings_windows::start_at_sign_in,

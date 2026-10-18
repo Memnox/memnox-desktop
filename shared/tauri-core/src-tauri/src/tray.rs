@@ -2,13 +2,16 @@
 //! same rows for a right click, and for Linux desktops whose tray only ever shows a menu. Starting at sign
 //! in is on unless the person turns it off, since a held call that arrives with Memnox closed waits unseen.
 //!
+//! On Linux the icon is a StatusNotifierItem, since appindicator never tells the app of a left click; the
+//! Tauri tray stands in only where no StatusNotifierItem host runs.
+//!
 //! The panel asks; the island does. Every row but Quit is sent to the island as `menu-action`, so talking,
 //! a rule, mute, Settings and copying what happened each stay with whoever owns them.
 
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{
-    App, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Rect, WebviewUrl,
+    App, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl,
     WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry,
 };
 use tauri_plugin_autostart::ManagerExt;
@@ -43,6 +46,10 @@ const INSET: f64 = 8.0;
 
 pub fn build(app: &App) -> tauri::Result<()> {
     make_panel(app.handle())?;
+    #[cfg(target_os = "linux")]
+    if status_item(app.handle()) {
+        return Ok(());
+    }
     let starts = app.autolaunch().is_enabled().unwrap_or(false);
     let open = MenuItem::with_id(app, PANEL_ITEM, "Open Memnox", true, None::<&str>)?;
     let rows = ACTIONS
@@ -76,11 +83,10 @@ pub fn build(app: &App) -> tauri::Result<()> {
         tray = tray.icon(icon.clone());
     }
     tray.on_menu_event(move |app, event| match event.id().as_ref() {
-        SHOW => show_island(app),
-        PANEL_ITEM => show_panel(app, None),
-        AT_SIGN_IN => toggle_at_sign_in(app, &at_sign_in),
-        QUIT => app.exit(0),
-        action => tell_island(app, action),
+        AT_SIGN_IN => {
+            let _ = at_sign_in.set_checked(flip_at_sign_in(app));
+        }
+        row => pressed(app, row),
     })
     .on_tray_icon_event(|tray, event| {
         if let TrayIconEvent::Click {
@@ -90,11 +96,107 @@ pub fn build(app: &App) -> tauri::Result<()> {
             ..
         } = event
         {
-            toggle_panel(tray.app_handle(), rect);
+            let app = tray.app_handle();
+            let scale = panel(app)
+                .and_then(|window| window.scale_factor().ok())
+                .unwrap_or(1.0);
+            let at: PhysicalPosition<f64> = rect.position.to_physical(scale);
+            let size: PhysicalSize<f64> = rect.size.to_physical(scale);
+            toggle_panel(
+                app,
+                Some(Area {
+                    x: at.x,
+                    y: at.y,
+                    width: size.width,
+                    height: size.height,
+                }),
+            );
         }
     })
     .build(app)?;
     Ok(())
+}
+
+/// A row of either tray's menu, except starting at sign in, whose tick each tray keeps its own way.
+fn pressed(app: &AppHandle, row: &str) {
+    match row {
+        SHOW => show_island(app),
+        PANEL_ITEM => show_panel(app, None),
+        QUIT => app.exit(0),
+        action => tell_island(app, action),
+    }
+}
+
+/// The icon in a StatusNotifierItem host, KDE Plasma's own tray or GNOME's AppIndicator extension; false
+/// when none runs, so the caller puts up the Tauri tray instead.
+#[cfg(target_os = "linux")]
+fn status_item(app: &AppHandle) -> bool {
+    use memnox_linux::{StatusItem, StatusPress, StatusRow};
+    use std::sync::{Arc, OnceLock};
+
+    let Some(icon) = app.default_window_icon() else {
+        return false;
+    };
+    let row = |id: &str, title: &str| StatusRow::Press {
+        id: id.into(),
+        title: title.into(),
+    };
+    let mut rows = vec![row(PANEL_ITEM, "Open Memnox"), StatusRow::Separator];
+    rows.extend(ACTIONS.iter().map(|(id, title)| row(id, title)));
+    rows.extend([
+        StatusRow::Separator,
+        row(SHOW, "Show the island"),
+        StatusRow::Tick {
+            id: AT_SIGN_IN.into(),
+            title: "Start when you sign in".into(),
+        },
+        row(QUIT, "Quit Memnox"),
+    ]);
+    let starts = app.autolaunch().is_enabled().unwrap_or(false);
+    let item: Arc<OnceLock<StatusItem>> = Arc::default();
+    let (told, kept) = (app.clone(), item.clone());
+    let started = StatusItem::start(
+        icon.rgba(),
+        icon.width(),
+        icon.height(),
+        rows,
+        starts,
+        move |press| match press {
+            // GNOME's extension often gives 0, 0, so the panel opens by the pointer instead.
+            StatusPress::Open { x: 0, y: 0 } => toggle_panel(&told, None),
+            StatusPress::Open { x, y } => toggle_panel(
+                &told,
+                Some(Area {
+                    x: f64::from(x),
+                    y: f64::from(y),
+                    width: 1.0,
+                    height: 1.0,
+                }),
+            ),
+            StatusPress::Row(id) if id == AT_SIGN_IN => {
+                let on = flip_at_sign_in(&told);
+                let kept = kept.clone();
+                // The tick is set from another thread, since this runs inside the item's own service.
+                std::thread::spawn(move || {
+                    if let Some(item) = kept.get() {
+                        item.set_ticked(on);
+                    }
+                });
+            }
+            StatusPress::Row(id) => pressed(&told, &id),
+        },
+    );
+    match started {
+        Ok(started) => {
+            let _ = item.set(started);
+            app.manage(item);
+            true
+        }
+        Err(why) => {
+            eprintln!("Memnox: no StatusNotifierItem host, so the tray falls back to appindicator: {why}");
+            false
+        }
+    }
 }
 
 /// The panel's window, made once and hidden: borderless, transparent, above the rest and out of the taskbar.
@@ -110,6 +212,7 @@ fn make_panel(app: &AppHandle) -> tauri::Result<()> {
         .shadow(false)
         .visible(false)
         .build()?;
+    crate::glass::panel(&window);
     // A click anywhere else closes it, as the Mac's transient panel closes.
     let hide = window.clone();
     window.on_window_event(move |event| {
@@ -124,31 +227,19 @@ fn panel(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(PANEL)
 }
 
-fn toggle_panel(app: &AppHandle, icon: Rect) {
+fn toggle_panel(app: &AppHandle, icon: Option<Area>) {
     match panel(app) {
         Some(window) if window.is_visible().unwrap_or(false) => {
             let _ = window.hide();
         }
-        _ => show_panel(app, Some(icon)),
+        _ => show_panel(app, icon),
     }
 }
 
 /// Shows the panel beside the icon, or near the pointer when the tray gave no place, and tells it it opened.
-fn show_panel(app: &AppHandle, icon: Option<Rect>) {
+fn show_panel(app: &AppHandle, icon: Option<Area>) {
     let Some(window) = panel(app) else { return };
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let icon = icon
-        .map(|rect| {
-            let at: PhysicalPosition<f64> = rect.position.to_physical(scale);
-            let size: PhysicalSize<f64> = rect.size.to_physical(scale);
-            Area {
-                x: at.x,
-                y: at.y,
-                width: size.width,
-                height: size.height,
-            }
-        })
-        .or_else(|| {
+    let icon = icon.or_else(|| {
             app.cursor_position().ok().map(|at| Area {
                 x: at.x,
                 y: at.y,
@@ -181,6 +272,7 @@ fn show_panel(app: &AppHandle, icon: Option<Rect>) {
     }
     let _ = window.show();
     let _ = window.set_focus();
+    crate::glass::reshape_panel(&window);
     let _ = app.emit(MENU_OPENED, ());
 }
 
@@ -265,6 +357,7 @@ pub fn tray_panel_fit(app: AppHandle, width: f64, height: f64) -> Result<(), Str
         return Ok(());
     }
     window.set_size(size).map_err(|error| error.to_string())?;
+    crate::glass::reshape_panel(&window);
     // Opened upward from a tray at the bottom, its bottom edge stays by the icon as it grows.
     let opened_up = window
         .current_monitor()
@@ -294,7 +387,8 @@ pub fn show_island(app: &AppHandle) {
     }
 }
 
-fn toggle_at_sign_in(app: &AppHandle, item: &CheckMenuItem<Wry>) {
+/// Turns starting at sign in over, and says whether it is now on, for the row's tick.
+fn flip_at_sign_in(app: &AppHandle) -> bool {
     let autolaunch = app.autolaunch();
     let on = !autolaunch.is_enabled().unwrap_or(false);
     let changed = if on {
@@ -302,7 +396,7 @@ fn toggle_at_sign_in(app: &AppHandle, item: &CheckMenuItem<Wry>) {
     } else {
         autolaunch.disable()
     };
-    let _ = item.set_checked(changed.is_ok() == on);
+    changed.is_ok() == on
 }
 
 /// The first run turns starting at sign in on; afterwards the person's choice in the tray stands.

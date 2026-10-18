@@ -3,15 +3,23 @@
 //! nothing off Linux, so the app's one crate builds on every desktop.
 
 #[cfg(all(target_os = "linux", feature = "island"))]
+mod glass;
+#[cfg(all(target_os = "linux", feature = "island"))]
 mod island;
 #[cfg(target_os = "linux")]
 mod power;
 #[cfg(target_os = "linux")]
 mod secret_key;
+#[cfg(target_os = "linux")]
+mod tray;
 
+#[cfg(all(target_os = "linux", feature = "island"))]
+pub use glass::{blur_behind, blur_offered, Rounded};
 #[cfg(all(target_os = "linux", feature = "island"))]
 pub use island::{island_keyboard, make_floating, make_island, set_input_region, set_monitor, Hang};
 #[cfg(target_os = "linux")]
 pub use power::{on_mains, KeepAwake};
 #[cfg(target_os = "linux")]
 pub use secret_key::SecretKey;
+#[cfg(target_os = "linux")]
+pub use tray::{StatusItem, StatusPress, StatusRow};

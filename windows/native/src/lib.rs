@@ -3,12 +3,16 @@
 //! nothing off Windows, so the app's one crate builds on every desktop.
 
 #[cfg(windows)]
+mod glass;
+#[cfg(windows)]
 mod island;
 #[cfg(windows)]
 mod power;
 #[cfg(windows)]
 mod tpm_key;
 
+#[cfg(windows)]
+pub use glass::{is_windows_11, round_corners};
 #[cfg(windows)]
 pub use island::{island_keyboard, make_island};
 #[cfg(windows)]

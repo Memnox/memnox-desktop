@@ -16,6 +16,13 @@ const TALK_KEYS = ['Ctrl', 'Alt', 'Space'];
 /** The room around the panel for its shadow, which the window keeps transparent. */
 const MARGIN = 12;
 
+/**
+ * What Rust laid behind the window: nothing, so the wash stays near solid; a backdrop that is the whole
+ * window, Windows 11's acrylic with its own corners and shadow, so the panel needs no margin; or KDE's blur
+ * under the panel's shape inside the margin.
+ */
+type Glass = 'none' | 'backdrop' | 'blur';
+
 const asked = new URLSearchParams(window.location.search);
 const preview = asked.get('preview') ?? undefined;
 if (asked.get('theme') === 'light' || asked.get('theme') === 'dark') document.documentElement.dataset.theme = asked.get('theme') ?? undefined;
@@ -56,6 +63,21 @@ function TrayWindow() {
     () => tools?.state,
   );
   const holder = useRef<HTMLDivElement>(null);
+  const [glass, setGlass] = useState<Glass>('none');
+  const margin = glass === 'backdrop' ? 0 : MARGIN;
+
+  // The solid wash goes only once Rust says glass is behind the window, since GNOME and Windows 10 give none.
+  useEffect(() => {
+    if (preview !== undefined) return;
+    void invoke<Glass>('glass_applied')
+      .then((got) => {
+        if (got === 'none') return;
+        delete document.documentElement.dataset.solid;
+        document.documentElement.dataset.glass = got;
+        setGlass(got);
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (preview !== undefined) return;
@@ -80,12 +102,12 @@ function TrayWindow() {
     if (element === null || preview !== undefined) return;
     const fit = () => {
       const box = element.getBoundingClientRect();
-      void invoke('tray_panel_fit', { width: Math.ceil(box.width) + 2 * MARGIN, height: Math.ceil(box.height) + 2 * MARGIN }).catch(() => undefined);
+      void invoke('tray_panel_fit', { width: Math.ceil(box.width) + 2 * margin, height: Math.ceil(box.height) + 2 * margin }).catch(() => undefined);
     };
     const watcher = new ResizeObserver(fit);
     watcher.observe(element);
     return () => watcher.disconnect();
-  }, []);
+  }, [margin]);
 
   const state: TrayPanelState =
     preview !== undefined
@@ -104,7 +126,7 @@ function TrayWindow() {
   }
 
   return (
-    <div style={{ padding: MARGIN, display: 'inline-block' }}>
+    <div style={{ padding: margin, display: 'inline-block' }}>
       <div ref={holder}>
         <TrayPanel state={state} opened={opened} onAction={act} online={preview === undefined} />
       </div>

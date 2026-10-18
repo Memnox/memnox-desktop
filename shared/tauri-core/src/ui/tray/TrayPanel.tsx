@@ -28,7 +28,7 @@ export function TrayPanel({ state, opened, onAction, online = true }: { state: T
   return (
     <div
       key={opened}
-      className="flex flex-col gap-2.5 rounded-[22px] p-3 font-sans text-ink"
+      className="mx-tray-panel flex flex-col gap-2.5 rounded-[22px] p-3 font-sans text-ink"
       style={{
         width: MENU_PANEL.width,
         background: 'var(--mx-menu-wash)',

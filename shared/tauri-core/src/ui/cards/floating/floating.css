@@ -65,8 +65,9 @@
 }
 
 /*
- * A real window cannot blur the desktop behind it, so outside the browser preview the panel's wash is
- * near solid in the same tone, the way the Mac's material reads over a plain desktop.
+ * Where nothing blurs the desktop behind the window, which is GNOME, Windows 10 and any desktop but KDE,
+ * the panel's wash is near solid in the same tone, the way the Mac's material reads over a plain desktop.
+ * Rust says when glass is there, and the page then drops `data-solid` for the Mac's own wash.
  */
 :root[data-solid] {
   --mx-menu-wash: rgb(246 246 248 / 0.97);
@@ -78,4 +79,14 @@
   :root[data-solid]:not([data-theme="light"]) {
     --mx-menu-wash: rgb(30 30 32 / 0.96);
   }
+}
+
+/*
+ * On Windows 11 the whole window is the acrylic, rounded and shadowed by the system as its own menus are,
+ * so the panel fills it with no corner, edge or shadow of its own.
+ */
+:root[data-glass="backdrop"] .mx-tray-panel {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
 }

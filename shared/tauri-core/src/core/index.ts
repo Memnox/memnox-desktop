@@ -20,3 +20,7 @@ export { ANOTHER_KEY_LINE, type KeyStatus } from './domain/key-status';
 export { isAtLeast, MINIMUM_RUNTIME, type RuntimeState } from './domain/runtime-state';
 export { OrbMotion, orbFit, type OrbState, type OrbUniforms, type Reaction } from './domain/orb-motion';
 export { WaitingCalls, type WaitingEntry } from './domain/waiting-calls';
+export { agentColour, agentKind } from './domain/agent-colour';
+export { ELLIPSIS, middleCut } from './domain/middle-cut';
+export { notchPath, notchRadius } from './domain/notch-shape';
+export { atRest, cubicBezier, SHRINK, springConstants, springStep, SPRINGS, type Moving, type Spring } from './domain/spring';

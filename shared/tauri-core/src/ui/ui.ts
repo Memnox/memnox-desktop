@@ -1,13 +1,25 @@
-/** The island's few shared looks, as Tailwind classes, so every button and note reads the same. */
+import { islandButtonClass } from './kit';
+import { PRESSABLE } from './kit/press';
+
+/**
+ * The few shared looks the Settings panel still reads by name, now drawn as the Mac's island draws
+ * them: `primary` and `quiet` are the IslandButton pill, `icon` a bare glyph that presses. New screens
+ * use the kit directly.
+ */
 const BUTTON = {
-  primary: 'border-ink bg-ink font-semibold text-ground hover:bg-ink/90',
-  quiet: 'border-line text-ink hover:bg-white/5',
-  icon: 'border-transparent px-1.5 text-muted hover:text-ink',
+  primary: islandButtonClass('primary'),
+  quiet: islandButtonClass('secondary'),
+  icon: `${PRESSABLE} inline-flex items-center justify-center text-white disabled:opacity-40`,
+  /** A 24 circle of white 10%, as the Mac's round close and copy buttons are. */
+  round: `${PRESSABLE} grid size-6 place-items-center rounded-full bg-white/10 text-white/[0.92]`,
 } as const;
 
 export function button(kind: keyof typeof BUTTON): string {
-  return `inline-flex items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 cursor-pointer transition-colors disabled:cursor-default disabled:opacity-40 ${BUTTON[kind]}`;
+  return BUTTON[kind];
 }
 
-/** A line under a card saying why a press did not go through, or what to check. */
-export const note = 'flex items-start gap-1.5 text-xs text-deny';
+/** A failure said on a card: 11 red, beside a TriangleAlert. */
+export const note = 'flex items-start gap-1.5 text-caption text-red';
+
+/** A call settled elsewhere: 13 green, beside a filled check. */
+export const settledNote = 'flex items-center gap-1.5 text-body text-green';

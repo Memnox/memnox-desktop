@@ -1,19 +1,428 @@
 @import "tailwindcss";
 
 /*
- * The island is always dark, as the Mac's notch is, so it carries memnox-client's dark palette from
- * packages/ui/src/styles/globals.css and nothing else: one blue, neutrals sampled from the web app.
+ * The Mac's design system, from macos/Sources/MemnoxVoice/Presentation/DesignSystem.swift and the
+ * island's IslandLayout.swift, as tokens every window draws with. Points are CSS pixels at 100% scaling.
+ *
+ * Three layers:
+ *  1. the adaptive palette, `--mx-*`, light under :root and dark under data-theme or the system, so
+ *     Settings and the other windows follow Light, Dark or System;
+ *  2. the island palette, which never adapts, because the island is pinned dark as the Mac's notch is;
+ *  3. Tailwind 4 `@theme` names over both, so a class reads `bg-island-card` or `text-ink-secondary`.
+ *
+ * The Mac's spacing scale (2, 4, 6, 8, 10, 12, 16, 20) is Tailwind's own 4 px grid, so it needs no
+ * names of its own: xxSmall 0.5, xSmall 1, small 1.5, medium 2, regular 2.5, large 3, xLarge 4, xxLarge 5.
+ * The same values are kept as `--mx-space-*` for code that measures in pixels.
  */
+
+/* Light, the default for every window that is not the island. */
+:root {
+  --mx-background: #fafafa;
+  --mx-card: #f1f1f1;
+  --mx-secondary: #ffffff;
+  --mx-control-edge: rgb(0 0 0 / 0.12);
+  --mx-border: #d9d9d9;
+  --mx-foreground: #222222;
+  --mx-muted: #797979;
+  --mx-faint: #b2b2b2;
+  --mx-ink: #0d0d0d;
+  --mx-success: #1f7a35;
+  --mx-warm: #b25000;
+  --mx-destructive: #c4001a;
+  --mx-surface: #ededf0;
+  --mx-rim: #fafafb;
+  --mx-panel-edge: #d6d6da;
+  --mx-capsule: #ffffff;
+  --mx-capsule-edge: #e0e0e0;
+  --mx-hover: rgb(0 0 0 / 0.05);
+  --mx-field: rgb(0 0 0 / 0.07);
+  --mx-field-edge: rgb(0 0 0 / 0.06);
+  --mx-keycap: #ffffff;
+  --mx-raised: #ffffff;
+  --mx-panel: #ffffff;
+  --mx-sky: #1e6fd0;
+  /* Light ink is white level 0.05 at min(1, x * 1.35), as Memnox.ink(x) draws it on a light window. */
+  --mx-ink-primary: rgb(13 13 13 / 1);
+  --mx-ink-secondary: rgb(13 13 13 / 0.837);
+  --mx-ink-tertiary: rgb(13 13 13 / 0.675);
+  --mx-ink-fill: rgb(13 13 13 / 0.108);
+  --mx-ink-faint-fill: rgb(13 13 13 / 0.081);
+  --mx-ink-edge: rgb(13 13 13 / 0.189);
+  --mx-ink-rim: rgb(13 13 13 / 0.0945);
+  /* The answer that lets something happen is near black on a light window and white in the notch. */
+  --mx-primary-fill: #0d0d0d;
+  --mx-primary-text: #ffffff;
+  --mx-soft: #5f646d;
+
+  --mx-space-xxs: 2px;
+  --mx-space-xs: 4px;
+  --mx-space-sm: 6px;
+  --mx-space-md: 8px;
+  --mx-space-rg: 10px;
+  --mx-space-lg: 12px;
+  --mx-space-xl: 16px;
+  --mx-space-xxl: 20px;
+
+  --mx-stroke-hairline: 1px;
+  --mx-stroke-emphasis: 1.5px;
+
+  --mx-duration-quick: 200ms;
+  --mx-duration-standard: 300ms;
+  --mx-duration-slow: 500ms;
+
+  color-scheme: light;
+}
+
+/*
+ * Dark, chosen in Settings or followed from the system. The same block twice, because a selector list
+ * cannot hold a media query; the island root always carries data-theme="dark".
+ */
+:root[data-theme="dark"],
+[data-theme="dark"] {
+  --mx-background: #1e1e1e;
+  --mx-card: #262626;
+  --mx-secondary: #383838;
+  --mx-control-edge: rgb(255 255 255 / 0);
+  --mx-border: #3b3b3b;
+  --mx-foreground: #e1e1e1;
+  --mx-muted: #9e9e9f;
+  --mx-faint: #5e5e5f;
+  --mx-ink: #ffffff;
+  --mx-success: #30d158;
+  --mx-warm: #ff9f0a;
+  --mx-destructive: #ff453a;
+  --mx-surface: #28282b;
+  --mx-rim: #4b4b4d;
+  --mx-panel-edge: #3a3a3d;
+  --mx-capsule: #262626;
+  --mx-capsule-edge: #3b3b3b;
+  --mx-hover: rgb(255 255 255 / 0.07);
+  --mx-field: rgb(255 255 255 / 0.16);
+  --mx-field-edge: rgb(255 255 255 / 0.08);
+  --mx-keycap: #454545;
+  --mx-raised: #2f2f2f;
+  --mx-panel: #141518;
+  --mx-sky: #8cc8ff;
+  --mx-ink-primary: rgb(255 255 255 / 0.92);
+  --mx-ink-secondary: rgb(255 255 255 / 0.62);
+  --mx-ink-tertiary: rgb(255 255 255 / 0.5);
+  --mx-ink-fill: rgb(255 255 255 / 0.08);
+  --mx-ink-faint-fill: rgb(255 255 255 / 0.06);
+  --mx-ink-edge: rgb(255 255 255 / 0.14);
+  --mx-ink-rim: rgb(255 255 255 / 0.07);
+  --mx-primary-fill: #f5f6f8;
+  --mx-primary-text: #0b0c0e;
+  --mx-soft: #c9cdd4;
+  color-scheme: dark;
+}
+
+/* System, where the window was told neither: it follows the computer. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --mx-background: #1e1e1e;
+    --mx-card: #262626;
+    --mx-secondary: #383838;
+    --mx-control-edge: rgb(255 255 255 / 0);
+    --mx-border: #3b3b3b;
+    --mx-foreground: #e1e1e1;
+    --mx-muted: #9e9e9f;
+    --mx-faint: #5e5e5f;
+    --mx-ink: #ffffff;
+    --mx-success: #30d158;
+    --mx-warm: #ff9f0a;
+    --mx-destructive: #ff453a;
+    --mx-surface: #28282b;
+    --mx-rim: #4b4b4d;
+    --mx-panel-edge: #3a3a3d;
+    --mx-capsule: #262626;
+    --mx-capsule-edge: #3b3b3b;
+    --mx-hover: rgb(255 255 255 / 0.07);
+    --mx-field: rgb(255 255 255 / 0.16);
+    --mx-field-edge: rgb(255 255 255 / 0.08);
+    --mx-keycap: #454545;
+    --mx-raised: #2f2f2f;
+    --mx-panel: #141518;
+    --mx-sky: #8cc8ff;
+    --mx-ink-primary: rgb(255 255 255 / 0.92);
+    --mx-ink-secondary: rgb(255 255 255 / 0.62);
+    --mx-ink-tertiary: rgb(255 255 255 / 0.5);
+    --mx-ink-fill: rgb(255 255 255 / 0.08);
+    --mx-ink-faint-fill: rgb(255 255 255 / 0.06);
+    --mx-ink-edge: rgb(255 255 255 / 0.14);
+    --mx-ink-rim: rgb(255 255 255 / 0.07);
+    --mx-primary-fill: #f5f6f8;
+    --mx-primary-text: #0b0c0e;
+    --mx-soft: #c9cdd4;
+    color-scheme: dark;
+  }
+}
+
+/* The adaptive palette under Tailwind names, read through the variables so a theme change repaints. */
+@theme inline {
+  --color-background: var(--mx-background);
+  --color-card: var(--mx-card);
+  --color-secondary: var(--mx-secondary);
+  --color-control-edge: var(--mx-control-edge);
+  --color-border: var(--mx-border);
+  --color-foreground: var(--mx-foreground);
+  --color-muted: var(--mx-muted);
+  --color-faint: var(--mx-faint);
+  --color-ink: var(--mx-ink);
+  --color-success: var(--mx-success);
+  --color-warm: var(--mx-warm);
+  --color-destructive: var(--mx-destructive);
+  --color-surface: var(--mx-surface);
+  --color-rim: var(--mx-rim);
+  --color-panel-edge: var(--mx-panel-edge);
+  --color-capsule: var(--mx-capsule);
+  --color-capsule-edge: var(--mx-capsule-edge);
+  --color-hover: var(--mx-hover);
+  --color-field: var(--mx-field);
+  --color-field-edge: var(--mx-field-edge);
+  --color-keycap: var(--mx-keycap);
+  --color-raised: var(--mx-raised);
+  --color-panel: var(--mx-panel);
+  --color-sky: var(--mx-sky);
+  --color-ink-primary: var(--mx-ink-primary);
+  --color-ink-secondary: var(--mx-ink-secondary);
+  --color-ink-tertiary: var(--mx-ink-tertiary);
+  --color-ink-fill: var(--mx-ink-fill);
+  --color-ink-faint-fill: var(--mx-ink-faint-fill);
+  --color-ink-edge: var(--mx-ink-edge);
+  --color-ink-rim: var(--mx-ink-rim);
+  --color-primary-fill: var(--mx-primary-fill);
+  --color-primary-text: var(--mx-primary-text);
+  --color-soft: var(--mx-soft);
+}
+
 @theme {
-  --color-ground: #030303;
-  --color-card: #0f0f0f;
-  --color-ink: #fdfdfd;
-  --color-muted: #adadad;
-  --color-line: #313131;
-  --color-primary: #1e86ee;
-  --color-deny: #f0803f;
-  --color-danger: #e31957;
-  --font-sans: "Segoe UI Variable", "Segoe UI", Inter, "Noto Sans", system-ui, sans-serif;
+  /* The same in both appearances. */
+  --color-primary: #3b82f7;
+  /* The orb's blue, and the fallback tool colour; never the brand blue of a picked ring. */
+  --color-deep: #1e86ee;
+
+  /* The island, always dark, from IslandPalette. */
+  --color-island: #000000;
+  --color-island-card: #141518;
+  --color-island-primary-fill: #f5f6f8;
+  --color-island-primary-text: #0b0c0e;
+  --color-quiet: #5f646d;
+  --color-island-soft: #c9cdd4;
+  --color-island-sky: #8cc8ff;
+  --color-red: #ff453a;
+  --color-green: #30d158;
+  --color-amber: #ff9f0a;
+  --color-indigo: #6366f1;
+  /* A label on its own tint, lifted a quarter of the way to white. */
+  --color-amber-lifted: #ffb747;
+  --color-primary-lifted: #6ca1f9;
+  --color-red-lifted: #ff746b;
+  --color-green-lifted: #64dd82;
+  --color-indigo-lifted: #8a8cf5;
+  --color-muted-lifted: #b6b6b7;
+
+  /* Each agent's own colour; `agentColour` in the core picks one for any other. */
+  --color-agent-claude: #d97757;
+  --color-agent-codex: #2dd4bf;
+  --color-agent-cursor: #c0c4cc;
+  --color-agent-gemini: #8ab4f8;
+  --color-agent-antigravity: #e879f9;
+  --color-agent-hermes: #a78bfa;
+  --color-agent-openclaw: #f7b32b;
+  --color-agent-cline: #38bdf8;
+  --color-agent-copilot: #7ee787;
+  --color-agent-opencode: #fb7185;
+
+  /* Names the Settings panel still reads, until its own window replaces it in a later phase. */
+  --color-ground: #000000;
+  --color-line: rgb(255 255 255 / 0.14);
+  --color-deny: #ff9f0a;
+  --color-danger: #ff453a;
+
+  /* SF Pro has no web twin, so the system face first and Inter where SF is missing. */
+  --font-sans: "SF Pro Text", -apple-system, Inter, "Segoe UI Variable Text", "Segoe UI", "Noto Sans", system-ui, sans-serif;
+  --font-display: "SF Pro Display", -apple-system, Inter, "Segoe UI Variable Display", "Segoe UI", "Noto Sans", system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, "DejaVu Sans Mono", monospace;
+  --font-rounded: "SF Pro Rounded", ui-rounded, Nunito, Inter, "Segoe UI Variable Text", system-ui, sans-serif;
+
+  /* The type scale, DesignSystem.swift's TextSize, and the island's own button size. */
+  --text-micro: 10px;
+  --text-caption: 11px;
+  --text-footnote: 12px;
+  --text-button: 12.5px;
+  --text-button--line-height: 15px;
+  --text-body: 13px;
+  --text-callout: 14px;
+  --text-headline: 15px;
+  --text-title: 17px;
+
+  /* Radii: control, card on a page, keycap; then the island's card and tile, and the command box. */
+  --radius-control: 6px;
+  --radius-card: 12px;
+  --radius-key: 4px;
+  --radius-island: 16px;
+  --radius-command: 10px;
+
+  /* SwiftUI's springs as the nearest CSS curves; the island's own size moves on a real spring in JS. */
+  --ease-press: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-notch-press: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --ease-notch-hover: cubic-bezier(0.34, 1.35, 0.64, 1);
+  --ease-grow: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --ease-shrink: cubic-bezier(0.45, 0, 0.2, 1);
+  --ease-snappy: cubic-bezier(0.25, 1.1, 0.4, 1);
+  --ease-arrive: cubic-bezier(0.3, 1.15, 0.6, 1);
+
+  --animate-pulse-dot: pulse-dot 1.8s ease-in-out infinite;
+  --animate-shimmer: shimmer 2.2s linear infinite;
+  --animate-shake: shake 420ms linear;
+  --animate-hop: hop 500ms ease-in-out;
+  --animate-header-in: fade-in 250ms ease-out 300ms both;
+  --animate-content-in: content-in 300ms ease-out 160ms both;
+  --animate-content-out: content-out 160ms ease-in both;
+  --animate-satellite-left: satellite-left 460ms cubic-bezier(0.34, 1.45, 0.64, 1) both;
+  --animate-satellite-right: satellite-right 460ms cubic-bezier(0.34, 1.45, 0.64, 1) both;
+  --animate-satellites-in: fade-in 360ms ease-out both;
+  --animate-pill-in: pill-in 350ms cubic-bezier(0.25, 1.1, 0.4, 1) both;
+  --animate-card-in: card-in 440ms cubic-bezier(0.3, 1.15, 0.6, 1) both;
+  --animate-caret: caret 1.1s ease-in-out infinite;
+
+  /* PulseEffect: a breath of 1.8 s, swelling 35% and fading 40% at its height. */
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.35);
+      opacity: 0.6;
+    }
+  }
+  /* ShimmerText: a bright band crossing the words once every 2.2 s. */
+  @keyframes shimmer {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: 0 0;
+    }
+  }
+  /* ShakeEffect: sin(p·6π)·9·(1 minus p), sampled. */
+  @keyframes shake {
+    0% { translate: 0; }
+    8% { translate: 7.6px; }
+    17% { translate: -7.5px; }
+    25% { translate: 6.1px; }
+    33% { translate: -5px; }
+    42% { translate: 3.8px; }
+    50% { translate: -3px; }
+    58% { translate: 2.2px; }
+    67% { translate: -1.5px; }
+    75% { translate: 1px; }
+    83% { translate: -0.5px; }
+    100% { translate: 0; }
+  }
+  /* HopEffect: a 5% swell hung from the top edge. */
+  @keyframes hop {
+    0%,
+    100% {
+      scale: 1;
+    }
+    50% {
+      scale: 1.05;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  /* Content arrives from a blur once the leaving content is gone, as islandContent does. */
+  @keyframes content-in {
+    from {
+      opacity: 0;
+      filter: blur(8px);
+      scale: 0.97;
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+      scale: 1;
+    }
+  }
+  @keyframes content-out {
+    from {
+      opacity: 1;
+      filter: blur(0);
+      scale: 1;
+    }
+    to {
+      opacity: 0;
+      filter: blur(8px);
+      scale: 0.97;
+    }
+  }
+  /* Satellites slide out from behind the island, tucked in by their reach of 56. */
+  @keyframes satellite-left {
+    from {
+      translate: 56px 0;
+      opacity: 0;
+    }
+    to {
+      translate: 0 0;
+      opacity: 1;
+    }
+  }
+  @keyframes satellite-right {
+    from {
+      translate: -56px 0;
+      opacity: 0;
+    }
+    to {
+      translate: 0 0;
+      opacity: 1;
+    }
+  }
+  @keyframes pill-in {
+    from {
+      translate: 0 -8px;
+      opacity: 0;
+    }
+    to {
+      translate: 0 0;
+      opacity: 1;
+    }
+  }
+  @keyframes card-in {
+    from {
+      opacity: 0;
+      scale: 0.97;
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+  @keyframes caret {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.25;
+    }
+  }
 }
 
 html,
@@ -22,4 +431,38 @@ body {
   background: transparent;
   overflow: hidden;
   user-select: none;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numbers that count keep their width, as `.monospacedDigit()` does. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Glass outside the island: the Mac's hudWindow vibrancy with its 10% blue tint and a 14% edge. */
+.mx-glass {
+  background:
+    linear-gradient(rgb(59 130 247 / 0.1), rgb(59 130 247 / 0.1)),
+    rgb(30 30 30 / 0.72);
+  backdrop-filter: blur(30px) saturate(1.6);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+}
+
+/* Reduce Motion skips the shake, the hop, the pulse, arrival offsets and the content blur, as the Mac does. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shake,
+  .animate-hop,
+  .animate-pulse-dot,
+  .animate-satellite-left,
+  .animate-satellite-right,
+  .animate-pill-in {
+    animation: none;
+  }
+  .animate-content-in {
+    animation-name: fade-in;
+  }
+  .animate-content-out {
+    animation-name: fade-out;
+  }
 }

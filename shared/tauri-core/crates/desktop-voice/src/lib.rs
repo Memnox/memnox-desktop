@@ -13,9 +13,9 @@ mod wav;
 
 pub use chimes::{chime_samples, Chimes, Cue, CHIME_RATE, CHIME_VOLUME};
 pub use ear::{Ear, EarEvent};
+pub use echo::{Canceller, FarEnd};
 pub use hearing::{loudness, loudness_of_rms, Hearing, HEARING_RATE};
 pub use models::{Progress, VoiceModels};
-pub use echo::{Canceller, FarEnd};
 pub use speaking::{held_speed, Level, Renders, Speaking, Voice, USUAL_SPEED, VOICES};
 pub use system::{SystemVoice, SYSTEM_VOICE};
 pub use wav::wav_samples;

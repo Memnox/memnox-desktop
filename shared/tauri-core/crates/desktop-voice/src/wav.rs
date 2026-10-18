@@ -19,12 +19,17 @@ pub fn wav_samples(bytes: &[u8]) -> Option<(Vec<f32>, u32)> {
         let size = u32::from_le_bytes(bytes[at + 4..at + 8].try_into().ok()?) as usize;
         let body = at + 8;
         if id == b"fmt " && body + 16 <= bytes.len() {
-            let word = |from: usize| u16::from_le_bytes([bytes[body + from], bytes[body + from + 1]]);
+            let word =
+                |from: usize| u16::from_le_bytes([bytes[body + from], bytes[body + from + 1]]);
             let rate = u32::from_le_bytes(bytes[body + 4..body + 8].try_into().ok()?);
             format = Some((word(0), word(2), rate, word(14)));
         } else if id == b"data" {
             let (kind, channels, rate, bits) = format?;
-            let end = if size == 0 || body + size > bytes.len() { bytes.len() } else { body + size };
+            let end = if size == 0 || body + size > bytes.len() {
+                bytes.len()
+            } else {
+                body + size
+            };
             let data = &bytes[body..end];
             let channels = usize::from(channels.max(1));
             let samples: Vec<f32> = match (kind, bits) {
@@ -73,13 +78,22 @@ mod tests {
 
     #[test]
     fn reads_sixteen_bit_mono_and_averages_stereo() {
-        assert_eq!(wav_samples(&wav(1, 22_050, &[16_384, -16_384], None)), Some((vec![0.5, -0.5], 22_050)));
-        assert_eq!(wav_samples(&wav(2, 16_000, &[16_384, 0], None)), Some((vec![0.25], 16_000)));
+        assert_eq!(
+            wav_samples(&wav(1, 22_050, &[16_384, -16_384], None)),
+            Some((vec![0.5, -0.5], 22_050))
+        );
+        assert_eq!(
+            wav_samples(&wav(2, 16_000, &[16_384, 0], None)),
+            Some((vec![0.25], 16_000))
+        );
     }
 
     #[test]
     fn reads_a_stream_whose_length_was_never_filled_in() {
-        assert_eq!(wav_samples(&wav(1, 22_050, &[16_384], Some(0x7fff_ffff))), Some((vec![0.5], 22_050)));
+        assert_eq!(
+            wav_samples(&wav(1, 22_050, &[16_384], Some(0x7fff_ffff))),
+            Some((vec![0.5], 22_050))
+        );
         assert_eq!(wav_samples(b"not a wav"), None);
     }
 }

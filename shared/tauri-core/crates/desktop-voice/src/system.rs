@@ -140,7 +140,15 @@ mod platform {
     pub fn render(sentence: &str, pace: f32) -> Option<(Vec<f32>, u32)> {
         let words_per_minute = (NORMAL_WORDS_PER_MINUTE * pace).round().to_string();
         if let Ok(output) = Command::new("espeak-ng")
-            .args(["--stdout", "-v", "en-us", "-s", &words_per_minute, "--", sentence])
+            .args([
+                "--stdout",
+                "-v",
+                "en-us",
+                "-s",
+                &words_per_minute,
+                "--",
+                sentence,
+            ])
             .stderr(Stdio::null())
             .output()
         {

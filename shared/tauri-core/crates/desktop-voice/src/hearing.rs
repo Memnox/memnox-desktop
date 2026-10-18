@@ -58,8 +58,8 @@ impl Hearing {
     }
 
     pub fn new(models: VoiceModels) -> Result<Self, String> {
-        let recognizer =
-            OfflineRecognizer::create(&Self::config(&models)).ok_or("Parakeet could not be loaded")?;
+        let recognizer = OfflineRecognizer::create(&Self::config(&models))
+            .ok_or("Parakeet could not be loaded")?;
         Ok(Self { models, recognizer })
     }
 

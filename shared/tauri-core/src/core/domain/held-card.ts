@@ -21,6 +21,8 @@ export interface HeldCard {
   /** An allow reaches outside the session and is signed, so its buttons carry the fingerprint before they are pressed. */
   readonly touchID: boolean;
   readonly expiresAt: string | undefined;
+  /** The session that is waiting, so its logo beside the notch hops until somebody answers. */
+  readonly sessionId: string | undefined;
 }
 
 /** The card for a HELD event; every event this app shows waits on this computer, so that is its machine. */
@@ -37,5 +39,6 @@ export function heldCard(event: DaemonEvent): HeldCard {
     withinSession: event.withinSession === true,
     touchID: event.withinSession !== true,
     expiresAt: event.expiresAt,
+    sessionId: event.sessionId,
   };
 }

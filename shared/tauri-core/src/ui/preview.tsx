@@ -3,7 +3,13 @@ import { createRoot } from 'react-dom/client';
 import { isVoiceScene, previewVoice, VOICE_SCENES } from './voice/preview-voice';
 import type { DaemonEvent, DaemonRequest, DaemonResponse } from '@memnox/core/wire';
 import { HeldCalls, ProposalCards, RequestIds, Setup, Signer, Talking, VoiceSettings, type ConfirmKey, type DaemonLink, type Runtime, type Speaker, type TalkState } from '../core';
+import { AgentQuestions, HistoryKeeper, Sessions, type HistoryStore } from '../core';
 import { Island, type IslandParts, type IslandPreview, type WorkingSession } from './Island';
+import { Board } from './sessions/Board';
+import { LiveSession } from './sessions/LiveSession';
+import { PREVIEW_CARDS, PREVIEW_VIEWS, previewQuestion } from './sessions/preview-data';
+import { SidePanel } from './sessions/SidePanel';
+import { Switcher } from './sessions/Switcher';
 import './styles.css';
 
 /**
@@ -31,6 +37,19 @@ const SCENES = [
   'setup',
   /** Rests as a peek, then a call arrives after a second, to watch the island grow. */
   'grow',
+  'sessions-compact',
+  'sessions-overview',
+  'sessions-detail',
+  'sessions-question',
+  'sessions-question-multi',
+  'sessions-launcher',
+  'sessions-launcher-tools',
+  /** The session windows, each shot at its own size. */
+  'sessions-live',
+  'sessions-live-changes',
+  'sessions-side',
+  'sessions-switcher',
+  'sessions-board',
   ...VOICE_SCENES,
 ] as const;
 type Scene = (typeof SCENES)[number];
@@ -96,6 +115,14 @@ const { waiting, feed } = script();
 const link: DaemonLink = {
   async *stream(request: DaemonRequest): AsyncIterable<DaemonResponse> {
     if (request.method === 'waiting') yield { id: request.id, ok: true, waiting };
+    else if (request.method === 'sessions-list') yield { id: request.id, ok: true, sessions: scene?.startsWith('sessions-') === true ? PREVIEW_CARDS : [] };
+    else if (request.method === 'session-view')
+      yield {
+        id: request.id,
+        ok: true,
+        session: PREVIEW_VIEWS[request.sessionId ?? ''],
+        diff: request.path === undefined ? undefined : { path: request.path, lines: ['@@ -40,6 +40,9 @@ export function Island', '   const held = useSyncExternalStore(', '-  const working = [];', '+  const working = sessions.working;', '+  const focus = sessions.focusCard;', '+  const questions = useQuestions();', '   return ('] },
+      };
     else if (request.method === 'voice-agents')
       yield {
         id: request.id,
@@ -129,6 +156,22 @@ const setup = new Setup(link, scene === 'setup' ? { ...runtime, found: async () 
 if (scene === 'setup') void setup.ensure();
 const voiceSettings = new VoiceSettings(link, ids);
 void calls.watch();
+// The sessions read once, the timer never firing, so each screen holds still to be looked at.
+const sessionList = new Sessions(link, ids, () => () => undefined);
+const questions = new AgentQuestions(link, ids, () => () => undefined);
+if (scene === 'sessions-question' || scene === 'sessions-question-multi') questions.handle(previewQuestion(scene === 'sessions-question-multi'));
+if (scene === 'sessions-question-multi') questions.toggle('Side panel');
+if (scene === 'sessions-overview' || scene === 'sessions-detail') sessionList.opened(true);
+if (scene === 'sessions-detail') sessionList.showDetail(true);
+void sessionList.refresh();
+const kept: string = JSON.stringify({
+  exchanges: [
+    { id: 'e1', question: 'What is Claude Code doing right now?', answer: 'It is porting the session screens.', askedAt: Date.now() - 4 * 60_000, answeredAt: Date.now() - 4 * 60_000 + 2_400 },
+    { id: 'e2', question: 'Push the fix to main', answer: '', askedAt: Date.now() - 30 * 60_000, answeredAt: Date.now() - 30 * 60_000 + 9_000, failure: 'Memnox did not answer' },
+    { id: 'e3', question: 'Which sessions finished yesterday?', answer: 'Two: Codex and Cursor.', askedAt: Date.now() - 26 * 3_600_000, answeredAt: Date.now() - 26 * 3_600_000 + 3_100 },
+  ],
+});
+const previewStore: HistoryStore = { load: () => kept, save: () => undefined };
 
 if (scene === 'rule')
   cards.show({
@@ -195,6 +238,16 @@ function previewOf(shown: Scene | undefined): { preview: IslandPreview; working?
       return { preview: { finished: { agent: finished.agent, who: finished.agentName ?? '', summary: finished.summary, sessionId: finished.sessionId } } };
     case 'settings':
       return { preview: { settings: true, opened: true } };
+    case 'sessions-compact':
+      return { preview: {} };
+    case 'sessions-overview':
+      return { preview: { opened: true } };
+    case 'sessions-detail':
+      return { preview: { opened: true, detail: true } };
+    case 'sessions-launcher':
+      return { preview: { opened: true, launcher: 'actions' } };
+    case 'sessions-launcher-tools':
+      return { preview: { opened: true, launcher: 'tools' } };
     default:
       return { preview: {} };
   }
@@ -216,7 +269,64 @@ function Index() {
 }
 
 const { preview, working } = scene === 'voice-speaking' ? { preview: { talk: talk({ phase: 'speaking', reply: 'Two sessions are working.' }) }, working: undefined } : previewOf(scene);
-const parts: IslandParts = { calls, talking, cards, setup, voiceSettings, preview, working, onOpenSession: () => undefined, voice: isVoiceScene(scene) ? previewVoice(scene, talking, speaker) : undefined };
+const parts: IslandParts = {
+  calls,
+  talking,
+  cards,
+  setup,
+  voiceSettings,
+  preview,
+  working,
+  onOpenSession: () => undefined,
+  voice: isVoiceScene(scene) ? previewVoice(scene, talking, speaker) : undefined,
+  sessions: sessionList,
+  questions,
+  launcher: {
+    actions: { sayRule: () => undefined, whatHappened: () => undefined, phones: () => undefined, dictation: () => undefined, settings: () => undefined },
+    facts: { toolsCaption: '2 connected' },
+    toolsNote: undefined,
+  },
+};
+
+/** The session windows, drawn alone at their own size as their pages draw them. */
+function SessionWindow({ shown }: { shown: Scene }) {
+  switch (shown) {
+    case 'sessions-live':
+    case 'sessions-live-changes':
+      return (
+        <div data-theme="dark" style={{ width: 620, height: 820 }}>
+          <LiveSession sessionId="ses_claude" sessions={sessionList} calls={calls} onClose={() => undefined} onOpenFolder={() => undefined} initial={PREVIEW_VIEWS.ses_claude} />
+        </div>
+      );
+    case 'sessions-side':
+      return (
+        <div data-theme="dark" style={{ width: 330, height: 700 }}>
+          <SidePanel calls={calls} sessions={sessionList} history={new HistoryKeeper(previewStore, () => 'id')} pinned={false} onPin={() => undefined} onOpenSession={() => undefined} onAskAgain={() => undefined} />
+        </div>
+      );
+    case 'sessions-switcher':
+      return (
+        <div data-theme="dark" style={{ width: 1280, height: 800, background: 'linear-gradient(135deg, #1d2a3a, #3a2a1d)' }}>
+          <Switcher cards={PREVIEW_CARDS} target="ses_codex" onDone={() => undefined} still />
+        </div>
+      );
+    case 'sessions-board':
+      return (
+        <div data-theme="dark" style={{ width: 976, height: 1100, background: 'linear-gradient(135deg, #1d2a3a, #3a2a1d)' }}>
+          <Board sessions={sessionList} title="Your sessions" onWatch={() => undefined} onClose={() => undefined} initial={[PREVIEW_VIEWS.ses_claude!, PREVIEW_VIEWS.ses_codex!, PREVIEW_VIEWS.ses_cursor!]} />
+        </div>
+      );
+    default:
+      return null;
+  }
+}
+const windowScene = scene !== undefined && ['sessions-live', 'sessions-live-changes', 'sessions-side', 'sessions-switcher', 'sessions-board'].includes(scene);
+// The changes scene opens its tab and a file once the window is drawn, so the diff can be looked at.
+if (scene === 'sessions-live-changes')
+  setTimeout(() => {
+    (document.querySelector('[aria-pressed][class*="flex-1"]:nth-child(3)') as HTMLButtonElement | null)?.click();
+    setTimeout(() => (document.querySelector('[title$="Island.tsx"]') as HTMLButtonElement | null)?.click(), 300);
+  }, 900);
 
 // The held menu scene opens the ellipsis once the card is drawn, so the menu can be looked at.
 if (scene === 'held-menu') setTimeout(() => (document.querySelector('[aria-label="More answers"]') as HTMLButtonElement | null)?.click(), 900);
@@ -225,7 +335,7 @@ const root = document.getElementById('root');
 if (root === null) throw new Error('preview.html has no root');
 createRoot(root).render(
   <StrictMode>
-    <Island {...parts} />
+    {windowScene && scene !== undefined ? <SessionWindow shown={scene} /> : <Island {...parts} />}
     {scene === undefined && <Index />}
   </StrictMode>,
 );

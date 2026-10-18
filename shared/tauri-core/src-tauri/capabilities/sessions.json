@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "sessions",
+  "description": "The session windows, the live window, the side panel, the switcher and the card wall, may call this app's own commands, listen on their channels and hear and send the app's own events, such as another session to show or a question to ask again. Nothing else.",
+  "windows": ["live", "side", "switcher", "board"],
+  "permissions": ["core:default"]
+}

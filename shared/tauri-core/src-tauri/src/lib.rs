@@ -10,6 +10,7 @@ mod keys;
 mod panels;
 mod permissions;
 mod runtime;
+mod sessions;
 mod settings_windows;
 mod talk_key;
 mod tray;
@@ -103,6 +104,14 @@ pub fn run() {
             panels::cards_fit,
             panels::scan_show,
             panels::scan_hide,
+            sessions::open_live_session,
+            sessions::open_side,
+            sessions::open_switcher,
+            sessions::open_board,
+            sessions::dismiss_session_windows,
+            sessions::close_session_window,
+            sessions::open_folder,
+            sessions::open_link,
             settings_windows::open_settings,
             settings_windows::open_onboarding,
             settings_windows::close_window,

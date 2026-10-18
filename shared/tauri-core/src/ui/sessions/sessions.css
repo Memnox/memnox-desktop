@@ -1,0 +1,139 @@
+/* The session screens' own motion, each named after the Swift transition it stands in for. */
+
+/* A step rolling in from below, `.move(edge: .bottom).combined(with: .opacity)`. */
+@keyframes step-in {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
+}
+
+/* The focused row's arrow arriving, opacity plus scale from 0.6. */
+@keyframes arrow-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+
+/* `NotchArrival`: each tile from opacity 0, 10 lower and at 92%. */
+@keyframes notch-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+    scale: 0.92;
+  }
+}
+
+/* `symbolEffect(.bounce)` on a tile's symbol after a click. */
+@keyframes symbol-bounce {
+  0% {
+    scale: 1;
+  }
+  40% {
+    scale: 1.15;
+  }
+  75% {
+    scale: 0.95;
+  }
+  100% {
+    scale: 1;
+  }
+}
+
+/* A logo jittering for a moment after a failure, a pause or a collision. */
+@keyframes logo-stumble {
+  0%,
+  100% {
+    translate: 0;
+  }
+  20% {
+    translate: -1.5px 0;
+  }
+  40% {
+    translate: 1.5px 0;
+  }
+  60% {
+    translate: -1px 0;
+  }
+  80% {
+    translate: 1px 0;
+  }
+}
+
+/* A waiting session's logo hopping until somebody answers. */
+@keyframes logo-hop {
+  0%,
+  60%,
+  100% {
+    translate: 0 0;
+  }
+  30% {
+    translate: 0 -3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-arrive {
+    animation: none !important;
+  }
+}
+
+/* The session windows' own grounds, light and dark, as `LiveSession` and its sections fill them. */
+:root {
+  --mx-page: #ffffff;
+  --mx-section: #f5f5f7;
+}
+:root[data-theme="dark"],
+[data-theme="dark"] {
+  --mx-page: #000000;
+  --mx-section: #141518;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --mx-page: #000000;
+    --mx-section: #141518;
+  }
+}
+
+/* A part of the live window rising into place, 18 lower and blurred 6, one after another. */
+@keyframes live-part-in {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+    filter: blur(6px);
+  }
+}
+
+/* The live window arriving from 96%, 14 higher and blurred 8. */
+@keyframes live-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+    translate: 0 -14px;
+    filter: blur(8px);
+  }
+}
+
+/* The working dot on the live window's state pill, breathing to 1.5 and half strength every 0.9 s. */
+@keyframes state-breathe {
+  0%,
+  100% {
+    scale: 1;
+    opacity: 1;
+  }
+  50% {
+    scale: 1.5;
+    opacity: 0.5;
+  }
+}
+
+/* A floating card arriving from 96% anchored top left, 10 higher and blurred 8. */
+@keyframes float-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+    translate: 0 -10px;
+    filter: blur(8px);
+  }
+}

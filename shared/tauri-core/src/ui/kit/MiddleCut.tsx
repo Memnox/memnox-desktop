@@ -31,7 +31,9 @@ export function MiddleCut({ text, className }: { text: string; className?: strin
       const parent = getComputedStyle(room);
       const own = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
       const width = room.clientWidth - parseFloat(parent.paddingLeft) - parseFloat(parent.paddingRight) - own;
-      setShown(middleCut(text, (candidate) => measure(font, candidate) <= width));
+      // A pixel of slack, since the room is rounded down to whole pixels and the text is not, and a text cut
+      // for want of a fraction would shrink a container that hugs it, and be cut again.
+      setShown(middleCut(text, (candidate) => measure(font, candidate) <= width + 1));
     };
     fit();
     const watcher = new ResizeObserver(fit);

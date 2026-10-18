@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import { HOLD_ANSWER } from '@memnox/core/wire';
 import { LoaderCircle } from 'lucide-react';
 import {
-  agentColour,
   countsDown,
   dwellFor,
   finishedCard,
@@ -46,6 +45,11 @@ import { Orb, type OrbHandle } from './Orb';
 import { Settings } from './Settings';
 import { Hearing, useConversation, voiceFacts, VoicePills } from './Talk';
 import { PhoneTurn } from './voice/PhoneTurn';
+import { cardTitle, reactionTo, type AgentQuestions, type Sessions, type SessionsState } from '../core';
+import { Overview, SessionDetail } from './sessions/IslandSessions';
+import { Launcher, type LauncherActions, type LauncherFacts, type LauncherTool } from './sessions/Launcher';
+import { SessionLogo } from './sessions/parts';
+import { Question } from './sessions/Question';
 import { UnderIsland } from './cards/UnderIsland';
 import type { IslandExtras } from './tray/island-extras';
 
@@ -53,6 +57,15 @@ import type { IslandExtras } from './tray/island-extras';
 export interface WorkingSession {
   readonly sessionId: string;
   readonly agent: string;
+  readonly agentName?: string;
+}
+
+/** The launcher's tiles and the Tools page, which the composition root fills from what this computer can do. */
+export interface IslandLauncherParts {
+  readonly actions: LauncherActions;
+  readonly facts?: Partial<LauncherFacts>;
+  readonly tools?: readonly LauncherTool[];
+  readonly toolsNote?: string;
 }
 
 /** What only the preview page sets, so it can put the island in any mode without a daemon behind it. */
@@ -63,6 +76,8 @@ export interface IslandPreview {
   readonly talk?: TalkState;
   readonly finished?: FinishedCard;
   readonly countdown?: number;
+  readonly launcher?: 'actions' | 'tools';
+  readonly detail?: boolean;
 }
 
 /** The island's parts: the core's use cases, and the seams the later phases fill. */
@@ -86,14 +101,25 @@ export interface IslandParts {
   mute?: { on: boolean; toggle: () => void };
   /** Opens a finished session's own window; the Open button shows only with it. */
   onOpenSession?: (sessionId: string) => void;
-  /** The pills under the island, the chimes and the diary, wired by `islandExtras`. */
-  extras?: IslandExtras;
+  /** The sessions the daemon lists, which the overview, the detail and the logos beside the notch draw. */
+  sessions?: Sessions;
+  /** An agent's own question, answered here with taps. */
+  questions?: AgentQuestions;
+  /** The grid of everything Memnox does; the grid satellite opens it. */
+  launcher?: IslandLauncherParts;
+  /** Opens a session's live window, where its whole conversation and every diff are read. */
+  onWatchLive?: (sessionId: string) => void;
   /** The voice's turns: talk, talk over, the wake word, a rule said and dictation. */
   voice?: VoiceTurns;
   /** Whether the person's words show as they say them, their choice in the voice's switches. */
   liveWords?: boolean;
+  /** The pills under the island, the chimes and the diary, wired by `islandExtras`. */
+  extras?: IslandExtras;
   preview?: IslandPreview;
 }
+
+/** Before the daemon's list arrives, or with no list at all, as the preview of a held call has. */
+const NO_SESSIONS: SessionsState = { cards: [], focusId: undefined, focused: undefined, detail: false, opened: false };
 
 /** The modes that put the island away rather than answer something. */
 const RESTING_MODES: readonly IslandMode[] = ['peek', 'compact', 'empty', 'overview', 'session'];
@@ -111,7 +137,28 @@ function contentId(mode: IslandMode, active: boolean): string {
  * `IslandPanel`: the mode is the core's `settle`, sizes and the orb's place are `islandSize` and
  * `orbSpot`, and every change of size moves the width, height, bottom radius and the orb together.
  */
-export function Island({ calls, talking, cards, setup, voiceSettings, notch = STAND_IN_NOTCH, working = [], onLauncher, onSide, onSettings, mute, onOpenSession, extras, voice, liveWords = true, preview: scripted }: IslandParts) {
+export function Island({
+  calls,
+  talking,
+  cards,
+  setup,
+  voiceSettings,
+  notch = STAND_IN_NOTCH,
+  working: scriptedWorking,
+  onLauncher,
+  onSide,
+  onSettings,
+  mute,
+  onOpenSession,
+  sessions,
+  questions,
+  launcher,
+  onWatchLive,
+  voice,
+  liveWords = true,
+  extras,
+  preview: scripted,
+}: IslandParts) {
   const previewing = scripted !== undefined;
   const preview = scripted ?? {};
   const held = useSyncExternalStore(
@@ -126,6 +173,17 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
     (changed) => setup.observe(changed),
     () => setup.state,
   );
+  const sessionsState = useSyncExternalStore(
+    (changed) => sessions?.observe(changed) ?? (() => undefined),
+    () => sessions?.state ?? NO_SESSIONS,
+  );
+  const questionState = useSyncExternalStore(
+    (changed) => questions?.observe(changed) ?? (() => undefined),
+    () => questions?.state,
+  );
+  // The working sessions beside the notch: the daemon's busy ones, or what the preview scripted.
+  const working: readonly WorkingSession[] = scriptedWorking ?? (sessions === undefined ? [] : sessions.working.map((card) => ({ sessionId: card.sessionId, agent: card.agent, agentName: card.agentName })));
+  const [launcherPage, setLauncherPage] = useState<'actions' | 'tools' | undefined>(preview.launcher);
   // The preview has no Rust behind it, so it never asks after the microphone.
   const conversation = useConversation(talking, { probe: !previewing, voice });
   const talk = preview.talk ?? conversation.state;
@@ -151,6 +209,10 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
     draft: proposal?.kind === 'work',
     rule: proposal?.kind === 'rule',
     finished: finished !== undefined,
+    question: questionState?.card !== undefined,
+    launcher: launcherPage !== undefined,
+    sessions: sessionsState.cards.length,
+    detail: (sessionsState.detail || preview.detail === true) && sessionsState.focused !== undefined,
     talking: active,
     // The person's own words open the hearing screen; what Memnox says is heard, so the orb stays up for it.
     ...(preview.talk !== undefined ? { wordsHeard: (talk.heard ?? '') !== '' } : voiceFacts(conversation, liveWords)),
@@ -203,7 +265,33 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
   function close() {
     setOpened(false);
     setSettingsOpen(false);
+    setLauncherPage(undefined);
     setCountdown(undefined);
+  }
+
+  // The list is read quickly while the island is open, and the open island starts on every session.
+  const isOpen = opened || settingsOpen;
+  useEffect(() => sessions?.opened(isOpen), [sessions, isOpen]);
+
+  // Each event the orb has a gesture for, read from the daemon's facts, as the Mac's reactions are.
+  useEffect(
+    () =>
+      calls.observeEvents((event) => {
+        const reaction = reactionTo(event);
+        if (reaction !== undefined) orb.current?.react(reaction);
+        if (reaction === 'stumble') shake(shape.current);
+        questions?.handle(event);
+      }),
+    [calls, questions],
+  );
+
+  function toggleLauncher() {
+    if (launcherPage !== undefined) {
+      setLauncherPage(undefined);
+      return;
+    }
+    setLauncherPage('actions');
+    open();
   }
 
   function tapped() {
@@ -278,14 +366,26 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
 
   const waiting = held.waiting.count > 0;
   const orbState: OrbState = waiting ? 'needs-you' : talk.phase;
-  const title = interimSettings ? 'Settings' : islandTitle(mode);
+  const focusCard = sessionsState.cards.find((card) => card.sessionId === sessionsState.focusId) ?? sessionsState.cards[0];
+  const title = interimSettings
+    ? 'Settings'
+    : islandTitle(mode, { session: focusCard === undefined ? undefined : cardTitle(focusCard), launcher: launcherPage === 'tools' ? 'Tools' : 'Memnox' });
+  const launcherFacts: LauncherFacts = {
+    working: working.length,
+    toolsCaption: 'None yet',
+    muted: mute?.on === true,
+    historyOpen: false,
+    talkKey: 'Ctrl Alt Space',
+    ruleKey: 'Hold Ctrl Alt',
+    ...launcher?.facts,
+  };
 
   const content: ReactNode = (() => {
     switch (mode) {
       case 'peek':
         return <TapTarget onTap={tapped} label="Talk to Memnox" />;
       case 'compact':
-        return <Compact working={working} waitingOn={undefined} onTap={tapped} notch={notch} />;
+        return <Compact working={working} waitingOn={held.waiting.shown?.card.sessionId} onTap={tapped} notch={notch} />;
       case 'voice':
         return <TapTarget onTap={tapped} label="Stop or keep listening" />;
       case 'hearing':
@@ -311,12 +411,60 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
             <Settings voiceSettings={voiceSettings} setup={setup} />
           </IslandCard>
         ) : null;
-      // Built by later phases: the sessions, a session up close, an agent's question, the launcher and a phone turn.
       case 'overview':
+        return (
+          <Overview
+            cards={sessionsState.cards}
+            focusId={sessionsState.focusId}
+            focused={sessionsState.focused}
+            onFocus={(sessionId) => sessions?.focus(sessionId)}
+            onDetail={() => sessions?.showDetail(true)}
+            onOpen={(card) => onOpenSession?.(card.sessionId)}
+          />
+        );
       case 'session':
+        return sessionsState.focused === undefined ? null : (
+          <SessionDetail
+            session={sessionsState.focused}
+            onOpen={() => onOpenSession?.(sessionsState.focused?.sessionId ?? '')}
+            onWatch={() => {
+              const sessionId = sessionsState.focused?.sessionId;
+              if (sessionId === undefined) return;
+              close();
+              onWatchLive?.(sessionId);
+            }}
+          />
+        );
       case 'question':
+        return questions === undefined ? null : (
+          <Question
+            questions={questions}
+            onAnswered={(outcome) => {
+              if (outcome.kind === 'failed') {
+                shake(shape.current);
+                orb.current?.react('stumble');
+              } else if (outcome.kind === 'answered') orb.current?.react('settle');
+            }}
+          />
+        );
       case 'launcher':
-        return null;
+        return (
+          <Launcher
+            page={launcherPage ?? 'actions'}
+            facts={launcherFacts}
+            actions={{
+              ...launcher?.actions,
+              talk: launcher?.actions.talk ?? (() => (close(), tapped())),
+              sessions: launcher?.actions.sessions ?? (() => setLauncherPage(undefined)),
+              tools: launcher?.actions.tools ?? (() => setLauncherPage('tools')),
+              history: launcher?.actions.history ?? onSide,
+              mute: launcher?.actions.mute ?? mute?.toggle,
+              settings: launcher?.actions.settings ?? onSettings,
+            }}
+            tools={launcher?.tools}
+            toolsNote={launcher?.toolsNote}
+          />
+        );
       // A phone's turn, shown like the person's own with the phone named, and no sound.
       case 'conversation':
         return conversation.turns.phone === undefined ? null : <PhoneTurn turn={conversation.turns.phone} />;
@@ -355,7 +503,17 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
                 count={working.length}
                 pastOrb={headerPastOrb(mode)}
                 notch={notch}
-                back={interimSettings ? () => setSettingsOpen(false) : mode === 'session' || mode === 'answer' ? close : undefined}
+                back={
+                  interimSettings
+                    ? () => setSettingsOpen(false)
+                    : mode === 'session'
+                      ? () => sessions?.showDetail(false)
+                      : mode === 'launcher' && launcherPage === 'tools'
+                        ? () => setLauncherPage('actions')
+                        : mode === 'answer'
+                          ? close
+                          : undefined
+                }
               />
             )}
           </div>
@@ -375,7 +533,7 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
           left={bodyLeft}
           width={moved.width}
           launcherOn={mode === 'launcher'}
-          onLauncher={onLauncher}
+          onLauncher={onLauncher ?? toggleLauncher}
           onSide={onSide}
           onSettings={() => (onSettings !== undefined ? onSettings() : (setSettingsOpen(true), open()))}
           mute={mute}
@@ -471,12 +629,12 @@ function IslandHeader({ title, count, pastOrb, notch, back }: { title: string; c
   return (
     <div className="absolute inset-x-0 top-0 flex animate-header-in items-center gap-1.5" style={{ height: notch.height, paddingLeft: pastOrb ? 46 : 18 }}>
       {back !== undefined && <IslandTab symbol="chevron.left" label="Back" onPress={back} />}
-      <span key={title} className="animate-[content-in_350ms_cubic-bezier(0.25,1.1,0.4,1)_both] truncate text-headline font-semibold text-white" role="heading" aria-level={1}>
+      <span key={title} className="min-w-0 animate-[content-in_350ms_cubic-bezier(0.25,1.1,0.4,1)_both] truncate text-headline font-semibold text-white" role="heading" aria-level={1}>
         {title}
       </span>
       <span className="flex-1" style={{ minWidth: notch.width + 16 }} />
       {/* Nothing at all when nothing works, since "0 working" reads like a fault. */}
-      <span className="tabular pr-[18px] text-button font-medium text-white/55" style={{ opacity: count === 0 ? 0 : 1 }} aria-hidden={count === 0}>
+      <span className="tabular shrink-0 whitespace-nowrap pr-[18px] text-button font-medium text-white/55" style={{ opacity: count === 0 ? 0 : 1 }} aria-hidden={count === 0}>
         {count === 1 ? '1 working' : `${count} working`}
       </span>
     </div>
@@ -535,8 +693,8 @@ const SHOWN_LOGOS = 3;
 
 /**
  * Beside the notch with sessions working: up to three logos on the right, 16 each, overlapping by 5
- * and ringed in black so they stay apart. The agent's colour and initial stand in for its logo until
- * the session list brings the logos themselves; a waiting session's logo hops.
+ * and ringed in black so they stay apart, each the agent's own logo on its colour; a waiting session's
+ * logo hops until somebody answers.
  */
 function Compact({ working, waitingOn, onTap, notch }: { working: readonly WorkingSession[]; waitingOn: string | undefined; onTap: () => void; notch: NotchGeometry }) {
   const count = working.length;
@@ -546,11 +704,11 @@ function Compact({ working, waitingOn, onTap, notch }: { working: readonly Worki
         {working.slice(0, SHOWN_LOGOS).map((session, index) => (
           <span
             key={session.sessionId}
-            className={`grid size-4 animate-[card-in_400ms_cubic-bezier(0.3,1.2,0.6,1)_both] place-items-center rounded-full text-[8px] font-bold text-black ${session.sessionId === waitingOn ? 'animate-bounce' : ''}`}
-            style={{ backgroundColor: agentColour(session.agent), boxShadow: '0 0 0 1.5px #000', marginLeft: index === 0 ? 0 : -5 }}
+            className={`grid animate-[card-in_400ms_cubic-bezier(0.3,1.2,0.6,1)_both] ${session.sessionId === waitingOn ? '[animation:logo-hop_900ms_ease-in-out_infinite]' : ''}`}
+            style={{ marginLeft: index === 0 ? 0 : -5 }}
             aria-hidden
           >
-            {session.agent.replace(/^agt_/, '').charAt(0).toUpperCase()}
+            <SessionLogo agent={session.agent} name={session.agentName ?? session.agent} size={16} ring={1.5} />
           </span>
         ))}
       </span>

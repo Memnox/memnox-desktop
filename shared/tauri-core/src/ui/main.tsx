@@ -100,6 +100,8 @@ const voiceTurns = new VoiceTurns({
   dictated: ({ written, app }) => dictationWords.remember({ written, ...(app === undefined ? {} : { app }), at: Date.now() }),
   corrected: (corrections) => corrections.forEach(({ heard, meant }) => dictationWords.addWord(heard, meant)),
   hints: hintNames,
+  // The privacy switch read before each listen, since a denied one hands the app silence and not an error.
+  microphone: () => invoke<{ microphone: 'allowed' | 'denied' | 'none' | 'unknown' }>('permission_facts').then((facts) => facts.microphone),
 });
 const wakefulness = new Wakefulness(link, new TauriPower(), ids);
 const setup = new Setup(link, new TauriRuntime(), ids, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));

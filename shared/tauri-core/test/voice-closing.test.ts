@@ -254,3 +254,14 @@ describe('the keys the desktop allows', () => {
     expect(turns.holdKeys.holding).toBe(false);
   });
 });
+
+describe('the microphone', () => {
+  it('says why it cannot hear before listening when the privacy switch keeps the microphone away', async () => {
+    const { speaker, turns } = voiceOver([[]], {}, {}, { microphone: async () => 'denied' });
+    turns.talk();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(speaker.said[0]).toContain('Let desktop apps use the microphone');
+    expect(turns.state.active).toBe(false);
+    expect(turns.state.problem).toBe('Memnox may not use the microphone');
+  });
+});

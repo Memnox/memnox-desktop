@@ -70,6 +70,10 @@ export const TURN_TIMING = {
 
 /** Said when the microphone cannot be opened, since a silent orb that cannot hear looks like one not listening. */
 export const CANNOT_HEAR = 'I cannot hear you yet. Check that a microphone is connected and that Memnox may use it, then ask me again.';
+/** Said before listening when the system's privacy switch keeps the microphone from desktop apps, as Windows can. */
+export const MICROPHONE_DENIED = 'I cannot hear you yet. Let desktop apps use the microphone in Settings, Privacy and security, Microphone, then ask me again.';
+/** Said before listening when the computer has no microphone at all. */
+export const NO_MICROPHONE = 'I cannot hear you yet. Connect a microphone, then ask me again.';
 /** Said from the launcher's Say a rule, which teaches the keys rather than listening at once. */
 export const RULE_HOW = 'Hold Control and Alt, say the rule, then let go. I will ask where it should hold.';
 export const RULE_KEYS_UNSEEN = 'This desktop does not let me see the rule keys, so I cannot take a rule down here yet.';
@@ -101,6 +105,11 @@ export interface VoiceTurnsParts {
   readonly corrected?: (corrections: readonly WordCorrection[]) => void;
   /** The names to hint to the recognizer, learnt from the daemon each listen. */
   readonly hints?: (names: readonly string[]) => void;
+  /**
+   * Whether the system lets this app use a microphone, read before each listen as the Mac checks its
+   * permission first, since a denied switch on Windows hands the app silence rather than an error.
+   */
+  readonly microphone?: () => Promise<'allowed' | 'denied' | 'none' | 'unknown'>;
   readonly now?: () => number;
 }
 
@@ -321,6 +330,10 @@ export class VoiceTurns {
       this.update({ active: false, problem: 'The voice is not installed yet' });
       return;
     }
+    if (!(await this.mayHear())) {
+      this.update({ active: false });
+      return;
+    }
     // Called by name alone, it answers the way a person would before they ask.
     if (greet) await this.say(talking.answerToCall());
     let next: string | undefined = opening === '' ? undefined : opening;
@@ -360,6 +373,17 @@ export class VoiceTurns {
     }
     this.chime('closed');
     this.update({ active: false, listening: false, live: '' });
+  }
+
+  /** Whether the microphone may be used, said out loud when it may not, before the orb sits listening to silence. */
+  private async mayHear(): Promise<boolean> {
+    const standing = await this.parts.microphone?.().catch(() => 'unknown' as const);
+    if (standing !== 'denied' && standing !== 'none') return true;
+    const line = standing === 'denied' ? MICROPHONE_DENIED : NO_MICROPHONE;
+    this.update({ problem: standing === 'denied' ? 'Memnox may not use the microphone' : 'There is no microphone', active: true });
+    this.chime('failed');
+    await this.say(line);
+    return false;
   }
 
   /** Said, since a silent orb that cannot hear looks exactly like one that is not listening. */
@@ -515,6 +539,10 @@ export class VoiceTurns {
       return;
     }
     this.update({ active: true, ruling: true, problem: undefined });
+    if (!(await this.mayHear())) {
+      this.update({ active: false, ruling: false });
+      return;
+    }
     void this.parts.talking.warm();
     this.chime('listening');
     const result = await this.listen({ waitMs: 0, holding: { released, tailMs: TURN_TIMING.releaseTailMs } });
@@ -557,6 +585,10 @@ export class VoiceTurns {
     if (!this.ready()) {
       this.dictationKey.stop();
       this.update({ problem: 'The voice is not installed yet' });
+      return;
+    }
+    if (!(await this.mayHear())) {
+      this.dictationKey.stop();
       return;
     }
     const focus = await typist.focus().catch((): Focus => ({ secure: false }));

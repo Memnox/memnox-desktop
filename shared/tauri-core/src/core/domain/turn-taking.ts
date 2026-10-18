@@ -75,3 +75,15 @@ export function joinedSpeech(first: string, second: string): string {
     .replace(/\s+([?!,;:])/g, '$1')
     .replace(/([?!])[?!]+/g, '$1');
 }
+
+/** How long a pause is before the words so far are sent as a guess, well short of any end of speech. */
+export const GUESS_AFTER_PAUSE_MS = 350;
+
+/**
+ * Whether a pause this long is worth starting the answer on, ported from `mayGuess`: never while they
+ * trail off on a word like "and", and only while the pause has not yet ended what they are saying.
+ */
+export function mayGuess(words: string, pausedForMs: number): boolean {
+  const ending = endOfSpeechPause(words);
+  return /\p{L}/u.test(words) && ending < SPEECH_PAUSE.stillThinking && pausedForMs >= GUESS_AFTER_PAUSE_MS && pausedForMs < ending;
+}

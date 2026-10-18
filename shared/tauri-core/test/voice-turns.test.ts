@@ -112,7 +112,7 @@ describe('a turn of the person', () => {
     expect(ear.opened).toHaveLength(2);
     expect(turns.state.active).toBe(true);
     await vi.advanceTimersByTimeAsync(16_000);
-    expect(daemon.sent('ask')).toHaveLength(1);
+    expect(daemon.sent('ask').filter((request) => request.speculative !== true)).toHaveLength(1);
     expect(turns.state.active).toBe(false);
   });
 

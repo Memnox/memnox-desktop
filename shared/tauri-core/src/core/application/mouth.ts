@@ -1,3 +1,4 @@
+import { pronounced } from '../domain/pronounce';
 import type { Speaker } from './ports/speaker';
 import type { VoicePreferences } from './voice-preferences';
 
@@ -43,7 +44,8 @@ export class Mouth implements Speaker, Hushable {
     const at = this.now();
     this.said = [...this.said.filter((each) => at - each.at < KEPT_FOR_MS), { sentence, at }];
     this.playing += 1;
-    this.inner.queue(sentence);
+    // Kept as written for the echo check, since the recognizer hears the words and not their spelling out.
+    this.inner.queue(pronounced(sentence));
     void this.inner.drained().then(() => {
       this.playing = Math.max(0, this.playing - 1);
     });

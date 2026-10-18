@@ -1,7 +1,10 @@
 import { ASK_INTENT, DAEMON_EVENT, type DaemonEvent } from '@memnox/core/wire';
 import { awaitsAnswer, isSaid, isShownOnly } from '../domain/announcing';
 import type { Cue } from '../domain/chimes';
-import { backspacesFor, cleanedDictation, dictationFamily, familyStyle, liveDictation, liveRevision, type DictationWord } from '../domain/dictation-text';
+import { correctedWords, type WordCorrection } from '../domain/corrections';
+import { backspacesFor, cleanedDictation, dictationFamily, familyStyle, fitted, liveDictation, liveRevision, replaced, type DictationWord } from '../domain/dictation-text';
+import { chosenHints, FIRST_RECOGNIZER_HINTS } from '../domain/recognizer-hints';
+import { GUESS_AFTER_PAUSE_MS, mayGuess } from '../domain/turn-taking';
 import { withoutEchoRuns } from '../domain/echo';
 import { PhoneConversation, type PhoneExchange } from '../domain/phone-conversation';
 import { quietHere } from '../domain/quiet';
@@ -34,9 +37,11 @@ export interface VoiceTurnsState {
   readonly problem: string | undefined;
   /** A paired phone's turn mirrored here without a sound, until a moment after it ends. */
   readonly phone: PhoneExchange | undefined;
+  /** What the orb is doing when it is neither listening nor answering, as the Mac's "Testing my voice". */
+  readonly caption: string | undefined;
 }
 
-export const IDLE_TURNS: VoiceTurnsState = { active: false, listening: false, live: '', ruling: false, dictating: undefined, problem: undefined, phone: undefined };
+export const IDLE_TURNS: VoiceTurnsState = { active: false, listening: false, live: '', ruling: false, dictating: undefined, problem: undefined, phone: undefined, caption: undefined };
 
 /** The turn timings the Mac's `AppDelegate` keeps, in milliseconds. */
 export const TURN_TIMING = {
@@ -57,6 +62,10 @@ export const TURN_TIMING = {
   cutInWaitMs: 8_000,
   /** How long a phone's finished turn stays on the island. */
   phoneTurnForMs: 8_000,
+  /** Long enough to fix a word just written, short enough that the field is still the same text. */
+  correctionWatchMs: 20_000,
+  /** Away this long, behind a locked screen, is long enough for something to have happened worth telling. */
+  awayLongEnoughMs: 10 * 60 * 1_000,
 } as const;
 
 /** Said when the microphone cannot be opened, since a silent orb that cannot hear looks like one not listening. */
@@ -66,6 +75,10 @@ export const RULE_HOW = 'Hold Control and Alt, say the rule, then let go. I will
 export const RULE_KEYS_UNSEEN = 'This desktop does not let me see the rule keys, so I cannot take a rule down here yet.';
 /** The voice test, apart from listening and the daemon. */
 export const VOICE_TEST = 'This is Memnox. If you can hear me, my voice works.';
+/** Shown on the orb while the voice test plays, as the Mac's. */
+export const VOICE_TEST_CAPTION = 'Testing my voice';
+/** Shown on the orb while their brain tells them what happened while they were away. */
+export const CATCHING_UP_CAPTION = 'Catching up';
 const DICTATION_HINT = 'Speak, and it types where your cursor is';
 const SELECTION_HINT = 'Say what to do with the selection';
 
@@ -82,6 +95,12 @@ export interface VoiceTurnsParts {
   readonly ready?: () => boolean;
   /** The person's own spellings and spoken shortcuts, for dictation. */
   readonly dictionary?: () => { spellings: readonly string[]; replacements: readonly DictationWord[] };
+  /** Each dictation as it went, for the Dictation page's history. */
+  readonly dictated?: (entry: { readonly heard: string; readonly written: string; readonly app: string | undefined }) => void;
+  /** Words the person fixed after dictating, so the dictionary writes them their way next time. */
+  readonly corrected?: (corrections: readonly WordCorrection[]) => void;
+  /** The names to hint to the recognizer, learnt from the daemon each listen. */
+  readonly hints?: (names: readonly string[]) => void;
   readonly now?: () => number;
 }
 
@@ -109,6 +128,8 @@ export class VoiceTurns {
   private readonly phoneTurns = new PhoneConversation();
   private phoneEnd: (() => void) | undefined;
   private readonly now: () => number;
+  /** When the screen locked, so coming back after long enough is caught up on. */
+  private awaySince: number | undefined;
 
   constructor(private readonly parts: VoiceTurnsParts) {
     this.now = parts.now ?? Date.now;
@@ -217,17 +238,42 @@ export class VoiceTurns {
     this.sayInTurn(keysSeen ? RULE_HOW : RULE_KEYS_UNSEEN);
   }
 
-  /** Say something: checks the voice on its own. */
+  /** Say something: checks the voice on its own, apart from listening and the daemon. */
   saySomething(): void {
-    this.sayInTurn(VOICE_TEST);
+    this.sayInTurn(VOICE_TEST, VOICE_TEST_CAPTION);
   }
 
-  /** Says one line in its turn, as Settings' voice test and a voice change do. */
-  sayInTurn(line: string): void {
+  /** Says one line in its turn, as Settings' voice test and a voice change do, so the mute and the echo memory hold. */
+  sayInTurn(line: string, caption?: string): void {
     this.enqueue(async () => {
-      this.update({ active: true });
+      this.update({ active: true, caption });
       await this.say(line);
-      this.update({ active: false });
+      this.update({ active: false, caption: undefined });
+    });
+  }
+
+  /** The screen locked, which is the person leaving. */
+  locked(): void {
+    this.awaySince ??= this.now();
+  }
+
+  /**
+   * The screen unlocked: after ten minutes away, with Catch me up on, their brain tells them what waits on
+   * them, and the microphone stays open for an answer; when nothing does, the orb goes back unheard.
+   */
+  unlocked(): void {
+    const since = this.awaySince;
+    this.awaySince = undefined;
+    if (since === undefined || this.now() - since < TURN_TIMING.awayLongEnoughMs || !this.parts.preferences.choices.catchUp) return;
+    this.enqueue(async () => {
+      this.update({ active: true, caption: CATCHING_UP_CAPTION, problem: undefined });
+      let caughtUp = false;
+      const cutIn = await this.overVoice(async () => {
+        caughtUp = await this.parts.talking.welcomeBack(since);
+      });
+      this.update({ caption: undefined });
+      if (cutIn !== undefined || caughtUp) await this.converse(cutIn ?? '');
+      else this.update({ active: false });
     });
   }
 
@@ -272,13 +318,17 @@ export class VoiceTurns {
     let intent = opening === '' ? undefined : openingIntent;
     let held: string | undefined;
     let waiting: number = TURN_TIMING.firstWordMs;
+    // Started while they are still talking, so the answer does not wait on a cold start.
+    void talking.warm();
+    // Learnt alongside rather than before, so the microphone is heard from the first word.
+    void this.learnNames();
     this.chime('listening');
     for (;;) {
       let heard: string | undefined;
       if (next !== undefined) {
         heard = next;
       } else {
-        const result = await this.listen({ waitMs: waiting });
+        const result = await this.listen({ waitMs: waiting, guesses: true });
         if (result.kind === 'failed') {
           await this.cannotHear(result.why);
           break;
@@ -311,23 +361,40 @@ export class VoiceTurns {
   }
 
   /** One listen for the person, with their words shown as they come while live words are on. */
-  private async listen(options: { waitMs: number; holding?: { released: Promise<void>; tailMs: number } }): Promise<Heard> {
+  private async listen(options: { waitMs: number; holding?: { released: Promise<void>; tailMs: number }; guesses?: boolean }): Promise<Heard> {
     const { talking, preferences, ear, timer } = this.parts;
     const cut = new Promise<void>((resolve) => {
       this.cutListen = resolve;
     });
     this.update({ listening: true, live: '' });
     talking.listening(true);
+    // At a short pause the words so far are sent as a guess, so the answer can start before they finish.
+    let guessed = '';
+    let pause: () => void = () => undefined;
+    const paused = (soFar: string) => {
+      pause();
+      if (options.guesses !== true || options.holding !== undefined) return;
+      const changed = this.now();
+      pause = timer(GUESS_AFTER_PAUSE_MS, () => {
+        if (soFar === guessed || !mayGuess(soFar, this.now() - changed)) return;
+        guessed = soFar;
+        const mine = this.ownWordsOnly(soFar);
+        if (mine !== undefined) void talking.guess(mine);
+      });
+    };
     try {
       return await hear(ear, timer, {
-        ...options,
+        waitMs: options.waitMs,
+        ...(options.holding === undefined ? {} : { holding: options.holding }),
         cut,
         onWords: (soFar) => {
           if (preferences.choices.liveWords) this.update({ live: soFar });
+          paused(soFar);
         },
         onLevel: (level) => this.onLevel?.(level),
       });
     } finally {
+      pause();
       this.cutListen = undefined;
       talking.listening(false);
       this.update({ listening: false });
@@ -439,6 +506,7 @@ export class VoiceTurns {
       return;
     }
     this.update({ active: true, ruling: true, problem: undefined });
+    void this.parts.talking.warm();
     this.chime('listening');
     const result = await this.listen({ waitMs: 0, holding: { released, tailMs: TURN_TIMING.releaseTailMs } });
     this.update({ ruling: false });
@@ -508,15 +576,57 @@ export class VoiceTurns {
       return;
     }
     const family = dictationFamily(focus.app, focus.title);
-    const written = await this.dictationText(said, family, selection, dictionary);
+    const text = await this.dictationText(said, family, selection, dictionary);
     this.update({ active: false, dictating: undefined, live: '' });
-    if (written === undefined) {
+    if (text === undefined) {
       // Editing a selection needs the model, and without its answer the selection is left untouched.
       this.chime('failed');
       return;
     }
+    // Fitted to what is around the cursor, so it is spaced and capitalised as the sentence it lands in.
+    const written = selection === undefined ? fitted(text, focus.before, focus.after) : text;
     const landed = await this.put(written, focus, live);
-    if (!landed) this.chime('failed');
+    this.parts.dictated?.({ heard: said, written, app: focus.app });
+    if (!landed) {
+      this.chime('failed');
+      return;
+    }
+    this.watchForCorrections(written, focus);
+  }
+
+  /**
+   * Reads the field again a while later, and what the person changed in the words just written is learned:
+   * the dictionary writes it their way next time, and the recognizer hears it better. Only when the text
+   * around what was written is still exactly as it was, so a different field never teaches anything.
+   */
+  private watchForCorrections(written: string, focus: Focus): void {
+    const typist = this.parts.typist;
+    if (typist === undefined || focus.value === undefined || focus.caret === undefined) return;
+    const prefix = focus.value.slice(0, focus.caret);
+    const suffix = focus.value.slice(focus.selectionEnd ?? focus.caret);
+    this.parts.timer(TURN_TIMING.correctionWatchMs, () => {
+      void typist
+        .focus()
+        .then((now) => {
+          const value = now.value;
+          if (now.app !== focus.app || value === undefined || !value.startsWith(prefix) || !value.endsWith(suffix) || value.length < prefix.length + suffix.length) return;
+          const edited = value.slice(prefix.length, value.length - suffix.length).trim();
+          const typed = written.trim();
+          if (edited === typed || edited === '') return;
+          const corrections = correctedWords(typed, edited);
+          if (corrections.length === 0) return;
+          this.parts.corrected?.(corrections);
+          void this.parts.talking.learn(typed, edited);
+        })
+        .catch(() => undefined);
+    });
+  }
+
+  /** The agents, CLIs and servers on this machine, so the recognizer hears "Railway" and not "right away". */
+  private async learnNames(): Promise<void> {
+    if (this.parts.hints === undefined) return;
+    const words = await this.parts.talking.vocabulary();
+    this.parts.hints(chosenHints([FIRST_RECOGNIZER_HINTS, words]));
   }
 
   /** Types the words live as they come, while the key is held, when the person chose live typing. */
@@ -542,7 +652,9 @@ export class VoiceTurns {
     }
     const local = cleanedDictation(said, { dictionary: dictionary.spellings, replacements: dictionary.replacements, style: familyStyle(family) });
     if (!polishes) return local;
-    return (await polish.polish(said, family, dictionary.spellings)) ?? local;
+    const polished = await polish.polish(said, family, dictionary.spellings);
+    // The model writes their words; their own replacements still decide what a phrase becomes.
+    return polished === undefined ? local : replaced(polished, dictionary.replacements);
   }
 
   /** The finished words where the cursor is, over what was typed live; on the clipboard when the app left the front. */

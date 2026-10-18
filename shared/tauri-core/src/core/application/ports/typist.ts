@@ -7,6 +7,13 @@ export interface Focus {
   readonly secure: boolean;
   /** Text selected there, which dictation then edits by instruction. */
   readonly selection?: string;
+  /** The text around the cursor, so dictation is spaced and capitalised to fit what it lands between. */
+  readonly before?: string;
+  readonly after?: string;
+  /** The field's whole text and where the cursor and the end of the selection sit in it, in UTF-16 units, read again to learn from corrections. */
+  readonly value?: string;
+  readonly caret?: number;
+  readonly selectionEnd?: number;
 }
 
 /** Types into the app in front, as the platform layer in Rust does it: SendInput, wtype, ydotool or xdotool. */

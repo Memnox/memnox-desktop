@@ -1,5 +1,6 @@
 import {
   ASK_ENDS,
+  ASK_INTENT,
   type AskIntent,
   BRIEFING,
   DAEMON_EVENT,
@@ -12,9 +13,14 @@ import {
   type ProposalAnswer,
 } from '@memnox/core/wire';
 import { callLabel } from '../domain/call-label';
+import { readingCaption } from '../domain/caption-lines';
+import { ANOTHER_KEY_LINE, type KeyStatus } from '../domain/key-status';
 import { EarlierAnswer } from '../domain/earlier-answer';
 import { quietHere } from '../domain/quiet';
 import { SentenceSplitter } from '../domain/sentence-splitter';
+import { correctedWords } from '../domain/corrections';
+import { repeats } from '../domain/repeats';
+import { speakable } from '../domain/speakable';
 import { afterConfirm, heldQuestion, LINES, toolWord } from '../domain/spoken';
 import { FRESH_AFTER_MS, WakeLines } from '../domain/wake-lines';
 import { nameAlone, withoutLeadingName, withoutTrailingName } from '../domain/wake-word';
@@ -34,6 +40,8 @@ export interface TalkState {
   readonly heard: string | undefined;
   readonly reply: string;
   readonly failure: string | undefined;
+  /** One line on what it is doing right now, "reading gmail" or "typing it in", as the Mac's caption; gone once it rests. */
+  readonly caption?: string;
 }
 
 /** Calls `fire` after `ms` unless the returned function is called first; the core has no timers of its own. */
@@ -118,6 +126,8 @@ export class Talking {
   private lastCalled: number | undefined;
   /** When it last greeted them out loud, which the brain hears of so the same hello is never said twice. */
   private greetedAt: number | undefined;
+  /** What this reply has said so far, so a sentence told twice around a tool is said once. */
+  private saidThisReply: string[] = [];
 
   constructor(
     private readonly link: DaemonLink,
@@ -165,6 +175,11 @@ export class Talking {
     return () => this.listeners.delete(listener);
   }
 
+  /** Says what is being done outside the talk itself, such as the key's prompt or typing into a terminal; undefined clears it. */
+  captioned(text: string | undefined): void {
+    if (text !== this.current.caption) this.update({ caption: text });
+  }
+
   /** Whether the brain said the person is done, read once, so the listener stops after this reply. */
   takeEnd(): boolean {
     const ending = this.ending;
@@ -197,7 +212,8 @@ export class Talking {
     if (!/\p{L}/u.test(words)) return;
     this.interrupted = false;
     this.answering = false;
-    this.lastHeard = this.now();
+    // A question asked again after a sign in was said minutes ago, so it opens no answer window for a yes.
+    if (ask.intent !== ASK_INTENT.RESUME) this.lastHeard = this.now();
     // Its name alone is somebody getting its attention, answered the way the wake word is.
     if (nameAlone(trimmed)) {
       await this.say(this.answerToCall());
@@ -218,6 +234,60 @@ export class Talking {
     if (told.kind !== 'spoke' && told.kind !== 'silent') this.chimes?.play('failed');
     if (told.kind === 'unreachable') await this.say(LINES.unreachable);
     if (told.kind === 'refused') await this.say(told.why === LINES.tooOld || told.why === LINES.stalled ? told.why : `My apologies, I could not ask that: ${told.why}.`);
+  }
+
+  /**
+   * The words so far at a pause, sent the way `heard` would send them so the daemon can start the answer
+   * now and hand it over the moment `heard` arrives with the same words. Nothing of it is said or done
+   * before then, so a guess the person talks past costs nothing but the try.
+   */
+  async guess(said: string): Promise<void> {
+    const trimmed = said.trim();
+    // Cut the same way `heard` cuts, so a guess and the words that follow it match and the guess is kept.
+    const words = withoutTrailingName(withoutLeadingName(trimmed));
+    if (!/\p{L}/u.test(words) || nameAlone(trimmed)) return;
+    const request: DaemonRequest = { ...this.request(DAEMON_METHOD.ASK), said: words, speculative: true };
+    const front = await this.front();
+    if (front?.app !== undefined) request.lookingAt = front.app;
+    if (front?.title !== undefined) request.lookingAtWindow = front.title;
+    await requestOnce(this.link, request).catch(() => undefined);
+  }
+
+  /** The person started talking: the brain starts now, so the answer skips its cold start. */
+  async warm(): Promise<void> {
+    await requestOnce(this.link, this.request(DAEMON_METHOD.WARM)).catch(() => undefined);
+  }
+
+  /** The names this machine uses, from the daemon, for the recognizer to listen for. */
+  async vocabulary(): Promise<readonly string[]> {
+    const response = await requestOnce(this.link, this.request(DAEMON_METHOD.VOCABULARY)).catch(() => undefined);
+    return response?.words ?? [];
+  }
+
+  /**
+   * What the person changed in words the app typed before they sent them: each word swapped for one that
+   * sounds alike is sent to be learned, so it is heard right the next time they say it.
+   */
+  async learn(typed: string, sent: string): Promise<void> {
+    const corrections = correctedWords(typed, sent);
+    if (corrections.length === 0) return;
+    const request: DaemonRequest = { ...this.request(DAEMON_METHOD.LEARN_WORDS), learned: corrections.map(({ heard, meant }) => ({ heard, meant })) };
+    await requestOnce(this.link, request).catch(() => undefined);
+  }
+
+  /** Welcome back: what waits on them, told by their own brain, and false when nothing does. */
+  async welcomeBack(since: number): Promise<boolean> {
+    this.interrupted = false;
+    this.update({ phase: 'thinking', heard: undefined, reply: '', failure: undefined });
+    const request: DaemonRequest = { ...this.request(DAEMON_METHOD.BRIEF), briefing: BRIEFING.BACK, since: new Date(since).toISOString() };
+    const told = await this.speakStream(request);
+    this.update({ phase: 'idle' });
+    return told.kind === 'spoke';
+  }
+
+  /** At launch, once the key is registered: says so when somebody else's key is already there. */
+  async introduce(status: KeyStatus): Promise<void> {
+    if (status.kind === 'another-key') await this.say(ANOTHER_KEY_LINE);
   }
 
   /** The person started talking over the answer: the voice stops now and the brain stops too. */
@@ -330,6 +400,7 @@ export class Talking {
   /** Streams a turn into speech, sentence by sentence, and says how it ended. */
   private async speakStream(request: DaemonRequest): Promise<Told> {
     const sentences = new SentenceSplitter();
+    this.saidThisReply = [];
     let spoke = false;
     try {
       for await (const response of this.quieted(this.link.stream(request))) {
@@ -366,6 +437,7 @@ export class Talking {
       this.flow(sentences.flush());
       if (toolWord(chunk.tool) === END_TOOL) this.ending = true;
       if (toolWord(chunk.tool) === HOLD_TOOL) this.holding = true;
+      this.update({ caption: readingCaption(chunk.tool) });
     } else if (chunk.kind === 'limited') {
       this.flow(sentences.flush());
       await this.say(LINES.limited);
@@ -395,12 +467,19 @@ export class Talking {
     }
   }
 
+  /** A sentence of a streamed reply: only what a voice should say, and never the same sentence told twice. */
   private flow(sentence: string | undefined): void {
-    if (sentence !== undefined && !this.interrupted) this.speaker.queue(sentence);
+    if (sentence === undefined || this.interrupted) return;
+    const spoken = speakable(sentence);
+    if (spoken === '' || repeats(spoken, this.saidThisReply)) return;
+    this.saidThisReply.push(spoken);
+    this.speaker.queue(spoken);
   }
 
   private async say(sentence: string): Promise<void> {
-    this.speaker.queue(sentence);
+    const spoken = speakable(sentence);
+    if (spoken === '') return;
+    this.speaker.queue(spoken);
     await this.speaker.drained();
   }
 
@@ -424,7 +503,9 @@ export class Talking {
   }
 
   private update(change: Partial<TalkState>): void {
-    this.current = { ...this.current, ...change };
+    // A turn that starts or ends leaves no caption behind, as the Mac clears it whenever the face rests.
+    const rests = change.phase !== undefined && change.phase !== 'speaking' && !('caption' in change);
+    this.current = { ...this.current, ...change, ...(rests ? { caption: undefined } : {}) };
     for (const listener of this.listeners) listener();
   }
 }

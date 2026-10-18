@@ -19,6 +19,12 @@ export interface VoiceChoices {
   readonly typesLive: boolean;
   /** Dictation is polished by the person's own Claude Code through the daemon. */
   readonly polish: boolean;
+  /** Coming back to a locked screen after ten minutes, their brain says what waits on them. */
+  readonly catchUp: boolean;
+  /** Words go to an agent without bringing its window forward, where this desktop allows it. */
+  readonly stayPut: boolean;
+  /** The echo canceller runs on the microphone; off for a headset, where there is no echo to take out. */
+  readonly echoCancel: boolean;
 }
 
 /** As the Mac registers its defaults in `AppDelegate`. */
@@ -32,6 +38,9 @@ export const VOICE_DEFAULTS: VoiceChoices = {
   dictation: true,
   typesLive: true,
   polish: true,
+  catchUp: true,
+  stayPut: true,
+  echoCancel: true,
 };
 
 const PREFIX = 'memnox.voice.';

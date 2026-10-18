@@ -14,6 +14,7 @@ import {
 } from '@memnox/core/wire';
 import { callLabel } from '../domain/call-label';
 import { readingCaption } from '../domain/caption-lines';
+import { SIGN_IN_NOTICE } from '../domain/sign-in-notice';
 import { ANOTHER_KEY_LINE, type KeyStatus } from '../domain/key-status';
 import { EarlierAnswer } from '../domain/earlier-answer';
 import { quietHere } from '../domain/quiet';
@@ -321,7 +322,8 @@ export class Talking {
     if (quietHere(event, this.phoneHolds) || event.phoneTurn !== undefined || event.drivenBy !== undefined) return;
     if (event.kind === DAEMON_EVENT.HELD) return this.held(event);
     if (event.kind === DAEMON_EVENT.PAUSED) return this.briefed(event, BRIEFING.PAUSED, `I paused a session: ${event.summary}.`);
-    if (event.kind === DAEMON_EVENT.NOTICE && event.signedIn === undefined) return this.briefed(event, BRIEFING.NOTICE, event.summary);
+    // A finished sign in is shown rather than said; one that stalled is said as well, as the Mac's announcing lists it.
+    if (event.kind === DAEMON_EVENT.NOTICE && (event.signedIn === undefined || event.notice === SIGN_IN_NOTICE.STALLED)) return this.briefed(event, BRIEFING.NOTICE, event.summary);
   }
 
   /** Told by their own brain with what the session has been doing; the facts alone if it cannot. */

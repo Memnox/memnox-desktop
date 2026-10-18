@@ -1,5 +1,6 @@
 import { DAEMON_EVENT, DISPLAY, type DaemonEvent, type ToolSignIn } from '@memnox/core/wire';
 import { driveGrant, phoneVoice, type DriveGrant } from '../domain/driving';
+import { isSignInNotice, SIGN_IN_NOTICE, signInFinished } from '../domain/sign-in-notice';
 import { SIGNED_IN_FOR_MS } from '../domain/tool-brand';
 import type { Timer } from './talking';
 
@@ -21,8 +22,6 @@ export interface NoticesState {
   readonly driving: DriveGrant | undefined;
   readonly phoneVoice: { readonly deviceId: string; readonly name: string } | undefined;
 }
-
-const SIGNED_IN = 'signed-in';
 
 /**
  * The pills under the island, ported from the Mac's `IslandPanel`: the sign in row, the signed in
@@ -55,7 +54,8 @@ export class IslandNotices {
     if (event.kind !== DAEMON_EVENT.NOTICE) return;
     if (event.drivenBy !== undefined) this.drive(event);
     if (event.voiceOn !== undefined) this.update({ phoneVoice: phoneVoice(event.voiceOn) });
-    if (event.notice === SIGNED_IN && event.signedIn?.account !== undefined) this.signedIn(event);
+    // A stalled sign in hangs the same pill, with no account to name, as the Mac shows `signInStalled`.
+    if (isSignInNotice(event) && event.signedIn !== undefined && (event.notice === SIGN_IN_NOTICE.STALLED || signInFinished(event.signedIn))) this.signedIn(event);
   }
 
   /** A tool's sign in was opened, or Not me was pressed, so its icon or its pill goes. */
@@ -70,11 +70,11 @@ export class IslandNotices {
 
   private signedIn(event: DaemonEvent): void {
     const notice = event.signedIn;
-    if (notice?.account === undefined) return;
+    if (notice === undefined) return;
     const pill: SignedInPill = {
       toolkit: notice.toolkit,
-      who: notice.account.handle ?? notice.account.name,
-      unverified: notice.account.check !== 'matched',
+      who: notice.account?.handle ?? notice.account?.name,
+      unverified: notice.account?.check !== 'matched',
       resume: notice.resume,
     };
     this.stopSignedIn?.();

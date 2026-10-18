@@ -8,12 +8,11 @@ import { IslandNotices, type SignedInPill } from '../../core/application/island-
 import type { Chimes } from '../../core/application/ports/chimes';
 import type { PressEnd } from '../../core/domain/chimes';
 import { toolkitName } from '../../core/domain/tool-brand';
+import { movedOn, SIGN_IN_NOTICE } from '../../core/domain/sign-in-notice';
 import { answerMenuOpened, forwardCards, onCardSession, onMenuAction, showScan } from '../adapters/tauri-windows';
 
 /** How the talk key reads on Windows and Linux. */
 const TALK_KEYS = ['Ctrl', 'Alt', 'Space'];
-/** A sign in that finished this long after it was asked carries on what was asked; older, it is only shown. */
-const RESUME_WITHIN_MS = 60_000;
 /** What the diary's heading says this computer is. */
 const MACHINE = navigator.userAgent.includes('Windows') ? 'Windows' : 'Linux';
 /** What another window, such as Settings' Help page, sends to have the island copy its diary with that window's own lines after it. */
@@ -71,6 +70,14 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
     // The scan of every agent here takes the whole screen; `Displays` leaves this one display to it.
     if (event.kind === DAEMON_EVENT.SHOW && event.display === DISPLAY.AGENTS && event.agents !== undefined) void showScan(event.agents, event.title ?? 'Your agents').catch(() => undefined);
   });
+  // When the person last asked something, so a sign in that finished before it does not ask the older thing again.
+  let lastHeard: number | undefined;
+  let heardWords = parts.talking.state.heard;
+  parts.talking.observe(() => {
+    if (parts.talking.state.heard === heardWords) return;
+    heardWords = parts.talking.state.heard;
+    if (heardWords !== undefined) lastHeard = Date.now();
+  });
   forwardCards();
   // A card's Watch live and Open both bring up the live window, since no session window is focused here yet.
   onCardSession((ask) => void invoke('open_live_session', { sessionId: ask.sessionId }).catch(() => undefined));
@@ -78,8 +85,13 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
   /** A sign in that finished goes on with what the person asked before it, as if they asked again. */
   function carryOn(event: DaemonEvent) {
     const resume = event.signedIn?.resume;
-    if (event.kind !== DAEMON_EVENT.NOTICE || event.notice !== 'signed-in' || resume === undefined || event.signedIn?.account === undefined) return;
-    if (Date.now() - Date.parse(event.at) > RESUME_WITHIN_MS) return;
+    if (event.kind !== DAEMON_EVENT.NOTICE || event.notice !== SIGN_IN_NOTICE.SIGNED_IN || resume === undefined || event.signedIn?.account === undefined) return;
+    // Asked again only while nothing has moved on, so an old request never lands on top of a newer one.
+    if (movedOn(event.at, lastHeard, Date.now())) {
+      diary.note(`signed in to ${event.signedIn.toolkit}`);
+      return;
+    }
+    diary.note(`signed in to ${event.signedIn.toolkit}, carrying on`);
     // Marked as asked again, so nothing the brain proposes from it counts as words the person just said.
     void parts.talking.heard(resume, true, { intent: ASK_INTENT.RESUME });
   }

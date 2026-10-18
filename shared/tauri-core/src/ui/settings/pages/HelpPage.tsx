@@ -22,7 +22,8 @@ function whatHappened(parts: SettingsParts): string {
 /** The Help page: say a rule, check that Memnox hears and answers, and copy what happened for support. */
 export function HelpPage({ parts }: { parts: SettingsParts }) {
   const { host } = parts;
-  const [copied, copy] = useCopied(host.copy);
+  // The island's diary of steps first, as the Mac copies it, then where this computer stands.
+  const [copied, copy] = useCopied((text) => host.copyWhatHappened?.(text) ?? host.copy(text));
   return (
     <SettingsCard>
       <SettingsRow icon={ShieldHalf} title="Say a rule" caption={'Turns a sentence like “never deploy on Fridays” into a rule.'}>
@@ -33,7 +34,7 @@ export function HelpPage({ parts }: { parts: SettingsParts }) {
         <KitButton onClick={() => host.talk()}>Try it</KitButton>
       </SettingsRow>
       <SettingsDivider />
-      <SettingsRow icon={ClipboardCopy} title="Copy what happened" caption="Puts where this computer stands on your clipboard to send to support.">
+      <SettingsRow icon={ClipboardCopy} title="Copy what happened" caption="Puts the recent steps on your clipboard to send to support.">
         <KitButton onClick={() => copy(whatHappened(parts))}>{copied ? 'Copied' : 'Copy'}</KitButton>
       </SettingsRow>
     </SettingsCard>

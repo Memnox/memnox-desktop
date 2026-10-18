@@ -35,6 +35,8 @@ export interface SettingsHost {
   /** Starts a talk on the island, as the talk key does; `rule` asks for one in rule mode. */
   talk(intent?: 'rule'): void;
   copy(text: string): Promise<void>;
+  /** Has the island copy its diary of steps with these lines after it, as the Mac's Copy what happened; without it, only these lines are copied. */
+  copyWhatHappened?(more: string): Promise<void>;
   /** Told when the island or the tray asks this window for one page. */
   onShowPage(listener: (page: string) => void): () => void;
   readonly voices: {
@@ -62,6 +64,8 @@ export const tauriHost: SettingsHost = {
   applyLook: (look) => void invoke('apply_appearance', { look }).catch(() => undefined),
   talk: (intent) => void emit('talk', intent === undefined ? null : { intent }),
   copy: (text) => navigator.clipboard.writeText(text),
+  // The island keeps the diary, so it is the one that copies; the name matches `COPY_WHAT_HAPPENED_EVENT`.
+  copyWhatHappened: (more) => emit('copy-what-happened', more),
   onShowPage: (listener) => {
     const stop = listen<string>('settings-page', (event) => listener(event.payload));
     return () => void stop.then((unlisten) => unlisten(), () => undefined);

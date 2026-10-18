@@ -1,29 +1,85 @@
+<div align="center">
+
 # shared
 
-What Windows and Linux share, so a feature is written once.
+### One app for Windows and Linux, written once.
 
-| Path | Will hold |
+[![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)](tauri-core/src-tauri)
+[![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](tauri-core/src/ui)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](tauri-core/src/core)
+[![Rust](https://img.shields.io/badge/Rust-stable-000000?logo=rust&logoColor=white)](tauri-core/crates)
+
+<br>
+
+<img src="../docs/images/tauri-island-dictation.png" width="80%" alt="The Memnox island while dictating, with a Dictating chip, a small orb and the words being typed into the app in front.">
+
+</div>
+
+---
+
+Everything Windows and Linux share lives here, so a feature is written once and a platform folder,
+[`windows/`](../windows) or [`linux/`](../linux), holds only what its system does differently. The
+app is ported from the Mac's: its rules, its states, its copy and its orb shader, line for line where
+it can be.
+
+## What is here
+
+| Path | Holds |
 |---|---|
-| `tauri-core/src/core` | TypeScript with no DOM and no Tauri, ported from `macos/Sources/MemnoxVoiceCore`: the held calls waiting on the person and their signed answers (`HeldCalls`), the voice (`Talking`: what they said goes whole to `ask`, held calls are briefed aloud, and a proposal is confirmed only within two minutes of their own words and only with a signature, otherwise declined), the cards a rule or a draft waits on (`ProposalCards`: a rule goes in force only with a signature over the place picked, a Send only with one over exactly the words sent), one place every yes is signed (`Signer`), keeping awake while a phone is paired (`Wakefulness`), setting the runtime up with no terminal (`Setup`: finds `memnox` or installs it from npm, wires the computer the first time, starts the service, updates one too old, as the Mac's `RuntimeInstaller` does), and the agent the voice thinks with (`VoiceSettings`), behind the ports `DaemonLink`, `ConfirmKey`, `Speaker`, `Power` and `Runtime`. The wire types, the answer words and `confirmationMessage` come from `@memnox/core/wire`, never copied. |
-| `tauri-core/src/ui` | React and Tailwind, in memnox-client's dark palette with lucide icons: the island with the orb in WebGL2 (the Mac's Metal shader ported line for line, its motion in the core's `OrbMotion`), the held call, its three answers and the queue, the rule and draft cards, the setup row, settings (the Kokoro voice, the agent it thinks with, putting agents under Memnox), the Talk button and the voice install, and the Tauri adapters for the ports. `pnpm dev` and `/preview.html` (or `/preview.html?settings`) draw it from a scripted daemon with no Tauri. |
-| `tauri-core/src-tauri/icons` | The Mac's own `.icns` for macOS, and for Windows and Linux the tile cut out of it without the Dock's margin and shadow: an `.ico` of six sizes and PNGs from 32 to 512. |
-| `tauri-core/src-tauri` | Rust: the daemon link over the socket (refused unless it belongs to the same user) or the named pipe, the confirm key, keep awake and voice commands, the island window, the tray, starting at sign in (on from the first run, off from the tray), the talk key, Ctrl Alt Space, and the runtime's three setup steps, each one fixed `memnox` line run through the person's login shell, so the webview names a step and never a command. |
-| `tauri-core/crates/desktop-voice` | The voice on this computer through sherpa-onnx: Silero finds where the person spoke, Parakeet TDT v3 writes it down, Kokoro v1.0 says the reply in the Mac's `af_sky` voice. The models, about 620 MB, are fetched on first use from sherpa-onnx's releases, or from `MEMNOX_VOICE_PACK` when a mirror is set. `cargo run --release -p memnox-desktop-voice --example round_trip -- <models>` runs the whole voice without a microphone. |
-| `tauri-core/crates/desktop-key` | The confirm key trait both platforms implement, and the raw to DER conversion, tested against the runtime's signature vector. |
-| `vectors/` | `protocol.json`, written by `memnox-runtime`'s `pnpm vectors` and copied here by `scripts/sync-vectors.sh`: every signed message with its exact text, one signature in DER and raw form, and every value a mirror must know. The Mac's `ProtocolVectorsTests` reads it, and CI fails when the copy falls behind the runtime. |
-| `tokens/` | the colours, type sizes and spacing every desktop draws with. |
+| [`tauri-core/src/core`](tauri-core/src/core) | TypeScript with no DOM and no Tauri, ported from `macos/Sources/MemnoxVoiceCore`: every rule, in `domain/` as pure functions and in `application/` as use cases behind ports. Held calls and their signed answers, the voice (`Talking`, where what you said goes whole to `ask`), dictation, rules and drafts that go in force only with a signature, sessions and their focus, Home, setup, pairing phones and servers, the team's inbox, and keeping awake. The wire types and `confirmationMessage` come from `@memnox/core/wire`, never copied. |
+| [`tauri-core/src/core/application/ports`](tauri-core/src/core/application/ports) | What the core asks of the world: `DaemonLink`, `ConfirmKey`, `Speaker`, `Ear`, `Typist`, `Terminals`, `Power`, `Runtime`, `Pairer`, `Chimes`, `PreferenceStore` and `WorkspaceInbox`. |
+| [`tauri-core/src/ui`](tauri-core/src/ui) | React and Tailwind in Inter and DM Mono, with lucide icons: the island and its orb in WebGL2 (the Mac's Metal shader ported), the cards, sessions, the voice, Settings, the first run, the tray panel, tools and scan, and the Tauri adapters for the ports. |
+| [`tauri-core/src-tauri`](tauri-core/src-tauri) | Rust: the daemon link over the socket or the named pipe, the confirm key, the keys and typing on each system, focus through each terminal's and editor's own controls, the island and session windows, the tray and its glass, the relay to paired servers, Memnox Cloud sign in, permissions, presence, and the runtime's setup steps, each a fixed `memnox` line, so the webview names a step and never a command. |
+| [`tauri-core/crates/desktop-key`](tauri-core/crates/desktop-key) | The confirm key trait both systems implement, and the raw to DER conversion, tested against the runtime's signature vector. |
+| [`tauri-core/crates/desktop-noise`](tauri-core/crates/desktop-noise) | The one Noise layer the runtime, the phones and the Mac share, copied whole from memnox-runtime by `scripts/sync-noise.sh` and tested against its vectors. |
+| [`tauri-core/crates/desktop-voice`](tauri-core/crates/desktop-voice) | The voice through sherpa-onnx: Silero finds where you spoke, Parakeet TDT v3 writes it down, and Kokoro v1.0 answers in the Mac's `af_sky` voice, with echo cancelling and chimes. |
+| [`tauri-core/test`](tauri-core/test) | The core's tests, run by vitest against a scripted daemon and the protocol vectors. |
+| [`tauri-core/src-tauri/icons`](tauri-core/src-tauri/icons) | The Mac's `.icns`, and for Windows and Linux the tile cut out of it: an `.ico` of six sizes and PNGs from 32 to 512. |
+| [`vectors/`](vectors) | `protocol.json`, written by memnox-runtime's `pnpm vectors` and copied here by [`scripts/sync-vectors.sh`](scripts/sync-vectors.sh): every signed message with its exact text, one signature in DER and raw form, and every value a mirror must know. The Mac's tests read it too, and CI fails when the copy falls behind the runtime. |
 
-`tokens/` is still planned.
+## The voice
 
-## Build the Windows and Linux app
+The models, about 620 MB, install once on first use: Parakeet in int8 (about 490 MB), Kokoro in int8
+(about 130 MB) and Silero. They come from `https://assets.memnox.com/sherpa`, a byte for byte mirror of
+sherpa-onnx's releases, and from GitHub when the mirror lacks a file. `MEMNOX_VOICE_PACK` names
+another mirror. Until Kokoro is in, the system's own voice speaks.
+
+```sh
+cargo run --release -p memnox-desktop-voice --example round_trip -- <models>
+```
+
+runs the whole voice with no microphone.
+
+## Build and test
 
 ```sh
 cd shared/tauri-core
-pnpm wire           # builds memnox-runtime's core and copies its wire into .runtime
+pnpm wire                 # builds memnox-runtime's core and copies its wire into .runtime
 pnpm install
-pnpm test           # the core against a scripted daemon and the vectors
-cargo test --workspace   # from the repo root: the key, the DER conversion, the daemon link
-pnpm tauri dev      # on Windows or Linux; on a Mac it runs with no key and signs nothing, though it talks
+pnpm typecheck            # the webview and the core, on their own tsconfigs
+pnpm test                 # the core against a scripted daemon and the vectors
+cargo test --workspace    # from the repo root: the key, DER, Noise, the daemon link, the voice
+pnpm tauri dev            # the app, on Windows or Linux
 ```
 
-`MEMNOX_RUNTIME` names the runtime checkout when it is not beside this repo. CI builds and tests the app on Windows and Ubuntu.
+`MEMNOX_RUNTIME` names the runtime checkout when it is not beside this repo, and a development build
+started with `MEMNOX_RUNTIME_DIR` runs that checkout's own CLI. CI builds and tests the app on Windows
+and Ubuntu.
+
+<details>
+<summary><b>Every screen in a browser</b></summary>
+
+`pnpm dev` serves the pages on `http://localhost:1420` over a scripted daemon, with no Tauri:
+
+| Page | Shows |
+|---|---|
+| `preview.html` | every island scene, listed; `?mode=held`, `?mode=voice-listening`, `?mode=sessions-overview` and the rest |
+| `settings.html` | Settings, with `?theme=light` or `dark`, `?page=` for one page, `?platform=linux` |
+| `tray.html?preview=panel` | the tray panel, with `&theme=light` or `dark` |
+| `preview.html?mode=sessions-live` | the session windows too: `sessions-side`, `sessions-switcher` and `sessions-board` |
+| `onboarding.html` | the first run, with `?stage=intro`, `name` or `steps` and `&step=` |
+| `previews/tour.html` and `previews/tools.html` | the first run's demo and the tools cards |
+
+The screenshots in [`docs/images`](../docs/images) are shot from these pages with headless Chrome.
+
+</details>

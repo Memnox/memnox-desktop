@@ -16,6 +16,9 @@ import { listen } from '@tauri-apps/api/event';
 import { AgentQuestions, Displays, HistoryKeeper, Sessions } from '../core';
 import { localHistory } from './sessions/history-store';
 import { ASK_AGAIN_EVENT, TauriPresenter } from './sessions/tauri-presenter';
+import { Preferences } from '../core/application/preferences';
+import type { VoiceChoices } from '../core/application/voice-preferences';
+import { firstName } from '../core/domain/setup-steps';
 import './styles.css';
 
 /** How long after the daemon closes the feed before it is opened again, long enough for a restart to finish. */
@@ -36,6 +39,13 @@ const signer = new Signer(link, new TauriConfirmKey(), ids, (status) => calls?.k
 calls = new HeldCalls(link, signer, ids, { timer });
 // The voice: Kokoro behind a mouth that remembers what it said and honours the mute, the ear, the keys and the typist.
 const voicePreferences = new VoicePreferences(localPreferences);
+// Settings writes the switches in its own window, so a change there reaches this copy of them.
+window.addEventListener('storage', (event) => {
+  const key = event.key?.startsWith('memnox.voice.') === true ? (event.key.slice('memnox.voice.'.length) as keyof VoiceChoices) : undefined;
+  if (key !== undefined && key in voicePreferences.choices && (event.newValue === 'true' || event.newValue === 'false')) voicePreferences.set(key, event.newValue === 'true');
+});
+// The person's own choices, kept by Settings and the first run: their name, and whether the first run is done.
+const personal = new Preferences(localPreferences);
 const speaker = new Mouth(new TauriSpeaker(), voicePreferences);
 const chimes = new TauriChimes();
 const typist = new TauriTypist();
@@ -45,6 +55,7 @@ const talking = new Talking(link, speaker, signer, ids, {
   cards,
   chimes: { play: (cue) => voicePreferences.choices.chimes && chimes.play(cue) },
   lookingAt: () => typist.focus(),
+  owner: () => firstName(personal.name),
 });
 const voiceTurns = new VoiceTurns({
   talking,
@@ -86,6 +97,8 @@ async function keepWatching(held: HeldCalls): Promise<never> {
 }
 
 void keepWatching(calls);
+// A first launch opens the first run in its own window; after it, Settings is one press on the island away.
+if (!personal.setupDone) void invoke('open_onboarding').catch(() => undefined);
 void wakefulness.check();
 setInterval(() => void wakefulness.check(), AWAKE_CHECK_MS);
 
@@ -93,6 +106,6 @@ const root = document.getElementById('root');
 if (root === null) throw new Error('index.html has no root');
 createRoot(root).render(
   <StrictMode>
-    <VoiceIsland preferences={voicePreferences} voice={voiceTurns} calls={calls} talking={talking} cards={cards} setup={setup} voiceSettings={voiceSettings} sessions={sessions} questions={questions} onOpenSession={openLive} onWatchLive={openLive} onSide={() => void invoke('open_side', { open: true }).catch(() => undefined)} extras={extras} />
+    <VoiceIsland preferences={voicePreferences} voice={voiceTurns} calls={calls} talking={talking} cards={cards} setup={setup} voiceSettings={voiceSettings} sessions={sessions} questions={questions} onOpenSession={openLive} onWatchLive={openLive} onSide={() => void invoke('open_side', { open: true }).catch(() => undefined)} extras={extras} onSettings={() => void invoke('open_settings', { page: null }).catch(() => undefined)} />
   </StrictMode>,
 );

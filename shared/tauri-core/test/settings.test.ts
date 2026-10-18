@@ -9,7 +9,7 @@ import type { PreferenceStore } from '../src/core/application/ports/preference-s
 import { Preferences } from '../src/core/application/preferences';
 import { RequestIds } from '../src/core/application/request-ids';
 import { Signer } from '../src/core/application/signer';
-import { VoicePreferences, VOICE_PREFERENCE } from '../src/core/application/voice-settings';
+import { DictationWords } from '../src/core/application/voice-settings';
 import { accountState, accountTitle, accountWhole, groupedDigits } from '../src/core/domain/account-whole';
 import { AgentCheckText } from '../src/core/domain/agent-check-text';
 import { themeFor } from '../src/core/domain/appearance';
@@ -381,14 +381,9 @@ describe('the home', () => {
 });
 
 describe('what the person chose', () => {
-  it('keeps the switches with the Mac defaults and the dictionary and history as lists', () => {
+  it('keeps the dictionary and the history as lists', () => {
     const store = new MemoryStore();
-    const voice = new VoicePreferences(store);
-    expect(voice.isOn('wakeWord')).toBe(false);
-    expect(voice.isOn('sounds')).toBe(true);
-    voice.set('sounds', false);
-    expect(store.load(VOICE_PREFERENCE.sounds)).toBe('false');
-    expect(voice.isOn('sounds')).toBe(false);
+    const voice = new DictationWords(store);
     voice.addWord('orb', 'ORB');
     voice.addWord('orb', 'Orb');
     voice.addWord('', 'Memnox');

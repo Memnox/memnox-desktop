@@ -1,0 +1,101 @@
+/*
+ * What the Settings window and the first run add to styles.css: their own ground, which is the sidebar's
+ * surface rather than the island's clear one, and the pointer in the permission guide's picture.
+ */
+
+html.mx-window,
+html.mx-window body {
+  background: var(--mx-surface);
+  color: var(--mx-foreground);
+  height: 100%;
+}
+
+html.mx-window #root {
+  height: 100%;
+}
+
+/* Words a person may want to copy, such as a code or a guide's step, can be selected. */
+.select-text {
+  user-select: text;
+}
+
+/* The pointer rests, travels to the switch, presses it off, waits, presses it on, and comes back. */
+@keyframes guide-pointer {
+  0%,
+  25% {
+    translate: 200px 92px;
+    scale: 1;
+  }
+  37.5% {
+    translate: 263px 94px;
+    scale: 1;
+  }
+  38.6% {
+    scale: 0.85;
+  }
+  39.6% {
+    scale: 1;
+  }
+  55.7% {
+    translate: 263px 94px;
+    scale: 1;
+  }
+  56.8% {
+    scale: 0.85;
+  }
+  57.8% {
+    scale: 1;
+  }
+  92% {
+    translate: 263px 94px;
+  }
+  100% {
+    translate: 200px 92px;
+  }
+}
+
+@keyframes guide-switch {
+  0%,
+  39.5% {
+    background-color: var(--color-primary);
+  }
+  39.6%,
+  57.7% {
+    background-color: var(--mx-ink-edge);
+  }
+  57.8%,
+  100% {
+    background-color: var(--color-primary);
+  }
+}
+
+@keyframes guide-knob {
+  0%,
+  39.5% {
+    translate: 13px 0;
+  }
+  39.6%,
+  57.7% {
+    translate: 0 0;
+  }
+  57.8%,
+  100% {
+    translate: 13px 0;
+  }
+}
+
+/* Reduce Motion shows the pointer still on the switch, which stays on. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[guide-pointer_5\.6s_infinite\] {
+    animation: none;
+    translate: 263px 94px;
+  }
+  .animate-\[guide-switch_5\.6s_infinite\] {
+    animation: none;
+    background-color: var(--color-primary);
+  }
+  .animate-\[guide-knob_5\.6s_infinite\] {
+    animation: none;
+    translate: 13px 0;
+  }
+}

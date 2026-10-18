@@ -47,6 +47,7 @@ import { CloudRow } from '../settings/pages/AccountPage';
 import { Digits, IconTile, KitButton, Keycaps, MemnoxTile, NeedsHint, QuietLine, Spinner, StatusMark, useCopied } from '../settings/kit';
 import { useLook, useObserved, usePreferences, type SettingsParts } from '../settings/parts';
 import { PermissionGuide, QrCode } from '../settings/steps';
+import { IslandDemo, useDemoTour } from './IslandDemo';
 
 /** The icons of the welcome rows, the lucide stand ins for the Mac's symbols. */
 const WELCOME_ICONS: Record<WelcomeRow['id'], LucideIcon> = {
@@ -69,6 +70,13 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
   const [stage, setStage] = useState<OnboardingStage>(firstStage);
   const [step, setStep] = useState<OnboardingStep>(firstStep);
   const guide = useGuide(parts);
+  // The real island plays each part beside the steps, round and round; a row pressed plays its part at once.
+  // A preview can start on one part with ?part=, so each part can be looked at.
+  const [part, play] = useDemoTour((new URLSearchParams(location.search).get('part') ?? undefined) as WelcomeRow['id'] | undefined);
+  // The part the island moved on to is said once, and only while the welcome is the step on screen, as the Mac's `follow`.
+  useEffect(() => {
+    if (stage === 'steps' && step === 0 && guideMemory.first(`part-${part}`)) guide(rowSpoken(part, parts.host.platform), false);
+  }, [part, stage, step]);
 
   // Each stage is introduced once in a first run, as the Mac's `firstVisit`, so going Back stays quiet.
   useEffect(() => {
@@ -116,11 +124,11 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
       </div>
       <div className="flex min-h-0 flex-1 justify-center gap-12 px-14">
         <ScrollColumn key={step}>
-          {step === 0 && <WelcomeStep parts={parts} next={() => setStep(1)} />}
+          {step === 0 && <WelcomeStep parts={parts} next={() => setStep(1)} playing={part} play={play} />}
           {step === 1 && <SetupStepPage parts={parts} next={() => setStep(2)} />}
           {step === 2 && <TryStep parts={parts} finish={finish} />}
         </ScrollColumn>
-        <Art />
+        <IslandDemo part={part} />
       </div>
       <footer className="flex h-11 shrink-0 items-center gap-3 px-7 pb-3">
         {step > 0 && (
@@ -266,33 +274,6 @@ function ScrollColumn({ children }: { children: ReactNode }) {
   );
 }
 
-/** The picture beside the steps: a screen on a sky with the island hanging from its top. */
-function Art() {
-  return (
-    <div className="pointer-events-none flex min-w-0 flex-1 py-9" aria-hidden>
-      <div className="relative flex flex-1 items-end justify-center overflow-hidden rounded-3xl border border-ink-rim p-6" style={{ background: 'linear-gradient(#86B3C9, #4F7BB3)' }}>
-        <div className="relative aspect-[828/634] w-full max-w-[520px] rounded-t-[22px] bg-[#0C0C0D] px-[1.7%] pt-[1.7%] shadow-[0_14px_24px_rgba(0,0,0,.35)] [mask-image:linear-gradient(black_82%,transparent)]">
-          <div className="relative h-full overflow-hidden rounded-t-[14px]" style={{ background: 'linear-gradient(160deg, #1E86EE, #0a3d7a)' }}>
-            <div className="flex h-[5%] items-center justify-between bg-black/[0.18] px-3 text-[9px] font-medium text-white">
-              <span className="font-semibold">Terminal</span>
-              <span>9:41</span>
-            </div>
-            <div className="absolute top-0 left-1/2 flex h-[6%] w-[30%] -translate-x-1/2 items-center gap-1.5 rounded-b-[10px] bg-black px-2">
-              <span className="size-2 rounded-full bg-[#1E86EE] shadow-[0_0_6px_#1E86EE]" />
-              <span className="h-1 flex-1 rounded-full bg-white/20" />
-            </div>
-            <div className="absolute top-[12%] left-[8%] flex w-[60%] flex-col gap-1.5 rounded-lg bg-black/40 p-3">
-              {[80, 60, 72, 40].map((width) => (
-                <span key={width} className="h-1.5 rounded-full bg-white/30" style={{ width: `${width}%` }} />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /** `StepTitle`: 30 semibold over its line 15 at ink 62%. */
 function StepTitle({ title, detail }: { title: string; detail: string }) {
   return (
@@ -354,8 +335,7 @@ function DoneOr({ state, children }: { state: StepState; children: ReactNode }) 
 }
 
 /** Step 1: what Memnox does, five rows each said aloud on a press, and how it thinks. */
-function WelcomeStep({ parts, next }: { parts: SettingsParts; next: () => void }) {
-  const [playing, setPlaying] = useState<WelcomeRow['id']>();
+function WelcomeStep({ parts, next, playing, play }: { parts: SettingsParts; next: () => void; playing: WelcomeRow['id']; play: (part: WelcomeRow['id']) => void }) {
   const guide = useGuide(parts);
   return (
     <>
@@ -369,11 +349,12 @@ function WelcomeStep({ parts, next }: { parts: SettingsParts; next: () => void }
               {index > 0 && <KitDivider />}
               <button
                 type="button"
-                className={`cursor-pointer text-left transition-opacity duration-300 ${playing !== undefined && !on ? 'opacity-55' : ''}`}
-                title="Hear this"
+                className={`cursor-pointer text-left transition-opacity duration-300 ${!on ? 'opacity-55' : ''}`}
+                title="See it on the island"
                 onClick={() => {
-                  setPlaying(on ? undefined : row.id);
-                  if (!on) guide(rowSpoken(row.id, parts.host.platform));
+                  play(row.id);
+                  guideMemory.first(`part-${row.id}`);
+                  guide(rowSpoken(row.id, parts.host.platform));
                 }}
               >
                 <KitRow tile={<IconTile icon={Icon} />} title={row.title} detail={row.detail} trailing={<Play size={12} fill={on ? 'currentColor' : 'none'} className={on ? 'text-primary' : 'text-ink-tertiary'} />} />

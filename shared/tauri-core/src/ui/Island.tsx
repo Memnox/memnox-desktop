@@ -432,7 +432,8 @@ export function Island({
   }
   if (pillsBox !== undefined) areas.push(pillsBox);
   const areasKey = JSON.stringify(areas.map((area) => [area.x, area.y, area.width, area.height].map(Math.round)));
-  useEffect(() => islandWindow.setHitAreas(JSON.parse(areasKey).map(([x, y, width, height]: number[]) => ({ x, y, width, height })), small && !active), [areasKey, small, active]);
+  // A scripted island, such as the first run's demo, draws inside another window, so it never says where clicks go.
+  useEffect(() => void (!previewing && islandWindow.setHitAreas(JSON.parse(areasKey).map(([x, y, width, height]: number[]) => ({ x, y, width, height })), small && !active)), [areasKey, small, active]);
 
   function answered(choice: HeldAnswer, outcome: HeldOutcome) {
     extras?.answered(choice, outcome);

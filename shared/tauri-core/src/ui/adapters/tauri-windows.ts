@@ -10,8 +10,12 @@ import type { MenuAction } from '../../core/domain/menu-panel';
  * by events named here, so both ends spell them once.
  */
 export const WINDOW_EVENTS = {
-  card: 'floating-card',
-  cardsDismiss: 'floating-cards-dismiss',
+  /** Asked for by the island's presenter, to any window. */
+  cardAsked: 'floating-card',
+  /** Sent to the cards window once it is up, so it never hears its own request twice. */
+  card: 'floating-card-show',
+  /** The daemon's dismiss, which every window that draws a card hears. */
+  cardsDismiss: 'dismiss-cards',
   cardSession: 'card-session',
   scan: 'scan-agents',
   menuAction: 'menu-action',
@@ -54,6 +58,12 @@ export function showTrace(trace: TraceCard, title: string): Promise<void> {
 /** Every floating card off the screen, faded rather than cut. */
 export async function dismissCards(): Promise<void> {
   await emitTo('cards', WINDOW_EVENTS.cardsDismiss, null).catch(() => undefined);
+}
+
+/** Whenever the island's presenter asks for a floating card, the window is made and handed it. */
+export function forwardCards(): () => void {
+  const stop = listen<FloatingCard>(WINDOW_EVENTS.cardAsked, (event) => void showCard(event.payload).catch(() => undefined));
+  return () => void stop.then((unlisten) => unlisten());
 }
 
 /** The whole screen scan of every agent here, with what each reaches. */

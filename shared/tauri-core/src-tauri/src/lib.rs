@@ -6,12 +6,14 @@ mod awake;
 mod daemon;
 mod island;
 mod key;
+mod keys;
 mod panels;
 mod permissions;
 mod runtime;
 mod settings_windows;
 mod talk_key;
 mod tray;
+mod typing;
 mod voice;
 
 use std::sync::Arc;
@@ -38,10 +40,9 @@ pub fn run() {
             app.manage(key::Key::for_platform(&window));
             let models = app.path().app_data_dir()?.join("voice");
             let chosen = app.path().app_config_dir()?.join("voice.txt");
-            app.manage(Arc::new(voice::Voice::new(
-                VoiceModels::new(models),
-                chosen,
-            )));
+            let voice = Arc::new(voice::Voice::new(VoiceModels::new(models), chosen));
+            voice.report_levels(app.handle().clone());
+            app.manage(voice);
             make_island(&window);
             island::place(&window);
             island::follow(
@@ -55,6 +56,8 @@ pub fn run() {
                     island::place(&placed);
                 }
             });
+            // Right Alt to dictate and Ctrl with left Alt for a rule, seen from any app.
+            keys::start(app.handle());
             tray::build(app)?;
             tray::start_at_sign_in_once(app);
             // Another app holding the key is no reason not to start; the Talk button still works.
@@ -74,7 +77,17 @@ pub fn run() {
             voice::listen_once,
             voice::speak,
             voice::speak_stop,
+            voice::speak_hush,
+            voice::speak_carry_on,
+            voice::ear_open,
+            voice::ear_close,
+            voice::chime,
             island_keyboard,
+            keys::keys_watching,
+            typing::focus_read,
+            typing::type_text,
+            typing::type_revise,
+            typing::clipboard_set,
             island::island_hit_areas,
             voice::voice_choice,
             voice::choose_voice,

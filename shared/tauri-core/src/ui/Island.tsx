@@ -44,6 +44,8 @@ import { IslandButton, IslandCard, IslandTab, NotchShape, Satellite, UnderPill, 
 import { Orb, type OrbHandle } from './Orb';
 import { Settings } from './Settings';
 import { Hearing, useConversation, VoicePills } from './Talk';
+import { UnderIsland } from './cards/UnderIsland';
+import type { IslandExtras } from './tray/island-extras';
 
 /** A working session as the closed island shows it: one logo beside the notch. */
 export interface WorkingSession {
@@ -82,6 +84,8 @@ export interface IslandParts {
   mute?: { on: boolean; toggle: () => void };
   /** Opens a finished session's own window; the Open button shows only with it. */
   onOpenSession?: (sessionId: string) => void;
+  /** The pills under the island, the chimes and the diary, wired by `islandExtras`. */
+  extras?: IslandExtras;
   preview?: IslandPreview;
 }
 
@@ -101,7 +105,7 @@ function contentId(mode: IslandMode, active: boolean): string {
  * `IslandPanel`: the mode is the core's `settle`, sizes and the orb's place are `islandSize` and
  * `orbSpot`, and every change of size moves the width, height, bottom radius and the orb together.
  */
-export function Island({ calls, talking, cards, setup, voiceSettings, notch = STAND_IN_NOTCH, working = [], onLauncher, onSide, onSettings, mute, onOpenSession, preview: scripted }: IslandParts) {
+export function Island({ calls, talking, cards, setup, voiceSettings, notch = STAND_IN_NOTCH, working = [], onLauncher, onSide, onSettings, mute, onOpenSession, extras, preview: scripted }: IslandParts) {
   const previewing = scripted !== undefined;
   const preview = scripted ?? {};
   const held = useSyncExternalStore(
@@ -251,12 +255,14 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
   useEffect(() => islandWindow.setHitAreas(JSON.parse(areasKey).map(([x, y, width, height]: number[]) => ({ x, y, width, height }))), [areasKey]);
 
   function answered(choice: HeldAnswer, outcome: HeldOutcome) {
+    extras?.answered(choice, outcome);
     if (outcome.kind === 'failed') shake(shape.current);
     if (outcome.kind === 'cancelled') return;
     orb.current?.react(outcome.kind === 'failed' ? 'stumble' : outcome.kind !== 'answered' ? 'settle' : choice === HOLD_ANSWER.DENY ? 'refused' : 'allowed');
   }
 
-  function proposalAnswered(outcome: HeldOutcome) {
+  function proposalAnswered(outcome: HeldOutcome, sent = false) {
+    extras?.proposalAnswered(outcome, sent);
     if (outcome.kind === 'failed') {
       shake(shape.current);
       orb.current?.react('stumble');
@@ -281,7 +287,7 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
         return <HeldCall calls={calls} onPressed={(subject) => talking.answeredByHand(subject)} onAnswered={answered} />;
       case 'draft':
       case 'rule':
-        return <ProposalCard cards={cards} onAnswered={proposalAnswered} />;
+        return <ProposalCard cards={cards} onAnswered={proposalAnswered} question={talk.heard} />;
       case 'finished':
         return finished === undefined ? null : (
           <Finished
@@ -387,6 +393,7 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
           </UnderPill>
         )}
         {!previewing && <VoicePills conversation={conversation} />}
+        {extras !== undefined && <UnderIsland notices={extras.notices} onSignIn={extras.onSignIn} onNotMe={extras.onNotMe} online={!previewing} />}
         </div>
       </div>
     </div>

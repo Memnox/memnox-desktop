@@ -15,7 +15,7 @@ use crate::VoiceModels;
 /// What Silero and Parakeet both take.
 pub const HEARING_RATE: i32 = 16_000;
 /// Silero's window at 16 kHz.
-const VAD_WINDOW: usize = 512;
+pub(crate) const VAD_WINDOW: usize = 512;
 /// A pause this long ends what they were saying; shorter and a breath mid sentence would cut it.
 const END_OF_SPEECH_SECONDS: f32 = 0.8;
 /// How long the microphone waits for them to start before it gives up.
@@ -69,7 +69,7 @@ impl Hearing {
             .filter(|text| !text.is_empty()))
     }
 
-    fn detector(&self) -> Result<VoiceActivityDetector, String> {
+    pub(crate) fn detector(&self) -> Result<VoiceActivityDetector, String> {
         VoiceActivityDetector::create(&vad_config(&self.models), LONGEST_UTTERANCE_SECONDS + 5.0)
             .ok_or_else(|| "Silero could not be loaded".to_string())
     }
@@ -111,7 +111,7 @@ impl Hearing {
     }
 }
 
-fn vad_config(models: &VoiceModels) -> VadModelConfig {
+pub(crate) fn vad_config(models: &VoiceModels) -> VadModelConfig {
     VadModelConfig {
         silero_vad: SileroVadModelConfig {
             model: Some(path(models.silero())),
@@ -132,13 +132,13 @@ fn path(path: std::path::PathBuf) -> String {
 }
 
 /// The default microphone, its samples made mono and handed over a channel, closed when dropped.
-struct Microphone {
-    samples: std::sync::mpsc::Receiver<Vec<f32>>,
+pub(crate) struct Microphone {
+    pub(crate) samples: std::sync::mpsc::Receiver<Vec<f32>>,
     _stream: cpal::Stream,
 }
 
 impl Microphone {
-    fn open() -> Result<(Self, i32), String> {
+    pub(crate) fn open() -> Result<(Self, i32), String> {
         let device = cpal::default_host()
             .default_input_device()
             .ok_or("this computer has no microphone")?;
@@ -184,6 +184,11 @@ pub fn loudness(samples: &[f32]) -> f32 {
     }
     let rms =
         (samples.iter().map(|sample| sample * sample).sum::<f32>() / samples.len() as f32).sqrt();
+    loudness_of_rms(rms)
+}
+
+/// The same scale from a root mean square already measured, so the speaker's meter reads as the microphone does.
+pub fn loudness_of_rms(rms: f32) -> f32 {
     let decibels = DECIBELS_PER_DECADE * rms.max(SILENCE_FLOOR).log10();
     ((decibels - QUIETEST_DECIBELS) / DECIBEL_SPAN).clamp(0.0, 1.0)
 }

@@ -7,6 +7,7 @@ import { TauriPower } from './adapters/tauri-power';
 import { TauriRuntime } from './adapters/tauri-runtime';
 import { TauriSpeaker } from './adapters/tauri-speaker';
 import { Island } from './Island';
+import { islandExtras } from './tray/island-extras';
 import './styles.css';
 
 /** How long after the daemon closes the feed before it is opened again, long enough for a restart to finish. */
@@ -32,6 +33,8 @@ const wakefulness = new Wakefulness(link, new TauriPower(), ids);
 const setup = new Setup(link, new TauriRuntime(), ids, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
 const voiceSettings = new VoiceSettings(link, ids);
 calls.observeEvents((event) => void talking.handle(event));
+// The tray panel's rows, the pills under the island, the chimes for answers by hand and the diary.
+const extras = islandExtras({ calls, talking, timer });
 
 async function keepWatching(held: HeldCalls): Promise<never> {
   // Memnox is installed, set up, started and brought up to date first, so the person only grants permissions.
@@ -51,6 +54,6 @@ const root = document.getElementById('root');
 if (root === null) throw new Error('index.html has no root');
 createRoot(root).render(
   <StrictMode>
-    <Island calls={calls} talking={talking} cards={cards} setup={setup} voiceSettings={voiceSettings} />
+    <Island calls={calls} talking={talking} cards={cards} setup={setup} voiceSettings={voiceSettings} extras={extras} />
   </StrictMode>,
 );

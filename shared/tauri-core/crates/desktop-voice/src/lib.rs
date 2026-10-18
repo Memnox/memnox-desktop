@@ -2,10 +2,14 @@
 //! spoke, Parakeet writes down what they said, and Kokoro says the reply in the voice the Mac uses.
 //! Nothing heard or said leaves the machine; the words go whole to the daemon, which decides.
 
+mod chimes;
+mod ear;
 mod hearing;
 mod models;
 mod speaking;
 
-pub use hearing::{loudness, Hearing, HEARING_RATE};
+pub use chimes::{chime_samples, Chimes, Cue, CHIME_RATE, CHIME_VOLUME};
+pub use ear::{Ear, EarEvent};
+pub use hearing::{loudness, loudness_of_rms, Hearing, HEARING_RATE};
 pub use models::{Progress, VoiceModels};
-pub use speaking::{Speaking, Voice, VOICES};
+pub use speaking::{Level, Speaking, Voice, VOICES};

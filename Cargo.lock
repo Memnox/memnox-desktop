@@ -2561,6 +2561,8 @@ dependencies = [
  "tauri-plugin-autostart",
  "tauri-plugin-global-shortcut",
  "tokio",
+ "windows 0.61.3",
+ "x11-dl",
 ]
 
 [[package]]

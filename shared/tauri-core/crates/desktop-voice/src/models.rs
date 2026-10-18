@@ -1,11 +1,14 @@
 //! Where the voice's models live and how they get there: one folder under the app's data, filled once
-//! from sherpa-onnx's releases, or from a pack mirror when `MEMNOX_VOICE_PACK` names one, since the
-//! release host is slow from some places and a mirror behind a CDN is not.
+//! from the memnox-assets mirror of sherpa-onnx's releases, or from another mirror when `MEMNOX_VOICE_PACK`
+//! names one, since GitHub's release host is slow from some places and a mirror behind a CDN is not.
 
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
+/// sherpa-onnx's release files copied byte for byte, laid out as the releases are, so either host serves the same paths.
+const MIRROR: &str = "https://assets.memnox.com/sherpa";
+/// The releases themselves, asked when the mirror lacks a file, so a file not mirrored yet still installs.
 const RELEASES: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download";
 /// Parakeet TDT 0.6B v3 in int8: twenty five European languages, punctuated, about 490 MB.
 const PARAKEET: &str = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
@@ -75,10 +78,14 @@ impl VoiceModels {
     /// and only once whole, so a broken download is fetched again rather than half used.
     pub fn install(&self, mut progress: impl FnMut(Progress)) -> io::Result<()> {
         fs::create_dir_all(&self.dir)?;
-        let base = std::env::var("MEMNOX_VOICE_PACK").unwrap_or_else(|_| RELEASES.to_string());
+        let base = std::env::var("MEMNOX_VOICE_PACK").unwrap_or_else(|_| MIRROR.to_string());
         if !self.silero().exists() {
-            let url = format!("{base}/asr-models/{SILERO}");
-            let bytes = download(&url, "speech detection", &mut progress)?;
+            let bytes = fetch(
+                &base,
+                &format!("asr-models/{SILERO}"),
+                "speech detection",
+                &mut progress,
+            )?;
             write_whole(&self.silero(), &bytes)?;
         }
         for (part, kind, name) in [
@@ -88,8 +95,9 @@ impl VoiceModels {
             if self.dir.join(name).exists() {
                 continue;
             }
-            let bytes = download(
-                &format!("{base}/{kind}/{name}.tar.bz2"),
+            let bytes = fetch(
+                &base,
+                &format!("{kind}/{name}.tar.bz2"),
                 part,
                 &mut progress,
             )?;
@@ -97,6 +105,22 @@ impl VoiceModels {
         }
         Ok(())
     }
+}
+
+/// One release file from `base`, then from sherpa-onnx's own releases when that host fails.
+fn fetch(
+    base: &str,
+    path: &str,
+    part: &'static str,
+    progress: &mut impl FnMut(Progress),
+) -> io::Result<Vec<u8>> {
+    download(&format!("{base}/{path}"), part, progress).or_else(|first| {
+        if base == RELEASES {
+            Err(first)
+        } else {
+            download(&format!("{RELEASES}/{path}"), part, progress)
+        }
+    })
 }
 
 fn download(

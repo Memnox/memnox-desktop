@@ -6,11 +6,11 @@ import { TauriDaemonLink } from './adapters/tauri-daemon-link';
 import { TauriPower } from './adapters/tauri-power';
 import { TauriRuntime } from './adapters/tauri-runtime';
 import { TauriSpeaker } from './adapters/tauri-speaker';
+import { islandExtras } from './tray/island-extras';
 import { DictationPolish, Mouth, VoicePreferences, VoiceTurns } from '../core';
 import { VoiceIsland } from './voice/VoiceIsland';
 import { voiceModels } from './voice/models';
 import { localPreferences, TauriChimes, TauriEar, TauriTypist } from './voice/tauri-voice';
-import { islandExtras } from './tray/island-extras';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { AgentQuestions, Displays, HistoryKeeper, Sessions } from '../core';
@@ -73,7 +73,6 @@ const setup = new Setup(link, new TauriRuntime(), ids, (ms) => new Promise((reso
 const voiceSettings = new VoiceSettings(link, ids);
 // What waits on the person is said in its turn and listened for; the rest goes straight to the talking.
 calls.observeEvents((event) => voiceTurns.arrived(event));
-// The tray panel's rows, the pills under the island, the chimes for answers by hand and the diary.
 // The sessions, an agent's own questions, what the daemon asks to show, and every question asked kept.
 const sessions = new Sessions(link, ids, timer);
 const questions = new AgentQuestions(link, ids, timer, (subject) => talking.answeredByHand(subject));
@@ -81,10 +80,19 @@ const displays = new Displays(link, ids, new TauriPresenter());
 calls.observeEvents((event) => void displays.handle(event));
 const history = new HistoryKeeper(localHistory, () => crypto.randomUUID());
 history.follow(talking);
+// The tray panel's rows, the pills under the island, the chimes for answers by hand and the diary.
+const extras = islandExtras({
+  calls,
+  talking,
+  timer,
+  chimes: { play: (cue) => voicePreferences.choices.chimes && chimes.play(cue) },
+  mute: () => ({ on: voicePreferences.choices.muted, toggle: () => voicePreferences.toggle('muted') }),
+  sayRule: () => voiceTurns.sayRule(),
+  wakesByName: () => voicePreferences.choices.wake,
+});
 sessions.start();
 void listen<string>(ASK_AGAIN_EVENT, (event) => void talking.heard(event.payload, true));
 const openLive = (sessionId: string) => void invoke('open_live_session', { sessionId }).catch(() => undefined);
-const extras = islandExtras({ calls, talking, timer });
 
 async function keepWatching(held: HeldCalls): Promise<never> {
   // Memnox is installed, set up, started and brought up to date first, so the person only grants permissions.
@@ -106,6 +114,21 @@ const root = document.getElementById('root');
 if (root === null) throw new Error('index.html has no root');
 createRoot(root).render(
   <StrictMode>
-    <VoiceIsland preferences={voicePreferences} voice={voiceTurns} calls={calls} talking={talking} cards={cards} setup={setup} voiceSettings={voiceSettings} sessions={sessions} questions={questions} onOpenSession={openLive} onWatchLive={openLive} onSide={() => void invoke('open_side', { open: true }).catch(() => undefined)} extras={extras} onSettings={() => void invoke('open_settings', { page: null }).catch(() => undefined)} />
+    <VoiceIsland
+      preferences={voicePreferences}
+      voice={voiceTurns}
+      calls={calls}
+      talking={talking}
+      cards={cards}
+      setup={setup}
+      voiceSettings={voiceSettings}
+      sessions={sessions}
+      questions={questions}
+      onOpenSession={openLive}
+      onWatchLive={openLive}
+      onSide={() => void invoke('open_side', { open: true }).catch(() => undefined)}
+      extras={extras}
+      onSettings={() => void invoke('open_settings', { page: null }).catch(() => undefined)}
+    />
   </StrictMode>,
 );

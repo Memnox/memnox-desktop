@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { emit } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 import { ASK_INTENT, DAEMON_EVENT, DISPLAY, type DaemonEvent, type ToolSignIn } from '@memnox/core/wire';
 import type { HeldCalls, HeldOutcome, Talking, Timer } from '../../core';
 import { Chiming } from '../../core/application/chiming';
@@ -16,6 +16,8 @@ const TALK_KEYS = ['Ctrl', 'Alt', 'Space'];
 const RESUME_WITHIN_MS = 60_000;
 /** What the diary's heading says this computer is. */
 const MACHINE = navigator.userAgent.includes('Windows') ? 'Windows' : 'Linux';
+/** What another window, such as Settings' Help page, sends to have the island copy its diary with that window's own lines after it. */
+export const COPY_WHAT_HAPPENED_EVENT = 'copy-what-happened';
 
 /** What the island's composition root hands in; everything the voice owns is optional. */
 export interface ExtrasParts {
@@ -43,6 +45,8 @@ export interface IslandExtras {
   readonly answered: (answer: string, outcome: HeldOutcome) => void;
   /** Every answer given on a rule or work card. */
   readonly proposalAnswered: (outcome: HeldOutcome, sent: boolean) => void;
+  /** The last steps the app took, on the clipboard, for when something went quiet. */
+  readonly copyWhatHappened: (more?: string) => void;
 }
 
 /**
@@ -76,6 +80,14 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
     void parts.talking.heard(resume, true, { intent: ASK_INTENT.RESUME });
   }
 
+  /** The diary as the Mac copies it, saying so when nothing has happened, and whatever the asking window adds after it. */
+  function copyWhatHappened(more?: string) {
+    const kept = diary.count === 0 ? 'Nothing has happened yet.' : diary.text(MACHINE);
+    const text = more === undefined || more === '' ? kept : `${kept}\n\n${more}`;
+    void invoke('clipboard_set', { text }).catch(() => undefined);
+  }
+  void listen<string | null>(COPY_WHAT_HAPPENED_EVENT, (event) => copyWhatHappened(event.payload ?? undefined));
+
   onMenuAction((action) => {
     diary.note(`tray: ${action}`);
     switch (action) {
@@ -86,7 +98,7 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
         parts.sayRule?.();
         return;
       case 'copy':
-        void invoke('clipboard_set', { text: diary.text(MACHINE) }).catch(() => undefined);
+        copyWhatHappened();
         return;
       case 'mute':
         parts.mute?.().toggle();
@@ -107,6 +119,7 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
     notices,
     diary,
     chiming,
+    copyWhatHappened,
     onSignIn: (tool) => {
       // Only a web page is opened, so a link in an event never starts an app.
       if (!tool.url.startsWith('https://')) {

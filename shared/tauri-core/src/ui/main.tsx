@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HeldCalls, ProposalCards, RequestIds, Setup, Signer, Talking, VoiceSettings, Wakefulness, type Timer } from '../core';
 import { TauriConfirmKey } from './adapters/tauri-confirm-key';
@@ -13,6 +13,7 @@ import { voiceModels } from './voice/models';
 import { localPreferences, TauriChimes, TauriEar, TauriTypist } from './voice/tauri-voice';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { AgentQuestions, Displays, HistoryKeeper, Sessions } from '../core';
 import { localHistory } from './sessions/history-store';
 import { ASK_AGAIN_EVENT, TauriPresenter } from './sessions/tauri-presenter';
@@ -37,6 +38,7 @@ const link = new TauriDaemonLink();
 let calls: HeldCalls | undefined;
 const signer = new Signer(link, new TauriConfirmKey(), ids, (status) => calls?.keyChanged(status));
 calls = new HeldCalls(link, signer, ids, { timer });
+const heldCalls: HeldCalls = calls;
 // The voice: Kokoro behind a mouth that remembers what it said and honours the mute, the ear, the keys and the typist.
 const voicePreferences = new VoicePreferences(localPreferences);
 // Settings writes the switches in its own window, so a change there reaches this copy of them.
@@ -93,6 +95,40 @@ const extras = islandExtras({
 sessions.start();
 void listen<string>(ASK_AGAIN_EVENT, (event) => void talking.heard(event.payload, true));
 const openLive = (sessionId: string) => void invoke('open_live_session', { sessionId }).catch(() => undefined);
+const openSettings = (page: string | null) => void invoke('open_settings', { page }).catch(() => undefined);
+
+/** Whether the side panel is up, which lights the history satellite and tile; it learns of a close however the panel went. */
+const side = (() => {
+  let open = false;
+  const listeners = new Set<() => void>();
+  const set = (now: boolean) => {
+    if (now === open) return;
+    open = now;
+    for (const listener of listeners) listener();
+  };
+  async function watch() {
+    const window = await WebviewWindow.getByLabel('side');
+    if (window === null) return set(false);
+    set(true);
+    await window.once('tauri://destroyed', () => set(false));
+  }
+  return {
+    get open() {
+      return open;
+    },
+    observe(listener: () => void) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+    /** Opens or closes the panel, as the Mac's `toggleSide`. */
+    toggle() {
+      const opening = !open;
+      void invoke('open_side', { open: opening })
+        .then(() => (opening ? watch() : set(false)))
+        .catch(() => undefined);
+    },
+  };
+})();
 
 async function keepWatching(held: HeldCalls): Promise<never> {
   // Memnox is installed, set up, started and brought up to date first, so the person only grants permissions.
@@ -110,14 +146,17 @@ if (!personal.setupDone) void invoke('open_onboarding').catch(() => undefined);
 void wakefulness.check();
 setInterval(() => void wakefulness.check(), AWAKE_CHECK_MS);
 
-const root = document.getElementById('root');
-if (root === null) throw new Error('index.html has no root');
-createRoot(root).render(
-  <StrictMode>
+/** The island with the side panel's state, so the history satellite and tile light while it is up. */
+function Root() {
+  const sideOpen = useSyncExternalStore(
+    (changed) => side.observe(changed),
+    () => side.open,
+  );
+  return (
     <VoiceIsland
       preferences={voicePreferences}
       voice={voiceTurns}
-      calls={calls}
+      calls={heldCalls}
       talking={talking}
       cards={cards}
       setup={setup}
@@ -126,9 +165,27 @@ createRoot(root).render(
       questions={questions}
       onOpenSession={openLive}
       onWatchLive={openLive}
-      onSide={() => void invoke('open_side', { open: true }).catch(() => undefined)}
+      onSide={() => side.toggle()}
+      sideOpen={sideOpen}
       extras={extras}
-      onSettings={() => void invoke('open_settings', { page: null }).catch(() => undefined)}
+      onSettings={() => openSettings(null)}
+      launcher={{
+        actions: {
+          history: () => side.toggle(),
+          whatHappened: () => extras.copyWhatHappened(),
+          phones: () => openSettings('phones'),
+          dictation: () => openSettings('dictation'),
+        },
+        facts: { historyOpen: sideOpen },
+      }}
     />
+  );
+}
+
+const root = document.getElementById('root');
+if (root === null) throw new Error('index.html has no root');
+createRoot(root).render(
+  <StrictMode>
+    <Root />
   </StrictMode>,
 );

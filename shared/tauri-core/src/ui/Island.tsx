@@ -99,6 +99,8 @@ export interface IslandParts {
   onLauncher?: () => void;
   /** The history satellite, and a dwell on the orb's side of the notch; the side panel is a later phase. */
   onSide?: () => void;
+  /** Whether the side panel is up, which lights the history satellite and the History tile as the Mac's `sideOpen`. */
+  sideOpen?: boolean;
   /** The Settings satellite; until its own window lands, the island shows the Settings panel in place. */
   onSettings?: () => void;
   /** The mute satellite and whether the voice is muted; drawn disabled until a mute exists. */
@@ -151,6 +153,7 @@ export function Island({
   working: scriptedWorking,
   onLauncher,
   onSide,
+  sideOpen = false,
   onSettings,
   mute,
   onOpenSession,
@@ -311,9 +314,10 @@ export function Island({
   // Resting on the closed island opens it after the dwell; resting on the orb's side opens the side history instead.
   useEffect(() => {
     if (!hovering || active || preview.hovering !== undefined) return;
-    const wait = setTimeout(() => (onLeft.current && onSide !== undefined ? onSide() : open()), dwellFor(mode));
+    // With the side panel already up, resting on its side does nothing, as the Mac's dwell skips it.
+    const wait = setTimeout(() => (onLeft.current && onSide !== undefined ? !sideOpen && onSide() : open()), dwellFor(mode));
     return () => clearTimeout(wait);
-  }, [hovering, active, mode, onSide, preview.hovering]);
+  }, [hovering, active, mode, onSide, sideOpen, preview.hovering]);
 
   // Open and untouched for a minute it puts itself away, counting the last ten seconds down as a shrinking line.
   useEffect(() => {
@@ -387,7 +391,7 @@ export function Island({
     working: working.length,
     toolsCaption: liveTools.caption,
     muted: mute?.on === true,
-    historyOpen: false,
+    historyOpen: sideOpen,
     talkKey: 'Ctrl Alt Space',
     ruleKey: 'Hold Ctrl Alt',
     ...launcher?.facts,
@@ -563,6 +567,7 @@ export function Island({
           launcherOn={mode === 'launcher'}
           onLauncher={onLauncher ?? toggleLauncher}
           onSide={onSide}
+          sideOpen={sideOpen}
           onSettings={() => (onSettings !== undefined ? onSettings() : (setSettingsOpen(true), open()))}
           mute={mute}
         />
@@ -680,6 +685,7 @@ function Satellites({
   launcherOn,
   onLauncher,
   onSide,
+  sideOpen,
   onSettings,
   mute,
 }: {
@@ -689,6 +695,7 @@ function Satellites({
   launcherOn: boolean;
   onLauncher?: () => void;
   onSide?: () => void;
+  sideOpen: boolean;
   onSettings: () => void;
   mute?: { on: boolean; toggle: () => void };
 }) {
@@ -701,7 +708,7 @@ function Satellites({
           <Satellite symbol="square.grid.2x2" label="Everything Memnox does" on={launcherOn} onPress={onLauncher} />
         </span>
         <span className="animate-satellite-left [animation-delay:50ms]">
-          <Satellite symbol="clock.arrow.circlepath" label="History, sessions and what needs you" onPress={onSide} />
+          <Satellite symbol="clock.arrow.circlepath" label="History, sessions and what needs you" on={sideOpen} onPress={onSide} />
         </span>
       </div>
       <div className="absolute flex flex-col" style={{ top, left: left + width + SATELLITE.gap, gap }}>

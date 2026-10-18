@@ -293,7 +293,7 @@ function RuleCard({ subject, rule, cards, onAnswered }: { subject: string; rule:
   details.push(['Why', rule.reason, false]);
 
   return (
-    <IslandCard veil={veilOf(tint, 0.3)} className="flex min-h-0 flex-1 flex-col gap-2.5 p-3.5">
+    <IslandCard veil={veilOf(tint, 0.3)} className="flex min-h-0 flex-1 flex-col gap-2.5 p-3.5 [&>*]:shrink-0">
       <div className="flex items-center gap-2">
         <span className="grid" style={{ color: tint }}>
           <SFSymbol name="shield.lefthalf.filled" size={13} />
@@ -314,7 +314,7 @@ function RuleCard({ subject, rule, cards, onAnswered }: { subject: string; rule:
         ))}
       </dl>
       <p className="m-0 text-footnote font-semibold text-white/50">Where should it hold?</p>
-      <div className="grid max-h-[138px] gap-1 overflow-y-auto" role="radiogroup" aria-label="Where should it hold?">
+      <div className="grid max-h-[138px] min-h-0 !shrink content-start gap-1 overflow-y-auto [scrollbar-width:none]" role="radiogroup" aria-label="Where should it hold?">
         {rule.scopes.map((each) => (
           <PlaceRow key={each.id} scope={each} picked={scope === each.id} pick={() => setScope(each.id)} />
         ))}

@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { IDLE_TURNS, type NotchGeometry, type Talking, type TalkState, type VoiceTurns, type VoiceTurnsState } from '../core';
 import { voice as models, type InstallStep } from './adapters/tauri-listener';
@@ -6,7 +6,7 @@ import { loudness } from './island/loudness';
 import { IslandButton, UnderPill } from './kit';
 import { IslandHearing } from './voice/Hearing';
 import { voiceModels } from './voice/models';
-import { keysWatching, onKeys, onVoiceLevel } from './voice/tauri-voice';
+import { keysWatching, onKeys, onPresence, onSay, onVoiceLevel } from './voice/tauri-voice';
 
 /** Where the microphone stands: not looked at yet, not installed, installing, ready, or open. */
 export type Mic = 'unknown' | 'missing' | 'installing' | 'ready' | 'listening';
@@ -33,7 +33,9 @@ export interface Conversation {
 /** The facts `settle` reads from the voice, so the island opens on the words, a rule or a dictation. */
 export function voiceFacts(conversation: Conversation, liveWords = true): { ruling: boolean; dictating: boolean; wordsHeard: boolean; phoneTurn: boolean } {
   const { turns } = conversation;
-  return { ruling: turns.ruling, dictating: turns.dictating !== undefined, wordsHeard: liveWords && turns.live !== '', phoneTurn: turns.phone !== undefined };
+  // A caption such as "Testing my voice" is drawn where the words go, so it opens the same screen.
+  const wordsHeard = (liveWords && turns.live !== '') || turns.caption !== undefined;
+  return { ruling: turns.ruling, dictating: turns.dictating !== undefined, wordsHeard, phoneTurn: turns.phone !== undefined };
 }
 
 const NO_TURNS = { state: IDLE_TURNS, observe: () => () => undefined };
@@ -58,6 +60,7 @@ export function useConversation(talking: Talking, { probe = true, voice }: { pro
   const [step, setStep] = useState<InstallStep>();
   const [problem, setProblem] = useState<string>();
   const [keysNote, setKeysNote] = useState<string>();
+  const keysSeen = useRef(true);
 
   async function install() {
     setMic('installing');
@@ -77,15 +80,24 @@ export function useConversation(talking: Talking, { probe = true, voice }: { pro
   useEffect(() => {
     if (!probe || voice === undefined) return;
     voice.onLevel = (level) => loudness.set(level);
-    const stopTalk = listen('talk', () => voice.talk());
+    // Settings' Say a rule asks for rule mode, which teaches the keys as the tray's does.
+    const stopTalk = listen<{ intent?: string } | null>('talk', (event) => (event.payload?.intent === 'rule' ? voice.sayRule(keysSeen.current) : voice.talk()));
+    // A line from Settings or the first run is said here, in its turn, so the mute and the echo memory hold.
+    const stopSay = onSay((line) => (line === undefined ? voice.saySomething() : voice.sayInTurn(line)));
+    const stopPresence = onPresence((now) => (now === 'locked' ? voice.locked() : voice.unlocked()));
     const stopKeys = onKeys((report) => voice.keys(report));
     const stopLevel = onVoiceLevel((level) => loudness.voice(level));
-    void keysWatching().then((answer) => setKeysNote(answer.watching ? undefined : answer.why));
+    void keysWatching().then((answer) => {
+      keysSeen.current = answer.watching;
+      setKeysNote(answer.watching ? undefined : answer.why);
+    });
     return () => {
       voice.onLevel = undefined;
       void stopTalk.then((unlisten) => unlisten(), () => undefined);
       stopKeys();
       stopLevel();
+      stopSay();
+      stopPresence();
     };
   }, [probe, voice]);
 
@@ -131,7 +143,7 @@ export function Hearing({ state, notch, onTap, conversation }: { state: TalkStat
   const turns = conversation?.turns;
   const view =
     turns !== undefined && (turns.active || turns.live !== '')
-      ? { live: turns.live, listening: turns.listening, ruling: turns.ruling, dictating: turns.dictating }
+      ? { live: turns.live, listening: turns.listening, ruling: turns.ruling, dictating: turns.dictating ?? turns.caption }
       : { live: state.heard ?? '', listening: state.phase === 'listening', ruling: false, dictating: undefined };
   return <IslandHearing view={view} notch={notch} onTap={onTap} />;
 }

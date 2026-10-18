@@ -164,5 +164,6 @@ export const previewHost: SettingsHost = {
     installed: async () => previewState !== 'installing',
     install: () => new Promise<void>(() => undefined),
     say: async () => undefined,
+    test: async () => undefined,
   },
 };

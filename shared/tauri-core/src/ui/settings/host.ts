@@ -4,6 +4,7 @@ import type { PreferenceStore } from '../../core/application/ports/preference-st
 import type { Look } from '../../core/domain/appearance';
 import type { PermissionFacts, PrivacyPane } from '../../core/domain/permission-steps';
 import { platformOf, type Platform } from '../../core/domain/platform';
+import { SAY_EVENT } from '../voice/tauri-voice';
 
 /** One step of the natural voice installing, as Rust reports it. */
 export interface InstallProgress {
@@ -44,7 +45,10 @@ export interface SettingsHost {
     choose(id: string): Promise<void>;
     installed(): Promise<boolean>;
     install(onStep: (step: InstallProgress) => void): Promise<void>;
+    /** Said by the island in its turn, so the mute holds and the island's echo memory hears it. */
     say(sentence: string): Promise<void>;
+    /** Say something: the island tests the voice on its own, with "Testing my voice" on the orb. */
+    test(): Promise<void>;
   };
 }
 
@@ -79,7 +83,8 @@ export const tauriHost: SettingsHost = {
       steps.onmessage = onStep;
       return invoke('voice_install', { steps });
     },
-    say: (sentence) => invoke<void>('speak', { sentence }),
+    say: (sentence) => emit(SAY_EVENT, { line: sentence }),
+    test: () => emit(SAY_EVENT, { line: null }),
   },
 };
 

@@ -17,11 +17,37 @@ export class TauriEar implements Ear {
   }
 }
 
+/** What `focus_read` answers: the app, the field, and its text around the cursor when the platform can read it. */
+interface FocusRead {
+  app: string | null;
+  title: string | null;
+  secure: boolean;
+  selection: string | null;
+  value?: string | null;
+  caret?: number | null;
+  selectionEnd?: number | null;
+}
+
+/** The text before and after the cursor, and the whole field, when the platform read it; nothing otherwise. */
+function fieldOf(read: FocusRead): Pick<Focus, 'before' | 'after' | 'value' | 'caret' | 'selectionEnd'> {
+  const value = read.value ?? undefined;
+  const caret = read.caret ?? undefined;
+  if (value === undefined || caret === undefined || caret < 0 || caret > value.length) return {};
+  const end = Math.min(Math.max(read.selectionEnd ?? caret, caret), value.length);
+  return { value, caret, selectionEnd: end, before: value.slice(0, caret), after: value.slice(end) };
+}
+
 /** The platform layer in Rust that types into the app in front: SendInput on Windows, wtype, ydotool or xdotool on Linux. */
 export class TauriTypist implements Typist {
   async focus(): Promise<Focus> {
-    const read = await invoke<{ app: string | null; title: string | null; secure: boolean; selection: string | null }>('focus_read');
-    return { app: read.app ?? undefined, title: read.title ?? undefined, secure: read.secure, selection: read.selection ?? undefined };
+    const read = await invoke<FocusRead>('focus_read');
+    return {
+      app: read.app ?? undefined,
+      title: read.title ?? undefined,
+      secure: read.secure,
+      selection: read.selection ?? undefined,
+      ...fieldOf(read),
+    };
   }
 
   async type(text: string): Promise<void> {
@@ -60,6 +86,26 @@ export function onKeys(seen: (report: KeyReport) => void): () => void {
 export function onVoiceLevel(heard: (level: number) => void): () => void {
   const stop = listen<number>('voice-level', (event) => heard(event.payload));
   return () => void stop.then((unlisten) => unlisten(), () => undefined);
+}
+
+/** Where Settings and the first run send a line to be said by the island: one line, or none for the voice test. */
+export const SAY_EVENT = 'say';
+
+/** A line to say from another window, or undefined for Say something's voice test. */
+export function onSay(say: (line: string | undefined) => void): () => void {
+  const stop = listen<{ line?: string | null } | null>(SAY_EVENT, (event) => say(event.payload?.line ?? undefined));
+  return () => void stop.then((unlisten) => unlisten(), () => undefined);
+}
+
+/** The screen locking and unlocking, as Rust watches the session, for Catch me up. */
+export function onPresence(seen: (now: 'locked' | 'unlocked') => void): () => void {
+  const stop = listen<'locked' | 'unlocked'>('presence', (event) => seen(event.payload));
+  return () => void stop.then((unlisten) => unlisten(), () => undefined);
+}
+
+/** The names the recognizer should listen for, handed to Parakeet's hotwords. */
+export function hintNames(names: readonly string[]): void {
+  void invoke('ear_hints', { names }).catch(() => undefined);
 }
 
 /** Whether the keys can be seen at all: not on a Wayland session without XWayland, which forbids it. */

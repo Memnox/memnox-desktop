@@ -31,7 +31,7 @@ export function HelpPage({ parts }: { parts: SettingsParts }) {
       </SettingsRow>
       <SettingsDivider />
       <SettingsRow icon={Volume2} title="Say something" caption="Checks that Memnox hears and answers you.">
-        <KitButton onClick={() => host.talk()}>Try it</KitButton>
+        <KitButton onClick={() => void host.voices.test()}>Try it</KitButton>
       </SettingsRow>
       <SettingsDivider />
       <SettingsRow icon={ClipboardCopy} title="Copy what happened" caption="Puts the recent steps on your clipboard to send to support.">

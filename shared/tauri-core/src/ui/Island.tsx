@@ -48,6 +48,9 @@ import { PhoneTurn } from './voice/PhoneTurn';
 import { cardTitle, reactionTo, type AgentQuestions, type Sessions, type SessionsState } from '../core';
 import { Overview, SessionDetail } from './sessions/IslandSessions';
 import { Launcher, type LauncherActions, type LauncherFacts, type LauncherTool } from './sessions/Launcher';
+import { useLauncherTools, type PickedTool } from './sessions/launcher-tools';
+import { ToolPage } from './tools/ToolPage';
+import { toolkitName } from '../core';
 import { SessionLogo } from './sessions/parts';
 import { Question } from './sessions/Question';
 import { UnderIsland } from './cards/UnderIsland';
@@ -76,7 +79,8 @@ export interface IslandPreview {
   readonly talk?: TalkState;
   readonly finished?: FinishedCard;
   readonly countdown?: number;
-  readonly launcher?: 'actions' | 'tools';
+  readonly launcher?: 'actions' | 'tools' | 'tool';
+  readonly tool?: { readonly toolkit: string; readonly connected: boolean };
   readonly detail?: boolean;
 }
 
@@ -183,7 +187,13 @@ export function Island({
   );
   // The working sessions beside the notch: the daemon's busy ones, or what the preview scripted.
   const working: readonly WorkingSession[] = scriptedWorking ?? (sessions === undefined ? [] : sessions.working.map((card) => ({ sessionId: card.sessionId, agent: card.agent, agentName: card.agentName })));
-  const [launcherPage, setLauncherPage] = useState<'actions' | 'tools' | undefined>(preview.launcher);
+  const [launcherPage, setLauncherPage] = useState<'actions' | 'tools' | 'tool' | undefined>(preview.launcher);
+  const [pickedTool, setPickedTool] = useState<PickedTool | undefined>(preview.tool);
+  // The agents and apps are read by the launcher itself, unless the composition root or the preview gave them.
+  const liveTools = useLauncherTools(!previewing && launcher?.tools === undefined, (tool) => {
+    setPickedTool(tool);
+    setLauncherPage('tool');
+  });
   // The preview has no Rust behind it, so it never asks after the microphone.
   const conversation = useConversation(talking, { probe: !previewing, voice });
   const talk = preview.talk ?? conversation.state;
@@ -369,10 +379,13 @@ export function Island({
   const focusCard = sessionsState.cards.find((card) => card.sessionId === sessionsState.focusId) ?? sessionsState.cards[0];
   const title = interimSettings
     ? 'Settings'
-    : islandTitle(mode, { session: focusCard === undefined ? undefined : cardTitle(focusCard), launcher: launcherPage === 'tools' ? 'Tools' : 'Memnox' });
+    : islandTitle(mode, {
+        session: focusCard === undefined ? undefined : cardTitle(focusCard),
+        launcher: launcherPage === 'tool' && pickedTool !== undefined ? toolkitName(pickedTool.toolkit) : launcherPage === 'tools' ? 'Tools' : 'Memnox',
+      });
   const launcherFacts: LauncherFacts = {
     working: working.length,
-    toolsCaption: 'None yet',
+    toolsCaption: liveTools.caption,
     muted: mute?.on === true,
     historyOpen: false,
     talkKey: 'Ctrl Alt Space',
@@ -461,8 +474,21 @@ export function Island({
               mute: launcher?.actions.mute ?? mute?.toggle,
               settings: launcher?.actions.settings ?? onSettings,
             }}
-            tools={launcher?.tools}
-            toolsNote={launcher?.toolsNote}
+            tools={launcher?.tools ?? liveTools.tiles}
+            toolsNote={launcher?.toolsNote ?? (launcher?.tools === undefined ? liveTools.note : undefined)}
+            toolPage={
+              pickedTool === undefined ? undefined : (
+                <ToolPage
+                  toolkit={pickedTool.toolkit}
+                  connected={pickedTool.connected}
+                  online={!previewing}
+                  onAsk={(words) => {
+                    close();
+                    void talking.heard(words, true);
+                  }}
+                />
+              )
+            }
           />
         );
       // A phone's turn, shown like the person's own with the phone named, and no sound.
@@ -508,7 +534,9 @@ export function Island({
                     ? () => setSettingsOpen(false)
                     : mode === 'session'
                       ? () => sessions?.showDetail(false)
-                      : mode === 'launcher' && launcherPage === 'tools'
+                      : mode === 'launcher' && launcherPage === 'tool'
+                        ? () => setLauncherPage('tools')
+                        : mode === 'launcher' && launcherPage === 'tools'
                         ? () => setLauncherPage('actions')
                         : mode === 'answer'
                           ? close

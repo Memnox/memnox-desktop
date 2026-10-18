@@ -54,13 +54,16 @@ export function Launcher({
   actions,
   tools = [],
   toolsNote,
+  toolPage,
 }: {
-  /** The grid of actions, or the Tools page of agents and apps. */
-  page: 'actions' | 'tools';
+  /** The grid of actions, the Tools page of agents and apps, or one app up close. */
+  page: 'actions' | 'tools' | 'tool';
   facts: LauncherFacts;
   actions: LauncherActions;
   tools?: readonly LauncherTool[];
   toolsNote?: string;
+  /** The one app up close, drawn by the tools' own `ToolPage`. */
+  toolPage?: ReactNode;
 }) {
   const tiles: { title: string; caption: string; symbol: SFSymbolName; tint: string; lit?: boolean; onPress?: () => void }[] = [
     { title: 'Talk', caption: facts.talkKey, symbol: 'waveform', tint: TINT.sky, onPress: actions.talk },
@@ -81,6 +84,13 @@ export function Launcher({
     { title: 'Dictation', caption: 'Settings', symbol: 'keyboard', tint: TINT.plain, onPress: actions.dictation },
     { title: 'Settings', caption: 'Everything else', symbol: 'gearshape', tint: TINT.plain, onPress: actions.settings },
   ];
+  if (page === 'tool') {
+    return (
+      <div key={page} className={`${CONTENT} animate-[content-in_350ms_cubic-bezier(0.25,1.1,0.4,1)_both]`}>
+        {toolPage}
+      </div>
+    );
+  }
   // Keyed by page, so the stagger replays on every switch as the Mac re-keys it.
   return (
     <div key={page} className={`${CONTENT} overflow-y-auto [scrollbar-width:none]`}>

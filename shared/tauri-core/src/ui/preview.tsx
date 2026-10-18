@@ -8,6 +8,7 @@ import { Island, type IslandParts, type IslandPreview, type WorkingSession } fro
 import { Board } from './sessions/Board';
 import { LiveSession } from './sessions/LiveSession';
 import { PREVIEW_CARDS, PREVIEW_VIEWS, previewQuestion } from './sessions/preview-data';
+import { AgentMark, ToolMark } from './kit';
 import { SidePanel } from './sessions/SidePanel';
 import { Switcher } from './sessions/Switcher';
 import './styles.css';
@@ -44,6 +45,7 @@ const SCENES = [
   'sessions-question-multi',
   'sessions-launcher',
   'sessions-launcher-tools',
+  'sessions-launcher-tool',
   /** The session windows, each shot at its own size. */
   'sessions-live',
   'sessions-live-changes',
@@ -248,6 +250,8 @@ function previewOf(shown: Scene | undefined): { preview: IslandPreview; working?
       return { preview: { opened: true, launcher: 'actions' } };
     case 'sessions-launcher-tools':
       return { preview: { opened: true, launcher: 'tools' } };
+    case 'sessions-launcher-tool':
+      return { preview: { opened: true, launcher: 'tool', tool: { toolkit: 'github', connected: true } } };
     default:
       return { preview: {} };
   }
@@ -284,9 +288,21 @@ const parts: IslandParts = {
   launcher: {
     actions: { sayRule: () => undefined, whatHappened: () => undefined, phones: () => undefined, dictation: () => undefined, settings: () => undefined },
     facts: { toolsCaption: '2 connected' },
+    tools: scene === 'sessions-launcher-tools' ? previewTools() : undefined,
     toolsNote: undefined,
   },
 };
+
+/** The Tools page as the launcher reads it: the agents, then the connected apps. */
+function previewTools() {
+  return [
+  { id: 'agent:claude-code', title: 'Claude Code', caption: 'Voice', mark: <AgentMark agent="claude-code" name="Claude Code" size={25} /> },
+  { id: 'agent:codex', title: 'Codex', caption: 'Ready', mark: <AgentMark agent="codex" name="Codex" size={25} /> },
+  { id: 'app:github', title: 'GitHub', caption: 'Connected', mark: <ToolMark toolkit="github" size={25} online={false} />, onPress: () => undefined },
+  { id: 'app:slack', title: 'Slack', caption: 'Connected', mark: <ToolMark toolkit="slack" size={25} online={false} />, onPress: () => undefined },
+  { id: 'app:linear', title: 'Linear', caption: 'Sign in again', mark: <ToolMark toolkit="linear" size={25} online={false} />, onPress: () => undefined },
+];
+}
 
 /** The session windows, drawn alone at their own size as their pages draw them. */
 function SessionWindow({ shown }: { shown: Scene }) {

@@ -18,7 +18,7 @@ tells you out loud, and lets you answer them by voice, with Touch ID guarding ev
 ![License MIT](https://img.shields.io/badge/license-MIT-37CD8F)
 ![PRs welcome](https://img.shields.io/badge/PRs-welcome-DD815D)
 
-[Quick start](#quick-start) · [What it does](#what-it-does) · [With your iPhone](#with-your-iphone) · [How it works](#how-it-works) · [Architecture](docs/ARCHITECTURE.md) · [Contributing](#contributing)
+[Quick start](#quick-start) · [What it does](#what-it-does) · [With your iPhone](#with-your-iphone) · [How it works](#how-it-works) · [Architecture](docs/ARCHITECTURE.md) · [Contributing](#contributing) · [Windows and Linux](../README.md#platforms)
 
 <br>
 
@@ -237,8 +237,9 @@ speech sentence by sentence so the voice starts before the answer is finished.
 ### Its voice
 
 Pick it under **Voice** in the menu bar panel. **Kokoro** is the default: a natural voice from an
-open model, run on this Mac, free. George, a calm British voice, unless you choose another with
-`defaults write com.memnox.voice kokoroVoice bm_lewis` (also `bm_daniel`, `bm_fable`). The app
+open model, run on this Mac, free. Sky, a calm American voice, unless you choose another in setup
+or with `defaults write com.memnox.voice kokoroVoice bm_george` (also `af_heart`, `af_bella`,
+`af_nicole`, `af_sarah`, `am_adam`, `am_michael`, `bf_emma`, `bf_isabella` and `bm_lewis`). The app
 installs it on first launch, about 340 MB into `~/.memnox/voice/kokoro`, and the Mac's own voice
 speaks until it is ready. **Mac** uses the best English voice installed. A sentence one voice
 cannot say is said by the other, so it never goes quiet.

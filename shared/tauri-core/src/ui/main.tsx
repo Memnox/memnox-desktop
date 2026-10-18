@@ -10,7 +10,8 @@ import { islandExtras } from './tray/island-extras';
 import { DictationPolish, Mouth, VoicePreferences, VoiceTurns } from '../core';
 import { VoiceIsland } from './voice/VoiceIsland';
 import { voiceModels } from './voice/models';
-import { localPreferences, TauriChimes, TauriEar, TauriTypist } from './voice/tauri-voice';
+import { hintNames, localPreferences, TauriChimes, TauriEar, TauriTypist } from './voice/tauri-voice';
+import { DictationWords } from '../core/application/voice-settings';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
@@ -20,6 +21,10 @@ import { ASK_AGAIN_EVENT, TauriPresenter } from './sessions/tauri-presenter';
 import { Preferences } from '../core/application/preferences';
 import type { VoiceChoices } from '../core/application/voice-preferences';
 import { firstName } from '../core/domain/setup-steps';
+import { displayCaption, keyCaption } from '../core/domain/caption-lines';
+import { platformOf } from '../core/domain/platform';
+import { DAEMON_EVENT } from '@memnox/core/wire';
+import type { ConfirmKey } from '../core';
 import './styles.css';
 
 /** How long after the daemon closes the feed before it is opened again, long enough for a restart to finish. */
@@ -36,7 +41,23 @@ const timer: Timer = (ms, fire) => {
 const ids = new RequestIds();
 const link = new TauriDaemonLink();
 let calls: HeldCalls | undefined;
-const signer = new Signer(link, new TauriConfirmKey(), ids, (status) => calls?.keyChanged(status));
+/** Set once the talking is built, so the key's prompt and a display under way show on the island's caption line. */
+let caption: (text: string | undefined) => void = () => undefined;
+const platform = platformOf(navigator.userAgent);
+const systemKey = new TauriConfirmKey();
+/** The system's key, with the caption saying what its prompt is for while it is up, as the Mac's "Touch ID to ...". */
+const key: ConfirmKey = {
+  publicPoint: () => systemKey.publicPoint(),
+  sign: async (message, reason) => {
+    caption(keyCaption(platform, reason));
+    try {
+      return await systemKey.sign(message, reason);
+    } finally {
+      caption(undefined);
+    }
+  },
+};
+const signer = new Signer(link, key, ids, (status) => calls?.keyChanged(status));
 calls = new HeldCalls(link, signer, ids, { timer });
 const heldCalls: HeldCalls = calls;
 // The voice: Kokoro behind a mouth that remembers what it said and honours the mute, the ear, the keys and the typist.
@@ -49,6 +70,7 @@ window.addEventListener('storage', (event) => {
 // The person's own choices, kept by Settings and the first run: their name, and whether the first run is done.
 const personal = new Preferences(localPreferences);
 const speaker = new Mouth(new TauriSpeaker(), voicePreferences);
+const dictationWords = new DictationWords(localPreferences);
 const chimes = new TauriChimes();
 const typist = new TauriTypist();
 const cards = new ProposalCards(link, signer, speaker, ids);
@@ -59,6 +81,7 @@ const talking = new Talking(link, speaker, signer, ids, {
   lookingAt: () => typist.focus(),
   owner: () => firstName(personal.name),
 });
+caption = (text) => talking.captioned(text);
 const voiceTurns = new VoiceTurns({
   talking,
   mouth: speaker,
@@ -69,6 +92,14 @@ const voiceTurns = new VoiceTurns({
   typist,
   polish: new DictationPolish(link, ids, timer),
   ready: () => voiceModels.installed,
+  // The Dictation page's words and history, kept where Settings reads them.
+  dictionary: () => {
+    const words = dictationWords.words();
+    return { spellings: words.filter((word) => word.said === undefined).map((word) => word.written), replacements: words.filter((word) => word.said !== undefined) };
+  },
+  dictated: ({ written, app }) => dictationWords.remember({ written, ...(app === undefined ? {} : { app }), at: Date.now() }),
+  corrected: (corrections) => corrections.forEach(({ heard, meant }) => dictationWords.addWord(heard, meant)),
+  hints: hintNames,
 });
 const wakefulness = new Wakefulness(link, new TauriPower(), ids);
 const setup = new Setup(link, new TauriRuntime(), ids, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
@@ -79,7 +110,12 @@ calls.observeEvents((event) => voiceTurns.arrived(event));
 const sessions = new Sessions(link, ids, timer);
 const questions = new AgentQuestions(link, ids, timer, (subject) => talking.answeredByHand(subject));
 const displays = new Displays(link, ids, new TauriPresenter());
-calls.observeEvents((event) => void displays.handle(event));
+calls.observeEvents((event) => {
+  // "typing it in", "starting it" and the like while a display that takes a moment is carried out.
+  const doing = event.kind === DAEMON_EVENT.SHOW ? displayCaption(event) : undefined;
+  if (doing !== undefined) caption(doing);
+  void displays.handle(event).finally(() => doing !== undefined && caption(undefined));
+});
 const history = new HistoryKeeper(localHistory, () => crypto.randomUUID());
 history.follow(talking);
 // The tray panel's rows, the pills under the island, the chimes for answers by hand and the diary.
@@ -133,7 +169,8 @@ const side = (() => {
 async function keepWatching(held: HeldCalls): Promise<never> {
   // Memnox is installed, set up, started and brought up to date first, so the person only grants permissions.
   await setup.ensure();
-  await held.registerKey();
+  // Somebody else's key already trusted is said at launch, as the Mac's introduce does.
+  await talking.introduce(await held.registerKey());
   for (;;) {
     await held.watch();
     await new Promise((resolve) => setTimeout(resolve, RECONNECT_MS));

@@ -5,6 +5,7 @@
 mod awake;
 mod cloud;
 mod daemon;
+mod focus;
 mod glass;
 mod island;
 mod key;
@@ -149,6 +150,12 @@ pub fn run() {
             sessions::close_session_window,
             sessions::open_folder,
             sessions::open_link,
+            focus::terminal_panes,
+            focus::terminal_focus,
+            focus::focus_editor,
+            focus::launch_in_terminal,
+            focus::launch_in_editor,
+            focus::open_app_links,
             settings_windows::open_settings,
             settings_windows::open_onboarding,
             settings_windows::onboarding_veil,

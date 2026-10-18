@@ -1,0 +1,65 @@
+/*
+ * The ink strengths the floating cards, the scan and the tray panel use beyond the shared palette,
+ * light then dark, as Memnox.ink(s) draws them: white at s on dark, near black at min(1, s * 1.35) on light.
+ */
+:root {
+  --mx-ink-edge-11: rgb(13 13 13 / 0.1485);
+  --mx-ink-edge-16: rgb(13 13 13 / 0.216);
+  --mx-ink-fill-12: rgb(13 13 13 / 0.162);
+  --mx-ink-fill-09: rgb(13 13 13 / 0.1215);
+  --mx-ink-fill-15: rgb(13 13 13 / 0.2025);
+  --mx-ink-faint-05: rgb(13 13 13 / 0.0675);
+  --mx-ink-60: rgb(13 13 13 / 0.81);
+  --mx-ink-40: rgb(13 13 13 / 0.54);
+  --mx-ink-90: rgb(13 13 13 / 1);
+  --mx-ink-07: rgb(13 13 13 / 0.0945);
+  --mx-ink-30: rgb(13 13 13 / 0.405);
+  --mx-code-page: #f6f7f9;
+  --mx-code-name: #222222;
+  --mx-code-text: #3a3f47;
+  --mx-code-removed: rgb(13 13 13 / 0.5);
+  --mx-menu-wash: rgb(255 255 255 / 0.68);
+  --mx-menu-card: rgb(255 255 255 / 0.38);
+}
+
+:root[data-theme="dark"] {
+  --mx-ink-edge-11: rgb(255 255 255 / 0.11);
+  --mx-ink-edge-16: rgb(255 255 255 / 0.16);
+  --mx-ink-fill-12: rgb(255 255 255 / 0.12);
+  --mx-ink-fill-09: rgb(255 255 255 / 0.09);
+  --mx-ink-fill-15: rgb(255 255 255 / 0.15);
+  --mx-ink-faint-05: rgb(255 255 255 / 0.05);
+  --mx-ink-60: rgb(255 255 255 / 0.6);
+  --mx-ink-40: rgb(255 255 255 / 0.4);
+  --mx-ink-90: rgb(255 255 255 / 0.9);
+  --mx-ink-07: rgb(255 255 255 / 0.07);
+  --mx-ink-30: rgb(255 255 255 / 0.3);
+  --mx-code-page: #0d0e10;
+  --mx-code-name: #ffffff;
+  --mx-code-text: #c9cdd4;
+  --mx-code-removed: rgb(255 255 255 / 0.5);
+  --mx-menu-wash: rgb(0 0 0 / 0.42);
+  --mx-menu-card: rgb(255 255 255 / 0.075);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --mx-ink-edge-11: rgb(255 255 255 / 0.11);
+    --mx-ink-edge-16: rgb(255 255 255 / 0.16);
+    --mx-ink-fill-12: rgb(255 255 255 / 0.12);
+    --mx-ink-fill-09: rgb(255 255 255 / 0.09);
+    --mx-ink-fill-15: rgb(255 255 255 / 0.15);
+    --mx-ink-faint-05: rgb(255 255 255 / 0.05);
+    --mx-ink-60: rgb(255 255 255 / 0.6);
+    --mx-ink-40: rgb(255 255 255 / 0.4);
+    --mx-ink-90: rgb(255 255 255 / 0.9);
+    --mx-ink-07: rgb(255 255 255 / 0.07);
+    --mx-ink-30: rgb(255 255 255 / 0.3);
+    --mx-code-page: #0d0e10;
+    --mx-code-name: #ffffff;
+    --mx-code-text: #c9cdd4;
+    --mx-code-removed: rgb(255 255 255 / 0.5);
+    --mx-menu-wash: rgb(0 0 0 / 0.42);
+    --mx-menu-card: rgb(255 255 255 / 0.075);
+  }
+}

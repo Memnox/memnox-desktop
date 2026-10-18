@@ -30,6 +30,8 @@ export interface SettingsHost {
   openPage(url: string): void;
   openSettings(page?: string): void;
   openOnboarding(): void;
+  /** The first run's window over the whole screen for the opening, or the steps window after it; nothing in a preview. */
+  onboardingVeil?(on: boolean): void;
   close(): void;
   /** Paints the frame of every window but the island in the look; the pages repaint from the store. */
   applyLook(look: Look): void;
@@ -49,6 +51,8 @@ export interface SettingsHost {
     say(sentence: string): Promise<void>;
     /** Say something: the island tests the voice on its own, with "Testing my voice" on the orb. */
     test(): Promise<void>;
+    /** Stops what the voice is saying and drops what waits, so a new line is not queued behind an old one. */
+    stop?(): Promise<void>;
   };
 }
 
@@ -64,6 +68,7 @@ export const tauriHost: SettingsHost = {
   openPage: (url) => void invoke('open_page', { url }).catch(() => undefined),
   openSettings: (page) => void invoke('open_settings', { page: page ?? null }),
   openOnboarding: () => void invoke('open_onboarding'),
+  onboardingVeil: (on) => void invoke('onboarding_veil', { on }).catch(() => undefined),
   close: () => void invoke('close_window'),
   applyLook: (look) => void invoke('apply_appearance', { look }).catch(() => undefined),
   talk: (intent) => void emit('talk', intent === undefined ? null : { intent }),
@@ -85,6 +90,7 @@ export const tauriHost: SettingsHost = {
     },
     say: (sentence) => emit(SAY_EVENT, { line: sentence }),
     test: () => emit(SAY_EVENT, { line: null }),
+    stop: () => invoke<void>('speak_stop'),
   },
 };
 

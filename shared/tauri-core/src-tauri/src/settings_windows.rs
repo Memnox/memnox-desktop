@@ -48,7 +48,9 @@ pub fn show_settings(app: &AppHandle, page: Option<&str>) -> tauri::Result<()> {
     bring_forward(&window)
 }
 
-/// Opens the first run, or brings it forward when it is already up.
+/// Opens the first run, or brings it forward when it is already up. It opens as the Mac's veil, over the
+/// whole screen with no frame and above the rest, since it starts on the wordmark; the page shrinks it to
+/// the steps window through `onboarding_veil` once the opening is done.
 #[tauri::command]
 pub fn open_onboarding(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(ONBOARDING) {
@@ -59,10 +61,35 @@ pub fn open_onboarding(app: AppHandle) -> Result<(), String> {
         .inner_size(ONBOARDING_SIZE.0, ONBOARDING_SIZE.1)
         .min_inner_size(ONBOARDING_MIN.0, ONBOARDING_MIN.1)
         .center()
+        .decorations(false)
+        .always_on_top(true)
+        .fullscreen(true)
         .theme(chosen_theme(&app))
         .build()
         .and_then(|window| bring_forward(&window))
         .map_err(|error| error.to_string())
+}
+
+/// The first run's two shapes: the veil over the whole screen for the opening and the name, and the
+/// ordinary 1000 by 660 window for the steps. Wayland fullscreens on the output the compositor picks,
+/// which on GNOME and KDE is the one with the pointer or focus.
+#[tauri::command]
+pub fn onboarding_veil(window: WebviewWindow, on: bool) -> Result<(), String> {
+    let shape = || -> tauri::Result<()> {
+        if on {
+            window.set_decorations(false)?;
+            window.set_always_on_top(true)?;
+            window.set_fullscreen(true)?;
+        } else {
+            window.set_fullscreen(false)?;
+            window.set_always_on_top(false)?;
+            window.set_decorations(true)?;
+            window.set_size(tauri::LogicalSize::new(ONBOARDING_SIZE.0, ONBOARDING_SIZE.1))?;
+            window.center()?;
+        }
+        window.set_focus()
+    };
+    shape().map_err(|error| error.to_string())
 }
 
 /// Closes the window that asked, for Escape in Settings and the last button of the first run.

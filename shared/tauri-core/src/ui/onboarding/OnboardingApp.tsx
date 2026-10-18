@@ -38,7 +38,7 @@ import {
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { groupedDigits } from '../../core/domain/account-whole';
 import { AgentCheckText } from '../../core/domain/agent-check-text';
-import { GuideLines, ONBOARDING_STEPS, progressOf, setTitle, WELCOME_ROWS, type OnboardingStage, type OnboardingStep, type WelcomeRow } from '../../core/domain/onboarding';
+import { GuideLines, GuideMemory, ONBOARDING_STEPS, rowSpoken, progressOf, setTitle, WELCOME_ROWS, type OnboardingStage, type OnboardingStep, type WelcomeRow } from '../../core/domain/onboarding';
 import type { PermissionStep } from '../../core/domain/permission-steps';
 import { firstName, voiceDetail, voiceStep } from '../../core/domain/setup-steps';
 import type { StepState } from '../../core/domain/step-state';
@@ -62,7 +62,7 @@ const PERMISSION_ICONS: Record<PermissionStep['id'], LucideIcon> = { hear: Mic, 
 /**
  * The first run, as the Mac's `OnboardingWindow`: the wordmark and Get Started, the name asked for, then
  * three steps with a progress bar, a scrolling column beside a picture, and Back and Mute at the foot.
- * The veil the Mac lays over the whole screen is drawn here inside the window, dark over a blue glass.
+ * The veil lies over the whole screen as the Mac's does, dark over a blue wash, since nothing blurs the desktop here.
  */
 export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstStep = 0 }: { parts: SettingsParts; stage?: OnboardingStage; step?: OnboardingStep }) {
   useLook(parts.preferences);
@@ -70,12 +70,19 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
   const [step, setStep] = useState<OnboardingStep>(firstStep);
   const guide = useGuide(parts);
 
+  // Each stage is introduced once in a first run, as the Mac's `firstVisit`, so going Back stays quiet.
   useEffect(() => {
+    const at = stage === 'steps' ? `step-${step}` : stage;
+    if (!guideMemory.first(at)) return;
     if (stage === 'name') guide(GuideLines.name);
     if (stage === 'steps' && step === 0) guide(GuideLines.welcome(firstName(parts.preferences.name)));
-    if (stage === 'steps' && step === 1) guide(GuideLines.setup);
+    if (stage === 'steps' && step === 1) guide(GuideLines.setup(parts.host.platform));
     if (stage === 'steps' && step === 2) guide(GuideLines.ready(firstName(parts.preferences.name), parts.words.talkKeysSaid));
   }, [stage, step]);
+
+  // The opening and the name lie over the whole screen, as the Mac's veil; the steps take the ordinary window.
+  const veiled = stage !== 'steps';
+  useEffect(() => parts.host.onboardingVeil?.(veiled), [veiled]);
 
   useEffect(() => {
     const keys = (event: KeyboardEvent) => {
@@ -129,11 +136,21 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
   );
 }
 
-/** Says a guide line in Memnox's voice unless the person muted the first run. */
-function useGuide(parts: SettingsParts): (line: string) => void {
-  return (line: string) => {
+/** The lines said in this first run, kept for the window's life so every page reads the same memory. */
+const guideMemory = new GuideMemory();
+
+/**
+ * Says a guide line in Memnox's voice unless the person muted the first run. A line cuts off the one before
+ * it, as the Mac's `guide` does, unless it is told to wait its turn.
+ */
+function useGuide(parts: SettingsParts): (line: string, interrupting?: boolean) => void {
+  return (line: string, interrupting = true) => {
     if (parts.preferences.guideMuted) return;
-    void parts.host.voices.say(line).catch(() => undefined);
+    const before = interrupting ? (parts.host.voices.stop?.() ?? Promise.resolve()) : Promise.resolve();
+    void before
+      .catch(() => undefined)
+      .then(() => parts.host.voices.say(line))
+      .catch(() => undefined);
   };
 }
 
@@ -141,7 +158,14 @@ function MuteButton({ parts }: { parts: SettingsParts }) {
   usePreferences();
   const muted = parts.preferences.guideMuted;
   return (
-    <KitButton icon={muted ? VolumeX : Volume2} onClick={() => (parts.preferences.guideMuted = !muted)}>
+    <KitButton
+      icon={muted ? VolumeX : Volume2}
+      onClick={() => {
+        parts.preferences.guideMuted = !muted;
+        // Muting silences what is being said now too, as the Mac's `stopGuide`.
+        if (!muted) void parts.host.voices.stop?.().catch(() => undefined);
+      }}
+    >
       {muted ? 'Unmute' : 'Mute'}
     </KitButton>
   );
@@ -349,7 +373,7 @@ function WelcomeStep({ parts, next }: { parts: SettingsParts; next: () => void }
                 title="Hear this"
                 onClick={() => {
                   setPlaying(on ? undefined : row.id);
-                  if (!on) guide(`${row.title}. ${row.detail}`);
+                  if (!on) guide(rowSpoken(row.id, parts.host.platform));
                 }}
               >
                 <KitRow tile={<IconTile icon={Icon} />} title={row.title} detail={row.detail} trailing={<Play size={12} fill={on ? 'currentColor' : 'none'} className={on ? 'text-primary' : 'text-ink-tertiary'} />} />
@@ -376,6 +400,17 @@ function WelcomeStep({ parts, next }: { parts: SettingsParts; next: () => void }
 function SetupStepPage({ parts, next }: { parts: SettingsParts; next: () => void }) {
   const { steps, words, host } = parts;
   useObserved(steps);
+  const guide = useGuide(parts);
+  // A grant that waits on the person is said once, with what to do, as the Mac's guide follows its typing and seeing.
+  const waitingOn = steps.permissions.filter((step) => step.state.kind === 'needs').map((step) => step.id);
+  useEffect(() => {
+    for (const step of steps.permissions) {
+      if (step.state.kind !== 'needs' || !guideMemory.first(`needs-${step.id}`)) continue;
+      if (step.id === 'hear') guide(GuideLines.microphone(host.platform));
+      if (step.id === 'type') guide(GuideLines.typing);
+      if (step.id === 'see') guide(GuideLines.seeing(step.guide.some((line) => line.includes('portal')) ? 'portal' : 'accessibility'));
+    }
+  }, [waitingOn.join()]);
   useEffect(() => {
     void steps.refresh().then(() => steps.recheckOnce());
     if (steps.voiceInstall.kind === 'idle') void steps.installVoice();

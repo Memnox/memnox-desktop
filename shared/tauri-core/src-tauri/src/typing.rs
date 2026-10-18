@@ -13,6 +13,18 @@ mod platform;
 mod platform;
 #[path = "typing/tools.rs"]
 mod tools;
+#[cfg(target_os = "linux")]
+#[path = "typing/accessibility.rs"]
+mod accessibility;
+#[cfg(target_os = "linux")]
+#[path = "typing/portal.rs"]
+mod portal;
+
+/// Starts following which field has the keyboard where the platform only says so by events: AT-SPI on Linux.
+pub fn watch_focus() {
+    #[cfg(target_os = "linux")]
+    accessibility::watch();
+}
 
 use serde::Serialize;
 
@@ -27,6 +39,11 @@ pub struct Focus {
     pub secure: bool,
     /// Text selected in the field, which turns what is said into an instruction about it.
     pub selection: Option<String>,
+    /// The field's whole text, and where the cursor and the end of the selection sit in it in UTF 16
+    /// units, so dictation fits what is around it and a fix made after is learned.
+    pub value: Option<String>,
+    pub caret: Option<u32>,
+    pub selection_end: Option<u32>,
 }
 
 /// One keystroke to send: a UTF 16 unit typed as itself, or Enter for a line break.

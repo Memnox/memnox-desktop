@@ -1,3 +1,4 @@
+import { defaultDictationKey, type DictationKeyName } from '../domain/voice-keys';
 import type { PreferenceStore } from './ports/preference-store';
 
 /** The person's choices about the voice, each a switch, with the Mac's defaults. */
@@ -44,6 +45,10 @@ export const VOICE_DEFAULTS: VoiceChoices = {
 };
 
 const PREFIX = 'memnox.voice.';
+/** The key picked to dictate with, apart from the switches since it is a name and not a yes or no. */
+export const DICTATION_KEY = 'memnox.dictation.key';
+/** Whether the keyboard's layout has AltGr, as the island last read it, so Settings shows the same default. */
+export const ALTGR_KEY = 'memnox.keyboard.altGr';
 
 /** The switches, kept between launches and observed, so the island, the menu and Settings show one truth. */
 export class VoicePreferences {
@@ -77,6 +82,25 @@ export class VoicePreferences {
 
   toggle(key: keyof VoiceChoices): void {
     this.set(key, !this.current[key]);
+  }
+
+  /** The key that dictates: the one picked, else right Alt on a layout without AltGr and right Ctrl on one with it. */
+  get dictationKey(): DictationKeyName {
+    const picked = safely(() => this.store.load(DICTATION_KEY));
+    if (picked === 'rightAlt' || picked === 'rightCtrl') return picked;
+    return defaultDictationKey(safely(() => this.store.load(ALTGR_KEY)) === 'true');
+  }
+
+  pickDictationKey(key: DictationKeyName): void {
+    safely(() => this.store.save(DICTATION_KEY, key));
+    for (const listener of this.listeners) listener();
+  }
+
+  /** What the island read of the layout, which moves the default when nothing was picked. */
+  layoutHasAltGr(has: boolean): void {
+    if (safely(() => this.store.load(ALTGR_KEY)) === String(has)) return;
+    safely(() => this.store.save(ALTGR_KEY, String(has)));
+    for (const listener of this.listeners) listener();
   }
 }
 

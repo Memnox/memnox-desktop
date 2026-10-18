@@ -6,7 +6,7 @@ import { loudness } from './island/loudness';
 import { IslandButton, UnderPill } from './kit';
 import { IslandHearing } from './voice/Hearing';
 import { voiceModels } from './voice/models';
-import { keysWatching, onKeys, onPresence, onSay, onVoiceLevel } from './voice/tauri-voice';
+import { keyboardHasAltGr, keysWatching, onKeys, onPresence, onSay, onVoiceLevel } from './voice/tauri-voice';
 
 /** Where the microphone stands: not looked at yet, not installed, installing, ready, or open. */
 export type Mic = 'unknown' | 'missing' | 'installing' | 'ready' | 'listening';
@@ -87,6 +87,7 @@ export function useConversation(talking: Talking, { probe = true, voice }: { pro
     const stopPresence = onPresence((now) => (now === 'locked' ? voice.locked() : voice.unlocked()));
     const stopKeys = onKeys((report) => voice.keys(report));
     const stopLevel = onVoiceLevel((level) => loudness.voice(level));
+    void keyboardHasAltGr().then((has) => has !== undefined && voice.layout(has));
     void keysWatching().then((answer) => {
       keysSeen.current = answer.watching;
       setKeysNote(answer.watching ? undefined : answer.why);

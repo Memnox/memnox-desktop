@@ -1,8 +1,11 @@
-//! Keys seen from anywhere on Linux by looking at the X11 keymap many times a second, which needs no
-//! permission. A Wayland session without XWayland allows no such look, so the watcher says so instead.
+//! Keys seen from anywhere on Linux, the best way the session allows: the keyboards' own event devices
+//! where the person granted reading them, which sees bare modifiers everywhere; on Wayland otherwise the
+//! GlobalShortcuts portal, which binds a chord for each and reports it held; and on X11 the keymap looked
+//! at many times a second, which needs no permission. Each says honestly when it sees less.
 
 use std::os::raw::c_char;
 use std::sync::mpsc::channel;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -19,7 +22,57 @@ struct OnlyHere(*mut Display);
 // SAFETY: the display is opened on one thread and used only by the watcher thread after that.
 unsafe impl Send for OnlyHere {}
 
+fn wayland() -> bool {
+    std::env::var_os("WAYLAND_DISPLAY").is_some() || std::env::var("XDG_SESSION_TYPE").is_ok_and(|kind| kind == "wayland")
+}
+
 pub fn watch(sink: Sink) -> Result<(), String> {
+    let sink = Arc::new(sink);
+    let share = |sink: &Arc<Sink>| -> Sink {
+        let sink = sink.clone();
+        Box::new(move |event| sink(event))
+    };
+    // Reading the keyboards was granted, so the Mac's bare modifiers work in every app.
+    if super::evdev_keys::watch(share(&sink)).is_ok() {
+        return Ok(());
+    }
+    if !wayland() {
+        return x11_watch(share(&sink));
+    }
+    match super::portal::watch(share(&sink)) {
+        Ok(()) => Ok(()),
+        // XWayland's keymap only changes while one of its own windows has focus, so it is no stand in.
+        Err(why) => Err(format!(
+            "{why}. Joining the input group, or installing Memnox's udev rule, lets the keys be seen in every app"
+        )),
+    }
+}
+
+/// Whether right Alt is AltGr on this keyboard: on X11 when no key gives Alt_R, as on a layout that puts
+/// ISO_Level3_Shift there; otherwise from the layout the system names, where only US English has none.
+pub fn has_altgr() -> Option<bool> {
+    if let Ok(xlib) = Xlib::open() {
+        // SAFETY: a null name opens the display named by DISPLAY; it is closed before returning.
+        let display = unsafe { (xlib.XOpenDisplay)(std::ptr::null()) };
+        if !display.is_null() {
+            // SAFETY: the display is open and the keysym is a plain number.
+            let alt = unsafe { (xlib.XKeysymToKeycode)(display, u64::from(keysym::XK_Alt_R) as _) };
+            // SAFETY: opened above and not used after.
+            unsafe { (xlib.XCloseDisplay)(display) };
+            return Some(alt == 0);
+        }
+    }
+    let named = std::env::var("XKB_DEFAULT_LAYOUT").ok().or_else(|| {
+        std::fs::read_to_string("/etc/default/keyboard").ok().and_then(|file| {
+            file.lines()
+                .find_map(|line| line.strip_prefix("XKBLAYOUT=").map(|layout| layout.trim_matches('"').to_string()))
+        })
+    })?;
+    let first = named.split(',').next().unwrap_or("").trim().to_lowercase();
+    (!first.is_empty()).then(|| first != "us")
+}
+
+fn x11_watch(sink: Sink) -> Result<(), String> {
     let (ready, opened) = channel();
     thread::Builder::new()
         .name("memnox-keys".into())

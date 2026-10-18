@@ -1,10 +1,12 @@
-import { ArrowRight, Bell, ChevronsUpDown, CircleMinus, Ear, Keyboard, MessageSquareText, MicVocal, Play, Sparkles, TextCursorInput, Volume1, VolumeX } from 'lucide-react';
+import { AppWindow, ArrowRight, AudioWaveform, Bell, ChevronsUpDown, CircleMinus, Ear, Gauge, History, Keyboard, MessageSquareText, MicVocal, Play, Sparkles, TextCursorInput, Volume1, VolumeX } from 'lucide-react';
 import { Fragment, useEffect, useState } from 'react';
 import type { VoiceChoices } from '../../../core/application/voice-preferences';
+import type { Platform } from '../../../core/domain/platform';
+import { DICTATION_KEY_WORDS, type DictationKeyName } from '../../../core/domain/voice-keys';
 import { AgentCheckText } from '../../../core/domain/agent-check-text';
 import { firstName, voiceDetail, voiceStep } from '../../../core/domain/setup-steps';
 import { BrandLogo } from '../../kit/logos';
-import { KitButton, KitField, QuietLine, SettingsCard, SettingsDivider, SettingsSection, Spinner, Surface, SwitchRow, useCopied } from '../kit';
+import { KitButton, KitField, QuietLine, SettingsCard, SettingsDivider, SettingsRow, SettingsSection, Spinner, Surface, SwitchRow, useCopied } from '../kit';
 import { useObserved, usePreferences, type SettingsParts } from '../parts';
 import { SetupDivider, SetupStep } from '../steps';
 
@@ -16,7 +18,12 @@ const VOICE_PEOPLE: Record<string, string> = {
   bm: 'British Male',
 };
 
-export function voiceLabel(id: string): string {
+/** The computer's own voice, as the Mac's picker names its own "Mac voice". */
+export const SYSTEM_VOICE = 'system';
+const SYSTEM_VOICE_LABEL: Record<Platform, string> = { windows: 'Windows voice', linux: 'System voice', other: 'System voice' };
+
+export function voiceLabel(id: string, platform: Platform = 'other'): string {
+  if (id === SYSTEM_VOICE) return SYSTEM_VOICE_LABEL[platform];
   const [accent, name] = id.split('_');
   const named = name === undefined ? id : name.charAt(0).toUpperCase() + name.slice(1);
   const who = accent === undefined ? undefined : VOICE_PEOPLE[accent];
@@ -122,7 +129,7 @@ function VoiceStep({ parts }: { parts: SettingsParts }) {
       detail={voiceDetail(install)}
       trailing={
         <>
-          <VoicePicker voices={voices} chosen={chosen} pick={pick} />
+          <VoicePicker voices={voices} chosen={chosen} pick={pick} platform={host.platform} />
           <KitButton onClick={hear} title="Hear it" aria-label="Hear it" className="px-3">
             <Play size={11} fill="currentColor" strokeWidth={2.4} />
           </KitButton>
@@ -140,7 +147,12 @@ function VoiceStep({ parts }: { parts: SettingsParts }) {
         ) : install.kind === 'failed' ? (
           <div className="flex flex-col items-start gap-2">
             <QuietLine>{install.why}</QuietLine>
-            <KitButton onClick={() => void steps.installVoice()}>Try again</KitButton>
+            <div className="flex items-center gap-2">
+              <KitButton onClick={() => void steps.installVoice()}>Try again</KitButton>
+              {voices.includes(SYSTEM_VOICE) && chosen !== SYSTEM_VOICE && (
+                <KitButton onClick={() => pick(SYSTEM_VOICE)}>Use the {voiceLabel(SYSTEM_VOICE, host.platform)} instead</KitButton>
+              )}
+            </div>
           </div>
         ) : install.kind === 'idle' ? (
           <KitButton onClick={() => void steps.installVoice()}>Download the voice</KitButton>
@@ -151,15 +163,15 @@ function VoiceStep({ parts }: { parts: SettingsParts }) {
 }
 
 /** `VoicePicker`: 220 by 28, radius 9, ink 6% with an 8% edge, the name 14 on the left and the chevron right. */
-function VoicePicker({ voices, chosen, pick }: { voices: readonly string[]; chosen: string; pick: (id: string) => void }) {
+function VoicePicker({ voices, chosen, pick, platform }: { voices: readonly string[]; chosen: string; pick: (id: string) => void; platform: Platform }) {
   return (
     <label className="relative flex h-7 w-[220px] cursor-pointer items-center justify-between rounded-[9px] border border-ink-fill bg-ink-faint-fill px-3">
-      <span className="truncate text-callout text-foreground">{voiceLabel(chosen)}</span>
+      <span className="truncate text-callout text-foreground">{voiceLabel(chosen, platform)}</span>
       <ChevronsUpDown size={10} strokeWidth={2.5} className="shrink-0 text-muted" />
       <select className="absolute inset-0 cursor-pointer opacity-0" value={chosen} onChange={(event) => pick(event.target.value)} aria-label="Voice">
         {(voices.length > 0 ? voices : [chosen]).map((id) => (
           <option key={id} value={id}>
-            {voiceLabel(id)}
+            {voiceLabel(id, platform)}
           </option>
         ))}
       </select>
@@ -184,6 +196,10 @@ export function ListeningPage({ parts }: { parts: SettingsParts }) {
         <VoiceSwitch parts={parts} name="talkOver" icon={MicVocal} title="Talk over it" caption="Cut in just by speaking" />
         <SettingsDivider />
         <VoiceSwitch parts={parts} name="liveWords" icon={MessageSquareText} title="Live words" caption="See what you say in the island" />
+        <SettingsDivider />
+        <VoiceSwitch parts={parts} name="stayPut" icon={AppWindow} title="Stay where I am" caption="Agents get your words without taking your window" />
+        <SettingsDivider />
+        <VoiceSwitch parts={parts} name="echoCancel" icon={AudioWaveform} title="Cancel my own voice" caption="Off for a headset, where the speakers never reach the microphone" />
       </SettingsCard>
       <SettingsCard title="Speaking to you">
         <VoiceSwitch parts={parts} name="muted" icon={VolumeX} title="Mute the voice" caption="Answers still show in the island" />
@@ -191,8 +207,73 @@ export function ListeningPage({ parts }: { parts: SettingsParts }) {
         <VoiceSwitch parts={parts} name="speakUp" icon={Bell} title="Speak up on its own" caption="When work finishes or ships" />
         <SettingsDivider />
         <VoiceSwitch parts={parts} name="chimes" icon={Volume1} title="Sounds" caption="A chime when something happens" />
+        <SettingsDivider />
+        <VoiceSwitch parts={parts} name="catchUp" icon={History} title="Catch me up" caption="What my agents did while I was away" />
+        <SettingsDivider />
+        <SpeedRow parts={parts} />
       </SettingsCard>
     </>
+  );
+}
+
+/** The speeds on offer, the Mac's unhurried pace in the middle, held between half speed and normal as it holds them. */
+const SPEEDS: readonly { readonly speed: number; readonly label: string }[] = [
+  { speed: 0.7, label: 'Slower' },
+  { speed: 0.85, label: 'Unhurried' },
+  { speed: 1, label: 'Normal' },
+];
+
+/** How fast the voice speaks, kept by Rust beside the chosen voice and heard on the next sentence. */
+function SpeedRow({ parts }: { parts: SettingsParts }) {
+  const { host } = parts;
+  const [speed, setSpeed] = useState(0.85);
+  useEffect(() => {
+    host.voices.choice().then(
+      (choice) => choice.speed !== undefined && setSpeed(choice.speed),
+      () => undefined,
+    );
+  }, []);
+  const pick = (next: number) => {
+    setSpeed(next);
+    void host.voices
+      .setSpeed(next)
+      .then(() => host.voices.say('This is how fast I speak now.'))
+      .catch(() => undefined);
+  };
+  const nearest = SPEEDS.reduce((best, each) => (Math.abs(each.speed - speed) < Math.abs(best.speed - speed) ? each : best));
+  return (
+    <SettingsRow icon={Gauge} title="Voice speed" caption="How quickly Memnox talks">
+      <SmallPicker label="Voice speed" value={String(nearest.speed)} shown={nearest.label} options={SPEEDS.map((each) => ({ value: String(each.speed), label: each.label }))} pick={(value) => pick(Number(value))} />
+    </SettingsRow>
+  );
+}
+
+/** A picker the size of the Mac's small pop up: the choice and a chevron over a hidden select. */
+function SmallPicker({ label, value, shown, options, pick }: { label: string; value: string; shown: string; options: readonly { value: string; label: string }[]; pick: (value: string) => void }) {
+  return (
+    <label className="relative flex h-7 w-[140px] cursor-pointer items-center justify-between rounded-[9px] border border-ink-fill bg-ink-faint-fill px-3">
+      <span className="truncate text-callout text-foreground">{shown}</span>
+      <ChevronsUpDown size={10} strokeWidth={2.5} className="shrink-0 text-muted" />
+      <select className="absolute inset-0 cursor-pointer opacity-0" value={value} onChange={(event) => pick(event.target.value)} aria-label={label}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/** Which key dictates; right Alt is AltGr on most European layouts, so right Ctrl is offered and is their default. */
+function DictationKeyRow({ parts }: { parts: SettingsParts }) {
+  useObserved(parts.voice);
+  const key = parts.voice.dictationKey;
+  const keys = Object.entries(DICTATION_KEY_WORDS) as [DictationKeyName, string][];
+  return (
+    <SettingsRow icon={Keyboard} title="Dictation key" caption="Right Alt types characters on many layouts, so pick the key you never type with">
+      <SmallPicker label="Dictation key" value={key} shown={DICTATION_KEY_WORDS[key]} options={keys.map(([value, label]) => ({ value, label }))} pick={(value) => parts.voice.pickDictationKey(value as DictationKeyName)} />
+    </SettingsRow>
   );
 }
 
@@ -216,7 +297,15 @@ export function DictationPage({ parts }: { parts: SettingsParts }) {
     <>
       <SettingsSection title="Dictate">
         <SettingsCard>
-          <VoiceSwitch parts={parts} name="dictation" icon={Keyboard} title="Dictate anywhere" caption="Hold the right Alt key and speak, or tap it twice to keep going hands free." />
+          <VoiceSwitch
+            parts={parts}
+            name="dictation"
+            icon={Keyboard}
+            title="Dictate anywhere"
+            caption={`Hold the ${DICTATION_KEY_WORDS[voice.dictationKey].replace('Right', 'right')} key and speak, or tap it twice to keep going hands free.`}
+          />
+          <SettingsDivider />
+          <DictationKeyRow parts={parts} />
           <SettingsDivider />
           <VoiceSwitch parts={parts} name="typesLive" icon={TextCursorInput} title="Type as I speak" caption="Words appear at the cursor while you talk, and are tidied once you finish." disabled={!on} />
           <SettingsDivider />

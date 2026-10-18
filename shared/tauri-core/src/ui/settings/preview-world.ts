@@ -159,8 +159,9 @@ export const previewHost: SettingsHost = {
   copy: async () => undefined,
   onShowPage: () => () => undefined,
   voices: {
-    choice: async () => ({ voices: ['af_sky', 'af_heart', 'af_bella', 'af_nicole', 'af_sarah', 'am_adam', 'am_michael', 'bf_emma', 'bf_isabella', 'bm_george', 'bm_lewis'], chosen: 'af_heart' }),
+    choice: async () => ({ speed: 0.85, voices: ['system', 'af_sky', 'af_heart', 'af_bella', 'af_nicole', 'af_sarah', 'am_adam', 'am_michael', 'bf_emma', 'bf_isabella', 'bm_george', 'bm_lewis'], chosen: 'af_heart' }),
     choose: async () => undefined,
+    setSpeed: async () => undefined,
     installed: async () => previewState !== 'installing',
     install: () => new Promise<void>(() => undefined),
     say: async () => undefined,

@@ -8,7 +8,10 @@ use windows::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenC
 use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
 use windows::Win32::System::Ole::CF_UNICODETEXT;
 use windows::Win32::System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION};
-use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation, IUIAutomationTextPattern, UIA_TextPatternId};
+use windows::Win32::UI::Accessibility::{
+    CUIAutomation, IUIAutomation, IUIAutomationTextPattern, IUIAutomationTextRange, TextPatternRangeEndpoint_End,
+    TextPatternRangeEndpoint_Start, UIA_TextPatternId,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VIRTUAL_KEY, VK_BACK,
     VK_RETURN,
@@ -112,12 +115,11 @@ pub fn focus() -> Focus {
         GetWindowThreadProcessId(window, Some(&mut pid));
         (executable(pid), title)
     };
-    let (secure, selection) = focused_field();
+    let field = focused_field();
     Focus {
         app,
         title,
-        secure,
-        selection,
+        ..field
     }
 }
 
@@ -141,34 +143,67 @@ unsafe fn executable(pid: u32) -> Option<String> {
     }
 }
 
-/// Whether the focused field is a password, and what is selected in it, from UI Automation; a field that
-/// cannot be read counts as not secure, since most apps that hide it are not password fields.
-fn focused_field() -> (bool, Option<String>) {
+/// The focused field from UI Automation: whether it is a password, what is selected in it, and its text
+/// with the cursor's place in it. A field that cannot be read counts as not secure, since most apps that
+/// hide it are not password fields.
+fn focused_field() -> Focus {
     // SAFETY: COM is initialised for this thread first; an earlier choice of apartment is fine to keep.
     unsafe {
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
         let Ok(automation) = CoCreateInstance::<_, IUIAutomation>(&CUIAutomation, None, CLSCTX_INPROC_SERVER) else {
-            return (false, None);
+            return Focus::default();
         };
         let Ok(element) = automation.GetFocusedElement() else {
-            return (false, None);
+            return Focus::default();
         };
         let secure = element.CurrentIsPassword().map(|secure| secure.as_bool()).unwrap_or(false);
         if secure {
-            return (true, None);
+            return Focus { secure: true, ..Focus::default() };
         }
-        let selection = element
-            .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
-            .and_then(|pattern| pattern.GetSelection())
-            .ok()
-            .and_then(|ranges| {
-                if ranges.Length().ok()? < 1 {
-                    return None;
-                }
-                let text = ranges.GetElement(0).ok()?.GetText(LONGEST_SELECTION).ok()?;
-                let text = text.to_string();
-                (!text.trim().is_empty()).then_some(text)
-            });
-        (false, selection)
+        let Ok(pattern) = element.GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId) else {
+            return Focus::default();
+        };
+        let chosen = pattern.GetSelection().ok().and_then(|ranges| {
+            if ranges.Length().ok()? < 1 {
+                return None;
+            }
+            ranges.GetElement(0).ok()
+        });
+        let selection = chosen
+            .as_ref()
+            .and_then(|range| range.GetText(LONGEST_SELECTION).ok())
+            .map(|text| text.to_string())
+            .filter(|text| !text.trim().is_empty());
+        let mut focus = Focus { selection, ..Focus::default() };
+        if let (Ok(document), Some(chosen)) = (pattern.DocumentRange(), chosen.as_ref()) {
+            place_in(&document, chosen, &mut focus);
+        }
+        focus
+    }
+}
+
+/// The whole text, and the cursor and the end of the selection as UTF 16 offsets into it: the text from
+/// the start of the document to each end of the selection, measured.
+unsafe fn place_in(document: &IUIAutomationTextRange, chosen: &IUIAutomationTextRange, focus: &mut Focus) {
+    // SAFETY: plain UI Automation calls on ranges this thread holds.
+    unsafe {
+        let Ok(value) = document.GetText(LONGEST_SELECTION) else {
+            return;
+        };
+        let value = value.to_string();
+        let upto = |end| -> Option<u32> {
+            let before = document.Clone().ok()?;
+            before.MoveEndpointByRange(TextPatternRangeEndpoint_End, chosen, end).ok()?;
+            let text = before.GetText(LONGEST_SELECTION).ok()?.to_string();
+            Some(text.encode_utf16().count() as u32)
+        };
+        let caret = upto(TextPatternRangeEndpoint_Start);
+        let end = upto(TextPatternRangeEndpoint_End);
+        // A document longer than what is read would put the cursor past the text that was kept.
+        if caret.is_some_and(|caret| caret as usize <= value.encode_utf16().count()) {
+            focus.caret = caret;
+            focus.selection_end = end.or(caret);
+            focus.value = Some(value);
+        }
     }
 }

@@ -89,3 +89,32 @@ unsafe extern "system" fn seen(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRE
     // SAFETY: passing the event on unchanged, as every hook must.
     unsafe { CallNextHookEx(None, code, wparam, lparam) }
 }
+
+/// Whether the layout of the app in front types characters with AltGr: any key that gives a character
+/// with Ctrl and Alt held, which is what AltGr sends. US English gives none; most European layouts do.
+pub fn has_altgr() -> Option<bool> {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, MapVirtualKeyExW, ToUnicodeEx, MAPVK_VK_TO_VSC, VK_CONTROL, VK_MENU};
+    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+    /// Down, in the key state array ToUnicodeEx reads.
+    const HELD: u8 = 0x80;
+    /// Leaves the keyboard's dead key state alone, so a check never eats the person's next accent.
+    const KEEP_STATE: u32 = 0x4;
+    // The letter and digit rows and the punctuation keys, where AltGr characters live.
+    let keys = (0x30..=0x5A_u32).chain(0xBA..=0xC0).chain(0xDB..=0xDF).chain([0xE2]);
+    // SAFETY: plain reads of the foreground thread's layout and of what keys give under it.
+    unsafe {
+        let thread = GetWindowThreadProcessId(GetForegroundWindow(), None);
+        let layout = GetKeyboardLayout(thread);
+        let mut state = [0_u8; 256];
+        state[VK_CONTROL.0 as usize] = HELD;
+        state[VK_MENU.0 as usize] = HELD;
+        for vk in keys {
+            let scan = MapVirtualKeyExW(vk, MAPVK_VK_TO_VSC, Some(layout));
+            let mut out = [0_u16; 4];
+            if ToUnicodeEx(vk, scan, &state, &mut out, KEEP_STATE, Some(layout)) > 0 {
+                return Some(true);
+            }
+        }
+        Some(false)
+    }
+}

@@ -10,6 +10,7 @@ mod key;
 mod keys;
 mod panels;
 mod permissions;
+mod presence;
 mod relay;
 mod runtime;
 mod sessions;
@@ -74,6 +75,8 @@ pub fn run() {
             });
             // Right Alt to dictate and Ctrl with left Alt for a rule, seen from any app.
             keys::start(app.handle());
+            // The screen locking and unlocking, for Catch me up.
+            presence::watch(app.handle().clone());
             tray::build(app)?;
             tray::start_at_sign_in_once(app);
             // Another app holding the key is no reason not to start; the Talk button still works.
@@ -109,6 +112,7 @@ pub fn run() {
             voice::chime,
             island_keyboard,
             keys::keys_watching,
+            keys::keyboard_has_altgr,
             typing::focus_read,
             typing::type_text,
             typing::type_revise,

@@ -9,6 +9,8 @@ export class TauriEar implements Ear {
   async open(onEvent: (event: EarEvent) => void, options: { partials: boolean }): Promise<void> {
     const events = new Channel<EarEvent>();
     events.onmessage = onEvent;
+    // The echo canceller follows the Listening page's switch, read at each opening since Settings sets it apart.
+    await invoke('echo_cancel', { on: echoCancelOn() }).catch(() => undefined);
     await invoke('ear_open', { events, partials: options.partials });
   }
 
@@ -35,6 +37,15 @@ function fieldOf(read: FocusRead): Pick<Focus, 'before' | 'after' | 'value' | 'c
   if (value === undefined || caret === undefined || caret < 0 || caret > value.length) return {};
   const end = Math.min(Math.max(read.selectionEnd ?? caret, caret), value.length);
   return { value, caret, selectionEnd: end, before: value.slice(0, caret), after: value.slice(end) };
+}
+
+/** The echo switch as Settings keeps it, on unless turned off for a headset. */
+function echoCancelOn(): boolean {
+  try {
+    return window.localStorage.getItem('memnox.voice.echoCancel') !== 'false';
+  } catch {
+    return true;
+  }
 }
 
 /** The platform layer in Rust that types into the app in front: SendInput on Windows, wtype, ydotool or xdotool on Linux. */
@@ -106,6 +117,14 @@ export function onPresence(seen: (now: 'locked' | 'unlocked') => void): () => vo
 /** The names the recognizer should listen for, handed to Parakeet's hotwords. */
 export function hintNames(names: readonly string[]): void {
   void invoke('ear_hints', { names }).catch(() => undefined);
+}
+
+/** Whether the keyboard's layout types with AltGr, which makes right Alt a poor key to hold; undefined when unread. */
+export async function keyboardHasAltGr(): Promise<boolean | undefined> {
+  return invoke<boolean | null>('keyboard_has_altgr').then(
+    (has) => has ?? undefined,
+    () => undefined,
+  );
 }
 
 /** Whether the keys can be seen at all: not on a Wayland session without XWayland, which forbids it. */

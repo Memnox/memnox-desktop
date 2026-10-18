@@ -220,3 +220,37 @@ describe('dictation', () => {
     expect(daemon.sent('learn-words')[0]?.learned).toEqual([{ heard: 'surgeons', meant: 'sessions' }]);
   });
 });
+
+describe('the keys the desktop allows', () => {
+  const ctrlReport = (rightCtrl: boolean) => ({ kind: 'modifiers' as const, ctrl: rightCtrl, leftCtrl: false, rightCtrl, leftAlt: false, rightAlt: false, shift: false, meta: false });
+
+  it('dictates with right Ctrl on a layout with AltGr, and with right Alt where nothing was picked on one without', async () => {
+    const typist = new FieldTypist({ app: 'slack', secure: false });
+    const { turns, preferences } = voiceOver([[{ kind: 'speech' }, { kind: 'words', text: 'on my way', final: true }, { wait: 60_000 }]], {}, { typesLive: false, polish: false }, { typist });
+    expect(preferences.dictationKey).toBe('rightAlt');
+    turns.layout(true);
+    expect(preferences.dictationKey).toBe('rightCtrl');
+    turns.keys(ctrlReport(true));
+    await vi.advanceTimersByTimeAsync(800);
+    turns.keys(ctrlReport(false));
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(typist.typed).toEqual(['On my way']);
+    preferences.pickDictationKey('rightAlt');
+    expect(preferences.dictationKey).toBe('rightAlt');
+  });
+
+  it('holds a rule and dictation from shortcuts bound through the portal', async () => {
+    const typist = new FieldTypist({ app: 'slack', secure: false });
+    const { turns } = voiceOver([[{ kind: 'speech' }, { kind: 'words', text: 'on my way', final: true }, { wait: 60_000 }]], {}, { typesLive: false, polish: false }, { typist });
+    turns.keys({ kind: 'dictate', down: true });
+    await vi.advanceTimersByTimeAsync(800);
+    turns.keys({ kind: 'dictate', down: false });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(typist.typed).toEqual(['On my way']);
+    turns.keys({ kind: 'rule', down: true });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(turns.holdKeys.holding).toBe(true);
+    turns.keys({ kind: 'rule', down: false });
+    expect(turns.holdKeys.holding).toBe(false);
+  });
+});

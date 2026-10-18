@@ -6,6 +6,12 @@ mod event;
 #[cfg(target_os = "linux")]
 #[path = "keys/linux.rs"]
 mod on_linux;
+#[cfg(target_os = "linux")]
+#[path = "keys/portal.rs"]
+mod portal;
+#[cfg(target_os = "linux")]
+#[path = "keys/evdev.rs"]
+mod evdev_keys;
 #[cfg(windows)]
 #[path = "keys/windows.rs"]
 mod on_windows;
@@ -31,8 +37,13 @@ pub struct KeysWatching {
 pub fn start(app: &AppHandle) {
     let handle = app.clone();
     let sink: Sink = Box::new(move |event| {
-        let _ = handle.emit("keys", event);
+        let _ = match event {
+            event::KeyEvent::Talk => handle.emit("talk", ()),
+            other => handle.emit("keys", other),
+        };
     });
+    // The field with the keyboard is followed from launch, where the platform only reports it by events.
+    crate::typing::watch_focus();
     let why = platform_watch(sink).err();
     if let Some(why) = &why {
         eprintln!("Memnox: the hold keys cannot be seen: {why}");
@@ -54,6 +65,17 @@ fn platform_watch(sink: Sink) -> Result<(), String> {
 fn platform_watch(sink: Sink) -> Result<(), String> {
     drop(sink);
     Err("not on this system".into())
+}
+
+/// Whether the keyboard's layout types with AltGr, so right Alt would collide with typing; None when unread.
+#[tauri::command]
+pub fn keyboard_has_altgr() -> Option<bool> {
+    #[cfg(windows)]
+    return on_windows::has_altgr();
+    #[cfg(target_os = "linux")]
+    return on_linux::has_altgr();
+    #[cfg(not(any(windows, target_os = "linux")))]
+    None
 }
 
 #[tauri::command]

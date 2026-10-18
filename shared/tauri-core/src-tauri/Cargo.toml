@@ -51,8 +51,16 @@ windows = { version = "0.61", features = [
   "Win32_UI_Accessibility",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_WindowsAndMessaging",
+  "Win32_System_StationsAndDesktops",
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 memnox-linux = { path = "../../../linux/native" }
 x11-dl = "2.21"
+# The voice's keys and typing on Wayland: the GlobalShortcuts and RemoteDesktop portals, the focused
+# field through AT-SPI, logind for the lock, and the keyboards' event devices where the person allows it.
+ashpd = { version = "0.13", default-features = false, features = ["tokio", "global_shortcuts", "remote_desktop", "screencast"] }
+atspi = { version = "0.30", default-features = false, features = ["connection", "proxies", "wrappers", "tokio"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+evdev = "0.13"
+futures-util = "0.3"

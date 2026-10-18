@@ -6,8 +6,36 @@
 
 /** What the platform reports: the modifiers as they stand, or a key that is not one going down. */
 export type KeyReport =
-  | { readonly kind: 'modifiers'; readonly ctrl: boolean; readonly leftAlt: boolean; readonly rightAlt: boolean; readonly shift: boolean; readonly meta: boolean }
-  | { readonly kind: 'key' };
+  | {
+      readonly kind: 'modifiers';
+      readonly ctrl: boolean;
+      readonly leftAlt: boolean;
+      readonly rightAlt: boolean;
+      readonly shift: boolean;
+      readonly meta: boolean;
+      /** Right Ctrl on its own, for a person whose dictation key it is; absent from an older watcher. */
+      readonly rightCtrl?: boolean;
+      readonly leftCtrl?: boolean;
+    }
+  | { readonly kind: 'key' }
+  /** A desktop that gives shortcuts and not raw keys, as Wayland's portal does: the dictation or rule shortcut went down or up. */
+  | { readonly kind: 'dictate'; readonly down: boolean }
+  | { readonly kind: 'rule'; readonly down: boolean }
+  | { readonly kind: 'talk' };
+
+/**
+ * The key held to dictate. Right Alt is the Mac's right Option, but on most European layouts it is
+ * AltGr, which the person types characters with, so there right Ctrl is the default and either can be picked.
+ */
+export type DictationKeyName = 'rightAlt' | 'rightCtrl';
+
+/** Right Alt on a layout without AltGr, right Ctrl on one with it. */
+export function defaultDictationKey(layoutHasAltGr: boolean): DictationKeyName {
+  return layoutHasAltGr ? 'rightCtrl' : 'rightAlt';
+}
+
+/** The words a dictation key is shown and said with. */
+export const DICTATION_KEY_WORDS: Readonly<Record<DictationKeyName, string>> = { rightAlt: 'Right Alt', rightCtrl: 'Right Ctrl' };
 
 /** Calls `fire` after `ms` unless the returned function is called first. */
 export type KeyTimer = (ms: number, fire: () => void) => () => void;
@@ -31,6 +59,8 @@ export class DictationKey {
   /** Called once it should end, let go or pressed again. */
   ended: () => void = () => undefined;
   enabled = true;
+  /** Which key dictates, picked by the person or by their layout. */
+  key: DictationKeyName = 'rightAlt';
   private down = false;
   private pending: (() => void) | undefined;
   private tappedAt: number | undefined;
@@ -58,10 +88,26 @@ export class DictationKey {
       this.tappedAt = undefined;
       return;
     }
-    if (report.rightAlt && !this.down) {
+    if (report.kind === 'dictate') {
+      // A bound shortcut is pressed on purpose, so it counts as the key held alone.
+      if (report.down && !this.down) {
+        this.down = true;
+        this.pressedDown(true);
+      } else if (!report.down && this.down) {
+        this.down = false;
+        this.letGo();
+      }
+      return;
+    }
+    if (report.kind !== 'modifiers') return;
+    const held = this.key === 'rightCtrl' ? report.rightCtrl === true : report.rightAlt;
+    // Alone means no other modifier with it; the other Ctrl is told apart only when the watcher says which.
+    const otherCtrl = this.key === 'rightCtrl' ? report.leftCtrl === true : report.ctrl;
+    const otherAlt = this.key === 'rightCtrl' ? report.rightAlt : false;
+    if (held && !this.down) {
       this.down = true;
-      this.pressedDown(!report.ctrl && !report.shift && !report.meta && !report.leftAlt);
-    } else if (!report.rightAlt && this.down) {
+      this.pressedDown(!otherCtrl && !otherAlt && !report.shift && !report.meta && !report.leftAlt);
+    } else if (!held && this.down) {
       this.down = false;
       this.letGo();
     }
@@ -138,7 +184,8 @@ export class HoldKeys {
       if (!this.on) this.cancelPending();
       return;
     }
-    const pressed = report.ctrl && report.leftAlt && !report.rightAlt && !report.shift && !report.meta;
+    if (report.kind === 'dictate' || report.kind === 'talk') return;
+    const pressed = report.kind === 'rule' ? report.down : report.ctrl && report.leftAlt && !report.rightAlt && !report.shift && !report.meta;
     if (pressed && !this.on && this.pending === undefined) {
       this.pending = this.timer(VOICE_KEY_TIMING.ruleMeantAfterMs, () => {
         this.pending = undefined;

@@ -47,7 +47,9 @@ export interface SettingsHost {
   /** Told when the island or the tray asks this window for one page. */
   onShowPage(listener: (page: string) => void): () => void;
   readonly voices: {
-    choice(): Promise<{ voices: string[]; chosen: string | null }>;
+    choice(): Promise<{ voices: string[]; chosen: string | null; speed?: number }>;
+    /** How fast the voice speaks, held between half speed and normal. */
+    setSpeed(speed: number): Promise<void>;
     choose(id: string): Promise<void>;
     installed(): Promise<boolean>;
     install(onStep: (step: InstallProgress) => void): Promise<void>;
@@ -90,7 +92,8 @@ export const tauriHost: SettingsHost = {
     return () => void stop.then((unlisten) => unlisten(), () => undefined);
   },
   voices: {
-    choice: () => invoke<{ voices: string[]; chosen: string | null }>('voice_choice'),
+    choice: () => invoke<{ voices: string[]; chosen: string | null; speed?: number }>('voice_choice'),
+    setSpeed: (speed) => invoke<void>('set_voice_speed', { speed }),
     choose: (id) => invoke<void>('choose_voice', { id }),
     installed: () => invoke<boolean>('voice_installed'),
     install: (onStep) => {

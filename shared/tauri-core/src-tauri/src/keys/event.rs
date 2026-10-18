@@ -53,8 +53,17 @@ pub enum KeyEvent {
         right_alt: bool,
         shift: bool,
         meta: bool,
+        /// Each Ctrl apart, since right Ctrl is the dictation key on a layout where right Alt is AltGr.
+        left_ctrl: bool,
+        right_ctrl: bool,
     },
     Key,
+    /// A bound shortcut for dictating went down or up, where the desktop gives shortcuts and not raw keys.
+    Dictate { down: bool },
+    /// The same for saying a rule.
+    Rule { down: bool },
+    /// The talk shortcut was pressed; the island hears it as the `talk` event.
+    Talk,
 }
 
 impl From<Pressed> for KeyEvent {
@@ -66,6 +75,8 @@ impl From<Pressed> for KeyEvent {
             right_alt: pressed.has(RightAlt),
             shift: pressed.has(LeftShift) || pressed.has(RightShift),
             meta: pressed.has(LeftMeta) || pressed.has(RightMeta),
+            left_ctrl: pressed.has(LeftCtrl),
+            right_ctrl: pressed.has(RightCtrl),
         }
     }
 }
@@ -157,7 +168,7 @@ mod tests {
         let json = serde_json::to_string(&KeyEvent::from(pressed)).unwrap();
         assert_eq!(
             json,
-            r#"{"kind":"modifiers","ctrl":false,"leftAlt":false,"rightAlt":true,"shift":false,"meta":false}"#
+            r#"{"kind":"modifiers","ctrl":false,"leftAlt":false,"rightAlt":true,"shift":false,"meta":false,"leftCtrl":false,"rightCtrl":false}"#
         );
         assert_eq!(
             serde_json::to_string(&KeyEvent::Key).unwrap(),

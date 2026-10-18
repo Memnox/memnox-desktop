@@ -147,8 +147,10 @@ export class VoiceTurns {
       this.ruleReleased = undefined;
     };
     this.dictationKey.enabled = parts.preferences.choices.dictation;
+    this.dictationKey.key = parts.preferences.dictationKey;
     parts.preferences.observe(() => {
       this.dictationKey.enabled = parts.preferences.choices.dictation;
+      this.dictationKey.key = parts.preferences.dictationKey;
       if (!parts.preferences.choices.liveWords && this.current.live !== '') this.update({ live: '' });
       if (parts.preferences.choices.wake) this.listenForName();
       else void this.stopWake();
@@ -166,8 +168,15 @@ export class VoiceTurns {
 
   /** What the platform saw of the keyboard, for the dictation key and the rule keys. */
   keys(report: KeyReport): void {
+    // Read each time, since Settings picks the key in a window of its own.
+    this.dictationKey.key = this.parts.preferences.dictationKey;
     this.dictationKey.saw(report);
     this.holdKeys.saw(report);
+  }
+
+  /** What the platform read of the keyboard layout, which picks the dictation key nobody chose. */
+  layout(hasAltGr: boolean): void {
+    this.parts.preferences.layoutHasAltGr(hasAltGr);
   }
 
   /** The talk key, the menu and the resting orb end here: open the orb and listen, or stop what is said. */

@@ -1,6 +1,7 @@
-//! Typing on Linux through the session's own tools, wtype or ydotool on Wayland and xdotool on X11, and
-//! the app in front read from X11. Whether a field is a password needs AT SPI, which is not read yet, so
-//! `secure` is always false here and no selection is read.
+//! Typing on Linux through the session's own tools, wtype or ydotool on Wayland and xdotool on X11, or
+//! the RemoteDesktop portal where the compositor has no virtual keyboard, as on GNOME. The app in front
+//! comes from X11 where it can, and the field itself, a password or not, its selection and its text, from
+//! AT-SPI, which also names the app on Wayland where X11 sees nothing.
 
 use std::ffi::CString;
 use std::io::{ErrorKind, Write};
@@ -10,7 +11,7 @@ use std::process::{Command, Stdio};
 use x11_dl::xlib::{self, Display, Xlib};
 
 use super::tools::{self, Run};
-use super::Focus;
+use super::{accessibility, portal, Focus};
 
 fn wayland() -> bool {
     tools::is_wayland(
@@ -52,10 +53,31 @@ fn first_that_works(runs: impl IntoIterator<Item = Run>, input: Option<&str>, mi
     Err(failed.unwrap_or(missing))
 }
 
+/// GNOME's Mutter offers no virtual keyboard, so wtype cannot type there and the portal goes first.
+fn gnome() -> bool {
+    std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|desktop| desktop.split(':').any(|each| each.eq_ignore_ascii_case("gnome")))
+}
+
+/// The portal first on GNOME Wayland, the session's own tools first elsewhere, and the other one after.
+fn typed(tools_way: impl FnOnce() -> Result<(), String>, portal_way: impl FnOnce() -> Result<(), String>) -> Result<(), String> {
+    if !wayland() {
+        return tools_way();
+    }
+    if gnome() {
+        return portal_way().or_else(|why| tools_way().map_err(|_| why));
+    }
+    tools_way().or_else(|why| portal_way().map_err(|_| why))
+}
+
 pub fn type_text(text: &str) -> Result<(), String> {
     let wayland = wayland();
-    let runs = tools::typers(wayland).map(|typer| tools::typing(typer, text));
-    first_that_works(runs, None, tools::missing_typer(wayland))
+    typed(
+        || {
+            let runs = tools::typers(wayland).map(|typer| tools::typing(typer, text));
+            first_that_works(runs, None, tools::missing_typer(wayland))
+        },
+        || portal::type_text(text),
+    )
 }
 
 pub fn backspace(times: u32) -> Result<(), String> {
@@ -63,8 +85,13 @@ pub fn backspace(times: u32) -> Result<(), String> {
         return Ok(());
     }
     let wayland = wayland();
-    let runs = tools::typers(wayland).map(|typer| tools::backspacing(typer, times));
-    first_that_works(runs, None, tools::missing_typer(wayland))
+    typed(
+        || {
+            let runs = tools::typers(wayland).map(|typer| tools::backspacing(typer, times));
+            first_that_works(runs, None, tools::missing_typer(wayland))
+        },
+        || portal::backspace(times),
+    )
 }
 
 pub fn clipboard(text: &str) -> Result<(), String> {
@@ -77,8 +104,24 @@ pub fn clipboard(text: &str) -> Result<(), String> {
     first_that_works(tools::clipboards(wayland), Some(text), missing)
 }
 
-/// The app in front from X11's own hints; on a Wayland session only an XWayland app in front is seen.
+/// The app in front and its field: X11's hints for the app where an X11 window is in front, AT-SPI for
+/// the field, and for the app too on Wayland, where X11 only ever sees an XWayland window.
 pub fn focus() -> Focus {
+    let mut focus = x11_focus();
+    if let Some(field) = accessibility::read() {
+        if focus.app.is_none() || wayland() {
+            focus.app = field.app.or(focus.app);
+        }
+        focus.secure = field.secure;
+        focus.selection = field.selection;
+        focus.value = field.value;
+        focus.caret = field.caret;
+        focus.selection_end = field.selection_end;
+    }
+    focus
+}
+
+fn x11_focus() -> Focus {
     let Ok(xlib) = Xlib::open() else {
         return Focus::default();
     };
@@ -116,8 +159,7 @@ fn read_focus(xlib: &Xlib, display: *mut Display) -> Focus {
     Focus {
         app,
         title,
-        secure: false,
-        selection: None,
+        ..Focus::default()
     }
 }
 

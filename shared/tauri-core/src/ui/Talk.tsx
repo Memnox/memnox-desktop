@@ -144,7 +144,7 @@ export function Hearing({ state, notch, onTap, conversation }: { state: TalkStat
   const turns = conversation?.turns;
   const view =
     turns !== undefined && (turns.active || turns.live !== '')
-      ? { live: turns.live, listening: turns.listening, ruling: turns.ruling, dictating: turns.dictating ?? turns.caption }
+      ? { live: turns.live, listening: turns.listening, ruling: turns.ruling, dictating: turns.dictating, caption: turns.caption }
       : { live: state.heard ?? '', listening: state.phase === 'listening', ruling: false, dictating: undefined };
   return <IslandHearing view={view} notch={notch} onTap={onTap} />;
 }

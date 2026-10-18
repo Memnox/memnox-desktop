@@ -2,7 +2,7 @@ import { Mouth, VoicePreferences, VoiceTurns, type Ear, type EarEvent, type Spea
 import { loudness } from '../island/loudness';
 
 /** The voice's preview scenes, each driving the real turns over a scripted ear, typist and keys. */
-export const VOICE_SCENES = ['voice-listening', 'voice-speaking', 'voice-rule', 'voice-rule-words', 'voice-dictating', 'voice-dictating-words', 'voice-phone', 'voice-phone-done'] as const;
+export const VOICE_SCENES = ['voice-listening', 'voice-speaking', 'voice-rule', 'voice-rule-words', 'voice-dictating', 'voice-dictating-words', 'voice-phone', 'voice-phone-done', 'voice-testing'] as const;
 export type VoiceScene = (typeof VOICE_SCENES)[number];
 
 export function isVoiceScene(scene: string | undefined): scene is VoiceScene {
@@ -44,12 +44,16 @@ export function previewVoice(scene: VoiceScene, talking: Talking, speaker: Speak
     'voice-dictating-words': words('the island now', 'the island now matches the Mac on Windows and Linux'),
     'voice-phone': [],
     'voice-phone-done': [],
+    'voice-testing': [],
   };
+  // The voice test holds on its line, so the caption stays to be looked at.
+  const holding = scene === 'voice-testing';
+  const mouth: Speaker = holding ? { queue: () => undefined, drained: () => new Promise<void>(() => undefined), stop: () => undefined } : speaker;
   const preferences = new VoicePreferences(store);
   preferences.set('typesLive', false);
   const voice = new VoiceTurns({
     talking,
-    mouth: new Mouth(speaker, preferences),
+    mouth: new Mouth(mouth, preferences),
     ear: scriptedEar(script[scene]),
     preferences,
     timer,
@@ -77,6 +81,9 @@ export function previewVoice(scene: VoiceScene, talking: Talking, speaker: Speak
     case 'voice-dictating':
     case 'voice-dictating-words':
       voice.keys({ kind: 'modifiers', ...none, rightAlt: true });
+      break;
+    case 'voice-testing':
+      voice.saySomething();
       break;
     case 'voice-phone':
     case 'voice-phone-done': {

@@ -15,6 +15,8 @@ export interface HearingView {
   readonly listening: boolean;
   readonly ruling: boolean;
   readonly dictating: string | undefined;
+  /** What the orb is doing when nobody is heard, as "Testing my voice", drawn where a hint goes but with no chip. */
+  readonly caption?: string;
 }
 
 /**
@@ -23,7 +25,7 @@ export interface HearingView {
  * heard and a chip beside the notch says which. A tap anywhere ends or interrupts the turn.
  */
 export function IslandHearing({ view, notch, onTap }: { view: HearingView; notch: NotchGeometry; onTap: () => void }) {
-  const hint = view.live === '' ? (view.ruling ? 'Say the rule, then let go' : view.dictating) : undefined;
+  const hint = view.live === '' ? (view.ruling ? 'Say the rule, then let go' : (view.dictating ?? view.caption)) : undefined;
   return (
     <div className="absolute inset-0 cursor-pointer" onClick={onTap} role="button" aria-label="Stop listening">
       <div className="absolute flex items-end justify-center overflow-hidden" style={{ top: islandTop(notch) + WORDS.belowTop, left: WORDS.side, right: WORDS.side, height: WORDS.height }}>

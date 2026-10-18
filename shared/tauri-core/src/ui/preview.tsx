@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { isVoiceScene, previewVoice, VOICE_SCENES } from './voice/preview-voice';
 import type { DaemonEvent, DaemonRequest, DaemonResponse } from '@memnox/core/wire';
 import { HeldCalls, ProposalCards, RequestIds, Setup, Signer, Talking, VoiceSettings, type ConfirmKey, type DaemonLink, type Runtime, type Speaker, type TalkState } from '../core';
 import { Island, type IslandParts, type IslandPreview, type WorkingSession } from './Island';
@@ -30,6 +31,7 @@ const SCENES = [
   'setup',
   /** Rests as a peek, then a call arrives after a second, to watch the island grow. */
   'grow',
+  ...VOICE_SCENES,
 ] as const;
 type Scene = (typeof SCENES)[number];
 
@@ -213,8 +215,8 @@ function Index() {
   );
 }
 
-const { preview, working } = previewOf(scene);
-const parts: IslandParts = { calls, talking, cards, setup, voiceSettings, preview, working, onOpenSession: () => undefined };
+const { preview, working } = scene === 'voice-speaking' ? { preview: { talk: talk({ phase: 'speaking', reply: 'Two sessions are working.' }) }, working: undefined } : previewOf(scene);
+const parts: IslandParts = { calls, talking, cards, setup, voiceSettings, preview, working, onOpenSession: () => undefined, voice: isVoiceScene(scene) ? previewVoice(scene, talking, speaker) : undefined };
 
 // The held menu scene opens the ellipsis once the card is drawn, so the menu can be looked at.
 if (scene === 'held-menu') setTimeout(() => (document.querySelector('[aria-label="More answers"]') as HTMLButtonElement | null)?.click(), 900);

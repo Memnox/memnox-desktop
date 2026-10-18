@@ -36,6 +36,7 @@ import {
   type Talking,
   type TalkState,
   type VoiceSettings,
+  type VoiceTurns,
 } from '../core';
 import { islandWindow, type HitArea } from './adapters/tauri-island-window';
 import { CONTENT_INSET, Empty, Finished, HeldCall, ProposalCard } from './Cards';
@@ -43,7 +44,8 @@ import { loudness } from './island/loudness';
 import { IslandButton, IslandCard, IslandTab, NotchShape, Satellite, UnderPill, useSprings, type Movement } from './kit';
 import { Orb, type OrbHandle } from './Orb';
 import { Settings } from './Settings';
-import { Hearing, useConversation, VoicePills } from './Talk';
+import { Hearing, useConversation, voiceFacts, VoicePills } from './Talk';
+import { PhoneTurn } from './voice/PhoneTurn';
 import { UnderIsland } from './cards/UnderIsland';
 import type { IslandExtras } from './tray/island-extras';
 
@@ -86,6 +88,10 @@ export interface IslandParts {
   onOpenSession?: (sessionId: string) => void;
   /** The pills under the island, the chimes and the diary, wired by `islandExtras`. */
   extras?: IslandExtras;
+  /** The voice's turns: talk, talk over, the wake word, a rule said and dictation. */
+  voice?: VoiceTurns;
+  /** Whether the person's words show as they say them, their choice in the voice's switches. */
+  liveWords?: boolean;
   preview?: IslandPreview;
 }
 
@@ -105,7 +111,7 @@ function contentId(mode: IslandMode, active: boolean): string {
  * `IslandPanel`: the mode is the core's `settle`, sizes and the orb's place are `islandSize` and
  * `orbSpot`, and every change of size moves the width, height, bottom radius and the orb together.
  */
-export function Island({ calls, talking, cards, setup, voiceSettings, notch = STAND_IN_NOTCH, working = [], onLauncher, onSide, onSettings, mute, onOpenSession, extras, preview: scripted }: IslandParts) {
+export function Island({ calls, talking, cards, setup, voiceSettings, notch = STAND_IN_NOTCH, working = [], onLauncher, onSide, onSettings, mute, onOpenSession, extras, voice, liveWords = true, preview: scripted }: IslandParts) {
   const previewing = scripted !== undefined;
   const preview = scripted ?? {};
   const held = useSyncExternalStore(
@@ -121,7 +127,7 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
     () => setup.state,
   );
   // The preview has no Rust behind it, so it never asks after the microphone.
-  const conversation = useConversation(talking, { probe: !previewing });
+  const conversation = useConversation(talking, { probe: !previewing, voice });
   const talk = preview.talk ?? conversation.state;
   const active = preview.talk !== undefined ? preview.talk.phase !== 'idle' : conversation.active;
 
@@ -146,7 +152,8 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
     rule: proposal?.kind === 'rule',
     finished: finished !== undefined,
     talking: active,
-    wordsHeard: (talk.heard ?? '') !== '' || (talk.phase === 'speaking' && talk.reply !== ''),
+    // The person's own words open the hearing screen; what Memnox says is heard, so the orb stays up for it.
+    ...(preview.talk !== undefined ? { wordsHeard: (talk.heard ?? '') !== '' } : voiceFacts(conversation, liveWords)),
     opened: opened || settingsOpen,
     working: working.length,
   });
@@ -282,7 +289,7 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
       case 'voice':
         return <TapTarget onTap={tapped} label="Stop or keep listening" />;
       case 'hearing':
-        return <Hearing state={talk} notch={notch} onTap={tapped} />;
+        return <Hearing state={talk} notch={notch} onTap={tapped} conversation={preview.talk !== undefined ? undefined : conversation} />;
       case 'held':
         return <HeldCall calls={calls} onPressed={(subject) => talking.answeredByHand(subject)} onAnswered={answered} />;
       case 'draft':
@@ -309,8 +316,10 @@ export function Island({ calls, talking, cards, setup, voiceSettings, notch = ST
       case 'session':
       case 'question':
       case 'launcher':
-      case 'conversation':
         return null;
+      // A phone's turn, shown like the person's own with the phone named, and no sound.
+      case 'conversation':
+        return conversation.turns.phone === undefined ? null : <PhoneTurn turn={conversation.turns.phone} />;
     }
   })();
 

@@ -6,7 +6,10 @@ import { TauriDaemonLink } from './adapters/tauri-daemon-link';
 import { TauriPower } from './adapters/tauri-power';
 import { TauriRuntime } from './adapters/tauri-runtime';
 import { TauriSpeaker } from './adapters/tauri-speaker';
-import { Island } from './Island';
+import { DictationPolish, Mouth, VoicePreferences, VoiceTurns } from '../core';
+import { VoiceIsland } from './voice/VoiceIsland';
+import { voiceModels } from './voice/models';
+import { localPreferences, TauriChimes, TauriEar, TauriTypist } from './voice/tauri-voice';
 import { islandExtras } from './tray/island-extras';
 import './styles.css';
 
@@ -26,13 +29,34 @@ const link = new TauriDaemonLink();
 let calls: HeldCalls | undefined;
 const signer = new Signer(link, new TauriConfirmKey(), ids, (status) => calls?.keyChanged(status));
 calls = new HeldCalls(link, signer, ids, { timer });
-const speaker = new TauriSpeaker();
+// The voice: Kokoro behind a mouth that remembers what it said and honours the mute, the ear, the keys and the typist.
+const voicePreferences = new VoicePreferences(localPreferences);
+const speaker = new Mouth(new TauriSpeaker(), voicePreferences);
+const chimes = new TauriChimes();
+const typist = new TauriTypist();
 const cards = new ProposalCards(link, signer, speaker, ids);
-const talking = new Talking(link, speaker, signer, ids, { timer, cards });
+const talking = new Talking(link, speaker, signer, ids, {
+  timer,
+  cards,
+  chimes: { play: (cue) => voicePreferences.choices.chimes && chimes.play(cue) },
+  lookingAt: () => typist.focus(),
+});
+const voiceTurns = new VoiceTurns({
+  talking,
+  mouth: speaker,
+  ear: new TauriEar(),
+  preferences: voicePreferences,
+  timer,
+  chimes,
+  typist,
+  polish: new DictationPolish(link, ids, timer),
+  ready: () => voiceModels.installed,
+});
 const wakefulness = new Wakefulness(link, new TauriPower(), ids);
 const setup = new Setup(link, new TauriRuntime(), ids, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
 const voiceSettings = new VoiceSettings(link, ids);
-calls.observeEvents((event) => void talking.handle(event));
+// What waits on the person is said in its turn and listened for; the rest goes straight to the talking.
+calls.observeEvents((event) => voiceTurns.arrived(event));
 // The tray panel's rows, the pills under the island, the chimes for answers by hand and the diary.
 const extras = islandExtras({ calls, talking, timer });
 
@@ -54,6 +78,6 @@ const root = document.getElementById('root');
 if (root === null) throw new Error('index.html has no root');
 createRoot(root).render(
   <StrictMode>
-    <Island calls={calls} talking={talking} cards={cards} setup={setup} voiceSettings={voiceSettings} extras={extras} />
+    <VoiceIsland preferences={voicePreferences} voice={voiceTurns} calls={calls} talking={talking} cards={cards} setup={setup} voiceSettings={voiceSettings} extras={extras} />
   </StrictMode>,
 );

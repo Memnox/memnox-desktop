@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { DisplayHost, TraceCard } from '@memnox/core/wire';
 import { openWords, pagePosition, pageSeconds, traceBar, traceSubtitle, traceTone, type FloatingCard } from '../../../core/domain/floating-cards';
+import { traceStepName } from '../../../core/domain/session-text';
 import { BrandLogo, LogoMark } from '../../kit';
 import { MarkdownText, SYSTEM_MONO } from '../MarkdownText';
 import { CardButton, CardFace, CardHeader, CodeExcerpt, FileList, PageDots } from './parts';
@@ -160,7 +161,7 @@ function TraceView({ title, trace, actions }: { title: string; trace: TraceCard;
             return (
               <div key={index} className="flex items-center gap-2.5">
                 <span className={`w-[150px] shrink-0 truncate text-footnote ${row.depth === 0 ? 'font-semibold text-foreground' : 'text-foreground/85'}`} style={{ paddingLeft: bar.indent }} title={row.name}>
-                  {row.name}
+                  {traceStepName(row.name)}
                 </span>
                 <span className="relative h-1.5 shrink-0 rounded-full bg-[var(--mx-ink-faint-fill)]" style={{ width: TRACK }}>
                   <span

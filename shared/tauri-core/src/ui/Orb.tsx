@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { OrbMotion, orbFit, type OrbState, type OrbUniforms, type Reaction } from '../core';
+import { useEffect, useRef, useState } from 'react';
+import { ISLAND, OrbMotion, orbFit, type OrbState, type OrbUniforms, type Reaction } from '../core';
 import { ORB_FRAGMENT, ORB_VERTEX } from './orb-shader';
 
 /** Each single float uniform the shader declares, by the motion's name for it. */
@@ -35,27 +35,46 @@ function program(gl: WebGL2RenderingContext): WebGLProgram | undefined {
   return gl.getProgramParameter(made, gl.LINK_STATUS) === true ? made : undefined;
 }
 
+export interface OrbProps {
+  /** The orb's centre, in the box it is placed in. */
+  x: number;
+  y: number;
+  diameter: number;
+  state: OrbState;
+  waiting: boolean;
+  /** How loud the voice in or out is, from nothing to one, read every frame. */
+  loudness?: () => number;
+  handle?: (orb: OrbHandle) => void;
+}
+
 /**
- * The particle sphere, drawn with WebGL2 from the core's `OrbMotion`. Where WebGL2 is missing, as on an
- * old Linux GPU driver, the plain dot from the stylesheet stands in for it.
+ * The particle sphere, drawn with WebGL2 from the core's `OrbMotion`. One canvas for the island's whole
+ * life, placed and sized as the mode moves rather than swapped, as the Mac positions one MTKView. The
+ * canvas is the diameter over 0.62, leaving room for bursts and glow, and only its drawing buffer is
+ * resized, so the GL context is never torn down. Where WebGL2 is missing, as on an old Linux GPU
+ * driver, a soft blue dot of the same size stands in for it.
  */
-export function Orb({ side, state, waiting, handle }: { side: number; state: OrbState; waiting: boolean; handle?: (orb: OrbHandle) => void }) {
+export function Orb({ x, y, diameter, state, waiting, loudness, handle }: OrbProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const now = useRef({ state, waiting });
-  now.current = { state, waiting };
+  const side = diameter / ISLAND.orbCanvasShare;
+  const now = useRef({ state, waiting, side, loudness });
+  now.current = { state, waiting, side, loudness };
   // Read through a ref, since a new callback each render must not tear the GL context down.
   const handed = useRef(handle);
   handed.current = handle;
+  const [drawn, setDrawn] = useState(true);
 
   useEffect(() => {
-    const gl = canvas.current?.getContext('webgl2', { premultipliedAlpha: true, alpha: true });
+    const element = canvas.current;
+    const gl = element?.getContext('webgl2', { premultipliedAlpha: true, alpha: true });
     const made = gl === null || gl === undefined ? undefined : program(gl);
-    if (gl === null || gl === undefined || made === undefined) return;
+    if (element === null || element === undefined || gl === null || gl === undefined || made === undefined) {
+      setDrawn(false);
+      return;
+    }
     const seconds = () => performance.now() / 1000;
     const motion = new OrbMotion(seconds());
     handed.current?.({ react: (reaction) => motion.react(reaction, seconds()) });
-    const scale = window.devicePixelRatio || 1;
-    const fit = orbFit(side);
     const at = (name: string) => gl.getUniformLocation(made, name);
     gl.useProgram(made);
     gl.enable(gl.BLEND);
@@ -63,7 +82,15 @@ export function Orb({ side, state, waiting, handle }: { side: number; state: Orb
     gl.blendFunc(gl.ONE, gl.ONE);
     let frame = 0;
     const draw = () => {
-      const u = motion.frame(seconds(), now.current.state, 0, now.current.waiting);
+      const { state: shownState, waiting: shownWaiting, side: shownSide, loudness: level } = now.current;
+      const scale = window.devicePixelRatio || 1;
+      const pixels = Math.max(1, Math.round(shownSide * scale));
+      if (element.width !== pixels || element.height !== pixels) {
+        element.width = pixels;
+        element.height = pixels;
+      }
+      const fit = orbFit(shownSide);
+      const u = motion.frame(seconds(), shownState, level?.() ?? 0, shownWaiting);
       gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -78,8 +105,23 @@ export function Orb({ side, state, waiting, handle }: { side: number; state: Orb
     };
     draw();
     return () => cancelAnimationFrame(frame);
-  }, [side]);
+  }, []);
 
-  const pixels = Math.round(side * (window.devicePixelRatio || 1));
-  return <canvas ref={canvas} className="shrink-0" width={pixels} height={pixels} style={{ width: side, height: side }} aria-hidden />;
+  const place = { left: x - side / 2, top: y - side / 2, width: side, height: side };
+  return drawn ? (
+    <canvas ref={canvas} className="pointer-events-none absolute" style={place} aria-hidden />
+  ) : (
+    <span
+      className="pointer-events-none absolute rounded-full"
+      style={{
+        left: x - diameter / 2,
+        top: y - diameter / 2,
+        width: diameter,
+        height: diameter,
+        background: 'radial-gradient(circle at 50% 35%, #8cc8ff 0%, #1e86ee 55%, #0f47c7 100%)',
+        boxShadow: '0 0 18px rgb(30 134 238 / 0.5)',
+      }}
+      aria-hidden
+    />
+  );
 }

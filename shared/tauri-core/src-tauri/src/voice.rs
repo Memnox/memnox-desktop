@@ -106,16 +106,22 @@ pub async fn voice_install(
     .map_err(|error| format!("the voice could not be installed: {error}"))
 }
 
-/// What the person said in one utterance, or None when they said nothing before the wait ran out.
+/// What the person said in one utterance, or None when they said nothing before the wait ran out. The
+/// microphone's loudness goes down `levels` as it is heard, for the orb; a send nobody hears is dropped.
 #[tauri::command]
-pub async fn listen_once(voice: tauri::State<'_, Arc<Voice>>) -> Result<Option<String>, String> {
+pub async fn listen_once(
+    voice: tauri::State<'_, Arc<Voice>>,
+    levels: Channel<f32>,
+) -> Result<Option<String>, String> {
     let voice = voice.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let _one = voice
             .listening
             .lock()
             .map_err(|_| "the microphone failed")?;
-        voice.hearing()?.listen_once()
+        voice.hearing()?.listen_once(|level| {
+            let _ = levels.send(level);
+        })
     })
     .await
     .map_err(|error| error.to_string())?

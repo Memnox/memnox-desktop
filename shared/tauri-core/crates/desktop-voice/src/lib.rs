@@ -6,6 +6,6 @@ mod hearing;
 mod models;
 mod speaking;
 
-pub use hearing::{Hearing, HEARING_RATE};
+pub use hearing::{loudness, Hearing, HEARING_RATE};
 pub use models::{Progress, VoiceModels};
 pub use speaking::{Speaking, Voice, VOICES};

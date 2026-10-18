@@ -17,6 +17,13 @@ export const voice = {
     return invoke('voice_install', { steps });
   },
 
-  /** What the person said in one utterance, undefined when they said nothing. */
-  listenOnce: async (): Promise<string | undefined> => (await invoke<string | null>('listen_once')) ?? undefined,
+  /**
+   * What the person said in one utterance, undefined when they said nothing. `onLevel` hears the
+   * microphone's loudness, from nothing to one, for every chunk it reads, so the orb moves with them.
+   */
+  listenOnce: async (onLevel?: (level: number) => void): Promise<string | undefined> => {
+    const levels = new Channel<number>();
+    if (onLevel !== undefined) levels.onmessage = onLevel;
+    return (await invoke<string | null>('listen_once', { levels })) ?? undefined;
+  },
 };

@@ -75,8 +75,9 @@ impl Hearing {
     }
 
     /// Opens the microphone, waits for the person to speak and stop, and writes it down. None when they
-    /// said nothing before the wait ran out.
-    pub fn listen_once(&self) -> Result<Option<String>, String> {
+    /// said nothing before the wait ran out. `on_level` hears the loudness of every chunk the microphone
+    /// hands over, so the orb ripples with the person's voice while they speak.
+    pub fn listen_once(&self, mut on_level: impl FnMut(f32)) -> Result<Option<String>, String> {
         let detector = VoiceActivityDetector::create(
             &vad_config(&self.models),
             LONGEST_UTTERANCE_SECONDS + 5.0,
@@ -89,7 +90,10 @@ impl Hearing {
         let mut pending: Vec<f32> = Vec::new();
         loop {
             match input.samples.recv_timeout(Duration::from_millis(100)) {
-                Ok(chunk) => pending.extend(resampler.resample(&chunk, false)),
+                Ok(chunk) => {
+                    on_level(loudness(&chunk));
+                    pending.extend(resampler.resample(&chunk, false));
+                }
                 Err(RecvTimeoutError::Timeout) => {}
                 Err(RecvTimeoutError::Disconnected) => return Err("the microphone stopped".into()),
             }
@@ -165,6 +169,25 @@ impl Microphone {
     }
 }
 
+/// Amplitude to decibels is twenty times the base ten log.
+const DECIBELS_PER_DECADE: f32 = 20.0;
+/// The quietest amplitude counted, so silence is a finite number of decibels.
+const SILENCE_FLOOR: f32 = 0.000_01;
+/// The decibels shown as nothing, and the span above them shown as one, as the Mac measures a voice.
+const QUIETEST_DECIBELS: f32 = -55.0;
+const DECIBEL_SPAN: f32 = 45.0;
+
+/// Loudness from nothing to one on a decibel scale, because that is how a voice sounds; ported from the Mac's `loudness(of:)`.
+pub fn loudness(samples: &[f32]) -> f32 {
+    if samples.is_empty() {
+        return 0.0;
+    }
+    let rms =
+        (samples.iter().map(|sample| sample * sample).sum::<f32>() / samples.len() as f32).sqrt();
+    let decibels = DECIBELS_PER_DECADE * rms.max(SILENCE_FLOOR).log10();
+    ((decibels - QUIETEST_DECIBELS) / DECIBEL_SPAN).clamp(0.0, 1.0)
+}
+
 /// Every frame's channels averaged into one.
 fn mono(data: &[f32], channels: usize) -> Vec<f32> {
     if channels <= 1 {
@@ -177,11 +200,20 @@ fn mono(data: &[f32], channels: usize) -> Vec<f32> {
 
 #[cfg(test)]
 mod tests {
-    use super::mono;
+    use super::{loudness, mono};
 
     #[test]
     fn averages_every_frame_into_one_channel() {
         assert_eq!(mono(&[0.2, 0.4, -1.0, 1.0], 2), vec![0.3, 0.0]);
         assert_eq!(mono(&[0.5, 0.25], 1), vec![0.5, 0.25]);
+    }
+
+    #[test]
+    fn measures_loudness_on_the_decibel_scale_the_mac_draws_with() {
+        assert_eq!(loudness(&[]), 0.0);
+        assert_eq!(loudness(&[0.0; 64]), 0.0);
+        assert_eq!(loudness(&[1.0, -1.0]), 1.0);
+        // An RMS of 0.01 is -40 dB, a third of the way up from -55.
+        assert!((loudness(&[0.01, -0.01]) - 15.0 / 45.0).abs() < 1e-4);
     }
 }

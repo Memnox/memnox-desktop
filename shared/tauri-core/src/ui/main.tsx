@@ -24,7 +24,7 @@ const ids = new RequestIds();
 const link = new TauriDaemonLink();
 let calls: HeldCalls | undefined;
 const signer = new Signer(link, new TauriConfirmKey(), ids, (status) => calls?.keyChanged(status));
-calls = new HeldCalls(link, signer, ids);
+calls = new HeldCalls(link, signer, ids, { timer });
 const speaker = new TauriSpeaker();
 const cards = new ProposalCards(link, signer, speaker, ids);
 const talking = new Talking(link, speaker, signer, ids, { timer, cards });

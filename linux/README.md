@@ -117,7 +117,7 @@ sudo install -m 644 linux/packaging/org.memnox.desktop.policy /usr/share/polkit-
 ```
 
 Then, with Node 22, pnpm 9.15.4, stable Rust, and a
-[memnox-runtime](https://github.com/Memnox/memnox) checkout beside this repo or named by
+[memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout beside this repo or named by
 `MEMNOX_RUNTIME`:
 
 ```sh

@@ -329,7 +329,7 @@ reserved, as [LICENSE-ASSETS.md](../LICENSE-ASSETS.md) explains. Shipping your o
 own name and icon. The official build is the one signed and notarized by Memnox.
 
 [MIT](../LICENSE). The app builds on open source work it does not commit. The Noise framework is
-copied from [memnox-runtime](https://github.com/Memnox/memnox) by `scripts/vendor-noise.sh`, and
+copied from [memnox-runtime](https://github.com/Memnox/memnox-runtime) by `scripts/vendor-noise.sh`, and
 the voice is installed on first launch by `scripts/kokoro-setup.sh`:
 
 | Project | Used for | License |

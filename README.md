@@ -28,7 +28,7 @@
 ---
 
 Memnox desktop is the face, the voice and the signing key of [Memnox](VISION.md) on macOS, Windows
-and Linux. The daemon in [memnox-runtime](https://github.com/Memnox/memnox) decides what an agent may
+and Linux. The daemon in [memnox-runtime](https://github.com/Memnox/memnox-runtime) decides what an agent may
 do; these apps show what waits on you in an island at the top of the screen, speak and listen, and
 sign every yes that reaches outside a session with a key the operating system guards.
 
@@ -108,7 +108,7 @@ The Mac app has its own pictures in [`macos/README.md`](macos/README.md).
 
 ## Build and test
 
-Each app expects a [memnox-runtime](https://github.com/Memnox/memnox) checkout beside this repo,
+Each app expects a [memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout beside this repo,
 named `memnox-runtime`, or one named by `MEMNOX_RUNTIME`.
 
 <details>

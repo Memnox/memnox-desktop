@@ -21,7 +21,7 @@ belongs in. Everyone taking part follows the [Code of Conduct](../CODE_OF_CONDUC
 ## Set up
 
 You need macOS 14 or later, Xcode 26 or later, and a checkout of
-[memnox-runtime](https://github.com/Memnox/memnox) beside this one, with its daemon running
+[memnox-runtime](https://github.com/Memnox/memnox-runtime) beside this one, with its daemon running
 (`memnox daemon`). The app uses no Swift package, and none may be added: everything is Apple's own
 frameworks, plus the one Noise build the runtime makes, which `scripts/vendor-noise.sh` copies in
 (or builds with `rustup` and `cargo` when there is no build to copy).

@@ -74,7 +74,7 @@ the tray can turn off.
 ## Build from source
 
 You need the Rust MSVC toolchain with Visual Studio's C++ build tools, Node 22, pnpm 9.15.4, Git for
-Windows, and a [memnox-runtime](https://github.com/Memnox/memnox) checkout beside this repo or named
+Windows, and a [memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout beside this repo or named
 by `MEMNOX_RUNTIME`. From Git Bash:
 
 ```sh

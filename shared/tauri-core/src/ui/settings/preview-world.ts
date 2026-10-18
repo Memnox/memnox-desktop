@@ -6,6 +6,12 @@ import type { Runtime } from '../../core/application/ports/runtime';
 import { PREFERENCE } from '../../core/application/preferences';
 import type { Platform } from '../../core/domain/platform';
 import type { SettingsHost } from './host';
+import type { Pairer } from '../../core/application/ports/pairer';
+import type { HttpTransport, PersonCredentialStore } from '../../core/application/ports/workspace-inbox';
+import { Base64URL } from '../../core/domain/base64url';
+import type { PairedServer } from '../../core/domain/paired-machines';
+import type { WorkspaceCredential } from '../../core/domain/workspace-wire';
+import type { RelayAdapters, SettingsParts } from './parts';
 
 /**
  * A computer and a daemon made of script, so every Settings page and first run step draws in a plain
@@ -168,3 +174,49 @@ export const previewHost: SettingsHost = {
     test: async () => undefined,
   },
 };
+
+/** A server kept in the scene, and one more the person can pair with. */
+const keptServers: PairedServer[] = [{ machineId: 'm_box', machine: 'build-box', deviceId: 'dev_desk', pairedAt: 1 }];
+const servers = (): PairedServer[] => (previewState === 'servers' || previewState === 'server-code' ? keptServers : []);
+const never = new Promise<never>(() => undefined);
+
+const previewPairer: Pairer = {
+  async pair(_link, _name, code) {
+    code('482913');
+    return never;
+  },
+  servers: async () => servers(),
+  forget: async () => undefined,
+};
+
+const signedIn: WorkspaceCredential = { token: 'tok', tokenId: 'tk', personId: 'p', name: 'Sam Rivera', orgId: 'o', workspaces: ['ws_1'], deviceId: 'dev_1' };
+
+const previewCloud: HttpTransport = {
+  async send(method, path) {
+    if (method === 'POST' && path === 'v1/person/codes') return { status: 200, body: JSON.stringify({ deviceCode: 'dc', userCode: 'WDJB-MJHT', intervalSeconds: 5, expiresAt: Date.now() + 600_000 }) };
+    if (path === 'v1/person/tokens') return never;
+    return { status: 404, body: '{}' };
+  },
+};
+
+const previewCredentials: PersonCredentialStore = {
+  load: async () => (previewState === 'team' ? signedIn : undefined),
+  save: async () => undefined,
+  delete: async () => undefined,
+};
+
+export const previewRelay: RelayAdapters = { pairer: previewPairer, cloud: previewCloud, credentials: previewCredentials };
+
+/** A pairing link the scene pastes for itself, good for the next two minutes. */
+function previewLinkToPaste(): string {
+  const key = Base64URL.encode(new Uint8Array(32).fill(7)).replace(/-/g, '+').replace(/_/g, '/') + '=';
+  const wire = { v: 1, machineId: 'm_gpu', machine: 'gpu-box', relayUrl: 'wss://relay.memnox.com/v1/relay', mailbox: Base64URL.encode(new Uint8Array(16).fill(1)), pairingToken: 'rlp_1', runtimeNoiseStatic: key, secret: key, expiresAt: new Date(Date.now() + 120_000).toISOString() };
+  return `memnox://pair?d=${Base64URL.encode(new TextEncoder().encode(JSON.stringify(wire)))}`;
+}
+
+/** Puts the scene where its state asks, since a screenshot cannot press Connect or Sign in. */
+export function previewKickoff(parts: SettingsParts): void {
+  if (previewState === 'server-code') void parts.servers.load().then(() => parts.servers.connect(previewLinkToPaste()));
+  if (previewState === 'server-failed') void parts.servers.connect('https://example.com/not-a-link');
+  if (previewState === 'team-code') void parts.team.start();
+}

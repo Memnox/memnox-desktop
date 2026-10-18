@@ -14,13 +14,7 @@ import { deliversFrom } from '../core/domain/machine-events';
 import { settledLine } from '../core/domain/settled-line';
 import { tauriCloud, tauriPersonCredential } from './adapters/tauri-cloud';
 import { TauriRelayLink, tauriPairer } from './adapters/tauri-relay';
-
-/** The server the voice talks to, by machine id, empty for this computer; Settings writes it and the island follows. */
-export const TALKING_TO = 'memnox.talkingTo';
-/** Bumped by Settings when a server is paired or forgotten, so the island opens or drops its link. */
-export const SERVERS_CHANGED = 'memnox.servers.changed';
-/** Bumped when the person signs in or out of their workspace, so the island reads the inbox again or stops. */
-export const TEAM_CHANGED = 'memnox.team.changed';
+import { SERVERS_CHANGED, TALKING_TO, TEAM_CHANGED } from './relay-keys';
 
 /**
  * The island's half of the relay and the workspace: one link that routes every request to the machine it belongs

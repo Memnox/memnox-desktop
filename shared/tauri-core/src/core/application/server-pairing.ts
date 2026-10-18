@@ -34,8 +34,22 @@ export class ServerPairing extends Observed {
     private readonly serversChanged: () => void = () => undefined,
     private readonly now: () => number = Date.now,
     private readonly diary?: Diary,
+    /** Which machine the voice talks to, kept where the island reads it; undefined is this computer. */
+    private readonly choice: { load(): string | undefined; save(machineId: string | undefined): void } = { load: () => undefined, save: () => undefined },
   ) {
     super();
+  }
+
+  /** The server the voice talks to, undefined for this computer or a server no longer paired. */
+  get talkingTo(): string | undefined {
+    const chosen = this.choice.load();
+    return this.kept.some((server) => server.machineId === chosen) ? chosen : undefined;
+  }
+
+  /** The machine the voice talks to from now on, remembered across launches. */
+  talkTo(machineId: string | undefined): void {
+    this.choice.save(machineId);
+    this.changed();
   }
 
   get step(): ServerStep {
@@ -78,6 +92,7 @@ export class ServerPairing extends Observed {
   /** Forgets a server here; the server keeps this computer's device record until somebody revokes it there. */
   async forget(machineId: string): Promise<void> {
     await this.pairer.forget(machineId).catch(() => undefined);
+    if (this.choice.load() === machineId) this.choice.save(undefined);
     this.diary?.note(`forgot the server ${machineId}`);
     await this.load();
     this.serversChanged();

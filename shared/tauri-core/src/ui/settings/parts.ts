@@ -16,7 +16,14 @@ import { VoicePreferences } from '../../core/application/voice-preferences';
 import { DictationWords, VoiceSettings } from '../../core/application/voice-settings';
 import { themeFor, type Look } from '../../core/domain/appearance';
 import { platformWords, type PlatformWords } from '../../core/domain/platform';
+import { CloudInbox } from '../../core/application/cloud-inbox';
+import type { Pairer } from '../../core/application/ports/pairer';
+import type { HttpTransport, PersonCredentialStore } from '../../core/application/ports/workspace-inbox';
+import { ServerPairing } from '../../core/application/server-pairing';
+import { WorkspaceSignIn } from '../../core/application/workspace-sign-in';
+import { SERVERS_CHANGED, TALKING_TO, TEAM_CHANGED } from '../relay-keys';
 import { onPreferenceChange, type SettingsHost } from './host';
+import { TeamAccount } from './team-account';
 import { SetupModel } from './setup-model';
 
 /** Everything a Settings page or a first run step draws from, built once per window. */
@@ -34,6 +41,10 @@ export interface SettingsParts {
   readonly pairing: PhonePairing;
   readonly home: Home;
   readonly tools: Tools;
+  /** The servers paired over the relay, and which machine the voice talks to. */
+  readonly servers: ServerPairing;
+  /** The person's own sign in to their workspace, for the calls it routes to them. */
+  readonly team: TeamAccount;
   /** Where every setup step stands, shared by the overview, the setup pages and the first run. */
   readonly steps: SetupModel;
 }
@@ -41,7 +52,14 @@ export interface SettingsParts {
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** The composition root of the Settings window and the first run: the one place adapters meet the core. */
-export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtime, key: ConfirmKey, store: PreferenceStore): SettingsParts {
+/** What reaches past this computer's daemon: the relay's pairing and Memnox Cloud with the person's credential. */
+export interface RelayAdapters {
+  readonly pairer: Pairer;
+  readonly cloud: HttpTransport;
+  readonly credentials: PersonCredentialStore;
+}
+
+export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtime, key: ConfirmKey, store: PreferenceStore, relay: RelayAdapters): SettingsParts {
   const ids = new RequestIds();
   const setup = new Setup(link, runtime, ids, sleep);
   const signer = new Signer(link, key, ids);
@@ -75,6 +93,21 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
       return () => clearTimeout(handle);
     }),
     tools: new Tools(link, ids),
+    servers: new ServerPairing(
+      relay.pairer,
+      () => host.computerName() ?? 'This computer',
+      platformWords(host.platform).keyTitle,
+      () => store.save(SERVERS_CHANGED, String(Date.now())),
+      Date.now,
+      undefined,
+      { load: () => store.load(TALKING_TO) || undefined, save: (machineId) => store.save(TALKING_TO, machineId ?? '') },
+    ),
+    team: new TeamAccount(
+      new WorkspaceSignIn(new CloudInbox(relay.cloud), relay.credentials, key, sleep),
+      () => host.computerName() ?? 'This computer',
+      (url) => host.openPage(url),
+      () => store.save(TEAM_CHANGED, String(Date.now())),
+    ),
   };
   const whole = parts as SettingsParts;
   (whole as { steps: SetupModel }).steps = new SetupModel(whole);

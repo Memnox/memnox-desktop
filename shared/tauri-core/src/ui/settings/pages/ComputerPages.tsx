@@ -9,6 +9,7 @@ import { Digits, IconTile, KitButton, MemnoxTile, QuietLine, SettingsCard, Setti
 import { IslandScreenPicker } from '../IslandScreenPicker';
 import { useObserved, usePreferences, type SettingsParts } from '../parts';
 import { PermissionGuide, QrCode, SetupDivider, SetupStep } from '../steps';
+import { ServerCard, TeamRow } from './RelayCards';
 
 /**
  * The Permissions page: what this computer lets Memnox hear, type and see, as the Mac's
@@ -99,6 +100,8 @@ export function ConnectionPage({ parts }: { parts: SettingsParts }) {
           <EditorRow parts={parts} />
         </>
       )}
+      <SetupDivider />
+      <TeamRow parts={parts} />
     </Surface>
   );
 }
@@ -175,6 +178,7 @@ export function PhonesPage({ parts }: { parts: SettingsParts }) {
           ))}
         </SettingsCard>
       )}
+      <ServerCard parts={parts} />
     </>
   );
 }

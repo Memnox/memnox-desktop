@@ -2,9 +2,11 @@ import type { VoiceChoices } from '../../core/application/voice-preferences';
 import { TauriConfirmKey } from '../adapters/tauri-confirm-key';
 import { TauriDaemonLink } from '../adapters/tauri-daemon-link';
 import { TauriRuntime } from '../adapters/tauri-runtime';
+import { tauriCloud, tauriPersonCredential } from '../adapters/tauri-cloud';
+import { tauriPairer } from '../adapters/tauri-relay';
 import { LocalPreferenceStore, tauriHost } from './host';
 import { buildParts, type SettingsParts } from './parts';
-import { previewHost, previewKey, previewLink, previewRuntime, previewSeed, PreviewStore } from './preview-world';
+import { previewHost, previewKey, previewLink, previewKickoff, previewRelay, previewRuntime, previewSeed, PreviewStore } from './preview-world';
 
 /** The prefix `VoicePreferences` keeps each switch under. */
 const VOICE_PREFIX = 'memnox.voice.';
@@ -15,7 +17,7 @@ export const inApp = '__TAURI_INTERNALS__' in window;
 /** The parts over the real computer inside the app, or over the script in a browser preview. */
 export function worldParts(): SettingsParts {
   if (inApp) {
-    const parts = buildParts(new TauriDaemonLink(), tauriHost, new TauriRuntime(), new TauriConfirmKey(), new LocalPreferenceStore());
+    const parts = buildParts(new TauriDaemonLink(), tauriHost, new TauriRuntime(), new TauriConfirmKey(), new LocalPreferenceStore(), { pairer: tauriPairer, cloud: tauriCloud, credentials: tauriPersonCredential });
     // The island and the tray switch the voice too, so a change there shows on the Listening page.
     window.addEventListener('storage', (event) => {
       const key = event.key?.startsWith(VOICE_PREFIX) === true ? (event.key.slice(VOICE_PREFIX.length) as keyof VoiceChoices) : undefined;
@@ -23,5 +25,7 @@ export function worldParts(): SettingsParts {
     });
     return parts;
   }
-  return buildParts(previewLink, previewHost, previewRuntime, previewKey, new PreviewStore(previewSeed()));
+  const parts = buildParts(previewLink, previewHost, previewRuntime, previewKey, new PreviewStore(previewSeed()), previewRelay);
+  previewKickoff(parts);
+  return parts;
 }

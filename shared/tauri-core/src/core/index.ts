@@ -53,3 +53,25 @@ export { ANOTHER_KEY_LINE, type KeyStatus } from './domain/key-status';
 export { isAtLeast, MINIMUM_RUNTIME, type RuntimeState } from './domain/runtime-state';
 export { OrbMotion, orbFit, type OrbState, type OrbUniforms, type Reaction } from './domain/orb-motion';
 export { WaitingCalls, type WaitingEntry } from './domain/waiting-calls';
+export {
+  avatarLetter,
+  BRANDED_TOOLS,
+  FALLBACK_LOOK,
+  hasOwnMark,
+  SHOWN_PEOPLE,
+  shownPeople,
+  SIGNED_IN_FOR_MS,
+  signedInWords,
+  signInLabel,
+  signInLead,
+  toolAsks,
+  toolkitName,
+  toolLook,
+  toolPageHint,
+  workFootnote,
+  workLayout,
+  workTitle,
+  type ToolLook,
+  type WorkLayout,
+} from './domain/tool-brand';
+export { agentInitial, agentLogo } from './domain/agent-logo';

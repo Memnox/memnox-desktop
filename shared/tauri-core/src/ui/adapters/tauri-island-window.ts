@@ -1,5 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { emitTo, listen } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+
+/** Told to the island by the side panel when an exchange is picked there, to open it tall. */
+const PICKED_EVENT = 'side-exchange';
+/** Told by Rust when a press lands outside every window of this app, which puts the open island away. */
+const OUTSIDE_EVENT = 'island-outside';
 
 /** A box in the island window's own CSS pixels, top left at the window's top left. */
 export interface HitArea {
@@ -18,8 +24,13 @@ const inTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNA
  */
 export const islandWindow = {
   /** Where clicks are taken; everywhere else they pass through. */
-  setHitAreas(areas: readonly HitArea[]): void {
-    if (inTauri()) void invoke('island_hit_areas', { areas }).catch(() => undefined);
+  setHitAreas(areas: readonly HitArea[], resting?: boolean): void {
+    if (inTauri()) void invoke('island_hit_areas', { areas, resting }).catch(() => undefined);
+  },
+
+  /** Takes the keyboard for this window, or gives it back to where the person was typing. */
+  keyboard(on: boolean): void {
+    if (inTauri()) void invoke('island_keyboard', { on }).catch(() => undefined);
   },
 
   /**
@@ -28,7 +39,26 @@ export const islandWindow = {
    */
   onPointer(listener: (over: boolean) => void): () => void {
     if (!inTauri()) return () => undefined;
-    const stop = listen<{ over: boolean }>('island-pointer', (event) => listener(event.payload.over));
+    // Heard on this window alone, since the side panel and the card wall are followed the same way.
+    const stop = getCurrentWebviewWindow().listen<{ over: boolean }>('island-pointer', (event) => listener(event.payload.over));
+    return () => void stop.then((unlisten) => unlisten(), () => undefined);
+  },
+
+  /** The side panel hands the island the exchange picked there, by its id in the shared history. */
+  pick(id: string): void {
+    if (inTauri()) void emitTo('island', PICKED_EVENT, id).catch(() => undefined);
+  },
+
+  onPicked(listener: (id: string) => void): () => void {
+    if (!inTauri()) return () => undefined;
+    const stop = listen<string>(PICKED_EVENT, (event) => listener(event.payload));
+    return () => void stop.then((unlisten) => unlisten(), () => undefined);
+  },
+
+  /** A press in another app, which a window of ours hears only from Rust, since the press never reaches it. */
+  onOutsidePress(listener: () => void): () => void {
+    if (!inTauri()) return () => undefined;
+    const stop = getCurrentWebviewWindow().listen(OUTSIDE_EVENT, () => listener());
     return () => void stop.then((unlisten) => unlisten(), () => undefined);
   },
 };

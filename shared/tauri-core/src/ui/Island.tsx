@@ -45,6 +45,13 @@ import { Orb, type OrbHandle } from './Orb';
 import { Settings } from './Settings';
 import { Hearing, useConversation, voiceFacts, VoicePills } from './Talk';
 import { PhoneTurn } from './voice/PhoneTurn';
+import { AnswerCard, IslandConversation } from './voice/Conversation';
+import { answeringTurn, isLongReply, type TurnWords } from '../core/domain/island-layout';
+import type { Exchange } from '../core';
+import { useLiveExchange } from './island/live-exchange';
+import { parseHistory } from '../core/domain/history';
+import { localHistory } from './sessions/history-store';
+import { showSummary } from './adapters/tauri-windows';
 import { cardTitle, reactionTo, type AgentQuestions, type Sessions, type SessionsState } from '../core';
 import { Overview, SessionDetail } from './sessions/IslandSessions';
 import { Launcher, type LauncherActions, type LauncherFacts, type LauncherTool } from './sessions/Launcher';
@@ -82,6 +89,8 @@ export interface IslandPreview {
   readonly launcher?: 'actions' | 'tools' | 'tool';
   readonly tool?: { readonly toolkit: string; readonly connected: boolean };
   readonly detail?: boolean;
+  /** An exchange picked from the history, opened tall. */
+  readonly picked?: Exchange;
 }
 
 /** The island's parts: the core's use cases, and the seams the later phases fill. */
@@ -119,6 +128,8 @@ export interface IslandParts {
   voice?: VoiceTurns;
   /** Whether the person's words show as they say them, their choice in the voice's switches. */
   liveWords?: boolean;
+  /** Opens an answer whole in a card of its own; by default the floating summary card in the top left. */
+  onOpenAnswer?: (exchange: Exchange) => void;
   /** The pills under the island, the chimes and the diary, wired by `islandExtras`. */
   extras?: IslandExtras;
   preview?: IslandPreview;
@@ -163,6 +174,7 @@ export function Island({
   onWatchLive,
   voice,
   liveWords = true,
+  onOpenAnswer = (exchange) => void showSummary({ title: exchange.question, text: exchange.answer, files: [] }).catch(() => undefined),
   extras,
   preview: scripted,
 }: IslandParts) {
@@ -207,6 +219,22 @@ export function Island({
   const [pointerOver, setPointerOver] = useState(preview.hovering ?? false);
   const [finished, setFinished] = useState<FinishedCard | undefined>(preview.finished);
   const [countdown, setCountdown] = useState<number | undefined>(preview.countdown);
+  // An exchange picked in the side panel, opened tall while nobody talks, as the Mac's `picked`.
+  const [picked, setPicked] = useState<Exchange | undefined>(preview.picked);
+  // The answer under the question opened tall or put back by hand; undefined lets a long reply open itself.
+  const [expanded, setExpanded] = useState<boolean>();
+  // What the voice held when this time talking began, so a new press never shows the last reply.
+  const talkStart = useRef<TurnWords>();
+  const wasActive = useRef(false);
+  if (active !== wasActive.current) {
+    wasActive.current = active;
+    talkStart.current = active && preview.talk === undefined ? { phase: talk.phase, heard: talk.heard, reply: talk.reply } : undefined;
+  }
+  const answering = active && answeringTurn(talk, talkStart.current);
+  const turn = useLiveExchange(talk);
+  useEffect(() => {
+    if (!answering) setExpanded(undefined);
+  }, [answering, talk.heard]);
   const orb = useRef<OrbHandle>();
   const shape = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -229,6 +257,9 @@ export function Island({
     talking: active,
     // The person's own words open the hearing screen; what Memnox says is heard, so the orb stays up for it.
     ...(preview.talk !== undefined ? { wordsHeard: (talk.heard ?? '') !== '' } : voiceFacts(conversation, liveWords)),
+    answering,
+    answerTall: expanded ?? isLongReply(talk.reply),
+    pickedAnswer: picked !== undefined,
     opened: opened || settingsOpen,
     working: working.length,
   });
@@ -236,6 +267,27 @@ export function Island({
   const interimSettings = settingsOpen && RESTING_MODES.includes(settled);
   const mode: IslandMode = interimSettings ? 'answer' : settled;
   const small = !isOpenMode(mode);
+
+  // A question or a held call takes the keyboard while it is up, so 1 to 9 pick and Escape lets go, and
+  // the keyboard goes back to where the person was typing after.
+  const wantsKeys = !previewing && (mode === 'question' || mode === 'held');
+  useEffect(() => {
+    if (!wantsKeys) return;
+    islandWindow.keyboard(true);
+    const escape = (event: KeyboardEvent) => event.key === 'Escape' && islandWindow.keyboard(false);
+    window.addEventListener('keydown', escape);
+    return () => {
+      window.removeEventListener('keydown', escape);
+      islandWindow.keyboard(false);
+    };
+  }, [wantsKeys]);
+  // Escape puts an open island away, as a click outside does.
+  useEffect(() => {
+    if (previewing || small || wantsKeys) return;
+    const escape = (event: KeyboardEvent) => event.key === 'Escape' && closeRef.current();
+    window.addEventListener('keydown', escape);
+    return () => window.removeEventListener('keydown', escape);
+  }, [previewing, small, wantsKeys]);
   const hovering = pointerOver && small;
 
   // Growing springs out and shrinking eases in, chosen by area as the Mac chooses; a hover alone uses its own spring.
@@ -277,6 +329,7 @@ export function Island({
 
   function close() {
     setOpened(false);
+    setPicked(undefined);
     setSettingsOpen(false);
     setLauncherPage(undefined);
     setCountdown(undefined);
@@ -336,6 +389,24 @@ export function Island({
   // The webview hears no pointer while the window lets clicks through, so Rust says when it left.
   useEffect(() => islandWindow.onPointer((over) => !over && setPointerOver(false)), []);
 
+  // A press in another app puts the open island away, as the Mac's global click monitor does.
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  useEffect(() => islandWindow.onOutsidePress(() => closeRef.current()), []);
+
+  // An exchange picked in the side panel opens tall under the notch, unless the person is talking.
+  useEffect(
+    () =>
+      islandWindow.onPicked((id) => {
+        if (active) return;
+        const exchange = parseHistory(localHistory.load()).exchanges.find((each) => each.id === id);
+        if (exchange === undefined) return;
+        setPicked(exchange);
+        open();
+      }),
+    [active],
+  );
+
   const shapeWidth = moved.width + 2 * ISLAND.flare;
   const shapeLeft = (ISLAND_WINDOW.width - shapeWidth) / 2;
   const bodyLeft = shapeLeft + ISLAND.flare;
@@ -361,7 +432,7 @@ export function Island({
   }
   if (pillsBox !== undefined) areas.push(pillsBox);
   const areasKey = JSON.stringify(areas.map((area) => [area.x, area.y, area.width, area.height].map(Math.round)));
-  useEffect(() => islandWindow.setHitAreas(JSON.parse(areasKey).map(([x, y, width, height]: number[]) => ({ x, y, width, height }))), [areasKey]);
+  useEffect(() => islandWindow.setHitAreas(JSON.parse(areasKey).map(([x, y, width, height]: number[]) => ({ x, y, width, height })), small && !active), [areasKey, small, active]);
 
   function answered(choice: HeldAnswer, outcome: HeldOutcome) {
     extras?.answered(choice, outcome);
@@ -397,6 +468,16 @@ export function Island({
     ...launcher?.facts,
   };
 
+  /** The person's own turn: their question in the bubble, or their live words as they follow up, over the answer arriving. */
+  function turnView(tall: boolean): ReactNode {
+    if (turn === undefined) return null;
+    return (
+      <IslandConversation question={turn.question} live={conversation.turns.live} listening={conversation.turns.listening} className={CONTENT_INSET}>
+        <AnswerCard exchange={turn} live expanded={tall} onExpand={() => setExpanded(!tall)} onOpen={() => onOpenAnswer(turn)} />
+      </IslandConversation>
+    );
+  }
+
   const content: ReactNode = (() => {
     switch (mode) {
       case 'peek':
@@ -423,11 +504,18 @@ export function Island({
       case 'empty':
         return <Empty onTalk={tapped} talkDisabled={conversation.mic !== 'ready' && !previewing} />;
       case 'answer':
-        return interimSettings ? (
-          <IslandCard className={`${CONTENT_INSET} overflow-y-auto p-3.5 text-body text-white`}>
-            <Settings voiceSettings={voiceSettings} setup={setup} />
-          </IslandCard>
-        ) : null;
+        if (interimSettings)
+          return (
+            <IslandCard className={`${CONTENT_INSET} overflow-y-auto p-3.5 text-body text-white`}>
+              <Settings voiceSettings={voiceSettings} setup={setup} />
+            </IslandCard>
+          );
+        if (active) return turnView(true);
+        return picked === undefined ? null : (
+          <IslandConversation question={picked.question} className={CONTENT_INSET}>
+            <AnswerCard exchange={picked} onOpen={() => onOpenAnswer(picked)} />
+          </IslandConversation>
+        );
       case 'overview':
         return (
           <Overview
@@ -497,6 +585,7 @@ export function Island({
         );
       // A phone's turn, shown like the person's own with the phone named, and no sound.
       case 'conversation':
+        if (active) return turnView(false);
         return conversation.turns.phone === undefined ? null : <PhoneTurn turn={conversation.turns.phone} />;
     }
   })();
@@ -543,7 +632,7 @@ export function Island({
                         : mode === 'launcher' && launcherPage === 'tools'
                         ? () => setLauncherPage('actions')
                         : mode === 'answer'
-                          ? close
+                          ? () => setPicked(undefined)
                           : undefined
                 }
               />

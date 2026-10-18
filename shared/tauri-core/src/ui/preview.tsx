@@ -52,6 +52,10 @@ const SCENES = [
   'sessions-side',
   'sessions-switcher',
   'sessions-board',
+  /** The person's own turn: the question over its answer arriving, a long one opened tall, and one picked from the history. */
+  'conversation',
+  'answer-long',
+  'answer-picked',
   ...VOICE_SCENES,
 ] as const;
 type Scene = (typeof SCENES)[number];
@@ -250,12 +254,29 @@ function previewOf(shown: Scene | undefined): { preview: IslandPreview; working?
       return { preview: { opened: true, launcher: 'actions' } };
     case 'sessions-launcher-tools':
       return { preview: { opened: true, launcher: 'tools' } };
+    case 'conversation':
+      return { preview: { talk: talk({ phase: 'speaking', heard: 'what changed in the island since this morning', reply: PREVIEW_REPLY.slice(0, 210) }) } };
+    case 'answer-long':
+      return { preview: { talk: talk({ phase: 'listening', heard: 'what changed in the island since this morning', reply: PREVIEW_REPLY }) } };
+    case 'answer-picked':
+      return { preview: { opened: true, picked: { id: 'x_1', question: 'why did the build fail on Windows', answer: PREVIEW_REPLY, askedAt: Date.now() - 600_000, answeredAt: Date.now() - 588_000 } } };
     case 'sessions-launcher-tool':
       return { preview: { opened: true, launcher: 'tool', tool: { toolkit: 'github', connected: true } } };
     default:
       return { preview: {} };
   }
 }
+
+/** A reply long enough to open tall, in the markdown the brain writes. */
+const PREVIEW_REPLY = [
+  'Three things changed in the island this morning:',
+  '',
+  '1. **Answers show again.** Your question sits in a bubble with the reply arriving under it.',
+  '2. **Long replies open tall**, and one picked from the history opens the same way.',
+  '3. **Clicks pass through** everywhere outside the shape, on Windows and on Linux.',
+  '',
+  'The card wall lets clicks through between its cards too, so the editor under it keeps working. Nothing else moved, and the tests pass on all three systems.',
+].join('\n');
 
 /** The list of scenes, for /preview.html with none chosen. */
 function Index() {

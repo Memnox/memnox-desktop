@@ -42,6 +42,7 @@ export function SidePanel({
   onPin,
   onOpenSession,
   onAskAgain,
+  onPick,
   talkKeys = ['Ctrl', 'Alt', 'Space'],
   now: fixedNow,
 }: {
@@ -52,6 +53,8 @@ export function SidePanel({
   onPin: (on: boolean) => void;
   onOpenSession: (card: SessionCard) => void;
   onAskAgain: (question: string) => void;
+  /** Opens a picked exchange tall on the island, as the Mac's `showExchange`; without it the answer opens in its row. */
+  onPick?: (exchange: Exchange) => void;
   talkKeys?: readonly string[];
   now?: number;
 }) {
@@ -113,7 +116,10 @@ export function SidePanel({
             days.map((day) => (
               <Section key={day.start} title={day.title}>
                 {day.exchanges.map((exchange) => (
-                  <ExchangeRow key={exchange.id} exchange={exchange} now={now} opened={picked === exchange.id} onOpen={() => setPicked(picked === exchange.id ? undefined : exchange.id)} onAskAgain={() => onAskAgain(exchange.question)} />
+                  <ExchangeRow key={exchange.id} exchange={exchange} now={now} opened={picked === exchange.id} inline={onPick === undefined} onOpen={() => {
+                    setPicked(picked === exchange.id && onPick === undefined ? undefined : exchange.id);
+                    onPick?.(exchange);
+                  }} onAskAgain={() => onAskAgain(exchange.question)} />
                 ))}
               </Section>
             ))}
@@ -205,7 +211,7 @@ function WorkingRow({ card, now, onOpen }: { card: SessionCard; now: number; onO
 }
 
 /** One exchange: the Memnox disc, or a red one if it failed, the question and how it went; a click opens the answer. */
-function ExchangeRow({ exchange, now, opened, onOpen, onAskAgain }: { exchange: Exchange; now: number; opened: boolean; onOpen: () => void; onAskAgain: () => void }) {
+function ExchangeRow({ exchange, now, opened, inline, onOpen, onAskAgain }: { exchange: Exchange; now: number; opened: boolean; inline: boolean; onOpen: () => void; onAskAgain: () => void }) {
   const failed = exchange.failure !== undefined;
   const answering = isAnswering(exchange);
   const detail = exchangeDetail(exchange, now);
@@ -234,7 +240,7 @@ function ExchangeRow({ exchange, now, opened, onOpen, onAskAgain }: { exchange: 
           </span>
         )}
       </button>
-      {opened && exchange.answer !== '' && <p className="m-0 select-text whitespace-pre-wrap px-2 pb-2.5 pl-[42px] text-body text-ink-primary">{exchange.answer}</p>}
+      {opened && inline && exchange.answer !== '' && <p className="m-0 select-text whitespace-pre-wrap px-2 pb-2.5 pl-[42px] text-body text-ink-primary">{exchange.answer}</p>}
     </div>
   );
 }

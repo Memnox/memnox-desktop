@@ -7,6 +7,7 @@ import type { SessionCard } from '@memnox/core/wire';
 import { HeldCalls, HistoryKeeper, RequestIds, Sessions, Signer, type Timer } from '../../core';
 import { TauriConfirmKey } from '../adapters/tauri-confirm-key';
 import { TauriDaemonLink } from '../adapters/tauri-daemon-link';
+import { islandWindow } from '../adapters/tauri-island-window';
 import { Board } from './Board';
 import { localHistory, HISTORY_KEY } from './history-store';
 import { LiveSession } from './LiveSession';
@@ -110,6 +111,7 @@ function SideWindow() {
       onPin={setPinned}
       onOpenSession={(card: SessionCard) => openLive(card.sessionId)}
       onAskAgain={(question) => void emit(ASK_AGAIN_EVENT, question)}
+      onPick={(exchange) => islandWindow.pick(exchange.id)}
     />
     </div>
   );

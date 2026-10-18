@@ -7,6 +7,7 @@ use serde::Serialize;
 
 /// The facts the Permissions page and the first run are drawn from; the core turns them into rows.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PermissionFacts {
     /// windows, linux, or other for a development build on a Mac.
     platform: &'static str,
@@ -16,16 +17,59 @@ pub struct PermissionFacts {
     microphone: &'static str,
     /// Whether keys typed for the person reach other apps.
     typing: bool,
+    /// What seeing the screen would go through; nothing here is a grant, since no capture is asked for yet.
+    seeing: Seeing,
+    /// On Linux, whether a polkit agent runs to show the prompt before the key signs; None elsewhere.
+    polkit_agent: Option<bool>,
+    /// The Memnox terminals extension the daemon puts into the editors here.
+    editors: Editors,
 }
 
+/// What a look at the screen would need: the desktop portal on Wayland, and the accessibility bus for the outline.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Seeing {
+    /// Whether the screenshot portal answers; None where no portal is needed.
+    portal: Option<bool>,
+    /// Whether the accessibility bus is on, which GNOME leaves off; None where it was not read.
+    accessibility: Option<bool>,
+}
+
+/// Which editors are here at all, and which hold the extension, by the folder they keep extensions in.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Editors {
+    present: bool,
+    with_extension: Vec<String>,
+}
+
+/// Read off the main thread, since a few of the facts ask the session bus.
 #[tauri::command]
-pub fn permission_facts() -> PermissionFacts {
-    PermissionFacts {
+pub async fn permission_facts() -> PermissionFacts {
+    tauri::async_runtime::spawn_blocking(|| PermissionFacts {
         platform: platform(),
         session: session(),
         microphone: microphone(),
         typing: typing(),
-    }
+        seeing: seeing(),
+        polkit_agent: polkit_agent(),
+        editors: editors(),
+    })
+    .await
+    .unwrap_or_else(|_| PermissionFacts {
+        platform: platform(),
+        session: session(),
+        microphone: "unknown",
+        typing: false,
+        seeing: Seeing {
+            portal: None,
+            accessibility: None,
+        },
+        polkit_agent: None,
+        editors: Editors {
+            present: false,
+            with_extension: Vec::new(),
+        },
+    })
 }
 
 /// Opens the system's own page for one permission, answering whether one opened.
@@ -63,8 +107,7 @@ fn session() -> &'static str {
 /// apps that are not from the Store turns Memnox deaf, whatever else is set.
 #[cfg(windows)]
 fn microphone() -> &'static str {
-    const STORE: &str =
-        r"HKCU\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone";
+    const STORE: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone";
     let read = |key: &str| {
         std::process::Command::new("reg")
             .args(["query", key, "/v", "Value"])
@@ -74,7 +117,8 @@ fn microphone() -> &'static str {
     };
     let whole = read(STORE);
     let desktop = read(&format!(r"{STORE}\NonPackaged"));
-    let denied = |answer: &Option<String>| answer.as_deref().is_some_and(|text| text.contains("Deny"));
+    let denied =
+        |answer: &Option<String>| answer.as_deref().is_some_and(|text| text.contains("Deny"));
     if denied(&whole) || denied(&desktop) {
         "denied"
     } else if whole.is_none() && desktop.is_none() {
@@ -122,6 +166,140 @@ fn uinput_writable() -> bool {
     false
 }
 
+/// On Linux, asks the session bus through `busctl`, which every systemd desktop has; elsewhere nothing is read.
+fn seeing() -> Seeing {
+    if !cfg!(target_os = "linux") {
+        return Seeing {
+            portal: None,
+            accessibility: None,
+        };
+    }
+    let portal = (session() == "wayland").then(|| {
+        bus_answer(&[
+            "--user",
+            "get-property",
+            "org.freedesktop.portal.Desktop",
+            "/org/freedesktop/portal/desktop",
+            "org.freedesktop.portal.Screenshot",
+            "version",
+        ])
+        .is_some()
+    });
+    let accessibility = bus_answer(&[
+        "--user",
+        "get-property",
+        "org.a11y.Bus",
+        "/org/a11y/bus",
+        "org.a11y.Status",
+        "IsEnabled",
+    ])
+    .map(|answer| answer.trim() == "b true");
+    Seeing {
+        portal,
+        accessibility,
+    }
+}
+
+/// What `busctl` printed, or None when it failed or is not here.
+fn bus_answer(args: &[&str]) -> Option<String> {
+    let out = std::process::Command::new("busctl")
+        .args(args)
+        .output()
+        .ok()?;
+    out.status
+        .success()
+        .then(|| String::from_utf8_lossy(&out.stdout).to_string())
+}
+
+/// The agents that show polkit's prompt, by the name each runs under, as `/proc/<pid>/comm` keeps its first 15
+/// letters. GNOME Shell carries its own; KDE, MATE, Xfce, LXQt, Hyprland and the rest run one of these.
+const POLKIT_AGENTS: [&str; 10] = [
+    "gnome-shell",
+    "polkit-gnome-au",
+    "polkit-kde-auth",
+    "polkit-mate-aut",
+    "xfce-polkit",
+    "lxpolkit",
+    "lxqt-policykit-",
+    "hyprpolkitagent",
+    "soteria",
+    "cinnamon",
+];
+
+/// Whether an agent runs, since polkit has no call that lists them; the key cannot ask the person without one.
+fn polkit_agent() -> Option<bool> {
+    if !cfg!(target_os = "linux") {
+        return None;
+    }
+    let processes = std::fs::read_dir("/proc").ok()?;
+    let running = processes.flatten().any(|entry| {
+        std::fs::read_to_string(entry.path().join("comm"))
+            .is_ok_and(|name| is_polkit_agent(name.trim()))
+    });
+    Some(running)
+}
+
+fn is_polkit_agent(name: &str) -> bool {
+    POLKIT_AGENTS.contains(&name)
+        || name.contains("polkit-agent")
+        || name.contains("authentication-agent")
+}
+
+/// Where each editor keeps its extensions under the home folder: VS Code, Cursor and Windsurf as on the Mac,
+/// and on Linux VSCodium and the Flatpak VS Code as well.
+fn extension_folders() -> Vec<&'static str> {
+    let mut folders = vec![
+        ".vscode/extensions",
+        ".cursor/extensions",
+        ".windsurf/extensions",
+    ];
+    if cfg!(target_os = "linux") {
+        folders.extend([
+            ".vscode-oss/extensions",
+            ".var/app/com.visualstudio.code/data/vscode/extensions",
+        ]);
+    }
+    folders
+}
+
+/// The folder the extension installs as, followed by its version.
+const EXTENSION_PREFIX: &str = "memnox.memnox-terminals-";
+
+/// The editors here and those the extension landed in; installing it is the daemon's job, so this only looks.
+fn editors() -> Editors {
+    let home = if cfg!(windows) {
+        std::env::var("USERPROFILE")
+    } else {
+        std::env::var("HOME")
+    };
+    let Ok(home) = home else {
+        return Editors {
+            present: false,
+            with_extension: Vec::new(),
+        };
+    };
+    let home = std::path::Path::new(&home);
+    let folders = extension_folders();
+    let present = folders.iter().any(|folder| home.join(folder).exists());
+    let with_extension = folders
+        .into_iter()
+        .filter(|folder| {
+            std::fs::read_dir(home.join(folder)).is_ok_and(|names| {
+                names.flatten().any(|name| {
+                    name.file_name()
+                        .to_string_lossy()
+                        .starts_with(EXTENSION_PREFIX)
+                })
+            })
+        })
+        .map(String::from)
+        .collect();
+    Editors {
+        present,
+        with_extension,
+    }
+}
+
 /// Each pane's own page, best first: a Windows settings link, or the Linux desktops' sound and privacy panels.
 fn privacy_pages(pane: &str) -> Vec<&'static str> {
     if cfg!(windows) {
@@ -132,7 +310,10 @@ fn privacy_pages(pane: &str) -> Vec<&'static str> {
         };
     }
     match pane {
-        "microphone" | "sound" => vec!["gnome-control-center sound", "systemsettings kcm_pulseaudio"],
+        "microphone" | "sound" => vec![
+            "gnome-control-center sound",
+            "systemsettings kcm_pulseaudio",
+        ],
         _ => vec!["gnome-control-center privacy", "systemsettings"],
     }
 }
@@ -143,7 +324,10 @@ fn run(line: &str) -> bool {
     let Some(program) = words.next() else {
         return false;
     };
-    std::process::Command::new(program).args(words).spawn().is_ok()
+    std::process::Command::new(program)
+        .args(words)
+        .spawn()
+        .is_ok()
 }
 
 /// Hands a link to whatever the system opens links with.
@@ -165,7 +349,10 @@ pub fn open_with_system(link: &str) -> Result<(), String> {
     if !link.contains(':') {
         return Err(format!("{link} is not a link"));
     }
-    command.spawn().map(|_| ()).map_err(|error| error.to_string())
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]
@@ -176,9 +363,20 @@ mod tests {
     fn a_pane_never_runs_more_than_its_fixed_lines() {
         for pane in ["microphone", "sound", "typing", "screen", "rm -rf /"] {
             for page in privacy_pages(pane) {
-                assert!(page.starts_with("ms-settings:") || page.starts_with("gnome-control-center") || page.starts_with("systemsettings"));
+                assert!(
+                    page.starts_with("ms-settings:")
+                        || page.starts_with("gnome-control-center")
+                        || page.starts_with("systemsettings")
+                );
             }
         }
+    }
+
+    #[test]
+    fn knows_the_polkit_agents_by_the_names_they_run_under() {
+        assert!(is_polkit_agent("polkit-kde-auth"));
+        assert!(is_polkit_agent("gnome-shell"));
+        assert!(!is_polkit_agent("bash"));
     }
 
     #[test]

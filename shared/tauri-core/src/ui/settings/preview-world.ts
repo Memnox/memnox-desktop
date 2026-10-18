@@ -139,10 +139,13 @@ export function previewSeed(): Record<string, string> {
 export const previewHost: SettingsHost = {
   platform,
   computerName: () => 'Desk',
-  permissionFacts: async () =>
-    platform === 'linux'
-      ? { platform, session: 'wayland', microphone: 'allowed', typing: previewState !== 'needs' }
-      : { platform, session: 'desktop', microphone: previewState === 'needs' ? 'denied' : 'allowed', typing: true },
+  permissionFacts: async () => {
+    // An editor here, and the extension landed except in the state that shows what still needs doing.
+    const editors = { present: true, withExtension: previewState === 'needs' ? [] : ['.vscode/extensions'] };
+    return platform === 'linux'
+      ? { platform, session: 'wayland', microphone: 'allowed', typing: previewState !== 'needs', editors, polkitAgent: previewState !== 'needs', seeing: { portal: true, accessibility: true } }
+      : { platform, session: 'desktop', microphone: previewState === 'needs' ? 'denied' : 'allowed', typing: true, editors };
+  },
   openPrivacy: async () => true,
   startsAtSignIn: async () => previewState !== 'needs',
   setStartsAtSignIn: async (on) => on,

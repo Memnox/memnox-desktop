@@ -1,9 +1,9 @@
 import type { VoiceAgentStatus } from '@memnox/core/wire';
 import { Observed } from '../../core/application/observed';
 import type { KeyStatus } from '../../core/domain/key-status';
-import { permissionSteps, waitingSteps, type PermissionFacts, type PermissionStep } from '../../core/domain/permission-steps';
+import { keyPromptStep, permissionSteps, waitingSteps, type PermissionFacts, type PermissionStep } from '../../core/domain/permission-steps';
 import { keyStep } from '../../core/domain/platform';
-import { agentsDetail, agentsStep, nameStep, serviceStep, voiceDetail, voiceStep, type SetupFacts, type VoiceInstall } from '../../core/domain/setup-steps';
+import { agentsDetail, agentsStep, editorRow, nameStep, serviceStep, voiceDetail, voiceStep, type EditorRow, type SetupFacts, type VoiceInstall } from '../../core/domain/setup-steps';
 import { needs, type StepState } from '../../core/domain/step-state';
 import type { SettingsParts } from './parts';
 
@@ -33,7 +33,12 @@ export class SetupModel extends Observed {
   }
 
   get keyState(): StepState {
-    return keyStep(this.key, this.parts.host.platform);
+    return keyPromptStep(keyStep(this.key, this.parts.host.platform), this.facts);
+  }
+
+  /** The Memnox terminals extension in the editors here, as the Mac's first run shows it. */
+  get editor(): EditorRow {
+    return editorRow(this.facts?.editors);
   }
 
   get agents(): readonly VoiceAgentStatus[] {
@@ -112,6 +117,8 @@ export class SetupModel extends Observed {
   }
 
   async checkKey(): Promise<void> {
+    // The prompt the key needs on Linux is read again too, so starting a polkit agent clears the row.
+    await this.readPermissions();
     this.key = await this.parts.signer.registerKey();
     this.changed();
   }

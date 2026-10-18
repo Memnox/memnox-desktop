@@ -12,6 +12,12 @@ export interface PermissionFacts {
   readonly session: 'desktop' | 'x11' | 'wayland';
   readonly microphone: 'allowed' | 'denied' | 'none' | 'unknown';
   readonly typing: boolean;
+  /** What seeing the screen would go through; none of it is a grant, since no capture is asked for yet. */
+  readonly seeing?: { readonly portal: boolean | null; readonly accessibility: boolean | null };
+  /** On Linux, whether a polkit agent runs to show the prompt before the key signs. */
+  readonly polkitAgent?: boolean | null;
+  /** The editors here and the extension folders that hold the Memnox terminals extension. */
+  readonly editors?: { readonly present: boolean; readonly withExtension: readonly string[] };
 }
 
 export type PermissionId = 'hear' | 'type' | 'see';
@@ -121,16 +127,59 @@ function type(facts: PermissionFacts): PermissionStep {
   };
 }
 
+/** Wayland shares the screen only through the desktop portal, which some desktops lack until it is installed. */
+const NO_PORTAL_GUIDE = [
+  'Install xdg-desktop-portal and the one for your desktop, such as xdg-desktop-portal-gnome or xdg-desktop-portal-kde.',
+  'Sign out and back in, then press Check again.',
+];
+
+/** GNOME keeps the accessibility bus off until something asks, and the outline of a window is read through it. */
+const NO_ACCESSIBILITY_GUIDE = [
+  'Open a terminal and run gsettings set org.gnome.desktop.interface toolkit-accessibility true.',
+  'Press Check again.',
+];
+
+/**
+ * Seeing as each system allows it. Nothing here claims a grant: Windows and X11 ask nothing ahead, and
+ * Wayland asks through the desktop's own prompt the first time Memnox looks, so the row only says what
+ * that prompt and the outline of a window need, and the guide when one of them is missing.
+ */
 function see(facts: PermissionFacts): PermissionStep {
   const base = { id: 'see' as const, title: 'See your screen', detail: SEE_DETAIL, guide: [], pane: undefined, switchName: undefined };
+  if (facts.platform === 'linux' && facts.session === 'wayland' && facts.seeing?.portal === false) {
+    return {
+      ...base,
+      onboardingDetail: 'Wayland shares the screen only through the desktop portal, which is not answering.',
+      state: needs('No screen sharing portal answers on this desktop'),
+      guide: NO_PORTAL_GUIDE,
+    };
+  }
+  if (facts.platform === 'linux' && facts.seeing?.accessibility === false) {
+    return {
+      ...base,
+      onboardingDetail: 'The outline of a window is read through the accessibility bus, which is off.',
+      state: needs('The accessibility bus is off, so Memnox cannot read the outline of a window'),
+      guide: NO_ACCESSIBILITY_GUIDE,
+    };
+  }
   if (facts.platform === 'linux' && facts.session === 'wayland') {
-    return { ...base, onboardingDetail: 'Your desktop asks the first time, through its own screenshot prompt.', state: DONE };
+    return { ...base, onboardingDetail: 'Your desktop asks the first time Memnox looks, through its own screen sharing prompt.', state: DONE };
   }
   return {
     ...base,
     onboardingDetail: facts.platform === 'windows' ? 'Windows lets Memnox read the window you ask about, with no switch to turn on.' : 'Read the window you ask about and check that words landed.',
     state: DONE,
   };
+}
+
+/** No polkit agent means no prompt before the key signs, so every allow would fail without saying why. */
+const NO_POLKIT_AGENT =
+  'No password prompt runs on this desktop, so Memnox cannot ask you before it signs. Start your desktop’s polkit agent, such as polkit-gnome or polkit-kde-agent, then press Check again';
+
+/** The confirm key's step with the one thing Linux adds to it: an agent that shows the prompt. */
+export function keyPromptStep(key: StepState, facts: PermissionFacts | undefined): StepState {
+  if (facts?.platform === 'linux' && facts.polkitAgent === false && key.kind !== 'needs') return needs(NO_POLKIT_AGENT);
+  return key;
 }
 
 /** The facts before Rust has answered, which show every row as still to check. */

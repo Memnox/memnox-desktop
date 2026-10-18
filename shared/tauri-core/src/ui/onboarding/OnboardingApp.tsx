@@ -28,6 +28,7 @@ import {
   Smartphone,
   Sparkles,
   Speech,
+  SquareTerminal,
   UserRoundSearch,
   Volume2,
   VolumeX,
@@ -468,6 +469,22 @@ function SetupStepPage({ parts, next }: { parts: SettingsParts; next: () => void
             </DoneOr>
           }
         />
+        {/* Said here so nobody learns of the extension from an error later: the daemon puts it in on its own. */}
+        {steps.editor.shown && (
+          <>
+            <KitDivider />
+            <KitRow
+              tile={<IconTile icon={SquareTerminal} />}
+              title="Memnox in your editor"
+              detail={steps.editor.detail}
+              trailing={
+                <DoneOr state={steps.editor.state}>
+                  <Spinner />
+                </DoneOr>
+              }
+            />
+          </>
+        )}
         <KitDivider />
         <KitRow
           tile={<IconTile icon={Power} />}

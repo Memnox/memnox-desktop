@@ -131,3 +131,23 @@ export function serviceStep(ready: boolean | undefined, doing: string | undefine
   if (doing === undefined && ready === false) return { state: needs(failed ?? 'The Memnox service is not answering yet'), detail };
   return { state: WAITING, detail };
 }
+
+/** The Memnox terminals extension, which the daemon puts into VS Code, Cursor and Windsurf by itself. */
+export interface EditorRow {
+  /** Shown only where an editor is, so a computer with none is never told of a gap. */
+  readonly shown: boolean;
+  readonly state: StepState;
+  readonly detail: string;
+}
+
+/** The editor row as the Mac's first run says it: waiting until the daemon's install lands, then done. */
+export function editorRow(editors: { readonly present: boolean; readonly withExtension: readonly string[] } | undefined): EditorRow {
+  const landed = (editors?.withExtension.length ?? 0) > 0;
+  return {
+    shown: editors?.present === true,
+    state: landed ? DONE : WAITING,
+    detail: landed
+      ? 'The Memnox terminals extension is in, so your voice reaches the session’s own tab. Restart the editor if it was open.'
+      : 'The Memnox terminals extension goes into VS Code, Cursor and Windsurf by itself, so your voice reaches the session’s own tab.',
+  };
+}

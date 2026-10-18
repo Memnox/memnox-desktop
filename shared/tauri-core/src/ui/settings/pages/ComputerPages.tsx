@@ -1,4 +1,4 @@
-import { Check, Copy, Fingerprint, MousePointerClick, RotateCw, Smartphone } from 'lucide-react';
+import { Check, Copy, Fingerprint, MousePointerClick, RotateCw, Smartphone, SquareTerminal } from 'lucide-react';
 import { Fragment, useEffect } from 'react';
 import { groupedDigits } from '../../../core/domain/account-whole';
 import { ISLAND_STAYS_DARK, LOOK_NAMES, LOOKS, type Look } from '../../../core/domain/appearance';
@@ -92,7 +92,27 @@ export function ConnectionPage({ parts }: { parts: SettingsParts }) {
       <ServiceRow parts={parts} />
       <SetupDivider />
       <KeyRow parts={parts} />
+      {steps.editor.shown && (
+        <>
+          <SetupDivider />
+          <EditorRow parts={parts} />
+        </>
+      )}
     </Surface>
+  );
+}
+
+/** The Memnox terminals extension the daemon puts into the editors here; the app only looks whether it landed. */
+export function EditorRow({ parts }: { parts: SettingsParts }) {
+  const editor = parts.steps.editor;
+  return (
+    <SetupStep
+      state={editor.state}
+      title="Memnox in your editor"
+      detail={editor.detail}
+      tile={<IconTile icon={SquareTerminal} />}
+      trailing={editor.state.kind === 'done' ? undefined : <KitButton onClick={() => void parts.steps.readPermissions()}>Check again</KitButton>}
+    />
   );
 }
 

@@ -123,7 +123,7 @@ export function HeldStrip({ calls, card }: { calls: HeldCalls; card: HeldCard })
         <span className="shrink-0 text-body font-semibold text-ink">{card.who}</span>
         <span className="truncate text-body text-ink-secondary">{card.why ?? 'is waiting on you'}</span>
       </div>
-      <code className="line-clamp-2 w-full break-all rounded-[8px] bg-ink-faint-fill p-2 font-[ui-monospace,Consolas,monospace] text-footnote text-ink" title={card.what}>
+      <code className="line-clamp-2 w-full break-all rounded-[8px] bg-ink-faint-fill p-2 font-['DM_Mono',ui-monospace,Consolas,monospace] text-footnote text-ink" title={card.what}>
         {card.what}
       </code>
       <div className={`flex items-center gap-2 ${answering ? 'pointer-events-none opacity-[0.55]' : ''}`}>

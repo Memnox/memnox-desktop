@@ -19,7 +19,7 @@ export const CONTENT_INSET = 'absolute inset-x-2.5 bottom-2.5 top-9';
 const CALL_COLUMN = 'flex h-full flex-col justify-center gap-2.5 pl-[98px] pr-[18px]';
 
 /** The system monospaced face, which `.system(design: .monospaced)` always is, rather than DM Mono. */
-const SYSTEM_MONO = "font-[ui-monospace,'SF_Mono','Cascadia_Mono','JetBrains_Mono',Consolas,monospace]";
+const SYSTEM_MONO = "font-['DM_Mono',ui-monospace,'SF_Mono','Cascadia_Mono','JetBrains_Mono',Consolas,monospace]";
 
 /** What a card says after a failed press, in the person's words; the island shakes beside it. */
 export function told(outcome: HeldOutcome): string | undefined {

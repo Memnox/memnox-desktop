@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import { inlineMarks, isOpenableLink, markdownBlocks, type InlineRun } from '../../core/domain/markdown';
 
 /** The system monospaced face, which `.system(design: .monospaced)` always is. */
-export const SYSTEM_MONO = "font-[ui-monospace,'SF_Mono','Cascadia_Mono','JetBrains_Mono',Consolas,monospace]";
+export const SYSTEM_MONO = "font-['DM_Mono',ui-monospace,'SF_Mono','Cascadia_Mono','JetBrains_Mono',Consolas,monospace]";
 
 /**
  * `MarkdownText`: a card's markdown laid out as written, 6 between blocks, in the foreground at 92%.

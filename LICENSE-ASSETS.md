@@ -32,6 +32,12 @@ everything else with the code.
 The agent and tool logos in `Support/AgentLogos/` and `Support/ToolLogos/` belong to their owners. They are shown only to name the
 tool each one stands for, and neither this file nor the MIT License grants any right in them.
 
+## Fonts
+
+The Windows and Linux app bundles Inter and DM Mono in `shared/tauri-core/src/ui/fonts/`, unmodified. They
+are not Memnox's: each is under the SIL Open Font License 1.1, whose text ships beside them in
+`OFL-Inter.txt` and `OFL-DM-Mono.txt`, and that licence rather than this file or the MIT License covers them.
+
 ## Asking
 
 Write to support@memnox.com.

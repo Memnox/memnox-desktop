@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Inter and DM Mono, bundled, as the closest open faces to SF Pro and SF Mono. */
+@import "./fonts/fonts.css";
 
 /*
  * The Mac's design system, from macos/Sources/MemnoxVoice/Presentation/DesignSystem.swift and the
@@ -239,11 +241,11 @@
   --color-deny: #ff9f0a;
   --color-danger: #ff453a;
 
-  /* SF Pro has no web twin, so the system face first and Inter where SF is missing. */
+  /* SF Pro has no web twin, so the system face first and the bundled Inter where SF is missing, which is every Windows and Linux computer. */
   --font-sans: "SF Pro Text", -apple-system, Inter, "Segoe UI Variable Text", "Segoe UI", "Noto Sans", system-ui, sans-serif;
   --font-display: "SF Pro Display", -apple-system, Inter, "Segoe UI Variable Display", "Segoe UI", "Noto Sans", system-ui, sans-serif;
   --font-mono: "DM Mono", ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, "DejaVu Sans Mono", monospace;
-  --font-rounded: "SF Pro Rounded", ui-rounded, Nunito, Inter, "Segoe UI Variable Text", system-ui, sans-serif;
+  --font-rounded: "SF Pro Rounded", ui-rounded, Inter, "Segoe UI Variable Text", system-ui, sans-serif;
 
   /* The type scale, DesignSystem.swift's TextSize, and the island's own button size. */
   --text-micro: 10px;

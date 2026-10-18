@@ -19,4 +19,4 @@ p256 = { version = "0.13", features = ["ecdsa"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 secret-service = { version = "4", features = ["rt-tokio-crypto-rust"] }
 gtk = { version = "0.18", optional = true }
-gtk-layer-shell = { version = "0.8", optional = true }
+gtk-layer-shell = { version = "0.8", features = ["v0_6"], optional = true }

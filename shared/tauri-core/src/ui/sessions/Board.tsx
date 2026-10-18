@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { SessionView } from '@memnox/core/wire';
 import { readable, repositoryName, shortPath, statusLabel, statusTint, viewContext, viewPlace, viewStatus, type Sessions } from '../../core';
 import { BrandLogo, SFSymbol } from '../kit';
 import { StepRow } from './LiveSession';
 import { CardButton, CardHeader, LiveSection } from './window-kit';
+import { islandWindow } from '../adapters/tauri-island-window';
 import './sessions.css';
 
 /**
@@ -22,11 +23,41 @@ const STAGGER_MS = 90;
 /** Up a minute, or fifteen seconds after the pointer leaves, and never while it is over a card. */
 const STAY_MS = 60_000;
 const AFTER_LEAVE_MS = 15_000;
+/** Cards grow in and scroll, so where they are is told again this often as well as after each change. */
+const BOXES_EVERY_MS = 250;
+
+/**
+ * Tells Rust where the cards are, so a click between them lands on the app underneath, as each card on
+ * the Mac is a panel of its own.
+ */
+function useCardBoxes(root: React.RefObject<HTMLDivElement | null>) {
+  const last = useRef('');
+  const report = () => {
+    const cards = root.current?.querySelectorAll<HTMLElement>('[data-wall-card]') ?? [];
+    const boxes = [...cards].map((card) => {
+      const box = card.getBoundingClientRect();
+      return { x: Math.floor(box.x), y: Math.floor(box.y), width: Math.ceil(box.width), height: Math.ceil(box.height) };
+    });
+    const key = JSON.stringify(boxes);
+    if (key === last.current) return;
+    last.current = key;
+    islandWindow.setHitAreas(boxes);
+  };
+  useLayoutEffect(report);
+  useEffect(() => {
+    const every = setInterval(report, BOXES_EVERY_MS);
+    return () => clearInterval(every);
+  }, []);
+}
 
 export function Board({ sessions, title, onWatch, onClose, initial }: { sessions: Sessions; title: string; onWatch: (sessionId: string) => void; onClose: () => void; initial?: readonly SessionView[] }) {
   const [views, setViews] = useState<readonly SessionView[]>(initial ?? []);
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
   const [hovered, setHovered] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useCardBoxes(root);
+  // The window lets the pointer through between cards, so Rust says when it left the last one.
+  useEffect(() => islandWindow.onPointer((over) => !over && setHovered(false)), []);
   const [columns, setColumns] = useState(Math.max(1, Math.floor((window.innerWidth + GAP) / (CARD_WIDTH + GAP))));
 
   useEffect(() => {
@@ -81,11 +112,11 @@ export function Board({ sessions, title, onWatch, onClose, initial }: { sessions
   }
   let order = 0;
   return (
-    <div className="flex h-screen w-screen items-start gap-4 overflow-y-auto p-10 font-sans [scrollbar-width:none]" aria-label={title}>
+    <div ref={root} className="flex h-screen w-screen items-start gap-4 overflow-y-auto p-10 font-sans [scrollbar-width:none]" aria-label={title}>
       {laid.map((column, at) => (
         <div key={at} className="flex shrink-0 flex-col gap-4" style={{ width: CARD_WIDTH }}>
           {column.map((view) => (
-            <div key={view.sessionId} onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)}>
+            <div key={view.sessionId} data-wall-card onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)}>
               <SessionPopup view={view} order={order++} onWatch={() => onWatch(view.sessionId)} onClose={() => setClosed(new Set([...closed, view.sessionId]))} />
             </div>
           ))}

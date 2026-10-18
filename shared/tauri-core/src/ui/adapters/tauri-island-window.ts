@@ -6,6 +6,8 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 const PICKED_EVENT = 'side-exchange';
 /** Told by Rust when a press lands outside every window of this app, which puts the open island away. */
 const OUTSIDE_EVENT = 'island-outside';
+/** Told to the island by Settings, whose home's Answer opens it on what waits. */
+const ISLAND_OPEN_EVENT = 'island-open';
 
 /** A box in the island window's own CSS pixels, top left at the window's top left. */
 export interface HitArea {
@@ -52,6 +54,27 @@ export const islandWindow = {
   onPicked(listener: (id: string) => void): () => void {
     if (!inTauri()) return () => undefined;
     const stop = listen<string>(PICKED_EVENT, (event) => listener(event.payload));
+    return () => void stop.then((unlisten) => unlisten(), () => undefined);
+  },
+
+  /** Asks the island to open on what waits, from Settings; nothing in a preview, where there is no island. */
+  openFromSettings(): void {
+    if (inTauri()) void emitTo('island', ISLAND_OPEN_EVENT).catch(() => undefined);
+  },
+
+  /** The displays the island can hang from and the one chosen, for the Appearance page. */
+  screens(): Promise<{ chosen: string; displays: { id: string; name: string }[] }> {
+    return inTauri() ? invoke('island_screens') : Promise.resolve({ chosen: 'notch', displays: [] });
+  },
+
+  chooseScreen(stored: string): Promise<void> {
+    return inTauri() ? invoke('island_screen_choose', { stored }) : Promise.resolve();
+  },
+
+  /** Settings asks the island to open, for the home's Answer. */
+  onOpenAsked(listener: () => void): () => void {
+    if (!inTauri()) return () => undefined;
+    const stop = listen(ISLAND_OPEN_EVENT, () => listener());
     return () => void stop.then((unlisten) => unlisten(), () => undefined);
   },
 

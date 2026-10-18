@@ -394,6 +394,9 @@ export function Island({
   closeRef.current = close;
   useEffect(() => islandWindow.onOutsidePress(() => closeRef.current()), []);
 
+  // Answer on the home in Settings opens the island on what waits, as the Mac's `openWaiting`.
+  useEffect(() => islandWindow.onOpenAsked(() => open()), []);
+
   // An exchange picked in the side panel opens tall under the notch, unless the person is talking.
   useEffect(
     () =>

@@ -9,7 +9,7 @@ import { Board } from './sessions/Board';
 import { LiveSession } from './sessions/LiveSession';
 import { PREVIEW_CARDS, PREVIEW_VIEWS, previewQuestion } from './sessions/preview-data';
 import { AgentMark, ToolMark } from './kit';
-import { SidePanel } from './sessions/SidePanel';
+import { SidePanel, SideTab } from './sessions/SidePanel';
 import { Switcher } from './sessions/Switcher';
 import './styles.css';
 
@@ -56,6 +56,9 @@ const SCENES = [
   'conversation',
   'answer-long',
   'answer-picked',
+  /** The side panel folded into its tab on the left edge, at rest and swollen under the pointer. */
+  'side-tab',
+  'side-tab-hover',
   ...VOICE_SCENES,
 ] as const;
 type Scene = (typeof SCENES)[number];
@@ -341,6 +344,13 @@ function SessionWindow({ shown }: { shown: Scene }) {
           <SidePanel calls={calls} sessions={sessionList} history={new HistoryKeeper(previewStore, () => 'id')} pinned={false} onPin={() => undefined} onOpenSession={() => undefined} onAskAgain={() => undefined} />
         </div>
       );
+    case 'side-tab':
+    case 'side-tab-hover':
+      return (
+        <div data-theme="dark" className="relative" style={{ width: 330, height: 700, background: 'linear-gradient(135deg, #e8edf3, #d9dee6)' }}>
+          <SideTab hovering={shown === 'side-tab-hover'} />
+        </div>
+      );
     case 'sessions-switcher':
       return (
         <div data-theme="dark" style={{ width: 1280, height: 800, background: 'linear-gradient(135deg, #1d2a3a, #3a2a1d)' }}>
@@ -357,7 +367,7 @@ function SessionWindow({ shown }: { shown: Scene }) {
       return null;
   }
 }
-const windowScene = scene !== undefined && ['sessions-live', 'sessions-live-changes', 'sessions-side', 'sessions-switcher', 'sessions-board'].includes(scene);
+const windowScene = scene !== undefined && ['sessions-live', 'sessions-live-changes', 'sessions-side', 'sessions-switcher', 'sessions-board', 'side-tab', 'side-tab-hover'].includes(scene);
 // The changes scene opens its tab and a file once the window is drawn, so the diff can be looked at.
 if (scene === 'sessions-live-changes')
   setTimeout(() => {

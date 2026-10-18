@@ -49,12 +49,22 @@ pub fn run() {
             // Parakeet and Kokoro load now rather than on the first turn, as the Mac prefetches.
             voice.warm_up();
             app.manage(voice);
+            app.manage(island::IslandScreens::load(
+                app.path().app_config_dir()?.join("island-screen.txt"),
+            ));
             make_island(&window);
             island::place(&window);
+            // Hidden until it is a layer surface and placed, so it never flashes in the wrong place.
+            window.show()?;
             island::follow(
                 window.clone(),
                 app.state::<Arc<island::HitAreas>>().inner().clone(),
             );
+            island::watch_screens(app.handle());
+            // The side panel's tab rests on the left edge from launch, as the Mac's does.
+            if let Err(why) = sessions::make_side(app.handle()) {
+                eprintln!("Memnox: the side panel could not open: {why}");
+            }
             // A screen added, removed or rescaled moves the top centre, so the island follows it there.
             let placed = window.clone();
             window.on_window_event(move |event| {
@@ -104,6 +114,8 @@ pub fn run() {
             typing::type_revise,
             typing::clipboard_set,
             island::island_hit_areas,
+            island::screens::island_screens,
+            island::screens::island_screen_choose,
             voice::voice_choice,
             voice::choose_voice,
             voice::set_voice_speed,
@@ -158,26 +170,8 @@ fn make_island(window: &tauri::WebviewWindow) {
     }
 }
 
-/// Lets the island take the keyboard while a draft is rewritten, and gives it back after.
+/// Lets a window of ours take the keyboard, and gives it back to where the person was typing after.
 #[tauri::command]
 fn island_keyboard(window: tauri::WebviewWindow, on: bool) -> Result<(), String> {
-    #[cfg(windows)]
-    if let Ok(hwnd) = window.hwnd() {
-        memnox_windows::island_keyboard(hwnd.0 as isize, on);
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let island = window.clone();
-        window
-            .run_on_main_thread(move || {
-                if let Ok(gtk) = island.gtk_window() {
-                    memnox_linux::island_keyboard(&gtk, on);
-                }
-            })
-            .map_err(|error| error.to_string())?;
-    }
-    if on {
-        window.set_focus().map_err(|error| error.to_string())?;
-    }
-    Ok(())
+    island::keyboard(&window, on)
 }

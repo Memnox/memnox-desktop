@@ -43,6 +43,7 @@ export function SidePanel({
   onOpenSession,
   onAskAgain,
   onPick,
+  onSearching,
   talkKeys = ['Ctrl', 'Alt', 'Space'],
   now: fixedNow,
 }: {
@@ -55,6 +56,8 @@ export function SidePanel({
   onAskAgain: (question: string) => void;
   /** Opens a picked exchange tall on the island, as the Mac's `showExchange`; without it the answer opens in its row. */
   onPick?: (exchange: Exchange) => void;
+  /** The search was clicked into or left, so the window takes the keyboard only while it is typed in. */
+  onSearching?: (on: boolean) => void;
   talkKeys?: readonly string[];
   now?: number;
 }) {
@@ -90,7 +93,7 @@ export function SidePanel({
     <div className="relative h-full w-full overflow-hidden font-sans text-ink">
       <SideShape />
       <div className="relative flex h-full animate-[fade-in_200ms_ease-out_120ms_both] flex-col gap-2.5 px-2.5" style={{ paddingTop: FLARE + 10, paddingBottom: FLARE + 10, paddingRight: 10 }}>
-        <SideSearch query={query} onQuery={setQuery} pinned={pinned} onPin={onPin} />
+        <SideSearch query={query} onQuery={setQuery} pinned={pinned} onPin={onPin} onSearching={onSearching} />
         <div className="flex items-center gap-1.5 px-0.5">
           <FilterChip title={FILTER_TITLE.all} chosen={shown === 'all'} onPress={() => setFilter('all')} />
           {needsYou.length > 0 && <FilterChip title={FILTER_TITLE['needs-you']} count={needsYou.length} chosen={shown === 'needs-you'} onPress={() => setFilter('needs-you')} />}
@@ -131,6 +134,30 @@ export function SidePanel({
   );
 }
 
+/** The tab the panel folds into, as the Mac's `SideMotion`: a sliver at rest, fuller under the pointer. */
+export const SIDE_TAB = {
+  resting: { width: 6, height: 64 },
+  hovering: { width: 12, height: 96 },
+  /** How far past the tab the pointer still counts as on it, since the edge is easy to overshoot. */
+  slop: 8,
+  /** Long enough that sweeping past the edge to reach a scroll bar does not open it. */
+  dwellMs: 250,
+  /** How long the pointer may be away from the open panel before it folds back into the tab. */
+  graceMs: 450,
+} as const;
+
+/** The folded tab at the middle of the left edge, swelling with a spring and faintly rimmed so it is findable. */
+export function SideTab({ hovering }: { hovering: boolean }) {
+  const size = hovering ? SIDE_TAB.hovering : SIDE_TAB.resting;
+  return (
+    <span
+      className="absolute left-0 top-1/2 -translate-y-1/2 bg-panel ring-[0.5px] ring-ink/[0.22] transition-[width,height,border-radius] duration-300 [transition-timing-function:cubic-bezier(0.3,1.6,0.5,1)]"
+      style={{ width: size.width, height: size.height, borderRadius: `0 ${size.width}px ${size.width}px 0` }}
+      aria-hidden
+    />
+  );
+}
+
 /**
  * The notch turned on its side: flush with the left edge, flowing into it at top and bottom with a concave
  * curve, rounded toward the work. Drawn in CSS, so it fills whatever height the window has.
@@ -147,7 +174,7 @@ function SideShape() {
 }
 
 /** The search over everything, 36 tall, and the pin that keeps the panel open while the person works. */
-function SideSearch({ query, onQuery, pinned, onPin }: { query: string; onQuery: (query: string) => void; pinned: boolean; onPin: (on: boolean) => void }) {
+function SideSearch({ query, onQuery, pinned, onPin, onSearching }: { query: string; onQuery: (query: string) => void; pinned: boolean; onPin: (on: boolean) => void; onSearching?: (on: boolean) => void }) {
   return (
     <div className="flex items-center gap-2">
       <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-card bg-ink/[0.08] px-3 transition-colors focus-within:bg-ink/[0.12]">
@@ -160,6 +187,8 @@ function SideSearch({ query, onQuery, pinned, onPin }: { query: string; onQuery:
           value={query}
           onChange={(event) => onQuery(event.target.value)}
           onKeyDown={(event) => event.key === 'Escape' && onQuery('')}
+          onPointerDown={() => onSearching?.(true)}
+          onBlur={() => onSearching?.(false)}
         />
         {query !== '' && (
           <button type="button" className={`${PRESS_DOWN} grid shrink-0 text-ink-tertiary`} onClick={() => onQuery('')} aria-label="Clear the search">

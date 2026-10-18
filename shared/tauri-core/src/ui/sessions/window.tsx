@@ -1,8 +1,8 @@
-import { StrictMode, useCallback, useEffect, useState } from 'react';
+import { StrictMode, useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
-import { emit, listen } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { emit, emitTo, listen } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import type { SessionCard } from '@memnox/core/wire';
 import { HeldCalls, HistoryKeeper, RequestIds, Sessions, Signer, type Timer } from '../../core';
 import { TauriConfirmKey } from '../adapters/tauri-confirm-key';
@@ -11,7 +11,7 @@ import { islandWindow } from '../adapters/tauri-island-window';
 import { Board } from './Board';
 import { localHistory, HISTORY_KEY } from './history-store';
 import { LiveSession } from './LiveSession';
-import { SidePanel } from './SidePanel';
+import { SIDE_TAB, SidePanel, SideTab } from './SidePanel';
 import { Switcher } from './Switcher';
 import { ASK_AGAIN_EVENT, DISMISS_EVENT } from './tauri-presenter';
 import '../styles.css';
@@ -23,8 +23,6 @@ import '../styles.css';
 
 /** Told to an open live window when another session is asked for. */
 const LIVE_SESSION_EVENT = 'live-session';
-/** The side panel waits this long after the pointer or the focus left before it closes, unless pinned. */
-const SIDE_CLOSE_MS = 450;
 const RECONNECT_MS = 2_000;
 
 const timer: Timer = (ms, fire) => {
@@ -71,48 +69,110 @@ function LiveWindow({ first }: { first: string }) {
   return <LiveSession sessionId={sessionId} sessions={sessions} calls={calls} onClose={close} onOpenFolder={(path) => void invoke('open_folder', { path }).catch(() => undefined)} />;
 }
 
+/** Told to the side window by Rust to open or fold, and by the side window to the island when it does. */
+const SIDE_OPEN_EVENT = 'side-open';
+const SIDE_STATE_EVENT = 'side-state';
+
+/**
+ * The side panel as the Mac's `SidePanel` keeps it: one window always up on the left edge, a thin tab at
+ * rest that swells under the pointer and grows into the panel after a short rest there. It never takes
+ * the keyboard until the search is clicked, and folds back once the pointer has left, unless pinned.
+ */
 function SideWindow() {
   const [calls] = useState(watchedCalls);
   const [history] = useState(() => new HistoryKeeper(localHistory, () => crypto.randomUUID()));
   const [pinned, setPinned] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [hovering, setHovering] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [height, setHeight] = useState(window.innerHeight);
+  const visited = useRef(false);
   useEffect(() => {
     sessions.start();
     // The island writes the history as the voice answers; this window reads it again each time it changes.
     const changed = (event: StorageEvent) => event.key === HISTORY_KEY && history.reload();
+    const resized = () => setHeight(window.innerHeight);
     window.addEventListener('storage', changed);
+    window.addEventListener('resize', resized);
+    const asked = getCurrentWebviewWindow().listen<boolean>(SIDE_OPEN_EVENT, (event) => setOpen(event.payload));
+    const dismissed = listen(DISMISS_EVENT, () => setOpen(false));
     return () => {
       sessions.stop();
       window.removeEventListener('storage', changed);
+      window.removeEventListener('resize', resized);
+      void asked.then((unlisten) => unlisten());
+      void dismissed.then((unlisten) => unlisten());
     };
   }, [history]);
-  // It closes a moment after the person works elsewhere, unless they pinned it open.
+  // The island lights its history satellite and tile from this.
   useEffect(() => {
-    if (pinned) return;
-    let leaving: ReturnType<typeof setTimeout> | undefined;
-    const stop = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-      if (leaving !== undefined) clearTimeout(leaving);
-      leaving = focused ? undefined : setTimeout(close, SIDE_CLOSE_MS);
-    });
-    const escape = (event: KeyboardEvent) => event.key === 'Escape' && close();
+    void emitTo('island', SIDE_STATE_EVENT, open).catch(() => undefined);
+    visited.current = false;
+    setHovering(false);
+    if (!open) {
+      setSearching(false);
+      islandWindow.keyboard(false);
+    }
+  }, [open]);
+  // Clicks are taken on the tab and a little past it at rest, and on the whole panel once it is open.
+  const tab = hovering ? SIDE_TAB.hovering : SIDE_TAB.resting;
+  useEffect(() => {
+    islandWindow.setHitAreas(
+      open
+        ? [{ x: 0, y: 0, width: window.innerWidth, height }]
+        : [{ x: 0, y: height / 2 - tab.height / 2 - SIDE_TAB.slop, width: tab.width + SIDE_TAB.slop, height: tab.height + 2 * SIDE_TAB.slop }],
+    );
+  }, [open, height, tab.width, tab.height]);
+  // Resting on the tab opens it, as resting on the notch opens the island.
+  useEffect(() => {
+    if (open || !hovering) return;
+    const wait = setTimeout(() => setOpen(true), SIDE_TAB.dwellMs);
+    return () => clearTimeout(wait);
+  }, [open, hovering]);
+  // Once the pointer has been over the open panel and left it, it folds after a short grace, unless pinned or typed in.
+  const [away, setAway] = useState(false);
+  useEffect(() => {
+    if (!open || !away || pinned || searching) return;
+    const fold = setTimeout(() => setOpen(false), SIDE_TAB.graceMs);
+    return () => clearTimeout(fold);
+  }, [open, away, pinned, searching]);
+  useEffect(() => islandWindow.onPointer((over) => (open ? visited.current && setAway(!over) : !over && setHovering(false))), [open]);
+  // A press in another app folds it unless pinned; Escape folds it once it has the keyboard.
+  useEffect(() => islandWindow.onOutsidePress(() => !pinned && setOpen(false)), [pinned]);
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false);
     window.addEventListener('keydown', escape);
-    return () => {
-      if (leaving !== undefined) clearTimeout(leaving);
-      window.removeEventListener('keydown', escape);
-      void stop.then((unlisten) => unlisten());
-    };
-  }, [pinned]);
+    return () => window.removeEventListener('keydown', escape);
+  }, []);
+  if (!open)
+    return (
+      <div className="relative h-screen w-screen" onPointerEnter={() => setHovering(true)} onPointerLeave={() => setHovering(false)}>
+        <SideTab hovering={hovering} />
+      </div>
+    );
   return (
-    <div className="h-screen w-screen">
-    <SidePanel
-      calls={calls}
-      sessions={sessions}
-      history={history}
-      pinned={pinned}
-      onPin={setPinned}
-      onOpenSession={(card: SessionCard) => openLive(card.sessionId)}
-      onAskAgain={(question) => void emit(ASK_AGAIN_EVENT, question)}
-      onPick={(exchange) => islandWindow.pick(exchange.id)}
-    />
+    <div
+      className="h-screen w-screen origin-left animate-[side-grow_380ms_cubic-bezier(0.3,1.2,0.5,1)_both]"
+      onPointerEnter={() => {
+        visited.current = true;
+        setAway(false);
+      }}
+      onPointerLeave={() => visited.current && setAway(true)}
+    >
+      <SidePanel
+        calls={calls}
+        sessions={sessions}
+        history={history}
+        pinned={pinned}
+        onPin={setPinned}
+        onOpenSession={(card: SessionCard) => openLive(card.sessionId)}
+        onAskAgain={(question) => void emit(ASK_AGAIN_EVENT, question)}
+        onPick={(exchange) => islandWindow.pick(exchange.id)}
+        onSearching={(on) => {
+          setSearching(on);
+          islandWindow.keyboard(on);
+        }}
+      />
     </div>
   );
 }
@@ -137,6 +197,8 @@ function SwitcherWindow({ target }: { target: string }) {
 
 function Page() {
   useEffect(() => {
+    // The side panel stays up as its tab and folds itself, so only the other windows close.
+    if (view === 'side') return;
     const stop = listen(DISMISS_EVENT, close);
     return () => void stop.then((unlisten) => unlisten());
   }, []);

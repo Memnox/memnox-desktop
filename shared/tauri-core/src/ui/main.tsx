@@ -142,12 +142,8 @@ const side = (() => {
     open = now;
     for (const listener of listeners) listener();
   };
-  async function watch() {
-    const window = await WebviewWindow.getByLabel('side');
-    if (window === null) return set(false);
-    set(true);
-    await window.once('tauri://destroyed', () => set(false));
-  }
+  // The side window stays up as its tab and says when it grows out or folds back, however that happened.
+  void listen<boolean>('side-state', (event) => set(event.payload));
   return {
     get open() {
       return open;
@@ -159,9 +155,7 @@ const side = (() => {
     /** Opens or closes the panel, as the Mac's `toggleSide`. */
     toggle() {
       const opening = !open;
-      void invoke('open_side', { open: opening })
-        .then(() => (opening ? watch() : set(false)))
-        .catch(() => undefined);
+      void invoke('open_side', { open: opening }).catch(() => undefined);
     },
   };
 })();

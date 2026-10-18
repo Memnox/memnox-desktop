@@ -2,6 +2,9 @@
 //! `CardWall` keep them: each a borderless window drawn by `sessions.html`, made the first time it is
 //! asked for and brought forward after that, so there is only ever one of each.
 
+use std::sync::Arc;
+
+use crate::island::HitAreas;
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder,
@@ -62,22 +65,18 @@ pub fn open_live_session(app: AppHandle, session_id: String) -> Result<(), Strin
         .map_err(|error| error.to_string())
 }
 
-/// Opens the side panel on the left edge, vertically centred, or closes it when it is up and `open` is false.
-#[tauri::command]
-pub fn open_side(app: AppHandle, open: bool) -> Result<(), String> {
-    let existing = app.get_webview_window(SIDE);
-    if !open {
-        if let Some(window) = existing {
-            window.close().map_err(|error| error.to_string())?;
-        }
-        return Ok(());
+/// Told to the side window to grow out of its tab or fold back into it.
+const SIDE_OPEN: &str = "side-open";
+
+/// The side panel's window, made once at launch and kept up: at rest it is only the tab at the middle of
+/// the left edge, and every click past the tab goes through. It never takes focus by itself.
+pub fn make_side(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+    if let Some(window) = app.get_webview_window(SIDE) {
+        return Ok(window);
     }
-    if let Some(window) = existing {
-        return bring_forward(&window).map_err(|error| error.to_string());
-    }
-    let screen = screen_of(&app);
+    let screen = screen_of(app);
     let height = SIDE_TALLEST.min(screen.height - SIDE_MARGIN);
-    WebviewWindowBuilder::new(&app, SIDE, WebviewUrl::App("sessions.html?view=side".into()))
+    let window = WebviewWindowBuilder::new(app, SIDE, WebviewUrl::App("sessions.html?view=side".into()))
         .title("Memnox")
         .inner_size(SIDE_WIDTH, height)
         .position(screen.x, screen.y + (screen.height - height) / 2.0)
@@ -87,9 +86,47 @@ pub fn open_side(app: AppHandle, open: bool) -> Result<(), String> {
         .always_on_top(true)
         .skip_taskbar(true)
         .shadow(false)
-        .build()
-        .and_then(|window| bring_forward(&window))
+        .focused(false)
+        .visible(false)
+        .build()?;
+    floating(&window, Edge::Left);
+    window.show()?;
+    crate::island::follow(window.clone(), app.state::<Arc<HitAreas>>().inner().clone());
+    Ok(window)
+}
+
+/// Grows the side panel out of its tab, or folds it back when `open` is false, without taking focus.
+#[tauri::command]
+pub fn open_side(app: AppHandle, open: bool) -> Result<(), String> {
+    let window = make_side(&app).map_err(|error| error.to_string())?;
+    window
+        .emit_to(SIDE, SIDE_OPEN, open)
         .map_err(|error| error.to_string())
+}
+
+/// Where a window of Memnox hangs, for the layer shell on Linux.
+#[derive(Clone, Copy)]
+enum Edge {
+    Left,
+    TopLeft,
+}
+
+/// A window that floats over the person's work and never takes focus: no activation on Windows, a layer
+/// shell surface on Linux where the compositor has one.
+#[allow(unused_variables)]
+fn floating(window: &WebviewWindow, edge: Edge) {
+    #[cfg(windows)]
+    if let Ok(hwnd) = window.hwnd() {
+        memnox_windows::make_island(hwnd.0 as isize);
+    }
+    #[cfg(target_os = "linux")]
+    if let Ok(gtk) = window.gtk_window() {
+        let (hang, name) = match edge {
+            Edge::Left => (memnox_linux::Hang::Left, "memnox-side"),
+            Edge::TopLeft => (memnox_linux::Hang::TopLeft, "memnox-cards"),
+        };
+        memnox_linux::make_floating(&gtk, hang, name);
+    }
 }
 
 /// Turns the shelf of sessions to the one asked for over the whole screen; it opens that session's live window as it goes.
@@ -119,7 +156,9 @@ pub fn open_switcher(app: AppHandle, session_id: String) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
-/// Puts every session up as its own card in the top left of the screen.
+/// Puts every session up as its own card in the top left of the screen. The window covers the wall, but
+/// takes clicks only on the cards, so a click between them lands on the app underneath and the editor
+/// keeps the keyboard, as each card on the Mac is a panel of its own.
 #[tauri::command]
 pub fn open_board(app: AppHandle, title: String) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(BOARD) {
@@ -127,7 +166,7 @@ pub fn open_board(app: AppHandle, title: String) -> Result<(), String> {
     }
     let screen = screen_of(&app);
     let url = format!("sessions.html?view=board&title={}", encoded(&title));
-    WebviewWindowBuilder::new(&app, BOARD, WebviewUrl::App(url.into()))
+    let window = WebviewWindowBuilder::new(&app, BOARD, WebviewUrl::App(url.into()))
         .title("Memnox")
         .inner_size(BOARD_WIDTH.min(screen.width), screen.height)
         .position(screen.x, screen.y)
@@ -137,19 +176,26 @@ pub fn open_board(app: AppHandle, title: String) -> Result<(), String> {
         .always_on_top(true)
         .skip_taskbar(true)
         .shadow(false)
+        .focused(false)
+        .visible(false)
         .build()
-        .and_then(|window| bring_forward(&window))
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    floating(&window, Edge::TopLeft);
+    window.show().map_err(|error| error.to_string())?;
+    crate::island::follow(window, app.state::<Arc<HitAreas>>().inner().clone());
+    Ok(())
 }
 
 /// Takes every session window off the screen, as the daemon's dismiss does; no session is touched.
 #[tauri::command]
 pub fn dismiss_session_windows(app: AppHandle) {
-    for label in [LIVE, SIDE, SWITCHER, BOARD] {
+    for label in [LIVE, SWITCHER, BOARD] {
         if let Some(window) = app.get_webview_window(label) {
             let _ = window.close();
         }
     }
+    // The side panel stays up as its tab, so it folds instead.
+    let _ = app.emit_to(SIDE, SIDE_OPEN, false);
 }
 
 /// Closes the session window that asked, for its close button and Escape.

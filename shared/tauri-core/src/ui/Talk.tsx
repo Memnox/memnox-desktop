@@ -1,16 +1,19 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { islandTop, type NotchGeometry, type Talking, type TalkState } from '../core';
-import { voice, type InstallStep } from './adapters/tauri-listener';
+import { IDLE_TURNS, type NotchGeometry, type Talking, type TalkState, type VoiceTurns, type VoiceTurnsState } from '../core';
+import { voice as models, type InstallStep } from './adapters/tauri-listener';
 import { loudness } from './island/loudness';
 import { IslandButton, UnderPill } from './kit';
+import { IslandHearing } from './voice/Hearing';
+import { voiceModels } from './voice/models';
+import { keysWatching, onKeys, onVoiceLevel } from './voice/tauri-voice';
 
 /** Where the microphone stands: not looked at yet, not installed, installing, ready, or open. */
 export type Mic = 'unknown' | 'missing' | 'installing' | 'ready' | 'listening';
 
 const megabytes = (bytes: number): string => `${Math.round(bytes / 1_000_000)} MB`;
 
-/** Everything the island needs from the voice: where it stands, and the presses that start it. */
+/** Everything the island needs from the voice: where it stands, what it hears, and the presses that start it. */
 export interface Conversation {
   readonly mic: Mic;
   readonly step: InstallStep | undefined;
@@ -18,117 +21,124 @@ export interface Conversation {
   readonly state: TalkState;
   /** A turn of the person's own is under way, which puts the island in the voice or hearing mode. */
   readonly active: boolean;
+  /** The words as they are said, and why it listens when not to talk to Memnox. */
+  readonly turns: VoiceTurnsState;
+  /** Why the hold keys cannot be seen on this desktop, when they cannot. */
+  readonly keysNote: string | undefined;
+  /** The talk key, a tap on the resting orb or on the open island: listen, or stop what is going on. */
   converse(): Promise<void>;
   install(): Promise<void>;
 }
 
+/** The facts `settle` reads from the voice, so the island opens on the words, a rule or a dictation. */
+export function voiceFacts(conversation: Conversation, liveWords = true): { ruling: boolean; dictating: boolean; wordsHeard: boolean; phoneTurn: boolean } {
+  const { turns } = conversation;
+  return { ruling: turns.ruling, dictating: turns.dictating !== undefined, wordsHeard: liveWords && turns.live !== '', phoneTurn: turns.phone !== undefined };
+}
+
+const NO_TURNS = { state: IDLE_TURNS, observe: () => () => undefined };
+
 /**
- * The microphone as the island drives it: one press hears one thing, the reply is said, and it listens
- * again for a follow up until the person stops talking or the brain says they are done. It listens only
- * once the reply has been said, so the voice is never heard as the person. The talk key fires it from Rust.
+ * The microphone as the island drives it, through the core's `VoiceTurns`: the talk key and a tap open
+ * the orb and listen, follow ups are listened for until the brain ends it, the person can talk over the
+ * voice, and right Alt and Control Alt dictate and take down a rule. The models install on their own the
+ * first time, so the person only ever grants permissions.
  */
-export function useConversation(talking: Talking, { probe = true }: { probe?: boolean } = {}): Conversation {
+export function useConversation(talking: Talking, { probe = true, voice }: { probe?: boolean; voice?: VoiceTurns } = {}): Conversation {
   const state = useSyncExternalStore(
     (changed) => talking.observe(changed),
     () => talking.state,
   );
-  const [mic, setMic] = useState<Mic>('unknown');
+  const source = voice ?? NO_TURNS;
+  const turns = useSyncExternalStore(
+    (changed) => source.observe(changed),
+    () => source.state,
+  );
+  const [mic, setMic] = useState<Mic>(probe ? 'unknown' : 'ready');
   const [step, setStep] = useState<InstallStep>();
   const [problem, setProblem] = useState<string>();
-
-  // The talk key fires from Rust; it reads the latest converse through a ref, so it never acts on an old state.
-  const latest = useRef<() => Promise<void>>(async () => undefined);
-  useEffect(() => {
-    if (!probe) return;
-    const stop = listen('talk', () => void latest.current());
-    return () => void stop.then((unlisten) => unlisten(), () => undefined);
-  }, [probe]);
-
-  useEffect(() => {
-    if (!probe) return;
-    voice.installed().then(
-      (installed) => setMic(installed ? 'ready' : 'missing'),
-      () => setMic('missing'),
-    );
-  }, [probe]);
+  const [keysNote, setKeysNote] = useState<string>();
 
   async function install() {
     setMic('installing');
     setProblem(undefined);
     try {
-      await voice.install(setStep);
+      await models.install(setStep);
+      voiceModels.set(true);
       setMic('ready');
+      voice?.listenForName();
     } catch (error) {
       setProblem(String(error));
       setMic('missing');
     }
   }
 
-  async function hear(): Promise<string | undefined> {
-    setMic('listening');
-    talking.listening(true);
-    try {
-      return await voice.listenOnce((level) => loudness.set(level));
-    } catch (error) {
-      setProblem(String(error));
-      return undefined;
-    } finally {
-      loudness.set(0);
-      talking.listening(false);
-      setMic('ready');
-    }
-  }
+  // The talk key fires from Rust; the keyboard and the voice's own level come from Rust as well.
+  useEffect(() => {
+    if (!probe || voice === undefined) return;
+    voice.onLevel = (level) => loudness.set(level);
+    const stopTalk = listen('talk', () => voice.talk());
+    const stopKeys = onKeys((report) => voice.keys(report));
+    const stopLevel = onVoiceLevel((level) => loudness.voice(level));
+    void keysWatching().then((answer) => setKeysNote(answer.watching ? undefined : answer.why));
+    return () => {
+      voice.onLevel = undefined;
+      void stopTalk.then((unlisten) => unlisten(), () => undefined);
+      stopKeys();
+      stopLevel();
+    };
+  }, [probe, voice]);
 
-  async function converse() {
-    if (mic !== 'ready') return;
-    if (talking.state.phase !== 'idle') await talking.interrupt();
-    setProblem(undefined);
-    let finished = false;
-    for (;;) {
-      const said = await hear();
-      if (said === undefined) return;
-      await talking.heard(said, finished);
-      if (talking.takeEnd()) return;
-      // The brain is waiting for the rest, so the next words are marked whole.
-      finished = talking.takeHold();
-    }
-  }
-  latest.current = converse;
+  // Installed in the background on first launch, as the Mac installs Kokoro, so nothing waits on a press.
+  useEffect(() => {
+    if (!probe) return;
+    let cancelled = false;
+    models.installed().then(
+      (installed) => {
+        if (cancelled) return;
+        voiceModels.set(installed);
+        if (installed) {
+          setMic('ready');
+          voice?.listenForName();
+        } else void install();
+      },
+      () => !cancelled && setMic('missing'),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [probe, voice]);
 
-  return { mic, step, problem, state, active: mic === 'listening' || state.phase !== 'idle', converse, install };
+  const listening = turns.listening ? 'listening' : mic;
+  return {
+    mic: listening,
+    step,
+    problem: problem ?? turns.problem,
+    state,
+    active: turns.active || state.phase !== 'idle',
+    turns,
+    keysNote,
+    converse: async () => voice?.talk(),
+    install,
+  };
 }
 
-/** Where the words sit below the content top, clear of the 84 orb above them, and how much room they take. */
-const WORDS = { belowTop: 104, side: 28, height: 84 } as const;
-
 /**
- * `IslandHearing`: the words as they are heard, 17 medium centred under the orb, the newest word whole
- * and the ones before it a little dimmer, with a blue caret breathing while it listens. Once the reply
- * is being said it takes the words' place, until the voice phase brings the conversation screen.
+ * `IslandHearing` for the island: the person's words as they say them under the orb, or the hint and
+ * the chip while a rule or a dictation is taken down. The preview passes words of its own in `state`.
  */
-export function Hearing({ state, notch, onTap }: { state: TalkState; notch: NotchGeometry; onTap: () => void }) {
-  const replying = state.phase === 'speaking' && state.reply !== '';
-  const text = replying ? state.reply : (state.heard ?? '');
-  const words = text.split(/\s+/).filter((word) => word !== '');
-  return (
-    <div className="absolute inset-0 cursor-pointer" onClick={onTap}>
-      <div className="absolute flex items-end justify-center overflow-hidden" style={{ top: islandTop(notch) + WORDS.belowTop, left: WORDS.side, right: WORDS.side, height: WORDS.height }}>
-        <p className="m-0 line-clamp-3 flex flex-wrap justify-center gap-x-[0.28em] gap-y-[0.15em] text-center text-title font-medium leading-[22px]">
-          {words.map((word, index) => (
-            <span key={`${index}-${word}`} className={`animate-[content-in_360ms_cubic-bezier(0.3,1.3,0.6,1)_both] ${replying ? 'text-white/[0.62]' : index === words.length - 1 ? 'text-white' : 'text-white/[0.78]'}`}>
-              {word}
-            </span>
-          ))}
-          {state.phase === 'listening' && <span className="ml-0.5 inline-block h-[18px] w-0.5 animate-caret self-center rounded-full bg-primary" aria-hidden />}
-        </p>
-      </div>
-    </div>
-  );
+export function Hearing({ state, notch, onTap, conversation }: { state: TalkState; notch: NotchGeometry; onTap: () => void; conversation?: Conversation }) {
+  const turns = conversation?.turns;
+  const view =
+    turns !== undefined && (turns.active || turns.live !== '')
+      ? { live: turns.live, listening: turns.listening, ruling: turns.ruling, dictating: turns.dictating }
+      : { live: state.heard ?? '', listening: state.phase === 'listening', ruling: false, dictating: undefined };
+  return <IslandHearing view={view} notch={notch} onTap={onTap} />;
 }
 
 /**
- * What keeps the voice from working, as pills under the island: the models to install with their
- * progress, and what went wrong. The Mac installs on its own, so these are the only visible trace.
+ * What keeps the voice from working, as pills under the island: the models installing with their
+ * progress, and what went wrong. The Mac installs on its own, so these are the only visible trace of it.
  */
 export function VoicePills({ conversation }: { conversation: Conversation }) {
   const { mic, step, problem, state, install } = conversation;
@@ -142,11 +152,13 @@ export function VoicePills({ conversation }: { conversation: Conversation }) {
               Installing the voice, {step.part}: {megabytes(step.done)}
               {step.total !== null && ` of ${megabytes(step.total)}`}
             </span>
+          ) : mic === 'installing' ? (
+            <span className="text-white/[0.62]">Installing the voice</span>
           ) : (
             <>
               <span>The voice is not installed yet</span>
-              <IslandButton className="!px-2.5 !py-[3px] !text-caption" disabled={mic === 'installing'} onClick={() => void install()}>
-                Install
+              <IslandButton className="!px-2.5 !py-[3px] !text-caption" onClick={() => void install()}>
+                Try again
               </IslandButton>
             </>
           )}

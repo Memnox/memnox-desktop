@@ -30,6 +30,13 @@ const ECHO_KEPT = 240;
 /** How loud its own voice came back last time, so the next reply knows the room from its first syllable. */
 let lastEcho: number | undefined;
 let lastGap: number | undefined;
+/**
+ * When it last paused for loudness and nobody was talking, as with a video playing nearby. For a while after, across
+ * replies too, only words pause it, so the room's own sound cannot stutter it sentence after sentence.
+ */
+let loudnessMisledAt: number | undefined;
+/** Long enough to outlast the replies of one exchange, short enough that a door slamming once is soon forgotten. */
+const MISLED_FOR_MS = 120_000;
 
 /**
  * Listens while the voice thinks and talks, so the person can cut in just by speaking, ported from the
@@ -54,6 +61,8 @@ export class TalkOverWatch {
   private resumedOn = '';
   private spokeInQuiet = false;
   private cut = false;
+  /** Whether the pause under way was for loudness alone rather than for words. */
+  private pausedForLoudness = false;
 
   constructor(private readonly deps: TalkOverDeps) {
     this.wordsChangedAt = deps.now();
@@ -143,6 +152,7 @@ export class TalkOverWatch {
       if (mayCarryOn(now - this.pausedAt, now - quietFrom)) {
         this.pausedAt = undefined;
         this.resumedOn = words;
+        if (this.pausedForLoudness) loudnessMisledAt = now;
         this.deps.carryOn();
       }
       return;
@@ -154,11 +164,13 @@ export class TalkOverWatch {
       const loudNow = isTalkingOver(this.recent, ceiling) || (gap !== undefined && isOverOwnVoice(this.looks, gap, TALKING_LEVEL));
       this.loudLooks = loudNow ? this.loudLooks + 1 : 0;
       // There is no echo cancellation in the Windows and Linux audio path, so loudness has to hold longer.
-      const louder = mayPauseOnLoudness(now - (this.voiceOnSince ?? now), this.loudLooks, false);
+      const misled = loudnessMisledAt !== undefined && now - loudnessMisledAt < MISLED_FOR_MS;
+      const louder = !misled && mayPauseOnLoudness(now - (this.voiceOnSince ?? now), this.loudLooks, false);
       if (louder || (words !== this.resumedOn && mayBeCuttingIn(words, spoken))) {
         // Paused rather than stopped, since a sound or a word of its own misheard looks the same at first.
         this.pausedAt = now;
         this.pausedOn = words;
+        this.pausedForLoudness = louder;
         this.deps.hush();
       }
       return;

@@ -18,6 +18,18 @@ const FLOATS: Record<string, Exclude<keyof OrbUniforms, 'ringHeights' | 'ringFad
   uSeal: 'seal',
 };
 
+/** Frames a second: every frame only while the sphere moves, since at rest it breathes too slowly to need them. */
+const PACE = { resting: 20, lightMoving: 30, lightResting: 12 };
+/** At or below these the orb draws fewer frames, since it competes with the agents for the same computer. */
+const FEW_CORES = 4;
+const SMALL_MEMORY_GB = 8;
+
+/** A small computer by its cores, or by its memory where the web view reports it, which WebView2 does and WebKitGTK does not. */
+function lightMachine(): boolean {
+  const memory = 'deviceMemory' in navigator && typeof navigator.deviceMemory === 'number' ? navigator.deviceMemory : undefined;
+  return navigator.hardwareConcurrency <= FEW_CORES || (memory !== undefined && memory <= SMALL_MEMORY_GB);
+}
+
 export interface OrbHandle {
   react(reaction: Reaction): void;
 }
@@ -81,6 +93,8 @@ export function Orb({ x, y, diameter, state, waiting, loudness, handle }: OrbPro
     // Additive, so dots in front of one another glow brighter rather than hide each other.
     gl.blendFunc(gl.ONE, gl.ONE);
     let frame = 0;
+    let wait: ReturnType<typeof setTimeout> | undefined;
+    const light = lightMachine();
     const draw = () => {
       const { state: shownState, waiting: shownWaiting, side: shownSide, loudness: level } = now.current;
       const scale = window.devicePixelRatio || 1;
@@ -101,10 +115,16 @@ export function Orb({ x, y, diameter, state, waiting, loudness, handle }: OrbPro
       gl.uniform4fv(at('uRingHeights'), u.ringHeights);
       gl.uniform4fv(at('uRingFades'), u.ringFades);
       gl.drawArrays(gl.POINTS, 0, fit.points);
-      frame = requestAnimationFrame(draw);
+      // A timer between frames, since an animation frame wakes the computer at the screen's rate however little it draws.
+      const fps = motion.resting() ? (light ? PACE.lightResting : PACE.resting) : light ? PACE.lightMoving : undefined;
+      if (fps === undefined) frame = requestAnimationFrame(draw);
+      else wait = setTimeout(() => (frame = requestAnimationFrame(draw)), 1000 / fps);
     };
     draw();
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(wait);
+    };
   }, []);
 
   const place = { left: x - side / 2, top: y - side / 2, width: side, height: side };

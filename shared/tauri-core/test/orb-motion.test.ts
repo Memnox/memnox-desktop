@@ -9,6 +9,27 @@ function run(motion: OrbMotion, from: number, seconds: number, ...rest: Paramete
 }
 
 describe('the orb', () => {
+  it('moves at one speed whatever the frame rate, so drawing fewer frames at rest looks the same', () => {
+    const fast = new OrbMotion(0);
+    const slow = new OrbMotion(0);
+    let quick = fast.frame(0, 'thinking', 0, false);
+    for (let frame = 1; frame <= 60; frame += 1) quick = fast.frame(frame / 60, 'thinking', 0, false);
+    let paced = slow.frame(0, 'thinking', 0, false);
+    for (let frame = 1; frame <= 20; frame += 1) paced = slow.frame(frame / 20, 'thinking', 0, false);
+    expect(paced.swirl).toBeCloseTo(quick.swirl, 2);
+  });
+
+  it('rests only when nothing but its breath moves', () => {
+    const motion = new OrbMotion(0);
+    run(motion, 0, 2, 'idle', 0, false);
+    expect(motion.resting()).toBe(true);
+    motion.frame(2.1, 'speaking', 0.5, false);
+    expect(motion.resting()).toBe(false);
+    const waiting = new OrbMotion(0);
+    run(waiting, 0, 1, 'idle', 0, true);
+    expect(waiting.resting()).toBe(false);
+  });
+
   it('eases toward each state rather than snapping', () => {
     const motion = new OrbMotion(0);
     const first = motion.frame(0, 'thinking', 0, false);

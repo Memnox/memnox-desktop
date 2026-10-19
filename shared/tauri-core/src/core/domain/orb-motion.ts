@@ -41,6 +41,12 @@ const TARGET: Record<OrbState, { level: number; swirl: number; hold: number; gai
 /** How much of the gap to its target each value closes per frame: ripples fast, spin and hold slowly. */
 const EASING = { level: 0.25, swirl: 0.05, hold: 0.08, knot: 0.05, waiting: 0.06 };
 
+/** The easings were tuned one step per frame at this rate, so a slower frame takes several steps, at most this many. */
+const TUNED_FPS = 60;
+const MOST_STEPS = 6;
+/** Below this the bounce has settled and no longer needs every frame. */
+const STILL = 0.01;
+
 /** The voice's syllables, each a fast rise in loudness that sends a lit ring from chin to crown. */
 const SYLLABLE = { attack: 0.55, release: 0.18, rise: 0.06, gap: 0.12, life: 1.2, most: 4, start: -1.15, climb: 2.1 };
 
@@ -77,6 +83,11 @@ export class OrbMotion {
   private voice = 0;
   private onsets: number[] = [];
   private gesture: { reaction: Reaction; at: number } | undefined;
+  private lastFrame: number | undefined;
+  /** How many tuned steps this frame stands for, so the sphere moves at one speed at any frame rate. */
+  private steps = 1;
+  private state: OrbState = 'idle';
+  private waiting = false;
 
   constructor(private readonly started: number) {}
 
@@ -86,14 +97,18 @@ export class OrbMotion {
 
   /** One frame: `loudness` from 0 to 1, `waiting` while a call waits on the person. */
   frame(now: number, state: OrbState, loudness: number, waiting: boolean): OrbUniforms {
+    this.steps = Math.min((now - (this.lastFrame ?? now - 1 / TUNED_FPS)) * TUNED_FPS, MOST_STEPS);
+    this.lastFrame = now;
+    this.state = state;
+    this.waiting = waiting;
     const heard = Math.min(Math.max(loudness, 0), 1);
     this.listen(heard, now, state);
     const target = TARGET[state];
-    this.level += (target.level + heard * target.gain - this.level) * EASING.level;
-    this.swirl += (target.swirl - this.swirl) * EASING.swirl;
-    this.hold += (target.hold - this.hold) * EASING.hold;
-    this.knot += ((state === 'thinking' ? 1 : 0) - this.knot) * EASING.knot;
-    this.bounce += ((waiting ? 1 : 0) - this.bounce) * EASING.waiting;
+    this.level += (target.level + heard * target.gain - this.level) * this.eased(EASING.level);
+    this.swirl += (target.swirl - this.swirl) * this.eased(EASING.swirl);
+    this.hold += (target.hold - this.hold) * this.eased(EASING.hold);
+    this.knot += ((state === 'thinking' ? 1 : 0) - this.knot) * this.eased(EASING.knot);
+    this.bounce += ((waiting ? 1 : 0) - this.bounce) * this.eased(EASING.waiting);
     const [ringHeights, ringFades] = this.rings(now);
     return {
       time: now - this.started,
@@ -108,10 +123,21 @@ export class OrbMotion {
     };
   }
 
+  /** Whether nothing on the sphere moves but its slow breath, so fewer frames look the same. */
+  resting(): boolean {
+    return (this.state === 'idle' || this.state === 'needs-you') && !this.waiting && this.gesture === undefined
+      && this.bounce < STILL && this.onsets.length === 0;
+  }
+
+  /** One frame's share of the gap, compounded over however many tuned steps the frame stands for. */
+  private eased(rate: number): number {
+    return 1 - Math.pow(1 - rate, this.steps);
+  }
+
   /** Follows the voice envelope and marks a syllable wherever it jumps, only while the orb speaks. */
   private listen(heard: number, now: number, state: OrbState): void {
     const previous = this.voice;
-    this.voice += (heard - this.voice) * (heard > this.voice ? SYLLABLE.attack : SYLLABLE.release);
+    this.voice += (heard - this.voice) * this.eased(heard > this.voice ? SYLLABLE.attack : SYLLABLE.release);
     const last = this.onsets[this.onsets.length - 1];
     const rested = last === undefined || now - last > SYLLABLE.gap;
     if (state === 'speaking' && this.voice - previous > SYLLABLE.rise && rested) this.onsets.push(now);

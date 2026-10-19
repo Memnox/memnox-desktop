@@ -1,7 +1,7 @@
 # The Windows and Linux app is released from a tag named app-v<version>, matching tauri.conf.json.
-# Windows installers are signed with Azure Trusted Signing, and a tag never publishes one unsigned;
+# Windows installers are signed with Azure Trusted Signing once its secrets are set, and ship unsigned as a preview until then;
 # the Linux packages ship with SHA256SUMS beside them and a PKGBUILD that installs the deb.
-# The Mac app is released separately as Memnox.dmg, which its installer finds among these releases.
+# The Mac app is built on a Mac and added to the same release as Memnox.dmg, which its installer finds among these releases.
 name: Release the Windows and Linux app
 
 on:
@@ -38,7 +38,7 @@ jobs:
       - name: Check out memnox-runtime
         uses: actions/checkout@v4
         with:
-          repository: Memnox/memnox
+          repository: Memnox/memnox-runtime
           path: memnox-runtime
 
       - name: The tag names the version tauri.conf.json carries
@@ -47,12 +47,10 @@ jobs:
           version=$(node -p "require('./src-tauri/tauri.conf.json').version")
           [ "${GITHUB_REF_NAME}" = "app-v${version}" ] || { echo "::error::tag ${GITHUB_REF_NAME} but tauri.conf.json says ${version}"; exit 1; }
 
-      # An unsigned installer is one Windows warns about and nobody should trust, so a tag never ships one.
-      - name: A tagged Windows release is signed
+      # SmartScreen warns about an unsigned installer, so the run says so plainly until the signing account is set up.
+      - name: Say when the Windows release is unsigned
         if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/') && env.SIGNS != 'true'
-        run: |
-          echo "::error::set AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT and AZURE_SIGNING_PROFILE to release for Windows"
-          exit 1
+        run: echo "::warning::the Windows installers are unsigned; set AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT and AZURE_SIGNING_PROFILE to sign them"
 
       - name: Install the Linux libraries
         if: runner.os == 'Linux'
@@ -147,5 +145,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" out/* --prerelease \
-            --title "Memnox for Windows and Linux ${GITHUB_REF_NAME#app-v}" \
-            --notes "Memnox for Windows and Linux. Check each download against SHA256SUMS. On Linux: curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/linux/scripts/install.sh | sh"
+            --title "Memnox ${GITHUB_REF_NAME#app-v} developer preview" \
+            --notes "Memnox for macOS, Windows and Linux. Check each download against SHA256SUMS.
+
+          On a Mac: curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/macos/scripts/install.sh | sh
+          On Linux: curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/linux/scripts/install.sh | sh
+          On Windows: run the setup .exe. A preview that is not signed yet makes SmartScreen ask first, so choose More info, then Run anyway."

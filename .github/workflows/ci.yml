@@ -34,7 +34,7 @@ jobs:
       - name: Check out memnox-runtime
         uses: actions/checkout@v4
         with:
-          repository: Memnox/memnox
+          repository: Memnox/memnox-runtime
           path: memnox-runtime
 
       # The tests read shared/vectors, so a copy that fell behind the runtime fails here rather than passing on old bytes.
@@ -104,7 +104,7 @@ jobs:
       - name: Check out memnox-runtime
         uses: actions/checkout@v4
         with:
-          repository: Memnox/memnox
+          repository: Memnox/memnox-runtime
           path: memnox-runtime
 
       - name: Install the Linux libraries Tauri, the layer shell and the microphone build against

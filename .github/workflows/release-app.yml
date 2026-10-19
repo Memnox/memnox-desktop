@@ -148,6 +148,5 @@ jobs:
             --title "Memnox ${GITHUB_REF_NAME#app-v} developer preview" \
             --notes "Memnox for macOS, Windows and Linux. Check each download against SHA256SUMS.
 
-          On a Mac: curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/macos/scripts/install.sh | sh
-          On Linux: curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/linux/scripts/install.sh | sh
-          On Windows: run the setup .exe. A preview that is not signed yet makes SmartScreen ask first, so choose More info, then Run anyway."
+          On a Mac or Linux: curl -fsSL https://memnox.com/install | sh
+          On Windows: download https://memnox.com/download/windows and run it. A preview that is not signed yet makes SmartScreen ask first, so choose More info, then Run anyway."

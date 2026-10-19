@@ -5,7 +5,7 @@
  * the caption and the card keep the words as written.
  */
 export function pronounced(text: string): string {
-  let spoken = websites(text);
+  let spoken = emailAddresses(websites(text));
   spoken = fileNames(spoken);
   for (const [pattern, template] of MACHINE_WORDS) spoken = spoken.replace(pattern, template);
   spoken = spoken.replace(FLAG, 'dash dash $1');
@@ -26,6 +26,8 @@ const FLAG = /(?<![\w-])--([a-z][\w-]*)/g;
 const JOINING_HYPHEN = /(?<=[A-Za-z])-(?=[A-Za-z])/g;
 /** A web address, capturing its host without "www.", and leaving any punctuation that ends the sentence. */
 const WEBSITE = /https?:\/\/(?:www\.)?([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)(?:[/?#][^\s]*[^\s.,;:!?)])?/g;
+/** An email address, capturing the name and the host, never the full stop that ends the sentence. */
+const EMAIL_ADDRESS = /([A-Za-z0-9._%+-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)/g;
 /** A file name with an ending of up to five letters, capturing the name and the ending past any folders. */
 const FILE_NAME = /(?:[\w.~-]+\/)*([\w-]+(?:\.[\w-]+)*)\.([A-Za-z]{1,5})\b/g;
 
@@ -141,4 +143,12 @@ function abbreviations(text: string): string {
 
 function escaped(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+}
+
+/** An address read whole, "moise at memnox dot com", since a voice that stops at the dot drops the "com". */
+function emailAddresses(text: string): string {
+  return text.replace(
+    EMAIL_ADDRESS,
+    (_whole, name: string, host: string) => `${name.split('.').join(' dot ')} at ${host.split('.').join(' dot ')}`,
+  );
 }

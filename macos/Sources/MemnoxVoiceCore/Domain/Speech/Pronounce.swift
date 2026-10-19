@@ -5,7 +5,7 @@ import Foundation
 /// "npm" as N P M and "Speech.swift" as Speech dot swift instead of guessing at the letters.
 /// Only what is spoken passes through here; the caption and the card keep the words as written.
 public func pronounced(_ text: String) -> String {
-    var spoken = websites(in: text)
+    var spoken = emailAddresses(in: websites(in: text))
     spoken = fileNames(in: spoken)
     spoken = machineText(in: spoken)
     spoken = spoken.replacingOccurrences(of: Pattern.flag, with: "dash dash $1", options: .regularExpression)
@@ -25,6 +25,8 @@ private enum Pattern {
     static let joiningHyphen = #"(?<=[A-Za-z])-(?=[A-Za-z])"#
     /// A web address, capturing its host without "www.", and leaving any punctuation that ends the sentence.
     static let website = #"https?://(?:www\.)?([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)(?:[/?#][^\s]*[^\s.,;:!?)])?"#
+    /// An email address, capturing the name and the host, never the full stop that ends the sentence.
+    static let emailAddress = #"([A-Za-z0-9._%+-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)"#
     /// A file name with an ending of up to five letters, capturing the name and the ending past any folders.
     static let fileName = #"(?:[\w.~-]+/)*([\w-]+(?:\.[\w-]+)*)\.([A-Za-z]{1,5})\b"#
     /// Not preceded by a word character or a hyphen, so a phrase only matches as a whole word.
@@ -98,6 +100,21 @@ private func websites(in text: String) -> String {
     for match in expression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed() {
         guard let whole = Range(match.range, in: result), let host = Range(match.range(at: 1), in: result) else { continue }
         result.replaceSubrange(whole, with: result[host].replacingOccurrences(of: ".", with: " dot "))
+    }
+    return result
+}
+
+/// An address read whole, "moise at memnox dot com", since a voice that stops at the dot drops the "com".
+private func emailAddresses(in text: String) -> String {
+    guard let expression = try? NSRegularExpression(pattern: Pattern.emailAddress) else { return text }
+    var result = text
+    for match in expression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed() {
+        guard let whole = Range(match.range, in: result),
+              let name = Range(match.range(at: 1), in: result),
+              let host = Range(match.range(at: 2), in: result)
+        else { continue }
+        let said = [result[name], result[host]].map { $0.replacingOccurrences(of: ".", with: " dot ") }
+        result.replaceSubrange(whole, with: "\(said[0]) at \(said[1])")
     }
     return result
 }

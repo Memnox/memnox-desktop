@@ -22,4 +22,9 @@ final class PronounceTests: XCTestCase {
         XCTAssertEqual(pronounced("It reviewed PR #88 at https://github.com/memnox/runtime/pull/88."), "It reviewed P R number 88 at github dot com.")
         XCTAssertEqual(pronounced("Run pnpm test in zsh."), "Run P N P M test in Z shell.")
     }
+
+    func testReadsAnEmailAddressWholeWithItsEnding() {
+        XCTAssertEqual(pronounced("Your Gmail is connected, as moiserushanika2006@gmail.com."), "Your Gmail is connected, as moiserushanika2006 at gmail dot com.")
+        XCTAssertEqual(pronounced("It goes to moise.r@memnox.com, asking him."), "It goes to moise dot r at memnox dot com, asking him.")
+    }
 }

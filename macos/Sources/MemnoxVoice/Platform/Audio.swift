@@ -347,10 +347,15 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
     private let writer = AVSpeechSynthesizer()
     /// Held quiet while the person may be cutting in, so a sentence that comes up meanwhile waits too.
     private var paused = false
+    /// Every second ever spent paused, and when the pause under way began, so a sentence's deadline moves by its pauses.
+    private var pausedTotal: TimeInterval = 0
+    private var pausedSince: Date?
     /// A breath between sentences, long enough that one never runs into the next.
     private static let breath: TimeInterval = 0.26
     /// This long past a sentence's own length, a finish that never came is taken as done, so a turn never hangs speaking.
     private static let playbackGrace: TimeInterval = 3
+    /// Pauses shorter than this are inside the grace already, and the least a held sentence waits before it is looked at again.
+    private static let pauseSlack: TimeInterval = 0.5
 
     /// How the orb's level follows the voice.
     private enum Meter {
@@ -525,6 +530,7 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
         DispatchQueue.main.async { [self] in
             lock.lock()
             paused = true
+            if pausedSince == nil { pausedSince = Date() }
             let playing = player
             let throughEngine = routed != nil
             lock.unlock()
@@ -540,6 +546,7 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
             lock.lock()
             let wasHushed = paused
             paused = false
+            endPause()
             let playing = player
             let throughEngine = routed != nil
             lock.unlock()
@@ -555,6 +562,7 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
             synthesizer.stopSpeaking(at: .immediate)
             lock.lock()
             paused = false
+            endPause()
             engineGeneration += 1
             let playing = player
             lock.unlock()
@@ -731,18 +739,37 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
         finishPlayer()
     }
 
-    /// Ends the sentence once it should long have finished, unless a newer one took its place; one held by a
-    /// pause is given its length again, since the person talking over it is not the playback stuck.
+    /// Called with the lock held.
+    private func endPause() {
+        if let since = pausedSince { pausedTotal += Date().timeIntervalSince(since) }
+        pausedSince = nil
+    }
+
+    /// Called with the lock held: all the time spent paused so far, the pause under way included.
+    private func heldSoFar() -> TimeInterval {
+        pausedTotal + (pausedSince.map { Date().timeIntervalSince($0) } ?? 0)
+    }
+
+    /// Ends the sentence once it should long have finished, unless a newer one took its place. Time spent paused
+    /// is added to the wait, since a pause that already ended still left that much of the sentence to play.
     private func finishAt(_ length: TimeInterval, isCurrent: @escaping () -> Bool) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + length + Self.playbackGrace) { [weak self] in
+        lock.lock()
+        let heldAtStart = heldSoFar()
+        lock.unlock()
+        finishAt(after: length + Self.playbackGrace, heldAtStart: heldAtStart, isCurrent: isCurrent)
+    }
+
+    private func finishAt(after wait: TimeInterval, heldAtStart: TimeInterval, isCurrent: @escaping () -> Bool) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
             guard let self else { return }
             lock.lock()
             let current = isCurrent()
             let held = paused
+            let heldSince = heldSoFar() - heldAtStart
             lock.unlock()
             guard current else { return }
-            if held {
-                finishAt(length, isCurrent: isCurrent)
+            if held || heldSince > Self.pauseSlack {
+                finishAt(after: max(heldSince, Self.pauseSlack), heldAtStart: heldAtStart + heldSince, isCurrent: isCurrent)
                 return
             }
             diary.note("a sentence never said it finished, so it was ended to keep the conversation going")

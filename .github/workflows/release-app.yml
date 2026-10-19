@@ -133,6 +133,8 @@ jobs:
           version="${GITHUB_REF_NAME#app-v}"
           # The AppImage cannot install the polkit policy itself, so the policy ships beside it, checked like the rest.
           cp linux/packaging/org.memnox.desktop.policy out/
+          # A name that never changes, so memnox.com/download/windows is one link to releases/latest.
+          cp out/*_x64-setup.exe out/Memnox-setup.exe
           (cd out && sha256sum * > SHA256SUMS)
           deb=$(cd out && ls *.deb | head -1)
           sum=$(cd out && sha256sum "$deb" | cut -d' ' -f1)
@@ -144,7 +146,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" out/* --prerelease \
+          gh release create "$GITHUB_REF_NAME" out/* --latest \
             --title "Memnox ${GITHUB_REF_NAME#app-v} developer preview" \
             --notes "Memnox for macOS, Windows and Linux. Check each download against SHA256SUMS.
 

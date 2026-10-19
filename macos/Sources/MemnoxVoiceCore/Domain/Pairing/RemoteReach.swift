@@ -6,6 +6,7 @@ import Foundation
 public enum RemoteReach {
     public static let methods: Set<DaemonMethod> = [
         .ping, .sessionsList, .sessionView, .waiting, .subscribe, .trace, .voiceAgents, .voiceChoice, .filesList, .home, .connectionsList,
+        .toolkitsSearch, .connectionsSignIn, .connectionsSignOut,
         .ask, .cancel, .warm, .brief, .speak, .handOver, .drive, .confirm,
     ]
 

@@ -1,5 +1,6 @@
 import { useEffect, useReducer } from 'react';
 import { Account } from '../../core/application/account';
+import { AppConnections } from '../../core/application/app-connections';
 import { DaemonAccount, DaemonSignIn } from '../../core/application/daemon-sign-in';
 import { Home } from '../../core/application/home';
 import { PhonePairing } from '../../core/application/pairing';
@@ -41,6 +42,8 @@ export interface SettingsParts {
   readonly pairing: PhonePairing;
   readonly home: Home;
   readonly tools: Tools;
+  /** Adding any app, signing in to one again and disconnecting it, read back through `tools`. */
+  readonly apps: AppConnections;
   /** The servers paired over the relay, and which machine the voice talks to. */
   readonly servers: ServerPairing;
   /** The person's own sign in to their workspace, for the calls it routes to them. */
@@ -77,6 +80,7 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     if (machine.step.kind === 'signed-in') return true;
     return machine.step.kind === 'signed-out' ? false : undefined;
   };
+  const tools = new Tools(link, ids);
   const parts: Omit<SettingsParts, 'steps'> = {
     host,
     words: platformWords(host.platform),
@@ -92,7 +96,11 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
       const handle = setTimeout(fire, ms);
       return () => clearTimeout(handle);
     }),
-    tools: new Tools(link, ids),
+    tools,
+    apps: new AppConnections(link, ids, tools, (url) => host.openPage(url), sleep, (ms, fire) => {
+      const handle = setTimeout(fire, ms);
+      return () => clearTimeout(handle);
+    }),
     servers: new ServerPairing(
       relay.pairer,
       () => host.computerName() ?? 'This computer',

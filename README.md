@@ -61,7 +61,7 @@ The same on every desktop:
 - **Dictation.** Hold a key and it types where your cursor is, in any app, never in a password field.
 - **Say a rule.** Hold a key, say it, and the rule goes in force only with a signature.
 - **Sessions.** Every agent's session with its latest steps, a live window, a history and a switcher.
-- **Connected tools.** Slack, Gmail, GitHub and the rest, with a draft you read before Send.
+- **Connected tools.** Any app you use, added from the Tools panel or by saying "connect my Notion" and signed in as you, on every plan. A draft you read comes before Send.
 - **Phones and servers.** Pair a phone, reach a server over the end to end encrypted relay.
 - **Team calls.** Sign in, and calls from your team's inbox arrive on the island, answered signed.
 - **Settings and a first run.** Every page the Mac has, in light and dark, with a guided setup that

@@ -48,6 +48,12 @@ export class Tools {
     return this.inFlight;
   }
 
+  /** The list a disconnect answered with, shown at once rather than read again. */
+  useConnections(connections: readonly ToolConnection[]): void {
+    this.current = { ...this.current, connections, connectionsNote: undefined, reading: false };
+    for (const listener of this.listeners) listener();
+  }
+
   get connectedCount(): number {
     return this.current.connections.filter((each) => each.connected).length;
   }
@@ -91,5 +97,5 @@ export function agentStatusWord(agent: Pick<VoiceAgentStatus, 'chosen' | 'works'
 }
 
 export function connectionStatusWord(connection: Pick<ToolConnection, 'connected'>): string {
-  return connection.connected ? 'Connected' : 'Sign in again';
+  return connection.connected ? 'Connected' : 'Not signed in';
 }

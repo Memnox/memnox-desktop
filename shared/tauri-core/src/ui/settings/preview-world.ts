@@ -73,6 +73,12 @@ function answer(request: DaemonRequest): DaemonResponse[] {
       return [{ ...ok, person: { signedIn: false, code: { userCode: 'WDJB-MJHT', expiresAt: Date.now() + 600_000 } } }];
     case 'connections-list':
       return [{ ...ok, connections: [{ toolkit: 'github', connected: true }, { toolkit: 'slack', connected: true }, { toolkit: 'gmail', connected: false }] }];
+    case 'toolkits-search':
+      return [{ ...ok, toolkits: [{ slug: 'notion', name: 'Notion' }, { slug: 'linear', name: 'Linear' }, { slug: 'googledocs', name: 'Google Docs' }] }];
+    case 'connections-sign-in':
+      return [{ ...ok, signIn: { toolkit: request.toolkit ?? '', url: 'https://connect.composio.dev/preview', opened: true } }];
+    case 'connections-sign-out':
+      return [{ ...ok, connections: [{ toolkit: 'github', connected: true }] }];
     case 'devices-list':
       return [{ ...ok, devices: previewState === 'none' ? [] : phones }];
     case 'pair-begin':

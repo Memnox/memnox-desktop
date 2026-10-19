@@ -96,8 +96,8 @@ authority, and the phone is a second face, voice and signing key for it.
 
 <img src="docs/images/memnox-tools.svg" width="100%" alt="On the Mac, Maya says tell #eng the deploy is out and thank Bo; the island drafts a Slack message as Maya to #eng, she sends it with Touch ID and it lands in the channel. On the iPhone, an email reply drafted on Gmail is sent with Face ID.">
 
-Sign in to Slack, Gmail, GitHub, Linear, Google Docs or Notion once, and the island can work in
-them in your name. Say *"tell #eng the deploy is out and thank Bo"*, or let an agent propose a
+Add any app you use from the Tools panel, or say *"connect my Notion"*, and sign in once as
+yourself. No admin approves it and no plan counts it. The island can then work in it in your name. Say *"tell #eng the deploy is out and thank Bo"*, or let an agent propose a
 reply, and the island opens on a draft in that tool's own colours: the account it goes out as,
 who it goes to, and the exact words in a box you can rewrite. Nothing goes out until you press
 **Send**, which asks for Touch ID and signs exactly the words on the card. The daemon then sends

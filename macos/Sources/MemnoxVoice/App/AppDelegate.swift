@@ -260,9 +260,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.enqueue { [weak self] in await self?.converse(opening: after, greet: after.isEmpty) }
         }
         // One list of agents and connected apps for the menu, the notch and Settings.
+        // Adding and dropping apps goes to the machine the voice talks to, the same one the list is read from.
+        let apps = AppConnections(link: target, ids: ids)
         let tools = ToolsModel(
             readAgents: { [weak self] in await self?.conversation?.voiceAgents() ?? .unreachable },
-            readConnections: { [weak self] in await self?.conversation?.connections() ?? .unreachable }
+            readConnections: { [weak self] in await self?.conversation?.connections() ?? .unreachable },
+            searchToolkits: { await apps.search($0) },
+            signIn: { await apps.signIn($0, again: $1) },
+            signOut: { await apps.signOut($0) },
+            watch: { await apps.watch(from: $0) },
+            open: { NSWorkspace.shared.open($0) }
         )
         panel.useTools(tools)
         let menu = MenuModel(
@@ -868,7 +875,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         confirmations = Task { [conversation, panel] in
             await previous?.value
             guard let conversation, let panel else { return }
-            let outcome = await conversation.answerDraft(card.subject, send: send, reason: card.reason, edited: card.edited)
+            let outcome = await conversation.answerDraft(
+                card.subject, send: send, reason: card.reason, edited: card.edited, editedTo: card.editedTo)
             panel.workAnswered(card, outcome)
         }
     }

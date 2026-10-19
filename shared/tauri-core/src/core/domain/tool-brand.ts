@@ -107,9 +107,14 @@ export function workTitle(kind: string, toolkit: string): string {
 }
 
 /** What the work card's footer says now: the key prompt up, nothing left to send, their own words, or the promise. */
-export function workFootnote(state: { sending: boolean; empty: boolean; changed: boolean }, keyName: string): string {
+export function workFootnote(
+  state: { sending: boolean; empty: boolean; changed: boolean; badAddress?: boolean; readdressed?: boolean },
+  keyName: string,
+): string {
   if (state.sending) return `Waiting for ${keyName}`;
   if (state.empty) return 'Write something to send.';
+  if (state.badAddress === true) return 'Check the address before you send.';
+  if (state.readdressed === true) return 'It goes to the address you typed.';
   if (state.changed) return 'Your words go out as you wrote them.';
   return 'Nothing goes out until you send it.';
 }

@@ -28,9 +28,8 @@ function greetings(to: string | undefined, hour: number): string[] {
 
 /** Never "Yes", since being called is not a question it was asked, and a "Yes" sounds like it agreed to something. */
 function replies(to: string | undefined): string[] {
-  if (to === undefined) return ["I'm here.", 'Go ahead.', 'Ready when you are.', "I'm listening.", 'How may I assist?'];
-  const capital = to.charAt(0).toUpperCase() + to.slice(1);
-  return [`I'm here, ${to}.`, `${capital}?`, `Go ahead, ${to}.`, `Ready when you are, ${to}.`, `How may I assist, ${to}?`];
+  if (to === undefined) return ['How may I help?', "I'm listening.", 'How may I assist?', 'What can I do for you?'];
+  return [`How may I help, ${to}?`, `I'm listening, ${to}.`, `What can I do for you, ${to}?`, `How may I assist, ${to}?`];
 }
 
 export class WakeLines {

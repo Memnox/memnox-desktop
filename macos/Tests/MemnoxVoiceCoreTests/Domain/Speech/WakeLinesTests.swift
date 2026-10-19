@@ -11,8 +11,8 @@ final class WakeLinesTests: XCTestCase {
         XCTAssertEqual(lines.line(address: "sir", hour: 20, sinceLastCall: nil, pick: first), "Good evening, sir. Systems online. Memnox is ready.")
         XCTAssertEqual(lines.line(address: nil, hour: 8, sinceLastCall: 5 * 60 * 60, pick: first), "Good morning. Systems online. Memnox is ready.")
         // Called again soon after, a word or two, and never the line said last.
-        XCTAssertEqual(lines.line(address: "sir", hour: 20, sinceLastCall: 30, pick: first), "I'm here, sir.")
-        XCTAssertEqual(lines.line(address: "sir", hour: 20, sinceLastCall: 30, pick: first), "Sir?")
+        XCTAssertEqual(lines.line(address: "sir", hour: 20, sinceLastCall: 30, pick: first), "How may I help, sir?")
+        XCTAssertEqual(lines.line(address: "sir", hour: 20, sinceLastCall: 30, pick: first), "I'm listening, sir.")
         // No address chosen, no honorific guessed.
         XCTAssertFalse(lines.line(address: "  ", hour: 20, sinceLastCall: 30).contains("sir"))
         // Never "Yes", which sounds like agreeing to something nobody asked.
@@ -26,11 +26,11 @@ final class WakeLinesTests: XCTestCase {
         XCTAssertEqual(lines.line(address: "sir", name: "Moiz", hour: 8, sinceLastCall: nil, at: start, pick: first),
                        "Good morning, Moiz. Systems online. Memnox is ready.")
         XCTAssertEqual(lines.line(address: "sir", name: "Moiz", hour: 8, sinceLastCall: 60, at: start.addingTimeInterval(60), pick: first),
-                       "I'm here, sir.")
+                       "How may I help, sir?")
         XCTAssertEqual(lines.line(address: "sir", name: "Moiz", hour: 9, sinceLastCall: 60, at: start.addingTimeInterval(31 * 60), pick: first),
-                       "I'm here, Moiz.")
+                       "How may I help, Moiz?")
         // A name with no address chosen is never used to address them.
         var bare = WakeLines()
-        XCTAssertEqual(bare.line(address: nil, name: "Moiz", hour: 8, sinceLastCall: 60, pick: first), "I'm here.")
+        XCTAssertEqual(bare.line(address: nil, name: "Moiz", hour: 8, sinceLastCall: 60, pick: first), "How may I help?")
     }
 }

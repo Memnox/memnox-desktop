@@ -57,15 +57,11 @@ public struct WakeLines {
     /// Never "Yes", since being called is not a question it was asked, and a "Yes" sounds like it agreed to something.
     private static func replies(to: String?) -> [String] {
         guard let to else {
-            return ["I'm here.", "Go ahead.", "Ready when you are.", "I'm listening.", "How may I assist?"]
+            return ["How may I help?", "I'm listening.", "How may I assist?", "What can I do for you?"]
         }
         return [
-            "I'm here, \(to).", "\(capitalizedFirst(to))?", "Go ahead, \(to).", "Ready when you are, \(to).",
+            "How may I help, \(to)?", "I'm listening, \(to).", "What can I do for you, \(to)?",
             "How may I assist, \(to)?",
         ]
-    }
-
-    private static func capitalizedFirst(_ text: String) -> String {
-        text.prefix(1).uppercased() + text.dropFirst()
     }
 }

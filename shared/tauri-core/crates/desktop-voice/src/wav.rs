@@ -34,12 +34,16 @@ pub fn wav_samples(bytes: &[u8]) -> Option<(Vec<f32>, u32)> {
             let channels = usize::from(channels.max(1));
             let samples: Vec<f32> = match (kind, bits) {
                 (PCM, 16) => data
-                    .chunks_exact(2)
-                    .map(|pair| f32::from(i16::from_le_bytes([pair[0], pair[1]])) / PCM16_SCALE)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| f32::from(i16::from_le_bytes(*pair)) / PCM16_SCALE)
                     .collect(),
                 (FLOAT, 32) => data
-                    .chunks_exact(4)
-                    .map(|four| f32::from_le_bytes([four[0], four[1], four[2], four[3]]))
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|four| f32::from_le_bytes(*four))
                     .collect(),
                 _ => return None,
             };

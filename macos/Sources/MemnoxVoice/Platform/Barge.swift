@@ -29,9 +29,14 @@ final class BargeEars {
     private var voiceOnSince: Date?
     /// Looks in a row the room was louder than its own voice, so one loud syllable of its own pauses nothing.
     private var loudLooks = 0
-    /// Set when it paused for loudness and nobody was talking, as with a video playing nearby, so for the rest of
-    /// this reply only words pause it and the room's own sound cannot stutter it sentence after sentence.
-    private var loudnessMisled = false
+    /// When it last paused for loudness and nobody was talking, as with a video playing nearby. For a while after,
+    /// across replies too, only words pause it, so the room's own sound cannot stutter it sentence after sentence.
+    private static var loudnessMisledAt: Date?
+    /// Long enough to outlast the replies of one exchange, short enough that a door slamming once is soon forgotten.
+    private static let misledFor: TimeInterval = 120
+    private var loudnessMisled: Bool {
+        BargeEars.loudnessMisledAt.map { Date().timeIntervalSince($0) < BargeEars.misledFor } ?? false
+    }
     /// Whether the pause under way was for loudness alone rather than for words.
     private var pausedForLoudness = false
     /// How often the latest words are looked at, quick so a cut in stops the voice at once.
@@ -73,7 +78,6 @@ final class BargeEars {
         spokeInQuiet = false
         voiceOnSince = nil
         loudLooks = 0
-        loudnessMisled = false
         pausedForLoudness = false
         let mine = generation
         let request = SFSpeechAudioBufferRecognitionRequest()
@@ -141,7 +145,7 @@ final class BargeEars {
                         ) {
                             self.pausedAt = nil
                             self.resumedOn = words
-                            if self.pausedForLoudness { self.loudnessMisled = true }
+                            if self.pausedForLoudness { BargeEars.loudnessMisledAt = Date() }
                             diary.note("carried on, nobody was talking: \(words)")
                             resume()
                         }

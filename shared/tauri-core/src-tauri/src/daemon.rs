@@ -37,6 +37,7 @@ pub fn pipe_name_for(home: &str) -> String {
 }
 
 /// `~/.memnox/memnox.sock`, the same path the runtime's `socketPathFor` builds off Windows.
+#[cfg_attr(windows, allow(dead_code))]
 pub fn socket_path_for(home: &str) -> PathBuf {
     PathBuf::from(home).join(".memnox").join("memnox.sock")
 }

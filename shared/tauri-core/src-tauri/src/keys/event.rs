@@ -59,14 +59,17 @@ pub enum KeyEvent {
     },
     Key,
     /// A bound shortcut for dictating went down or up, where the desktop gives shortcuts and not raw keys.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Dictate {
         down: bool,
     },
     /// The same for saying a rule.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Rule {
         down: bool,
     },
     /// The talk shortcut was pressed; the island hears it as the `talk` event.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Talk,
 }
 

@@ -144,8 +144,10 @@ impl StatusItem {
 
 /// RGBA pixels as the ARGB32 in network byte order that the StatusNotifierItem pixmap carries.
 fn argb(rgba: &[u8]) -> Vec<u8> {
-    rgba.chunks_exact(4)
-        .flat_map(|pixel| [pixel[3], pixel[0], pixel[1], pixel[2]])
+    rgba.as_chunks::<4>()
+        .0
+        .iter()
+        .flat_map(|&[r, g, b, a]| [a, r, g, b])
         .collect()
 }
 

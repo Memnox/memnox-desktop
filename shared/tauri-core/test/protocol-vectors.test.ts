@@ -20,7 +20,8 @@ describe('the wire this app imports', () => {
     expect(confirms.length).toBeGreaterThan(0);
     for (const { inputs, message } of confirms) {
       const edited = inputs['edited'] ?? undefined;
-      expect(confirmationMessage(inputs['subject'] ?? '', inputs['answer'] ?? '', edited)).toBe(message);
+      const editedTo = inputs['editedTo'] ?? undefined;
+      expect(confirmationMessage(inputs['subject'] ?? '', inputs['answer'] ?? '', edited, editedTo)).toBe(message);
     }
   });
 

@@ -21,7 +21,8 @@ declined proposal is sent unsigned, since saying no can do no harm. A held call 
 `withinSession` stays inside its session's repository, so its allow goes unsigned too; the daemon
 decides that, never this app, and an event without the mark always asks for Touch ID. A confirmed proposal carries a Secure Enclave signature over
 `memnox-confirm:v1:<id>:<answer>`, or `memnox-confirm:v2:<id>:<answer>:<words>` when the person
-rewrote a draft's words on its card, which must stay byte for byte what the runtime's
+rewrote a draft's words on its card, or `memnox-confirm:v3:<id>:<answer>:<addresses>:<words>` when they
+retyped a mail's addresses, comma joined, which must stay byte for byte what the runtime's
 `confirmationMessage` builds.
 
 ## Layout

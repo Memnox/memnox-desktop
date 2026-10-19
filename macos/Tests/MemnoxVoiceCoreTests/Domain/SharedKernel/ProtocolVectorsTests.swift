@@ -53,11 +53,12 @@ final class ProtocolVectorsTests: XCTestCase {
     /// The Swift builder for one vector; a name nobody mirrors yet fails, so a new signed message cannot go unseen.
     private func built(_ vector: Message) throws -> String? {
         switch vector.name {
-        case "confirm", "confirm-proposal", "confirm-rewritten", "confirm-rewritten-empty":
+        case "confirm", "confirm-proposal", "confirm-rewritten", "confirm-rewritten-empty", "confirm-readdressed":
             return confirmationMessage(
                 subject: try input(vector, "subject"),
                 answer: try input(vector, "answer"),
-                edited: vector.inputs["edited"] ?? nil)
+                edited: vector.inputs["edited"] ?? nil,
+                editedTo: vector.inputs["editedTo"] ?? nil)
         case "pair":
             return pairingMessage(pairingId: try input(vector, "pairingId"), fingerprint: try input(vector, "fingerprint"))
         case "grant":

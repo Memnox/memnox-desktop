@@ -105,13 +105,24 @@ struct WorkCard: Equatable, Sendable {
     let draft: WorkDraft
     /// The words the person rewrote on the card, nil while they are the ones proposed.
     var edited: String?
+    /// The addresses the person typed on a mail's card, comma joined, nil while they are the ones proposed.
+    var editedTo: String?
 
-    var reason: String { draft.touchIDReason }
+    var reason: String { draft.touchIDReason(to: editedTo.map { $0.components(separatedBy: ",") }) }
 
     /// The same card with the words as they stand in its box, which count as rewritten only where they differ.
     func with(words: String) -> WorkCard {
         var card = self
         card.edited = words == draft.body ? nil : words
+        return card
+    }
+
+    /// The same card with the words and the addresses as they stand; new addresses always carry the words, since v3 signs both.
+    func with(words: String?, to addresses: [String]) -> WorkCard {
+        var card = words.map { with(words: $0) } ?? self
+        guard addresses != (draft.to ?? []) else { return card }
+        card.editedTo = MailAddresses.joined(addresses)
+        card.edited = words
         return card
     }
 }

@@ -41,12 +41,12 @@ export class Signer {
     return response === undefined ? { kind: 'unreachable' } : keyStatusOf(response);
   }
 
-  /** `edited` is the words the person rewrote on a draft, which the signature then covers whole. */
-  async sign(subject: string, answer: string, reason: string, edited?: string): Promise<Signing> {
+  /** `edited` is the words the person rewrote on a draft and `editedTo` a mail's retyped addresses, which the signature covers whole. */
+  async sign(subject: string, answer: string, reason: string, edited?: string, editedTo?: string): Promise<Signing> {
     const status = await this.registerKey();
     if (status.kind === 'another-key') return { kind: 'refused', why: ANOTHER_KEY_LINE };
     if (status.kind === 'no-key') return { kind: 'refused', why: NO_KEY_LINE };
-    const signature = await this.key.sign(confirmationMessage(subject, answer, edited), reason).catch(() => undefined);
+    const signature = await this.key.sign(confirmationMessage(subject, answer, edited, editedTo), reason).catch(() => undefined);
     return signature === undefined ? { kind: 'cancelled' } : { kind: 'signed', signature };
   }
 }

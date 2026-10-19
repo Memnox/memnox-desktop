@@ -1393,7 +1393,9 @@ public final class Conversation {
     }
 
     /// A drafted message answered from its card: Send goes only with Touch ID over exactly this draft, and closing it goes unsigned.
-    public func answerDraft(_ subject: String, send: Bool, reason: String, edited: String? = nil) async -> HeldOutcome {
+    public func answerDraft(
+        _ subject: String, send: Bool, reason: String, edited: String? = nil, editedTo: String? = nil
+    ) async -> HeldOutcome {
         var request = newRequest(.confirm)
         request.subject = subject
         let answer: ProposalAnswer = send ? .confirmed : .declined
@@ -1401,7 +1403,8 @@ public final class Conversation {
         if send {
             // Only a Send carries rewritten words, since closing a draft sends nothing at all.
             request.edited = edited
-            switch await signature(subject, answer: answer.rawValue, edited: edited, reason: reason) {
+            request.editedTo = editedTo
+            switch await signature(subject, answer: answer.rawValue, edited: edited, editedTo: editedTo, reason: reason) {
             case .signed(let signature): request.signature = signature
             case .refused(let outcome): return outcome
             }
@@ -1442,7 +1445,9 @@ public final class Conversation {
 
     /// Touch ID over this answer, asked only once the daemon trusts this Mac's key: a signature from any
     /// other key is refused after the fingerprint, which reads as the button doing nothing.
-    private func signature(_ subject: String, answer: String, edited: String? = nil, reason: String) async -> Signing {
+    private func signature(
+        _ subject: String, answer: String, edited: String? = nil, editedTo: String? = nil, reason: String
+    ) async -> Signing {
         if let phone = phoneAnswers {
             face.show(.idle, caption: "")
             return .refused(.failed(Self.answerOnPhone(phone)))
@@ -1454,7 +1459,7 @@ public final class Conversation {
             return .refused(.failed(Self.anotherKeyLine))
         }
         face.show(.needsYou, caption: caption("Touch ID to \(reason)"))
-        guard let signature = try? await key.sign(confirmationMessage(subject: subject, answer: answer, edited: edited), reason: reason) else {
+        guard let signature = try? await key.sign(confirmationMessage(subject: subject, answer: answer, edited: edited, editedTo: editedTo), reason: reason) else {
             face.show(.idle, caption: "")
             return .refused(.cancelled)
         }

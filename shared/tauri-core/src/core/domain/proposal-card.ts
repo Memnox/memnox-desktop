@@ -1,4 +1,5 @@
 import {
+  isAddress,
   RULE_SCOPE,
   WORK_ACCOUNT_CHECK,
   type DaemonEvent,
@@ -47,9 +48,16 @@ export function draftAudience(work: WorkDraft): string {
   return trimmed(to) ?? trimmed(work.where) ?? work.toolkit;
 }
 
-/** What the consent prompt says for a Send. */
-export function draftReason(work: WorkDraft): string {
-  return `send this ${work.kind === 'other' ? 'from ' + work.toolkit : work.kind} to ${draftAudience(work)}`;
+/** What the consent prompt says for a Send, naming the addresses the person typed on the card where they did. */
+export function draftReason(work: WorkDraft, typed?: readonly string[]): string {
+  const audience = typed === undefined ? draftAudience(work) : typed.join(', ');
+  return `send this ${work.kind === 'other' ? 'from ' + work.toolkit : work.kind} to ${audience}`;
+}
+
+/** Every address typed in a mail's To field, split on commas and spaces, or undefined while any is not a plain one. */
+export function typedAddresses(typed: string): string[] | undefined {
+  const parts = typed.split(/[\s,]+/).filter((each) => each !== '');
+  return parts.length > 0 && parts.every(isAddress) ? parts : undefined;
 }
 
 /** A warning when the account it goes out as is not tied to the person, shown and never blocking, as on the Mac. */

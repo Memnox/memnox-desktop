@@ -10,12 +10,16 @@ struct IslandWorkCard: View {
     let card: WorkCard
     /// The words as they stand in the card, the proposed ones until the person rewrites them.
     @State private var words: String
+    /// The addresses as they stand in a mail's To field, the proposed ones until the person retypes them.
+    @State private var toText: String
     @FocusState private var typing: Bool
+    @FocusState private var addressing: Bool
 
     init(model: IslandModel, card: WorkCard) {
         self.model = model
         self.card = card
         _words = State(initialValue: card.draft.body ?? "")
+        _toText = State(initialValue: (card.draft.to ?? []).joined(separator: ", "))
     }
 
     private enum Layout {
@@ -55,11 +59,17 @@ struct IslandWorkCard: View {
     /// Words that were there and are now all gone, so there is nothing to send.
     private var empty: Bool { draft.body != nil && words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var changed: Bool { draft.body != nil && words != draft.body }
+    /// The addresses typed in the To field, nil while any is not a plain address, so Send waits for a real one.
+    private var addresses: [String]? { MailAddresses.parse(toText) }
+    private var badAddress: Bool { draft.readdressable && addresses == nil }
+    private var readdressed: Bool { draft.readdressable && addresses != nil && addresses != (draft.to ?? []) }
 
     /// What the footer says now: Touch ID up, nothing left to send, the person's own words, or the promise.
     private var footnote: String {
         if model.sending { return "Waiting for Touch ID" }
         if empty { return "Write something to send." }
+        if badAddress { return "Check the address before you send." }
+        if readdressed { return "It goes to the address you typed." }
         if changed { return "Your words go out as you wrote them." }
         return "Nothing goes out until you send it."
     }
@@ -160,11 +170,11 @@ struct IslandWorkCard: View {
                 .overlay(Capsule().strokeBorder(Color.white.opacity(Memnox.Ink.edge)))
             }
             .buttonStyle(PressableStyle())
-            .help(empty ? "Write something to send" : "Send with Touch ID")
+            .help(empty ? "Write something to send" : badAddress ? "Check the address" : "Send with Touch ID")
             .accessibilityLabel("\(ToolBrand.sendLabel(draft.toolkit)) on \(tool), with Touch ID")
             // Command Return sends from the box, the way a message is sent in most apps.
             .keyboardShortcut(.return, modifiers: .command)
-            .disabled(empty)
+            .disabled(empty || badAddress)
         }
         .disabled(model.sending)
         .opacity(model.sending ? Shade.sending : 1)
@@ -232,10 +242,14 @@ struct IslandWorkCard: View {
         }
     }
 
-    /// Gmail: recipients, subject, then the words.
+    /// Gmail: recipients, subject, then the words; the real address in a field the person can correct before Touch ID.
     private var email: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-            if let to = draft.to, !to.isEmpty { chips("To", to) }
+            if draft.readdressable {
+                addressField
+            } else if let to = draft.to, !to.isEmpty {
+                chips("To", to)
+            }
             if let subject = draft.subject {
                 Text(subject)
                     .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
@@ -293,6 +307,42 @@ struct IslandWorkCard: View {
             .simultaneousGesture(TapGesture().onEnded(startTyping))
             .help("Change the words, then send them")
             .accessibilityLabel("The words that will be sent")
+    }
+
+    /// The address itself, never only a name, since a misheard address read as the right person until it had gone out.
+    private var addressField: some View {
+        HStack(spacing: Memnox.Spacing.medium) {
+            Text("To")
+                .font(Memnox.sans(Memnox.TextSize.body))
+                .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+            TextField("name@example.com", text: $toText)
+                .textFieldStyle(.plain)
+                .font(Memnox.mono(Memnox.TextSize.footnote, .medium))
+                .foregroundStyle(Color.white)
+                .focused($addressing)
+                .onExitCommand { addressing = false }
+                .simultaneousGesture(TapGesture().onEnded(startAddressing))
+                .help("Change who it goes to, then send it")
+                .accessibilityLabel("The address it goes to")
+            if let name = draft.toName {
+                Text(name)
+                    .font(Memnox.sans(Memnox.TextSize.caption, .medium))
+                    .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, Memnox.Spacing.regular)
+        .padding(.vertical, Memnox.Spacing.small)
+        .background(RoundedRectangle(cornerRadius: Layout.commentRadius, style: .continuous)
+            .fill(Color.white.opacity(Shade.chip)))
+        .overlay(RoundedRectangle(cornerRadius: Layout.commentRadius, style: .continuous)
+            .strokeBorder(badAddress ? IslandPalette.amber : Color.clear))
+    }
+
+    /// The island takes keys for the To field too, so a corrected address lands there and not in the app behind it.
+    private func startAddressing() {
+        NSApp.windows.first { $0 is IslandPanel }?.makeKey()
+        addressing = true
     }
 
     /// The island takes keys only now, so typing lands in the box and not in the app behind it.
@@ -360,6 +410,11 @@ struct IslandWorkCard: View {
     private func answer(send: Bool) {
         model.sending = send
         // A draft with no words of its own has nothing to rewrite, so it goes exactly as proposed.
-        model.answerWork(draft.body == nil ? card : card.with(words: words), send)
+        let shown = draft.body == nil ? nil : words
+        if draft.readdressable, let addresses {
+            model.answerWork(card.with(words: shown, to: addresses), send)
+        } else {
+            model.answerWork(shown.map { card.with(words: $0) } ?? card, send)
+        }
     }
 }

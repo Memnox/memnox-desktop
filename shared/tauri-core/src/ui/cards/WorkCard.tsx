@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { WorkDraft } from '@memnox/core/wire';
-import type { HeldOutcome, ProposalCards } from '../../core';
+import { typedAddresses, type HeldOutcome, type ProposalCards } from '../../core';
 import { avatarLetter, shownPeople, toolkitName, toolLook, workFootnote, workLayout, workTitle } from '../../core/domain/tool-brand';
 import { ANSWERING_ROW, IslandCard, PRESSABLE, SFSymbol, ToolMark } from '../kit';
 import { SYSTEM_MONO } from './MarkdownText';
@@ -41,13 +41,21 @@ export function WorkCard({
   const tool = toolkitName(work.toolkit);
   const empty = work.body !== undefined && words.trim() === '';
   const changed = work.body !== undefined && words !== drafted;
-  const footnote = workFootnote({ sending, empty, changed }, KEY_NAME);
+  const proposedTo = work.to ?? [];
+  const [toText, setToText] = useState(proposedTo.join(', '));
+  const readdressable = work.toEditable === true;
+  const addresses = typedAddresses(toText);
+  const badAddress = readdressable && addresses === undefined;
+  const readdressed = readdressable && addresses !== undefined && addresses.join(',') !== proposedTo.join(',');
+  const footnote = workFootnote({ sending, empty, changed, badAddress, readdressed }, KEY_NAME);
   const shown = work.account?.handle ?? work.account?.name;
 
   async function answer(send: boolean) {
     setSending(send);
-    // Words go with the Send only when the person changed them, so the signature covers what really leaves.
-    const outcome = await cards.answerDraft(subject, send, send && changed ? words : undefined);
+    // Words go with the Send only when the person changed them, or with new addresses since v3 signs both.
+    const editedTo = send && readdressed && addresses !== undefined ? addresses.join(',') : undefined;
+    const withWords = send && (changed || (editedTo !== undefined && work.body !== undefined));
+    const outcome = await cards.answerDraft(subject, send, withWords ? words : undefined, editedTo);
     setSaid(told(outcome));
     setSending(false);
     onAnswered(outcome, send);
@@ -67,7 +75,7 @@ export function WorkCard({
       className={`flex flex-col gap-2.5 p-3.5 ${className ?? ''}`}
       // Control and Enter sends from the box, as Command Return does on the Mac.
       onKeyDown={(event) => {
-        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !empty && !sending) void answer(true);
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !empty && !badAddress && !sending) void answer(true);
       }}
       aria-label={`${workTitle(work.kind, work.toolkit)}, waiting for you to send it`}
     >
@@ -101,7 +109,13 @@ export function WorkCard({
       </div>
       <Rule />
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto [scrollbar-width:none]">
-        <Layout work={work} who={shown} colour={look.colour} editor={editor} />
+        <Layout
+          work={work}
+          who={shown}
+          colour={look.colour}
+          editor={editor}
+          to={readdressable ? <AddressField typed={toText} name={work.toName} bad={badAddress} onChange={setToText} /> : undefined}
+        />
         {work.fields.length > 0 && <AlsoSends fields={work.fields} />}
       </div>
       <div className={`flex items-center gap-2 ${sending ? ANSWERING_ROW : ''}`}>
@@ -113,9 +127,9 @@ export function WorkCard({
           type="button"
           className={`${PRESSABLE} inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-callout font-semibold text-white`}
           style={{ backgroundColor: look.colour, boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.14)' }}
-          disabled={empty || sending}
+          disabled={empty || badAddress || sending}
           onClick={() => void answer(true)}
-          title={empty ? 'Write something to send' : 'Send with your fingerprint'}
+          title={empty ? 'Write something to send' : badAddress ? 'Check the address' : 'Send with your fingerprint'}
           aria-label={`${look.send} on ${tool}, with your fingerprint`}
         >
           <SFSymbol name="touchid" size={14} />
@@ -140,7 +154,19 @@ function told(outcome: HeldOutcome): string | undefined {
 }
 
 /** Each tool's own layout of the draft. */
-function Layout({ work, who, colour, editor }: { work: WorkDraft; who: string | undefined; colour: string; editor: ReactNode }) {
+function Layout({
+  work,
+  who,
+  colour,
+  editor,
+  to,
+}: {
+  work: WorkDraft;
+  who: string | undefined;
+  colour: string;
+  editor: ReactNode;
+  to: ReactNode | undefined;
+}) {
   switch (workLayout(work.kind)) {
     case 'message':
       // Slack: where it goes, then the message as it will sit in the channel, under their name.
@@ -176,10 +202,10 @@ function Layout({ work, who, colour, editor }: { work: WorkDraft; who: string | 
         </div>
       );
     case 'email':
-      // Gmail: recipients, subject, then the words.
+      // Gmail: recipients, subject, then the words; the real address in a field the person can correct.
       return (
         <div className="flex flex-col gap-2">
-          {work.to !== undefined && work.to.length > 0 && <Chips label="To" people={work.to} />}
+          {to ?? (work.to !== undefined && work.to.length > 0 && <Chips label="To" people={work.to} />)}
           {work.subject !== undefined && <p className="m-0 text-callout font-semibold text-white">{work.subject}</p>}
           <Rule />
           {work.body !== undefined && editor}
@@ -232,6 +258,34 @@ function Chips({ label, people }: { label: string; people: readonly string[] }) 
           and {more} more
         </span>
       )}
+    </div>
+  );
+}
+
+/** The address itself, never only a name, since a misheard address read as the right person until it had gone out. */
+function AddressField({ typed, name, bad, onChange }: { typed: string; name: string | undefined; bad: boolean; onChange: (typed: string) => void }) {
+  return (
+    <div className={`flex min-w-0 items-center gap-2 rounded-lg bg-white/10 px-2.5 py-1 ${bad ? 'ring-1 ring-amber' : ''}`}>
+      <span className="text-body text-white/[0.62]">To</span>
+      <input
+        className={`min-w-0 flex-1 border-0 bg-transparent ${SYSTEM_MONO} text-footnote font-medium text-white outline-none select-text`}
+        value={typed}
+        placeholder="name@example.com"
+        spellCheck={false}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation();
+            event.currentTarget.blur();
+          }
+        }}
+        onPointerDown={() => void invoke('island_keyboard', { on: true }).catch(() => undefined)}
+        onBlur={() => void invoke('island_keyboard', { on: false }).catch(() => undefined)}
+        title="Change who it goes to, then send it"
+        aria-label="The address it goes to"
+        aria-invalid={bad}
+      />
+      {name !== undefined && <span className="truncate text-caption font-medium text-white/[0.62]">{name}</span>}
     </div>
   );
 }

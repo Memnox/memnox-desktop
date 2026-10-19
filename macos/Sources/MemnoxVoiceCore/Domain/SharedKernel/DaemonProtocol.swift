@@ -80,6 +80,13 @@ public enum DaemonMethod: String, Sendable {
     /// The person's own app accounts connected through Memnox Cloud, such as their mail and their chat, each with
     /// whether it works now; refused while this Mac has no person signed in.
     case connectionsList = "connections-list"
+    /// Connects one tool as the person, any toolkit and any role: answers its sign in page, which the daemon opens
+    /// in the Mac's browser only when asked over the local socket.
+    case connectionsSignIn = "connections-sign-in"
+    /// Undoes every sign in the person made to one tool, answering the connections as they then stand.
+    case connectionsSignOut = "connections-sign-out"
+    /// Up to thirty tools from Memnox Cloud's catalogue that match the words, for a picker of what to connect.
+    case toolkitsSearch = "toolkits-search"
 }
 
 public enum EventKind: String, Sendable {
@@ -1014,6 +1021,8 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var signature: String?
     /// On confirm of a draft: the words the person rewrote on its card, which the signature then covers.
     public var edited: String?
+    /// On confirm of a mail: the addresses the person typed on its card, joined by commas, which the signature covers too.
+    public var editedTo: String?
     /// On confirm of an agent's question: which of its questions the answer is for, from one.
     public var questionNumber: Int?
     /// On person-sign-in: this app's own waiting device code, so one approval in the browser signs the daemon in too.
@@ -1085,6 +1094,12 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var speed: Double?
     /// On hand-over: the home's ready action, which the daemon refuses unless it is still the one ready.
     public var action: String?
+    /// On connections-sign-in and connections-sign-out: the tool, by its lowercase slug, such as notion.
+    public var toolkit: String?
+    /// On connections-sign-in: open a new sign in even where one already works, to use another account.
+    public var again: Bool?
+    /// On toolkits-search: the words to match; left out lists the catalogue's first page.
+    public var query: String?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -1261,6 +1276,36 @@ public struct ToolConnection: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
+/// The sign in page for one tool as connections-sign-in answers it; a paired phone gets opened false and opens it.
+public struct ConnectionSignIn: Decodable, Equatable, Sendable {
+    /// The cloud's lowercase toolkit slug.
+    public let toolkit: String
+    public let url: String
+    /// True when the daemon opened the page in the Mac's browser itself.
+    public let opened: Bool
+
+    public init(toolkit: String, url: String, opened: Bool) {
+        self.toolkit = toolkit
+        self.url = url
+        self.opened = opened
+    }
+}
+
+/// One tool Memnox Cloud's catalogue offers, by the slug connections-sign-in takes.
+public struct ToolkitSummary: Decodable, Equatable, Identifiable, Sendable {
+    public let slug: String
+    public let name: String
+    public let logo: String?
+
+    public var id: String { slug }
+
+    public init(slug: String, name: String, logo: String? = nil) {
+        self.slug = slug
+        self.name = name
+        self.logo = logo
+    }
+}
+
 /// Where a session's agent runs, for bringing its window forward.
 public struct DaemonLocation: Decodable, Equatable, Sendable {
     public let sessionId: String
@@ -1324,6 +1369,10 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let home: DaemonHome?
     /// On connections-list: one per tool the person signed in to, sorted by tool.
     public let connections: [ToolConnection]?
+    /// On connections-sign-in: the page that connects the tool, and whether the daemon already opened it.
+    public let signIn: ConnectionSignIn?
+    /// On toolkits-search: at most thirty tools the catalogue matched.
+    public let toolkits: [ToolkitSummary]?
     /// On hand-over: the rule proposal the person now confirms, by its id.
     public let proposed: String?
     /// On person, person-sign-in and person-sign-out: where the daemon's own sign in stands.
@@ -1526,8 +1575,10 @@ public func isAtLeast(_ found: String?, _ needed: String) -> Bool {
 }
 
 /// What a confirmation signs, byte for byte what the runtime's `confirmationMessage` builds. Words the person
-/// rewrote on a draft card go last and whole, so the fingerprint covers exactly what is sent.
-public func confirmationMessage(subject: String, answer: String, edited: String? = nil) -> String {
+/// rewrote on a draft card go last and whole, so the fingerprint covers exactly what is sent, and addresses rewritten
+/// on a mail go just before them, since an address never holds a colon and words may.
+public func confirmationMessage(subject: String, answer: String, edited: String? = nil, editedTo: String? = nil) -> String {
+    if let editedTo { return "memnox-confirm:v3:\(subject):\(answer):\(editedTo):\(edited ?? "")" }
     guard let edited else { return "memnox-confirm:v1:\(subject):\(answer)" }
     return "memnox-confirm:v2:\(subject):\(answer):\(edited)"
 }

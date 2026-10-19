@@ -64,16 +64,18 @@ export class ProposalCards {
     return this.settle(subject, chose, await this.send(request), afterRule(scope));
   }
 
-  /** A draft sent, with the words the person rewrote when they changed it, or closed and sent nowhere. */
-  async answerDraft(subject: string, send: boolean, edited?: string): Promise<HeldOutcome> {
+  /** A draft sent, with the words and, on a mail, the addresses the person rewrote, or closed and sent nowhere. */
+  async answerDraft(subject: string, send: boolean, edited?: string, editedTo?: string): Promise<HeldOutcome> {
     const card = this.current.find((each) => each.subject === subject);
     const answer = send ? PROPOSAL_ANSWER.CONFIRMED : PROPOSAL_ANSWER.DECLINED;
     const request: DaemonRequest = { ...this.request(), subject, answer };
     if (send) {
       // Only a Send carries rewritten words, since closing a draft sends nothing at all.
       if (edited !== undefined) request.edited = edited;
-      const reason = card?.kind === 'work' ? draftReason(card.work) : 'send this message';
-      const signing = await this.signer.sign(subject, answer, reason, edited);
+      if (editedTo !== undefined) request.editedTo = editedTo;
+      const typed = editedTo?.split(',');
+      const reason = card?.kind === 'work' ? draftReason(card.work, typed) : 'send this message';
+      const signing = await this.signer.sign(subject, answer, reason, edited, editedTo);
       if (signing.kind === 'cancelled') return { kind: 'cancelled' };
       if (signing.kind === 'refused') return { kind: 'failed', why: signing.why };
       request.signature = signing.signature;

@@ -100,6 +100,10 @@ public struct WorkDraft: Decodable, Equatable, Sendable {
     public let kind: String
     public let account: WorkAccount?
     public let to: [String]?
+    /// On a mail, the name the voice found for whom it goes to, shown beside the address and never in its place.
+    public let toName: String?
+    /// On a mail, the person may rewrite its addresses on the card, which their Touch ID then covers.
+    public let toEditable: Bool?
     /// Where it lands: `owner/repo#412`, an issue, a page.
     public let `where`: String?
     public let subject: String?
@@ -109,6 +113,7 @@ public struct WorkDraft: Decodable, Equatable, Sendable {
 
     public init(
         toolkit: String, tool: String, kind: String, account: WorkAccount? = nil, to: [String]? = nil,
+        toName: String? = nil, toEditable: Bool? = nil,
         where place: String? = nil, subject: String? = nil, body: String? = nil, fields: [WorkField] = []
     ) {
         self.toolkit = toolkit
@@ -116,6 +121,8 @@ public struct WorkDraft: Decodable, Equatable, Sendable {
         self.kind = kind
         self.account = account
         self.to = to
+        self.toName = toName
+        self.toEditable = toEditable
         self.where = place
         self.subject = subject
         self.body = body
@@ -123,13 +130,37 @@ public struct WorkDraft: Decodable, Equatable, Sendable {
     }
 
     public var draftKind: WorkDraftKind { WorkDraftKind(rawValue: kind) ?? .other }
+    /// Whether the card offers the addresses to rewrite, which only a mail with one address argument does.
+    public var readdressable: Bool { toEditable == true }
 
     /// What Touch ID says it is for, so the sheet names the tool and the account it goes out as.
-    public var touchIDReason: String {
+    public var touchIDReason: String { touchIDReason(to: nil) }
+
+    /// The same, naming the addresses the person typed on the card, so the sheet says where it now goes.
+    public func touchIDReason(to addresses: [String]?) -> String {
         let tool = ToolkitName.of(toolkit)
-        guard let who = account?.shown else { return "send this on \(tool)" }
-        return "send this on \(tool) as \(who)"
+        let whom = addresses.map { " to \($0.joined(separator: ", "))" } ?? ""
+        guard let who = account?.shown else { return "send this\(whom) on \(tool)" }
+        return "send this\(whom) on \(tool) as \(who)"
     }
+}
+
+/// Addresses typed on a mail's card, read the one way the runtime reads them so a signature it refuses is never asked for.
+public enum MailAddresses {
+    /// Every address in what was typed, split on commas and spaces, or nil while any of them is not a plain address.
+    public static func parse(_ typed: String) -> [String]? {
+        let parts = typed.split(whereSeparator: { $0 == "," || $0.isWhitespace }).map(String.init)
+        guard !parts.isEmpty, parts.allSatisfy(isAddress) else { return nil }
+        return parts
+    }
+
+    /// One plain address, refusing the colon, comma and space that would make the signed text read two ways.
+    public static func isAddress(_ text: String) -> Bool {
+        text.range(of: #"^[^\s:,@]+@[^\s:,@]+\.[^\s:,@]+$"#, options: .regularExpression) != nil
+    }
+
+    /// The addresses as the wire and the signature carry them.
+    public static func joined(_ addresses: [String]) -> String { addresses.joined(separator: ",") }
 }
 
 /// How the person reads each tool's name, which its slug says badly.

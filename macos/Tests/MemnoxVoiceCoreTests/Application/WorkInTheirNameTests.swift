@@ -63,6 +63,35 @@ final class WorkInTheirNameTests: XCTestCase {
         XCTAssertEqual(link.sent.last?.edited, "Could you review PR 12: the tests fail")
     }
 
+    func testSendsToTheAddressTypedOnTheCardUnderAFingerprintOverItAndTheWords() async throws {
+        link.answers["confirm"] = [try line(#"{"id":1,"ok":true}"#)]
+        let outcome = await conversation.answerDraft("prp_mail", send: true, reason: "send this to moise@memnox.com on Gmail",
+                                                     edited: "See you at three.", editedTo: "moise@memnox.com")
+        XCTAssertEqual(outcome, .answered)
+        XCTAssertEqual(key.signed, ["memnox-confirm:v3:prp_mail:confirmed:moise@memnox.com:See you at three."])
+        XCTAssertEqual(link.sent.last?.editedTo, "moise@memnox.com")
+        XCTAssertEqual(link.sent.last?.edited, "See you at three.")
+    }
+
+    func testShowsAMailsRealAddressWithTheNameBesideIt() throws {
+        let draft = try JSONDecoder().decode(WorkDraft.self, from: Data(#"{"toolkit":"gmail","tool":"GMAIL_SEND_EMAIL","kind":"email","to":["moise@memnox.co"],"toName":"Moise","toEditable":true,"body":"hi","fields":[]}"#.utf8))
+        XCTAssertEqual(draft.to, ["moise@memnox.co"])
+        XCTAssertEqual(draft.toName, "Moise")
+        XCTAssertTrue(draft.readdressable)
+        XCTAssertEqual(draft.touchIDReason(to: ["moise@memnox.com"]), "send this to moise@memnox.com on Gmail")
+        let slack = try JSONDecoder().decode(WorkDraft.self, from: Data(#"{"toolkit":"slack","tool":"SLACK_SEND_MESSAGE","kind":"message","to":["Pac"],"fields":[]}"#.utf8))
+        XCTAssertFalse(slack.readdressable)
+    }
+
+    func testReadsOnlyPlainAddressesFromTheToField() {
+        XCTAssertEqual(MailAddresses.parse("moise@memnox.com"), ["moise@memnox.com"])
+        XCTAssertEqual(MailAddresses.parse(" a@acme.test, b@acme.test "), ["a@acme.test", "b@acme.test"])
+        XCTAssertNil(MailAddresses.parse("moise memnox"))
+        XCTAssertNil(MailAddresses.parse("a:b@acme.test"))
+        XCTAssertNil(MailAddresses.parse(""))
+        XCTAssertEqual(MailAddresses.joined(["a@acme.test", "b@acme.test"]), "a@acme.test,b@acme.test")
+    }
+
     func testClosingARewrittenDraftSendsNoWordsAndNoFingerprint() async throws {
         link.answers["confirm"] = [try line(#"{"id":1,"ok":true}"#)]
         _ = await conversation.answerDraft("prp_work", send: false, reason: "send this on Slack as Maya", edited: "anything")

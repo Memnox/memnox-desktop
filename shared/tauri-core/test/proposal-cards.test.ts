@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ProposalCards } from '../src/core/application/proposal-cards';
 import { RequestIds } from '../src/core/application/request-ids';
 import { Signer } from '../src/core/application/signer';
-import { accountWarning, afterRule, suggestedScope } from '../src/core/domain/proposal-card';
+import { accountWarning, afterRule, suggestedScope, typedAddresses } from '../src/core/domain/proposal-card';
 import { held, PersonKey, RecordingSpeaker, registered, ScriptedDaemon } from './doubles';
 
 const rule: RuleDraft = {
@@ -98,6 +98,24 @@ describe('a draft on its card', () => {
     });
     expect(daemon.sent('confirm')[0]).toMatchObject({ answer: 'confirmed', edited: 'It ships on Monday.' });
     expect(speaker.said).toEqual(['Sent.']);
+  });
+
+  it('sends to the address typed on the card under a signature over it and the words', async () => {
+    const { daemon, key, cards } = cardsOver(ok);
+    cards.show(proposal('prp_mail', { work }));
+    await cards.answerDraft('prp_mail', true, 'It ships on Monday.', 'moise@memnox.com');
+    expect(key.signed[0]).toEqual({
+      message: 'memnox-confirm:v3:prp_mail:confirmed:moise@memnox.com:It ships on Monday.',
+      reason: 'send this email to moise@memnox.com',
+    });
+    expect(daemon.sent('confirm')[0]).toMatchObject({ edited: 'It ships on Monday.', editedTo: 'moise@memnox.com' });
+  });
+
+  it('reads only plain addresses from the To field', () => {
+    expect(typedAddresses(' a@acme.test, b@acme.test ')).toEqual(['a@acme.test', 'b@acme.test']);
+    expect(typedAddresses('moise memnox')).toBeUndefined();
+    expect(typedAddresses('a:b@acme.test')).toBeUndefined();
+    expect(typedAddresses('')).toBeUndefined();
   });
 
   it('sends the words as drafted with the first form of the signed message', async () => {

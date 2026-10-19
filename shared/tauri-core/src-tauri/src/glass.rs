@@ -17,6 +17,7 @@ pub enum Glass {
     /// Nothing: the page keeps its near solid wash.
     None,
     /// The whole window is the glass, with the system's corners and shadow, so the page needs no margin.
+    #[cfg_attr(not(windows), allow(dead_code))]
     Backdrop,
     /// The compositor blurs under the panel's shape, inside the margin the page keeps for its shadow.
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]

@@ -458,6 +458,7 @@ final class SessionPresenter: Presenter {
     /// links a moment apart, and the words on the clipboard when no link could carry them.
     func openApp(_ start: AppStart) async -> Typed {
         await launch(toward: start.name)
+        let wasOpen = start.appPath.flatMap { Self.running(at: URL(fileURLWithPath: $0)) } != nil
         if let path = start.appPath {
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = true
@@ -490,7 +491,7 @@ final class SessionPresenter: Presenter {
                 try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.appSettle))
             }
         }
-        let typed = await PromptTyping.typeIntoApp(words, inAppAt: path)
+        let typed = await PromptTyping.typeIntoApp(words, inAppAt: path, settled: wasOpen && start.links.isEmpty && !start.newChat)
         if !typed.wentIn { PromptTyping.leaveOnClipboard(words) }
         return typed
     }

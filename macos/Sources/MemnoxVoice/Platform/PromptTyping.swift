@@ -28,6 +28,8 @@ enum PromptTyping {
         static let launchLooks = 60
         /// Longer for the box itself, since a page such as a new Claude Code chat draws well after its window.
         static let appBoxLooks = 150
+        /// An app already open shows its message box at once, so missing one there is said in two seconds, not fifteen.
+        static let openAppBoxLooks = 20
         /// About ten seconds for a prompt link's words to reach the chat, which may first wait on the person to allow the link.
         static let prefillLooks = 100
         /// About a second to take the front back from Memnox's own window.
@@ -421,7 +423,8 @@ enum PromptTyping {
     /// Types into a desktop app's own message box, Claude, Codex or Hermes: the text area in focus, or
     /// the only one in its window, so the words never land in a field picked by guess. Waits for an app
     /// a link just launched to be running, then sends with Return as a person would.
-    static func typeIntoApp(_ text: String, inAppAt path: String) async -> Typed {
+    /// `settled` is an app that was already open with nothing new drawing in it, whose box is there at once or not at all.
+    static func typeIntoApp(_ text: String, inAppAt path: String, settled: Bool = false) async -> Typed {
         guard allowed() else { return Typed(.notAllowed, "Memnox is not allowed to type yet") }
         var found = running(at: path)
         for _ in 0..<Timing.launchLooks where found == nil {
@@ -438,7 +441,7 @@ enum PromptTyping {
         try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.editorSettle))
         // Polled, since a window just opened, such as Codex's, draws its composer well after a button takes focus.
         var box = textArea(in: element)
-        for _ in 0..<Timing.appBoxLooks where box == nil {
+        for _ in 0..<(settled ? Timing.openAppBoxLooks : Timing.appBoxLooks) where box == nil {
             try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.boxPoll))
             box = textArea(in: element)
         }

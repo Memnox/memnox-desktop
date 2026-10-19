@@ -304,6 +304,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         self.menu = menu
         menuBar = MenuBarPanel(model: menu)
+        SettingsWindow.shared.prepareSetup = { [weak self] in
+            guard let self else { return }
+            SettingsWindow.shared.setup = self.madeSetupModel()
+        }
         panel.wireLauncher(
             sayRule: { [weak self] in self?.sayRule() },
             copyWhatHappened: { [weak self] in self?.copyWhatHappened() },
@@ -1162,11 +1166,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func showSetup() {
-        // The window keeps the model it was built with until setup finishes, so an open one is shown again.
-        if let setupModel {
-            setup.show(setupModel)
-            return
-        }
+        setup.show(madeSetupModel())
+    }
+
+    /// The window keeps the model it was built with until setup finishes, so an open one is reused.
+    private func madeSetupModel() -> SetupModel {
+        if let setupModel { return setupModel }
         let model = SetupModel(owner: owner, conversation: conversation, pairing: pairing, voice: voice, kokoro: kokoroInstaller, runtime: runtime) { [weak self] in
             self?.setupFinished()
         }
@@ -1183,7 +1188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if await self.kokoroInstaller.install() { await self.chooseVoice(VoiceChoice.kokoro, announce: false) }
         }
         setupModel = model
-        setup.show(model)
+        return model
     }
 
     /// The machine the voice talks to from now on, nil for this Mac, remembered across launches.

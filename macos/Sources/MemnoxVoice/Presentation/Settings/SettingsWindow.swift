@@ -22,6 +22,9 @@ final class SettingsWindow {
         didSet { models.setup = setup }
     }
 
+    /// Makes setup's model when the window opens without one, since every page waits on it and would spin for good.
+    var prepareSetup: (() -> Void)?
+
     /// The person's dictionary and latest dictations, set once at launch by the app.
     var dictations: DictationStore? {
         didSet { models.dictations = dictations }
@@ -48,6 +51,7 @@ final class SettingsWindow {
 
     /// Opens on the page given, or stays on the one last shown when none is.
     func show(_ page: SettingsPage? = nil) {
+        if setup == nil { prepareSetup?() }
         if let page { navigation.go(page) }
         // The numbers, the phones and the voice are read fresh each time the window comes forward.
         menu?.kokoroVoice = KokoroVoice.chosen().voice

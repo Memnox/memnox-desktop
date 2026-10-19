@@ -68,7 +68,8 @@ fi
 IDENTITY="Memnox Local Signing"
 # Only a valid identity signs; one left without its trust is made again here, since a build signed ad hoc is a
 # build macOS forgets the Accessibility grant for, which looks in the app like typing that is never allowed.
-if ! security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
+# CI has nobody to answer the trust prompt, which would wait forever, so it signs ad hoc instead.
+if [ -z "${CI:-}" ] && ! security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
   sh scripts/signing-setup.sh || true
 fi
 ADHOC=no

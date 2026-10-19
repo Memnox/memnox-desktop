@@ -83,6 +83,21 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
     /// How fast the held bounce eases in and out, so a call arriving never snaps the orb.
     private static let waitingEasing: Float = 0.06
 
+    /// Frames a second: every frame only while the sphere moves, since at rest it breathes too slowly to need them.
+    private enum Pace {
+        static let moving = 60
+        static let resting = 20
+        /// On a small, busy or hot Mac, where the agents need the machine more than the orb does.
+        static let lightMoving = 30
+        static let lightResting = 12
+        /// The easings above were tuned one step per frame at this rate, so a slower frame takes several steps.
+        static let tuned: Double = 60
+        /// A frame after a long stall catches up at most this many steps rather than jumping.
+        static let mostSteps: Double = 6
+        /// Below this the bounce has settled and no longer needs every frame.
+        static let still: Float = 0.01
+    }
+
     private let queue: MTLCommandQueue
     private let pipeline: MTLRenderPipelineState
     private let started = CACurrentMediaTime()
@@ -93,6 +108,9 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
     /// The voice envelope, and when each syllable still climbing the sphere began.
     private var voice: Float = 0
     private var onsets: [CFTimeInterval] = []
+    private var lastFrame: CFTimeInterval?
+    /// How many tuned steps this frame stands for, so the sphere moves at one speed at any frame rate.
+    private var steps: Float = 1
 
     /// Read every frame: the loudness to follow, and the state that decides how it moves.
     var loudness: () -> Float = { 0 }
@@ -138,7 +156,10 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
 
     func draw(in view: MTKView) {
         let now = CACurrentMediaTime()
+        steps = Float(min((now - (lastFrame ?? now - 1 / Pace.tuned)) * Pace.tuned, Pace.mostSteps))
+        lastFrame = now
         advance(at: now)
+        pace(view)
         guard let pass = view.currentRenderPassDescriptor,
               let drawable = view.currentDrawable,
               let buffer = queue.makeCommandBuffer(),
@@ -198,17 +219,31 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
         case .speaking: target = (Target.speakingLevel + heard * Target.speakingGain, 0, 0)
         case .needsYou: target = (Target.needsYouLevel, 0, 1)
         }
-        level += (target.level - level) * Easing.level
-        swirl += (target.swirl - swirl) * Easing.swirl
-        hold += (target.hold - hold) * Easing.hold
-        knot += ((state == .thinking ? 1 : 0) - knot) * Easing.knot
-        bounce += ((waiting ? 1 : 0) - bounce) * Self.waitingEasing
+        level += (target.level - level) * eased(Easing.level)
+        swirl += (target.swirl - swirl) * eased(Easing.swirl)
+        hold += (target.hold - hold) * eased(Easing.hold)
+        knot += ((state == .thinking ? 1 : 0) - knot) * eased(Easing.knot)
+        bounce += ((waiting ? 1 : 0) - bounce) * eased(Self.waitingEasing)
+    }
+
+    /// One frame's share of the gap, compounded over however many tuned steps the frame stands for.
+    private func eased(_ rate: Float) -> Float {
+        1 - pow(1 - rate, steps)
+    }
+
+    /// Asks for every frame only while something on the sphere is moving, and fewer on a light machine.
+    private func pace(_ view: MTKView) {
+        let resting = (state == .idle || state == .needsYou) && gesture == nil && !waiting
+            && bounce < Pace.still && onsets.isEmpty
+        let light = MachinePace.light
+        let frames = resting ? (light ? Pace.lightResting : Pace.resting) : (light ? Pace.lightMoving : Pace.moving)
+        if view.preferredFramesPerSecond != frames { view.preferredFramesPerSecond = frames }
     }
 
     /// Follows the voice envelope and marks a syllable wherever it jumps, only while the orb speaks.
     private func listen(_ heard: Float, at now: CFTimeInterval) {
         let previous = voice
-        voice += (heard - voice) * (heard > voice ? Syllable.attack : Syllable.release)
+        voice += (heard - voice) * eased(heard > voice ? Syllable.attack : Syllable.release)
         let rested = onsets.last.map { now - $0 > Syllable.gap } ?? true
         if state == .speaking, voice - previous > Syllable.rise, rested {
             onsets.append(now)

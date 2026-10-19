@@ -9,7 +9,7 @@ final class SidePanel: NSPanel {
     private let model: IslandModel
     private var outside: EventMonitor?
     private var escape: EventMonitor?
-    private var poll: Timer?
+    private var poll: PointerPoll?
     /// When the pointer came to rest on the tab, to open after a short dwell like the notch.
     private var restingSince: Date?
     /// When the pointer left the open panel, to close after a short grace rather than on a stray flick.
@@ -27,11 +27,11 @@ final class SidePanel: NSPanel {
         static let tabSlop: CGFloat = 8
         /// How far past the open panel the pointer still counts as inside it.
         static let panelSlop: CGFloat = 6
+        /// Within this of the tab the pointer is polled every frame, and slowly anywhere further off.
+        static let nearby: CGFloat = 120
     }
 
     private enum Timing {
-        /// The pointer is polled at this rate, the same as the notch.
-        static let framesPerSecond = 60.0
         /// Long enough that sweeping past the edge to reach a scroll bar does not open it.
         static let dwell: TimeInterval = 0.25
         /// How long the pointer may be away from the open panel before it folds back into the tab.
@@ -62,9 +62,7 @@ final class SidePanel: NSPanel {
         place()
         orderFrontRegardless()
         // Polled rather than tracked, because the window is larger than the tab and must let clicks past it.
-        poll = Timer.scheduledTimer(withTimeInterval: 1 / Timing.framesPerSecond, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.follow() }
-        }
+        poll = PointerPoll { [weak self] in self?.follow() }
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -115,6 +113,9 @@ final class SidePanel: NSPanel {
     private func follow() {
         let mouse = NSEvent.mouseLocation
         let now = Date()
+        let size = SideMotion.tab(hovering: model.sideHovering)
+        let tab = NSRect(x: frame.minX, y: frame.midY - size.height / 2, width: size.width, height: size.height)
+        poll?.pace(near: model.sideOpen || tab.insetBy(dx: -Layout.nearby, dy: -Layout.nearby).contains(mouse))
         if model.sideOpen {
             let over = frame.insetBy(dx: -Layout.panelSlop, dy: -Layout.panelSlop).contains(mouse)
             if over {
@@ -127,8 +128,6 @@ final class SidePanel: NSPanel {
             }
             return
         }
-        let size = SideMotion.tab(hovering: model.sideHovering)
-        let tab = NSRect(x: frame.minX, y: frame.midY - size.height / 2, width: size.width, height: size.height)
         let touching = tab.insetBy(dx: -Layout.tabSlop, dy: -Layout.tabSlop).contains(mouse)
         if ignoresMouseEvents == touching { ignoresMouseEvents = !touching }
         if touching != model.sideHovering {

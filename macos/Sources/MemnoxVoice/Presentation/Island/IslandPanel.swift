@@ -12,7 +12,7 @@ final class IslandPanel: NSPanel, Face {
     var islandModel: IslandModel { model }
     private let orb: MTKView
     private let renderer: OrbRenderer?
-    private var poll: Timer?
+    private var poll: PointerPoll?
     private var hoverSince: Date?
     private var lastActivity = Date()
     private var lastMouse = NSPoint.zero
@@ -42,10 +42,12 @@ final class IslandPanel: NSPanel, Face {
         static let levelAboveMenuBar = 3
         /// How far past its drawn edge the island still counts as under the pointer.
         static let pointerSlop: CGFloat = 6
+        /// Within this of the window the pointer is polled every frame, and slowly anywhere further off.
+        static let nearby: CGFloat = 120
     }
 
     private enum Timing {
-        /// The orb draws and the pointer is polled once a frame at this rate.
+        /// The orb's first frame rate, before `OrbRenderer` paces it to what it is doing.
         static let framesPerSecond = 60
         static let hoverResponse = 0.28
         static let hoverDamping = 0.6
@@ -97,9 +99,7 @@ final class IslandPanel: NSPanel, Face {
         orderFrontRegardless()
         side = SidePanel(model: model)
         // Polled rather than tracked, because the window is larger than the island and must let clicks past its shape.
-        poll = Timer.scheduledTimer(withTimeInterval: 1.0 / Double(Timing.framesPerSecond), repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.follow() }
-        }
+        poll = PointerPoll { [weak self] in self?.follow() }
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -674,6 +674,7 @@ final class IslandPanel: NSPanel, Face {
             width: size.width + 2 * Island.flare, height: size.height
         ).insetBy(dx: -Layout.pointerSlop, dy: -Layout.pointerSlop)
         let mouse = NSEvent.mouseLocation
+        poll?.pace(near: isOpen || model.hovering || frame.insetBy(dx: -Layout.nearby, dy: -Layout.nearby).contains(mouse))
         let over = shape.contains(mouse)
         // The sign in icons and the signed in pill hang under the island and take clicks too, but never open it.
         let below = model.clickableBelow

@@ -68,6 +68,9 @@ export const TURN_TIMING = {
   awayLongEnoughMs: 10 * 60 * 1_000,
 } as const;
 
+/** Its echo's tail as the microphone opens and the pause that ends a sentence; a listen longer than this heard the person. */
+const ECHO_TAIL_MS = 3_500;
+
 /** Said when the microphone cannot be opened, since a silent orb that cannot hear looks like one not listening. */
 export const CANNOT_HEAR = 'I cannot hear you yet. Check that a microphone is connected and that Memnox may use it, then ask me again.';
 /** Said before listening when the system's privacy switch keeps the microphone from desktop apps, as Windows can. */
@@ -350,12 +353,13 @@ export class VoiceTurns {
       if (next !== undefined) {
         heard = next;
       } else {
+        const opened = this.now();
         const result = await this.listen({ waitMs: waiting, guesses: true });
         if (result.kind === 'failed') {
           await this.cannotHear(result.why);
           break;
         }
-        heard = result.kind === 'words' ? this.ownWordsOnly(result.words) : undefined;
+        heard = result.kind === 'words' ? this.ownWordsOnly(result.words, this.now() - opened) : undefined;
       }
       const finished = heard === undefined && held !== undefined;
       const said = heard ?? held;
@@ -438,10 +442,15 @@ export class VoiceTurns {
   /** How loud the person is while they are heard, for the orb; the island sets it. */
   onLevel: ((level: number) => void) | undefined;
 
-  /** What was heard less the tail of its own voice still in the room as the microphone opened. */
-  private ownWordsOnly(heard: string): string | undefined {
+  /**
+   * What was heard less the tail of its own voice still in the room as the microphone opened. `listenedMs` is how
+   * long the listen took: its echo arrives as the microphone opens, so words all its own that ended well after are
+   * an answer picking from what it offered, like "the other one" after "the deployability session or the other one?".
+   */
+  private ownWordsOnly(heard: string, listenedMs?: number): string | undefined {
     const mine = withoutEchoRuns(heard, this.parts.mouth.spoken(ECHO_LINGERS_MS));
-    return /\p{L}/u.test(mine) ? mine : undefined;
+    if (/\p{L}/u.test(mine)) return mine;
+    return listenedMs !== undefined && listenedMs > ECHO_TAIL_MS && /\p{L}/u.test(heard) ? heard : undefined;
   }
 
   /**

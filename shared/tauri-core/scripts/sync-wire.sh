@@ -11,10 +11,12 @@ if [ ! -f "$runtime/packages/core/src/wire.ts" ]; then
   exit 1
 fi
 runtime=$(cd "$runtime" && pwd)
+# The runtime runs under the pnpm its own packageManager names, since an older pnpm misreads its lockfile.
+rpnpm() { (cd "$runtime" && COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm "$@"); }
 if [ ! -d "$runtime/node_modules" ]; then
-  (cd "$runtime" && pnpm install --frozen-lockfile)
+  rpnpm install --frozen-lockfile
 fi
-(cd "$runtime" && pnpm --filter @memnox/core build >/dev/null)
+rpnpm --filter @memnox/core build >/dev/null
 rm -rf "$here/.runtime"
 mkdir -p "$here/.runtime/packages/core"
 cp -R "$runtime/packages/core/dist" "$here/.runtime/packages/core/dist"

@@ -28,11 +28,11 @@ jobs:
         working-directory: macos
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # The one Noise build lives in the runtime, so the Mac, the phone and the runtime run the same crate.
       - name: Check out memnox-runtime
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Memnox/memnox-runtime
           path: memnox-runtime
@@ -52,14 +52,14 @@ jobs:
           swift --version
 
       - name: Cache the build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: macos/.build
           key: spm-${{ runner.os }}-${{ hashFiles('macos/Package.swift', 'macos/Sources/**/*.swift', 'macos/Tests/**/*.swift') }}
           restore-keys: spm-${{ runner.os }}-
 
       - name: Cache the Noise build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: memnox-runtime/native/noise/target
           key: noise-${{ runner.os }}-${{ hashFiles('memnox-runtime/native/noise/Cargo.lock', 'memnox-runtime/native/noise/src/**') }}
@@ -98,11 +98,11 @@ jobs:
         working-directory: shared/tauri-core
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # The app imports the wire from the runtime's own build, so it is built from the runtime's main.
       - name: Check out memnox-runtime
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Memnox/memnox-runtime
           path: memnox-runtime
@@ -114,11 +114,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libgtk-layer-shell-dev libasound2-dev
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 9.15.4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -159,7 +159,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: No dash stands in copy or comments
         # The characters are written as escapes so this file never contains the dashes it forbids.

@@ -28,11 +28,11 @@ jobs:
         working-directory: macos
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # The one Noise build lives in the runtime, so the Mac, the phone and the runtime run the same crate.
       - name: Check out memnox-runtime
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Memnox/memnox-runtime
           path: memnox-runtime
@@ -98,11 +98,11 @@ jobs:
         working-directory: shared/tauri-core
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # The app imports the wire from the runtime's own build, so it is built from the runtime's main.
       - name: Check out memnox-runtime
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Memnox/memnox-runtime
           path: memnox-runtime
@@ -159,7 +159,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: No dash stands in copy or comments
         # The characters are written as escapes so this file never contains the dashes it forbids.

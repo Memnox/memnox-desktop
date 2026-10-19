@@ -33,10 +33,10 @@ jobs:
     env:
       SIGNS: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_SIGNING_ACCOUNT != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out memnox-runtime
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Memnox/memnox-runtime
           path: memnox-runtime
@@ -121,7 +121,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/download-artifact@v4
         with:

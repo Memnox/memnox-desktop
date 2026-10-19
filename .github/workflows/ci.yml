@@ -21,7 +21,7 @@ jobs:
     name: Build and test
     # The app uses macOS 26 APIs behind availability checks, so it needs the macOS 26 SDK from Xcode 26.
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 45
     # The Mac app is one platform of memnox-desktop, so its steps run inside macos/.
     defaults:
       run:

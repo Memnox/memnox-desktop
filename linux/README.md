@@ -59,10 +59,10 @@ Node into `~/.memnox/node` checked against the release's SHASUMS256 when the com
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/linux/scripts/install.sh | sh
+curl -fsSL https://memnox.com/install | sh
 ```
 
-It finds the newest `app-v` release, checks the download against its `SHA256SUMS` and installs
+It runs this folder's `scripts/install.sh`, which finds the newest `app-v` release, checks the download against its `SHA256SUMS` and installs
 nothing that does not match. It picks:
 
 | Where | It installs |

@@ -156,7 +156,7 @@ The quickest way in, on an Apple silicon Mac with macOS 14 or later and one agen
 Code, Codex or Cursor signed in with its own account:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/macos/scripts/install.sh | sh
+curl -fsSL https://memnox.com/install | sh
 ```
 
 It downloads the newest release, checks it against the checksum published with it, puts Memnox in

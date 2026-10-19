@@ -47,9 +47,10 @@ Node into `~/.memnox/node` checked against the release's SHASUMS256 when the com
 
 ## Install
 
-Download `Memnox_<version>_x64-setup.exe` (NSIS) or the `.msi` from the newest
-[`app-v` release](https://github.com/Memnox/memnox-desktop/releases) and check it against
-`SHA256SUMS` beside it. A tagged release is signed with Azure Trusted Signing and never warns.
+Download [memnox.com/download/windows](https://memnox.com/download/windows), the setup `.exe` from
+the [latest release](https://github.com/Memnox/memnox-desktop/releases/latest), which also carries the
+`.msi` and the `SHA256SUMS` to check either against. The preview is not signed yet, so SmartScreen
+says it protected your PC: choose **More info**, then **Run anyway**.
 
 Then open Memnox. The first run installs the runtime, wires the agents it finds, starts the service,
 registers the confirm key and installs the voice, and Memnox starts at sign in from then on, which
@@ -69,7 +70,7 @@ the tray can turn off.
 | **The tray** | A left click opens Memnox's own panel above the icon, a right click the same rows as a menu. |
 | **Coming back** | The lock screen is read from the input desktop, so Catch me up knows when you left and came back. |
 | **Keeping awake** | `SetThreadExecutionState` while on power with a phone paired, so the phone can reach the computer from anywhere. |
-| **The installer** | NSIS and MSI from [`release-app.yml`](../.github/workflows/release-app.yml), signed with Azure Trusted Signing. |
+| **The installer** | NSIS and MSI from [`release-app.yml`](../.github/workflows/release-app.yml), signed with Azure Trusted Signing once its secrets are set. |
 
 ## Build from source
 
@@ -93,8 +94,8 @@ unsigned installers in `target/release/bundle`.
 <summary><b>Signing a release</b></summary>
 
 [`release-app.yml`](../.github/workflows/release-app.yml) signs every binary and installer through
-`trusted-signing-cli`, and a tag never publishes an unsigned Windows build. It needs the secrets
-`AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`, `AZURE_SIGNING_ENDPOINT`,
+`trusted-signing-cli` once its secrets are set, and publishes the installers unsigned with a warning
+in the run until then. The secrets are `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`, `AZURE_SIGNING_ENDPOINT`,
 `AZURE_SIGNING_ACCOUNT` and `AZURE_SIGNING_PROFILE`.
 
 </details>

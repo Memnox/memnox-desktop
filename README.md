@@ -36,16 +36,17 @@ sign every yes that reaches outside a session with a key the operating system gu
 
 | | Install | Built with | Status |
 |---|---|---|---|
-| **macOS**<br><sub>14 or later, Apple silicon</sub> | [`macos/scripts/install.sh`](macos/scripts/install.sh), below | Swift 6 on Apple frameworks, in [`macos/`](macos) | developer preview |
-| **Windows**<br><sub>10 and 11, x64</sub> | the NSIS or MSI installer from the newest [`app-v` release](https://github.com/Memnox/memnox-desktop/releases) | Tauri, React and Rust, in [`shared/`](shared) with [`windows/`](windows) | preview, built and tested in CI |
-| **Linux**<br><sub>x86_64</sub> | [`linux/scripts/install.sh`](linux/scripts/install.sh), below: deb, rpm or AppImage | the same Tauri app, with [`linux/`](linux) | preview, built and tested in CI |
+| **macOS**<br><sub>14 or later, Apple silicon</sub> | the one line below, which runs [`macos/scripts/install.sh`](macos/scripts/install.sh) | Swift 6 on Apple frameworks, in [`macos/`](macos) | developer preview |
+| **Windows**<br><sub>10 and 11, x64</sub> | [memnox.com/download/windows](https://memnox.com/download/windows), the installer from the [latest release](https://github.com/Memnox/memnox-desktop/releases/latest) | Tauri, React and Rust, in [`shared/`](shared) with [`windows/`](windows) | preview, built and tested in CI |
+| **Linux**<br><sub>x86_64</sub> | the same line, which runs [`linux/scripts/install.sh`](linux/scripts/install.sh): deb, rpm or AppImage | the same Tauri app, with [`linux/`](linux) | preview, built and tested in CI |
 
 ```sh
-# macOS
-curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/macos/scripts/install.sh | sh
-# Linux: the deb where apt is, the rpm where dnf or zypper is, the AppImage anywhere else
-curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/linux/scripts/install.sh | sh
+# macOS or Linux: on Linux, the deb where apt is, the rpm where dnf or zypper is, the AppImage anywhere else
+curl -fsSL https://memnox.com/install | sh
 ```
+
+On Windows, download [memnox.com/download/windows](https://memnox.com/download/windows) and open it.
+The preview is not signed yet, so SmartScreen asks first: choose **More info**, then **Run anyway**.
 
 Each installer checks its download against the checksum published with the release before it
 installs anything. Arch users can build the PKGBUILD published beside the Linux packages. The phone
@@ -180,11 +181,24 @@ build), checks the protocol vectors against the runtime, and refuses a dash in c
 
 [`release-app.yml`](.github/workflows/release-app.yml) releases the Windows and Linux app from a tag
 `app-v<version>` that matches `shared/tauri-core/src-tauri/tauri.conf.json`. It builds the NSIS and
-MSI installers, signed with Azure Trusted Signing, and the AppImage, deb and rpm on Ubuntu 22.04 so
-older glibc runs them, then publishes them with SHA256SUMS, the polkit policy and a PKGBUILD. A
-tagged Windows build is never published unsigned. Run by hand without a tag, it builds unsigned
-installers as workflow artifacts and publishes nothing. The Mac app is released separately as
-`Memnox.dmg`, which its installer finds among the same releases.
+MSI installers, signed with Azure Trusted Signing once its secrets are set and unsigned until then,
+and the AppImage, deb and rpm on Ubuntu 22.04 so older glibc runs them, then publishes them with
+SHA256SUMS, the polkit policy, a PKGBUILD and `Memnox-setup.exe`, and marks the release latest. Run by
+hand without a tag, it builds the installers as workflow artifacts and publishes nothing.
+
+A release is four steps, because the Mac app is built on a Mac:
+
+1. Raise the version in `shared/tauri-core/src-tauri/tauri.conf.json` and in
+   `CFBundleShortVersionString` in `macos/Support/Info.plist`, and commit.
+2. Tag `app-v<version>` and push the tag, which builds and publishes the Windows and Linux release.
+3. Run `macos/scripts/dmg.sh` on an Apple silicon Mac, which builds `macos/build/Memnox.dmg` with the
+   newest `memnox` from npm.
+4. Attach it once the release exists:
+   `gh release upload app-v<version> macos/build/Memnox.dmg macos/build/Memnox.dmg.sha256`.
+
+Until step 4, memnox.com/download/mac finds no image on the latest release, so do it straight away.
+memnox.com/download/windows and memnox.com/download/mac redirect to the latest release by those two
+fixed names, which is why every release carries them.
 
 </details>
 

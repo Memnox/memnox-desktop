@@ -40,7 +40,7 @@ Windows Hello set up, where a PIN is enough.
 ## Linux
 
 Ubuntu 24.04, Fedora or Arch on x86_64 installs the release packages with
-`curl -fsSL https://raw.githubusercontent.com/Memnox/memnox-desktop/main/linux/scripts/install.sh | sh`
+`curl -fsSL https://memnox.com/install | sh`
 once a release exists, or the `installers-ubuntu-22.04` artifact from the same workflow run as Windows.
 
 On an Apple silicon Mac the virtual machine is arm64, which the release does not build, so build it there:

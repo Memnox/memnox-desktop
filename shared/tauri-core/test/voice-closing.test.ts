@@ -26,7 +26,7 @@ describe('what a voice says', () => {
   });
 
   it('drops markdown and puts a pause where a dash stood', () => {
-    expect(speakable('**Done** — the `build` is green')).toBe('Done, the build is green');
+    expect(speakable('**Done** \u2014 the `build` is green')).toBe('Done, the build is green');
   });
 
   it('lets a sentence told again around a tool go', () => {

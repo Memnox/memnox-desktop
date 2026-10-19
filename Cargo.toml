@@ -10,3 +10,5 @@ members = [
   "windows/native",
   "linux/native",
 ]
+# CI checks memnox-runtime out inside this repo, and its crates belong to their own workspace.
+exclude = ["memnox-runtime"]

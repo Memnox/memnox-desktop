@@ -56,5 +56,13 @@ rm -rf "${TARGET:?}/$APP_NAME"
 ditto "$MOUNT/$APP_NAME" "$TARGET/$APP_NAME"
 xattr -dr com.apple.quarantine "$TARGET/$APP_NAME" 2>/dev/null || true
 
-echo "Memnox is in $TARGET. Opening it; the first run asks for its permissions and installs memnox and its voice."
+# The voice is set up before the app opens, from the pack inside it, so its first words are already in its own voice.
+# A setup that fails leaves the app to try again on launch, where the Mac's voice speaks until it is ready.
+VOICE_SETUP="$TARGET/$APP_NAME/Contents/Resources/kokoro/kokoro-setup.sh"
+if [ -f "$VOICE_SETUP" ]; then
+  echo "Setting up the voice"
+  sh "$VOICE_SETUP" 2>/dev/null | sed -n 's/^STEP /  /p' || true
+fi
+
+echo "Memnox is in $TARGET. Opening it; the first run asks for its permissions and starts memnox."
 open "$TARGET/$APP_NAME"

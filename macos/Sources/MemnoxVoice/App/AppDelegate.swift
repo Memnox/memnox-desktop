@@ -391,7 +391,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.show(.listening, caption: "")
         while true {
             let heard: String?
-            if let cutIn = next { heard = cutIn } else { heard = await ownWordsOnly(ears.listen(through: audio, waiting: waiting)) }
+            if let cutIn = next {
+                heard = cutIn
+            } else {
+                let opened = Date()
+                let words = await ears.listen(through: audio, waiting: waiting)
+                heard = ownWordsOnly(words, saidAfter: ears.lastWordAt.map { $0.timeIntervalSince(opened) })
+            }
             let finished = heard == nil && held != nil
             conversation.lastWordAt = next == nil && !finished ? ears.lastWordAt : nil
             guard let said = heard ?? held else { break }
@@ -416,16 +422,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// What was heard less the tail of its own voice: a sentence said just before, such as a confirmation's
     /// apology, is still in the room when the microphone opens. Nil when nothing of the person is left.
-    private func ownWordsOnly(_ heard: String?) -> String? {
+    /// `saidAfter` is how long after the microphone opened the last word came, where the recognizer can say.
+    private func ownWordsOnly(_ heard: String?, saidAfter: TimeInterval? = nil) -> String? {
         guard let heard, let voice else { return heard }
         let recent = voice.spoken(since: Date().addingTimeInterval(-Self.echoLingers))
         let mine = withoutEchoRuns(heard, spoken: recent)
-        if mine != heard { diary.note("took its own words off: \(heard)") }
+        guard mine != heard else { return mine.contains(where: \.isLetter) ? mine : nil }
+        // Its echo is in the room only as the microphone opens, so words all its own said well after are an answer
+        // picking from what it offered, like "the other one" after "the deployability session or the other one?".
+        if !mine.contains(where: \.isLetter), let saidAfter, saidAfter > Self.echoTailSeconds {
+            diary.note("kept its own words, said after its voice had gone: \(heard)")
+            return heard
+        }
+        diary.note("took its own words off: \(heard)")
         return mine.contains(where: \.isLetter) ? mine : nil
     }
 
     /// Long enough for the longest sentence it says to finish playing and come back through the microphone.
     private static let echoLingers: TimeInterval = 15
+    /// How long after the microphone opens its own voice can still be heard trailing off in the room.
+    private static let echoTailSeconds: TimeInterval = 2.5
 
     /// Answers one thing said, listening over the voice so the person can cut in; returns what they cut in with.
     private func answer(_ said: String, finished: Bool = false, intent: AskIntent? = nil) async -> String? {

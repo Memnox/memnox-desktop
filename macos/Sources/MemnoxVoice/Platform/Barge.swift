@@ -29,6 +29,11 @@ final class BargeEars {
     private var voiceOnSince: Date?
     /// Looks in a row the room was louder than its own voice, so one loud syllable of its own pauses nothing.
     private var loudLooks = 0
+    /// Set when it paused for loudness and nobody was talking, as with a video playing nearby, so for the rest of
+    /// this reply only words pause it and the room's own sound cannot stutter it sentence after sentence.
+    private var loudnessMisled = false
+    /// Whether the pause under way was for loudness alone rather than for words.
+    private var pausedForLoudness = false
     /// How often the latest words are looked at, quick so a cut in stops the voice at once.
     private static let pollSeconds: TimeInterval = 0.12
     private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
@@ -68,6 +73,8 @@ final class BargeEars {
         spokeInQuiet = false
         voiceOnSince = nil
         loudLooks = 0
+        loudnessMisled = false
+        pausedForLoudness = false
         let mine = generation
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
@@ -134,6 +141,7 @@ final class BargeEars {
                         ) {
                             self.pausedAt = nil
                             self.resumedOn = words
+                            if self.pausedForLoudness { self.loudnessMisled = true }
                             diary.note("carried on, nobody was talking: \(words)")
                             resume()
                         }
@@ -144,7 +152,7 @@ final class BargeEars {
                         let loudNow = TalkOver.isTalkingOver(room.recentLevels, echo: echo)
                             || gap.map { TalkOver.isOverOwnVoice(looks, gap: $0, talking: talkingLevel) } == true
                         self.loudLooks = loudNow ? self.loudLooks + 1 : 0
-                        let louder = TalkOver.mayPauseOnLoudness(
+                        let louder = !self.loudnessMisled && TalkOver.mayPauseOnLoudness(
                             voiceOnFor: Date().timeIntervalSince(self.voiceOnSince ?? Date()),
                             loudLooks: self.loudLooks,
                             cancellingEcho: audio.cancelsEcho
@@ -154,6 +162,7 @@ final class BargeEars {
                             // same at first, and only what comes once it is quiet tells the two apart.
                             self.pausedAt = Date()
                             self.pausedOn = words
+                            self.pausedForLoudness = louder
                             diary.note(louder ? "paused for a voice over mine" : "paused for: \(words)")
                             pause()
                         }

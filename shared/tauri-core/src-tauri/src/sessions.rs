@@ -76,19 +76,20 @@ pub fn make_side(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     }
     let screen = screen_of(app);
     let height = SIDE_TALLEST.min(screen.height - SIDE_MARGIN);
-    let window = WebviewWindowBuilder::new(app, SIDE, WebviewUrl::App("sessions.html?view=side".into()))
-        .title("Memnox")
-        .inner_size(SIDE_WIDTH, height)
-        .position(screen.x, screen.y + (screen.height - height) / 2.0)
-        .resizable(false)
-        .decorations(false)
-        .transparent(true)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .shadow(false)
-        .focused(false)
-        .visible(false)
-        .build()?;
+    let window =
+        WebviewWindowBuilder::new(app, SIDE, WebviewUrl::App("sessions.html?view=side".into()))
+            .title("Memnox")
+            .inner_size(SIDE_WIDTH, height)
+            .position(screen.x, screen.y + (screen.height - height) / 2.0)
+            .resizable(false)
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .shadow(false)
+            .focused(false)
+            .visible(false)
+            .build()?;
     floating(&window, Edge::Left);
     window.show()?;
     crate::island::follow(window.clone(), app.state::<Arc<HitAreas>>().inner().clone());
@@ -210,7 +211,14 @@ pub fn open_folder(path: String) -> Result<(), String> {
     if !std::path::Path::new(&path).is_dir() {
         return Err(format!("{path} is not a folder"));
     }
-    opener(if cfg!(windows) { "explorer" } else { "xdg-open" }, &path)
+    opener(
+        if cfg!(windows) {
+            "explorer"
+        } else {
+            "xdg-open"
+        },
+        &path,
+    )
 }
 
 /// Opens a web page in the person's own browser; only http and https are opened, so a link never starts an app.
@@ -321,6 +329,9 @@ mod tests {
     #[test]
     fn a_query_value_is_written_safely() {
         assert_eq!(encoded("ses_1-a.b~c"), "ses_1-a.b~c");
-        assert_eq!(encoded("Your sessions & more"), "Your%20sessions%20%26%20more");
+        assert_eq!(
+            encoded("Your sessions & more"),
+            "Your%20sessions%20%26%20more"
+        );
     }
 }

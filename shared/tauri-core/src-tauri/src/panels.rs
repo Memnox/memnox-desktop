@@ -99,8 +99,8 @@ pub fn cards_fit(app: AppHandle, height: f64) -> Result<(), String> {
 /// The scan over the whole of the screen the pointer is on, taking the keyboard so Escape closes it.
 #[tauri::command]
 pub fn scan_show(app: AppHandle) -> Result<(), String> {
-    let window = made(&app, SCAN, "scan.html", (1280.0, 800.0), true)
-        .map_err(|error| error.to_string())?;
+    let window =
+        made(&app, SCAN, "scan.html", (1280.0, 800.0), true).map_err(|error| error.to_string())?;
     if let Some(monitor) = screen(&app) {
         let at = monitor.position();
         let size = monitor.size();

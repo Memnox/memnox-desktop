@@ -73,16 +73,25 @@ pub struct Keypair {
 
 pub fn generate_keypair() -> Result<Keypair, Error> {
     let pair = Builder::new(Pattern::IK.params()).generate_keypair()?;
-    Ok(Keypair { public: pair.public, private: pair.private })
+    Ok(Keypair {
+        public: pair.public,
+        private: pair.private,
+    })
 }
 
 fn key<'a>(bytes: &'a [u8], why: &'static str) -> Result<&'a [u8], Error> {
-    if bytes.len() == KEY_LEN { Ok(bytes) } else { Err(Error::InvalidArgument(why)) }
+    if bytes.len() == KEY_LEN {
+        Ok(bytes)
+    } else {
+        Err(Error::InvalidArgument(why))
+    }
 }
 
 fn psk(bytes: Option<&[u8]>) -> Result<[u8; PSK_LEN], Error> {
     let bytes = bytes.ok_or(Error::InvalidArgument("XXpsk0 needs the 32 byte psk"))?;
-    bytes.try_into().map_err(|_| Error::InvalidArgument("psk must be 32 bytes"))
+    bytes
+        .try_into()
+        .map_err(|_| Error::InvalidArgument("psk must be 32 bytes"))
 }
 
 pub struct Handshake {
@@ -98,20 +107,25 @@ impl Handshake {
         psk_bytes: Option<&[u8]>,
     ) -> Result<Self, Error> {
         let local = key(local_private, "local private key must be 32 bytes")?;
-        let builder = Builder::new(pattern.params()).prologue(PROLOGUE)?.local_private_key(local)?;
+        let builder = Builder::new(pattern.params())
+            .prologue(PROLOGUE)?
+            .local_private_key(local)?;
         let state = match pattern {
             Pattern::IK => {
                 if psk_bytes.is_some() {
                     return Err(Error::InvalidArgument("IK takes no psk"));
                 }
-                let remote = remote_public
-                    .ok_or(Error::InvalidArgument("IK initiator needs the remote public key"))?;
+                let remote = remote_public.ok_or(Error::InvalidArgument(
+                    "IK initiator needs the remote public key",
+                ))?;
                 let remote = key(remote, "remote public key must be 32 bytes")?;
                 builder.remote_public_key(remote)?.build_initiator()?
             }
             Pattern::XXpsk0 => {
                 if remote_public.is_some() {
-                    return Err(Error::InvalidArgument("XXpsk0 learns the remote key in the handshake"));
+                    return Err(Error::InvalidArgument(
+                        "XXpsk0 learns the remote key in the handshake",
+                    ));
                 }
                 let secret = psk(psk_bytes)?;
                 builder.psk(0, &secret)?.build_initiator()?
@@ -120,9 +134,15 @@ impl Handshake {
         Ok(Handshake { state: Some(state) })
     }
 
-    pub fn responder(pattern: Pattern, local_private: &[u8], psk_bytes: Option<&[u8]>) -> Result<Self, Error> {
+    pub fn responder(
+        pattern: Pattern,
+        local_private: &[u8],
+        psk_bytes: Option<&[u8]>,
+    ) -> Result<Self, Error> {
         let local = key(local_private, "local private key must be 32 bytes")?;
-        let builder = Builder::new(pattern.params()).prologue(PROLOGUE)?.local_private_key(local)?;
+        let builder = Builder::new(pattern.params())
+            .prologue(PROLOGUE)?
+            .local_private_key(local)?;
         let state = match pattern {
             Pattern::IK => {
                 if psk_bytes.is_some() {
@@ -181,7 +201,9 @@ impl Handshake {
             self.state = Some(state);
             return Err(Error::InvalidArgument("the handshake has not finished"));
         }
-        Ok(Transport { state: state.into_transport_mode()? })
+        Ok(Transport {
+            state: state.into_transport_mode()?,
+        })
     }
 }
 
@@ -218,7 +240,9 @@ pub fn pairing_code(handshake_hash: &[u8]) -> Result<String, Error> {
     let head: [u8; 4] = handshake_hash
         .get(..4)
         .and_then(|b| b.try_into().ok())
-        .ok_or(Error::InvalidArgument("handshake hash must be at least 4 bytes"))?;
+        .ok_or(Error::InvalidArgument(
+            "handshake hash must be at least 4 bytes",
+        ))?;
     Ok(format!("{:06}", u32::from_be_bytes(head) % 1_000_000))
 }
 
@@ -246,7 +270,8 @@ mod tests {
 
     fn ik_pair() -> (Transport, Transport) {
         let (phone, runtime) = (pair(), pair());
-        let mut i = Handshake::initiator(Pattern::IK, &phone.private, Some(&runtime.public), None).unwrap();
+        let mut i =
+            Handshake::initiator(Pattern::IK, &phone.private, Some(&runtime.public), None).unwrap();
         let mut r = Handshake::responder(Pattern::IK, &runtime.private, None).unwrap();
         run(&mut i, &mut r);
         (i.into_transport().unwrap(), r.into_transport().unwrap())
@@ -255,7 +280,8 @@ mod tests {
     #[test]
     fn ik_round_trip_reveals_the_phone_key_and_agrees_on_the_hash() {
         let (phone, runtime) = (pair(), pair());
-        let mut i = Handshake::initiator(Pattern::IK, &phone.private, Some(&runtime.public), None).unwrap();
+        let mut i =
+            Handshake::initiator(Pattern::IK, &phone.private, Some(&runtime.public), None).unwrap();
         let mut r = Handshake::responder(Pattern::IK, &runtime.private, None).unwrap();
         let m1 = i.write_message(b"hello").unwrap();
         assert_eq!(r.read_message(&m1).unwrap(), b"hello");
@@ -274,7 +300,8 @@ mod tests {
     fn xxpsk0_round_trip_exchanges_both_static_keys() {
         let (phone, runtime) = (pair(), pair());
         let secret = [7u8; 32];
-        let mut i = Handshake::initiator(Pattern::XXpsk0, &phone.private, None, Some(&secret)).unwrap();
+        let mut i =
+            Handshake::initiator(Pattern::XXpsk0, &phone.private, None, Some(&secret)).unwrap();
         let mut r = Handshake::responder(Pattern::XXpsk0, &runtime.private, Some(&secret)).unwrap();
         let m1 = i.write_message(b"").unwrap();
         r.read_message(&m1).unwrap();
@@ -287,14 +314,19 @@ mod tests {
         assert_eq!(r.remote_static().unwrap().unwrap(), phone.public);
         assert_eq!(i.handshake_hash().unwrap(), r.handshake_hash().unwrap());
         let (mut it, mut rt) = (i.into_transport().unwrap(), r.into_transport().unwrap());
-        assert_eq!(rt.decrypt(&it.encrypt(b"proof").unwrap()).unwrap(), b"proof");
+        assert_eq!(
+            rt.decrypt(&it.encrypt(b"proof").unwrap()).unwrap(),
+            b"proof"
+        );
     }
 
     #[test]
     fn xxpsk0_with_a_wrong_psk_fails_on_the_first_message() {
         let (phone, runtime) = (pair(), pair());
-        let mut i = Handshake::initiator(Pattern::XXpsk0, &phone.private, None, Some(&[1u8; 32])).unwrap();
-        let mut r = Handshake::responder(Pattern::XXpsk0, &runtime.private, Some(&[2u8; 32])).unwrap();
+        let mut i =
+            Handshake::initiator(Pattern::XXpsk0, &phone.private, None, Some(&[1u8; 32])).unwrap();
+        let mut r =
+            Handshake::responder(Pattern::XXpsk0, &runtime.private, Some(&[2u8; 32])).unwrap();
         let m1 = i.write_message(b"").unwrap();
         assert!(matches!(r.read_message(&m1), Err(Error::Noise(_))));
     }
@@ -302,7 +334,8 @@ mod tests {
     #[test]
     fn ik_against_the_wrong_runtime_key_fails() {
         let (phone, runtime, impostor) = (pair(), pair(), pair());
-        let mut i = Handshake::initiator(Pattern::IK, &phone.private, Some(&impostor.public), None).unwrap();
+        let mut i = Handshake::initiator(Pattern::IK, &phone.private, Some(&impostor.public), None)
+            .unwrap();
         let mut r = Handshake::responder(Pattern::IK, &runtime.private, None).unwrap();
         let m1 = i.write_message(b"").unwrap();
         assert!(matches!(r.read_message(&m1), Err(Error::Noise(_))));
@@ -335,7 +368,8 @@ mod tests {
     fn both_sides_show_the_same_pairing_code() {
         let (phone, runtime) = (pair(), pair());
         let secret = [9u8; 32];
-        let mut i = Handshake::initiator(Pattern::XXpsk0, &phone.private, None, Some(&secret)).unwrap();
+        let mut i =
+            Handshake::initiator(Pattern::XXpsk0, &phone.private, None, Some(&secret)).unwrap();
         let mut r = Handshake::responder(Pattern::XXpsk0, &runtime.private, Some(&secret)).unwrap();
         run(&mut i, &mut r);
         let code = pairing_code(&i.handshake_hash().unwrap()).unwrap();
@@ -363,7 +397,8 @@ mod tests {
     #[test]
     fn an_unfinished_handshake_stays_usable_after_an_early_into_transport() {
         let (phone, runtime) = (pair(), pair());
-        let mut i = Handshake::initiator(Pattern::IK, &phone.private, Some(&runtime.public), None).unwrap();
+        let mut i =
+            Handshake::initiator(Pattern::IK, &phone.private, Some(&runtime.public), None).unwrap();
         assert!(i.into_transport().is_err());
         assert!(i.write_message(b"").is_ok());
     }

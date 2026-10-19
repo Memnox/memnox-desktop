@@ -79,7 +79,8 @@ pub fn panes(terminal: Terminal) -> Result<Vec<Pane>, String> {
             let mut list = command("wezterm");
             list.args(["cli", "list", "--format", "json"]);
             let out = run(list, CLI_WAIT).map_err(|failure| failure.said("WezTerm"))?;
-            wezterm_panes(&out).ok_or_else(|| "WezTerm listed its tabs in a way Memnox could not read".into())
+            wezterm_panes(&out)
+                .ok_or_else(|| "WezTerm listed its tabs in a way Memnox could not read".into())
         }
         Terminal::Kitty => {
             let sockets = kitty_sockets()?;
@@ -110,14 +111,25 @@ pub fn focus(terminal: Terminal, id: &str) -> Result<(), String> {
             let pane = digits(id).ok_or("that is not a WezTerm pane")?;
             let mut activate = command("wezterm");
             activate.args(["cli", "activate-pane", "--pane-id", pane]);
-            run(activate, CLI_WAIT).map(|_| ()).map_err(|failure| failure.said("WezTerm"))
+            run(activate, CLI_WAIT)
+                .map(|_| ())
+                .map_err(|failure| failure.said("WezTerm"))
         }
         Terminal::Kitty => {
             let (window, socket) = id.split_once(' ').ok_or("that is not a kitty window")?;
             let window = digits(window).ok_or("that is not a kitty window")?;
             let mut activate = command("kitty");
-            activate.args(["@", "--to", socket, "focus-window", "--match", &format!("id:{window}")]);
-            run(activate, CLI_WAIT).map(|_| ()).map_err(|failure| failure.said("kitty"))
+            activate.args([
+                "@",
+                "--to",
+                socket,
+                "focus-window",
+                "--match",
+                &format!("id:{window}"),
+            ]);
+            run(activate, CLI_WAIT)
+                .map(|_| ())
+                .map_err(|failure| failure.said("kitty"))
         }
         Terminal::Wt => Err(WT_CANNOT_LIST.into()),
     }
@@ -225,7 +237,12 @@ fn kitty_conf(text: &str) -> KittyConf {
             continue;
         };
         match key {
-            "allow_remote_control" => conf.allowed = matches!(value, "yes" | "y" | "true" | "socket" | "socket-only" | "password"),
+            "allow_remote_control" => {
+                conf.allowed = matches!(
+                    value,
+                    "yes" | "y" | "true" | "socket" | "socket-only" | "password"
+                )
+            }
             "listen_on" => conf.listen_on = Some(value.to_string()),
             _ => {}
         }
@@ -235,7 +252,9 @@ fn kitty_conf(text: &str) -> KittyConf {
 
 /// kitty.conf where kitty looks for it first.
 fn kitty_conf_path() -> Option<PathBuf> {
-    if let Some(folder) = std::env::var_os("KITTY_CONFIG_DIRECTORY").filter(|folder| !folder.is_empty()) {
+    if let Some(folder) =
+        std::env::var_os("KITTY_CONFIG_DIRECTORY").filter(|folder| !folder.is_empty())
+    {
         return Some(PathBuf::from(folder).join("kitty.conf"));
     }
     let config = std::env::var_os("XDG_CONFIG_HOME")
@@ -282,7 +301,10 @@ fn expanded(value: &str, variable: impl Fn(&str) -> Option<String>) -> String {
 /// The addresses a running kitty answers on. kitty adds `-PID` to a socket's name, or puts it where the
 /// name says `{kitty_pid}`, so one listen_on becomes one socket per running kitty.
 fn kitty_sockets() -> Result<Vec<String>, String> {
-    if let Some(address) = std::env::var("KITTY_LISTEN_ON").ok().filter(|address| !address.is_empty()) {
+    if let Some(address) = std::env::var("KITTY_LISTEN_ON")
+        .ok()
+        .filter(|address| !address.is_empty())
+    {
         return Ok(vec![address]);
     }
     let conf = kitty_conf_path()
@@ -315,11 +337,18 @@ fn names_kitty(file: &str, configured: &str) -> bool {
             .and_then(|rest| rest.strip_suffix(after))
             .is_some_and(|pid| digits(pid).is_some());
     }
-    file == configured || file.strip_prefix(configured).and_then(|rest| rest.strip_prefix('-')).is_some_and(|pid| digits(pid).is_some())
+    file == configured
+        || file
+            .strip_prefix(configured)
+            .and_then(|rest| rest.strip_prefix('-'))
+            .is_some_and(|pid| digits(pid).is_some())
 }
 
 fn path_sockets(path: &Path) -> Vec<String> {
-    let (Some(folder), Some(name)) = (path.parent(), path.file_name().and_then(|name| name.to_str())) else {
+    let (Some(folder), Some(name)) = (
+        path.parent(),
+        path.file_name().and_then(|name| name.to_str()),
+    ) else {
         return Vec::new();
     };
     let mut found: Vec<String> = std::fs::read_dir(folder)
@@ -377,14 +406,24 @@ fn powershell() -> &'static str {
 fn shell_for(line: &str, windows: bool) -> Vec<String> {
     let line = one_line(line);
     if windows {
-        vec![powershell().into(), "-NoExit".into(), "-EncodedCommand".into(), encoded_command(&line)]
+        vec![
+            powershell().into(),
+            "-NoExit".into(),
+            "-EncodedCommand".into(),
+            encoded_command(&line),
+        ]
     } else {
         vec![posix_shell(), "-l".into(), "-c".into(), stay_open(&line)]
     }
 }
 
 /// The command that opens a new tab in one terminal, in the folder, running the shell given.
-fn launch_command(terminal: Terminal, folder: &str, shell: &[String], background: bool) -> Result<(String, Vec<String>), String> {
+fn launch_command(
+    terminal: Terminal,
+    folder: &str,
+    shell: &[String],
+    background: bool,
+) -> Result<(String, Vec<String>), String> {
     let mut args: Vec<String> = Vec::new();
     let program = match terminal {
         Terminal::WezTerm => {
@@ -393,7 +432,14 @@ fn launch_command(terminal: Terminal, folder: &str, shell: &[String], background
         }
         Terminal::Kitty => {
             let socket = kitty_sockets()?.into_iter().next().ok_or(KITTY_OFF)?;
-            args.extend(["@".to_string(), "--to".into(), socket, "launch".into(), "--type=tab".into(), format!("--cwd={folder}")]);
+            args.extend([
+                "@".to_string(),
+                "--to".into(),
+                socket,
+                "launch".into(),
+                "--type=tab".into(),
+                format!("--cwd={folder}"),
+            ]);
             // kitty opens the tab behind the one in front, so the person's own tab keeps the keyboard.
             if background {
                 args.push("--keep-focus".into());
@@ -484,14 +530,20 @@ mod tests {
             "foreground_processes":[{"pid":9,"cwd":"/home/a/shop","cmdline":["/home/a/.local/bin/claude","--resume"]}]}]}]}]"#;
         let panes = kitty_panes(json, "unix:/tmp/kitty-12").unwrap();
         assert_eq!(panes[0].id, "3 unix:/tmp/kitty-12");
-        assert_eq!(panes[0].programs, vec!["/home/a/.local/bin/claude".to_string()]);
+        assert_eq!(
+            panes[0].programs,
+            vec!["/home/a/.local/bin/claude".to_string()]
+        );
     }
 
     #[test]
     fn needs_remote_control_on_to_reach_kitty() {
         assert_eq!(
             kitty_conf("# a comment\nallow_remote_control yes\nlisten_on unix:/tmp/kitty\n"),
-            KittyConf { allowed: true, listen_on: Some("unix:/tmp/kitty".into()) }
+            KittyConf {
+                allowed: true,
+                listen_on: Some("unix:/tmp/kitty".into())
+            }
         );
         assert!(!kitty_conf("allow_remote_control yes\nallow_remote_control no\n").allowed);
         assert!(names_kitty("kitty-1234", "kitty"));
@@ -499,25 +551,45 @@ mod tests {
         assert!(!names_kitty("kitty-x", "kitty"));
         assert!(names_kitty("mykitty-55.sock", "mykitty-{kitty_pid}.sock"));
         let table = "Num RefCount Protocol Flags Type St Inode Path\n0: 2 0 10000 1 1 99 @mykitty-41\n0: 2 0 10000 1 1 98 /run/other\n";
-        assert_eq!(abstract_sockets(table, "mykitty"), vec!["unix:@mykitty-41".to_string()]);
-        let home = |name: &str| (name == "HOME" || name == "XDG_RUNTIME_DIR").then(|| "/home/a".to_string());
-        assert_eq!(expanded("unix:${XDG_RUNTIME_DIR}/kitty", home), "unix:/home/a/kitty");
+        assert_eq!(
+            abstract_sockets(table, "mykitty"),
+            vec!["unix:@mykitty-41".to_string()]
+        );
+        let home = |name: &str| {
+            (name == "HOME" || name == "XDG_RUNTIME_DIR").then(|| "/home/a".to_string())
+        };
+        assert_eq!(
+            expanded("unix:${XDG_RUNTIME_DIR}/kitty", home),
+            "unix:/home/a/kitty"
+        );
     }
 
     #[test]
     fn passes_the_runtimes_line_whole_to_the_new_tab() {
         let windows = shell_for("cd 'C:\\a' && memnox run claude 'fix; it'", true);
-        assert_eq!(windows[1..3], ["-NoExit".to_string(), "-EncodedCommand".to_string()]);
+        assert_eq!(
+            windows[1..3],
+            ["-NoExit".to_string(), "-EncodedCommand".to_string()]
+        );
         assert!(!windows[3].contains(';'));
         let posix = shell_for("cd '/a' &&\nmemnox run claude", false);
         assert_eq!(posix[1..3], ["-l".to_string(), "-c".to_string()]);
-        assert_eq!(posix[3], "cd '/a' && memnox run claude; exec \"${SHELL:-sh}\"");
+        assert_eq!(
+            posix[3],
+            "cd '/a' && memnox run claude; exec \"${SHELL:-sh}\""
+        );
         let (program, args) = launch_command(Terminal::WezTerm, "/a", &posix, true).unwrap();
         assert_eq!(program, "wezterm");
-        assert_eq!(args[..5], ["cli", "spawn", "--cwd", "/a", "--"].map(String::from));
+        assert_eq!(
+            args[..5],
+            ["cli", "spawn", "--cwd", "/a", "--"].map(String::from)
+        );
         let (program, args) = launch_command(Terminal::Wt, "C:\\a", &windows, false).unwrap();
         assert_eq!(program, "wt");
-        assert_eq!(args[..5], ["-w", "0", "new-tab", "-d", "C:\\a"].map(String::from));
+        assert_eq!(
+            args[..5],
+            ["-w", "0", "new-tab", "-d", "C:\\a"].map(String::from)
+        );
         assert!(launch_command(Terminal::Wt, "C:\\a;b", &windows, false).is_err());
     }
 

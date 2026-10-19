@@ -46,18 +46,31 @@ fn token_file() -> Option<PathBuf> {
 }
 
 async fn started() -> Result<Typing, String> {
-    let portal = RemoteDesktop::new().await.map_err(|error| error.to_string())?;
-    let session = portal.create_session(Default::default()).await.map_err(|error| error.to_string())?;
+    let portal = RemoteDesktop::new()
+        .await
+        .map_err(|error| error.to_string())?;
+    let session = portal
+        .create_session(Default::default())
+        .await
+        .map_err(|error| error.to_string())?;
     let kept = token_file().and_then(|file| std::fs::read_to_string(file).ok());
     let options = SelectDevicesOptions::default()
         .set_devices(ashpd::enumflags2::BitFlags::from(DeviceType::Keyboard))
         .set_persist_mode(PersistMode::ExplicitlyRevoked)
         .set_restore_token(kept.as_deref().map(str::trim));
-    portal.select_devices(&session, options).await.map_err(|error| error.to_string())?;
-    let started = tokio::time::timeout(CONSENT_WAIT, async { portal.start(&session, None, Default::default()).await?.response() })
+    portal
+        .select_devices(&session, options)
         .await
-        .map_err(|_| "the typing permission was not answered".to_string())?
-        .map_err(|_| "typing into other apps was not allowed".to_string())?;
+        .map_err(|error| error.to_string())?;
+    let started = tokio::time::timeout(CONSENT_WAIT, async {
+        portal
+            .start(&session, None, Default::default())
+            .await?
+            .response()
+    })
+    .await
+    .map_err(|_| "the typing permission was not answered".to_string())?
+    .map_err(|_| "typing into other apps was not allowed".to_string())?;
     if let (Some(token), Some(file)) = (started.restore_token(), token_file()) {
         if let Some(dir) = file.parent() {
             let _ = std::fs::create_dir_all(dir);
@@ -77,7 +90,11 @@ async fn send(keysyms: &[i32]) -> Result<(), String> {
     };
     for keysym in keysyms {
         for state in [KeyState::Pressed, KeyState::Released] {
-            if let Err(error) = typing.portal.notify_keyboard_keysym(&typing.session, *keysym, state, Default::default()).await {
+            if let Err(error) = typing
+                .portal
+                .notify_keyboard_keysym(&typing.session, *keysym, state, Default::default())
+                .await
+            {
                 // A session the person revoked is started again, and asks again, on the next try.
                 *held = None;
                 return Err(format!("the key could not be sent: {error}"));
@@ -88,7 +105,11 @@ async fn send(keysyms: &[i32]) -> Result<(), String> {
 }
 
 pub fn type_text(text: &str) -> Result<(), String> {
-    let keysyms: Vec<i32> = text.chars().filter(|character| *character != '\r').map(keysym).collect();
+    let keysyms: Vec<i32> = text
+        .chars()
+        .filter(|character| *character != '\r')
+        .map(keysym)
+        .collect();
     tauri::async_runtime::block_on(send(&keysyms))
 }
 

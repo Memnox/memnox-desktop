@@ -11,8 +11,8 @@
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{
-    App, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl,
-    WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry,
+    App, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, WindowEvent, Wry,
 };
 use tauri_plugin_autostart::ManagerExt;
 
@@ -193,7 +193,9 @@ fn status_item(app: &AppHandle) -> bool {
             true
         }
         Err(why) => {
-            eprintln!("Memnox: no StatusNotifierItem host, so the tray falls back to appindicator: {why}");
+            eprintln!(
+                "Memnox: no StatusNotifierItem host, so the tray falls back to appindicator: {why}"
+            );
             false
         }
     }
@@ -240,13 +242,13 @@ fn toggle_panel(app: &AppHandle, icon: Option<Area>) {
 fn show_panel(app: &AppHandle, icon: Option<Area>) {
     let Some(window) = panel(app) else { return };
     let icon = icon.or_else(|| {
-            app.cursor_position().ok().map(|at| Area {
-                x: at.x,
-                y: at.y,
-                width: 1.0,
-                height: 1.0,
-            })
-        });
+        app.cursor_position().ok().map(|at| Area {
+            x: at.x,
+            y: at.y,
+            width: 1.0,
+            height: 1.0,
+        })
+    });
     if let Some(icon) = icon {
         let monitor = app
             .monitor_from_point(icon.x, icon.y)
@@ -298,7 +300,11 @@ fn place(icon: Area, screen: Area, size: (f64, f64), scale: f64) -> (i32, i32) {
         icon.y - gap - size.1
     };
     let clamp = |value: f64, low: f64, high: f64| value.min(high.max(low)).max(low);
-    let x = clamp(x, screen.x + inset, screen.x + screen.width - inset - size.0);
+    let x = clamp(
+        x,
+        screen.x + inset,
+        screen.x + screen.width - inset - size.0,
+    );
     let y = clamp(
         y,
         screen.y + inset,

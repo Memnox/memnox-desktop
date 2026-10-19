@@ -84,7 +84,10 @@ pub fn onboarding_veil(window: WebviewWindow, on: bool) -> Result<(), String> {
             window.set_fullscreen(false)?;
             window.set_always_on_top(false)?;
             window.set_decorations(true)?;
-            window.set_size(tauri::LogicalSize::new(ONBOARDING_SIZE.0, ONBOARDING_SIZE.1))?;
+            window.set_size(tauri::LogicalSize::new(
+                ONBOARDING_SIZE.0,
+                ONBOARDING_SIZE.1,
+            ))?;
             window.center()?;
         }
         window.set_focus()

@@ -16,7 +16,10 @@ pub struct RekeyCounter {
 
 impl RekeyCounter {
     pub fn new(interval: u64) -> Self {
-        Self { interval: interval.max(1), count: 0 }
+        Self {
+            interval: interval.max(1),
+            count: 0,
+        }
     }
 
     /// Counts one message, true when that one completes an interval and the key should turn now.
@@ -37,7 +40,15 @@ mod tests {
     #[test]
     fn turns_the_key_on_every_interval_and_starts_counting_again() {
         let mut counter = RekeyCounter::new(3);
-        assert_eq!([counter.counted(), counter.counted(), counter.counted(), counter.counted()], [false, false, true, false]);
+        assert_eq!(
+            [
+                counter.counted(),
+                counter.counted(),
+                counter.counted(),
+                counter.counted()
+            ],
+            [false, false, true, false]
+        );
     }
 
     #[test]

@@ -46,7 +46,12 @@ impl HitArea {
         let top = self.y.floor();
         let right = (self.x + self.width).ceil();
         let bottom = (self.y + self.height).ceil();
-        (left as i32, top as i32, (right - left) as i32, (bottom - top) as i32)
+        (
+            left as i32,
+            top as i32,
+            (right - left) as i32,
+            (bottom - top) as i32,
+        )
     }
 }
 

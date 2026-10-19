@@ -41,7 +41,11 @@ pub fn watch() {
         let Ok(connection) = AccessibilityConnection::new().await else {
             return;
         };
-        if connection.register_event::<StateChangedEvent>().await.is_err() {
+        if connection
+            .register_event::<StateChangedEvent>()
+            .await
+            .is_err()
+        {
             return;
         }
         let _ = BUS.set(connection.connection().clone());
@@ -62,7 +66,12 @@ pub fn watch() {
 pub fn read() -> Option<Field> {
     let item = FOCUSED.lock().ok()?.clone()?;
     let bus = BUS.get()?.clone();
-    tauri::async_runtime::block_on(async move { tokio::time::timeout(PATIENCE, field(&bus, &item)).await.ok().flatten() })
+    tauri::async_runtime::block_on(async move {
+        tokio::time::timeout(PATIENCE, field(&bus, &item))
+            .await
+            .ok()
+            .flatten()
+    })
 }
 
 async fn field(bus: &zbus::Connection, item: &ObjectRefOwned) -> Option<Field> {
@@ -73,21 +82,35 @@ async fn field(bus: &zbus::Connection, item: &ObjectRefOwned) -> Option<Field> {
     }
     let app = application(bus, &accessible).await;
     if accessible.get_role().await.ok()? == Role::PasswordText {
-        return Some(Field { app, secure: true, ..Field::default() });
+        return Some(Field {
+            app,
+            secure: true,
+            ..Field::default()
+        });
     }
-    let mut field = Field { app, ..Field::default() };
+    let mut field = Field {
+        app,
+        ..Field::default()
+    };
     let Some(text) = text_of(bus, item).await else {
         return Some(field);
     };
     let count = text.character_count().await.unwrap_or(0);
     let caret = text.caret_offset().await.ok().filter(|caret| *caret >= 0);
     let selected = if text.get_n_selections().await.unwrap_or(0) > 0 {
-        text.get_selection(0).await.ok().filter(|(start, end)| end > start)
+        text.get_selection(0)
+            .await
+            .ok()
+            .filter(|(start, end)| end > start)
     } else {
         None
     };
     if let Some((start, end)) = selected {
-        field.selection = text.get_text(start, end).await.ok().filter(|chosen| !chosen.trim().is_empty());
+        field.selection = text
+            .get_text(start, end)
+            .await
+            .ok()
+            .filter(|chosen| !chosen.trim().is_empty());
     }
     if count <= LONGEST_VALUE {
         if let Ok(value) = text.get_text(0, count).await {

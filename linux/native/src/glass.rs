@@ -29,7 +29,11 @@ pub struct Rounded {
 /// Whether this desktop blurs behind a window that asks, which only KDE Plasma does.
 pub fn blur_offered() -> bool {
     std::env::var("XDG_CURRENT_DESKTOP")
-        .map(|desktop| desktop.split(':').any(|name| name.eq_ignore_ascii_case("KDE")))
+        .map(|desktop| {
+            desktop
+                .split(':')
+                .any(|name| name.eq_ignore_ascii_case("KDE"))
+        })
         .unwrap_or(false)
 }
 
@@ -181,7 +185,8 @@ fn wayland_blur(window: &gdk::Window, display: &gdk::Display, shape: Rounded) ->
             *held = kwin(display);
         }
         let kwin = held.as_mut()?;
-        let id = unsafe { ObjectId::from_ptr(wl_surface::WlSurface::interface(), raw.cast()) }.ok()?;
+        let id =
+            unsafe { ObjectId::from_ptr(wl_surface::WlSurface::interface(), raw.cast()) }.ok()?;
         let surface = wl_surface::WlSurface::from_id(&kwin.connection, id).ok()?;
         let handle = kwin.queue.handle();
         let region = kwin.compositor.create_region(&handle, ());

@@ -17,8 +17,12 @@ mod system {
 
     use tauri::{PhysicalPosition, WebviewWindow};
     use windows::Win32::Foundation::{HWND, POINT};
-    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON};
-    use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetForegroundWindow, IsWindow, SetForegroundWindow};
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetCursorPos, GetForegroundWindow, IsWindow, SetForegroundWindow,
+    };
 
     use super::Reading;
 
@@ -92,7 +96,8 @@ mod system {
         if backend.starts_with("x11") {
             return false;
         }
-        std::env::var_os("WAYLAND_DISPLAY").is_some() || std::env::var("XDG_SESSION_TYPE").is_ok_and(|kind| kind == "wayland")
+        std::env::var_os("WAYLAND_DISPLAY").is_some()
+            || std::env::var("XDG_SESSION_TYPE").is_ok_and(|kind| kind == "wayland")
     }
 
     /// A connection of its own to the X server, used only by the thread that follows the pointer.
@@ -159,7 +164,20 @@ mod system {
         let (mut kind, mut format, mut count, mut after) = (0, 0 as c_int, 0, 0);
         let mut data: *mut c_uchar = std::ptr::null_mut();
         let read = unsafe {
-            (xlib.XGetWindowProperty)(display, root, property, 0, 1, xlib::False, xlib::XA_WINDOW, &mut kind, &mut format, &mut count, &mut after, &mut data)
+            (xlib.XGetWindowProperty)(
+                display,
+                root,
+                property,
+                0,
+                1,
+                xlib::False,
+                xlib::XA_WINDOW,
+                &mut kind,
+                &mut format,
+                &mut count,
+                &mut after,
+                &mut data,
+            )
         };
         if read != 0 || data.is_null() {
             return None;
@@ -207,7 +225,13 @@ mod system {
             message.data.set_long(0, FROM_PAGER);
             message.data.set_long(1, xlib::CurrentTime as c_long);
             unsafe {
-                (xlib.XSendEvent)(display, root, xlib::False, xlib::SubstructureRedirectMask | xlib::SubstructureNotifyMask, &mut event);
+                (xlib.XSendEvent)(
+                    display,
+                    root,
+                    xlib::False,
+                    xlib::SubstructureRedirectMask | xlib::SubstructureNotifyMask,
+                    &mut event,
+                );
                 (xlib.XFlush)(display);
             }
         });
@@ -235,7 +259,6 @@ mod system {
             }
         }
     }
-
 }
 
 pub use system::Reader;

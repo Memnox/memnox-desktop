@@ -58,7 +58,10 @@ const OLDEST_NODE: u32 = 20;
 const MOST_DOWNLOAD: u64 = 200 * 1024 * 1024;
 
 fn source() -> Source {
-    source_from(cfg!(debug_assertions), std::env::var(CHECKOUT_VARIABLE).ok())
+    source_from(
+        cfg!(debug_assertions),
+        std::env::var(CHECKOUT_VARIABLE).ok(),
+    )
 }
 
 fn source_from(debug: bool, checkout: Option<String>) -> Source {
@@ -92,7 +95,11 @@ fn private_bin(node: &Path) -> PathBuf {
 }
 
 fn private_memnox(node: &Path) -> PathBuf {
-    private_bin(node).join(if cfg!(windows) { "memnox.cmd" } else { "memnox" })
+    private_bin(node).join(if cfg!(windows) {
+        "memnox.cmd"
+    } else {
+        "memnox"
+    })
 }
 
 fn private_node_program(node: &Path) -> PathBuf {
@@ -129,15 +136,15 @@ fn memnox_command() -> Option<String> {
             let node = private_node();
             // The copy in ~/.memnox/node is this app's to keep up to date, so only a memnox from anywhere else is the person's own.
             if let Some(found) = found("memnox") {
-                let ours = node.as_ref().is_some_and(|node| Path::new(&found).starts_with(node));
+                let ours = node
+                    .as_ref()
+                    .is_some_and(|node| Path::new(&found).starts_with(node));
                 if !ours {
                     return Some("memnox".into());
                 }
             }
             let node = node?;
-            private_memnox(&node)
-                .exists()
-                .then(|| private_line(&node))
+            private_memnox(&node).exists().then(|| private_line(&node))
         }
     }
 }
@@ -317,8 +324,8 @@ fn install_private_node(node: &Path) -> Result<(), String> {
     let release = format!("{NODE_DIST}/{NODE_LINE}");
     let sums = String::from_utf8(fetch(&format!("{release}/SHASUMS256.txt"))?)
         .map_err(|error| error.to_string())?;
-    let (hash, name) =
-        pick_archive(&sums, &suffix).ok_or("the Node release lists no archive for this computer")?;
+    let (hash, name) = pick_archive(&sums, &suffix)
+        .ok_or("the Node release lists no archive for this computer")?;
     let archive = fetch(&format!("{release}/{name}"))?;
     if hex(&Sha256::digest(&archive)) != hash {
         return Err("the Node download did not match its checksum".into());

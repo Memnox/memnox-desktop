@@ -21,13 +21,21 @@ fn wayland() -> bool {
 }
 
 /// Runs each program in turn until one works; a missing one is skipped, and a failing one is remembered.
-fn first_that_works(runs: impl IntoIterator<Item = Run>, input: Option<&str>, missing: String) -> Result<(), String> {
+fn first_that_works(
+    runs: impl IntoIterator<Item = Run>,
+    input: Option<&str>,
+    missing: String,
+) -> Result<(), String> {
     let mut failed: Option<String> = None;
     for run in runs {
         let mut command = Command::new(run.program);
         command
             .args(&run.args)
-            .stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() })
+            .stdin(if input.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
             .stdout(Stdio::null())
             .stderr(Stdio::piped());
         let mut child = match command.spawn() {
@@ -55,11 +63,18 @@ fn first_that_works(runs: impl IntoIterator<Item = Run>, input: Option<&str>, mi
 
 /// GNOME's Mutter offers no virtual keyboard, so wtype cannot type there and the portal goes first.
 fn gnome() -> bool {
-    std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|desktop| desktop.split(':').any(|each| each.eq_ignore_ascii_case("gnome")))
+    std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|desktop| {
+        desktop
+            .split(':')
+            .any(|each| each.eq_ignore_ascii_case("gnome"))
+    })
 }
 
 /// The portal first on GNOME Wayland, the session's own tools first elsewhere, and the other one after.
-fn typed(tools_way: impl FnOnce() -> Result<(), String>, portal_way: impl FnOnce() -> Result<(), String>) -> Result<(), String> {
+fn typed(
+    tools_way: impl FnOnce() -> Result<(), String>,
+    portal_way: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
     if !wayland() {
         return tools_way();
     }
@@ -149,7 +164,11 @@ fn read_focus(xlib: &Xlib, display: *mut Display) -> Focus {
     let utf8 = atom(xlib, display, "UTF8_STRING");
     let title = property(xlib, display, window, "_NET_WM_NAME", utf8)
         .or_else(|| property(xlib, display, window, "WM_NAME", xlib::XA_STRING))
-        .map(|bytes| String::from_utf8_lossy(&bytes).trim_end_matches('\0').to_string())
+        .map(|bytes| {
+            String::from_utf8_lossy(&bytes)
+                .trim_end_matches('\0')
+                .to_string()
+        })
         .filter(|title| !title.is_empty());
     let app = property(xlib, display, window, "_NET_WM_PID", xlib::XA_CARDINAL)
         .and_then(|bytes| first_long(&bytes))
@@ -172,7 +191,13 @@ fn atom(xlib: &Xlib, display: *mut Display, name: &str) -> c_ulong {
 }
 
 /// A window property's raw bytes; a 32 bit format comes back as one C long per item, as Xlib hands it over.
-fn property(xlib: &Xlib, display: *mut Display, window: c_ulong, name: &str, kind: c_ulong) -> Option<Vec<u8>> {
+fn property(
+    xlib: &Xlib,
+    display: *mut Display,
+    window: c_ulong,
+    name: &str,
+    kind: c_ulong,
+) -> Option<Vec<u8>> {
     let property = atom(xlib, display, name);
     if property == 0 {
         return None;
@@ -185,7 +210,17 @@ fn property(xlib: &Xlib, display: *mut Display, window: c_ulong, name: &str, kin
     // SAFETY: every out pointer is valid, and the data is freed with XFree below.
     let status = unsafe {
         (xlib.XGetWindowProperty)(
-            display, window, property, 0, 1024, xlib::False, kind, &mut actual, &mut format, &mut items, &mut after,
+            display,
+            window,
+            property,
+            0,
+            1024,
+            xlib::False,
+            kind,
+            &mut actual,
+            &mut format,
+            &mut items,
+            &mut after,
             &mut data,
         )
     };

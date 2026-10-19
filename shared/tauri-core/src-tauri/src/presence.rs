@@ -48,13 +48,17 @@ fn tell(app: &AppHandle, locked: bool) {
 
 #[cfg(windows)]
 mod on_windows {
-    use windows::Win32::System::StationsAndDesktops::{CloseDesktop, OpenInputDesktop, SwitchDesktop, DESKTOP_CONTROL_FLAGS, DESKTOP_SWITCHDESKTOP};
+    use windows::Win32::System::StationsAndDesktops::{
+        CloseDesktop, OpenInputDesktop, SwitchDesktop, DESKTOP_CONTROL_FLAGS, DESKTOP_SWITCHDESKTOP,
+    };
 
     /// The lock screen runs on a desktop of its own that no app may switch to, so the switch failing is the lock.
     pub fn locked() -> bool {
         // SAFETY: the desktop handle is closed before returning.
         unsafe {
-            let Ok(desktop) = OpenInputDesktop(DESKTOP_CONTROL_FLAGS(0), false, DESKTOP_SWITCHDESKTOP) else {
+            let Ok(desktop) =
+                OpenInputDesktop(DESKTOP_CONTROL_FLAGS(0), false, DESKTOP_SWITCHDESKTOP)
+            else {
                 return true;
             };
             let switched = SwitchDesktop(desktop).is_ok();
@@ -73,12 +77,28 @@ mod on_linux {
 
     /// This session's object in logind: the one named by `XDG_SESSION_ID`, else the one this process runs in.
     async fn session(bus: &zbus::Connection) -> zbus::Result<zbus::Proxy<'static>> {
-        let manager = zbus::Proxy::new(bus, LOGIND, "/org/freedesktop/login1", "org.freedesktop.login1.Manager").await?;
+        let manager = zbus::Proxy::new(
+            bus,
+            LOGIND,
+            "/org/freedesktop/login1",
+            "org.freedesktop.login1.Manager",
+        )
+        .await?;
         let path: OwnedObjectPath = match std::env::var("XDG_SESSION_ID") {
             Ok(id) => manager.call("GetSession", &(id,)).await?,
-            Err(_) => manager.call("GetSessionByPID", &(std::process::id(),)).await?,
+            Err(_) => {
+                manager
+                    .call("GetSessionByPID", &(std::process::id(),))
+                    .await?
+            }
         };
-        zbus::Proxy::new_owned(bus.clone(), LOGIND.to_string(), path, "org.freedesktop.login1.Session".to_string()).await
+        zbus::Proxy::new_owned(
+            bus.clone(),
+            LOGIND.to_string(),
+            path,
+            "org.freedesktop.login1.Session".to_string(),
+        )
+        .await
     }
 
     pub async fn follow(tell: impl Fn(bool)) -> zbus::Result<()> {

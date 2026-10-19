@@ -2,19 +2,19 @@
 //! reports which modifiers are down and that another key went down as the `keys` event; the island's
 //! core decides what a hold means, so the timing is the Mac's and is tested in one place.
 
+#[cfg(target_os = "linux")]
+#[path = "keys/evdev.rs"]
+mod evdev_keys;
 mod event;
 #[cfg(target_os = "linux")]
 #[path = "keys/linux.rs"]
 mod on_linux;
-#[cfg(target_os = "linux")]
-#[path = "keys/portal.rs"]
-mod portal;
-#[cfg(target_os = "linux")]
-#[path = "keys/evdev.rs"]
-mod evdev_keys;
 #[cfg(windows)]
 #[path = "keys/windows.rs"]
 mod on_windows;
+#[cfg(target_os = "linux")]
+#[path = "keys/portal.rs"]
+mod portal;
 
 use std::sync::Mutex;
 

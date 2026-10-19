@@ -2,6 +2,9 @@
 //! its field is a password, typing and taking back characters, and the clipboard for when the app left.
 //! What to type is decided in the island's core; this only types it, each platform its own way.
 
+#[cfg(target_os = "linux")]
+#[path = "typing/accessibility.rs"]
+mod accessibility;
 #[cfg(not(any(windows, target_os = "linux")))]
 #[path = "typing/elsewhere.rs"]
 mod platform;
@@ -11,14 +14,11 @@ mod platform;
 #[cfg(windows)]
 #[path = "typing/windows.rs"]
 mod platform;
-#[path = "typing/tools.rs"]
-mod tools;
-#[cfg(target_os = "linux")]
-#[path = "typing/accessibility.rs"]
-mod accessibility;
 #[cfg(target_os = "linux")]
 #[path = "typing/portal.rs"]
 mod portal;
+#[path = "typing/tools.rs"]
+mod tools;
 
 /// Starts following which field has the keyboard where the platform only says so by events: AT-SPI on Linux.
 pub fn watch_focus() {
@@ -66,14 +66,21 @@ pub fn strokes(text: &str) -> Vec<Stroke> {
             '\n' => strokes.push(Stroke::Enter),
             other => {
                 let mut units = [0u16; 2];
-                strokes.extend(other.encode_utf16(&mut units).iter().map(|unit| Stroke::Unit(*unit)));
+                strokes.extend(
+                    other
+                        .encode_utf16(&mut units)
+                        .iter()
+                        .map(|unit| Stroke::Unit(*unit)),
+                );
             }
         }
     }
     strokes
 }
 
-async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
+async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, String> {
     tauri::async_runtime::spawn_blocking(work)
         .await
         .map_err(|error| error.to_string())

@@ -3,20 +3,28 @@
 
 use windows::core::PWSTR;
 use windows::Win32::Foundation::{CloseHandle, GlobalFree, HANDLE, HGLOBAL};
-use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
-use windows::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
+};
+use windows::Win32::System::DataExchange::{
+    CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData,
+};
 use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
 use windows::Win32::System::Ole::CF_UNICODETEXT;
-use windows::Win32::System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION};
+use windows::Win32::System::Threading::{
+    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+};
 use windows::Win32::UI::Accessibility::{
-    CUIAutomation, IUIAutomation, IUIAutomationTextPattern, IUIAutomationTextRange, TextPatternRangeEndpoint_End,
-    TextPatternRangeEndpoint_Start, UIA_TextPatternId,
+    CUIAutomation, IUIAutomation, IUIAutomationTextPattern, IUIAutomationTextRange,
+    TextPatternRangeEndpoint_End, TextPatternRangeEndpoint_Start, UIA_TextPatternId,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VIRTUAL_KEY, VK_BACK,
-    VK_RETURN,
+    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+    KEYEVENTF_UNICODE, VIRTUAL_KEY, VK_BACK, VK_RETURN,
 };
-use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId};
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
+};
 
 use super::{strokes, Focus, Stroke};
 
@@ -49,7 +57,10 @@ fn pressed(stroke: Stroke) -> [INPUT; 2] {
             key(VIRTUAL_KEY(0), unit, KEYEVENTF_UNICODE),
             key(VIRTUAL_KEY(0), unit, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP),
         ],
-        Stroke::Enter => [key(VK_RETURN, 0, KEYBD_EVENT_FLAGS(0)), key(VK_RETURN, 0, KEYEVENTF_KEYUP)],
+        Stroke::Enter => [
+            key(VK_RETURN, 0, KEYBD_EVENT_FLAGS(0)),
+            key(VK_RETURN, 0, KEYEVENTF_KEYUP),
+        ],
     }
 }
 
@@ -71,7 +82,12 @@ pub fn type_text(text: &str) -> Result<(), String> {
 
 pub fn backspace(times: u32) -> Result<(), String> {
     let inputs: Vec<INPUT> = (0..times)
-        .flat_map(|_| [key(VK_BACK, 0, KEYBD_EVENT_FLAGS(0)), key(VK_BACK, 0, KEYEVENTF_KEYUP)])
+        .flat_map(|_| {
+            [
+                key(VK_BACK, 0, KEYBD_EVENT_FLAGS(0)),
+                key(VK_BACK, 0, KEYEVENTF_KEYUP),
+            ]
+        })
         .collect();
     send(&inputs)
 }
@@ -85,7 +101,8 @@ pub fn clipboard(text: &str) -> Result<(), String> {
         OpenClipboard(None).map_err(|error| format!("the clipboard is busy: {error}"))?;
         let done = (|| -> Result<(), String> {
             EmptyClipboard().map_err(|error| error.to_string())?;
-            let memory: HGLOBAL = GlobalAlloc(GMEM_MOVEABLE, bytes).map_err(|error| error.to_string())?;
+            let memory: HGLOBAL =
+                GlobalAlloc(GMEM_MOVEABLE, bytes).map_err(|error| error.to_string())?;
             let into = GlobalLock(memory) as *mut u16;
             if into.is_null() {
                 let _ = GlobalFree(Some(memory));
@@ -93,7 +110,9 @@ pub fn clipboard(text: &str) -> Result<(), String> {
             }
             std::ptr::copy_nonoverlapping(units.as_ptr(), into, units.len());
             let _ = GlobalUnlock(memory);
-            if let Err(error) = SetClipboardData(u32::from(CF_UNICODETEXT.0), Some(HANDLE(memory.0))) {
+            if let Err(error) =
+                SetClipboardData(u32::from(CF_UNICODETEXT.0), Some(HANDLE(memory.0)))
+            {
                 let _ = GlobalFree(Some(memory));
                 return Err(error.to_string());
             }
@@ -133,7 +152,12 @@ unsafe fn executable(pid: u32) -> Option<String> {
         let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
         let mut path = vec![0u16; LONGEST_NAME];
         let mut size = path.len() as u32;
-        let read = QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, PWSTR(path.as_mut_ptr()), &mut size);
+        let read = QueryFullProcessImageNameW(
+            process,
+            PROCESS_NAME_WIN32,
+            PWSTR(path.as_mut_ptr()),
+            &mut size,
+        );
         let _ = CloseHandle(process);
         read.ok()?;
         let path = String::from_utf16_lossy(&path[..size as usize]);
@@ -150,17 +174,27 @@ fn focused_field() -> Focus {
     // SAFETY: COM is initialised for this thread first; an earlier choice of apartment is fine to keep.
     unsafe {
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        let Ok(automation) = CoCreateInstance::<_, IUIAutomation>(&CUIAutomation, None, CLSCTX_INPROC_SERVER) else {
+        let Ok(automation) =
+            CoCreateInstance::<_, IUIAutomation>(&CUIAutomation, None, CLSCTX_INPROC_SERVER)
+        else {
             return Focus::default();
         };
         let Ok(element) = automation.GetFocusedElement() else {
             return Focus::default();
         };
-        let secure = element.CurrentIsPassword().map(|secure| secure.as_bool()).unwrap_or(false);
+        let secure = element
+            .CurrentIsPassword()
+            .map(|secure| secure.as_bool())
+            .unwrap_or(false);
         if secure {
-            return Focus { secure: true, ..Focus::default() };
+            return Focus {
+                secure: true,
+                ..Focus::default()
+            };
         }
-        let Ok(pattern) = element.GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId) else {
+        let Ok(pattern) =
+            element.GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
+        else {
             return Focus::default();
         };
         let chosen = pattern.GetSelection().ok().and_then(|ranges| {
@@ -174,7 +208,10 @@ fn focused_field() -> Focus {
             .and_then(|range| range.GetText(LONGEST_SELECTION).ok())
             .map(|text| text.to_string())
             .filter(|text| !text.trim().is_empty());
-        let mut focus = Focus { selection, ..Focus::default() };
+        let mut focus = Focus {
+            selection,
+            ..Focus::default()
+        };
         if let (Ok(document), Some(chosen)) = (pattern.DocumentRange(), chosen.as_ref()) {
             place_in(&document, chosen, &mut focus);
         }
@@ -184,7 +221,11 @@ fn focused_field() -> Focus {
 
 /// The whole text, and the cursor and the end of the selection as UTF 16 offsets into it: the text from
 /// the start of the document to each end of the selection, measured.
-unsafe fn place_in(document: &IUIAutomationTextRange, chosen: &IUIAutomationTextRange, focus: &mut Focus) {
+unsafe fn place_in(
+    document: &IUIAutomationTextRange,
+    chosen: &IUIAutomationTextRange,
+    focus: &mut Focus,
+) {
     // SAFETY: plain UI Automation calls on ranges this thread holds.
     unsafe {
         let Ok(value) = document.GetText(LONGEST_SELECTION) else {
@@ -193,7 +234,9 @@ unsafe fn place_in(document: &IUIAutomationTextRange, chosen: &IUIAutomationText
         let value = value.to_string();
         let upto = |end| -> Option<u32> {
             let before = document.Clone().ok()?;
-            before.MoveEndpointByRange(TextPatternRangeEndpoint_End, chosen, end).ok()?;
+            before
+                .MoveEndpointByRange(TextPatternRangeEndpoint_End, chosen, end)
+                .ok()?;
             let text = before.GetText(LONGEST_SELECTION).ok()?.to_string();
             Some(text.encode_utf16().count() as u32)
         };

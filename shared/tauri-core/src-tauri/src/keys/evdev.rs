@@ -35,9 +35,9 @@ fn keyboards() -> Vec<Device> {
     evdev::enumerate()
         .map(|(_, device)| device)
         .filter(|device| {
-            device
-                .supported_keys()
-                .is_some_and(|keys| keys.contains(KeyCode::KEY_A) && keys.contains(KeyCode::KEY_LEFTCTRL))
+            device.supported_keys().is_some_and(|keys| {
+                keys.contains(KeyCode::KEY_A) && keys.contains(KeyCode::KEY_LEFTCTRL)
+            })
         })
         .collect()
 }

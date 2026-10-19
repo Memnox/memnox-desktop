@@ -82,7 +82,9 @@ pub fn reshape_panel(window: &WebviewWindow) {
         if glass_of(window) != Glass::Blur {
             return;
         }
-        let Ok(size) = window.inner_size() else { return };
+        let Ok(size) = window.inner_size() else {
+            return;
+        };
         let scale = window.scale_factor().unwrap_or(1.0);
         let size = size.to_logical::<f64>(scale);
         let shape = memnox_linux::Rounded {

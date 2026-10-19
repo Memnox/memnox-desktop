@@ -14,7 +14,9 @@ use tokio::task::JoinHandle;
 
 use super::schedule::{REKEY_INTERVAL, SESSION_LIFETIME};
 use super::socket::Dialer;
-use super::tunnel::{receive_handshake, send_close, send_handshake, tunnel, TunnelReader, TunnelWriter};
+use super::tunnel::{
+    receive_handshake, send_close, send_handshake, tunnel, TunnelReader, TunnelWriter,
+};
 
 /// Long enough for a slow relay to answer two messages, short enough that a dead one is not waited on forever.
 const HANDSHAKE_PATIENCE: Duration = Duration::from_secs(20);
@@ -112,14 +114,31 @@ impl RelayLink {
         Self::with_schedule(server, dialer, SESSION_LIFETIME, REKEY_INTERVAL)
     }
 
-    pub fn with_schedule(server: ServerKeys, dialer: Arc<dyn Dialer>, lifetime: Duration, rekey_every: u64) -> Self {
-        Self { inner: Arc::new(Inner { server, dialer, lifetime, rekey_every, state: Mutex::new(State::default()) }) }
+    pub fn with_schedule(
+        server: ServerKeys,
+        dialer: Arc<dyn Dialer>,
+        lifetime: Duration,
+        rekey_every: u64,
+    ) -> Self {
+        Self {
+            inner: Arc::new(Inner {
+                server,
+                dialer,
+                lifetime,
+                rekey_every,
+                state: Mutex::new(State::default()),
+            }),
+        }
     }
 
     /// Sends one request line; `key` is the caller's own name for the stream, which `forget` takes back.
     pub async fn stream(&self, request: &str, key: &str) -> Result<Stream, End> {
-        let mut parsed: Value = serde_json::from_str(request).map_err(|_| End::Refused("a request is one JSON object".into()))?;
-        let caller_id = parsed.get("id").cloned().ok_or_else(|| End::Refused("a request carries an id".into()))?;
+        let mut parsed: Value = serde_json::from_str(request)
+            .map_err(|_| End::Refused("a request is one JSON object".into()))?;
+        let caller_id = parsed
+            .get("id")
+            .cloned()
+            .ok_or_else(|| End::Refused("a request carries an id".into()))?;
         let (lines_in, lines) = mpsc::unbounded_channel();
         let (ended_in, ended) = oneshot::channel();
         let (writer, id, line) = {
@@ -133,7 +152,15 @@ impl RelayLink {
             let id = state.next_id;
             parsed["id"] = Value::from(id);
             state.keys.insert(key.to_owned(), id);
-            state.routes.insert(id, Route { caller_id, key: key.to_owned(), lines: lines_in, ended: Some(ended_in) });
+            state.routes.insert(
+                id,
+                Route {
+                    caller_id,
+                    key: key.to_owned(),
+                    lines: lines_in,
+                    ended: Some(ended_in),
+                },
+            );
             (writer, id, parsed.to_string())
         };
         if writer.send_line(line.as_bytes()).await.is_err() {
@@ -176,31 +203,60 @@ impl RelayLink {
             }
             drop_session(state, End::Renewed);
         }
-        let (writer, reader) = match tokio::time::timeout(HANDSHAKE_PATIENCE, self.handshake()).await {
-            Ok(Ok(halves)) => halves,
-            Ok(Err(why)) => return Err(End::Refused(why)),
-            Err(_) => return Err(End::Refused("the relay session did not open in time".into())),
-        };
+        let (writer, reader) =
+            match tokio::time::timeout(HANDSHAKE_PATIENCE, self.handshake()).await {
+                Ok(Ok(halves)) => halves,
+                Ok(Err(why)) => return Err(End::Refused(why)),
+                Err(_) => {
+                    return Err(End::Refused(
+                        "the relay session did not open in time".into(),
+                    ))
+                }
+            };
         state.generation += 1;
         state.handshakes += 1;
         let generation = state.generation;
         let reader = tokio::spawn(read(self.inner.clone(), reader, generation));
         let timer = tokio::spawn(expire(self.inner.clone(), generation));
-        state.session = Some(Session { writer: writer.clone(), started: Instant::now(), generation, reader, timer });
+        state.session = Some(Session {
+            writer: writer.clone(),
+            started: Instant::now(),
+            generation,
+            reader,
+            timer,
+        });
         Ok(writer)
     }
 
     /// This computer opens with IK, already knowing the server's static key from pairing.
     async fn handshake(&self) -> Result<(TunnelWriter, TunnelReader), String> {
         let server = &self.inner.server;
-        let mut socket = self.inner.dialer.dial(&server.relay_url, &server.relay_token).await?;
+        let mut socket = self
+            .inner
+            .dialer
+            .dial(&server.relay_url, &server.relay_token)
+            .await?;
         let mailbox = server.mailbox.clone();
         let opened = async {
-            let mut handshake = Handshake::initiator(Pattern::IK, &server.private_key, Some(&server.runtime_static), None).map_err(|why| why.to_string())?;
-            let first = handshake.write_message(&[]).map_err(|why| why.to_string())?;
-            send_handshake(&socket.outgoing, &mailbox, &first).await.map_err(|why| why.to_string())?;
-            let second = receive_handshake(&mut socket.incoming, &mailbox).await.map_err(|why| why.to_string())?;
-            handshake.read_message(&second).map_err(|why| why.to_string())?;
+            let mut handshake = Handshake::initiator(
+                Pattern::IK,
+                &server.private_key,
+                Some(&server.runtime_static),
+                None,
+            )
+            .map_err(|why| why.to_string())?;
+            let first = handshake
+                .write_message(&[])
+                .map_err(|why| why.to_string())?;
+            send_handshake(&socket.outgoing, &mailbox, &first)
+                .await
+                .map_err(|why| why.to_string())?;
+            let second = receive_handshake(&mut socket.incoming, &mailbox)
+                .await
+                .map_err(|why| why.to_string())?;
+            handshake
+                .read_message(&second)
+                .map_err(|why| why.to_string())?;
             if !handshake.is_finished().map_err(|why| why.to_string())? {
                 return Err("the IK handshake did not finish in two messages".to_owned());
             }
@@ -224,7 +280,11 @@ async fn read(inner: Arc<Inner>, mut reader: TunnelReader, generation: u64) {
             Ok(line) => deliver(&inner, &line).await,
             Err(_) => {
                 let mut state = inner.state.lock().await;
-                if state.session.as_ref().is_some_and(|session| session.generation == generation) {
+                if state
+                    .session
+                    .as_ref()
+                    .is_some_and(|session| session.generation == generation)
+                {
                     drop_session(&mut state, End::Disconnected);
                 }
                 return;
@@ -237,17 +297,27 @@ async fn read(inner: Arc<Inner>, mut reader: TunnelReader, generation: u64) {
 async fn expire(inner: Arc<Inner>, generation: u64) {
     tokio::time::sleep(inner.lifetime).await;
     let mut state = inner.state.lock().await;
-    if state.session.as_ref().is_some_and(|session| session.generation == generation) {
+    if state
+        .session
+        .as_ref()
+        .is_some_and(|session| session.generation == generation)
+    {
         drop_session(&mut state, End::Renewed);
     }
 }
 
 /// One line to the stream whose id it carries, under the id that stream's caller gave; a line for no stream is dropped.
 async fn deliver(inner: &Inner, line: &[u8]) {
-    let Ok(mut parsed) = serde_json::from_slice::<Value>(line) else { return };
-    let Some(id) = parsed.get("id").and_then(Value::as_u64) else { return };
+    let Ok(mut parsed) = serde_json::from_slice::<Value>(line) else {
+        return;
+    };
+    let Some(id) = parsed.get("id").and_then(Value::as_u64) else {
+        return;
+    };
     let mut state = inner.state.lock().await;
-    let Some(route) = state.routes.get(&id) else { return };
+    let Some(route) = state.routes.get(&id) else {
+        return;
+    };
     parsed["id"] = route.caller_id.clone();
     if route.lines.send(parsed.to_string()).is_err() {
         // Nobody reads it any more, so the route goes.
@@ -259,7 +329,9 @@ async fn deliver(inner: &Inner, line: &[u8]) {
 
 /// Ends the session and every stream on it, since the daemon forgets a session's requests with it.
 fn drop_session(state: &mut State, reason: End) {
-    let Some(session) = state.session.take() else { return };
+    let Some(session) = state.session.take() else {
+        return;
+    };
     session.reader.abort();
     session.timer.abort();
     let writer = session.writer;
@@ -304,23 +376,42 @@ mod tests {
 
     async fn answer(mut socket: RelaySocket, private: Vec<u8>) {
         let mut responder = Handshake::responder(Pattern::IK, &private, None).unwrap();
-        let first = receive_handshake(&mut socket.incoming, &MAILBOX).await.unwrap();
+        let first = receive_handshake(&mut socket.incoming, &MAILBOX)
+            .await
+            .unwrap();
         responder.read_message(&first).unwrap();
-        send_handshake(&socket.outgoing, &MAILBOX, &responder.write_message(b"").unwrap()).await.unwrap();
-        let (writer, mut reader) = make_tunnel(socket, &MAILBOX, responder.into_transport().unwrap(), 2);
+        send_handshake(
+            &socket.outgoing,
+            &MAILBOX,
+            &responder.write_message(b"").unwrap(),
+        )
+        .await
+        .unwrap();
+        let (writer, mut reader) =
+            make_tunnel(socket, &MAILBOX, responder.into_transport().unwrap(), 2);
         while let Ok(line) = reader.receive_line().await {
             let request: Value = serde_json::from_slice(&line).unwrap();
-            let reply = serde_json::json!({ "id": request["id"], "ok": true, "method": request["method"] });
-            writer.send_line(reply.to_string().as_bytes()).await.unwrap();
+            let reply =
+                serde_json::json!({ "id": request["id"], "ok": true, "method": request["method"] });
+            writer
+                .send_line(reply.to_string().as_bytes())
+                .await
+                .unwrap();
             // A line for a request nobody made, which the link drops.
-            writer.send_line(b"{\"id\":999,\"done\":{\"text\":\"for a phone\"}}").await.unwrap();
+            writer
+                .send_line(b"{\"id\":999,\"done\":{\"text\":\"for a phone\"}}")
+                .await
+                .unwrap();
         }
     }
 
     fn link(token: &str, lifetime: Duration) -> (RelayLink, Arc<FakeRuntime>) {
         let runtime = generate_keypair().unwrap();
         let phone = generate_keypair().unwrap();
-        let fake = Arc::new(FakeRuntime { private: runtime.private, dials: AtomicU64::new(0) });
+        let fake = Arc::new(FakeRuntime {
+            private: runtime.private,
+            dials: AtomicU64::new(0),
+        });
         let keys = ServerKeys {
             relay_url: "wss://relay.example".into(),
             relay_token: token.into(),
@@ -328,18 +419,33 @@ mod tests {
             runtime_static: runtime.public,
             private_key: phone.private,
         };
-        (RelayLink::with_schedule(keys, fake.clone(), lifetime, 2), fake)
+        (
+            RelayLink::with_schedule(keys, fake.clone(), lifetime, 2),
+            fake,
+        )
     }
 
     #[tokio::test]
     async fn answers_come_back_under_the_callers_own_id_even_when_two_callers_share_one() {
         let (link, fake) = link("rly_ok", SESSION_LIFETIME);
-        let mut first = link.stream(r#"{"id":1,"method":"ping"}"#, "island-1").await.unwrap();
-        let mut second = link.stream(r#"{"id":1,"method":"waiting"}"#, "settings-1").await.unwrap();
+        let mut first = link
+            .stream(r#"{"id":1,"method":"ping"}"#, "island-1")
+            .await
+            .unwrap();
+        let mut second = link
+            .stream(r#"{"id":1,"method":"waiting"}"#, "settings-1")
+            .await
+            .unwrap();
         let one: Value = serde_json::from_str(&first.lines.recv().await.unwrap()).unwrap();
         let two: Value = serde_json::from_str(&second.lines.recv().await.unwrap()).unwrap();
-        assert_eq!((one["id"].as_u64(), one["method"].as_str()), (Some(1), Some("ping")));
-        assert_eq!((two["id"].as_u64(), two["method"].as_str()), (Some(1), Some("waiting")));
+        assert_eq!(
+            (one["id"].as_u64(), one["method"].as_str()),
+            (Some(1), Some("ping"))
+        );
+        assert_eq!(
+            (two["id"].as_u64(), two["method"].as_str()),
+            (Some(1), Some("waiting"))
+        );
         link.forget("island-1").await;
         assert_eq!(first.ended.await.unwrap(), Ok(()));
         assert_eq!(link.handshakes().await, 1);
@@ -349,23 +455,39 @@ mod tests {
     #[tokio::test]
     async fn a_key_already_in_flight_is_refused() {
         let (link, _) = link("rly_ok", SESSION_LIFETIME);
-        let _held = link.stream(r#"{"id":1,"method":"subscribe"}"#, "feed").await.unwrap();
-        assert!(matches!(link.stream(r#"{"id":2,"method":"subscribe"}"#, "feed").await, Err(End::Refused(_))));
+        let _held = link
+            .stream(r#"{"id":1,"method":"subscribe"}"#, "feed")
+            .await
+            .unwrap();
+        assert!(matches!(
+            link.stream(r#"{"id":2,"method":"subscribe"}"#, "feed")
+                .await,
+            Err(End::Refused(_))
+        ));
     }
 
     #[tokio::test]
     async fn a_refused_token_opens_no_session() {
         let (link, _) = link("rly_stolen", SESSION_LIFETIME);
-        assert!(matches!(link.stream(r#"{"id":1,"method":"ping"}"#, "a").await, Err(End::Refused(_))));
+        assert!(matches!(
+            link.stream(r#"{"id":1,"method":"ping"}"#, "a").await,
+            Err(End::Refused(_))
+        ));
         assert_eq!(link.handshakes().await, 0);
     }
 
     #[tokio::test]
     async fn the_hour_ends_every_stream_as_renewed_and_the_next_request_shakes_hands_again() {
         let (link, _) = link("rly_ok", Duration::from_millis(80));
-        let subscription = link.stream(r#"{"id":1,"method":"subscribe"}"#, "feed").await.unwrap();
+        let subscription = link
+            .stream(r#"{"id":1,"method":"subscribe"}"#, "feed")
+            .await
+            .unwrap();
         assert_eq!(subscription.ended.await.unwrap(), Err(End::Renewed));
-        let mut again = link.stream(r#"{"id":2,"method":"ping"}"#, "ping").await.unwrap();
+        let mut again = link
+            .stream(r#"{"id":2,"method":"ping"}"#, "ping")
+            .await
+            .unwrap();
         assert!(again.lines.recv().await.is_some());
         assert_eq!(link.handshakes().await, 2);
     }
@@ -373,7 +495,10 @@ mod tests {
     #[tokio::test]
     async fn closing_ends_every_stream_as_disconnected() {
         let (link, _) = link("rly_ok", SESSION_LIFETIME);
-        let subscription = link.stream(r#"{"id":1,"method":"subscribe"}"#, "feed").await.unwrap();
+        let subscription = link
+            .stream(r#"{"id":1,"method":"subscribe"}"#, "feed")
+            .await
+            .unwrap();
         link.close().await;
         assert_eq!(subscription.ended.await.unwrap(), Err(End::Disconnected));
     }

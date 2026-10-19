@@ -63,14 +63,20 @@ pub fn screen_index(choice: &Choice, screens: &[Facts], staying_on: Option<&str>
     if screens.is_empty() {
         return None;
     }
-    let main = screens.iter().position(|screen| screen.primary).unwrap_or(0);
+    let main = screens
+        .iter()
+        .position(|screen| screen.primary)
+        .unwrap_or(0);
     Some(match choice {
         Choice::Notch => main,
         Choice::Pointer => staying_on
             .and_then(|here| screens.iter().position(|screen| screen.id == here))
             .or_else(|| screens.iter().position(|screen| screen.holds_pointer))
             .unwrap_or(main),
-        Choice::Display(id) => screens.iter().position(|screen| &screen.id == id).unwrap_or(main),
+        Choice::Display(id) => screens
+            .iter()
+            .position(|screen| &screen.id == id)
+            .unwrap_or(main),
     })
 }
 
@@ -92,7 +98,10 @@ impl IslandScreens {
     }
 
     fn choice(&self) -> Choice {
-        self.choice.lock().map(|choice| choice.clone()).unwrap_or(Choice::Notch)
+        self.choice
+            .lock()
+            .map(|choice| choice.clone())
+            .unwrap_or(Choice::Notch)
     }
 
     fn current(&self) -> Option<String> {
@@ -115,14 +124,22 @@ pub struct Listed {
 
 /// A display's name stays the same across restarts where its place in the list may not.
 fn id_of(monitor: &Monitor, index: usize) -> String {
-    monitor.name().cloned().unwrap_or_else(|| format!("{}", index + 1))
+    monitor
+        .name()
+        .cloned()
+        .unwrap_or_else(|| format!("{}", index + 1))
 }
 
 /// How Settings names a display: its number, its size, and which one is the main display.
 fn name_of(monitor: &Monitor, index: usize, primary: bool) -> String {
     let size = monitor.size();
     let main = if primary { ", the main display" } else { "" };
-    format!("Display {}, {} by {}{main}", index + 1, size.width, size.height)
+    format!(
+        "Display {}, {} by {}{main}",
+        index + 1,
+        size.width,
+        size.height
+    )
 }
 
 fn same(a: &Monitor, b: &Monitor) -> bool {
@@ -201,7 +218,10 @@ pub fn place(window: &WebviewWindow) {
         .try_state::<Arc<HitAreas>>()
         .is_none_or(|areas| areas.resting(window.label()));
     let (choice, staying) = match app.try_state::<IslandScreens>() {
-        Some(screens) => (screens.choice(), if resting { None } else { screens.current() }),
+        Some(screens) => (
+            screens.choice(),
+            if resting { None } else { screens.current() },
+        ),
         None => (Choice::Notch, None),
     };
     let (monitors, facts) = facts(app);
@@ -238,7 +258,14 @@ fn layout(app: &AppHandle) -> Vec<(i32, i32, u32, u32)> {
     app.available_monitors()
         .unwrap_or_default()
         .iter()
-        .map(|monitor| (monitor.position().x, monitor.position().y, monitor.size().width, monitor.size().height))
+        .map(|monitor| {
+            (
+                monitor.position().x,
+                monitor.position().y,
+                monitor.size().width,
+                monitor.size().height,
+            )
+        })
         .collect()
 }
 
@@ -263,7 +290,9 @@ pub fn watch(app: AppHandle) {
                     .is_some_and(|areas| areas.resting(window.label()));
             let moved = follows && {
                 let (_, facts) = facts(&app);
-                let here = app.try_state::<IslandScreens>().and_then(|screens| screens.current());
+                let here = app
+                    .try_state::<IslandScreens>()
+                    .and_then(|screens| screens.current());
                 facts
                     .iter()
                     .find(|screen| screen.holds_pointer)
@@ -291,7 +320,11 @@ mod tests {
 
     #[test]
     fn reads_back_what_it_kept_and_falls_back_to_the_main_display() {
-        for choice in [Choice::Notch, Choice::Pointer, Choice::Display("DP-1".into())] {
+        for choice in [
+            Choice::Notch,
+            Choice::Pointer,
+            Choice::Display("DP-1".into()),
+        ] {
             assert_eq!(Choice::parse(&choice.stored()), choice);
         }
         assert_eq!(Choice::parse(""), Choice::Notch);
@@ -303,9 +336,18 @@ mod tests {
         let screens = [screen("HDMI-1", false, true), screen("eDP-1", true, false)];
         assert_eq!(screen_index(&Choice::Notch, &screens, None), Some(1));
         assert_eq!(screen_index(&Choice::Pointer, &screens, None), Some(0));
-        assert_eq!(screen_index(&Choice::Pointer, &screens, Some("eDP-1")), Some(1));
-        assert_eq!(screen_index(&Choice::Display("HDMI-1".into()), &screens, None), Some(0));
-        assert_eq!(screen_index(&Choice::Display("gone".into()), &screens, None), Some(1));
+        assert_eq!(
+            screen_index(&Choice::Pointer, &screens, Some("eDP-1")),
+            Some(1)
+        );
+        assert_eq!(
+            screen_index(&Choice::Display("HDMI-1".into()), &screens, None),
+            Some(0)
+        );
+        assert_eq!(
+            screen_index(&Choice::Display("gone".into()), &screens, None),
+            Some(1)
+        );
         assert_eq!(screen_index(&Choice::Notch, &[], None), None);
     }
 }

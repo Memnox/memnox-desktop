@@ -46,14 +46,24 @@ impl Dialer for WebSocketDialer {
 }
 
 async fn open(url: &str, token: &str) -> Result<RelaySocket, String> {
-    let mut request = url.into_client_request().map_err(|why| format!("the relay address is unusable: {why}"))?;
-    let bearer = HeaderValue::from_str(&format!("Bearer {token}")).map_err(|_| "the relay token is unusable".to_owned())?;
+    let mut request = url
+        .into_client_request()
+        .map_err(|why| format!("the relay address is unusable: {why}"))?;
+    let bearer = HeaderValue::from_str(&format!("Bearer {token}"))
+        .map_err(|_| "the relay token is unusable".to_owned())?;
     request.headers_mut().insert("Authorization", bearer);
-    let config = WebSocketConfig::default().max_message_size(Some(LARGEST_MESSAGE)).max_frame_size(Some(LARGEST_MESSAGE));
-    let (stream, _) = tokio_tungstenite::connect_async_tls_with_config(request, Some(config), false, Some(connector()?))
-        .await
-        // The relay's answer to the upgrade, such as 401 for a refused token, is the useful part of the reason.
-        .map_err(|why| format!("the relay refused the connection: {why}"))?;
+    let config = WebSocketConfig::default()
+        .max_message_size(Some(LARGEST_MESSAGE))
+        .max_frame_size(Some(LARGEST_MESSAGE));
+    let (stream, _) = tokio_tungstenite::connect_async_tls_with_config(
+        request,
+        Some(config),
+        false,
+        Some(connector()?),
+    )
+    .await
+    // The relay's answer to the upgrade, such as 401 for a refused token, is the useful part of the reason.
+    .map_err(|why| format!("the relay refused the connection: {why}"))?;
     let (mut sink, mut source) = stream.split();
     let (outgoing, mut to_relay) = mpsc::channel::<Vec<u8>>(QUEUED);
     let (from_relay, incoming) = mpsc::channel::<Vec<u8>>(QUEUED);
@@ -84,12 +94,16 @@ async fn open(url: &str, token: &str) -> Result<RelaySocket, String> {
 
 /// TLS through rustls with ring and the webpki roots, so the same certificates are trusted on Windows and Linux.
 fn connector() -> Result<Connector, String> {
-    let roots = rustls::RootCertStore { roots: webpki_roots::TLS_SERVER_ROOTS.to_vec() };
-    let config = rustls::ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-        .with_safe_default_protocol_versions()
-        .map_err(|why| format!("TLS could not be set up: {why}"))?
-        .with_root_certificates(roots)
-        .with_no_client_auth();
+    let roots = rustls::RootCertStore {
+        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+    };
+    let config = rustls::ClientConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .map_err(|why| format!("TLS could not be set up: {why}"))?
+    .with_root_certificates(roots)
+    .with_no_client_auth();
     Ok(Connector::Rustls(Arc::new(config)))
 }
 
@@ -98,5 +112,14 @@ fn connector() -> Result<Connector, String> {
 pub fn pair() -> (RelaySocket, RelaySocket) {
     let (a_out, b_in) = mpsc::channel(QUEUED);
     let (b_out, a_in) = mpsc::channel(QUEUED);
-    (RelaySocket { outgoing: a_out, incoming: a_in }, RelaySocket { outgoing: b_out, incoming: b_in })
+    (
+        RelaySocket {
+            outgoing: a_out,
+            incoming: a_in,
+        },
+        RelaySocket {
+            outgoing: b_out,
+            incoming: b_in,
+        },
+    )
 }

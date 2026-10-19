@@ -22,31 +22,55 @@ pub struct Answer {
 
 fn base() -> String {
     let base = std::env::var("MEMNOX_CLOUD_URL").unwrap_or_else(|_| DEFAULT_BASE.into());
-    if base.ends_with('/') { base } else { format!("{base}/") }
+    if base.ends_with('/') {
+        base
+    } else {
+        format!("{base}/")
+    }
 }
 
 /// A path under the cloud's API and nothing else: relative, no way up and no other host.
 fn allowed(path: &str) -> bool {
-    path.starts_with("v1/") && !path.contains("..") && !path.contains("://") && !path.contains('\\') && !path.contains('#')
+    path.starts_with("v1/")
+        && !path.contains("..")
+        && !path.contains("://")
+        && !path.contains('\\')
+        && !path.contains('#')
 }
 
 /// One exchange: the status and the body, or why nothing came back at all.
 #[tauri::command]
-pub async fn cloud_send(method: String, path: String, body: Option<String>, token: Option<String>) -> Result<Answer, String> {
+pub async fn cloud_send(
+    method: String,
+    path: String,
+    body: Option<String>,
+    token: Option<String>,
+) -> Result<Answer, String> {
     if !matches!(method.as_str(), "GET" | "POST" | "DELETE") || !allowed(&path) {
         return Err(format!("{method} {path} is not a Memnox Cloud request"));
     }
     let url = format!("{}{path}", base());
-    tokio::task::spawn_blocking(move || exchange(&method, &url, body.as_deref(), token.as_deref())).await.map_err(|why| why.to_string())?
+    tokio::task::spawn_blocking(move || exchange(&method, &url, body.as_deref(), token.as_deref()))
+        .await
+        .map_err(|why| why.to_string())?
 }
 
-fn exchange(method: &str, url: &str, body: Option<&str>, token: Option<&str>) -> Result<Answer, String> {
-    let mut request = ureq::request(method, url).timeout(TIMEOUT).set("Accept", "application/json");
+fn exchange(
+    method: &str,
+    url: &str,
+    body: Option<&str>,
+    token: Option<&str>,
+) -> Result<Answer, String> {
+    let mut request = ureq::request(method, url)
+        .timeout(TIMEOUT)
+        .set("Accept", "application/json");
     if let Some(token) = token {
         request = request.set("Authorization", &format!("Bearer {token}"));
     }
     let answered = match body {
-        Some(body) => request.set("Content-Type", "application/json").send_string(body),
+        Some(body) => request
+            .set("Content-Type", "application/json")
+            .send_string(body),
         None => request.call(),
     };
     let response = match answered {
@@ -78,7 +102,13 @@ pub async fn person_credential_load() -> Result<Option<String>, String> {
 
 #[tauri::command]
 pub async fn person_credential_save(credential: String) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || entry()?.set_password(&credential).map_err(|why| why.to_string())).await.map_err(|why| why.to_string())?
+    tokio::task::spawn_blocking(move || {
+        entry()?
+            .set_password(&credential)
+            .map_err(|why| why.to_string())
+    })
+    .await
+    .map_err(|why| why.to_string())?
 }
 
 #[tauri::command]

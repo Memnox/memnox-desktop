@@ -59,9 +59,13 @@ pub enum KeyEvent {
     },
     Key,
     /// A bound shortcut for dictating went down or up, where the desktop gives shortcuts and not raw keys.
-    Dictate { down: bool },
+    Dictate {
+        down: bool,
+    },
     /// The same for saying a rule.
-    Rule { down: bool },
+    Rule {
+        down: bool,
+    },
     /// The talk shortcut was pressed; the island hears it as the `talk` event.
     Talk,
 }
@@ -182,7 +186,10 @@ mod tests {
         pressed.set(Modifier::LeftCtrl, true);
         pressed.set(Modifier::RightCtrl, true);
         pressed.set(Modifier::LeftCtrl, false);
-        assert!(matches!(KeyEvent::from(pressed), KeyEvent::Modifiers { ctrl: true, .. }));
+        assert!(matches!(
+            KeyEvent::from(pressed),
+            KeyEvent::Modifiers { ctrl: true, .. }
+        ));
     }
 
     #[test]
@@ -201,9 +208,18 @@ mod tests {
     #[test]
     fn reads_altgr_as_right_alt_alone() {
         assert_eq!(windows_key(0xA2, FAKE_CTRL_SCAN, false), Seen::Ignored);
-        assert_eq!(windows_key(0xA2, 0x1D, false), Seen::Modifier(Modifier::LeftCtrl));
-        assert_eq!(windows_key(0xA5, 0x38, true), Seen::Modifier(Modifier::RightAlt));
-        assert_eq!(windows_key(0x12, 0x38, true), Seen::Modifier(Modifier::RightAlt));
+        assert_eq!(
+            windows_key(0xA2, 0x1D, false),
+            Seen::Modifier(Modifier::LeftCtrl)
+        );
+        assert_eq!(
+            windows_key(0xA5, 0x38, true),
+            Seen::Modifier(Modifier::RightAlt)
+        );
+        assert_eq!(
+            windows_key(0x12, 0x38, true),
+            Seen::Modifier(Modifier::RightAlt)
+        );
         assert_eq!(windows_key(0x41, 0x1E, false), Seen::Other);
     }
 

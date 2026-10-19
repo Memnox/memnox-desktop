@@ -16,7 +16,11 @@ use super::event::{KeyEvent, Sink};
 const SHORTCUTS: [(&str, &str, &str); 3] = [
     (TALK, "Talk to Memnox", "CTRL+ALT+space"),
     (RULE, "Hold to say a rule to Memnox", "CTRL+ALT+R"),
-    (DICTATE, "Hold to dictate, or tap twice to dictate hands free", "CTRL+ALT+D"),
+    (
+        DICTATE,
+        "Hold to dictate, or tap twice to dictate hands free",
+        "CTRL+ALT+D",
+    ),
 ];
 const TALK: &str = "talk";
 const RULE: &str = "rule";
@@ -44,32 +48,52 @@ pub fn watch(sink: Sink) -> Result<(), String> {
         let portal = match GlobalShortcuts::new().await {
             Ok(portal) => portal,
             Err(error) => {
-                let _ = ready.send(Err(format!("this desktop has no shortcuts portal: {error}")));
+                let _ = ready.send(Err(format!(
+                    "this desktop has no shortcuts portal: {error}"
+                )));
                 return;
             }
         };
         let session = match portal.create_session(Default::default()).await {
             Ok(session) => session,
             Err(error) => {
-                let _ = ready.send(Err(format!("the shortcuts portal would not open a session: {error}")));
+                let _ = ready.send(Err(format!(
+                    "the shortcuts portal would not open a session: {error}"
+                )));
                 return;
             }
         };
-        let (Ok(activated), Ok(deactivated)) = (portal.receive_activated().await, portal.receive_deactivated().await) else {
-            let _ = ready.send(Err("the shortcuts portal does not report its keys".to_string()));
+        let (Ok(activated), Ok(deactivated)) = (
+            portal.receive_activated().await,
+            portal.receive_deactivated().await,
+        ) else {
+            let _ = ready.send(Err(
+                "the shortcuts portal does not report its keys".to_string()
+            ));
             return;
         };
         let _ = ready.send(Ok(()));
         let shortcuts: Vec<NewShortcut> = SHORTCUTS
             .iter()
-            .map(|(id, description, chord)| NewShortcut::new(*id, *description).preferred_trigger(*chord))
+            .map(|(id, description, chord)| {
+                NewShortcut::new(*id, *description).preferred_trigger(*chord)
+            })
             .collect();
-        if let Ok(bound) = portal.bind_shortcuts(&session, &shortcuts, None, Default::default()).await.and_then(|request| request.response()) {
+        if let Ok(bound) = portal
+            .bind_shortcuts(&session, &shortcuts, None, Default::default())
+            .await
+            .and_then(|request| request.response())
+        {
             if let Ok(mut chords) = CHORDS.lock() {
                 *chords = bound
                     .shortcuts()
                     .iter()
-                    .map(|shortcut| (shortcut.id().to_string(), shortcut.trigger_description().to_string()))
+                    .map(|shortcut| {
+                        (
+                            shortcut.id().to_string(),
+                            shortcut.trigger_description().to_string(),
+                        )
+                    })
                     .collect();
             }
         }
@@ -98,7 +122,10 @@ mod tests {
         assert_eq!(meaning("talk", true), Some(KeyEvent::Talk));
         assert_eq!(meaning("talk", false), None);
         assert_eq!(meaning("rule", true), Some(KeyEvent::Rule { down: true }));
-        assert_eq!(meaning("dictate", false), Some(KeyEvent::Dictate { down: false }));
+        assert_eq!(
+            meaning("dictate", false),
+            Some(KeyEvent::Dictate { down: false })
+        );
         assert_eq!(meaning("other", true), None);
     }
 }

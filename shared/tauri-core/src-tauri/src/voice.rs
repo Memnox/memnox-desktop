@@ -105,7 +105,11 @@ impl Voice {
         if let Some(hearing) = loaded.as_ref() {
             return Ok(hearing.clone());
         }
-        let hints = self.hints.lock().map(|hints| hints.clone()).unwrap_or_default();
+        let hints = self
+            .hints
+            .lock()
+            .map(|hints| hints.clone())
+            .unwrap_or_default();
         let hearing = Arc::new(Hearing::with_hints(self.installed()?, &hints)?);
         *loaded = Some(hearing.clone());
         Ok(hearing)
@@ -116,7 +120,8 @@ impl Voice {
     fn speaking(&self) -> Result<Arc<Speaking>, String> {
         let mut loaded = self.speaking.lock().map_err(|_| "the voice failed")?;
         let choice = self.choice();
-        let wants_kokoro = choice.as_deref() != Some(SYSTEM_VOICE) && self.models.kokoro_installed();
+        let wants_kokoro =
+            choice.as_deref() != Some(SYSTEM_VOICE) && self.models.kokoro_installed();
         if let Some((speaking, kokoro)) = loaded.as_ref() {
             // A stand in is kept only until Kokoro is in; a chosen system voice is kept for good.
             if *kokoro || !wants_kokoro {
@@ -293,9 +298,15 @@ pub async fn ear_open(
     tauri::async_runtime::spawn_blocking(move || {
         voice.close_ear();
         let hearing = voice.hearing()?;
-        let ear = Ear::open(hearing, voice.playing.clone(), voice.far.clone(), partials, move |event| {
-            let _ = events.send(event.into());
-        })?;
+        let ear = Ear::open(
+            hearing,
+            voice.playing.clone(),
+            voice.far.clone(),
+            partials,
+            move |event| {
+                let _ = events.send(event.into());
+            },
+        )?;
         if let Ok(mut open) = voice.ear.lock() {
             *open = Some(ear);
         }

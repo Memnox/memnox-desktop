@@ -44,7 +44,12 @@ pub struct ServerSummary {
 
 impl PairedServer {
     pub fn summary(&self) -> ServerSummary {
-        ServerSummary { machine_id: self.machine_id.clone(), machine: self.machine.clone(), device_id: self.device_id.clone(), paired_at: self.paired_at }
+        ServerSummary {
+            machine_id: self.machine_id.clone(),
+            machine: self.machine.clone(),
+            device_id: self.device_id.clone(),
+            paired_at: self.paired_at,
+        }
     }
 }
 
@@ -68,7 +73,9 @@ impl KeyringServers {
     const INDEX: &'static str = "index";
 
     pub fn new(service: &str) -> Self {
-        Self { service: service.to_owned() }
+        Self {
+            service: service.to_owned(),
+        }
     }
 
     fn entry(&self, account: &str) -> Result<keyring::Entry, String> {
@@ -89,7 +96,9 @@ impl KeyringServers {
 
     fn write_ids(&self, ids: &[String]) -> Result<(), String> {
         let text = serde_json::to_string(ids).map_err(|why| why.to_string())?;
-        self.entry(Self::INDEX)?.set_password(&text).map_err(|why| why.to_string())
+        self.entry(Self::INDEX)?
+            .set_password(&text)
+            .map_err(|why| why.to_string())
     }
 }
 
@@ -110,7 +119,9 @@ impl ServerStore for KeyringServers {
 
     fn save(&self, server: &PairedServer) -> Result<(), String> {
         let text = serde_json::to_string(server).map_err(|why| why.to_string())?;
-        self.entry(&Self::account(&server.machine_id))?.set_password(&text).map_err(|why| why.to_string())?;
+        self.entry(&Self::account(&server.machine_id))?
+            .set_password(&text)
+            .map_err(|why| why.to_string())?;
         let mut ids = self.ids()?;
         if !ids.contains(&server.machine_id) {
             ids.push(server.machine_id.clone());
@@ -124,7 +135,11 @@ impl ServerStore for KeyringServers {
             Ok(()) | Err(keyring::Error::NoEntry) => {}
             Err(why) => return Err(why.to_string()),
         }
-        let ids: Vec<String> = self.ids()?.into_iter().filter(|id| id != machine_id).collect();
+        let ids: Vec<String> = self
+            .ids()?
+            .into_iter()
+            .filter(|id| id != machine_id)
+            .collect();
         self.write_ids(&ids)
     }
 }
@@ -139,18 +154,30 @@ pub struct MemoryServers {
 #[cfg(test)]
 impl ServerStore for MemoryServers {
     fn all(&self) -> Result<Vec<PairedServer>, String> {
-        let mut servers: Vec<PairedServer> = self.kept.lock().map_err(|why| why.to_string())?.values().cloned().collect();
+        let mut servers: Vec<PairedServer> = self
+            .kept
+            .lock()
+            .map_err(|why| why.to_string())?
+            .values()
+            .cloned()
+            .collect();
         servers.sort_by_key(|server| server.paired_at);
         Ok(servers)
     }
 
     fn save(&self, server: &PairedServer) -> Result<(), String> {
-        self.kept.lock().map_err(|why| why.to_string())?.insert(server.machine_id.clone(), server.clone());
+        self.kept
+            .lock()
+            .map_err(|why| why.to_string())?
+            .insert(server.machine_id.clone(), server.clone());
         Ok(())
     }
 
     fn forget(&self, machine_id: &str) -> Result<(), String> {
-        self.kept.lock().map_err(|why| why.to_string())?.remove(machine_id);
+        self.kept
+            .lock()
+            .map_err(|why| why.to_string())?
+            .remove(machine_id);
         Ok(())
     }
 }
@@ -181,7 +208,12 @@ mod tests {
         store.save(&server("b", 20)).unwrap();
         store.save(&server("a", 10)).unwrap();
         store.save(&server("b", 30)).unwrap();
-        let ids: Vec<(String, u64)> = store.all().unwrap().into_iter().map(|s| (s.machine_id, s.paired_at)).collect();
+        let ids: Vec<(String, u64)> = store
+            .all()
+            .unwrap()
+            .into_iter()
+            .map(|s| (s.machine_id, s.paired_at))
+            .collect();
         assert_eq!(ids, vec![("a".into(), 10), ("b".into(), 30)]);
         store.forget("a").unwrap();
         assert_eq!(store.all().unwrap().len(), 1);

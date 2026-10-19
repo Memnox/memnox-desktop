@@ -43,11 +43,17 @@ pub struct Shown {
 impl Shown {
     /// Done, though nothing read it back, so it is not known to have landed.
     pub fn done() -> Self {
-        Self { answer: "typed", reason: None }
+        Self {
+            answer: "typed",
+            reason: None,
+        }
     }
 
     pub fn failed(reason: impl Into<String>) -> Self {
-        Self { answer: "failed", reason: Some(reason.into()) }
+        Self {
+            answer: "failed",
+            reason: Some(reason.into()),
+        }
     }
 }
 
@@ -131,9 +137,9 @@ pub fn is_app_link(link: &str) -> bool {
     };
     APP_SCHEMES.contains(&scheme.to_ascii_lowercase().as_str())
         && !rest.is_empty()
-        && !link
-            .chars()
-            .any(|character| character.is_whitespace() || character.is_control() || character == '"')
+        && !link.chars().any(|character| {
+            character.is_whitespace() || character.is_control() || character == '"'
+        })
 }
 
 /// A query value with everything but letters, digits and `-_.~` written as `%XX`.
@@ -141,7 +147,9 @@ pub fn encoded(value: &str) -> String {
     value
         .bytes()
         .map(|byte| match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (byte as char).to_string(),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (byte as char).to_string()
+            }
             _ => format!("%{byte:02X}"),
         })
         .collect()
@@ -149,7 +157,10 @@ pub fn encoded(value: &str) -> String {
 
 /// A link with its query written in the order given, so the same request always builds the same link.
 pub fn link(scheme: &str, host: &str, path: &str, query: &[(&str, &str)]) -> String {
-    let query: Vec<String> = query.iter().map(|(key, value)| format!("{key}={}", encoded(value))).collect();
+    let query: Vec<String> = query
+        .iter()
+        .map(|(key, value)| format!("{key}={}", encoded(value)))
+        .collect();
     if query.is_empty() {
         format!("{scheme}://{host}{path}")
     } else {
@@ -162,25 +173,40 @@ pub const CLAUDE_CODE: &str = "anthropic.claude-code";
 
 /// The agent's own conversation id is a UUID, the only id that opens its conversation rather than a new one.
 pub fn is_conversation_id(id: &str) -> bool {
-    id.len() == 36 && id.chars().all(|character| character.is_ascii_hexdigit() || character == '-')
+    id.len() == 36
+        && id
+            .chars()
+            .all(|character| character.is_ascii_hexdigit() || character == '-')
 }
 
 /// The Claude Code link that opens one conversation in its editor.
 pub fn conversation_link(editor: Editor, conversation: &str) -> String {
-    link(editor.scheme(), CLAUDE_CODE, "/open", &[("session", conversation)])
+    link(
+        editor.scheme(),
+        CLAUDE_CODE,
+        "/open",
+        &[("session", conversation)],
+    )
 }
 
 /// The terminal device as the Memnox extension takes it in a link, only the `ttys004` form, since the
 /// extension reads devices that way and no other, so a Linux `pts/3` is never sent to it.
 pub fn extension_device(tty: &str) -> Option<String> {
     let name = tty.trim().strip_prefix("/dev/").unwrap_or(tty.trim());
-    let digits = name.strip_prefix("ttys").or_else(|| name.strip_prefix("tty"))?;
-    (!digits.is_empty() && digits.chars().all(|character| character.is_ascii_digit())).then(|| name.to_string())
+    let digits = name
+        .strip_prefix("ttys")
+        .or_else(|| name.strip_prefix("tty"))?;
+    (!digits.is_empty() && digits.chars().all(|character| character.is_ascii_digit()))
+        .then(|| name.to_string())
 }
 
 /// The Mac's quoting rule: the runtime's line on one line, since a line break in it would run half the line.
 pub fn one_line(text: &str) -> String {
-    text.lines().map(str::trim).filter(|line| !line.is_empty()).collect::<Vec<_>>().join(" ")
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Unicode as PowerShell's `-EncodedCommand` takes it: little endian UTF 16 in base 64, so the
@@ -203,7 +229,9 @@ mod tests {
     #[test]
     fn opens_only_an_agent_app_link() {
         assert!(is_app_link("claude://code/new?folder=%2Ftmp"));
-        assert!(is_app_link("cursor://anysphere.cursor-deeplink/prompt?text=hi"));
+        assert!(is_app_link(
+            "cursor://anysphere.cursor-deeplink/prompt?text=hi"
+        ));
         assert!(!is_app_link("https://example.com"));
         assert!(!is_app_link("file:///etc/passwd"));
         assert!(!is_app_link("claude://x y"));
@@ -212,9 +240,15 @@ mod tests {
 
     #[test]
     fn reads_the_host_the_runtime_noted() {
-        let host = Host { app: Some("Visual Studio Code".into()), ..Host::default() };
+        let host = Host {
+            app: Some("Visual Studio Code".into()),
+            ..Host::default()
+        };
         assert_eq!(host.editor(), Some(Editor::Code));
-        assert_eq!(Editor::named("c:\\program files\\microsoft vs code\\code.exe"), Some(Editor::Code));
+        assert_eq!(
+            Editor::named("c:\\program files\\microsoft vs code\\code.exe"),
+            Some(Editor::Code)
+        );
         assert_eq!(Editor::named("cursor"), Some(Editor::Cursor));
         assert_eq!(Editor::named("gnome-terminal-server"), None);
         assert_eq!(Editor::named("wezterm"), None);
@@ -237,10 +271,21 @@ mod tests {
     #[test]
     fn hands_the_shell_the_line_untouched() {
         assert_eq!(encoded_command("ls"), "bABzAA==");
-        assert_eq!(one_line("cd '/a' &&\n  memnox run claude\n"), "cd '/a' && memnox run claude");
-        assert_eq!(stay_open("claude 'hi'"), "claude 'hi'; exec \"${SHELL:-sh}\"");
         assert_eq!(
-            link("vscode", "memnox.memnox-terminals", "/launch", &[("request", "dsp_1 2")]),
+            one_line("cd '/a' &&\n  memnox run claude\n"),
+            "cd '/a' && memnox run claude"
+        );
+        assert_eq!(
+            stay_open("claude 'hi'"),
+            "claude 'hi'; exec \"${SHELL:-sh}\""
+        );
+        assert_eq!(
+            link(
+                "vscode",
+                "memnox.memnox-terminals",
+                "/launch",
+                &[("request", "dsp_1 2")]
+            ),
             "vscode://memnox.memnox-terminals/launch?request=dsp_1%202"
         );
     }

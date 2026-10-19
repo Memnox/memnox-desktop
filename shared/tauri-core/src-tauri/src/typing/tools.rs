@@ -63,7 +63,11 @@ pub fn backspacing(typer: Typer, times: u32) -> Run {
     match typer {
         Typer::Wtype => Run {
             program: "wtype",
-            args: ["-k", "BackSpace"].repeat(times).into_iter().map(String::from).collect(),
+            args: ["-k", "BackSpace"]
+                .repeat(times)
+                .into_iter()
+                .map(String::from)
+                .collect(),
         },
         Typer::Ydotool => Run {
             program: "ydotool",
@@ -145,8 +149,16 @@ mod tests {
 
     #[test]
     fn takes_back_as_many_characters_as_asked() {
-        assert_eq!(backspacing(Typer::Wtype, 2).args, vec!["-k", "BackSpace", "-k", "BackSpace"]);
-        assert_eq!(backspacing(Typer::Ydotool, 1).args, vec!["key", "14:1", "14:0"]);
-        assert!(backspacing(Typer::Xdotool, 3).args.contains(&"3".to_string()));
+        assert_eq!(
+            backspacing(Typer::Wtype, 2).args,
+            vec!["-k", "BackSpace", "-k", "BackSpace"]
+        );
+        assert_eq!(
+            backspacing(Typer::Ydotool, 1).args,
+            vec!["key", "14:1", "14:0"]
+        );
+        assert!(backspacing(Typer::Xdotool, 3)
+            .args
+            .contains(&"3".to_string()));
     }
 }

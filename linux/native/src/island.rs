@@ -11,7 +11,10 @@ use gtk_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 
 extern "C" {
     // The Rust binding takes a monitor only, while a null one is how the compositor is asked to choose.
-    fn gtk_layer_set_monitor(window: *mut gtk::ffi::GtkWindow, monitor: *mut gtk::gdk::ffi::GdkMonitor);
+    fn gtk_layer_set_monitor(
+        window: *mut gtk::ffi::GtkWindow,
+        monitor: *mut gtk::gdk::ffi::GdkMonitor,
+    );
 }
 
 /// The screen edges a floating window of Memnox hangs from.

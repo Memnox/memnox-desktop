@@ -13,9 +13,15 @@ use ksni::{Category, Icon, MenuItem, ToolTip, Tray};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StatusRow {
     /// A row that does one thing, told back by its id.
-    Press { id: String, title: String },
+    Press {
+        id: String,
+        title: String,
+    },
     /// A row with a tick, such as starting at sign in; pressing it tells its id back.
-    Tick { id: String, title: String },
+    Tick {
+        id: String,
+        title: String,
+    },
     Separator,
 }
 
@@ -149,6 +155,9 @@ mod tests {
 
     #[test]
     fn moves_alpha_to_the_front() {
-        assert_eq!(argb(&[1, 2, 3, 4, 5, 6, 7, 8]), vec![4, 1, 2, 3, 8, 5, 6, 7]);
+        assert_eq!(
+            argb(&[1, 2, 3, 4, 5, 6, 7, 8]),
+            vec![4, 1, 2, 3, 8, 5, 6, 7]
+        );
     }
 }

@@ -8,7 +8,9 @@ use std::time::Duration;
 
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
-use memnox_desktop_noise::core::{generate_keypair, pairing_code, Handshake, Pattern, KEY_LEN, PSK_LEN};
+use memnox_desktop_noise::core::{
+    generate_keypair, pairing_code, Handshake, Pattern, KEY_LEN, PSK_LEN,
+};
 use serde::{Deserialize, Serialize};
 
 use super::framing::MAILBOX_LEN;
@@ -42,7 +44,9 @@ pub struct Invitation {
 pub enum PairFailure {
     NotALink,
     Unreadable,
-    UnsupportedVersion { version: u64 },
+    UnsupportedVersion {
+        version: u64,
+    },
     /// The server's static key is not the one in the link, so somebody else answered.
     WrongMachine,
     Declined,
@@ -51,8 +55,12 @@ pub enum PairFailure {
     /// This computer holds no confirm key to prove itself with.
     NoKey,
     /// Paired, but the record could not be kept in the credential store.
-    NotKept { why: String },
-    Broken { why: String },
+    NotKept {
+        why: String,
+    },
+    Broken {
+        why: String,
+    },
 }
 
 /// The confirm key, asked to name its point and to sign, each of which may block on the system.
@@ -78,17 +86,34 @@ struct WireInvitation {
 /// Reads a pasted link, refusing one that is malformed or from a newer runtime. Its expiry is the core's to check.
 pub fn read_invitation(link: &str) -> Result<Invitation, PairFailure> {
     let link = link.trim();
-    let rest = link.strip_prefix("memnox://pair").ok_or(PairFailure::NotALink)?;
-    let query = rest.trim_start_matches('/').strip_prefix('?').ok_or(PairFailure::NotALink)?;
-    let payload = query.split('&').find_map(|pair| pair.strip_prefix("d=")).ok_or(PairFailure::NotALink)?;
-    let json = URL_SAFE_NO_PAD.decode(payload.trim_end_matches('=')).map_err(|_| PairFailure::Unreadable)?;
-    let wire: WireInvitation = serde_json::from_slice(&json).map_err(|_| PairFailure::Unreadable)?;
+    let rest = link
+        .strip_prefix("memnox://pair")
+        .ok_or(PairFailure::NotALink)?;
+    let query = rest
+        .trim_start_matches('/')
+        .strip_prefix('?')
+        .ok_or(PairFailure::NotALink)?;
+    let payload = query
+        .split('&')
+        .find_map(|pair| pair.strip_prefix("d="))
+        .ok_or(PairFailure::NotALink)?;
+    let json = URL_SAFE_NO_PAD
+        .decode(payload.trim_end_matches('='))
+        .map_err(|_| PairFailure::Unreadable)?;
+    let wire: WireInvitation =
+        serde_json::from_slice(&json).map_err(|_| PairFailure::Unreadable)?;
     if wire.v != VERSION {
         return Err(PairFailure::UnsupportedVersion { version: wire.v });
     }
-    let mailbox = URL_SAFE_NO_PAD.decode(wire.mailbox.trim_end_matches('=')).map_err(|_| PairFailure::Unreadable)?;
-    let runtime_static = STANDARD.decode(&wire.runtime_noise_static).map_err(|_| PairFailure::Unreadable)?;
-    let secret = STANDARD.decode(&wire.secret).map_err(|_| PairFailure::Unreadable)?;
+    let mailbox = URL_SAFE_NO_PAD
+        .decode(wire.mailbox.trim_end_matches('='))
+        .map_err(|_| PairFailure::Unreadable)?;
+    let runtime_static = STANDARD
+        .decode(&wire.runtime_noise_static)
+        .map_err(|_| PairFailure::Unreadable)?;
+    let secret = STANDARD
+        .decode(&wire.secret)
+        .map_err(|_| PairFailure::Unreadable)?;
     let usable = mailbox.len() == MAILBOX_LEN
         && runtime_static.len() == KEY_LEN
         && secret.len() == PSK_LEN
@@ -142,7 +167,9 @@ struct Verdict {
 }
 
 fn broken(why: impl std::fmt::Display) -> PairFailure {
-    PairFailure::Broken { why: why.to_string() }
+    PairFailure::Broken {
+        why: why.to_string(),
+    }
 }
 
 /// Runs the ceremony; `code` hears the six digits the moment both ends have them, for the person to type on the server.
@@ -161,26 +188,69 @@ pub async fn pair(
     })
     .await?
     .ok_or(PairFailure::NoKey)?;
-    let mut socket = dialer.dial(&invitation.relay_url, &invitation.pairing_token).await.map_err(broken)?;
+    let mut socket = dialer
+        .dial(&invitation.relay_url, &invitation.pairing_token)
+        .await
+        .map_err(broken)?;
     let mailbox = invitation.mailbox.clone();
     let ours = generate_keypair().map_err(broken)?;
-    let mut handshake = Handshake::initiator(Pattern::XXpsk0, &ours.private, None, Some(&invitation.secret)).map_err(broken)?;
+    let mut handshake = Handshake::initiator(
+        Pattern::XXpsk0,
+        &ours.private,
+        None,
+        Some(&invitation.secret),
+    )
+    .map_err(broken)?;
     // Message 1 carries nothing; the PSK already binds it to this link.
-    send_handshake(&socket.outgoing, &mailbox, &handshake.write_message(&[]).map_err(broken)?).await.map_err(broken)?;
-    let hello = handshake.read_message(&receive_handshake(&mut socket.incoming, &mailbox).await.map_err(broken)?).map_err(broken)?;
-    if handshake.remote_static().map_err(broken)?.as_deref() != Some(invitation.runtime_static.as_slice()) {
+    send_handshake(
+        &socket.outgoing,
+        &mailbox,
+        &handshake.write_message(&[]).map_err(broken)?,
+    )
+    .await
+    .map_err(broken)?;
+    let hello = handshake
+        .read_message(
+            &receive_handshake(&mut socket.incoming, &mailbox)
+                .await
+                .map_err(broken)?,
+        )
+        .map_err(broken)?;
+    if handshake.remote_static().map_err(broken)?.as_deref()
+        != Some(invitation.runtime_static.as_slice())
+    {
         send_close(&socket.outgoing, &mailbox).await;
         return Err(PairFailure::WrongMachine);
     }
-    let machine = serde_json::from_slice::<RuntimeHello>(&hello).map(|hello| hello.machine).unwrap_or_else(|_| invitation.machine.clone());
-    let introduction = serde_json::to_vec(&Introduction { name, signing_point: &point, kind: DESKTOP }).map_err(broken)?;
-    send_handshake(&socket.outgoing, &mailbox, &handshake.write_message(&introduction).map_err(broken)?).await.map_err(broken)?;
+    let machine = serde_json::from_slice::<RuntimeHello>(&hello)
+        .map(|hello| hello.machine)
+        .unwrap_or_else(|_| invitation.machine.clone());
+    let introduction = serde_json::to_vec(&Introduction {
+        name,
+        signing_point: &point,
+        kind: DESKTOP,
+    })
+    .map_err(broken)?;
+    send_handshake(
+        &socket.outgoing,
+        &mailbox,
+        &handshake.write_message(&introduction).map_err(broken)?,
+    )
+    .await
+    .map_err(broken)?;
     if !handshake.is_finished().map_err(broken)? {
-        return Err(broken("the pairing handshake did not finish in three messages"));
+        return Err(broken(
+            "the pairing handshake did not finish in three messages",
+        ));
     }
     let hash = handshake.handshake_hash().map_err(broken)?;
     code(pairing_code(&hash).map_err(broken)?);
-    let (writer, mut reader) = tunnel(socket, &mailbox, handshake.into_transport().map_err(broken)?, super::schedule::REKEY_INTERVAL);
+    let (writer, mut reader) = tunnel(
+        socket,
+        &mailbox,
+        handshake.into_transport().map_err(broken)?,
+        super::schedule::REKEY_INTERVAL,
+    );
     let message = device_proof_message(&hash);
     let proof = blocking({
         let prover = prover.clone();
@@ -198,7 +268,10 @@ pub async fn pair(
             return Err(why);
         }
     };
-    writer.send_line(&serde_json::to_vec(&DeviceProof { proof }).map_err(broken)?).await.map_err(broken)?;
+    writer
+        .send_line(&serde_json::to_vec(&DeviceProof { proof }).map_err(broken)?)
+        .await
+        .map_err(broken)?;
     let verdict = tokio::time::timeout(verdict_wait, async {
         loop {
             let line = reader.receive_line().await.map_err(broken)?;
@@ -210,8 +283,11 @@ pub async fn pair(
     })
     .await;
     writer.close().await;
-    let verdict = verdict.map_err(|_| broken("the server did not answer the pairing in time"))??;
-    let (true, Some(device_id), Some(relay_token)) = (verdict.paired, verdict.device_id, verdict.relay_token) else {
+    let verdict =
+        verdict.map_err(|_| broken("the server did not answer the pairing in time"))??;
+    let (true, Some(device_id), Some(relay_token)) =
+        (verdict.paired, verdict.device_id, verdict.relay_token)
+    else {
         return Err(PairFailure::Declined);
     };
     Ok(PairedServer {
@@ -233,8 +309,13 @@ pub async fn pair(
 pub const PROOF_REASON: &str = "pair this computer with your server";
 
 /// The key's calls may wait on the person, so they run off the async threads.
-async fn blocking<T: Send + 'static>(work: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, PairFailure> {
-    tokio::task::spawn_blocking(work).await.map_err(broken)?.map_err(broken)
+async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, PairFailure> {
+    tokio::task::spawn_blocking(work)
+        .await
+        .map_err(broken)?
+        .map_err(broken)
 }
 
 #[cfg(test)]
@@ -280,16 +361,36 @@ mod tests {
     async fn respond(mut socket: RelaySocket, private: Vec<u8>, secret: Vec<u8>, accept: bool) {
         let mailbox = [4u8; 16];
         let mut handshake = Handshake::responder(Pattern::XXpsk0, &private, Some(&secret)).unwrap();
-        let Ok(first) = receive_handshake(&mut socket.incoming, &mailbox).await else { return };
+        let Ok(first) = receive_handshake(&mut socket.incoming, &mailbox).await else {
+            return;
+        };
         handshake.read_message(&first).unwrap();
-        send_handshake(&socket.outgoing, &mailbox, &handshake.write_message(br#"{"machine":"build-box"}"#).unwrap()).await.unwrap();
-        let Ok(third) = receive_handshake(&mut socket.incoming, &mailbox).await else { return };
-        let introduction: serde_json::Value = serde_json::from_slice(&handshake.read_message(&third).unwrap()).unwrap();
+        send_handshake(
+            &socket.outgoing,
+            &mailbox,
+            &handshake
+                .write_message(br#"{"machine":"build-box"}"#)
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+        let Ok(third) = receive_handshake(&mut socket.incoming, &mailbox).await else {
+            return;
+        };
+        let introduction: serde_json::Value =
+            serde_json::from_slice(&handshake.read_message(&third).unwrap()).unwrap();
         assert_eq!(introduction["kind"], "desktop");
-        let (writer, mut reader) = tunnel(socket, &mailbox, handshake.into_transport().unwrap(), 16);
-        let Ok(proof) = reader.receive_line().await else { return };
+        let (writer, mut reader) =
+            tunnel(socket, &mailbox, handshake.into_transport().unwrap(), 16);
+        let Ok(proof) = reader.receive_line().await else {
+            return;
+        };
         assert_eq!(proof, br#"{"proof":"sig"}"#);
-        let verdict = if accept { r#"{"paired":true,"deviceId":"dev_9","relayToken":"rly_9","speaks":false}"# } else { r#"{"paired":false}"# };
+        let verdict = if accept {
+            r#"{"paired":true,"deviceId":"dev_9","relayToken":"rly_9","speaks":false}"#
+        } else {
+            r#"{"paired":false}"#
+        };
         writer.send_line(verdict.as_bytes()).await.unwrap();
     }
 
@@ -305,14 +406,34 @@ mod tests {
         }
     }
 
-    async fn run(accept: bool, declines: bool, expected: Option<&Keypair>) -> (Result<PairedServer, PairFailure>, Vec<String>, Arc<Key>) {
+    async fn run(
+        accept: bool,
+        declines: bool,
+        expected: Option<&Keypair>,
+    ) -> (Result<PairedServer, PairFailure>, Vec<String>, Arc<Key>) {
         let server = generate_keypair().unwrap();
         let secret = [8u8; 32];
-        let key = Arc::new(Key { declines, signed: Mutex::new(Vec::new()) });
+        let key = Arc::new(Key {
+            declines,
+            signed: Mutex::new(Vec::new()),
+        });
         let codes = Mutex::new(Vec::new());
         let invite = invitation(expected.unwrap_or(&server), &secret);
-        let dialer = Arc::new(Server { keys: server, secret: secret.to_vec(), accept });
-        let result = pair(&invite, "Desk", dialer, key.clone(), Duration::from_secs(5), 42, |code| codes.lock().unwrap().push(code)).await;
+        let dialer = Arc::new(Server {
+            keys: server,
+            secret: secret.to_vec(),
+            accept,
+        });
+        let result = pair(
+            &invite,
+            "Desk",
+            dialer,
+            key.clone(),
+            Duration::from_secs(5),
+            42,
+            |code| codes.lock().unwrap().push(code),
+        )
+        .await;
         (result, codes.into_inner().unwrap(), key)
     }
 
@@ -320,7 +441,15 @@ mod tests {
     async fn pairs_shows_the_digits_and_signs_the_proof_over_the_handshake_hash() {
         let (result, codes, key) = run(true, false, None).await;
         let server = result.unwrap();
-        assert_eq!((server.machine.as_str(), server.device_id.as_str(), server.relay_token.as_str(), server.paired_at), ("build-box", "dev_9", "rly_9", 42));
+        assert_eq!(
+            (
+                server.machine.as_str(),
+                server.device_id.as_str(),
+                server.relay_token.as_str(),
+                server.paired_at
+            ),
+            ("build-box", "dev_9", "rly_9", 42)
+        );
         assert_eq!(codes.len(), 1);
         assert_eq!(codes[0].len(), 6);
         assert!(key.signed.lock().unwrap()[0].starts_with("memnox-device:v1:"));
@@ -346,10 +475,21 @@ mod tests {
 
     #[test]
     fn the_proof_message_is_the_runtimes_vector() {
-        let vectors: serde_json::Value = serde_json::from_str(include_str!("../../../../vectors/protocol.json")).unwrap();
-        let vector = vectors["messages"].as_array().unwrap().iter().find(|m| m["name"] == "device-proof").unwrap();
-        let hash = STANDARD.decode(vector["inputs"]["handshakeHash"].as_str().unwrap()).unwrap();
-        assert_eq!(device_proof_message(&hash), vector["message"].as_str().unwrap());
+        let vectors: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../vectors/protocol.json")).unwrap();
+        let vector = vectors["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["name"] == "device-proof")
+            .unwrap();
+        let hash = STANDARD
+            .decode(vector["inputs"]["handshakeHash"].as_str().unwrap())
+            .unwrap();
+        assert_eq!(
+            device_proof_message(&hash),
+            vector["message"].as_str().unwrap()
+        );
     }
 
     #[test]
@@ -360,13 +500,28 @@ mod tests {
             "runtimeNoiseStatic": STANDARD.encode([2u8; 32]), "secret": STANDARD.encode([3u8; 32]),
             "expiresAt": "2026-10-18T10:00:00.000Z"
         });
-        let link = format!("memnox://pair?d={}", URL_SAFE_NO_PAD.encode(payload.to_string()));
+        let link = format!(
+            "memnox://pair?d={}",
+            URL_SAFE_NO_PAD.encode(payload.to_string())
+        );
         let read = read_invitation(&format!("  {link}\n")).unwrap();
         assert_eq!((read.machine_id.as_str(), read.mailbox.len()), ("m_1", 16));
-        assert_eq!(read_invitation("https://example.com").unwrap_err(), PairFailure::NotALink);
-        assert_eq!(read_invitation("memnox://pair?d=!!!").unwrap_err(), PairFailure::Unreadable);
+        assert_eq!(
+            read_invitation("https://example.com").unwrap_err(),
+            PairFailure::NotALink
+        );
+        assert_eq!(
+            read_invitation("memnox://pair?d=!!!").unwrap_err(),
+            PairFailure::Unreadable
+        );
         let newer = serde_json::json!({ "v": 2, "machineId": "", "machine": "", "relayUrl": "", "mailbox": "", "pairingToken": "", "runtimeNoiseStatic": "", "secret": "" });
-        let link = format!("memnox://pair?d={}", URL_SAFE_NO_PAD.encode(newer.to_string()));
-        assert_eq!(read_invitation(&link).unwrap_err(), PairFailure::UnsupportedVersion { version: 2 });
+        let link = format!(
+            "memnox://pair?d={}",
+            URL_SAFE_NO_PAD.encode(newer.to_string())
+        );
+        assert_eq!(
+            read_invitation(&link).unwrap_err(),
+            PairFailure::UnsupportedVersion { version: 2 }
+        );
     }
 }

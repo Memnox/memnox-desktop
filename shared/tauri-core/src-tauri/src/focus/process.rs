@@ -71,8 +71,18 @@ pub fn run(mut command: Command, wait: Duration) -> Result<String, Failure> {
             text
         })
     };
-    let out = reader(child.stdout.take().map(|stream| Box::new(stream) as Box<dyn Read + Send>));
-    let err = reader(child.stderr.take().map(|stream| Box::new(stream) as Box<dyn Read + Send>));
+    let out = reader(
+        child
+            .stdout
+            .take()
+            .map(|stream| Box::new(stream) as Box<dyn Read + Send>),
+    );
+    let err = reader(
+        child
+            .stderr
+            .take()
+            .map(|stream| Box::new(stream) as Box<dyn Read + Send>),
+    );
     let started = Instant::now();
     let status = loop {
         match child.try_wait() {
@@ -97,7 +107,11 @@ pub fn run(mut command: Command, wait: Duration) -> Result<String, Failure> {
 
 /// The first line a tool wrote, enough to say why without reading its whole complaint aloud.
 fn first_line(text: &str) -> String {
-    text.lines().map(str::trim).find(|line| !line.is_empty()).unwrap_or("").to_string()
+    text.lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or("")
+        .to_string()
 }
 
 /// A link opened by the system's URL handler, which hands it to the app registered for its scheme.
@@ -126,13 +140,22 @@ mod tests {
 
     #[test]
     fn says_why_a_command_gave_no_answer() {
-        assert_eq!(Failure::Missing.said("WezTerm"), "WezTerm is not installed here");
-        assert_eq!(Failure::Said("no running instance".into()).said("WezTerm"), "WezTerm said no running instance");
+        assert_eq!(
+            Failure::Missing.said("WezTerm"),
+            "WezTerm is not installed here"
+        );
+        assert_eq!(
+            Failure::Said("no running instance".into()).said("WezTerm"),
+            "WezTerm said no running instance"
+        );
         assert_eq!(first_line("\n  error: refused\nmore"), "error: refused");
     }
 
     #[test]
     fn calls_a_missing_program_missing() {
-        assert_eq!(run(command("memnox-no-such-program"), CLI_WAIT).unwrap_err(), Failure::Missing);
+        assert_eq!(
+            run(command("memnox-no-such-program"), CLI_WAIT).unwrap_err(),
+            Failure::Missing
+        );
     }
 }

@@ -89,7 +89,11 @@ pub fn chunks(line: &[u8]) -> Vec<Vec<u8>> {
         .enumerate()
         .map(|(index, piece)| {
             let mut chunk = Vec::with_capacity(piece.len() + 1);
-            chunk.push(if index == last { ENDS_LINE } else { MORE_FOLLOWS });
+            chunk.push(if index == last {
+                ENDS_LINE
+            } else {
+                MORE_FOLLOWS
+            });
             chunk.extend_from_slice(piece);
             chunk
         })
@@ -110,7 +114,10 @@ impl Default for LineJoiner {
 
 impl LineJoiner {
     pub fn new(longest: usize) -> Self {
-        Self { pending: Vec::new(), longest }
+        Self {
+            pending: Vec::new(),
+            longest,
+        }
     }
 
     /// The whole line once its last chunk arrives, None while more is to come.
@@ -143,14 +150,23 @@ mod tests {
         let made = message(&MAILBOX, FrameKind::Transport, b"sealed").unwrap();
         assert_eq!(&made[..16], &MAILBOX);
         assert_eq!(made[16], 0x02);
-        assert_eq!(frame(&made, &MAILBOX), Some((FrameKind::Transport, &b"sealed"[..])));
+        assert_eq!(
+            frame(&made, &MAILBOX),
+            Some((FrameKind::Transport, &b"sealed"[..]))
+        );
     }
 
     #[test]
     fn refuses_a_short_mailbox_and_a_message_past_the_relay_limit() {
-        assert_eq!(message(&[1; 15], FrameKind::Close, b""), Err(FramingError::BadMailbox));
+        assert_eq!(
+            message(&[1; 15], FrameKind::Close, b""),
+            Err(FramingError::BadMailbox)
+        );
         let body = vec![0u8; LARGEST_MESSAGE];
-        assert_eq!(message(&MAILBOX, FrameKind::Transport, &body), Err(FramingError::TooLarge(LARGEST_MESSAGE + 17)));
+        assert_eq!(
+            message(&MAILBOX, FrameKind::Transport, &body),
+            Err(FramingError::TooLarge(LARGEST_MESSAGE + 17))
+        );
     }
 
     #[test]
@@ -179,7 +195,10 @@ mod tests {
     #[test]
     fn an_empty_line_is_one_ending_chunk() {
         assert_eq!(chunks(b""), vec![vec![ENDS_LINE]]);
-        assert_eq!(LineJoiner::default().push(&[ENDS_LINE]).unwrap(), Some(Vec::new()));
+        assert_eq!(
+            LineJoiner::default().push(&[ENDS_LINE]).unwrap(),
+            Some(Vec::new())
+        );
     }
 
     #[test]
@@ -187,7 +206,10 @@ mod tests {
         let mut joiner = LineJoiner::new(4);
         assert_eq!(joiner.push(&[]), Err(FramingError::EmptyChunk));
         assert_eq!(joiner.push(&[7, 1]), Err(FramingError::UnknownFlag(7)));
-        assert_eq!(joiner.push(&[MORE_FOLLOWS, 1, 2, 3, 4, 5]), Err(FramingError::LineTooLong));
+        assert_eq!(
+            joiner.push(&[MORE_FOLLOWS, 1, 2, 3, 4, 5]),
+            Err(FramingError::LineTooLong)
+        );
         assert_eq!(joiner.push(&[ENDS_LINE, 1]).unwrap(), Some(vec![1]));
     }
 }

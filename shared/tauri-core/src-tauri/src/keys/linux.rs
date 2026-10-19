@@ -23,7 +23,8 @@ struct OnlyHere(*mut Display);
 unsafe impl Send for OnlyHere {}
 
 fn wayland() -> bool {
-    std::env::var_os("WAYLAND_DISPLAY").is_some() || std::env::var("XDG_SESSION_TYPE").is_ok_and(|kind| kind == "wayland")
+    std::env::var_os("WAYLAND_DISPLAY").is_some()
+        || std::env::var("XDG_SESSION_TYPE").is_ok_and(|kind| kind == "wayland")
 }
 
 pub fn watch(sink: Sink) -> Result<(), String> {
@@ -63,10 +64,14 @@ pub fn has_altgr() -> Option<bool> {
         }
     }
     let named = std::env::var("XKB_DEFAULT_LAYOUT").ok().or_else(|| {
-        std::fs::read_to_string("/etc/default/keyboard").ok().and_then(|file| {
-            file.lines()
-                .find_map(|line| line.strip_prefix("XKBLAYOUT=").map(|layout| layout.trim_matches('"').to_string()))
-        })
+        std::fs::read_to_string("/etc/default/keyboard")
+            .ok()
+            .and_then(|file| {
+                file.lines().find_map(|line| {
+                    line.strip_prefix("XKBLAYOUT=")
+                        .map(|layout| layout.trim_matches('"').to_string())
+                })
+            })
     })?;
     let first = named.split(',').next().unwrap_or("").trim().to_lowercase();
     (!first.is_empty()).then(|| first != "us")
@@ -116,7 +121,12 @@ fn codes(xlib: &Xlib, display: *mut Display) -> Vec<(u8, Modifier)> {
     wanted
         .iter()
         // SAFETY: the display is open and the keysym is a plain number.
-        .map(|(sym, modifier)| (unsafe { (xlib.XKeysymToKeycode)(display, u64::from(*sym) as _) }, *modifier))
+        .map(|(sym, modifier)| {
+            (
+                unsafe { (xlib.XKeysymToKeycode)(display, u64::from(*sym) as _) },
+                *modifier,
+            )
+        })
         .filter(|(code, _)| *code != 0)
         .collect()
 }

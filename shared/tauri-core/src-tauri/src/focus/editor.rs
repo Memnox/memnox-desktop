@@ -8,7 +8,10 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-use super::plan::{conversation_link, encoded, extension_device, is_app_link, is_conversation_id, link, Editor, Host, Shown};
+use super::plan::{
+    conversation_link, encoded, extension_device, is_app_link, is_conversation_id, link, Editor,
+    Host, Shown,
+};
 use super::process::{command, open_url, run, Failure, EDITOR_WAIT};
 
 /// The Memnox extension's link host, and the start of its installed folder's name before the version.
@@ -29,7 +32,8 @@ const SETTLE: Duration = Duration::from_millis(200);
 const APP_SETTLE: Duration = Duration::from_millis(1500);
 
 /// Said when the extension never wrote back, which a window still on an older copy does.
-const SILENT: &str = "the Memnox extension did not answer, so its editor window may need its extensions restarted";
+const SILENT: &str =
+    "the Memnox extension did not answer, so its editor window may need its extensions restarted";
 /// What the extension says when no terminal in the editor holds the device.
 const NO_TERMINAL: &str = "no integrated terminal holds its device";
 
@@ -78,15 +82,22 @@ fn open_folder(editor: Editor, folder: &str) -> Result<(), String> {
     match run(opener, EDITOR_WAIT) {
         Ok(_) => Ok(()),
         // Its command line is not on the path, so the editor's own link opens the folder instead.
-        Err(Failure::Missing) => open_url(&file_link(editor, folder))
-            .map_err(|_| format!("{} is not installed here, or its command line is not on the path", editor.title())),
+        Err(Failure::Missing) => open_url(&file_link(editor, folder)).map_err(|_| {
+            format!(
+                "{} is not installed here, or its command line is not on the path",
+                editor.title()
+            )
+        }),
         Err(failure) => Err(failure.said(editor.title())),
     }
 }
 
 /// The editor's own `file` link to a folder, each part of the path written safely.
 fn file_link(editor: Editor, folder: &str) -> String {
-    let path: Vec<String> = folder.replace('\\', "/").trim_start_matches('/').split('/')
+    let path: Vec<String> = folder
+        .replace('\\', "/")
+        .trim_start_matches('/')
+        .split('/')
         // A drive's colon stays, as the editor reads `C:/Users`.
         .map(|part| encoded(part).replace("%3A", ":"))
         .collect();
@@ -102,14 +113,25 @@ pub fn focus(host: &Host) -> Shown {
     // A session with a terminal runs in one of the editor's terminals, never in the agent panel, and only
     // the agent's own id opens its conversation; any other id makes the panel start a new one.
     if host.tty.is_none() {
-        if let Some(conversation) = host.conversation.as_deref().filter(|id| is_conversation_id(id)) {
+        if let Some(conversation) = host
+            .conversation
+            .as_deref()
+            .filter(|id| is_conversation_id(id))
+        {
             if open_url(&conversation_link(editor, conversation)).is_ok() {
                 return Shown::done();
             }
         }
     }
-    let Some(folder) = host.cwd.as_deref().filter(|folder| Path::new(folder).is_dir()) else {
-        return Shown::failed(format!("its folder was never noted, so {} has no window to bring forward", editor.title()));
+    let Some(folder) = host
+        .cwd
+        .as_deref()
+        .filter(|folder| Path::new(folder).is_dir())
+    else {
+        return Shown::failed(format!(
+            "its folder was never noted, so {} has no window to bring forward",
+            editor.title()
+        ));
     };
     if let Err(why) = open_folder(editor, folder) {
         return Shown::failed(why);
@@ -181,9 +203,9 @@ struct Record {
 /// Only an id the runtime makes is read, so the path never leaves the displays folder.
 fn is_request_id(request: &str) -> bool {
     !request.is_empty()
-        && request
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '-')
+        && request.chars().all(|character| {
+            character.is_ascii_alphanumeric() || character == '_' || character == '-'
+        })
 }
 
 /// What one read of the request says: answered, or still waiting.
@@ -201,7 +223,8 @@ fn answered(bytes: &[u8]) -> Option<Shown> {
         });
     }
     // A window holding the terminal claimed it, so it is acting there whatever the window the link reached said.
-    (record.no_terminal == Some(true) && record.claimed_by.is_none()).then(|| Shown::failed(NO_TERMINAL))
+    (record.no_terminal == Some(true) && record.claimed_by.is_none())
+        .then(|| Shown::failed(NO_TERMINAL))
 }
 
 /// What the extension wrote on the request once it acted, read from the runtime's own folder, with the
@@ -231,14 +254,23 @@ mod tests {
 
     #[test]
     fn reads_the_extensions_answer_on_the_request() {
-        assert_eq!(answered(br#"{"delivered":{"outcome":"typed","at":"x"}}"#), Some(Shown::done()));
+        assert_eq!(
+            answered(br#"{"delivered":{"outcome":"typed","at":"x"}}"#),
+            Some(Shown::done())
+        );
         assert_eq!(
             answered(br#"{"delivered":{"outcome":"failed","reason":"no agent is in front in its terminal"}}"#),
             Some(Shown::failed("no agent is in front in its terminal"))
         );
-        assert_eq!(answered(br#"{"noTerminal":true}"#), Some(Shown::failed(NO_TERMINAL)));
+        assert_eq!(
+            answered(br#"{"noTerminal":true}"#),
+            Some(Shown::failed(NO_TERMINAL))
+        );
         assert_eq!(answered(br#"{"noTerminal":true,"claimedBy":42}"#), None);
-        assert_eq!(answered(br#"{"line":"cd '/a' && memnox run claude"}"#), None);
+        assert_eq!(
+            answered(br#"{"line":"cd '/a' && memnox run claude"}"#),
+            None
+        );
         assert_eq!(answered(b"half a fi"), None);
     }
 
@@ -254,20 +286,33 @@ mod tests {
         let folder = std::env::temp_dir().join(format!("memnox-extensions-{}", std::process::id()));
         std::fs::create_dir_all(folder.join("memnox.memnox-terminals-1.0.0")).unwrap();
         assert!(installed_in(&folder));
-        std::fs::write(folder.join(".obsolete"), br#"{"memnox.memnox-terminals-1.0.0":true}"#).unwrap();
+        std::fs::write(
+            folder.join(".obsolete"),
+            br#"{"memnox.memnox-terminals-1.0.0":true}"#,
+        )
+        .unwrap();
         assert!(!installed_in(&folder));
         std::fs::remove_dir_all(&folder).unwrap();
     }
 
     #[test]
     fn writes_a_folder_as_the_editors_own_link() {
-        assert_eq!(file_link(Editor::Code, "/home/a/my shop"), "vscode://file/home/a/my%20shop");
-        assert_eq!(file_link(Editor::Cursor, "C:\\Users\\a"), "cursor://file/C:/Users/a");
+        assert_eq!(
+            file_link(Editor::Code, "/home/a/my shop"),
+            "vscode://file/home/a/my%20shop"
+        );
+        assert_eq!(
+            file_link(Editor::Cursor, "C:\\Users\\a"),
+            "cursor://file/C:/Users/a"
+        );
     }
 
     #[test]
     fn opens_no_link_that_is_not_an_agent_apps() {
-        assert_eq!(open_app_links(&["https://example.com".into()]).answer, "failed");
+        assert_eq!(
+            open_app_links(&["https://example.com".into()]).answer,
+            "failed"
+        );
         assert_eq!(open_app_links(&[]).answer, "failed");
     }
 }

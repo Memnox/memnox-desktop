@@ -45,10 +45,12 @@ fn psk32(s: &str) -> [u8; 32] {
 fn run(v: &Vector) {
     let params: NoiseParams = v.protocol_name.parse().unwrap();
     let mut keys: Vec<Vec<u8>> = Vec::new();
-    let store = |keys: &mut Vec<Vec<u8>>, s: &Option<String>| s.as_deref().map(|x| {
-        keys.push(h(x));
-        keys.len() - 1
-    });
+    let store = |keys: &mut Vec<Vec<u8>>, s: &Option<String>| {
+        s.as_deref().map(|x| {
+            keys.push(h(x));
+            keys.len() - 1
+        })
+    };
     let (is, rs, ie, re, irs, rrs) = (
         store(&mut keys, &v.init_static),
         store(&mut keys, &v.resp_static),
@@ -63,7 +65,13 @@ fn run(v: &Vector) {
         .modifiers
         .list
         .iter()
-        .filter_map(|m| if let HandshakeModifier::Psk(n) = m { Some(*n) } else { None })
+        .filter_map(|m| {
+            if let HandshakeModifier::Psk(n) = m {
+                Some(*n)
+            } else {
+                None
+            }
+        })
         .collect();
     let ipsks: Vec<[u8; 32]> = v.init_psks.iter().flatten().map(|s| psk32(s)).collect();
     let rpsks: Vec<[u8; 32]> = v.resp_psks.iter().flatten().map(|s| psk32(s)).collect();
@@ -74,12 +82,24 @@ fn run(v: &Vector) {
         ib = ib.psk(*n, &ipsks[k]).unwrap();
         rb = rb.psk(*n, &rpsks[k]).unwrap();
     }
-    if let Some(i) = is { ib = ib.local_private_key(&keys[i]).unwrap(); }
-    if let Some(i) = rs { rb = rb.local_private_key(&keys[i]).unwrap(); }
-    if let Some(i) = irs { ib = ib.remote_public_key(&keys[i]).unwrap(); }
-    if let Some(i) = rrs { rb = rb.remote_public_key(&keys[i]).unwrap(); }
-    if let Some(i) = ie { ib = ib.fixed_ephemeral_key_for_testing_only(&keys[i]); }
-    if let Some(i) = re { rb = rb.fixed_ephemeral_key_for_testing_only(&keys[i]); }
+    if let Some(i) = is {
+        ib = ib.local_private_key(&keys[i]).unwrap();
+    }
+    if let Some(i) = rs {
+        rb = rb.local_private_key(&keys[i]).unwrap();
+    }
+    if let Some(i) = irs {
+        ib = ib.remote_public_key(&keys[i]).unwrap();
+    }
+    if let Some(i) = rrs {
+        rb = rb.remote_public_key(&keys[i]).unwrap();
+    }
+    if let Some(i) = ie {
+        ib = ib.fixed_ephemeral_key_for_testing_only(&keys[i]);
+    }
+    if let Some(i) = re {
+        rb = rb.fixed_ephemeral_key_for_testing_only(&keys[i]);
+    }
     let (mut init, mut resp) = (ib.build_initiator().unwrap(), rb.build_responder().unwrap());
 
     let mut buf = vec![0u8; 65535];
@@ -87,9 +107,19 @@ fn run(v: &Vector) {
     let mut msgs = v.messages.iter().enumerate();
     while !init.is_handshake_finished() {
         let (i, m) = msgs.next().expect("vector ran out of handshake messages");
-        let (s, r) = if i % 2 == 0 { (&mut init, &mut resp) } else { (&mut resp, &mut init) };
+        let (s, r) = if i % 2 == 0 {
+            (&mut init, &mut resp)
+        } else {
+            (&mut resp, &mut init)
+        };
         let n = s.write_message(&h(&m.payload), &mut buf).unwrap();
-        assert_eq!(hex::encode(&buf[..n]), m.ciphertext, "{} {} handshake message {i}", v.source, v.protocol_name);
+        assert_eq!(
+            hex::encode(&buf[..n]),
+            m.ciphertext,
+            "{} {} handshake message {i}",
+            v.source,
+            v.protocol_name
+        );
         let k = r.read_message(&buf[..n], &mut out).unwrap();
         assert_eq!(hex::encode(&out[..k]), m.payload);
     }
@@ -97,11 +127,24 @@ fn run(v: &Vector) {
         assert_eq!(hex::encode(init.get_handshake_hash()), *hash);
         assert_eq!(hex::encode(resp.get_handshake_hash()), *hash);
     }
-    let (mut it, mut rt) = (init.into_transport_mode().unwrap(), resp.into_transport_mode().unwrap());
+    let (mut it, mut rt) = (
+        init.into_transport_mode().unwrap(),
+        resp.into_transport_mode().unwrap(),
+    );
     for (i, m) in msgs {
-        let (s, r) = if i % 2 == 0 { (&mut it, &mut rt) } else { (&mut rt, &mut it) };
+        let (s, r) = if i % 2 == 0 {
+            (&mut it, &mut rt)
+        } else {
+            (&mut rt, &mut it)
+        };
         let n = s.write_message(&h(&m.payload), &mut buf).unwrap();
-        assert_eq!(hex::encode(&buf[..n]), m.ciphertext, "{} {} transport message {i}", v.source, v.protocol_name);
+        assert_eq!(
+            hex::encode(&buf[..n]),
+            m.ciphertext,
+            "{} {} transport message {i}",
+            v.source,
+            v.protocol_name
+        );
         let k = r.read_message(&buf[..n], &mut out).unwrap();
         assert_eq!(hex::encode(&out[..k]), m.payload);
     }
@@ -110,7 +153,12 @@ fn run(v: &Vector) {
 #[test]
 fn published_vectors_for_our_suite_pass() {
     let all: Vectors = serde_json::from_str(include_str!("vectors/memnox-suite.json")).unwrap();
-    assert!(all.vectors.iter().any(|v| v.protocol_name == "Noise_IK_25519_ChaChaPoly_BLAKE2s" && v.source == "cacophony"));
+    assert!(
+        all.vectors
+            .iter()
+            .any(|v| v.protocol_name == "Noise_IK_25519_ChaChaPoly_BLAKE2s"
+                && v.source == "cacophony")
+    );
     for v in &all.vectors {
         run(v);
     }

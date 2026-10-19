@@ -52,6 +52,14 @@ trap 'exit 1' INT TERM
 
 bytes() { stat -f %z "$1" 2>/dev/null || echo 0; }
 
+# An install that finished while this one waited for the lock, or before the app looked, leaves nothing to do, and
+# running it again would take the working voice apart to rebuild it, keeping the app's spinner up all the while.
+if [ -f "$DIR/$MARK" ] && [ "$(bytes "$DIR/$MODEL")" = "$MODEL_BYTES" ] && [ "$(bytes "$DIR/$VOICES")" = "$VOICES_BYTES" ] \
+  && "$DIR/venv/bin/python" -c "import kokoro_onnx" 2>/dev/null; then
+  step "Ready"
+  exit 0
+fi
+
 # Everything the voice needs in one archive from a host near the person, built by scripts/voice-pack.sh and named
 # here by the build, since the pieces otherwise come from GitHub and PyPI, which are slow from much of the world.
 # Empty means no pack, and the pieces come one by one from where their makers publish them.

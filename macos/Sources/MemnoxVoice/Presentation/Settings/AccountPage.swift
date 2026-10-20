@@ -117,6 +117,45 @@ final class AccountModel: ObservableObject {
     private static let rideWaits = 12
     private static let rideStep: UInt64 = 1_000_000_000
 
+    /// Signs in and waits for it to end, so connecting a tool before anybody signed in carries straight on once they
+    /// approve. True once the daemon holds the person as well, since it is the daemon that connects the tool.
+    func signInAndWait() async -> Bool {
+        if !isSignedIn {
+            start()
+            // An approval left unfinished in the browser is given up on, rather than holding the tool for as long as the code lives.
+            let deadline = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: Self.approvalWait)
+                guard !Task.isCancelled, let self, !self.isSignedIn else { return }
+                self.cancel()
+            }
+            defer { deadline.cancel() }
+            waiting: for await now in $step.values {
+                switch now {
+                case .starting, .showingCode: continue
+                case .signedIn: break waiting
+                case .signedOut, .failed: return false
+                }
+            }
+            // A Connect pressed again stopped this wait, so the code it showed is dropped with it.
+            if Task.isCancelled {
+                cancel()
+                return false
+            }
+        }
+        guard let daemon else { return true }
+        for _ in 0..<Self.daemonWaits {
+            if await daemon.connected() != false { return true }
+            try? await Task.sleep(nanoseconds: Self.rideStep)
+        }
+        return false
+    }
+
+    /// Three minutes, long enough to sign in to the console and approve, short enough that a tab closed halfway is let go.
+    private static let approvalWait: UInt64 = 180_000_000_000
+
+    /// Seconds the daemon is given after the approval to hold the person too, longer than the ride itself waits.
+    private static let daemonWaits = 20
+
     /// The workspace refused the credential, so the page says so rather than claiming a sign in that no longer works.
     func signedOutByWorkspace() {
         step = .failed(WorkspaceLines.signedOut)

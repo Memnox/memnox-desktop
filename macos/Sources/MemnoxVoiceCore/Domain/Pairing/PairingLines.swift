@@ -16,7 +16,7 @@ public enum PairingLines {
     /// Said when the daemon refused without a reason of its own.
     public static let refused = "Memnox would not open a pairing just now."
     /// Said before the daemon is even asked, when this Mac has no workspace to carry the phone to it.
-    public static let connectFirst = "This Mac is not connected to a workspace yet, which is what carries the phone to it. Connect it on the Account page, then pair again."
+    public static let connectFirst = "This Mac was not approved in your browser, so no phone can reach it yet. Press Show code to try again."
 
     /// A name like "Sam's iPhone" already says whose it is, with a straight or a curly apostrophe.
     private static let possessives = ["'s ", "\u{2019}s "]

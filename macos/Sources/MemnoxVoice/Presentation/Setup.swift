@@ -95,6 +95,8 @@ final class SetupModel: ObservableObject {
     var devicesChanged: (() -> Void)?
     /// Whether this Mac is connected to a workspace, asked before a phone pairs; nil when the daemon cannot say.
     var machineConnected: (() async -> Bool?)?
+    /// The one approval in the browser, run when a phone is paired before this Mac was ever signed in.
+    var signInFirst: (() async -> Bool)?
     /// Told the Kokoro voice picked, so the daemon can hand it to a paired phone.
     var voicePicked: ((String) -> Void)?
     private let pairing: Pairing
@@ -472,7 +474,10 @@ final class SetupModel: ObservableObject {
     func pairPhone() async {
         stopWatchingPairing()
         phone = .opening
-        if await machineConnected?() == false { return failPairing(PairingLines.connectFirst) }
+        // The relay carries a phone only to a Mac that is signed in, so a Mac that never was is signed in first, here.
+        if await machineConnected?() == false {
+            guard await signInFirst?() == true, await connectedSoon() else { return failPairing(PairingLines.connectFirst) }
+        }
         switch await pairing.begin() {
         case .started(let invite):
             guard let qr = invite.qr else { return failPairing(PairingLines.refused) }
@@ -485,6 +490,18 @@ final class SetupModel: ObservableObject {
             failPairing(PairingLines.unreachable)
         }
     }
+
+    /// This Mac's own connection follows the person's approval by a few seconds, so it is read until it lands.
+    private func connectedSoon() async -> Bool {
+        for _ in 0..<Self.connectionTries {
+            if await machineConnected?() != false { return true }
+            try? await Task.sleep(nanoseconds: Self.connectionStep)
+        }
+        return false
+    }
+
+    private static let connectionTries = 15
+    private static let connectionStep: UInt64 = 2_000_000_000
 
     /// The person's yes once the digits match; a cancelled Touch ID leaves the digits up to try again.
     func approvePhone() async {

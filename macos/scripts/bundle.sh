@@ -46,17 +46,26 @@ cp Support/AgentLogos/* "$APP/Contents/Resources/AgentLogos/"
 # The tools a person signs in to, drawn in the notch and on the card of what goes out in their name.
 mkdir -p "$APP/Contents/Resources/ToolLogos"
 cp Support/ToolLogos/* "$APP/Contents/Resources/ToolLogos/"
-# Kokoro's installer and server ride inside the app, so it installs the voice on first launch itself.
-mkdir -p "$APP/Contents/Resources/kokoro"
-cp scripts/kokoro-setup.sh Support/kokoro/server.py "$APP/Contents/Resources/kokoro/"
-# The voice pack scripts/voice-pack.sh built, baked into the installer when this build names where it is hosted, so a
-# first run takes the voice in one download from a host near the person rather than four slow ones.
-if [ -n "${MEMNOX_VOICE_PACK:-}" ]; then
-  sed -i '' "s|^PACK_DEFAULT=.*|PACK_DEFAULT=\"$MEMNOX_VOICE_PACK\"|" "$APP/Contents/Resources/kokoro/kokoro-setup.sh"
+# Memnox's own cue sounds, which scripts/make-sounds.py writes; without them the app plays the Mac's.
+mkdir -p "$APP/Contents/Resources/Sounds"
+cp Support/Sounds/*.wav "$APP/Contents/Resources/Sounds/"
+# The setup bed is AAC where the Mac that made it could encode one.
+cp Support/Sounds/*.m4a "$APP/Contents/Resources/Sounds/" 2>/dev/null || true
+KOKORO="$APP/Contents/Resources/kokoro"
+# A voice voice-pack.sh already built is carried by a local build too, so it never speaks in the Mac's voice while
+# Kokoro downloads on its first launch.
+if [ -z "${MEMNOX_VOICE_DIR:-}" ] && [ -f build/voice/kokoro/server.py ]; then
+  MEMNOX_VOICE_DIR="$PWD/build/voice/kokoro"
 fi
-# Or the pack itself inside the app, as scripts/dmg.sh builds it, so the voice installs on first launch with no download.
-if [ -n "${MEMNOX_VOICE_PACK_FILE:-}" ]; then
-  cp "$MEMNOX_VOICE_PACK_FILE" "$APP/Contents/Resources/kokoro/kokoro-pack.tar.xz"
+if [ -n "${MEMNOX_VOICE_DIR:-}" ]; then
+  # The voice scripts/voice-pack.sh built, ready to run where it lands, so it speaks the moment the app first opens.
+  # No installer goes with it, so install.sh and the app have nothing left to set up.
+  ditto "$MEMNOX_VOICE_DIR" "$KOKORO"
+  cp Support/kokoro/server.py "$KOKORO/"
+else
+  # A build without it carries Kokoro's installer and server instead, which install the voice on first launch.
+  mkdir -p "$KOKORO"
+  cp scripts/kokoro-setup.sh Support/kokoro/server.py "$KOKORO/"
 fi
 # The runtime with its own Node that scripts/runtime-pack.sh built, and the script that unpacks it on first launch,
 # so a Mac with no Node and no connection still gets memnox and its daemon.
@@ -73,12 +82,16 @@ if [ -z "${CI:-}" ] && ! security find-identity -v -p codesigning | grep -q "$ID
   sh scripts/signing-setup.sh || true
 fi
 ADHOC=no
+SIGNER=-
 if security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
-  codesign --force --sign "$IDENTITY" "$APP"
+  SIGNER="$IDENTITY"
 else
-  codesign --force --sign - "$APP"
   ADHOC=yes
 fi
+# The code inside the carried voice is signed one file at a time before the app, since the app's own signature only
+# seals it and macOS runs nothing on Apple silicon that is not signed itself.
+find "$KOKORO" -type f \( -name "python3.12" -o -name "*.so" -o -name "*.dylib" \) -exec codesign --force --sign "$SIGNER" {} +
+codesign --force --sign "$SIGNER" "$APP"
 
 # A daemon already running the checkout is restarted on what was just built, so the app meets the new code.
 if [ "$SOURCE" = local ] && command -v memnox >/dev/null 2>&1; then

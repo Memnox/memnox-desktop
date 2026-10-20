@@ -60,52 +60,6 @@ if [ -f "$DIR/$MARK" ] && [ "$(bytes "$DIR/$MODEL")" = "$MODEL_BYTES" ] && [ "$(
   exit 0
 fi
 
-# Everything the voice needs in one archive from a host near the person, built by scripts/voice-pack.sh and named
-# here by the build, since the pieces otherwise come from GitHub and PyPI, which are slow from much of the world.
-# Empty means no pack, and the pieces come one by one from where their makers publish them.
-PACK_DEFAULT=""
-PACK_URL="${MEMNOX_VOICE_PACK:-$PACK_DEFAULT}"
-# The same pack carried inside the app beside this script, as the downloadable disk image ships it, so the voice
-# installs on first launch with no download.
-PACK_FILE="${MEMNOX_VOICE_PACK_FILE:-$HERE/kokoro-pack.tar.xz}"
-
-# Unpacks a pack archive and points the venv's Python at its new home. False when anything is short.
-unpack() {
-  step "Unpacking the voice"
-  rm -rf "$DIR/venv" "$DIR/python"
-  tar -C "$DIR" --strip-components 1 -xJf "$1" || return 1
-  home="$(ls -d "$DIR"/python/cpython-*/bin 2>/dev/null | head -1)"
-  [ -n "$home" ] || return 1
-  sed -i '' "s|^home = .*|home = $home|" "$DIR/venv/pyvenv.cfg" || return 1
-  "$DIR/venv/bin/python" -c "import kokoro_onnx" 2>/dev/null || return 1
-}
-
-# Takes the pack: the one on this Mac when there is one, which came inside the signed app, else the hosted one,
-# resumed if it broke off and accepted only against its checksum. Anything short of that returns false, and the pieces
-# are fetched instead.
-pack() {
-  if [ -f "$PACK_FILE" ] && unpack "$PACK_FILE"; then return 0; fi
-  [ -n "$PACK_URL" ] || return 1
-  step "Downloading the voice"
-  curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -C - "$PACK_URL" -o "$DIR/pack.tar.xz.part" || return 1
-  curl -fsSL --retry 3 --retry-all-errors "$PACK_URL.sha256" -o "$DIR/pack.sha256" || return 1
-  if [ "$(shasum -a 256 "$DIR/pack.tar.xz.part" | cut -d' ' -f1)" != "$(cut -d' ' -f1 < "$DIR/pack.sha256")" ]; then
-    echo "the voice pack did not match its checksum, so it was thrown away"
-    rm -f "$DIR/pack.tar.xz.part" "$DIR/pack.sha256"
-    return 1
-  fi
-  unpack "$DIR/pack.tar.xz.part" || return 1
-  rm -f "$DIR/pack.tar.xz.part" "$DIR/pack.sha256"
-}
-
-if pack; then
-  cp "$SERVER" "$DIR/server.py"
-  touch "$DIR/$MARK"
-  step "Ready"
-  echo "Kokoro is ready in $DIR, from the voice pack."
-  exit 0
-fi
-
 # Starts a voice file downloading in the background unless it is already whole. The download resumes a part left
 # by an earlier run, since a 300 MB file over a slow link breaks off more often than it fails outright; a part that
 # grew past the real size, or a finished file at the wrong size, is thrown away since it cannot be trusted.

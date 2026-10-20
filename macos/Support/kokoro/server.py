@@ -17,10 +17,13 @@ import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-import numpy as np
-from kokoro_onnx import Kokoro
-
 HERE = Path(__file__).resolve().parent
+# The voice inside the app keeps its packages beside this file rather than in a venv, since the app may be anywhere.
+if (HERE / "site-packages").is_dir():
+    sys.path.insert(0, str(HERE / "site-packages"))
+
+import numpy as np  # noqa: E402
+from kokoro_onnx import Kokoro  # noqa: E402
 # One sentence is what the app sends, so anything longer is a mistake rather than a reply.
 MOST_CHARACTERS = 1_000
 
@@ -142,12 +145,17 @@ def spoken(kokoro: Kokoro, pronouncers: dict, text: str, voice: str, speed: floa
     return polished(samples, rate, short), rate
 
 
-def serve(port: int) -> None:
-    kokoro = Kokoro(str(HERE / "kokoro-v1.0.onnx"), str(HERE / "voices-v1.0.bin"))
+def serve(port: int, model: Path, voices: Path, warm: bool = False) -> None:
+    kokoro = Kokoro(str(model), str(voices))
     voices = sorted(kokoro.get_voices())
     pronouncers = {british: pronouncer(british) for british in (True, False)}
     g2p = "misaki" if pronouncers[True] is not None else "espeak"
     print(f"pronouncing with {g2p}", flush=True)
+    # Everything loaded once and one word said, then out: macOS checks each new library the first time it loads, which
+    # the installer pays here so the app's first words come in this voice rather than the Mac's.
+    if warm:
+        spoken(kokoro, pronouncers, "Ready.", voices[0], 1.0, "en-us")
+        return
     # The model is not documented as safe across threads, so one sentence is spoken at a time.
     lock = threading.Lock()
 
@@ -194,4 +202,9 @@ def serve(port: int) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8723)
-    serve(parser.parse_args().port)
+    # The files kokoro-setup.sh installs, unless the app names the ones it carries.
+    parser.add_argument("--model", type=Path, default=HERE / "kokoro-v1.0.onnx")
+    parser.add_argument("--voices", type=Path, default=HERE / "voices-v1.0.bin")
+    parser.add_argument("--warm", action="store_true")
+    arguments = parser.parse_args()
+    serve(arguments.port, arguments.model, arguments.voices, arguments.warm)

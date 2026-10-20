@@ -1,20 +1,20 @@
 #!/bin/sh
 # Builds build/Memnox-<version>.dmg, the one file a person downloads, with everything the app needs inside it: the
-# newest memnox published to npm with its own Node, and the Kokoro voice pack. A disk image runs nothing on its own,
-# so the app does the rest on its first launch with no download: it puts memnox into ~/.memnox/node and starts its
-# daemon, and installs the voice. A Mac that already has memnox keeps its own.
+# newest memnox published to npm with its own Node, and the Kokoro voice ready to run. A disk image runs nothing on its
+# own, so the app does the rest on its first launch with no download: it puts memnox into ~/.memnox/node and starts its
+# daemon, while the voice already speaks from inside the app. A Mac that already has memnox keeps its own.
 # The image is signed with the local identity, so a Mac other than this one needs it notarized before Gatekeeper opens it.
 # MEMNOX_RUNTIME_VERSION pins the runtime to one release; it is the latest otherwise.
 set -e
 cd "$(dirname "$0")/.."
 
-# The voice pack, built first with scripts/voice-pack.sh when build/voice-pack has none.
-VOICE_PACK="build/voice-pack/kokoro-pack-1.tar.xz"
-[ -f "$VOICE_PACK" ] || sh scripts/voice-pack.sh
+# The voice, built first with scripts/voice-pack.sh when build/voice has none.
+VOICE="build/voice/kokoro"
+[ -f "$VOICE/server.py" ] || sh scripts/voice-pack.sh
 # The runtime pack, built every time, so the image carries the newest release.
 sh scripts/runtime-pack.sh
 
-MEMNOX_RUNTIME_SOURCE=npm MEMNOX_VOICE_PACK_FILE="$PWD/$VOICE_PACK" MEMNOX_RUNTIME_PACK="$PWD/build/runtime" \
+MEMNOX_RUNTIME_SOURCE=npm MEMNOX_VOICE_DIR="$PWD/$VOICE" MEMNOX_RUNTIME_PACK="$PWD/build/runtime" \
   sh scripts/bundle.sh
 
 APP=build/Memnox.app
@@ -57,8 +57,8 @@ end tell
 SCRIPT
 sync
 hdiutil detach "$MOUNT" -quiet
-# The voice and the runtime are already compressed, so zlib keeps the image about as small as anything slower would.
-hdiutil convert "$RW" -format UDZO -o "$DMG"
+# LZMA, since the voice rides in the app unpacked and only a strong compressor brings its Python and model back down.
+hdiutil convert "$RW" -format ULMO -o "$DMG"
 rm -rf "$STAGE" "$RW"
 
 IDENTITY="Memnox Local Signing"

@@ -45,8 +45,11 @@ struct KokoroVoice: VoiceEngine {
         return set == 0 ? Speed.unhurried : min(Speed.normal, max(Speed.half, set))
     }
 
+    /// The voice picked, or Sky for one the carried voice does not hold, since it holds only the voices setup offers.
     static func chosen() -> KokoroVoice {
-        KokoroVoice(voice: UserDefaults.standard.string(forKey: voiceKey) ?? defaultVoice)
+        let picked = UserDefaults.standard.string(forKey: voiceKey) ?? defaultVoice
+        guard KokoroServer.bundled == nil || choices.contains(where: { $0.id == picked }) else { return KokoroVoice(voice: defaultVoice) }
+        return KokoroVoice(voice: picked)
     }
 
     /// Heart was the default and was saved as if picked, so a Mac that never chose moves to Sky once; a pick made
@@ -131,6 +134,16 @@ private enum KokoroFile {
     static let setupScript = "kokoro-setup"
     static let setupExtension = "sh"
     static let setupFolder = "kokoro"
+    /// The voice the app carries, as scripts/voice-pack.sh lays it out inside `kokoro`.
+    static let bundledPython = "python/bin/python3.12"
+    static let bundledModel = "kokoro-v1.0.int8.onnx"
+    static let bundledVoices = "voices.npz"
+    /// Run isolated, so no PYTHONPATH or user site on this Mac changes what the carried voice imports.
+    static let isolated = "-I"
+    /// Never writing compiled files, since voice-pack.sh compiled them all and the signed bundle must stay as signed.
+    static let noBytecode = "-B"
+    static let modelFlag = "--model"
+    static let voicesFlag = "--voices"
     static let shell = "/bin/sh"
     /// The installer prints each step it starts on a line of its own after this.
     static let stepPrefix = "STEP "
@@ -148,6 +161,9 @@ final class KokoroServer {
     nonisolated static let url = URL(string: "http://127.0.0.1:\(port)")!
     /// The model loads in about a second; a slow disk gets a little longer, up to ten seconds in all.
     private static let startupPolls = 40
+    /// The carried voice's first start after an install, when macOS checks each of its libraries as they load, takes a
+    /// few seconds; waited for up to a minute on a slow disk, since it cannot be missing and the Mac's voice is the fallback.
+    private static let carriedStartupPolls = 240
     private static let pollInterval: TimeInterval = 0.25
     /// Short, because a server on this Mac that is up answers at once.
     private nonisolated static let healthTimeout: TimeInterval = 1
@@ -155,11 +171,22 @@ final class KokoroServer {
 
     var installed: Bool { Self.isInstalled }
 
-    /// Whether the installer has put everything in place, for setup to say so.
+    /// Whether the voice can speak: carried inside the app, or put in place by the installer, for setup to say so.
     nonisolated static var isInstalled: Bool {
-        [KokoroFile.python, KokoroFile.server, KokoroFile.model, KokoroFile.voices, KokoroFile.setupMark].allSatisfy {
+        if bundled != nil { return true }
+        return [KokoroFile.python, KokoroFile.server, KokoroFile.model, KokoroFile.voices, KokoroFile.setupMark].allSatisfy {
             FileManager.default.fileExists(atPath: directory.appendingPathComponent($0).path)
         }
+    }
+
+    /// The voice inside the app, whole and ready to run, so it speaks on first launch with nothing to install; nil in
+    /// a build made without it, which installs into the home folder instead.
+    nonisolated static var bundled: URL? {
+        guard let folder = Bundle.main.resourceURL?.appendingPathComponent(KokoroFile.setupFolder, isDirectory: true) else { return nil }
+        let whole = [KokoroFile.bundledPython, KokoroFile.server, KokoroFile.bundledModel, KokoroFile.bundledVoices].allSatisfy {
+            FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path)
+        }
+        return whole ? folder : nil
     }
 
     /// True once it answers, starting it first unless one from an earlier launch is still running.
@@ -171,7 +198,7 @@ final class KokoroServer {
             return false
         }
         if process == nil, !start() { return false }
-        for _ in 0..<Self.startupPolls {
+        for _ in 0..<(Self.bundled == nil ? Self.startupPolls : Self.carriedStartupPolls) {
             if await Self.healthy() { return true }
             try? await Task.sleep(nanoseconds: UInt64(Self.pollInterval * Double(NSEC_PER_SEC)))
         }
@@ -187,6 +214,7 @@ final class KokoroServer {
     /// The server as this app ships it, copied over the installed one when the two differ, so a
     /// change to how it speaks reaches a Mac that installed Kokoro with an earlier version.
     private static func refreshServer() {
+        guard bundled == nil else { return }
         let installed = directory.appendingPathComponent(KokoroFile.server)
         guard let bundled = Bundle.main.url(forResource: KokoroFile.serverName, withExtension: KokoroFile.serverExtension, subdirectory: KokoroFile.setupFolder),
               let shipped = try? Data(contentsOf: bundled),
@@ -203,8 +231,20 @@ final class KokoroServer {
 
     private func start() -> Bool {
         let process = Process()
-        process.executableURL = Self.directory.appendingPathComponent(KokoroFile.python)
-        process.arguments = [KokoroFile.server, KokoroFile.portFlag, String(Self.url.port ?? Self.port)]
+        let port = String(Self.url.port ?? Self.port)
+        if let carried = Self.bundled {
+            process.executableURL = carried.appendingPathComponent(KokoroFile.bundledPython)
+            process.arguments = [
+                KokoroFile.isolated, KokoroFile.noBytecode, carried.appendingPathComponent(KokoroFile.server).path, KokoroFile.portFlag, port,
+                KokoroFile.modelFlag, carried.appendingPathComponent(KokoroFile.bundledModel).path,
+                KokoroFile.voicesFlag, carried.appendingPathComponent(KokoroFile.bundledVoices).path,
+            ]
+        } else {
+            process.executableURL = Self.directory.appendingPathComponent(KokoroFile.python)
+            process.arguments = [KokoroFile.server, KokoroFile.portFlag, port]
+        }
+        // The home folder still holds the log, so a voice carried in a signed bundle never writes inside it.
+        try? FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)
         process.currentDirectoryURL = Self.directory
         let log = Self.directory.appendingPathComponent(KokoroFile.serverLog)
         FileManager.default.createFile(atPath: log.path, contents: nil)

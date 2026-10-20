@@ -1,66 +1,99 @@
 #!/bin/sh
-# Builds the voice pack: a Python, the environment, the model, the voices and the server in one archive, so a Mac
-# installs its voice with one download from a host near the person rather than four slow ones from GitHub and PyPI,
-# which from much of the world come down at a few hundred kilobytes a second. Run on an Apple silicon Mac with uv on
-# it. Upload the two files it leaves in build/voice-pack to a bucket behind a CDN, then build the app with
-# MEMNOX_VOICE_PACK set to the archive's URL, so the installer inside the app takes the pack before anything else.
+# Builds the voice the app carries, ready to run with nothing unpacked: a Python of its own, the packages the server
+# imports, the 8-bit Kokoro model and the voices setup offers, in build/voice/kokoro. scripts/bundle.sh copies the
+# folder into the app as it stands, so the voice speaks the moment Memnox first opens. Run on an Apple silicon Mac
+# with uv on it.
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
-OUT="${1:-$HERE/../build/voice-pack}"
-# Numbered, so a pack built with another Python or another model is a new file beside the old, never over it.
-NAME="kokoro-pack-1"
-PACK="$OUT/$NAME"
-# The same release, files and sizes as kokoro-setup.sh, which installs them one by one where there is no pack.
+OUT="${1:-$HERE/../build/voice}"
+PACK="$OUT/kokoro"
 RELEASE="https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0"
-SPACY_MODEL="en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
-MODEL="kokoro-v1.0.onnx"
-MODEL_BYTES=325532387
-VOICES="voices-v1.0.bin"
-VOICES_BYTES=28214398
+# The 8-bit model: a fifth of the full one's download and quicker to speak, at a sound the full one is not missed for.
+MODEL="kokoro-v1.0.int8.onnx"
+MODEL_BYTES=92361271
+# Every voice the release has, from which only the ones setup offers are kept.
+ALL_VOICES="voices-v1.0.bin"
+ALL_VOICES_BYTES=28214398
+# The same ids as KokoroVoice.choices in Sources/MemnoxVoice/Platform/Kokoro.swift; change one and change the other.
+OFFERED="af_sky af_heart af_bella af_nicole af_sarah am_adam am_michael bf_emma bf_isabella bm_george bm_lewis"
 PYTHON="3.12"
 
 UV="$(command -v uv 2>/dev/null || true)"
-[ -n "$UV" ] || { echo "uv is needed to build the pack: brew install uv"; exit 1; }
+[ -n "$UV" ] || { echo "uv is needed to build the voice: brew install uv"; exit 1; }
 rm -rf "$PACK"
-mkdir -p "$PACK"
+mkdir -p "$PACK" "$OUT/downloads"
 
 echo "Python $PYTHON"
-"$UV" python install "$PYTHON" --install-dir "$PACK/python" --no-progress
-PYDIR="$(cd "$PACK/python" && ls -d cpython-$PYTHON.*-macos-aarch64-none | head -1)"
-[ -n "$PYDIR" ] || { echo "uv left no Python $PYTHON install in $PACK/python"; exit 1; }
-# The unversioned alias points at the same install, and the installer finds the versioned folder on its own.
-rm -f "$PACK/python/cpython-$PYTHON-macos-aarch64-none"
+"$UV" python install "$PYTHON" --install-dir "$OUT/downloads/python" --no-progress
+FOUND="$(cd "$OUT/downloads/python" && ls -d cpython-$PYTHON.*-macos-aarch64-none | head -1)"
+[ -n "$FOUND" ] || { echo "uv left no Python $PYTHON install in $OUT/downloads/python"; exit 1; }
+# Under a name with no version in it, so the app finds the interpreter at one fixed path.
+cp -R "$OUT/downloads/python/$FOUND" "$PACK/python"
+PY="$PACK/python/bin/python$PYTHON"
 
-echo "Environment"
-"$UV" venv --quiet --relocatable --python "$PACK/python/$PYDIR/bin/python$PYTHON" "$PACK/venv"
-"$UV" pip install --quiet --python "$PACK/venv/bin/python" kokoro-onnx numpy
-# Misaki on its own with only what it reads English with, for the reasons kokoro-setup.sh gives.
-"$UV" pip install --quiet --python "$PACK/venv/bin/python" --no-deps misaki-fork
-"$UV" pip install --quiet --python "$PACK/venv/bin/python" addict regex num2words spacy "$SPACY_MODEL"
-# The interpreter links point inside the pack by a relative path, so the pack works wherever it lands.
-for link in python python3 "python$PYTHON"; do
-  ln -sfn "../../python/$PYDIR/bin/python$PYTHON" "$PACK/venv/bin/$link"
-done
-# pyvenv.cfg names the Python's home as an absolute path, which the installer rewrites to where it unpacked.
-sed -i '' "s|^home = .*|home = PACK_HOME/python/$PYDIR/bin|" "$PACK/venv/pyvenv.cfg"
+echo "Packages"
+# Installed beside the server rather than into a venv, since a venv names its Python by an absolute path and the app
+# is wherever the person put it. server.py puts this folder on its path itself.
+SITE="$PACK/site-packages"
+"$UV" pip install --quiet --python "$PY" --target "$SITE" kokoro-onnx numpy
+# No misaki: kokoro-onnx pronounces with its own espeak, which sounds as good here, and misaki with spaCy is a fifth of
+# the download and the half minute macOS spends checking its libraries the first time the voice starts.
 
-echo "Voice files"
+echo "Trimming"
+# What the server never runs: Python's own tests and tools, installers, and compiled caches the app could not write
+# back into a signed bundle anyway.
+LIB="$PACK/python/lib/python$PYTHON"
+rm -rf "$LIB/test" "$LIB/idlelib" "$LIB/tkinter" "$LIB/turtledemo" "$LIB/ensurepip" "$LIB/lib2to3" \
+  "$LIB/site-packages"/* "$PACK/python/lib/libtcl"* "$PACK/python/lib/libtk"* "$PACK/python/lib/tcl"* "$PACK/python/lib/tk"* \
+  "$PACK/python/share" "$PACK/python/include"
+# The interpreter is linked statically, so the shared library is only for embedding, and bin keeps it alone.
+rm -f "$PACK/python/lib/libpython"*
+find "$PACK/python/bin" -mindepth 1 ! -name "python$PYTHON" -exec rm -f {} +
+rm -rf "$SITE/pip" "$SITE/setuptools" "$SITE/_distutils_hack" "$SITE/bin"
+# Tk lives in folders named for its own extensions, which the names above miss.
+rm -rf "$PACK/python/lib/thread"* "$PACK/python/lib/itcl"* "$LIB/lib-dynload/_tkinter"*
+# onnxruntime's tools for converting and quantizing models, which speaking never imports.
+rm -rf "$SITE/onnxruntime/transformers" "$SITE/onnxruntime/quantization" "$SITE/onnxruntime/tools"
+# Every voice setup offers is American or British English, and both read en_dict, so the other languages' go.
+find "$SITE/espeakng_loader" -name "*_dict" ! -name "en_dict" -exec rm -f {} +
+find "$SITE/numpy" -name "*_tests.cpython-*.so" -exec rm -f {} +
+find "$PACK" -type d \( -name __pycache__ -o -name tests -o -name test \) -prune -exec rm -rf {} +
+
+echo "Model and voices"
 bytes() { stat -f %z "$1" 2>/dev/null || echo 0; }
-# A whole copy this Mac's own voice already installed is taken rather than pulled again from GitHub, which is slow.
-INSTALLED="$HOME/.memnox/voice/kokoro"
-for pair in "$MODEL $MODEL_BYTES" "$VOICES $VOICES_BYTES"; do
+for pair in "$MODEL $MODEL_BYTES" "$ALL_VOICES $ALL_VOICES_BYTES"; do
   set -- $pair
-  if [ "$(bytes "$INSTALLED/$1")" -eq "$2" ]; then cp "$INSTALLED/$1" "$PACK/$1"; continue; fi
-  curl -fL --retry 5 --retry-all-errors --retry-delay 2 -C - "$RELEASE/$1" -o "$PACK/$1"
-  [ "$(bytes "$PACK/$1")" -eq "$2" ] || { echo "$1 came down at $(bytes "$PACK/$1") bytes rather than $2"; exit 1; }
+  file="$OUT/downloads/$1"
+  [ "$(bytes "$file")" -eq "$2" ] || curl -fL --retry 5 --retry-all-errors --retry-delay 2 -C - "$RELEASE/$1" -o "$file"
+  [ "$(bytes "$file")" -eq "$2" ] || { echo "$1 came down at $(bytes "$file") bytes rather than $2"; exit 1; }
 done
+cp "$OUT/downloads/$MODEL" "$PACK/$MODEL"
+"$PY" -I -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import numpy as np
+every = np.load(sys.argv[2])
+offered = sys.argv[4].split()
+missing = [name for name in offered if name not in every]
+if missing:
+    sys.exit(f"the release has no voice {missing}")
+np.savez(sys.argv[3], **{name: every[name] for name in offered})
+' "$SITE" "$OUT/downloads/$ALL_VOICES" "$PACK/voices.npz" "$OFFERED"
 cp "$HERE/../Support/kokoro/server.py" "$PACK/server.py"
 
-echo "Archive"
-# The model and the voices hardly compress, so a quick level keeps the build short and the archive about as small.
-XZ_OPT="-T0 -3" tar -C "$OUT" -cJf "$OUT/$NAME.tar.xz" "$NAME"
-shasum -a 256 "$OUT/$NAME.tar.xz" | cut -d' ' -f1 > "$OUT/$NAME.tar.xz.sha256"
-rm -rf "$PACK"
-du -h "$OUT/$NAME.tar.xz" | cut -f1 | sed "s|^|$NAME.tar.xz is |"
-echo "Upload $NAME.tar.xz and $NAME.tar.xz.sha256 from $OUT to the bucket, then build with"
-echo "  MEMNOX_VOICE_PACK=https://<your host>/$NAME.tar.xz ./scripts/bundle.sh"
+echo "Compiling"
+# Compiled here, since the app runs Python with -B and a signed bundle must never be written to: left to compile on
+# first launch, the voice is silent until every package is compiled. Checked by nothing but their presence,
+# so a copy that changes file times never makes Python compile them again.
+"$PY" -I -m compileall -q --invalidation-mode unchecked-hash "$PACK/python/lib/python$PYTHON" "$SITE" >/dev/null
+
+echo "Checking it speaks"
+"$PY" -I -c '
+import sys
+sys.path.insert(0, sys.argv[1] + "/site-packages")
+from kokoro_onnx import Kokoro
+kokoro = Kokoro(sys.argv[1] + "/" + sys.argv[2], sys.argv[1] + "/voices.npz")
+samples, rate = kokoro.create("Ready.", voice="af_sky", speed=1.0, lang="en-us")
+assert len(samples) > rate // 10, "the voice said nothing"
+' "$PACK" "$MODEL" 2>/dev/null
+du -sh "$PACK" | cut -f1 | sed "s|^|$PACK is |"

@@ -190,9 +190,10 @@ Where it gets `memnox` is chosen when it is built, and written into its Info.pli
   `memnox update --yes` when the daemon is older than the app.
 - **A disk image to download**: `./scripts/dmg.sh` builds `build/Memnox-<version>.dmg`, the npm
   build carrying the newest published runtime with its own Node (`scripts/runtime-pack.sh`) and
-  the Kokoro voice pack (`scripts/voice-pack.sh`). On first launch the app unpacks the runtime
-  into `~/.memnox/node` with `Support/runtime/unpack.sh`, starts the daemon, and installs the
-  voice, all with no Node on the Mac and no connection. A Mac with its own `memnox` keeps using
+  the Kokoro voice (`scripts/voice-pack.sh`: its own Python, the 8-bit model and the eleven voices
+  setup offers, ready to run inside the app, so it speaks the moment the app first opens). On first
+  launch the app unpacks the runtime into `~/.memnox/node` with `Support/runtime/unpack.sh` and
+  starts the daemon, all with no Node on the Mac and no connection. A Mac with its own `memnox` keeps using
   it, and `memnox update` updates the one in `~/.memnox/node` in place. It also writes
   `build/Memnox.dmg` and its `.sha256`, the two names a release carries for `scripts/install.sh`.
   Until the image is notarized, a browser download of it needs Open Anyway. Apple silicon only.

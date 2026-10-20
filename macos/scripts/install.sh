@@ -56,12 +56,17 @@ rm -rf "${TARGET:?}/$APP_NAME"
 ditto "$MOUNT/$APP_NAME" "$TARGET/$APP_NAME"
 xattr -dr com.apple.quarantine "$TARGET/$APP_NAME" 2>/dev/null || true
 
-# The voice is set up before the app opens, from the pack inside it, so its first words are already in its own voice.
-# A setup that fails leaves the app to try again on launch, where the Mac's voice speaks until it is ready.
-VOICE_SETUP="$TARGET/$APP_NAME/Contents/Resources/kokoro/kokoro-setup.sh"
-if [ -f "$VOICE_SETUP" ]; then
+# The voice rides inside the app ready to run, and is woken once before the app opens: macOS checks each of its
+# libraries the first time it loads, so paying that here makes the app's first words come in its own voice.
+# An older build without it carries an installer instead, which is run here for the same reason.
+KOKORO="$TARGET/$APP_NAME/Contents/Resources/kokoro"
+if [ -x "$KOKORO/python/bin/python3.12" ]; then
+  echo "Waking the voice"
+  "$KOKORO/python/bin/python3.12" -I -B "$KOKORO/server.py" --warm \
+    --model "$KOKORO/kokoro-v1.0.int8.onnx" --voices "$KOKORO/voices.npz" >/dev/null 2>&1 || true
+elif [ -f "$KOKORO/kokoro-setup.sh" ]; then
   echo "Setting up the voice"
-  sh "$VOICE_SETUP" 2>/dev/null | sed -n 's/^STEP /  /p' || true
+  sh "$KOKORO/kokoro-setup.sh" 2>/dev/null | sed -n 's/^STEP /  /p' || true
 fi
 
 echo "Memnox is in $TARGET. Opening it; the first run asks for its permissions and starts memnox."

@@ -31,6 +31,14 @@ enum SettingsPane: Hashable {
         }
     }
 
+    /// Whether this copy holds the grant now, read without asking, so the helper under Settings knows when to go.
+    @MainActor var isGranted: Bool {
+        switch self {
+        case .typing: return AXIsProcessTrusted()
+        case .seeing: return ScreenSight.allowed
+        }
+    }
+
     /// The panes with an ask running, so a second press, the poll or a typed follow up never starts another over it.
     @MainActor private static var asking: Set<SettingsPane> = []
 
@@ -100,6 +108,8 @@ enum SettingsPane: Hashable {
         NSWorkspace.shared.open(privacy)
         try? await Task.sleep(nanoseconds: UInt64(Self.redrawDelay * Double(NSEC_PER_SEC)))
         NSWorkspace.shared.open(url)
+        // Docked under Settings once it has a window, so what to do stays in sight while the person does it.
+        SettingsHelper.present(for: self)
     }
 
     private static let privacyPage = "x-apple.systempreferences:com.apple.preference.security"

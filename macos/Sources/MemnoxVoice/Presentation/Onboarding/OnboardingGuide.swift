@@ -74,6 +74,18 @@ enum GuideLines {
 }
 
 /// Mutes and unmutes Memnox, in the first run's footer, the one place a new person reaches for it.
+/// The calm bed under setup, on or off, remembered for the next time setup opens.
+struct AmbienceButton: View {
+    @ObservedObject private var ambience = SetupAmbience.shared
+
+    var body: some View {
+        Button("Music", systemImage: ambience.on ? "music.note" : "music.note.slash") { ambience.toggle() }
+            .buttonStyle(KitButton(kind: .secondary))
+            .help(ambience.on ? "Turn the calm music off" : "Play calm music while you set up")
+            .accessibilityLabel(ambience.on ? "Turn music off" : "Turn music on")
+    }
+}
+
 struct MuteButton: View {
     @ObservedObject private var mute = VoiceMute.shared
 

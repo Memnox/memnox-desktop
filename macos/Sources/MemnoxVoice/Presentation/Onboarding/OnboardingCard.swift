@@ -92,6 +92,7 @@ struct OnboardingCard: View {
                     .keyboardShortcut(.cancelAction)
             }
             Spacer()
+            AmbienceButton()
             MuteButton()
             Text("You can change all of this later in Settings.")
                 .font(Memnox.sans(Memnox.TextSize.footnote))

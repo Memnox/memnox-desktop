@@ -194,7 +194,7 @@ struct SettingsView: View {
     @ViewBuilder private var page: some View {
         if let menu = models.menu, let setup = models.setup {
             switch navigation.page {
-            case .overview: OverviewPage(menu: menu, setup: setup, account: models.account, home: models.home, go: navigation.go)
+            case .overview: OverviewPage(menu: menu, setup: setup, account: models.account, home: models.home, dictations: models.dictations, go: navigation.go)
             case .account:
                 if let account = models.account { AccountPage(account: account, setup: setup) }
             case .permissions: SetupPermissionsCard(model: setup)
@@ -285,8 +285,31 @@ private struct ListeningPage: View {
                 SwitchRow(symbol: MenuSymbol.sounds, title: "Sounds", detail: "A chime when something happens",
                           isOn: Binding(get: { menu.chimesOn }, set: { menu.chimesOn = $0; menu.setChimes($0) }))
                 SettingsDivider()
+                ChimeVolumeRow(preview: menu.previewChime)
+                    .disabled(!menu.chimesOn)
+                SettingsDivider()
                 SetupCatchUpRow(model: setup)
             }
+        }
+    }
+}
+
+/// How loud the chimes are, played once at the new level when the slider is let go so it is heard rather than guessed.
+private struct ChimeVolumeRow: View {
+    let preview: () -> Void
+    @AppStorage(CueChimes.volumeKey) private var volume = CueChimes.defaultVolume
+
+    private static let sliderWidth: CGFloat = 140
+
+    var body: some View {
+        SettingsRow(symbol: MenuSymbol.volume, title: "Volume", caption: "How loud the chimes are") {
+            Slider(value: $volume, in: CueChimes.quietest...1) { editing in
+                if !editing { preview() }
+            }
+            .controlSize(.small)
+            .frame(width: Self.sliderWidth)
+            .accessibilityLabel("Chime volume")
+            .accessibilityValue("\(Int((volume * 100).rounded())) percent")
         }
     }
 }
@@ -310,6 +333,12 @@ private struct HelpPage: View {
             SettingsRow(symbol: MenuSymbol.copy, title: "Copy what happened",
                         caption: "Puts the recent steps on your clipboard to send to support.") {
                 Button("Copy", action: menu.copyWhatHappened)
+            }
+            SettingsDivider()
+            SettingsRow(symbol: "trash", title: "Uninstall Memnox",
+                        caption: "Removes the service, its hooks in your agents, your history here, its sign ins and the app.",
+                        tint: Memnox.Palette.warm) {
+                Button("Uninstall", action: menu.uninstall)
             }
         }
     }

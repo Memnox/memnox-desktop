@@ -15,6 +15,7 @@ struct WelcomeStep: View {
     var body: some View {
         StepTitle(title: "Welcome to Memnox",
                   detail: "Let AI agents work autonomously. Keep their actions within your boundaries.")
+        Next(title: "Set up this Mac", flow: flow)
         KitCard {
             ForEach(Highlight.allCases) { part in
                 if part != Highlight.allCases.first { KitDivider() }
@@ -40,7 +41,6 @@ struct WelcomeStep: View {
                 detail: "Memnox has no model of its own. It answers through an agent you already use, such as Claude Code, Codex, Cursor or Hermes, signed in with that agent's own account. No API key to bring.") {
             EmptyView()
         }
-        Next(title: "Set up this Mac", flow: flow)
     }
 }
 
@@ -52,6 +52,7 @@ struct ThisMacStep: View {
     var body: some View {
         StepTitle(title: "Set up this Mac",
                   detail: "Four permissions, asked once, and Memnox installs itself and its voice under your agents.")
+        Next(title: "Continue", flow: flow)
         KitCard(symbol: "lock.shield", title: "Permissions", detail: "Used only when you talk or approve.") {
             KitRow(symbol: "mic", title: "Hear you", detail: "Microphone and speech recognition.", hint: hint(setup.listening)) {
                 grant(setup.listening) { Task { await setup.allowListening() } }
@@ -125,8 +126,6 @@ struct ThisMacStep: View {
                 }
             }
         }
-        // The Mac voice already speaks, so the download carries on behind the rest rather than holding the step.
-        Next(title: "Continue", flow: flow)
     }
 
     private var checkAgain: some View {
@@ -193,7 +192,11 @@ struct ReadyStep: View {
 
     var body: some View {
         StepTitle(title: greeting, detail: "Hand an agent the task and close your laptop. Everything inside your boundary runs on its own, and the one thing outside it finds you on your phone.")
-        KitCard(symbol: "keyboard", title: "Two keys to try", detail: "Memnox answers in the notch.") {
+        // The app delegate owns the Kokoro download and switches to it when it lands, so finishing never waits on it.
+        Button("Start using Memnox", systemImage: "sparkles") { setup.finish() }
+            .buttonStyle(KitButton(kind: .primary, wide: true))
+            .keyboardShortcut(.defaultAction)
+        KitCard(symbol: "keyboard", title: "Three keys to try", detail: "Memnox answers in the notch.") {
             KitRow(symbol: "mic", title: "Ask out loud", detail: "Press, talk, and let go.") {
                 HStack(spacing: Memnox.Spacing.medium) {
                     Keys(["\u{2325}", "Space"])
@@ -207,6 +210,13 @@ struct ReadyStep: View {
                     Button("Try it", systemImage: "play.fill") { flow.menu?.sayRule() }.buttonStyle(KitButton(kind: .secondary))
                 }
             }
+            KitDivider()
+            KitRow(symbol: "keyboard", title: "Dictate anywhere", detail: "Hold, speak, and it types where your cursor is.") {
+                Keys(["Right \u{2325}"])
+            }
+        }
+        if let tools = flow.menu?.tools {
+            SuggestedApps(tools: tools)
         }
         KitCard(symbol: "building.2", title: "Optional", detail: "Your workspace and your iPhone. Both wait in Settings.") {
             // First, since the rules, the workspace memory and a paired phone all come to this Mac through it.
@@ -218,10 +228,6 @@ struct ReadyStep: View {
             }
             PhonePairing(setup: setup)
         }
-        // The app delegate owns the Kokoro download and switches to it when it lands, so finishing never waits on it.
-        Button("Start using Memnox", systemImage: "sparkles") { setup.finish() }
-            .buttonStyle(KitButton(kind: .primary, wide: true))
-            .keyboardShortcut(.defaultAction)
     }
 
     private var greeting: String {

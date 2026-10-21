@@ -140,9 +140,11 @@ final class OnboardingWindow {
         flow.account = SettingsWindow.shared.account
         flow.recall()
         if flow.stage == .steps { showSteps() } else { showVeil() }
+        SetupAmbience.shared.start()
     }
 
     func close() {
+        SetupAmbience.shared.stop()
         flow.forget()
         veil?.close()
         veil = nil

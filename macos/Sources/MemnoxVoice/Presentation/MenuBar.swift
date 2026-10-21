@@ -27,6 +27,10 @@ final class MenuModel: ObservableObject {
     let setSpeakUp: (Bool) -> Void
     let setTalkOver: (Bool) -> Void
     let setChimes: (Bool) -> Void
+    /// Plays one cue at the volume just chosen, so the slider is heard rather than guessed at.
+    var previewChime: () -> Void = {}
+    /// Asks, then takes Memnox and everything it put on this Mac away, the app last.
+    var uninstall: () -> Void = {}
     let setLiveWords: (Bool) -> Void
     let setStayPut: (Bool) -> Void
     let chooseVoice: (String) -> Void
@@ -652,6 +656,7 @@ enum MenuSymbol {
     static let speakUp = "bell"
     static let talkOver = "waveform.badge.mic"
     static let sounds = "speaker.wave.1"
+    static let volume = "speaker.wave.3"
     static let liveWords = "text.bubble"
     static let dictation = "keyboard"
     static let stayPut = "macwindow.on.rectangle"

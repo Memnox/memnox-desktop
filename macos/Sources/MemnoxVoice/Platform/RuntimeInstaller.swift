@@ -28,13 +28,21 @@ final class RuntimeInstaller: ObservableObject {
 
     private func bringUp(_ conversation: Conversation) async -> DaemonVoice {
         var state = await conversation.daemonVoice()
-        if state == .ready {
+        let wired = FileManager.default.fileExists(atPath: Self.home(Self.keptFile))
+        if state == .ready, wired {
             failed = nil
             return state
         }
         guard let memnox = await memnoxCommand() else { return state }
+        // A daemon running over agents nobody wired watches nothing: after an uninstall, or a service started on its
+        // own by a build, every new session would go unseen, so the agents are put back under it first.
+        if state == .ready, !wired {
+            doing = "Putting your agents under Memnox"
+            _ = await Self.shell("\(memnox) setup --yes --no-probe")
+            failed = nil
+            return await conversation.daemonVoice()
+        }
         if state == .unreachable {
-            let wired = FileManager.default.fileExists(atPath: Self.home(Self.keptFile))
             // The first time it wires every agent in observe, which records and enforces nothing until the person says.
             doing = wired ? "Starting the Memnox service" : "Setting Memnox up on this Mac"
             _ = await Self.shell(wired ? "\(memnox) daemon --install" : "\(memnox) setup --yes --no-probe")
@@ -68,6 +76,17 @@ final class RuntimeInstaller: ObservableObject {
     }
 
     private static let notProtected = "Memnox could not put them under it. In a terminal: memnox setup"
+
+    /// The runtime's own `memnox uninstall --purge`: the hooks, the wrapping, the service and ~/.memnox. memnox is only
+    /// looked for, never installed, since the point is to leave nothing behind; false when there was none to ask.
+    func uninstallRuntime() async -> Bool {
+        var memnox = installedMemnox()
+        if memnox == nil { memnox = await Self.found(Command.memnox).map(Self.quoted) }
+        guard let memnox else { return false }
+        doing = "Removing Memnox from this Mac"
+        defer { doing = nil }
+        return await Self.shell("\(memnox) uninstall --purge")
+    }
 
     /// A daemon older than the app: a local build restarts it on the checkout's code, which the build
     /// just made; a release updates from npm. Neither ever swaps a local checkout for the published one.

@@ -20,6 +20,12 @@ struct FocusedText {
     let isSecure: Bool
     /// The front window's title, which names the page a browser shows.
     let windowTitle: String?
+    /// Whether what has the focus takes text: false for a button, a list or the desktop, nil where the app says nothing
+    /// about its focus, which some apps never do while typing into them still works.
+    var isEditable: Bool? = nil
+
+    /// The roles that are text whatever else they answer.
+    private static let textRoles: Set<String> = [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole, "AXSearchField"]
 
     /// How much of the text either side is kept, enough to see a sentence end and no more.
     private static let around = 200
@@ -31,6 +37,8 @@ struct FocusedText {
                                isSecure: secureInput, windowTitle: nil)
         }
         let application = AXUIElementCreateApplication(app.processIdentifier)
+        // Electron, so Slack, VS Code and Notion among them, only builds the tree of its web content once asked.
+        AXUIElementSetAttributeValue(application, AXTree.manualAccessibilityAttribute as CFString, kCFBooleanTrue)
         let element = Self.element(application, kAXFocusedUIElementAttribute)
         let window = Self.element(application, kAXFocusedWindowAttribute)
         let title = window.flatMap { Self.string($0, kAXTitleAttribute) }
@@ -49,7 +57,17 @@ struct FocusedText {
             after = String(value[swiftRange.upperBound...].prefix(around))
         }
         return FocusedText(element: element, selection: selection, before: before, after: after, value: value,
-                           range: range, isSecure: secureInput || secureField, windowTitle: title)
+                           range: range, isSecure: secureInput || secureField, windowTitle: title, isEditable: editable(element))
+    }
+
+    /// A text role, or a value or selection that can be written, which is how a web page's own editor answers.
+    private static func editable(_ element: AXUIElement) -> Bool {
+        if let role = string(element, kAXRoleAttribute), textRoles.contains(role) { return true }
+        for attribute in [kAXValueAttribute, kAXSelectedTextAttribute] {
+            var settable: DarwinBoolean = false
+            if AXUIElementIsAttributeSettable(element, attribute as CFString, &settable) == .success, settable.boolValue { return true }
+        }
+        return false
     }
 
     /// The field's value now, for seeing what the person changed after it was written.

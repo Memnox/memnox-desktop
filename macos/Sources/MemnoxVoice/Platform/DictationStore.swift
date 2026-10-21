@@ -6,6 +6,7 @@ import MemnoxVoiceCore
 final class DictationStore: ObservableObject {
     @Published private(set) var dictionary: DictationDictionary
     @Published private(set) var history: DictationHistory
+    @Published private(set) var tally: DictationTally
 
     /// Whether dictation is polished by the person's own Claude Code, which sends it to their model provider as any of
     /// their Claude Code use does; on from the start, and off means it is cleaned on this Mac only.
@@ -14,10 +15,14 @@ final class DictationStore: ObservableObject {
     static let liveKey = "dictationLive"
     private static let dictionaryKey = "dictationDictionary"
     private static let historyKey = "dictationHistory"
+    private static let tallyKey = "dictationTally"
 
     init() {
         dictionary = Self.load(Self.dictionaryKey) ?? DictationDictionary()
-        history = Self.load(Self.historyKey) ?? DictationHistory()
+        let history: DictationHistory = Self.load(Self.historyKey) ?? DictationHistory()
+        self.history = history
+        // A Mac that dictated before the tally was kept starts it from what the history still holds.
+        tally = Self.load(Self.tallyKey) ?? DictationTally(history.entries)
     }
 
     var polishes: Bool { UserDefaults.standard.bool(forKey: Self.polishKey) }
@@ -41,6 +46,14 @@ final class DictationStore: ObservableObject {
 
     func record(_ entry: DictationEntry) {
         history.add(entry)
+        tally.add(entry)
+        save(history, Self.historyKey)
+        save(tally, Self.tallyKey)
+    }
+
+    /// One dictation out of the history; the tally keeps counting it, since it was said all the same.
+    func forget(_ id: UUID) {
+        history.remove(id)
         save(history, Self.historyKey)
     }
 

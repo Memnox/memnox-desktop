@@ -53,14 +53,20 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
     public var heard: String
     public var written: String
     public var app: String?
+    /// How long the person spoke, for words a minute; absent from a dictation recorded before it was kept.
+    public var seconds: Double?
 
-    public init(id: UUID = UUID(), at: Date, heard: String, written: String, app: String?) {
+    public init(id: UUID = UUID(), at: Date, heard: String, written: String, app: String?, seconds: Double? = nil) {
         self.id = id
         self.at = at
         self.heard = heard
         self.written = written
         self.app = app
+        self.seconds = seconds
     }
+
+    /// The words that went in, as the person would count them.
+    public var words: Int { written.split(whereSeparator: \.isWhitespace).count }
 }
 
 /// The latest dictations, newest first, so a lost one can be copied again and a bad one seen for what was heard.
@@ -80,6 +86,10 @@ public struct DictationHistory: Codable, Equatable, Sendable {
 
     public mutating func clear() {
         entries.removeAll()
+    }
+
+    public mutating func remove(_ id: UUID) {
+        entries.removeAll { $0.id == id }
     }
 
     public var last: DictationEntry? { entries.first }

@@ -3,6 +3,8 @@ import SwiftUI
 
 /// The notch's measures for tiles and the round buttons beside it, as Vorssaint draws its own notch.
 enum NotchMetrics {
+    /// A tile that cannot be pressed while another sign in is opening.
+    static let restingTile = 0.45
     static let tileHeight: CGFloat = 86
     static let tileWidth: CGFloat = 92
     static let tileSpacing: CGFloat = 8
@@ -125,6 +127,7 @@ struct IslandLauncher: View {
     @ObservedObject var model: IslandModel
     @ObservedObject var tools: ToolsModel
     @ObservedObject private var mute = VoiceMute.shared
+    @AppStorage(DictationKey.enabledKey) private var dictationOn = true
 
     private enum Symbol {
         static let talk = "waveform"
@@ -148,6 +151,8 @@ struct IslandLauncher: View {
         Group {
             if let tool = model.pickedTool {
                 IslandToolPage(connection: tool, ask: ask)
+            } else if let panel = model.launcherPanel {
+                panelPage(panel)
             } else if model.launcherTools {
                 toolsGrid
             } else {
@@ -155,7 +160,7 @@ struct IslandLauncher: View {
             }
         }
         // A new page of tiles arrives afresh, so switching to the tools or to one app staggers them in again.
-        .id(model.pickedTool?.id ?? (model.launcherTools ? "tools" : "actions"))
+        .id(model.pickedTool?.id ?? model.launcherPanel?.title ?? (model.launcherTools ? "tools" : "actions"))
         .padding(.top, Island.top(model.notch))
         .padding([.horizontal, .bottom], Island.contentInset)
         .onAppear { tools.refresh() }
@@ -193,11 +198,11 @@ struct IslandLauncher: View {
                 NotchSymbol(name: Symbol.copy)
             }
             .notchArrival(order: 6)
-            NotchTile(title: "Phones", caption: "Pair or revoke", action: { model.openSettings(.phones) }) {
+            NotchTile(title: "Phones", caption: phonesCaption, action: { show(.phones) }) {
                 NotchSymbol(name: Symbol.phones)
             }
             .notchArrival(order: 7)
-            NotchTile(title: "Dictation", caption: "Settings", action: { model.openSettings(.dictation) }) {
+            NotchTile(title: "Dictation", caption: dictationOn ? "Right \u{2325} to speak" : "Off", action: { show(.dictation) }) {
                 NotchSymbol(name: Symbol.dictation)
             }
             .notchArrival(order: 8)
@@ -213,20 +218,36 @@ struct IslandLauncher: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: NotchMetrics.tileSpacing) {
                 ForEach(Array(tools.agents.enumerated()), id: \.element.id) { index, agent in
-                    NotchTile(title: agent.label, caption: ToolStatus.agent(agent), action: { model.openSettings(.tools) }) {
+                    NotchTile(title: agent.label, caption: tools.busy == agent.kind ? "Asking it" : ToolStatus.agent(agent),
+                              lit: agent.chosen, action: { tools.useForVoice(agent) }) {
                         AgentMark(kind: agent.kind, name: agent.label, side: NotchMetrics.tileSymbolFrame)
                     }
                     .notchArrival(order: index)
                 }
                 ForEach(Array(tools.connections.enumerated()), id: \.element.id) { index, connection in
-                    NotchTile(title: ToolkitName.of(connection.toolkit), caption: ToolStatus.connection(connection),
-                              action: { withAnimation(.snappy) { model.pickedTool = connection } }) {
+                    // A sign in left unfinished is pressed to finish it, not opened onto a page with nothing to press.
+                    NotchTile(title: ToolkitName.of(connection.toolkit),
+                              caption: connection.connected ? ToolStatus.connection(connection) : connectCaption(connection.toolkit),
+                              action: {
+                                  if connection.connected {
+                                      withAnimation(.snappy) { model.pickedTool = connection }
+                                  } else {
+                                      tools.connect(connection.toolkit, again: true)
+                                  }
+                              }) {
                         ToolMark(toolkit: connection.toolkit, side: NotchMetrics.tileSymbolFrame)
                     }
                     .notchArrival(order: tools.agents.count + index)
                 }
+                ForEach(Array(tools.suggested.enumerated()), id: \.element) { index, toolkit in
+                    NotchTile(title: ToolkitName.of(toolkit), caption: connectCaption(toolkit), action: { tools.connect(toolkit) }) {
+                        ToolMark(toolkit: toolkit, side: NotchMetrics.tileSymbolFrame)
+                    }
+                    .opacity(tools.busy == nil || tools.busy == toolkit ? 1 : NotchMetrics.restingTile)
+                    .notchArrival(order: tools.agents.count + tools.connections.count + index)
+                }
             }
-            if let note = tools.connectionsNote ?? emptyNote {
+            if let note = tools.actionNote ?? toolsNote {
                 Text(note)
                     .font(Memnox.sans(Memnox.TextSize.footnote))
                     .foregroundStyle(Color.white.opacity(NotchMetrics.captionInk))
@@ -238,9 +259,18 @@ struct IslandLauncher: View {
         .scrollIndicators(.hidden)
     }
 
-    private var emptyNote: String? {
+    /// One line under the tiles: signed out it says what Connect will ask, rather than sending the person to Settings.
+    private var toolsNote: String? {
         guard !tools.loading, tools.connections.isEmpty else { return nil }
-        return "No apps connected yet. Ask Memnox to do something in Gmail, Slack or GitHub and it opens the sign in for you."
+        if tools.connectionsNote != nil { return "Connect any of these and you approve this Mac once in your browser first." }
+        return "Connect an app, or ask Memnox to do something in it and it opens the sign in for you."
+    }
+
+    private func connectCaption(_ toolkit: String) -> String {
+        if tools.approving == toolkit { return "Approve in browser" }
+        if tools.busy == toolkit { return "Opening" }
+        if tools.waitingFor == toolkit { return "Finish in browser" }
+        return "Connect"
     }
 
     private var toolsCaption: String {
@@ -259,9 +289,31 @@ struct IslandLauncher: View {
     private func ask(_ words: String) {
         model.launcher = false
         model.launcherTools = false
+        model.launcherPanel = nil
         model.pickedTool = nil
         model.settle()
         model.ask(words)
+    }
+
+    /// A grid page that works in the notch; one that cannot be drawn here falls back to its Settings page.
+    @ViewBuilder private func panelPage(_ panel: LauncherPanel) -> some View {
+        switch panel {
+        case .phones:
+            if let menu = model.menu, let setup = model.setup() {
+                IslandPhonesPanel(menu: menu, setup: setup)
+            }
+        case .dictation:
+            IslandDictationPanel()
+        }
+    }
+
+    private func show(_ panel: LauncherPanel) {
+        withAnimation(.snappy) { model.launcherPanel = panel }
+    }
+
+    private var phonesCaption: String {
+        let paired = model.menu?.devices.count ?? 0
+        return paired == 0 ? "Pair a phone" : paired == 1 ? "1 paired" : "\(paired) paired"
     }
 
     private func showTools() {
@@ -315,6 +367,7 @@ struct IslandSatellites: View {
     private func toggleLauncher() {
         model.launcher.toggle()
         model.launcherTools = false
+        model.launcherPanel = nil
         model.detail = false
         model.picked = nil
         model.settle()

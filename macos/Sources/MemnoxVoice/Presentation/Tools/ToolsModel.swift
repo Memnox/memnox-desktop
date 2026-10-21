@@ -33,9 +33,18 @@ final class ToolsModel: ObservableObject {
     private let signOut: (String) async -> ConnectionsAnswer
     private let watch: ([ToolConnection]) async -> ConnectionsAnswer
     private let open: (URL) -> Bool
+    /// Makes one agent the one the voice answers through, as setup does, from its tile in the notch.
+    private let chooseAgent: (String) async -> VoiceAgentsAnswer
+    /// Whether the daemon holds the person, which connecting a tool needs; nil where it cannot say.
+    private let personSignedIn: () async -> Bool?
+    /// The one approval in the browser, run before a tool's own sign in when nobody is signed in yet.
+    private let signInPerson: () async -> Bool
     private var reading: Task<Void, Never>?
     private var looking: Task<Void, Never>?
     private var watching: Task<Void, Never>?
+    private var connecting: Task<Void, Never>?
+    /// The tool whose Connect waits on the person approving this Mac in their browser first.
+    @Published private(set) var approving: String?
 
     /// Said when the daemon does not answer at all.
     private static let unreachable = "Memnox is not running"
@@ -49,8 +58,14 @@ final class ToolsModel: ObservableObject {
         signIn: @escaping (String, Bool) async -> ConnectionSignInAnswer = { _, _ in .unreachable },
         signOut: @escaping (String) async -> ConnectionsAnswer = { _ in .unreachable },
         watch: @escaping ([ToolConnection]) async -> ConnectionsAnswer = { _ in .unreachable },
-        open: @escaping (URL) -> Bool = { _ in false }
+        open: @escaping (URL) -> Bool = { _ in false },
+        personSignedIn: @escaping () async -> Bool? = { nil },
+        signInPerson: @escaping () async -> Bool = { false },
+        chooseAgent: @escaping (String) async -> VoiceAgentsAnswer = { _ in .unreachable }
     ) {
+        self.chooseAgent = chooseAgent
+        self.personSignedIn = personSignedIn
+        self.signInPerson = signInPerson
         self.readAgents = readAgents
         self.readConnections = readConnections
         self.searchToolkits = searchToolkits
@@ -86,14 +101,29 @@ final class ToolsModel: ObservableObject {
     }
 
     /// Starts the tool's own sign in; again opens a fresh one for a tool that already has one, to use another account.
+    /// A press of Connect on any tool starts afresh, so one left unfinished in the browser never holds the others back.
     func connect(_ toolkit: String, again: Bool = false) {
-        guard busy == nil else { return }
-        busy = toolkit
+        connecting?.cancel()
+        approving = nil
         actionNote = nil
-        Task { [weak self] in
+        connecting = Task { [weak self] in
             guard let self else { return }
+            // Nobody signed in yet: the one approval comes first and the tool's own sign in follows it, with no step between.
+            // Nothing is busy while it waits, since the wait is on the person in their browser.
+            if await personSignedIn() == false {
+                approving = toolkit
+                let approved = await signInPerson()
+                guard !Task.isCancelled else { return }
+                approving = nil
+                guard approved else {
+                    actionNote = "Memnox was not approved in the browser, so \(ToolkitName.of(toolkit)) was not connected"
+                    return
+                }
+            }
+            busy = toolkit
             let answer = await signIn(toolkit, again)
             busy = nil
+            guard !Task.isCancelled else { return }
             switch answer {
             case .started(let page):
                 // The daemon opens the page itself over this Mac's socket; only a server's answer is left to open here.
@@ -107,6 +137,24 @@ final class ToolsModel: ObservableObject {
             case .refused(let why):
                 actionNote = why
             case .unreachable:
+                actionNote = Self.unreachable
+            }
+        }
+    }
+
+    /// The voice answers through this agent from now on; one that cannot answer says why under the tiles.
+    func useForVoice(_ agent: VoiceAgentStatus) {
+        guard busy == nil, !agent.chosen else { return }
+        busy = agent.kind
+        actionNote = nil
+        Task { [weak self] in
+            guard let self else { return }
+            let answer = await chooseAgent(agent.kind)
+            busy = nil
+            apply(answer)
+            if case .agents(let all) = answer, let now = all.first(where: { $0.kind == agent.kind }), !now.chosen {
+                actionNote = now.because ?? "\(agent.label) could not answer just now"
+            } else if case .unreachable = answer {
                 actionNote = Self.unreachable
             }
         }
@@ -162,6 +210,9 @@ final class ToolsModel: ObservableObject {
 
     var connectedCount: Int { connections.filter(\.connected).count }
 
+    /// The featured tools not connected yet, offered with Connect even signed out, since Connect signs in first.
+    var suggested: [String] { FeaturedToolkits.suggested(excluding: connections) }
+
     private func apply(_ answer: VoiceAgentsAnswer) {
         guard case .agents(let all) = answer else { return }
         agents = all.filter(\.installed).sorted { $0.chosen && !$1.chosen }
@@ -185,8 +236,8 @@ final class ToolsModel: ObservableObject {
 enum ToolStatus {
     static func agent(_ agent: VoiceAgentStatus) -> String {
         if agent.chosen { return "Voice" }
-        if agent.works == false { return "Not the voice yet" }
-        return "Ready"
+        if agent.works == false { return "Not ready" }
+        return "Use for voice"
     }
 
     static func connection(_ connection: ToolConnection) -> String {

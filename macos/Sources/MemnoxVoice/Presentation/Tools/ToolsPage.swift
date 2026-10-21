@@ -30,8 +30,10 @@ struct ToolsPage: View {
                 }
             }
             SettingsCard(title: "Apps") {
-                if let note = tools.connectionsNote {
-                    SettingsRow(symbol: Self.noteSymbol, title: "Your apps are not showing", caption: note, tint: Memnox.Palette.warm)
+                if tools.connectionsNote != nil {
+                    // Signed out, the daemon's sentence sent people to a terminal; Connect below signs them in instead.
+                    SettingsRow(symbol: Self.noteSymbol, title: "No apps connected yet",
+                                caption: "Connect one below, and you approve this Mac once in your browser first.")
                 } else {
                     if tools.connections.isEmpty {
                         SettingsRow(symbol: "link", title: tools.loading ? "Reading your apps" : "No apps connected yet",
@@ -51,6 +53,21 @@ struct ToolsPage: View {
                 }
                 if let why = tools.actionNote {
                     SettingsRow(symbol: Self.noteSymbol, title: "That did not work", caption: why, tint: Memnox.Palette.warm)
+                }
+            }
+            if !tools.suggested.isEmpty {
+                SettingsCard(title: "Suggested") {
+                    ForEach(tools.suggested, id: \.self) { toolkit in
+                        if toolkit != tools.suggested.first { SettingsDivider() }
+                        ToolRow(title: ToolkitName.of(toolkit), caption: suggestionCaption(toolkit), ok: true) {
+                            ToolMark(toolkit: toolkit, side: SettingsMetrics.tileSide)
+                        } accessory: {
+                            if tools.busy == toolkit { ProgressView().controlSize(.small) }
+                            Button("Connect") { tools.connect(toolkit) }
+                                .buttonStyle(KitButton(kind: .secondary))
+                                .disabled(tools.busy != nil)
+                        }
+                    }
                 }
             }
             HStack {
@@ -80,6 +97,12 @@ struct ToolsPage: View {
         .buttonStyle(.plain)
         .hoverLight()
         .disabled(tools.busy != nil)
+    }
+
+    private func suggestionCaption(_ toolkit: String) -> String {
+        if tools.approving == toolkit { return "Approve Memnox in your browser first" }
+        if tools.waitingFor == toolkit { return "Finish signing in in your browser" }
+        return "Sign in with your own account"
     }
 
     private func caption(_ connection: ToolConnection) -> String {

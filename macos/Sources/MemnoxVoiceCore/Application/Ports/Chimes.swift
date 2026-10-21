@@ -13,6 +13,8 @@ public enum Cue: String, Sendable, CaseIterable {
     case declined
     /// Words were typed in or a session was started, as asked.
     case done
+    /// An agent finished its work, heard by somebody who is not looking at it.
+    case finished
     /// Memnox could not be reached, or the turn broke.
     case failed
     /// The question was answered somewhere else.

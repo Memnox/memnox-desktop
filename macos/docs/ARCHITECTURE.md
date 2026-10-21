@@ -62,13 +62,14 @@ every one of them, and the app wires the real ones in `App/AppDelegate.swift`.
 | `PairedStore` | `KeychainPairedServers` (Infrastructure/Persistence) | `MemoryPairedServers` |
 | `Pairer` | `RelayPairer` (Infrastructure/Relay), introducing this Mac as a desktop | a scripted pairer in `ServerPairingTests` |
 | `WorkspaceInbox` | `HttpWorkspaceInbox` (Infrastructure/Cloud) over an `HttpTransport`, `URLSessionTransport` in the app | `ScriptedTransport` |
+| `ReleaseFeed` | `GitHubReleases` (Infrastructure/Update) over an `HttpTransport`, read by `AppUpdates`; `AppUpdater` (Platform) swaps the app in | `ScriptedTransport` |
 | `PersonCredentialStore` | `KeychainPersonCredential` (Infrastructure/Persistence), its own Keychain service apart from the servers | `MemoryPersonCredential` |
 | `ConfirmKey` | `SecureEnclaveConfirmKey` (Infrastructure/Security), or `RefusingKey` when none can be made | `PersonKey`, `SoftwareConfirmKey` |
 | `OwnerStore` | `DefaultsOwner` (Infrastructure/Persistence) | `MemoryOwner` |
 | `Speaker` | `Voice`, Kokoro or the system voice (Platform/Audio) | `RecordingSpeaker` |
 | `Face` | `IslandPanel` (Presentation/Island) | `RecordingFace` |
 | `Presenter` | `SessionPresenter` (Presentation/Cards) | `RecordingPresenter` |
-| `Chimes` | `SystemChimes` (Platform/Sounds) | `RecordingChimes` |
+| `Chimes` | `CueChimes` (Platform/Sounds), playing `Support/Sounds` from `scripts/make-sounds.py` | `RecordingChimes` |
 
 The relay client (`Infrastructure/Relay`, `Infrastructure/Noise`, `Domain/Relay` and the pairing
 records in `Domain/Pairing`) is copied from memnox-mobile/ios by `scripts/sync-relay.sh`, which names the

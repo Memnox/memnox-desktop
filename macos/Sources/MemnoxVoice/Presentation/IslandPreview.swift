@@ -127,6 +127,7 @@ final class IslandPreview {
         panel.draftAnswered(DraftCard(subject: Self.draftSubject, draft: Self.mail), .answered)
         await pause(Tour.beat)
         await toolsInTheirName()
+        await newerRelease()
         panel.show(.listening, caption: "")
         panel.ruling(true)
         await pause(Tour.beat)
@@ -248,6 +249,24 @@ final class IslandPreview {
         subject: "Re: The new site", body: "Hi Sam,\n\nHere is the link to the new site, built and deployed this morning:\nhttps://example.com\n\nBest regards", thread: 1
     )
 
+    private static let release = AppRelease(
+        version: "0.1.2",
+        image: URL(fileURLWithPath: "/Memnox.dmg"),
+        checksum: URL(fileURLWithPath: "/Memnox.dmg.sha256")
+    )
+
+    /// The update pill as it offers a release, while it installs, and when a try stops short.
+    private func newerRelease() async {
+        panel.offerUpdate(Self.release)
+        await pause(Tour.dwell)
+        panel.updating(true)
+        await pause(Tour.beat)
+        panel.updating(false, failed: "The download did not finish. Try again in a moment.")
+        await pause(Tour.dwell)
+        panel.updateDismissed()
+        await pause(Tour.beat)
+    }
+
     /// The icons of tools still to sign in to, then one card per tool, each drawn as that tool draws it.
     private func toolsInTheirName() async {
         panel.signIns(Self.signIns)
@@ -300,6 +319,16 @@ final class IslandPreview {
             toolkit: "gmail", tool: "GMAIL_SEND_EMAIL", kind: WorkDraftKind.email.rawValue,
             account: WorkAccount(key: "me@example.com", handle: "me@example.com", check: matched), to: ["sara@example.com"],
             subject: "Summary of this week", body: "Hi Sara,\n\nThe migration is done and billing is on the new retries.\n\nBest"
+        ),
+        WorkDraft(
+            toolkit: "googlecalendar", tool: "GOOGLECALENDAR_CREATE_EVENT", kind: WorkDraftKind.event.rawValue,
+            account: WorkAccount(key: "me@example.com", handle: "me@example.com", check: matched), to: ["sara@example.com"],
+            subject: "Design review", starts: "2026-10-24T10:00:00", ends: "2026-10-24T10:30:00"
+        ),
+        WorkDraft(
+            toolkit: "notion", tool: "NOTION_CREATE_NOTION_PAGE", kind: WorkDraftKind.page.rawValue,
+            account: WorkAccount(key: "u_9", handle: "Maya", check: matched), where: "Launch",
+            subject: "Release notes", body: "Billing retries now read the header. Invoices carry VAT."
         ),
     ]
 

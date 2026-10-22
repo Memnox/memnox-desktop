@@ -37,6 +37,10 @@ struct IslandWorkCard: View {
         static let editorMaxHeight: CGFloat = 180
         /// As many recipients as fit on one row; the rest are counted, and named on hover.
         static let shownPeople = 3
+        static let dayTileSide: CGFloat = 44
+        static let dayTileRadius: CGFloat = 9
+        static let dayNumberSize: CGFloat = 20
+        static let pageTitleSize: CGFloat = 20
     }
 
     private enum Shade {
@@ -53,6 +57,8 @@ struct IslandWorkCard: View {
         static let matched = "checkmark.seal.fill"
         static let unverified = "exclamationmark.triangle.fill"
         static let place = "arrow.turn.down.right"
+        static let clock = "clock"
+        static let page = "doc.text"
     }
 
     private var draft: WorkDraft { card.draft }
@@ -187,6 +193,8 @@ struct IslandWorkCard: View {
         case .message: message
         case .comment: comment
         case .email: email
+        case .event: event
+        case .page: page
         case .issue, .other: generic
         }
     }
@@ -257,6 +265,69 @@ struct IslandWorkCard: View {
             }
             rule
             bodyText
+        }
+    }
+
+    /// A calendar: the day as a calendar leaf, the title and the hours it books, then who is invited and the words.
+    private var event: some View {
+        let start = EventTime(draft.starts)
+        let end = EventTime(draft.ends)
+        return VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+            HStack(alignment: .center, spacing: Memnox.Spacing.regular) {
+                dayTile(start)
+                VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
+                    Text(draft.subject ?? "New event")
+                        .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(2)
+                    if let hours = EventTime.span(start, end) {
+                        Label(hours, systemImage: Symbol.clock)
+                            .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
+                            .foregroundStyle(Color.white.opacity(Memnox.Ink.primary))
+                            .lineLimit(1)
+                    }
+                }
+            }
+            if let to = draft.to, !to.isEmpty { chips("With", to) }
+            if draft.body != nil { bodyText }
+        }
+    }
+
+    /// The month over the day number, like the leaf of a desk calendar, or a blank leaf when no day was given.
+    private func dayTile(_ start: EventTime) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Layout.dayTileRadius, style: .continuous)
+        return VStack(spacing: 0) {
+            Text(start.month ?? "")
+                .font(Memnox.sans(Memnox.TextSize.caption, .bold))
+                .foregroundStyle(Color.white)
+                .frame(maxWidth: .infinity)
+                .background(ToolBrand.color(draft.toolkit))
+            Text(start.day ?? "?")
+                .font(.system(size: Layout.dayNumberSize, weight: .semibold).monospacedDigit())
+                .foregroundStyle(Color.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(width: Layout.dayTileSide, height: Layout.dayTileSide)
+        .background(Color.white.opacity(Shade.chip))
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(Color.white.opacity(Memnox.Ink.edge)))
+        .accessibilityHidden(true)
+    }
+
+    /// Notion and other documents: where the page lands, its title set large the way a page heads itself, then its words.
+    private var page: some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+            if let place = draft.where {
+                Label(place, systemImage: Symbol.page)
+                    .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
+                    .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                    .lineLimit(1)
+            }
+            Text(draft.subject ?? "Untitled")
+                .font(Memnox.sans(Layout.pageTitleSize, .bold))
+                .foregroundStyle(Color.white)
+                .lineLimit(2)
+            if draft.body != nil { bodyText }
         }
     }
 
@@ -403,6 +474,8 @@ struct IslandWorkCard: View {
         case .comment: return draft.toolkit == "github" ? "Review comment" : "Comment"
         case .email: return "Email"
         case .issue: return "Issue"
+        case .event: return "Event"
+        case .page: return "Page"
         case .other: return "Action"
         }
     }
@@ -417,4 +490,70 @@ struct IslandWorkCard: View {
             model.answerWork(shown.map { card.with(words: $0) } ?? card, send)
         }
     }
+}
+
+/// An event's start or end as the tool was given it, read for the card's calendar leaf and hours; text no clock
+/// reads is shown as it came, so the card never claims a time it could not read.
+struct EventTime {
+    let raw: String?
+    let date: Date?
+    /// Whether the text named an hour, since an all day event has only a date.
+    let timed: Bool
+
+    init(_ raw: String?) {
+        self.raw = raw
+        guard let raw else { date = nil; timed = false; return }
+        if let full = Self.read(raw) {
+            date = full; timed = true
+        } else if let day = Self.dayOnly.date(from: raw) {
+            date = day; timed = false
+        } else {
+            date = nil; timed = false
+        }
+    }
+
+    var month: String? { date.map { $0.formatted(.dateTime.month(.abbreviated)).uppercased() } }
+    var day: String? { date.map { $0.formatted(.dateTime.day()) } }
+
+    /// "Fri 24 Oct, 10:00 to 10:30", the day once when both ends fall on it, else whatever each end reads as.
+    static func span(_ start: EventTime, _ end: EventTime) -> String? {
+        guard let from = start.date else { return start.raw }
+        let day = from.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+        guard start.timed else { return day }
+        let hours = from.formatted(date: .omitted, time: .shortened)
+        guard let to = end.date else { return "\(day), \(hours)" }
+        let sameDay = Calendar.current.isDate(from, inSameDayAs: to)
+        let until = sameDay ? to.formatted(date: .omitted, time: .shortened) : to.formatted(date: .abbreviated, time: .shortened)
+        return "\(day), \(hours) to \(until)"
+    }
+
+    /// With or without a zone and fractional seconds, the shapes calendar tools take a start in.
+    private static func read(_ text: String) -> Date? {
+        for options in fullShapes {
+            let reader = ISO8601DateFormatter()
+            reader.formatOptions = options
+            if let date = reader.date(from: text) { return date }
+        }
+        return localTime.date(from: text)
+    }
+
+    private static let fullShapes: [ISO8601DateFormatter.Options] = [
+        [.withInternetDateTime, .withFractionalSeconds],
+        [.withInternetDateTime],
+    ]
+
+    /// A start with no zone is the person's own local time, the way a calendar reads it.
+    private static let localTime: DateFormatter = {
+        let reader = DateFormatter()
+        reader.locale = Locale(identifier: "en_US_POSIX")
+        reader.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        return reader
+    }()
+
+    private static let dayOnly: DateFormatter = {
+        let reader = DateFormatter()
+        reader.locale = Locale(identifier: "en_US_POSIX")
+        reader.dateFormat = "yyyy-MM-dd"
+        return reader
+    }()
 }

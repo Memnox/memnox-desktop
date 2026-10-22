@@ -80,6 +80,8 @@ public enum WorkDraftKind: String, Sendable {
     case comment
     case email
     case issue
+    case event
+    case page
     case other
 }
 
@@ -108,13 +110,17 @@ public struct WorkDraft: Decodable, Equatable, Sendable {
     public let `where`: String?
     public let subject: String?
     public let body: String?
+    /// On an event, when it starts and ends as the tool was given them.
+    public let starts: String?
+    public let ends: String?
     /// Every other argument, so nothing goes out that the card did not show.
     public let fields: [WorkField]
 
     public init(
         toolkit: String, tool: String, kind: String, account: WorkAccount? = nil, to: [String]? = nil,
         toName: String? = nil, toEditable: Bool? = nil,
-        where place: String? = nil, subject: String? = nil, body: String? = nil, fields: [WorkField] = []
+        where place: String? = nil, subject: String? = nil, body: String? = nil, starts: String? = nil, ends: String? = nil,
+        fields: [WorkField] = []
     ) {
         self.toolkit = toolkit
         self.tool = tool
@@ -126,6 +132,8 @@ public struct WorkDraft: Decodable, Equatable, Sendable {
         self.where = place
         self.subject = subject
         self.body = body
+        self.starts = starts
+        self.ends = ends
         self.fields = fields
     }
 
@@ -168,6 +176,7 @@ public enum ToolkitName {
     private static let names: [String: String] = [
         "github": "GitHub", "gmail": "Gmail", "googledocs": "Google Docs",
         "linear": "Linear", "notion": "Notion", "slack": "Slack",
+        "googlecalendar": "Google Calendar", "googledrive": "Google Drive", "outlook": "Outlook", "jira": "Jira",
     ]
 
     public static func of(_ toolkit: String) -> String {

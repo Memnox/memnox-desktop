@@ -70,23 +70,27 @@ struct SelectMenu<Value: Hashable>: View {
     }
 }
 
-/// The search field at the top of a list: a magnifier and the words on a grey capsule, as Vorssaint's sidebar search.
+/// The app's one text field: a symbol and the words on a grey capsule, as Vorssaint's sidebar search. A magnifier by
+/// default; given `submit`, Return sends what is typed, as the reply to a session in the notch does.
 struct SearchField: View {
     let prompt: String
     @Binding var text: String
+    var symbol: String = Symbol.search
+    var submit: (() -> Void)?
     @FocusState private var focused: Bool
 
-    private enum Symbol {
+    enum Symbol {
         static let search = "magnifyingglass"
         static let clear = "xmark.circle.fill"
     }
 
     var body: some View {
         HStack(spacing: ControlMetrics.iconSpacing) {
-            Image(systemName: Symbol.search)
+            Image(systemName: symbol)
                 .font(.system(size: ControlMetrics.textSize))
                 .foregroundStyle(Memnox.Palette.muted)
             TextField(prompt, text: $text)
+                .onSubmit { submit?() }
                 .textFieldStyle(.plain)
                 .font(.system(size: ControlMetrics.textSize))
                 .foregroundStyle(Memnox.Palette.foreground)
@@ -94,11 +98,11 @@ struct SearchField: View {
                 // The capsule is the field, so macOS draws no blue ring around it on focus.
                 .focusEffectDisabled()
             if !text.isEmpty {
-                Button("Clear search", systemImage: Symbol.clear) { text = "" }
+                Button("Clear", systemImage: Symbol.clear) { text = "" }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
                     .foregroundStyle(Memnox.Palette.muted)
-                    .help("Clear search")
+                    .help("Clear")
             }
         }
         .padding(.horizontal, ControlMetrics.horizontalPadding - ControlMetrics.fieldPadding)

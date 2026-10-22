@@ -7,6 +7,14 @@ import SwiftUI
 struct IslandSessionDetail: View {
     @ObservedObject var model: IslandModel
     let session: SessionView
+    /// The whole ask shown in place of the two lines it is cut to, for a prompt too long to read cut.
+    @State private var askOpen = false
+    @State private var reply = ""
+    @State private var sending = false
+    /// What became of the last reply, said under the field until the next one.
+    @State private var replied: String?
+    /// The header lights under the pointer, so it reads as the way into the session rather than a label.
+    @State private var headerHovered = false
 
     private enum Layout {
         static let logoSide: CGFloat = 30
@@ -18,6 +26,8 @@ struct IslandSessionDetail: View {
         static let headerSpacing: CGFloat = 3
         static let askLines = 2
         static let labelTracking: CGFloat = 0.6
+        /// Tall enough to read a long prompt in place, short enough that the reply field stays on the card.
+        static let openAskHeight: CGFloat = 92
     }
 
     private static let thinkingVeilOpacity = 0.3
@@ -28,8 +38,9 @@ struct IslandSessionDetail: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
                     identity
                     ask
-                    activity
+                    if !askOpen { activity }
                     Spacer(minLength: 0)
+                    replyField
                 }
                 .padding(Layout.cardPadding)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -40,8 +51,20 @@ struct IslandSessionDetail: View {
         .islandContentInset(model.notch)
     }
 
-    /// The logo, the agent's whole name, then how it stands and where it runs on one quiet line, and the way into it.
+    /// The logo, the agent's whole name, then how it stands and where it runs on one quiet line. The whole row is the
+    /// way into the session, and says so under the pointer, since a lone arrow was easy to miss.
     private var identity: some View {
+        Button(action: open) { identityRow }
+            .buttonStyle(PressableStyle())
+            .onHover { inside in withAnimation(.easeOut(duration: Memnox.Motion.quick)) { headerHovered = inside } }
+            .pointingHand()
+            .help(openWords)
+            .accessibilityLabel("\(session.agentName), \(openWords)")
+    }
+
+    private var openWords: String { session.runningIn.map { "Open in \($0)" } ?? "Open this session" }
+
+    private var identityRow: some View {
         HStack(alignment: .center, spacing: Memnox.Spacing.medium) {
             AgentLogo(kind: IslandPalette.kind(session.agent), name: session.agentName)
                 .frame(width: Layout.logoSide * Shade.logoScale, height: Layout.logoSide * Shade.logoScale)
@@ -55,26 +78,32 @@ struct IslandSessionDetail: View {
                     .layoutPriority(1)
                 HStack(spacing: Memnox.Spacing.small) {
                     IslandStatusBadge(status: session.status, label: SessionDetailText.statusLabel(of: session, now: Date()))
-                    if let place = SessionDetailText.place(of: session) {
+                    // Under the pointer the quiet line says where the click goes, in place of where it runs.
+                    if let place = headerHovered ? openWords : SessionDetailText.place(of: session) {
                         Text(place)
-                            .font(Memnox.sans(Memnox.TextSize.caption))
-                            .foregroundStyle(Color.white.opacity(Shade.place))
+                            .font(Memnox.sans(Memnox.TextSize.caption, headerHovered ? .semibold : .regular))
+                            .foregroundStyle(headerHovered ? Color.white : Color.white.opacity(Shade.place))
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
                 }
             }
             Spacer(minLength: 0)
-            Button(action: open) {
-                Image(systemName: Symbol.open)
-                    .font(.system(size: Memnox.TextSize.caption, weight: .semibold))
-                    .foregroundStyle(Color.white)
-                    .frame(width: Shade.openSide, height: Shade.openSide)
-                    .background(Circle().fill(Color.white.opacity(Memnox.Ink.fill)))
-            }
-            .buttonStyle(PressableStyle())
-            .help(session.runningIn.map { "Open this session in \($0)" } ?? "Open this session")
+            Image(systemName: Symbol.open)
+                .font(.system(size: Memnox.TextSize.caption, weight: .semibold))
+                .foregroundStyle(headerHovered ? Color.black : Color.white)
+                .frame(width: Shade.openSide, height: Shade.openSide)
+                .background(Circle().fill(headerHovered ? Color.white : Color.white.opacity(Memnox.Ink.fill)))
+                .scaleEffect(headerHovered ? Shade.openHoverScale : 1)
         }
+        .padding(Shade.headerInset)
+        .background(
+            RoundedRectangle(cornerRadius: Shade.headerRadius, style: .continuous)
+                .fill(Color.white.opacity(headerHovered ? Shade.headerHoverFill : 0))
+        )
+        // The light sits just outside the card's padding, so the row keeps its place when it lights.
+        .padding(-Shade.headerInset)
+        .contentShape(Rectangle())
     }
 
     /// The follow-up it is on when there is one, else what it was opened for, with icon glyphs from a terminal taken out.
@@ -84,18 +113,69 @@ struct IslandSessionDetail: View {
         let followUp = latest != nil && latest != opening
         if let words = followUp ? latest : opening {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
-                Text(followUp ? "Follow-up" : "Asked")
-                    .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
-                    .tracking(Layout.labelTracking)
-                    .textCase(.uppercase)
-                    .foregroundStyle(followUp ? Memnox.Palette.sky : Color.white.opacity(Shade.sectionLabel))
-                Text(words)
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(IslandPalette.soft)
-                    .lineLimit(Layout.askLines)
-                    .truncationMode(.tail)
-                    .help(words)
+                HStack(spacing: Memnox.Spacing.xSmall) {
+                    Text(followUp ? "Follow-up" : "Asked")
+                        .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
+                        .tracking(Layout.labelTracking)
+                        .textCase(.uppercase)
+                        .foregroundStyle(followUp ? Memnox.Palette.sky : Color.white.opacity(Shade.sectionLabel))
+                    Spacer(minLength: 0)
+                    // Said in words beside the label, so the prompt reads as something to open rather than cut text.
+                    Label(askOpen ? "Less" : "All of it", systemImage: askOpen ? Symbol.less : Symbol.more)
+                        .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(Color.white.opacity(Shade.sectionLabel))
+                }
+                if askOpen {
+                    ScrollView {
+                        askText(words).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: Layout.openAskHeight)
+                } else {
+                    askText(words)
+                        .lineLimit(Layout.askLines)
+                        .truncationMode(.tail)
+                }
             }
+            .contentShape(Rectangle())
+            .onTapGesture { withAnimation(.snappy) { askOpen.toggle() } }
+            .pointingHand()
+            .help(askOpen ? "Show less" : "Show all of it")
+            .accessibilityAddTraits(.isButton)
+        }
+    }
+
+    private func askText(_ words: String) -> some View {
+        Text(words)
+            .font(Memnox.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(IslandPalette.soft)
+            .textSelection(.enabled)
+    }
+
+    /// The reply to this session, typed rather than said, and signed with Touch ID like a reply from the phone.
+    private var replyField: some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
+            SearchField(prompt: "Reply to \(session.agentName)", text: $reply, symbol: "arrow.turn.down.right", submit: send)
+                .disabled(sending)
+                .environment(\.colorScheme, .dark)
+            if let replied {
+                Text(replied)
+                    .font(Memnox.sans(Memnox.TextSize.micro))
+                    .foregroundStyle(Color.white.opacity(Shade.sectionLabel))
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private func send() {
+        let words = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty, !sending else { return }
+        sending = true
+        Task { @MainActor in
+            let state = await model.followUp(words, session.sessionId)
+            sending = false
+            if case .sent = state { reply = "" }
+            replied = FollowUpWords.of(state)
         }
     }
 
@@ -123,6 +203,8 @@ struct IslandSessionDetail: View {
 
     private enum Symbol {
         static let open = "arrow.up.forward"
+        static let more = "chevron.down"
+        static let less = "chevron.up"
     }
 
     private enum Shade {
@@ -131,6 +213,10 @@ struct IslandSessionDetail: View {
         /// The logo fills a little over half its disc, the same as in the session list.
         static let logoScale: CGFloat = 0.56
         static let openSide: CGFloat = 26
+        static let openHoverScale: CGFloat = 1.08
+        static let headerInset: CGFloat = 6
+        static let headerRadius: CGFloat = 12
+        static let headerHoverFill = 0.08
     }
 }
 
@@ -337,5 +423,19 @@ struct IslandEmpty: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .islandContentInset(model.notch)
+    }
+}
+
+/// What became of a reply typed to a session, in the words of where it now is, the same in the notch and the window.
+enum FollowUpWords {
+    static func of(_ state: FollowUpState) -> String {
+        switch state {
+        case .sent(.typed): return "Typed into its prompt, it shows in the session"
+        case .sent(.queued): return "Handed over, it reads it at its next step"
+        case .sent(.later): return "It reads it at its next prompt"
+        case .cancelled: return "Not sent"
+        case .refused(let why): return why
+        case .unreachable: return "Memnox is not running"
+        }
     }
 }

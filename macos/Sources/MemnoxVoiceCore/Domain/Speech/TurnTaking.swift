@@ -60,15 +60,14 @@ private enum SpeechPause {
     static let stillThinking: TimeInterval = 3.0
     /// "Yes." is an answer, and answered soon after.
     static let shortReply: TimeInterval = 0.8
-    /// A finished question, answered once a breath has passed. The recognizer marks nearly every
-    /// pause as a full stop, and under a second and a half cut people off mid thought; the guess at
-    /// a short pause starts the answer anyway, so waiting longer here costs no time.
-    static let finished: TimeInterval = 1.4
+    /// A finished question, answered once a breath has passed. The recognizer marks nearly every pause as a full stop,
+    /// so it stays over a second, and the guess at a short pause has the answer started well before it ends.
+    static let finished: TimeInterval = 1.1
     /// A finished long thought, since people pause between its sentences.
-    static let finishedLong: TimeInterval = 2.0
+    static let finishedLong: TimeInterval = 1.7
     /// No mark to go on, so the pause gets the benefit of the doubt.
-    static let unmarked: TimeInterval = 2.2
-    static let unmarkedLong: TimeInterval = 2.6
+    static let unmarked: TimeInterval = 1.8
+    static let unmarkedLong: TimeInterval = 2.2
 }
 
 /// Endings that mean somebody trailed off mid thought: a comma or an ellipsis, typed or as one character.

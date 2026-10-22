@@ -6,8 +6,8 @@ import XCTest
 /// How long a pause ends what somebody says, and when a guess may start early.
 final class TurnTakingTests: XCTestCase {
     func testWaitsLongerWhenSomebodyTrailsOff() {
-        XCTAssertEqual(endOfSpeechPause(after: "What are my agents doing?"), 1.4)
-        XCTAssertEqual(endOfSpeechPause(after: "what are my agents doing"), 2.2)
+        XCTAssertEqual(endOfSpeechPause(after: "What are my agents doing?"), 1.1)
+        XCTAssertEqual(endOfSpeechPause(after: "what are my agents doing"), 1.8)
         XCTAssertEqual(endOfSpeechPause(after: "Okay, so are you able to uh"), 3.0)
         XCTAssertEqual(endOfSpeechPause(after: "Can Claude Code connect to"), 3.0)
         XCTAssertEqual(endOfSpeechPause(after: "My..."), 3.0)
@@ -20,9 +20,9 @@ final class TurnTakingTests: XCTestCase {
         XCTAssertEqual(endOfSpeechPause(after: "Is there"), 3.0)
         XCTAssertEqual(endOfSpeechPause(after: "Thank you."), 0.8)
         // Somebody explaining pauses between sentences, so the first one is not answered alone.
-        XCTAssertEqual(endOfSpeechPause(after: "Can you open Cursor and start a new session within Memnox runtime and check the git status?"), 2.0)
-        XCTAssertEqual(endOfSpeechPause(after: "Can you scan my entire computer and tell me?"), 2.0)
-        XCTAssertEqual(endOfSpeechPause(after: "Open the last one."), 1.4)
+        XCTAssertEqual(endOfSpeechPause(after: "Can you open Cursor and start a new session within Memnox runtime and check the git status?"), 1.7)
+        XCTAssertEqual(endOfSpeechPause(after: "Can you scan my entire computer and tell me?"), 1.7)
+        XCTAssertEqual(endOfSpeechPause(after: "Open the last one."), 1.1)
     }
 
     func testGuessesAtAPauseOnlyBeforeItEndsWhatTheySaid() {
@@ -80,8 +80,8 @@ final class TurnTakingTests: XCTestCase {
 
     func testWaitsForWhatToDoWhenARequestIsOnlyBegun() {
         XCTAssertEqual(endOfSpeechPause(after: "Can you open?"), 3.0)
-        XCTAssertEqual(endOfSpeechPause(after: "Close them."), 1.4)
-        XCTAssertEqual(endOfSpeechPause(after: "I said yes."), 1.4)
-        XCTAssertEqual(endOfSpeechPause(after: "Show me sessions."), 1.4)
+        XCTAssertEqual(endOfSpeechPause(after: "Close them."), 1.1)
+        XCTAssertEqual(endOfSpeechPause(after: "I said yes."), 1.1)
+        XCTAssertEqual(endOfSpeechPause(after: "Show me sessions."), 1.1)
     }
 }

@@ -347,8 +347,19 @@ final class SessionPresenter: Presenter {
         // A session with a terminal runs in one of the editor's terminals, never in the extension panel.
         // Only the agent's own id opens its conversation; any other id makes the panel start a new one,
         // so without it the editor window is brought forward instead.
-        if editor, host?.tty == nil, let conversation = host?.conversation,
-           conversation.range(of: Pattern.conversationId, options: .regularExpression) != nil,
+        // A Claude Code session's own id is its conversation's, so it stands in where the daemon named none.
+        let conversation = (host?.conversation ?? session).range(of: Pattern.conversationId, options: .regularExpression) != nil
+            ? host?.conversation ?? session : nil
+        if editor, host?.tty == nil, let host, let window = await raiseEditorWindow(host) {
+            // The conversation's link lands in the window in front, but only one open on the session's own folder takes
+            // it there; any other, such as the project above a subfolder it moved into, opens a second window for it.
+            if window == .ownFolder, let conversation, let url = Self.conversationLink(app: app, session: conversation, prompt: nil) {
+                try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.editorSettle))
+                NSWorkspace.shared.open(url)
+            }
+            return .landed
+        }
+        if editor, host?.tty == nil, let conversation,
            let url = Self.conversationLink(app: app, session: conversation, prompt: nil),
            NSWorkspace.shared.open(url) {
             return .landed
@@ -359,6 +370,27 @@ final class SessionPresenter: Presenter {
             return Typed(.failed, "where it runs was never noted, so there is no window or folder to bring up")
         }
         return Typed(.failed, "\(host.app ?? "its app") would not bring its window forward")
+    }
+
+    /// Which of the editor's windows came forward for a session: one open on its own folder, or on the project above it.
+    private enum EditorWindow { case ownFolder, project }
+
+    /// The editor's window already open on the session's folder, else on its project, raised; nil when it has neither,
+    /// so nothing is opened on a guess and the caller falls back to the conversation's link or the project itself.
+    private func raiseEditorWindow(_ host: DisplayHost) async -> EditorWindow? {
+        guard let cwd = host.cwd, let editor = Self.running(host), PromptTyping.allowed() else { return nil }
+        let folder = URL(fileURLWithPath: cwd).standardizedFileURL
+        let root = Self.projectRoot(of: folder)
+        if #available(macOS 14, *) { NSApp.yieldActivation(to: editor) }
+        if PromptTyping.raiseEditorWindow(of: editor, workspace: folder.lastPathComponent) {
+            editor.activate()
+            return .ownFolder
+        }
+        if root != folder, PromptTyping.raiseEditorWindow(of: editor, workspace: root.lastPathComponent) {
+            editor.activate()
+            return .project
+        }
+        return nil
     }
 
     /// The Claude Code extension's own link, which opens that one conversation, with a prompt in its box when given.
@@ -383,8 +415,9 @@ final class SessionPresenter: Presenter {
         }
         let url = host.appPath.map { URL(fileURLWithPath: $0) }
         if let cwd = host.cwd, let url, Self.editors.contains(where: app.contains) {
-            // An editor opened on the session's folder brings forward the window already on it.
-            let opened = await Self.open([URL(fileURLWithPath: cwd)], with: url)
+            // An editor opened on the project brings forward the window already on it; opened on the folder the agent
+            // last moved into, it would open a second window on a subfolder instead.
+            let opened = await Self.open([Self.projectRoot(of: URL(fileURLWithPath: cwd))], with: url)
             // Then the terminal inside it, which only the Memnox extension can choose among several.
             if opened, let tty = host.tty, let link = Self.extensionLink(app: app, path: Link.terminalPath, query: [QueryKey.tty: tty]) {
                 try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.editorSettle))
@@ -404,6 +437,17 @@ final class SessionPresenter: Presenter {
         // Only the folder is known, so it opens in whichever editor is installed, which brings its window forward.
         guard let cwd = host.cwd, let editor = Self.installedEditor() else { return false }
         return await Self.open([URL(fileURLWithPath: cwd)], with: editor)
+    }
+
+    /// The nearest folder at or above this one that holds a repository, which is the folder an editor window is open
+    /// on; the folder itself where none does.
+    static func projectRoot(of folder: URL) -> URL {
+        var here = folder.standardizedFileURL
+        while here.path != "/" {
+            if FileManager.default.fileExists(atPath: here.appendingPathComponent(".git").path) { return here }
+            here = here.deletingLastPathComponent()
+        }
+        return folder
     }
 
     /// A link to the Memnox extension, only where that editor has it installed, since a link
@@ -736,8 +780,9 @@ final class SessionPresenter: Presenter {
     /// app, stopped with its own Stop button where it shows one and Escape where it does not.
     private func interruptWithoutTerminal(session: String, host: DisplayHost?, app: String) async -> Typed {
         guard let host else { return Typed(.failed, "where it runs is not known") }
-        if Self.conversationEditors.contains(where: app.contains) {
-            guard host.conversation != nil else { return Typed(.failed, "which conversation it is in the editor is not known yet") }
+        // A Claude Code panel in the editor is found by its conversation; an editor's own agent, such as Cursor's, has
+        // none, and is stopped like any desktop app: its Stop button, or Escape.
+        if Self.conversationEditors.contains(where: app.contains), host.conversation != nil {
             return await borrowingScreen {
                 _ = await self.bringForward(session: session, host: host)
                 try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.editorSettle))

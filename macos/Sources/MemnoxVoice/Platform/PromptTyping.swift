@@ -103,6 +103,12 @@ enum PromptTyping {
             try? await Task.sleep(nanoseconds: pause(character))
         }
         try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.beforeReturn))
+        // Read before Return: a box that never took the words, such as an editor's hidden input, reads empty after it too.
+        let held = box.flatMap { string($0, kAXValueAttribute) }
+        if let held, !TypedCheck.holds(held, oneLine(text)) {
+            leaveOnClipboard(text)
+            return Typed(.clipboard, "the words did not show in the box it typed into, so nothing was sent")
+        }
         if let box, let typed = string(box, kAXValueAttribute) {
             try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.editGrace))
             if let now = string(box, kAXValueAttribute), now != typed {
@@ -115,16 +121,17 @@ enum PromptTyping {
             return Typed(.clipboard, "\(frontName()) came to the front before it was sent")
         }
         press(returnKey)
-        guard let box else { return .landed }
-        return Typed.landed.verified(await emptied(box, after: oneLine(text)))
+        // A box whose words could not be read is typed into but never called confirmed.
+        guard let box, let held else { return .landed }
+        return Typed.landed.verified(await emptied(box, holding: held))
     }
 
-    /// The box read until it empties, which is the app taking the message; nil when it never did.
-    private static func emptied(_ box: AXUIElement, after words: String) async -> Proof? {
+    /// The box read until it empties, which is the app taking the words it was seen to hold; nil when it never did.
+    private static func emptied(_ box: AXUIElement, holding words: String) async -> Proof? {
         for _ in 0..<Timing.sentLooks {
             try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.boxPoll))
             let now = string(box, kAXValueAttribute)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if now?.isEmpty == true { return Proof(checked: "its message box taking the words and emptying", seen: words) }
+            if now?.isEmpty == true { return Proof(checked: "its message box holding the words, then taking them and emptying", seen: words) }
         }
         return nil
     }
@@ -313,6 +320,22 @@ enum PromptTyping {
         let windows = elements(AXUIElementCreateApplication(app.processIdentifier), kAXWindowsAttribute) ?? []
         let named = windows.filter { (string($0, kAXTitleAttribute) ?? "").localizedCaseInsensitiveContains(name) }
         // Only one, since raising a guess among two would show the person the wrong session.
+        guard named.count == soleView, let window = named.first else { return false }
+        return AXUIElementPerformAction(window, kAXRaiseAction as CFString) == .success
+    }
+
+    /// The editor window whose workspace is this folder, read from the end of its title, as VS Code, Cursor and
+    /// Windsurf title a window "file, a long dash, workspace", the workspace's own hyphens left alone; matching anywhere
+    /// would take a file of the same name for it.
+    static func raiseEditorWindow(of app: NSRunningApplication, workspace name: String) -> Bool {
+        guard !name.isEmpty else { return false }
+        let windows = elements(AXUIElementCreateApplication(app.processIdentifier), kAXWindowsAttribute) ?? []
+        let named = windows.filter { window in
+            let title = string(window, kAXTitleAttribute) ?? ""
+            let workspace = title.components(separatedBy: CharacterSet(charactersIn: "\u{2014}\u{2013}")).last ?? title
+            return workspace.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(name) == .orderedSame
+                || title.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(name) == .orderedSame
+        }
         guard named.count == soleView, let window = named.first else { return false }
         return AXUIElementPerformAction(window, kAXRaiseAction as CFString) == .success
     }

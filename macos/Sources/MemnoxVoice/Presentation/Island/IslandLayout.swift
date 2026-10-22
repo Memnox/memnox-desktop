@@ -25,7 +25,7 @@ enum Island {
     static let dwellResting: TimeInterval = 0.65
     static let dwellBusy: TimeInterval = 0.2
     /// Open and untouched this long, it puts itself away; the last ten seconds are shown as a shrinking line.
-    static let idleClose: TimeInterval = 60
+    static let idleClose: TimeInterval = 20
     static let countdownFrom: TimeInterval = 10
     /// How long a finished session stays up before the island folds back.
     static let finishedFor = UInt64(finishedSeconds * nanosecondsPerSecond)
@@ -44,7 +44,7 @@ enum Island {
     /// How much wider than the notch the small modes are, leaving room for the orb and the session dots.
     private enum Widening {
         static let peek: CGFloat = 64
-        static let compact: CGFloat = 104
+        static let compact: CGFloat = 96
     }
 
     /// Each open mode's height, just tall enough for what that mode holds.

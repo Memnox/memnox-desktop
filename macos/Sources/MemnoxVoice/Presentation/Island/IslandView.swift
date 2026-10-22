@@ -95,6 +95,12 @@ struct IslandView: View {
                     .allowsHitTesting(false)
             }
             VStack(spacing: 0) {
+                // Under the island in every mode, so a newer Memnox is one press away whatever the island is doing.
+                if let update = model.update {
+                    IslandUpdatePill(model: model, card: update)
+                        .padding(.top, Layout.drivenGap)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
                 // Under the island in every mode, so whose account a sign in reached is seen the moment it finishes.
                 if let signedIn = model.signedIn {
                     IslandSignedInPill(model: model, card: signedIn)
@@ -263,14 +269,20 @@ struct IslandHeader: View {
     private var pastOrb: Bool { model.mode == .answer || model.mode == .session || model.mode == .launcher || model.mode == .question }
 
     private var showsBack: Bool {
-        model.mode == .session || model.mode == .answer || (model.mode == .launcher && model.launcherTools)
+        model.mode == .session || model.mode == .answer || (model.mode == .launcher && (model.launcherTools || model.launcherPanel != nil))
     }
 
     private func back() {
         if model.mode == .launcher {
             // One app steps back to the tools, and the tools step back to the grid.
             withAnimation(.snappy) {
-                if model.pickedTool != nil { model.pickedTool = nil } else { model.launcherTools = false }
+                if model.pickedTool != nil {
+                    model.pickedTool = nil
+                } else if model.launcherPanel != nil {
+                    model.launcherPanel = nil
+                } else {
+                    model.launcherTools = false
+                }
             }
             return
         }
@@ -308,7 +320,7 @@ struct IslandTab: View {
 }
 
 /// Beside the notch with sessions working or the voice listening: the orb left, and on the right
-/// a waveform for the voice or one dot per working session.
+/// a waveform for the voice or the grid of working agents.
 struct IslandCompact: View {
     @ObservedObject var model: IslandModel
     let loudness: () -> Float
@@ -317,8 +329,7 @@ struct IslandCompact: View {
         static let waveformWidth: CGFloat = 36
         static let waveformHeight: CGFloat = 16
         static let waveformTrailing: CGFloat = 14
-        /// As many logos as fit beside the notch before they crowd it.
-        static let shownLogos = 3
+        static let gridTrailing: CGFloat = 12
     }
 
     var body: some View {
@@ -330,13 +341,13 @@ struct IslandCompact: View {
                     .frame(width: Layout.waveformWidth, height: Layout.waveformHeight)
                     .padding(.trailing, Layout.waveformTrailing)
             } else {
-                IslandLogos(
-                    cards: Array(model.working.prefix(Layout.shownLogos)),
+                IslandWorkforce(
+                    cards: model.working,
                     waiting: model.held?.sessionId,
-                    stumbling: model.stumbling
+                    stumbling: model.stumbling,
+                    rowHeight: height
                 )
-                    .frame(height: height)
-                    .padding(.trailing, Memnox.Spacing.large)
+                    .padding(.trailing, Layout.gridTrailing)
             }
         }
         .frame(height: height)
@@ -348,7 +359,7 @@ struct IslandCompact: View {
         .accessibilityAction { model.tapped() }
     }
 
-    /// What the bar beside the notch means, for someone who cannot see the orb or the logos.
+    /// What the bar beside the notch means, for someone who cannot see the orb or the grid.
     private var spoken: String {
         if model.active { return model.dictating == nil ? "Memnox is listening" : "Dictating" }
         if model.held != nil || model.question != nil { return "An agent is waiting for you" }
@@ -357,30 +368,69 @@ struct IslandCompact: View {
     }
 }
 
-/// The working agents' logos, overlapping like faces in a doorway, so a glance says who is busy.
-struct IslandLogos: View {
+/// The working agents as a two by two grid of faces beside the notch, like desks in a small office: a glance
+/// says who is busy, the one waiting on the person hops with an amber edge, and a fifth agent turns the last
+/// desk into a count of the rest.
+struct IslandWorkforce: View {
     let cards: [SessionCard]
-    /// The session a held call is waiting on, whose logo bounces until it is answered.
+    /// The session a held call is waiting on, whose face hops until it is answered.
     var waiting: String?
     var stumbling: Set<String> = []
+    /// The notch row's height, which the grid fills less its inset.
+    let rowHeight: CGFloat
 
-    /// Each logo tucks this far under the one before it.
-    private static let overlap: CGFloat = -5
-    private static let logoSide: CGFloat = 16
-    /// A black ring the island's colour, so overlapping logos stay apart.
-    private static let ringWidth: CGFloat = 1.5
+    private static let columns = 2
+    private static let desks = 4
+    private static let gap: CGFloat = 2
+    /// Clear of the notch's top and bottom edge, so the grid never touches the bezel.
+    private static let inset: CGFloat = 4
+    /// Large enough to tell one agent from another, small enough that four fit a notch.
+    private static let largestFace: CGFloat = 14
+    private static let corner: CGFloat = 4
+    private static let logoScale: CGFloat = 0.62
+    private static let waitingEdge: CGFloat = 1.2
+    private static let emptyDesk = Color.white.opacity(0.08)
+    private static let countDesk = Color.white.opacity(0.18)
+    /// The count of agents left over reads at the size of a face's logo.
+    private static let countScale: CGFloat = 0.6
     private static let arrival = Animation.spring(response: 0.4, dampingFraction: 0.7)
 
+    private var face: CGFloat { min(Self.largestFace, (rowHeight - 2 * Self.inset - Self.gap) / 2) }
+
+    /// Four desks when four or fewer agents work; past that the last one counts the agents who do not fit.
+    private var seated: [SessionCard] { Array(cards.prefix(cards.count > Self.desks ? Self.desks - 1 : Self.desks)) }
+    private var unseated: Int { cards.count - seated.count }
+
     var body: some View {
-        HStack(spacing: Self.overlap) {
-            ForEach(cards, id: \.sessionId) { card in
-                SessionLogo(card: card, size: Self.logoSide)
-                    .overlay(Circle().strokeBorder(Color.black, lineWidth: Self.ringWidth))
-                    .modifier(LogoMood(bouncing: card.sessionId == waiting, stumbling: stumbling.contains(card.sessionId)))
-                    .transition(.scale.combined(with: .opacity))
-            }
+        let grid = [GridItem](repeating: GridItem(.fixed(face), spacing: Self.gap), count: Self.columns)
+        LazyVGrid(columns: grid, spacing: Self.gap) {
+            ForEach(0..<Self.desks, id: \.self) { index in desk(at: index) }
         }
+        .frame(width: 2 * face + Self.gap)
         .animation(Self.arrival, value: cards.map(\.sessionId))
+    }
+
+    @ViewBuilder private func desk(at index: Int) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Self.corner, style: .continuous)
+        if index < seated.count {
+            let card = seated[index]
+            AgentLogo(kind: IslandPalette.kind(card.agent), name: card.agentName)
+                .frame(width: face * Self.logoScale, height: face * Self.logoScale)
+                .frame(width: face, height: face)
+                .background(shape.fill(IslandPalette.color(card.agent)))
+                .overlay(shape.strokeBorder(Memnox.Palette.warm, lineWidth: card.sessionId == waiting ? Self.waitingEdge : 0))
+                .modifier(LogoMood(bouncing: card.sessionId == waiting, stumbling: stumbling.contains(card.sessionId)))
+                .transition(.scale.combined(with: .opacity))
+        } else if index == Self.desks - 1, unseated > 0 {
+            Text("+\(unseated)")
+                .font(.system(size: face * Self.countScale, weight: .bold).monospacedDigit())
+                .minimumScaleFactor(Self.countScale)
+                .foregroundStyle(.white)
+                .frame(width: face, height: face)
+                .background(shape.fill(Self.countDesk))
+        } else {
+            shape.fill(Self.emptyDesk).frame(width: face, height: face)
+        }
     }
 }
 

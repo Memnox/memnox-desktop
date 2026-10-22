@@ -37,6 +37,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let liveWordsKey = "liveWords"
     /// On unless turned off: words reach a session without its window coming forward, so the person stays where they are.
     private static let stayPutKey = "deliverInBackground"
+    /// The version the person pressed Later on, which the notch does not offer again.
+    private static let skippedUpdateKey = "skippedUpdate"
+    /// How often a running app looks for a newer release, often enough that one is seen the day it ships.
+    private static let updateCheckSeconds: TimeInterval = 6 * 60 * 60
+    private let updates = AppUpdates(feed: GitHubReleases(transport: URLSessionTransport()))
     private let link = UnixSocketLink()
     /// One id source for every request, since a relay session refuses an id already in flight.
     private let ids = RequestIds()
@@ -72,9 +77,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Pairs phones and looks after the devices paired, signing with the same key as the conversation.
     private var pairing: Pairing!
     private var hotkey: Hotkey?
+    /// Control-Shift-M, which quiets the voice and the chimes together and brings both back.
+    private var quietKey: Hotkey?
+    /// Notices the app dragged to the Trash while it runs, so what it installed can go with it.
+    private var trashWatch: TrashWatch?
     private let owner = DefaultsOwner()
     private let presenter = SessionPresenter()
-    private let chimes = SystemChimes()
+    private let chimes = CueChimes()
     private let frontApp = FrontApp()
     /// When the screen locked, so coming back after a while can be caught up on.
     private var awaySince: Date?
@@ -100,8 +109,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// A phone holds the voice, so the Mac does not answer to its name and the phone hears it alone.
     private var phoneHoldsVoice = false
 
-    /// How long the microphone stays open for a follow up after an answer, long enough to think one up.
-    private static let followUpSeconds: TimeInterval = 15
+    /// How long the microphone stays open for a follow up after an answer: long enough to start one, and short enough
+    /// that a person who has finished sees the notch close on its own rather than wait on it.
+    private static let followUpSeconds: TimeInterval = 8
     /// How long it waits for the rest when the brain thought they stopped mid thought; past it, what they said is answered as it stands.
     private static let restOfThoughtSeconds: TimeInterval = 6
     /// A request this long already says what to do, so a hold on it waits only a breath for more.
@@ -111,10 +121,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static func restOfThought(after said: String) -> TimeInterval {
         said.split(whereSeparator: \.isWhitespace).count >= longRequestWords ? briefRestSeconds : restOfThoughtSeconds
     }
-    private static let firstWordSeconds: TimeInterval = 10
+    /// Opened and then nothing said: it closes soon, since a press taken back is the commonest silence.
+    private static let firstWordSeconds: TimeInterval = 6
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Appearance.apply()
+        installMainMenu()
         // The island on its own, touring its states, with nothing listening and no daemon needed.
         if IslandPreview.requested {
             panel = IslandPanel(loudness: { IslandPreview.level })
@@ -155,6 +167,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             key = RefusingKey()
         }
         teamCalls = WorkspaceAnswering(inbox: cloud, store: personCredential, key: key)
+        // A reply typed in a session's detail goes as the phone's composer sends one: signed, and never read by the brain.
+        let following = FollowingUp(link: target, key: key, ids: ids)
+        panel.islandModel.followUp = { words, session in await following.send(words, to: session) }
         conversation = Conversation(
             link: target, speaker: voice, key: key, face: panel, owner: owner, presenter: shown, chimes: chimes,
             adHocBuild: BuildSignature.isAdHoc,
@@ -245,13 +260,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
         hotkey = Hotkey { [weak self] in self?.talk() }
+        quietKey = Hotkey(Hotkey.quiet) { [weak self] in self?.toggleQuiet() }
         holdKeys.began = { [weak self] in self?.ruleHeld() }
         holdKeys.ended = { [weak self] in self?.panel.ruling(false) }
         holdKeys.start()
         dictationKey.began = { [weak self] in self?.dictationHeld() }
         dictationKey.start()
         if !HoldKeys.canWatch { diary.note("Accessibility is off, so holding Control and Option for a rule is not seen yet") }
-        UserDefaults.standard.register(defaults: [DictationKey.enabledKey: true, DictationStore.polishKey: true, DictationStore.liveKey: true, Self.speakUpKey: false, Self.bargeKey: true, SystemChimes.key: true, Self.liveWordsKey: true, Self.stayPutKey: true])
+        UserDefaults.standard.register(defaults: [DictationKey.enabledKey: true, DictationStore.polishKey: true, DictationStore.liveKey: true, Self.speakUpKey: false, Self.bargeKey: true, CueChimes.key: true, CueChimes.volumeKey: CueChimes.defaultVolume, Self.liveWordsKey: true, Self.stayPutKey: true])
         panel.showLiveWords(UserDefaults.standard.bool(forKey: Self.liveWordsKey))
         wake.spoken = { [weak self] in
             self?.voice.spoken(since: Date().addingTimeInterval(-Self.echoLingers)) ?? ""
@@ -269,7 +285,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             signIn: { await apps.signIn($0, again: $1) },
             signOut: { await apps.signOut($0) },
             watch: { await apps.watch(from: $0) },
-            open: { NSWorkspace.shared.open($0) }
+            open: { NSWorkspace.shared.open($0) },
+            personSignedIn: { [weak self] in await self?.account?.daemon?.connected() },
+            signInPerson: { [weak self] in await self?.account?.signInAndWait() ?? false },
+            chooseAgent: { [weak self] kind in await self?.conversation?.chooseVoiceAgent(kind) ?? .unreachable }
         )
         panel.useTools(tools)
         let menu = MenuModel(
@@ -280,8 +299,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             setSpeakUp: { UserDefaults.standard.set($0, forKey: Self.speakUpKey) },
             talkOverOn: UserDefaults.standard.bool(forKey: Self.bargeKey),
             setTalkOver: { UserDefaults.standard.set($0, forKey: Self.bargeKey) },
-            chimesOn: UserDefaults.standard.bool(forKey: SystemChimes.key),
-            setChimes: { UserDefaults.standard.set($0, forKey: SystemChimes.key) },
+            chimesOn: UserDefaults.standard.bool(forKey: CueChimes.key),
+            setChimes: { UserDefaults.standard.set($0, forKey: CueChimes.key) },
             liveWordsOn: UserDefaults.standard.bool(forKey: Self.liveWordsKey),
             setLiveWords: { [weak self] on in
                 UserDefaults.standard.set(on, forKey: Self.liveWordsKey)
@@ -303,6 +322,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             tools: tools
         )
         self.menu = menu
+        menu.previewChime = { [chimes] in chimes.play(.finished) }
+        panel.useMenu(menu) { [weak self] in self?.madeSetupModel() }
+        menu.uninstall = { [weak self] in self?.confirmUninstall(trashed: false) }
+        trashWatch = TrashWatch { [weak self] in self?.confirmUninstall(trashed: true) }
         menuBar = MenuBarPanel(model: menu)
         SettingsWindow.shared.prepareSetup = { [weak self] in
             guard let self else { return }
@@ -313,6 +336,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             copyWhatHappened: { [weak self] in self?.copyWhatHappened() },
             openSettings: { page in SettingsWindow.shared.show(page) }
         )
+        panel.wireUpdate(
+            install: { [weak self] card in self?.installUpdate(card) },
+            later: { [weak self] card in self?.putOffUpdate(card) }
+        )
+        watchForUpdates()
         let home = HomeModel(
             load: { [weak self] in await self?.conversation.home() },
             handOver: { [weak self] action in await self?.conversation.handOver(action) ?? .unreachable },
@@ -347,6 +375,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Somebody who only answers what is routed to them has what they came for, so setup is not pushed on them each launch.
             showSetup()
         }
+    }
+
+    /// Asks before anything goes, since a rule set and a history cannot be had back; from the Trash, keeping it all is one
+    /// press too, for somebody who only meant to move the app.
+    private func confirmUninstall(trashed: Bool) {
+        let alert = NSAlert()
+        alert.messageText = trashed ? "Memnox is in the Trash" : "Uninstall Memnox?"
+        alert.informativeText = (trashed ? "Remove everything it put on this Mac too? " : "")
+            + "This stops the Memnox service and takes out its hooks in your agents, your rules and history on this Mac, "
+            + "its sign ins and its settings, then the app. Rule files in your repositories stay where they are."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Remove Everything")
+        alert.addButton(withTitle: trashed ? "Keep It" : "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        panel.show(.speaking, caption: "Removing Memnox")
+        Task { [weak self] in
+            guard let self else { return }
+            await Uninstaller.run(runtime: runtime) { [weak self] in self?.account?.signOut() }
+        }
+    }
+
+    /// Control-Shift-M: quiet while anything can be heard, the voice and the chimes together, and both back otherwise.
+    /// A tap is heard on either side of the change, so the press is known to have landed.
+    private func toggleQuiet() {
+        let mute = VoiceMute.shared
+        let quieting = !mute.on || UserDefaults.standard.bool(forKey: CueChimes.key)
+        if quieting { chimes.play(.sent) }
+        mute.set(quieting)
+        UserDefaults.standard.set(!quieting, forKey: CueChimes.key)
+        menu?.chimesOn = !quieting
+        if !quieting { chimes.play(.sent) }
+        panel.react(quieting ? .refused : .allowed)
+        diary.note(quieting ? "quiet from the shortcut" : "sound back from the shortcut")
+    }
+
+    /// The Dock icon clicked: setup while it is still to finish, else the Overview, since a Dock click asks for a window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if UserDefaults.standard.bool(forKey: SetupModel.doneKey) {
+            SettingsWindow.shared.show(.overview)
+        } else {
+            showSetup()
+        }
+        return false
+    }
+
+    /// The app's own menu while it is in front, as every Dock app has: About, Settings, Hide and Quit.
+    private func installMainMenu() {
+        let app = NSMenu()
+        app.addItem(withTitle: "About Memnox", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        app.addItem(.separator())
+        let settings = app.addItem(withTitle: "Settings\u{2026}", action: #selector(openOverview), keyEquivalent: ",")
+        settings.target = self
+        app.addItem(.separator())
+        app.addItem(withTitle: "Hide Memnox", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        app.addItem(withTitle: "Quit Memnox", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let bar = NSMenu()
+        let root = NSMenuItem(title: "Memnox", action: nil, keyEquivalent: "")
+        root.submenu = app
+        bar.addItem(root)
+        NSApp.mainMenu = bar
+    }
+
+    @objc private func openOverview() {
+        SettingsWindow.shared.show(.overview)
     }
 
     /// The hotkey, the menu and Siri all end here: open the orb and listen.
@@ -515,7 +608,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.release(event.subject, note: SettledLine.unknown)
             waitingCalls.remove(event.subject)
         case .paused: panel.shake()
-        case .notice where event.noticeKind == .finished: panel.finished(event)
+        case .notice where event.noticeKind == .finished:
+            panel.finished(event)
+            // Heard only by somebody elsewhere: in the agent's own app they watched it end.
+            let front = NSWorkspace.shared.frontmostApplication
+            if chimesFinish(runningIn: event.host, frontApp: front?.localizedName, frontPath: front?.bundleURL?.path) {
+                chimes.play(.finished)
+            }
         // Shown as taps while the voice reads it, so either a hand or a word answers it.
         case .notice where event.noticeKind == .question: panel.question(event)
         case .notice, .proposal, .show, nil: break
@@ -706,7 +805,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// selected, what they say is an instruction about it, and the selection is replaced by the result.
     private func dictationHeld() {
         guard !talking else {
+            // Heard rather than ignored, so a press during a conversation is not taken for a key that does nothing.
             dictationKey.stop()
+            chimes.play(.declined)
             return
         }
         let front = NSWorkspace.shared.frontmostApplication
@@ -726,6 +827,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             chimes.play(.failed)
             return
         }
+        // Nothing that takes text has the focus, so what is said is copied rather than typed into nothing.
+        let copyOnly = focus.isEditable == false
         talking = true
         defer { talking = false }
         guard await Ears.mayHear() else { return }
@@ -733,9 +836,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
         chimes.play(.listening)
         panel.show(.listening, caption: focus.selection == nil ? "Dictating" : "Say what to do with the selection")
-        panel.dictating(focus.selection == nil ? "Speak, and it types where your cursor is" : "Say what to do with the selection")
-        let live = dictations.typesLive ? LiveTyping(app: app, focus: focus) : nil
+        panel.dictating(copyOnly ? "No text field has the cursor, so it is copied for you"
+                        : focus.selection == nil ? "Speak, and it types where your cursor is" : "Say what to do with the selection")
+        let live = dictations.typesLive && !copyOnly ? LiveTyping(app: app, focus: focus) : nil
+        let began = Date()
         let said = await listenForDictation(focus: focus, live: live)
+        // How long they spoke, for the words a minute the overview shows.
+        let spoke = Date().timeIntervalSince(began)
         dictationKey.stop()
         audio.stop()
         guard let said, said.contains(where: \.isLetter) else {
@@ -757,16 +864,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         let place = app?.localizedName ?? "the app in front"
+        guard !copyOnly else {
+            PromptTyping.leaveOnClipboard(written)
+            dictations.record(DictationEntry(at: Date(), heard: said, written: written, app: app?.localizedName, seconds: spoke))
+            diary.note("nothing in \(place) takes text, so the dictation is on the clipboard")
+            showCopied()
+            return
+        }
         let landed = await put(written, into: app, live: live)
         live?.end()
         guard let landed else {
             // Kept rather than lost: a paste into whatever is in front now does it by hand.
-            dictations.record(DictationEntry(at: Date(), heard: said, written: written, app: app?.localizedName))
+            dictations.record(DictationEntry(at: Date(), heard: said, written: written, app: app?.localizedName, seconds: spoke))
             diary.note("\(place) was not in front, so the dictation is on the clipboard")
-            chimes.play(.failed)
+            showCopied()
             return
         }
-        dictations.record(DictationEntry(at: Date(), heard: said, written: landed, app: app?.localizedName))
+        dictations.record(DictationEntry(at: Date(), heard: said, written: landed, app: app?.localizedName, seconds: spoke))
         diary.note("dictated into \(place) as \(family.rawValue): \(landed)")
         if focus.selection == nil, let element = focus.element { watchForCorrections(landed, in: element, focus: focus) }
     }
@@ -818,6 +932,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         return await PromptTyping.paste(written, into: app) ? written : nil
     }
+
+    /// Says in the notch where words that could not be typed went, for long enough to read, unless talking began since.
+    private func showCopied() {
+        chimes.play(.done)
+        panel.present()
+        panel.show(.speaking, caption: "Copied. Press \u{2318}V where you want it")
+        let shown = turns
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Self.copiedShown * 1_000_000_000))
+            guard let self, !self.talking, self.turns == shown else { return }
+            self.panel.dismiss()
+        }
+    }
+
+    /// Long enough to read the line and find the place to paste.
+    private static let copiedShown: TimeInterval = 3
 
     /// How long the key may be up before listening ends, enough for the last syllable to reach the recognizer.
     private static let releaseTail: TimeInterval = 0.4
@@ -897,7 +1027,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let conversation, let panel else { return }
             let outcome = await conversation.answerDraft(
                 card.subject, send: send, reason: card.reason, edited: card.edited, editedTo: card.editedTo)
-            panel.workAnswered(card, outcome)
+            panel.workAnswered(card, outcome, sent: send)
         }
     }
 
@@ -908,6 +1038,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Said as the person would say it, so the brain opens a fresh sign in with their own account.
         let again = "Sign me in to \(card.tool) again, with my own account"
         enqueue { [weak self] in await self?.converse(opening: again) }
+    }
+
+    /// Looks for a newer Memnox at launch and every few hours after, and offers it under the notch.
+    private func watchForUpdates() {
+        guard AppUpdater.canUpdate, let running = AppUpdater.running else { return }
+        Task { [weak self, updates] in
+            while !Task.isCancelled {
+                let skipped = UserDefaults.standard.string(forKey: Self.skippedUpdateKey)
+                if let release = await updates.offer(running: running, skipped: skipped) { self?.panel.offerUpdate(release) }
+                try? await Task.sleep(nanoseconds: UInt64(Self.updateCheckSeconds * nanosecondsPerSecond))
+            }
+        }
+    }
+
+    /// Update on the pill: the app quits once the new one is ready, so only a failure ever comes back here.
+    private func installUpdate(_ card: UpdateCard) {
+        guard !card.installing else { return }
+        panel.updating(true)
+        Task { [weak self] in
+            guard let why = await AppUpdater.install(card.release) else { return }
+            self?.panel.updating(false, failed: why)
+        }
+    }
+
+    /// Later on the pill: this version is put off for good, and the next one is offered when it ships.
+    private func putOffUpdate(_ card: UpdateCard) {
+        UserDefaults.standard.set(card.release.version, forKey: Self.skippedUpdateKey)
+        panel.updateDismissed()
     }
 
     /// The tool's own sign in, in the browser; its icon goes once tapped, and comes back if they ask again unsigned.
@@ -1198,6 +1356,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.say = { [weak self] line in self?.sayAside(line) }
         model.devicesChanged = { [weak self] in self?.loadDevices() }
         model.machineConnected = { [weak self] in await self?.account?.machine?.connected() }
+        model.signInFirst = { [weak self] in await self?.account?.signInAndWait() ?? false }
         model.voicePicked = { [weak self] voice in self?.tellVoice(voice) }
         model.useKokoro = { [weak self] in
             guard let self else { return }

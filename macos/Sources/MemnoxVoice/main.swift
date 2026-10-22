@@ -5,7 +5,7 @@ MainActor.assumeIsolated {
     let application = NSApplication.shared
     let delegate = AppDelegate()
     application.delegate = delegate
-    // A menu bar voice, never a Dock icon or a window of its own.
-    application.setActivationPolicy(.accessory)
+    // In the Dock like any app the person installed, so it is found, kept and quit where they look for apps.
+    application.setActivationPolicy(.regular)
     application.run()
 }

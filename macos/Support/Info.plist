@@ -21,7 +21,7 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
-	<true/>
+	<false/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Memnox listens while the orb is open, and for its name when you turn that on, so you can ask about your agents and answer them out loud.</string>
 	<key>NSAppTransportSecurity</key>

@@ -137,6 +137,15 @@ struct SignedInCard: Equatable, Sendable {
     var unverified: Bool { notice.account?.accountCheck != .matched }
 }
 
+/// A newer Memnox as the pill under the notch offers it, until the person updates or puts it off.
+struct UpdateCard: Equatable, Sendable {
+    let release: AppRelease
+    /// Set while the image downloads and is checked, so Update cannot be pressed twice.
+    var installing = false
+    /// Why the last try stopped short, shown in place of the version until they try again.
+    var failed: String?
+}
+
 /// A proposed rule as the island shows it, with the subject a confirm signs.
 struct RuleCard: Equatable, Sendable {
     let subject: String
@@ -216,6 +225,12 @@ final class IslandModel: ObservableObject {
     /// Whether the open island shows the grid of tiles rather than the sessions, and its tools page within it.
     @Published var launcher = false
     @Published var launcherTools = false
+    /// A page of the grid that does its work in the notch, such as pairing a phone, rather than opening Settings.
+    @Published var launcherPanel: LauncherPanel?
+    /// The menu's switches and phones, which the grid's own pages read and change.
+    var menu: MenuModel?
+    /// Setup, which a phone is paired through; made the first time it is asked for and held while the page is open.
+    var setup: () -> SetupModel? = { nil }
     /// The one connected app the tools page shows up close, with what to ask about it.
     @Published var pickedTool: ToolConnection?
     /// The agents and connected apps the grid's tools page shows, shared with the menu and Settings.
@@ -240,6 +255,8 @@ final class IslandModel: ObservableObject {
     @Published var signIns: [ToolSignIn] = []
     /// A sign in that just finished, shown under the notch for a moment, or until they say whether it is theirs.
     @Published var signedIn: SignedInCard?
+    /// A newer Memnox, under the notch in every mode until the person updates or presses Later.
+    @Published var update: UpdateCard?
     /// Where the pills that take a click sit under the island, top left origin, so the window lets those clicks in.
     var clickableBelow: CGRect = .zero
     /// Set while Touch ID is up for a draft's Send or a rule's Enforce, so a second press cannot raise a second sheet.
@@ -283,8 +300,14 @@ final class IslandModel: ObservableObject {
     var answerDraft: (DraftCard, Bool) -> Void = { _, _ in }
     var answerWork: (WorkCard, Bool) -> Void = { _, _ in }
     var openSignIn: (ToolSignIn) -> Void = { _ in }
+    /// The person's own words to one session, signed and sent as they are, from the reply field of its detail.
+    var followUp: (String, String) async -> FollowUpState = { _, _ in .unreachable }
     /// Not me on the signed in pill: sign in again with their own account.
     var notMine: (SignedInCard) -> Void = { _ in }
+    /// Update on the update pill: download, check and swap in the new Memnox.
+    var installUpdate: (UpdateCard) -> Void = { _ in }
+    /// Later on the update pill: this version is not offered again, though a newer one will be.
+    var laterUpdate: (UpdateCard) -> Void = { _ in }
     var answerRule: (RuleCard, RuleScope?) -> Void = { _, _ in }
     var forgetHistory: () -> Void = {}
     var toggleSide: () -> Void = {}
@@ -339,6 +362,7 @@ final class IslandModel: ObservableObject {
         case .session: return focusCard?.title ?? "Session"
         case .launcher:
             if let tool = pickedTool { return ToolkitName.of(tool.toolkit) }
+            if let panel = launcherPanel { return panel.title }
             return launcherTools ? "Tools" : "Memnox"
         case .held: return "Needs you"
         case .question: return "A question"

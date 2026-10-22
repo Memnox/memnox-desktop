@@ -23,6 +23,8 @@ public protocol Face: AnyObject {
     func react(_ reaction: Reaction)
     /// What was read back after an action, shown beside the answer as the evidence for it.
     func proof(_ proof: Proof)
+    /// Something the turn did in the world, kept for the side panel's list of what was done.
+    func acted(_ action: TakenAction)
     /// A phone is driving this Mac until the grant's time, or nil once it stopped, so somebody at the Mac always knows.
     func driven(_ grant: DriveGrant?)
     /// A phone's turn as it stands, shown without a sound since the phone speaks its own answer.
@@ -42,6 +44,7 @@ extension Face {
     public func signedIn(_ notice: SignedInNotice) {}
     public func react(_ reaction: Reaction) {}
     public func proof(_ proof: Proof) {}
+    public func acted(_ action: TakenAction) {}
     public func driven(_ grant: DriveGrant?) {}
     public func phone(_ turn: PhoneExchange) {}
     public func voiceOn(_ phone: PhoneVoice?) {}

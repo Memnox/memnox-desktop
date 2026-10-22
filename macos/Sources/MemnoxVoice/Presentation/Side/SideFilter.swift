@@ -10,7 +10,7 @@ enum SideFilter: CaseIterable, Hashable {
         case .all: "All"
         case .needsYou: "Needs you"
         case .working: "Working"
-        case .history: "History"
+        case .history: "Done"
         }
     }
 

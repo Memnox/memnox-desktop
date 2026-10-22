@@ -132,6 +132,8 @@ final class RecordingFace: Face {
     func react(_ reaction: Reaction) { reactions.append(reaction) }
     var proofs: [Proof] = []
     func proof(_ proof: Proof) { proofs.append(proof) }
+    var actions: [TakenAction] = []
+    func acted(_ action: TakenAction) { actions.append(action) }
     var drives: [DriveGrant?] = []
     func driven(_ grant: DriveGrant?) { drives.append(grant) }
     var phones: [PhoneExchange] = []

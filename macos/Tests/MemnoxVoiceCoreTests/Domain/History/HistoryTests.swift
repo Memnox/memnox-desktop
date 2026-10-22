@@ -95,4 +95,22 @@ final class HistoryTests: XCTestCase {
         let history = try JSONDecoder().decode(History.self, from: Data(saved.utf8))
         XCTAssertEqual(history.exchanges.first?.proofs, [])
     }
+
+    func testKeepsATurnThatOnlyActed() {
+        var history = History()
+        history.ask("open the docs", at: start)
+        history.act(TakenAction(tool: "open_link", at: start))
+        history.end(at: start.addingTimeInterval(1))
+        XCTAssertEqual(history.exchanges.first?.actions.map(\.tool), ["open_link"])
+    }
+
+    func testFindsAnExchangeByWhatItDid() {
+        var history = History()
+        history.ask("tell the team", at: start)
+        history.reply("Sent.")
+        history.end(at: start.addingTimeInterval(1))
+        history.act(TakenAction(tool: "SLACK_SEND_MESSAGE", toolkit: "slack", kind: "message", about: "#launch", at: start))
+        XCTAssertEqual(history.matching("launch").count, 1)
+        XCTAssertEqual(history.matching("calendar").count, 0)
+    }
 }

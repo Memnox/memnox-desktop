@@ -12,9 +12,11 @@ public struct Exchange: Codable, Equatable, Identifiable, Sendable {
     public private(set) var failure: String?
     /// What was read back after each action this answer took, the evidence beside what it says.
     public private(set) var proofs: [Proof]
+    /// What the turn did in the world, so the side panel lists what was done rather than what was said.
+    public private(set) var actions: [TakenAction]
 
     public init(id: UUID = UUID(), question: String, answer: String = "", askedAt: Date, answeredAt: Date? = nil,
-                failure: String? = nil, proofs: [Proof] = []) {
+                failure: String? = nil, proofs: [Proof] = [], actions: [TakenAction] = []) {
         self.id = id
         self.question = question
         self.answer = answer
@@ -22,9 +24,10 @@ public struct Exchange: Codable, Equatable, Identifiable, Sendable {
         self.answeredAt = answeredAt
         self.failure = failure
         self.proofs = proofs
+        self.actions = actions
     }
 
-    private enum CodingKeys: String, CodingKey { case id, question, answer, askedAt, answeredAt, failure, proofs }
+    private enum CodingKeys: String, CodingKey { case id, question, answer, askedAt, answeredAt, failure, proofs, actions }
 
     /// A history saved before proofs were kept reads with none, rather than failing to read at all.
     public init(from decoder: Decoder) throws {
@@ -36,6 +39,7 @@ public struct Exchange: Codable, Equatable, Identifiable, Sendable {
         answeredAt = try container.decodeIfPresent(Date.self, forKey: .answeredAt)
         failure = try container.decodeIfPresent(String.self, forKey: .failure)
         proofs = try container.decodeIfPresent([Proof].self, forKey: .proofs) ?? []
+        actions = try container.decodeIfPresent([TakenAction].self, forKey: .actions) ?? []
     }
 
     public var isAnswering: Bool { answeredAt == nil }
@@ -54,6 +58,10 @@ public struct Exchange: Codable, Equatable, Identifiable, Sendable {
         proofs.append(proof)
     }
 
+    mutating func act(_ action: TakenAction) {
+        actions.append(action)
+    }
+
     mutating func end(at moment: Date, failure reason: String? = nil) {
         guard answeredAt == nil else { return }
         answeredAt = moment
@@ -64,6 +72,33 @@ public struct Exchange: Codable, Equatable, Identifiable, Sendable {
     public func mentions(_ words: String) -> Bool {
         let wanted = words.trimmingCharacters(in: .whitespacesAndNewlines)
         return wanted.isEmpty || question.localizedStandardContains(wanted) || answer.localizedStandardContains(wanted)
+            || actions.contains { $0.mentions(wanted) }
+    }
+}
+
+/// One thing a turn did: an agent started or told, a page opened, a message sent in the person's name.
+public struct TakenAction: Codable, Equatable, Sendable {
+    /// The tool as `toolWord` reads it, such as start_session, or the toolkit's own slug, such as SLACK_SEND_MESSAGE.
+    public let tool: String
+    /// The toolkit it went out through in the person's name, nil for Memnox's own tools.
+    public let toolkit: String?
+    /// The drafted kind of a send, such as message or event, so the row says what went out.
+    public let kind: String?
+    /// Whom or what it was about, such as #launch or a subject line, for the row's second line.
+    public let about: String?
+    public let at: Date
+
+    public init(tool: String, toolkit: String? = nil, kind: String? = nil, about: String? = nil, at: Date) {
+        self.tool = tool
+        self.toolkit = toolkit
+        self.kind = kind
+        self.about = about?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? about : nil
+        self.at = at
+    }
+
+    /// Whether the words appear in what it was about or the tool it used, for the side panel's search.
+    public func mentions(_ words: String) -> Bool {
+        [tool, toolkit, about].compactMap { $0 }.contains { $0.localizedStandardContains(words) }
     }
 }
 
@@ -101,11 +136,17 @@ public struct History: Codable, Equatable, Sendable {
         exchanges[0].prove(proof)
     }
 
+    /// Something the newest turn did, kept on it like its proofs, even once its words have ended.
+    public mutating func act(_ action: TakenAction) {
+        guard !exchanges.isEmpty else { return }
+        exchanges[0].act(action)
+    }
+
     /// The reply ended. A failure is kept with its reason, so the question can be asked again; an exchange
-    /// that simply got no words is dropped, since an empty answer is nothing to look back on.
+    /// that simply got no words and did nothing is dropped, since it is nothing to look back on.
     public mutating func end(at moment: Date, failure: String? = nil) {
         guard current != nil else { return }
-        if failure == nil, exchanges[0].answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if failure == nil, exchanges[0].actions.isEmpty, exchanges[0].answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             exchanges.removeFirst()
             return
         }

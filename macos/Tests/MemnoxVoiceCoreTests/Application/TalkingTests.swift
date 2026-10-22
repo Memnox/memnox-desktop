@@ -69,6 +69,21 @@ final class TalkingTests: XCTestCase {
         XCTAssertEqual(speaker.said, ["You mean Codex?", "Codex has nothing running."])
     }
 
+    func testListsWhatTheTurnDidAndNotWhatItLookedUp() async throws {
+        let face = RecordingFace()
+        let conversation = Conversation(
+            link: SlowLink(seconds: 0, answer: [
+                try line(#"{"id":1,"ok":true,"chunk":{"kind":"tool","tool":"mcp__memnox-operator__sessions"}}"#),
+                try line(#"{"id":1,"ok":true,"chunk":{"kind":"tool","tool":"mcp__memnox-personal__search_web"}}"#),
+                try line(#"{"id":1,"ok":true,"chunk":{"kind":"text","text":"Opened it."}}"#),
+                try line(#"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#),
+            ]),
+            speaker: RecordingSpeaker(), key: PersonKey(), face: face, owner: MemoryOwner(nil)
+        )
+        await conversation.heard("search the weather in Kigali")
+        XCTAssertEqual(face.actions.map(\.tool), ["search_web"])
+    }
+
     func testSaysNoLetMeLookBeforeSomethingItDoes() async throws {
         let speaker = RecordingSpeaker()
         let conversation = Conversation(

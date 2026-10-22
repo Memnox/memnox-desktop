@@ -14,6 +14,10 @@ enum ToolName {
     static let typeInApp = "type_in_app"
     static let controlApp = "control_app"
     static let answerQuestion = "answer_question"
+    static let searchWeb = "search_web"
+    static let openLink = "open_link"
+    static let createFolder = "create_folder"
+    static let signIn = "sign_in"
 }
 
 public final class Conversation {
@@ -123,6 +127,11 @@ public final class Conversation {
         ToolName.startSession, ToolName.sendInstruction, ToolName.watchFor, ToolName.pauseSession,
         ToolName.show, ToolName.walkThrough, ToolName.typeInApp, ToolName.controlApp, ToolName.answerQuestion,
     ]
+
+    /// The calls that change something the person can see, which the side panel lists; a lookup is left out as talk.
+    static let listedTools: Set<String> = actingTools.union([
+        ToolName.searchWeb, ToolName.openLink, ToolName.createFolder, ToolName.signIn,
+    ])
 
     /// Every operator tool that proposes an action starts with this, and each reads its proposal back at once.
     private static let proposingToolPrefix = "propose_"
@@ -625,6 +634,7 @@ public final class Conversation {
                 fillerSpoke = true
                 speaker.queue(words)
             }
+            if Self.listedTools.contains(toolWord(chunk.tool)) { face.acted(TakenAction(tool: toolWord(chunk.tool), at: now())) }
             face.show(.thinking, caption: "reading \(toolWord(chunk.tool))")
         case .limited:
             if let rest = sentences.flush() { await say(rest) }

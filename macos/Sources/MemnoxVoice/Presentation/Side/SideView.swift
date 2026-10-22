@@ -3,7 +3,9 @@ import MemnoxVoiceCore
 import SwiftUI
 
 /// What the side panel shows, most urgent first: what is waiting on the person, what is working for
-/// them now, then every exchange lately by day, each with how it went. One search filters all of it.
+/// them now, the turn still running, then what was done lately by day, each with the tool it went through.
+/// It lists actions rather than talk, since what Memnox did is what the person comes back to check. One search
+/// filters all of it.
 struct SideView: View {
     @ObservedObject var model: IslandModel
     @State private var filter = SideFilter.all
@@ -101,19 +103,31 @@ struct SideView: View {
     }
 
     @ViewBuilder private func history(_ days: [HistoryDay]) -> some View {
+        if let running = model.history.current, running.mentions(model.query) {
+            SideSection(title: "In progress", count: nil, tint: Memnox.Palette.primary) {
+                ExchangeRow(
+                    exchange: running,
+                    opened: model.picked == running.id,
+                    open: { model.showExchange(running.id) },
+                    askAgain: { model.askAgain(running.question) }
+                )
+            }
+        }
         ForEach(days, id: \.start) { day in
             SideSection(title: day.title, count: nil, tint: nil) {
-                ForEach(day.exchanges) { exchange in
-                    ExchangeRow(
-                        exchange: exchange,
-                        opened: model.picked == exchange.id,
-                        open: { model.showExchange(exchange.id) },
-                        askAgain: { model.askAgain(exchange.question) }
+                ForEach(day.done, id: \.key) { done in
+                    ActionRow(
+                        action: done.action,
+                        question: done.exchange.question,
+                        opened: model.picked == done.exchange.id,
+                        open: { model.showExchange(done.exchange.id) }
                     )
                 }
             }
         }
-        if days.isEmpty { SideEmpty(searching: !model.query.trimmingCharacters(in: .whitespaces).isEmpty, query: model.query) }
+        if days.isEmpty, model.history.current == nil {
+            SideEmpty(searching: !model.query.trimmingCharacters(in: .whitespaces).isEmpty, query: model.query)
+        }
     }
 
     /// The chosen filter, or All once its section has emptied, so an answered call never leaves a blank panel.
@@ -138,12 +152,16 @@ struct SideView: View {
         return wanted.isEmpty || text.localizedStandardContains(wanted)
     }
 
-    /// The exchanges that match, grouped by the day they were asked, newest day first.
+    /// What was done in the exchanges that match, grouped by the day it was done, newest first; a turn that only
+    /// talked is left out, since its answer is in the notch while it lasts and is not an action to come back to.
     private var days: [HistoryDay] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: model.history.matching(model.query)) { calendar.startOfDay(for: $0.askedAt) }
+        let done = model.history.matching(model.query).flatMap { exchange in
+            exchange.actions.enumerated().map { index, action in DoneAction(exchange: exchange, action: action, index: index) }
+        }
+        let grouped = Dictionary(grouping: done) { calendar.startOfDay(for: $0.action.at) }
         return grouped.keys.sorted(by: >).map { start in
-            HistoryDay(start: start, exchanges: grouped[start]?.sorted { $0.askedAt > $1.askedAt } ?? [], calendar: calendar)
+            HistoryDay(start: start, done: grouped[start]?.sorted { $0.action.at > $1.action.at } ?? [], calendar: calendar)
         }
     }
 }
@@ -181,18 +199,26 @@ private struct SideNotchShape: Shape {
     }
 }
 
-/// One day of exchanges, named the way a person says it: today with the time of the newest, yesterday, or the date.
+/// One thing done, with the exchange that did it, so its row opens that answer.
+private struct DoneAction {
+    let exchange: Exchange
+    let action: TakenAction
+    let index: Int
+
+    var key: String { "\(exchange.id.uuidString)#\(index)" }
+}
+
+/// One day of what was done, named the way a person says it: today, yesterday, or the date.
 private struct HistoryDay {
     let start: Date
-    let exchanges: [Exchange]
+    let done: [DoneAction]
     let title: String
 
-    init(start: Date, exchanges: [Exchange], calendar: Calendar) {
+    init(start: Date, done: [DoneAction], calendar: Calendar) {
         self.start = start
-        self.exchanges = exchanges
-        let newest = exchanges.first?.askedAt.formatted(date: .omitted, time: .shortened) ?? ""
+        self.done = done
         if calendar.isDateInToday(start) {
-            title = newest.isEmpty ? "Today" : "Today, \(newest)"
+            title = "Today"
         } else if calendar.isDateInYesterday(start) {
             title = "Yesterday"
         } else {
@@ -269,6 +295,7 @@ private enum RowStyle {
     static let minHeight: CGFloat = 44
     static let hoverFill = 0.06
     static let selectedFill = 0.1
+    static let markRadius: CGFloat = 7
 }
 
 /// A heading, a count where one helps, and the rows under it.
@@ -470,6 +497,114 @@ private struct ExchangeRow: View {
     }
 }
 
+/// One thing done: the tool it went through as its own logo, what was done in a few words, and what was asked for it.
+private struct ActionRow: View {
+    let action: TakenAction
+    let question: String
+    let opened: Bool
+    let open: () -> Void
+
+    private enum Layout {
+        static let markSide: CGFloat = 26
+        static let symbolSize: CGFloat = 12
+    }
+
+    var body: some View {
+        let words = ActionWords(action)
+        SideRow(selected: opened, action: open) { _ in
+            HStack(spacing: Memnox.Spacing.regular) {
+                mark(words)
+                VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
+                    Text(words.title)
+                        .font(Memnox.sans(Memnox.TextSize.body, .semibold))
+                        .foregroundStyle(Memnox.Palette.ink)
+                        .lineLimit(1)
+                    Text(action.about ?? question)
+                        .font(Memnox.sans(Memnox.TextSize.caption))
+                        .foregroundStyle(Memnox.Palette.muted)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Text(action.at.formatted(date: .omitted, time: .shortened))
+                    .font(Memnox.sans(Memnox.TextSize.caption).monospacedDigit())
+                    .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
+            }
+        }
+        .help("You asked: \(question)")
+        .accessibilityLabel("\(words.title), \(action.about ?? question)")
+        .accessibilityValue(action.at.formatted(date: .omitted, time: .shortened))
+    }
+
+    /// A toolkit's own logo where it went out through one, else the symbol for what Memnox did itself.
+    @ViewBuilder private func mark(_ words: ActionWords) -> some View {
+        if let toolkit = action.toolkit {
+            ToolMark(toolkit: toolkit, side: Layout.markSide)
+        } else {
+            Image(systemName: words.symbol)
+                .font(.system(size: Layout.symbolSize, weight: .semibold))
+                .foregroundStyle(SideInk.onTint)
+                .frame(width: Layout.markSide, height: Layout.markSide)
+                .background(RoundedRectangle(cornerRadius: RowStyle.markRadius, style: .continuous).fill(Memnox.Palette.primary))
+        }
+    }
+}
+
+/// What an action is called in the list and the symbol drawn for it, read off the tool it used.
+struct ActionWords {
+    let title: String
+    let symbol: String
+
+    /// Memnox's own tools by the name the runtime gives them.
+    private enum Own: String {
+        case startSession = "start_session"
+        case sendInstruction = "send_instruction"
+        case watchFor = "watch_for"
+        case pauseSession = "pause_session"
+        case show
+        case walkThrough = "walk_through"
+        case typeInApp = "type_in_app"
+        case controlApp = "control_app"
+        case answerQuestion = "answer_question"
+        case searchWeb = "search_web"
+        case openLink = "open_link"
+        case createFolder = "create_folder"
+        case signIn = "sign_in"
+    }
+
+    init(_ action: TakenAction) {
+        if let toolkit = action.toolkit {
+            let tool = ToolkitName.of(toolkit)
+            switch WorkDraftKind(rawValue: action.kind ?? "") ?? .other {
+            case .message: title = "Sent a message on \(tool)"
+            case .comment: title = "Commented on \(tool)"
+            case .email: title = "Sent an email"
+            case .issue: title = "Filed an issue on \(tool)"
+            case .event: title = "Added an event to \(tool)"
+            case .page: title = "Wrote a page in \(tool)"
+            case .other: title = "Used \(tool)"
+            }
+            symbol = "paperplane.fill"
+            return
+        }
+        switch Own(rawValue: action.tool) {
+        case .startSession: (title, symbol) = ("Started an agent", "play.fill")
+        case .sendInstruction: (title, symbol) = ("Told an agent", "arrow.turn.down.right")
+        case .watchFor: (title, symbol) = ("Watching an agent", "eye.fill")
+        case .pauseSession: (title, symbol) = ("Paused an agent", "pause.fill")
+        case .show: (title, symbol) = ("Showed you", "rectangle.on.rectangle")
+        case .walkThrough: (title, symbol) = ("Walked you through", "figure.walk")
+        case .typeInApp: (title, symbol) = ("Typed in an app", "keyboard.fill")
+        case .controlApp: (title, symbol) = ("Used an app", "cursorarrow.click")
+        case .answerQuestion: (title, symbol) = ("Answered an agent", "bubble.left.fill")
+        case .searchWeb: (title, symbol) = ("Searched Google", "magnifyingglass")
+        case .openLink: (title, symbol) = ("Opened a link", "link")
+        case .createFolder: (title, symbol) = ("Made a folder", "folder.fill")
+        case .signIn: (title, symbol) = ("Signed in to a tool", "person.badge.key.fill")
+        case .none: (title, symbol) = ("Did \(action.tool.replacingOccurrences(of: "_", with: " "))", "bolt.fill")
+        }
+    }
+}
+
 /// Nothing to list: how to start, or that the search found nothing.
 private struct SideEmpty: View {
     let searching: Bool
@@ -483,12 +618,12 @@ private struct SideEmpty: View {
             Image(systemName: Self.symbol)
                 .font(.system(size: Memnox.TextSize.title))
                 .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
-            Text(searching ? "Nothing mentions \u{201C}\(query)\u{201D}" : "Nothing asked yet")
+            Text(searching ? "Nothing mentions \u{201C}\(query)\u{201D}" : "Nothing done yet")
                 .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
                 .foregroundStyle(Memnox.Palette.ink)
                 .multilineTextAlignment(.center)
             if !searching {
-                Text("Press Option Space and ask anything. Every answer stays here, on this Mac.")
+                Text("Press Option Space and ask Memnox to do something. What it does is listed here, on this Mac.")
                     .font(Memnox.sans(Memnox.TextSize.body))
                     .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
                     .multilineTextAlignment(.center)

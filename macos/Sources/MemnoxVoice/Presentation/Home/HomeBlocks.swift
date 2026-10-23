@@ -9,7 +9,8 @@ struct HomeBlocks: View {
     var body: some View {
         if let home = model.home {
             VStack(alignment: .leading, spacing: SettingsMetrics.pageSpacing) {
-                HomeWaitingBlock(count: home.waiting, open: model.openWaiting)
+                // The row of numbers above already says nothing waits, so the block comes only when something does.
+                if home.waiting > 0 { HomeWaitingBlock(count: home.waiting, open: model.openWaiting) }
                 if let needs = home.needsYou, !needs.isEmpty { HomeNeedsYouBlock(needs: needs) }
                 HomeWorkingBlock(working: home.working, open: model.openSession)
                 HomeBlock(title: "Today") {

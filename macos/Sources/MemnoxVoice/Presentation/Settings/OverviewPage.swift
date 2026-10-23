@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The window's first page, where the person lands: a greeting, the home's five blocks once this Mac is set up, and
-/// the setup checklist, which comes first until setup is finished.
+/// The window's first page, where the person lands: a greeting with the two keys, the setup checklist until setup is
+/// finished, the numbers in one row, what the agents are doing, then the latest dictations.
 struct OverviewPage: View {
     @ObservedObject var menu: MenuModel
     @ObservedObject var setup: SetupModel
@@ -9,59 +9,37 @@ struct OverviewPage: View {
     let account: AccountModel?
     /// The home's blocks, absent only before the app has built them.
     let home: HomeModel?
+    /// The person's dictations, absent only before the app has built them.
+    let dictations: DictationStore?
     let go: (SettingsPage) -> Void
     /// Which way the first run went, so the choice is offered once and the checklist takes its place after.
     @AppStorage(FirstRun.key) private var firstRun = ""
 
-    private enum Layout {
-        static let keycapSpacing: CGFloat = 3
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsMetrics.pageSpacing) {
-            // The page's title as every page has it, since the header above already says this is the overview.
-            VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
-                Text(greeting)
-                    .font(.title2.bold())
-                    .foregroundStyle(Memnox.Palette.foreground)
-                    .accessibilityAddTraits(.isHeader)
-                Text("What waits on you, what your agents are doing, and what could run on its own.")
-                    .font(.system(size: Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
-            }
-            Button(action: menu.talk) {
-                HStack(spacing: Memnox.Spacing.small) {
-                    Image(systemName: MenuSymbol.talk)
-                    Text("Talk to Memnox")
-                    HStack(spacing: Layout.keycapSpacing) {
-                        Keycap(label: "\u{2325}")
-                        Keycap(label: "Space")
-                    }
-                }
-            }
-            .buttonStyle(KitButton(kind: .secondary))
-            .help("Or press Option Space from anywhere")
-            if setup.isFinished { homeBlocks }
-            if let account, !setup.isFinished, firstRun.isEmpty {
-                FirstRunChoice(account: account) { path in
-                    firstRun = path
-                    if path == FirstRun.account { go(.account) }
-                }
-            } else {
-                SetupProgressCard(setup: setup, go: go)
-            }
-            if !setup.isFinished { homeBlocks }
+            OverviewHero(name: firstName, talk: menu.talk)
+            if !setup.isFinished { setupBlocks }
+            OverviewStats(overview: menu.overview, store: dictations)
+            if let home { OverviewHome(home: home, overview: menu.overview) }
+            if let dictations { RecentDictations(store: dictations) }
         }
     }
 
-    /// The home when the daemon gives one, and the session counts a runtime from before the home still answers.
-    @ViewBuilder private var homeBlocks: some View {
-        if let home { OverviewHome(home: home, overview: menu.overview) } else { OverviewNumbers(overview: menu.overview) }
+    /// Before setup is finished: the first run's choice, then the checklist of what is left.
+    @ViewBuilder private var setupBlocks: some View {
+        if let account, firstRun.isEmpty {
+            FirstRunChoice(account: account) { path in
+                firstRun = path
+                if path == FirstRun.account { go(.account) }
+            }
+        } else {
+            SetupProgressCard(setup: setup, go: go)
+        }
     }
 
-    private var greeting: String {
-        let first = setup.name.trimmingCharacters(in: .whitespaces).split(separator: " ").first.map(String.init)
-        return first.map { "Hi \($0)" } ?? "Memnox"
+    /// The first name only, as a person is greeted; nil before setup has one.
+    private var firstName: String? {
+        setup.name.trimmingCharacters(in: .whitespaces).split(separator: " ").first.map(String.init)
     }
 }
 

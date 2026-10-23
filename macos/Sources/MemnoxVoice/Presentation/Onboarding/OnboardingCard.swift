@@ -118,6 +118,7 @@ private struct OnboardingStepView: View {
             switch flow.step {
             case .welcome: WelcomeStep(flow: flow)
             case .setup: ThisMacStep(flow: flow, setup: setup)
+            case .editors: AgentHomesStep(flow: flow)
             case .ready: ReadyStep(flow: flow, setup: setup)
             }
         }

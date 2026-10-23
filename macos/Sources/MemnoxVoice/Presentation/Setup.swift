@@ -66,9 +66,6 @@ final class SetupModel: ObservableObject {
     /// Long enough that looking for a newly installed agent costs nothing, short enough to notice one soon.
     private static let agentPoll: TimeInterval = 20
     private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
-    /// Whether an editor the daemon's extension goes into is on this Mac, and the editors it has landed in.
-    @Published private(set) var editorsPresent = false
-    @Published private(set) var editorsWithExtension: [String] = []
     @Published var daemon: StepState = .waiting
     @Published var key: StepState = .waiting
     @Published var catchUp: Bool
@@ -200,9 +197,6 @@ final class SetupModel: ObservableObject {
         case .tooOld, .unreachable, .refused: daemon = .needs(runtime.failed ?? "The Memnox service is not answering yet")
         }
         key = await keyState()
-        // The daemon puts its editor extension in as it starts, so once it answers the folders say whether it landed.
-        editorsPresent = EditorExtension.editorsPresent
-        editorsWithExtension = EditorExtension.installedIn
         await voiceChanged()
         // Last, since the first time it asks every agent a question and that takes a while.
         await loadAgents()

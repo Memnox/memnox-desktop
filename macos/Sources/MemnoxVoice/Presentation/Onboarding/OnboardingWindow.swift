@@ -9,12 +9,14 @@ enum OnboardingStage: Equatable {
     case steps
 }
 
-/// The steps of the window in order, kept to three so setting up never feels like a chore; the notch plays beside all of them.
+/// The steps of the window in order, kept to four so setting up never feels like a chore; the notch plays beside all of them.
 enum OnboardingStep: Int, CaseIterable, Identifiable {
     /// What Memnox does, each part played on the real notch.
     case welcome
     /// The four grants and Memnox under the agents it found, on one page.
     case setup
+    /// The editors and terminals the agents run in, each walked through what it needs before it is first used.
+    case editors
     /// Two keys to try, the iPhone and the sign in if wanted, and the button that starts Memnox.
     case ready
 
@@ -25,6 +27,7 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
         switch self {
         case .welcome: return "What Memnox does"
         case .setup: return "Set up this Mac"
+        case .editors: return "Your apps"
         case .ready: return "Try it"
         }
     }

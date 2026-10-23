@@ -105,13 +105,6 @@ struct ThisMacStep: View {
             KitRow(symbol: "waveform", title: "Voice", detail: setup.voiceDetail, hint: hint(setup.voiceState)) {
                 voiceControl
             }
-            // Said here so nobody learns of the extension from an error later: the daemon puts it in on its own.
-            if setup.editorsPresent {
-                KitDivider()
-                KitRow(symbol: "terminal", title: "Memnox in your editor", detail: editorDetail) {
-                    if setup.editorsWithExtension.isEmpty { ProgressView().controlSize(.small) } else { CheckBox(state: .done) }
-                }
-            }
         }
         // Its own card, so which agent answers reads apart from what Memnox installed.
         KitCard(symbol: "person.wave.2", title: "Who answers when you talk", detail: setup.agentsDetail) {
@@ -142,13 +135,6 @@ struct ThisMacStep: View {
         case .failed:
             Button("Try again", systemImage: "arrow.clockwise") { Task { await setup.useKokoro?() } }.buttonStyle(KitButton(kind: .secondary))
         }
-    }
-
-    /// The daemon's extension for VS Code, Cursor and Windsurf, which lets the voice reach a session's own tab.
-    private var editorDetail: String {
-        setup.editorsWithExtension.isEmpty
-            ? "The Memnox terminals extension goes into VS Code, Cursor and Windsurf by itself, so your voice reaches the session's own tab."
-            : "The Memnox terminals extension is in, so your voice reaches the session's own tab. Restart the editor if it was open."
     }
 
     /// The steps and the picture of the switch to flip, set in under the row's words.

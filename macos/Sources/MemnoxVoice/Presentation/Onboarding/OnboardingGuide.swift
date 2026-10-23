@@ -30,6 +30,7 @@ struct OnboardingNarration: ViewModifier {
             setup.guide(GuideLines.welcome(name: setup.name))
             if let part = flow.highlight { follow(part) }
         case .setup: setup.guide(GuideLines.setup)
+        case .editors: setup.guide(GuideLines.editors)
         case .ready: setup.guide(GuideLines.ready(name: setup.name))
         }
     }
@@ -52,6 +53,8 @@ enum GuideLines {
 
     /// What Memnox puts on this Mac and why each permission is asked, said before any of it happens.
     static let setup = "Here is what I will do on this Mac. I install the Memnox service in your home folder and keep it running and up to date. I connect it to the agents I find, like Claude Code, Codex and Cursor, so what they do passes your rules first. And I install my voice, which runs on this Mac. From you I need four permissions: the microphone to hear you, Accessibility to type into your agent's app, Screen Recording to read the window you ask about, and Touch ID so only you approve."
+
+    static let editors = "Now, where do you run your agents? Pick each app you use. In an editor I need my extension in and one go at opening Claude Code's chat, so it never stops to ask you mid task. In a terminal, macOS asks once whether I may find your tabs."
 
     static func typing(_ pane: String) -> String {
         "System Settings is opening. Find Memnox under \(pane) and switch it on. If Memnox is not in the list, press the plus button and choose it from Applications."

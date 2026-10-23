@@ -40,6 +40,8 @@ final class IslandPanel: NSPanel, Face {
         static let initialOrbSide: CGFloat = 64
         /// Levels above the main menu bar's, so the island covers the bar either side of the notch.
         static let levelAboveMenuBar = 3
+        /// The strip at the screen's top that reveals an auto hidden menu bar, a little more than the pixel the system watches.
+        static let menuBarEdge: CGFloat = 3
         /// How far past its drawn edge the island still counts as under the pointer.
         static let pointerSlop: CGFloat = 6
         /// Within this of the window the pointer is polled every frame, and slowly anywhere further off.
@@ -118,7 +120,8 @@ final class IslandPanel: NSPanel, Face {
     }
 
     /// Only while a draft is up, so its words can be typed into and the island never takes keys otherwise.
-    override var canBecomeKey: Bool { model.work != nil }
+    /// Keys go to the island only where it has a field: a draft's addresses, or the reply to a session.
+    override var canBecomeKey: Bool { model.work != nil || model.mode == .session }
 
     /// Not pushed below the menu bar, which is exactly where the island lives.
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
@@ -206,6 +209,12 @@ final class IslandPanel: NSPanel, Face {
     /// The agents and apps the grid's tools page shows, the same list the menu and Settings read.
     @MainActor func useTools(_ tools: ToolsModel) {
         model.tools = tools
+    }
+
+    /// The menu and setup the grid's own pages work through, so phones and dictation are handled in the notch.
+    @MainActor func useMenu(_ menu: MenuModel, setup: @escaping () -> SetupModel?) {
+        model.menu = menu
+        model.setup = setup
     }
 
     /// What the grid's tiles and the round buttons do beyond the island, wired by the app delegate.
@@ -391,6 +400,11 @@ final class IslandPanel: NSPanel, Face {
         DispatchQueue.main.async { [self] in model.history.prove(proof) }
     }
 
+    /// Something the turn did, kept on its exchange for the side panel's list of what was done.
+    nonisolated func acted(_ action: TakenAction) {
+        DispatchQueue.main.async { [self] in model.history.act(action) }
+    }
+
     nonisolated func replying(_ text: String) {
         DispatchQueue.main.async { [self] in model.history.reply(text) }
     }
@@ -445,11 +459,19 @@ final class IslandPanel: NSPanel, Face {
     }
 
     /// A Send or a close ended: the card stays up when Touch ID was cancelled, and shakes when it did not go through.
-    nonisolated func workAnswered(_ card: WorkCard, _ outcome: HeldOutcome) {
+    nonisolated func workAnswered(_ card: WorkCard, _ outcome: HeldOutcome, sent: Bool = false) {
         DispatchQueue.main.async { [self] in
             model.sending = false
             switch outcome {
             case .answered, .answeredElsewhere:
+                // What went out in their name is the action the side panel exists to list, kept the moment it is signed.
+                if sent, outcome == .answered {
+                    let draft = card.draft
+                    model.history.act(TakenAction(
+                        tool: draft.tool, toolkit: draft.toolkit, kind: draft.kind,
+                        about: draft.subject ?? draft.to?.joined(separator: ", ") ?? draft.where, at: Date()))
+                    historyFile?.save(model.history)
+                }
                 guard model.work?.subject == card.subject else { return }
                 model.work = nil
                 model.settle()
@@ -503,6 +525,31 @@ final class IslandPanel: NSPanel, Face {
                 withAnimation(.snappy) { model.signedIn = nil }
             }
         }
+    }
+
+    /// What the update pill's buttons do, wired by the app delegate.
+    @MainActor func wireUpdate(install: @escaping (UpdateCard) -> Void, later: @escaping (UpdateCard) -> Void) {
+        model.installUpdate = install
+        model.laterUpdate = later
+    }
+
+    /// A newer Memnox was published, so the pill offers it under the notch until it is answered.
+    @MainActor func offerUpdate(_ release: AppRelease) {
+        guard model.update?.release != release else { return }
+        withAnimation(.snappy) { model.update = UpdateCard(release: release) }
+    }
+
+    /// Update was pressed, so the pill says it is working, or why it stopped, in place of its buttons.
+    @MainActor func updating(_ installing: Bool, failed: String? = nil) {
+        guard var card = model.update else { return }
+        card.installing = installing
+        card.failed = failed
+        withAnimation(.snappy) { model.update = card }
+    }
+
+    /// Later was pressed, so the pill goes.
+    @MainActor func updateDismissed() {
+        withAnimation(.snappy) { model.update = nil }
     }
 
     /// Not me was pressed, so the pill goes at once and a fresh sign in takes its place.
@@ -675,8 +722,13 @@ final class IslandPanel: NSPanel, Face {
         ).insetBy(dx: -Layout.pointerSlop, dy: -Layout.pointerSlop)
         let mouse = NSEvent.mouseLocation
         poll?.pace(near: isOpen || model.hovering || frame.insetBy(dx: -Layout.nearby, dy: -Layout.nearby).contains(mouse))
-        let over = shape.contains(mouse)
-        // The sign in icons and the signed in pill hang under the island and take clicks too, but never open it.
+        let small = model.mode == .peek || model.mode == .compact
+        // The top edge beside the notch belongs to the menu bar while the island is small, so a hidden menu bar
+        // still slides down when the pointer reaches the top rather than the island catching it there.
+        let besideNotch = abs(mouse.x - frame.midX) > model.notch.width / 2
+        let onMenuBarEdge = small && besideNotch && mouse.y >= frame.maxY - Layout.menuBarEdge
+        let over = shape.contains(mouse) && !onMenuBarEdge
+        // The sign in icons, the signed in pill and the update pill hang under the island and take clicks too, but never open it.
         let below = model.clickableBelow
         let overBelow = below.height > 0 && NSRect(
             x: frame.minX + below.minX, y: frame.maxY - below.maxY, width: below.width, height: below.height
@@ -692,7 +744,6 @@ final class IslandPanel: NSPanel, Face {
         if clickable, mouse != lastMouse { lastActivity = now }
         lastMouse = mouse
 
-        let small = model.mode == .peek || model.mode == .compact
         let hovering = over && small
         if hovering != model.hovering {
             withAnimation(.spring(response: Timing.hoverResponse, dampingFraction: Timing.hoverDamping)) { model.hovering = hovering }
@@ -719,7 +770,8 @@ final class IslandPanel: NSPanel, Face {
             hoverSince = nil
         }
 
-        guard model.opened, !model.active, [.overview, .session, .empty, .answer].contains(model.mode) else {
+        // The grid too, which otherwise stayed open for good once nobody touched it.
+        guard model.opened, !model.active, [.overview, .session, .empty, .answer, .launcher].contains(model.mode) else {
             if model.countdown != nil { model.countdown = nil }
             return
         }
@@ -747,6 +799,7 @@ final class IslandPanel: NSPanel, Face {
         model.detail = false
         model.launcher = false
         model.launcherTools = false
+        model.launcherPanel = nil
         model.pickedTool = nil
         model.picked = nil
         model.countdown = nil

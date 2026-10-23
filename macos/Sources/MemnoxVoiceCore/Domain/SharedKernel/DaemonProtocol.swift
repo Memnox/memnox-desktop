@@ -87,6 +87,8 @@ public enum DaemonMethod: String, Sendable {
     case connectionsSignOut = "connections-sign-out"
     /// Up to thirty tools from Memnox Cloud's catalogue that match the words, for a picker of what to connect.
     case toolkitsSearch = "toolkits-search"
+    /// One spoken sentence drafted into a rule and read back; with nothing left open it is proposed for Touch ID.
+    case rule
 }
 
 public enum EventKind: String, Sendable {

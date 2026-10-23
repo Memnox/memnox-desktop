@@ -102,6 +102,14 @@ final class DictationKey {
         began()
     }
 
+    /// Watches afresh, since macOS sends another app's keys only to monitors made once it trusts this one, so the
+    /// ones made before Accessibility was switched on stay deaf until they are made again.
+    func rewatch() {
+        global?.stop()
+        local?.stop()
+        start()
+    }
+
     /// Ends dictation, held or hands free, as letting go does.
     func stop() {
         active = false

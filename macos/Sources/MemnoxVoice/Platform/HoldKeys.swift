@@ -36,6 +36,14 @@ final class HoldKeys {
         }
     }
 
+    /// Watches afresh, since macOS sends another app's keys only to monitors made once it trusts this one, so the
+    /// ones made before Accessibility was switched on stay deaf until they are made again.
+    func rewatch() {
+        global?.stop()
+        local?.stop()
+        start()
+    }
+
     /// Whether this Mac lets the app see keys pressed in other apps, without which the hold is never seen.
     static var canWatch: Bool { AXIsProcessTrusted() }
 

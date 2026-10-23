@@ -267,6 +267,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dictationKey.began = { [weak self] in self?.dictationHeld() }
         dictationKey.start()
         if !HoldKeys.canWatch { diary.note("Accessibility is off, so holding Control and Option for a rule is not seen yet") }
+        watchAccessibility()
         UserDefaults.standard.register(defaults: [DictationKey.enabledKey: true, DictationStore.polishKey: true, DictationStore.liveKey: true, Self.speakUpKey: false, Self.bargeKey: true, CueChimes.key: true, CueChimes.volumeKey: CueChimes.defaultVolume, Self.liveWordsKey: true, Self.stayPutKey: true])
         panel.showLiveWords(UserDefaults.standard.bool(forKey: Self.liveWordsKey))
         wake.spoken = { [weak self] in
@@ -1039,6 +1040,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let again = "Sign me in to \(card.tool) again, with my own account"
         enqueue { [weak self] in await self?.converse(opening: again) }
     }
+
+    /// Each time Accessibility comes on, the dictation and rule keys are watched again, since the monitors made while it
+    /// was off never hear another app's keys; it is the grant setup asks for after the app has already started.
+    private func watchAccessibility() {
+        Task { [weak self] in
+            var trusted = AXIsProcessTrusted()
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(Self.accessibilityLookEvery * nanosecondsPerSecond))
+                let now = AXIsProcessTrusted()
+                guard let self else { return }
+                if now, !trusted {
+                    self.holdKeys.rewatch()
+                    self.dictationKey.rewatch()
+                    diary.note("Accessibility is on, so the dictation and rule keys are watched again")
+                }
+                trusted = now
+            }
+        }
+    }
+
+    /// Often enough that the keys work by the time somebody has closed System Settings.
+    private static let accessibilityLookEvery: TimeInterval = 2
 
     /// Looks for a newer Memnox at launch and every few hours after, and offers it under the notch.
     private func watchForUpdates() {

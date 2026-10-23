@@ -209,7 +209,7 @@ private struct SessionTile: View {
                         .foregroundStyle(Memnox.Palette.muted)
                 }
             }
-            Text(card.task ?? "No task recorded")
+            Text(card.title)
                 .font(Memnox.sans(Memnox.TextSize.body))
                 .foregroundStyle(Memnox.Palette.foreground.opacity(Layout.taskOpacity))
                 .lineLimit(Layout.taskLineLimit)

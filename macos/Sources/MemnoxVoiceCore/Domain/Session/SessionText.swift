@@ -104,8 +104,11 @@ public enum SessionText {
 }
 
 extension SessionCard {
-    /// What it is on, which is what tells two sessions of the same agent apart, with terminal glyphs taken out.
-    public var title: String { SessionReading.readable(task) ?? SessionReading.repository(repository) ?? agentName }
+    /// What it is on now, as its agent titles it, else what it was first asked, which is what tells two sessions of
+    /// the same agent apart; a long session is rarely still about its first message.
+    public var title: String {
+        SessionReading.readable(focus) ?? SessionReading.readable(task) ?? SessionReading.repository(repository) ?? agentName
+    }
 
     /// The agent, where it is if the title did not say, and how lately it did anything.
     public func subtitle(now: Date) -> String {

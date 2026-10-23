@@ -75,4 +75,13 @@ final class SessionTextTests: XCTestCase {
         let busy = SessionCard(sessionId: "ses_2", agentName: "Codex", state: "working", repository: "api")
         XCTAssertEqual(busy.subtitle(now: now), "Codex \u{00B7} working")
     }
+
+    /// The first message is rarely what a long session turned into, so the agent's own title leads.
+    func testTitlesASessionByWhatItIsAboutNowRatherThanItsFirstMessage() {
+        let card = SessionCard(sessionId: "ses_1", agentName: "Claude Code", task: "reuse component in app like input",
+                               focus: "Shared input component across the app", state: "working")
+        XCTAssertEqual(card.title, "Shared input component across the app")
+        let older = SessionCard(sessionId: "ses_2", agentName: "Claude Code", task: "fix the test", state: "working")
+        XCTAssertEqual(older.title, "fix the test")
+    }
 }

@@ -260,6 +260,8 @@ public struct SessionCard: Decodable, Equatable, Identifiable, Sendable {
     public let agent: String?
     public let agentName: String
     public let task: String?
+    /// What the session is about now, as its agent titles it; absent from a daemon older than the field.
+    public let focus: String?
     public let state: String
     public let thinking: Bool
     public let repository: String?
@@ -271,12 +273,14 @@ public struct SessionCard: Decodable, Equatable, Identifiable, Sendable {
     /// The state as a known case, or nil for one this app does not know yet.
     public var sessionState: SessionState? { SessionState(rawValue: state) }
 
-    public init(sessionId: String, agent: String? = nil, agentName: String, task: String? = nil, state: String, thinking: Bool = false,
-                repository: String? = nil, runningIn: String? = nil, lastActive: String? = nil, host: DisplayHost? = nil) {
+    public init(sessionId: String, agent: String? = nil, agentName: String, task: String? = nil, focus: String? = nil,
+                state: String, thinking: Bool = false, repository: String? = nil, runningIn: String? = nil,
+                lastActive: String? = nil, host: DisplayHost? = nil) {
         self.sessionId = sessionId
         self.agent = agent
         self.agentName = agentName
         self.task = task
+        self.focus = focus
         self.state = state
         self.thinking = thinking
         self.repository = repository

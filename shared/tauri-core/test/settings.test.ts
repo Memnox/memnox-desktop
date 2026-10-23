@@ -40,14 +40,14 @@ class MemoryStore implements PreferenceStore {
 }
 
 describe('the Settings pages', () => {
-  it('lists eleven pages in the Mac sidebar order, the overview alone first', () => {
-    expect(SETTINGS_PAGES).toEqual(['overview', 'account', 'permissions', 'connection', 'phones', 'appearance', 'tools', 'voice', 'listening', 'dictation', 'help']);
+  it('lists twelve pages in the Mac sidebar order, the overview alone first', () => {
+    expect(SETTINGS_PAGES).toEqual(['overview', 'account', 'permissions', 'connection', 'phones', 'appearance', 'tools', 'apps', 'voice', 'listening', 'dictation', 'help']);
     expect(SETTINGS_GROUPS[0]?.title).toBeUndefined();
     expect(SETTINGS_GROUPS.map((group) => group.title).slice(1)).toEqual(['You', 'This computer', 'Agents and tools', 'Voice', 'Support']);
   });
 
   it('filters by title or the line under it, and lists all for an empty search', () => {
-    expect(matchingPages('')).toHaveLength(11);
+    expect(matchingPages('')).toHaveLength(12);
     expect(matchingPages('phone')).toEqual(['phones']);
     expect(matchingPages('LISTENS')).toEqual(['listening']);
     expect(matchingPages('nothing like this')).toEqual([]);
@@ -304,12 +304,11 @@ describe('pairing a phone', () => {
     expect(PairingLines.paired("Sam's iPhone")).toBe("Sam's iPhone is paired.");
   });
 
-  it('sends a computer with no workspace to the Account page before asking the daemon', async () => {
+  it('asks the daemon for a pairing on a computer with no workspace, since none is needed', async () => {
     const daemon = new ScriptedDaemon();
     const { pairing } = pairingOver(daemon, new PersonKey(), false);
     await pairing.pair();
-    expect(pairing.step).toEqual({ kind: 'failed', why: PairingLines.connectFirst });
-    expect(daemon.requests).toHaveLength(0);
+    expect(daemon.requests.map((each) => each.method)).toEqual(['pair-begin']);
   });
 
   it('keeps the digits up when the prompt is cancelled', async () => {

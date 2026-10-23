@@ -463,15 +463,11 @@ final class SetupModel: ObservableObject {
         }
     }
 
-    /// Opens a pairing and shows its QR, or shows and says the daemon's reason when it will not open one. A Mac not yet
-    /// connected to a workspace is told where to connect before the daemon is asked, since its refusal names no page.
+    /// Opens a pairing and shows its QR, or shows and says the daemon's reason when it will not open one.
     func pairPhone() async {
         stopWatchingPairing()
         phone = .opening
-        // The relay carries a phone only to a Mac that is signed in, so a Mac that never was is signed in first, here.
-        if await machineConnected?() == false {
-            guard await signInFirst?() == true, await connectedSoon() else { return failPairing(PairingLines.connectFirst) }
-        }
+        // No account is needed: the daemon carries the phone over the relay as this Mac's own personal space.
         switch await pairing.begin() {
         case .started(let invite):
             guard let qr = invite.qr else { return failPairing(PairingLines.refused) }

@@ -48,7 +48,7 @@ export class PhonePairing extends Observed {
   async pair(): Promise<void> {
     this.stopWatching();
     this.set({ kind: 'opening' });
-    if ((await this.machineConnected()) === false) return this.fail(PairingLines.connectFirst);
+    // No account is needed: the daemon carries the phone over the relay as this computer's own personal space.
     const name = this.computerName();
     const response = await this.ask({ id: this.ids.next(), method: DAEMON_METHOD.PAIR_BEGIN, ...(name !== undefined ? { name } : {}) });
     if (response === undefined) return this.fail(PairingLines.unreachable);

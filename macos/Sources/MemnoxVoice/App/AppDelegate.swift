@@ -287,8 +287,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             signOut: { await apps.signOut($0) },
             watch: { await apps.watch(from: $0) },
             open: { NSWorkspace.shared.open($0) },
-            personSignedIn: { [weak self] in await self?.account?.daemon?.connected() },
-            signInPerson: { [weak self] in await self?.account?.signInAndWait() ?? false },
             chooseAgent: { [weak self] kind in await self?.conversation?.chooseVoiceAgent(kind) ?? .unreachable }
         )
         panel.useTools(tools)

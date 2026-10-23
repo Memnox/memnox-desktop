@@ -48,9 +48,10 @@ public struct WakeLines {
     private static func greetings(to: String?, hour: Int) -> [String] {
         let part = hour < afternoonFrom ? "Good morning" : hour < eveningFrom ? "Good afternoon" : "Good evening"
         let named = to.map { "\(part), \($0)." } ?? "\(part)."
+        // Said the way a person would pick up the phone, never a system announcing itself.
         return [
-            "\(named) Systems online. Memnox is ready.", "\(named) Let's see what your agents are up to.",
-            "\(named) Your agents, your rules.",
+            "\(named) What can I do for you?", "\(named) What are we working on?",
+            "\(named) I'm here whenever you need me.",
         ]
     }
 

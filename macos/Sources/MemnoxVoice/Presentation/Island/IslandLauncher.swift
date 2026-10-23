@@ -259,15 +259,14 @@ struct IslandLauncher: View {
         .scrollIndicators(.hidden)
     }
 
-    /// One line under the tiles: signed out it says what Connect will ask, rather than sending the person to Settings.
+    /// One line under the tiles while nothing is connected, saying what Connect will ask rather than sending the person to Settings.
     private var toolsNote: String? {
         guard !tools.loading, tools.connections.isEmpty else { return nil }
-        if tools.connectionsNote != nil { return "Connect any of these and you approve this Mac once in your browser first." }
+        if tools.connectionsNote != nil { return "Connect any of these and sign in to it in your browser." }
         return "Connect an app, or ask Memnox to do something in it and it opens the sign in for you."
     }
 
     private func connectCaption(_ toolkit: String) -> String {
-        if tools.approving == toolkit { return "Approve in browser" }
         if tools.busy == toolkit { return "Opening" }
         if tools.waitingFor == toolkit { return "Finish in browser" }
         return "Connect"

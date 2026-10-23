@@ -11,6 +11,7 @@ export type SettingsPage =
   | 'phones'
   | 'appearance'
   | 'tools'
+  | 'apps'
   | 'voice'
   | 'listening'
   | 'dictation'
@@ -31,6 +32,7 @@ const INFO: Record<SettingsPage, Omit<SettingsPageInfo, 'page'>> = {
   phones: { title: 'Phones', subtitle: 'Phones paired with this computer and what each may do.' },
   appearance: { title: 'Appearance', subtitle: 'Light, dark, or the same as this computer.' },
   tools: { title: 'Connected tools', subtitle: 'The agents on this computer and the apps Memnox can act in as you.' },
+  apps: { title: 'Your apps', subtitle: 'Connect any tool you use as yourself, and see the ones this computer already reaches.' },
   voice: { title: 'Voice', subtitle: 'Who thinks for the voice, and the voice it answers in.' },
   listening: { title: 'Listening', subtitle: 'When Memnox listens and how it speaks up.' },
   dictation: { title: 'Dictation', subtitle: 'Speak instead of typing, in any app, written the way you would have typed it.' },
@@ -48,7 +50,7 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
   { title: undefined, pages: ['overview'] },
   { title: 'You', pages: ['account'] },
   { title: 'This computer', pages: ['permissions', 'connection', 'phones', 'appearance'] },
-  { title: 'Agents and tools', pages: ['tools'] },
+  { title: 'Agents and tools', pages: ['tools', 'apps'] },
   { title: 'Voice', pages: ['voice', 'listening', 'dictation'] },
   { title: 'Support', pages: ['help'] },
 ];

@@ -31,7 +31,7 @@ export function AccountPage({ parts }: { parts: SettingsParts }) {
         <SettingsCard>
           <SettingsRow icon={BellDot} title={`Calls your workspace routes to you show in the island, and every yes asks for ${words.keyTitle}.`} />
           <SettingsDivider />
-          <SettingsRow icon={Speech} title="Memnox can act in your own tools, such as Slack, GitHub and Linear, when you ask it to." />
+          <SettingsRow icon={Speech} title="Apps you already connected on this computer move into your account with you." />
           <SettingsDivider />
           <SettingsRow icon={Monitor} title="Your rules, workspace memory and phone pairing reach this computer." />
         </SettingsCard>

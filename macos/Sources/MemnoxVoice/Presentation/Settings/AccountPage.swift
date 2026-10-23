@@ -543,7 +543,7 @@ private struct AccountWholeRow: View {
 private struct IncludedList: View {
     private static let lines: [(symbol: String, words: String)] = [
         ("bell.badge", "Calls your workspace routes to you show in the notch, and every yes asks for Touch ID."),
-        ("person.wave.2", "Memnox can act in your own tools, such as Slack, GitHub and Linear, when you ask it to."),
+        ("person.wave.2", "Apps you already connected on this Mac move into your account with you."),
         ("desktopcomputer", "Your rules, workspace memory and phone pairing reach this Mac."),
     ]
 

@@ -201,6 +201,7 @@ struct SettingsView: View {
             case .connection: SetupMacCard(model: setup)
             case .phones: PhonesPage(menu: menu, setup: setup)
             case .tools: ToolsPage(tools: menu.tools)
+            case .apps: YourAppsPage(tools: menu.tools)
             case .appearance: AppearancePage()
             case .voice: VoicePage(menu: menu, setup: setup)
             case .listening: ListeningPage(menu: menu, setup: setup)

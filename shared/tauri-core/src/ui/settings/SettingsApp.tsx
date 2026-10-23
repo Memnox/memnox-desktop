@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, CircleHelp, CirclePower, CircleUserRound, Contrast, Ear, House, Keyboard, LayoutGrid, ShieldCheck, Smartphone, Speech, type LucideIcon } from 'lucide-react';
+import { Blocks, ChevronDown, ChevronRight, CircleHelp, CirclePower, CircleUserRound, Contrast, Ear, House, Keyboard, LayoutGrid, ShieldCheck, Smartphone, Speech, type LucideIcon } from 'lucide-react';
 import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
 import { matchingPages, PageHistory, pageInfo, pageNamed, SETTINGS_GROUPS, type SettingsPage } from '../../core/domain/settings-pages';
 import { NavigationCapsule, PageTitle, SearchField } from './kit';
@@ -7,6 +7,7 @@ import { HelpPage } from './pages/HelpPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { AppearancePage, ConnectionPage, PermissionsPage, PhonesPage } from './pages/ComputerPages';
 import { ToolsPage } from './pages/ToolsPage';
+import { YourAppsPage } from './pages/YourAppsPage';
 import { DictationPage, ListeningPage, VoicePage } from './pages/VoicePages';
 import { useLook, type SettingsParts } from './parts';
 
@@ -19,6 +20,7 @@ const ICONS: Record<SettingsPage, LucideIcon> = {
   phones: Smartphone,
   appearance: Contrast,
   tools: LayoutGrid,
+  apps: Blocks,
   voice: Speech,
   listening: Ear,
   dictation: Keyboard,
@@ -138,6 +140,8 @@ function PageBody({ page, parts, go }: { page: SettingsPage; parts: SettingsPart
       return <AppearancePage parts={parts} />;
     case 'tools':
       return <ToolsPage parts={parts} />;
+    case 'apps':
+      return <YourAppsPage parts={parts} />;
     case 'voice':
       return <VoicePage parts={parts} />;
     case 'listening':

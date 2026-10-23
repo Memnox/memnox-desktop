@@ -1289,12 +1289,16 @@ public struct ToolConnection: Decodable, Equatable, Identifiable, Sendable {
     public let toolkit: String
     /// False for a sign in that is pending, expired, failed or turned off.
     public let connected: Bool
+    /// True for a tool this Mac reaches itself, an MCP server or a signed in command line tool, never disconnected here.
+    public let local: Bool?
 
     public var id: String { toolkit }
+    public var isLocal: Bool { local == true }
 
-    public init(toolkit: String, connected: Bool) {
+    public init(toolkit: String, connected: Bool, local: Bool? = nil) {
         self.toolkit = toolkit
         self.connected = connected
+        self.local = local
     }
 }
 

@@ -8,6 +8,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     case connection
     case phones
     case tools
+    case apps
     case appearance
     case voice
     case listening
@@ -21,7 +22,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         (nil, [.overview]),
         ("You", [.account]),
         ("This Mac", [.permissions, .connection, .phones, .appearance]),
-        ("Agents and tools", [.tools]),
+        ("Agents and tools", [.tools, .apps]),
         ("Voice", [.voice, .listening, .dictation]),
         ("Support", [.help]),
     ]
@@ -33,7 +34,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .permissions: return "Permissions"
         case .connection: return "Connection"
         case .phones: return "Phones"
-        case .tools: return "Connected tools"
+        case .tools: return "Agents"
+        case .apps: return "Your apps"
         case .appearance: return "Appearance"
         case .voice: return "Voice"
         case .listening: return "Listening"
@@ -50,7 +52,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .permissions: return "What this Mac lets Memnox hear, type and see."
         case .connection: return "The Memnox service your agents talk to, and the key Touch ID signs with."
         case .phones: return "Phones paired with this Mac and what each may do."
-        case .tools: return "The agents on this Mac and the apps Memnox can act in as you."
+        case .tools: return "The agents on this Mac and where they run."
+        case .apps: return "The apps your agents use as you, already on this Mac or connected here."
         case .appearance: return "Light, dark, or the same as this Mac."
         case .voice: return "Who thinks for the voice, and the voice it answers in."
         case .listening: return "When Memnox listens and how it speaks up."
@@ -66,7 +69,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .permissions: return "lock.shield"
         case .connection: return "bolt.horizontal.circle"
         case .phones: return "iphone"
-        case .tools: return "square.grid.2x2"
+        case .tools: return "terminal"
+        case .apps: return "square.grid.2x2"
         case .appearance: return "circle.lefthalf.filled"
         case .voice: return "person.wave.2"
         case .listening: return "ear"

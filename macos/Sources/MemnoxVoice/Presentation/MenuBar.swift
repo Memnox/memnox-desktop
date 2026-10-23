@@ -236,7 +236,7 @@ struct MenuView: View {
             header
             MenuTools(tools: model.tools) {
                 close()
-                SettingsWindow.shared.show(.tools)
+                SettingsWindow.shared.show(.apps)
             }
             .settling(model.opened, order: 0)
             VStack(spacing: Memnox.Spacing.xxSmall) {

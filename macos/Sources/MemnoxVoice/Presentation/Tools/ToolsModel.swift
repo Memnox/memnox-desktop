@@ -35,16 +35,10 @@ final class ToolsModel: ObservableObject {
     private let open: (URL) -> Bool
     /// Makes one agent the one the voice answers through, as setup does, from its tile in the notch.
     private let chooseAgent: (String) async -> VoiceAgentsAnswer
-    /// Whether the daemon holds the person, which connecting a tool needs; nil where it cannot say.
-    private let personSignedIn: () async -> Bool?
-    /// The one approval in the browser, run before a tool's own sign in when nobody is signed in yet.
-    private let signInPerson: () async -> Bool
     private var reading: Task<Void, Never>?
     private var looking: Task<Void, Never>?
     private var watching: Task<Void, Never>?
     private var connecting: Task<Void, Never>?
-    /// The tool whose Connect waits on the person approving this Mac in their browser first.
-    @Published private(set) var approving: String?
 
     /// Said when the daemon does not answer at all.
     private static let unreachable = "Memnox is not running"
@@ -59,13 +53,9 @@ final class ToolsModel: ObservableObject {
         signOut: @escaping (String) async -> ConnectionsAnswer = { _ in .unreachable },
         watch: @escaping ([ToolConnection]) async -> ConnectionsAnswer = { _ in .unreachable },
         open: @escaping (URL) -> Bool = { _ in false },
-        personSignedIn: @escaping () async -> Bool? = { nil },
-        signInPerson: @escaping () async -> Bool = { false },
         chooseAgent: @escaping (String) async -> VoiceAgentsAnswer = { _ in .unreachable }
     ) {
         self.chooseAgent = chooseAgent
-        self.personSignedIn = personSignedIn
-        self.signInPerson = signInPerson
         self.readAgents = readAgents
         self.readConnections = readConnections
         self.searchToolkits = searchToolkits
@@ -104,22 +94,10 @@ final class ToolsModel: ObservableObject {
     /// A press of Connect on any tool starts afresh, so one left unfinished in the browser never holds the others back.
     func connect(_ toolkit: String, again: Bool = false) {
         connecting?.cancel()
-        approving = nil
         actionNote = nil
         connecting = Task { [weak self] in
             guard let self else { return }
-            // Nobody signed in yet: the one approval comes first and the tool's own sign in follows it, with no step between.
-            // Nothing is busy while it waits, since the wait is on the person in their browser.
-            if await personSignedIn() == false {
-                approving = toolkit
-                let approved = await signInPerson()
-                guard !Task.isCancelled else { return }
-                approving = nil
-                guard approved else {
-                    actionNote = "Memnox was not approved in the browser, so \(ToolkitName.of(toolkit)) was not connected"
-                    return
-                }
-            }
+            // No Memnox account is asked for: the daemon acts for the person at this Mac, so only the tool's own sign in opens.
             busy = toolkit
             let answer = await signIn(toolkit, again)
             busy = nil
@@ -210,7 +188,15 @@ final class ToolsModel: ObservableObject {
 
     var connectedCount: Int { connections.filter(\.connected).count }
 
-    /// The featured tools not connected yet, offered with Connect even signed out, since Connect signs in first.
+    /// The person's own tools as the Your apps screen draws them, those on this Mac first.
+    var yourApps: [YourAppCard] { YourApps.yours(connections) }
+
+    /// The catalogue's cards for what was typed, or the featured tools where the catalogue could not be read.
+    var offered: [YourAppCard] {
+        YourApps.offered(found: found, searchFailed: searchNote != nil, query: query, connections: connections)
+    }
+
+    /// The featured tools not connected yet, offered with Connect, which needs no Memnox account.
     var suggested: [String] { FeaturedToolkits.suggested(excluding: connections) }
 
     private func apply(_ answer: VoiceAgentsAnswer) {
@@ -241,6 +227,7 @@ enum ToolStatus {
     }
 
     static func connection(_ connection: ToolConnection) -> String {
-        connection.connected ? "Connected" : "Not signed in"
+        if connection.isLocal { return YourAppStanding.onThisMac.line }
+        return connection.connected ? "Connected" : "Not signed in"
     }
 }

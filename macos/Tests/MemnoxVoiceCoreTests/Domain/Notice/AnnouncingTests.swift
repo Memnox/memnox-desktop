@@ -20,7 +20,7 @@ final class AnnouncingTests: XCTestCase {
         for kind in ["watched", "question", "collision", "message"] {
             XCTAssertTrue(try notice(kind).isSaid(speakUp: false), kind)
         }
-        for kind in ["finished", "committed", "pushed", "would-have", "ended", "something-newer"] {
+        for kind in ["finished", "committed", "pushed", "would-have", "ended", "together", "something-newer"] {
             XCTAssertFalse(try notice(kind).isSaid(speakUp: false), kind)
             XCTAssertTrue(try notice(kind).isSaid(speakUp: true), kind)
         }

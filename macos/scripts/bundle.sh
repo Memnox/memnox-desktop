@@ -52,9 +52,14 @@ cp Support/Sounds/*.wav "$APP/Contents/Resources/Sounds/"
 # The setup bed is AAC where the Mac that made it could encode one.
 cp Support/Sounds/*.m4a "$APP/Contents/Resources/Sounds/" 2>/dev/null || true
 KOKORO="$APP/Contents/Resources/kokoro"
-# A voice voice-pack.sh already built is carried by a local build too, so it never speaks in the Mac's voice while
-# Kokoro downloads on its first launch.
-if [ -z "${MEMNOX_VOICE_DIR:-}" ] && [ -f build/voice/kokoro/server.py ]; then
+# Every build carries the voice, built here the first time, since an app without it speaks in the Mac's voice for
+# the minutes Kokoro takes to download, which sounds broken. MEMNOX_NO_VOICE=1 skips it for a quick build.
+if [ -z "${MEMNOX_VOICE_DIR:-}" ] && [ -z "${MEMNOX_NO_VOICE:-}" ] && [ ! -f build/voice/kokoro/server.py ]; then
+  echo "Building the voice pack once, into build/voice"
+  # A pack that cannot be built still leaves an app that installs the voice on first launch, so it warns and goes on.
+  sh scripts/voice-pack.sh || echo "WARNING: the voice pack did not build, so this app downloads Kokoro on its first launch." >&2
+fi
+if [ -z "${MEMNOX_VOICE_DIR:-}" ] && [ -z "${MEMNOX_NO_VOICE:-}" ] && [ -f build/voice/kokoro/server.py ]; then
   MEMNOX_VOICE_DIR="$PWD/build/voice/kokoro"
 fi
 if [ -n "${MEMNOX_VOICE_DIR:-}" ]; then

@@ -10,7 +10,7 @@ import { driveGrant, driveLabel, phoneVoice, phoneVoiceLabel } from '../src/core
 import { extensionBadge, openWords, pagePosition, pageSeconds, traceBar, traceSubtitle, traceTone } from '../src/core/domain/floating-cards';
 import { inlineMarks, isOpenableLink, markdownBlocks } from '../src/core/domain/markdown';
 import { chipTooltip, isMenuAction, listeningBadge, menuPanelPlace, menuRows, stripNote } from '../src/core/domain/menu-panel';
-import { agentStatus, connectionLines, reachLine, ringPoint, scanCountLabel, scanRing, scanTotals } from '../src/core/domain/scan';
+import { agentStatus, connectionLines, reachLine, ringPoint, scanCapabilities, scanCountLabel, scanRing, scanTotals } from '../src/core/domain/scan';
 import { RequestIds } from '../src/core/application/request-ids';
 import { ScriptedDaemon } from './doubles';
 
@@ -226,6 +226,18 @@ describe('scan', () => {
     expect(top.x).toBeCloseTo(0);
     expect(top.y).toBeCloseTo(-50);
     expect(scanCountLabel(1)).toBe('agent on this computer');
+  });
+
+  it('adds up the real capabilities the runtime credits each agent, and says counting rather than zero', () => {
+    const counted = [
+      { ...agents[0], capabilities: { total: 7, areas: [] } },
+      { ...agents[1], capabilities: { total: 0, areas: [] } },
+    ] as AgentNode[];
+    expect(scanCapabilities(counted)).toBe(7);
+    const counting = [{ ...agents[0], capabilities: { areas: [] } }, agents[1]] as AgentNode[];
+    expect(scanCapabilities(counting)).toBeUndefined();
+    // A runtime that sends no shares keeps the older per server figure.
+    expect(scanCapabilities(agents)).toBe(16);
   });
 });
 

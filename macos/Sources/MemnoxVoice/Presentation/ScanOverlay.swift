@@ -40,6 +40,11 @@ final class ScanPanel {
     }
 
     func present(_ agents: [AgentNode], title: String) {
+        // The same agents again is the count landing after the scan, so the figure updates in place rather than sweeping again.
+        if panel.isVisible, model.phase != .leaving, model.agents.map(\.id) == agents.map(\.id) {
+            model.agents = agents
+            return
+        }
         guard let screen = NSScreen.main else { return }
         model.agents = agents
         model.title = title
@@ -540,7 +545,7 @@ private struct ScanSummary: View {
         HStack(spacing: Layout.spacing) {
             figure(agents.count, "agents")
             figure(agents.reduce(0) { $0 + ($1.mcp ?? []).reduce(0) { $0 + ($1.tools ?? 0) } }, "MCP tools")
-            figure(agents.reduce(0) { $0 + ($1.mcp ?? []).reduce(0) { $0 + ($1.changing ?? 0) } }, "can change things", tint: IslandPalette.amber)
+            capabilitiesFigure
             figure(agents.reduce(0) { $0 + $1.working }, "working", tint: IslandPalette.green)
             Rectangle().fill(Color.white.opacity(Layout.dividerOpacity)).frame(width: Memnox.Stroke.hairline, height: Layout.dividerHeight)
             HStack(spacing: Memnox.Spacing.small) {
@@ -557,6 +562,21 @@ private struct ScanSummary: View {
         .offset(y: done ? 0 : Layout.hiddenDrop)
         .animation(.spring(response: Layout.riseResponse, dampingFraction: Layout.riseDamping), value: done)
         .allowsHitTesting(false)
+    }
+
+    /// The runtime's shares added up; counting while any share is, never a zero; the older per server figure from an older daemon.
+    @ViewBuilder private var capabilitiesFigure: some View {
+        let shares = agents.compactMap(\.capabilities)
+        if shares.isEmpty {
+            figure(agents.reduce(0) { $0 + ($1.mcp ?? []).reduce(0) { $0 + ($1.changing ?? 0) } }, "real capabilities", tint: IslandPalette.amber)
+        } else if shares.contains(where: { $0.total == nil }) {
+            HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.small) {
+                Text("counting").font(Memnox.sans(Memnox.TextSize.title, .semibold)).foregroundStyle(IslandPalette.amber)
+                Text("real capabilities").font(Memnox.sans(Memnox.TextSize.footnote)).foregroundStyle(.white.opacity(Layout.labelOpacity))
+            }
+        } else {
+            figure(shares.reduce(0) { $0 + ($1.total ?? 0) }, "real capabilities", tint: IslandPalette.amber)
+        }
     }
 
     private func figure(_ value: Int, _ label: String, tint: Color = .white) -> some View {

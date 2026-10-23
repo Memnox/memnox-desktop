@@ -72,6 +72,20 @@ export function scanTotals(agents: readonly AgentNode[]): { agents: number; tool
   return { agents: agents.length, tools, changing, working };
 }
 
+/** Each agent's share of the machine's real capabilities, as the runtime credits it; absent from an older runtime. */
+type CapabilityShare = { capabilities?: { total?: number } };
+
+/**
+ * The machine's real capabilities: the shares added up, undefined while any share is still being
+ * counted, and the older per server figure from a runtime that sends no shares.
+ */
+export function scanCapabilities(agents: readonly (AgentNode & CapabilityShare)[]): number | undefined {
+  const shares = agents.flatMap((agent) => (agent.capabilities === undefined ? [] : [agent.capabilities]));
+  if (shares.length === 0) return scanTotals(agents).changing;
+  if (shares.some((share) => share.total === undefined)) return undefined;
+  return shares.reduce((sum, share) => sum + (share.total ?? 0), 0);
+}
+
 /** The heading under the badge: "1 agent on this computer" or "4 agents on this computer". */
 export function scanCountLabel(total: number): string {
   return total === 1 ? 'agent on this computer' : 'agents on this computer';

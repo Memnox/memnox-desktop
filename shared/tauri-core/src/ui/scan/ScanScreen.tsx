@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { AgentNode } from '@memnox/core/wire';
 import { agentColour } from '../../core';
-import { agentStatus, connectionLines, reachLine, ringPoint, SCAN_TIMING, scanCountLabel, scanRing, scanTotals } from '../../core/domain/scan';
+import { agentStatus, connectionLines, reachLine, ringPoint, SCAN_TIMING, scanCountLabel, scanCapabilities, scanRing, scanTotals } from '../../core/domain/scan';
 import { BrandLogo } from '../kit';
 import { Orb } from '../Orb';
 import { SYSTEM_MONO } from '../cards/MarkdownText';
@@ -33,7 +33,8 @@ export function ScanScreen({ agents, onClose, still = false }: { agents: readonl
     const timers = agents.map((_, index) => setTimeout(() => setRevealed(index + 1), SCAN_TIMING.warmUpMs + index * SCAN_TIMING.perAgentMs));
     timers.push(setTimeout(() => setPhase('found'), SCAN_TIMING.warmUpMs + agents.length * SCAN_TIMING.perAgentMs + 600));
     return () => timers.forEach(clearTimeout);
-  }, [agents, still]);
+    // Keyed on the count, so a capability figure landing later updates the screen rather than sweeping again.
+  }, [agents.length, still]);
 
   const leave = useRef(onClose);
   leave.current = onClose;
@@ -113,7 +114,7 @@ export function ScanScreen({ agents, onClose, still = false }: { agents: readonl
         const point = ringPoint(index, agents.length, centre, ring);
         return <AgentCard key={agent.id} agent={agent} x={point.x} y={point.y} />;
       })}
-      <Summary shown={found} totals={totals} bottom={70} />
+      <Summary shown={found} totals={totals} capabilities={scanCapabilities(agents)} bottom={70} />
     </div>
   );
 }
@@ -171,10 +172,10 @@ function AgentCard({ agent, x, y }: { agent: AgentNode; x: number; y: number }) 
 }
 
 /** A figure that counts up once the scan is done. */
-function Figure({ value, label, tint = 'text-white', shown }: { value: number; label: string; tint?: string; shown: boolean }) {
+function Figure({ value, label, tint = 'text-white', shown }: { value: number | undefined; label: string; tint?: string; shown: boolean }) {
   const [now, setNow] = useState(0);
   useEffect(() => {
-    if (!shown) return;
+    if (!shown || value === undefined) return;
     let frame = 0;
     const begin = performance.now() + SCAN_TIMING.countUpDelayMs;
     const step = (time: number) => {
@@ -187,14 +188,15 @@ function Figure({ value, label, tint = 'text-white', shown }: { value: number; l
   }, [shown, value]);
   return (
     <span className="flex items-baseline gap-1.5">
-      <span className={`tabular text-title font-semibold ${tint}`}>{shown ? now : 0}</span>
+      {/* Not counted yet reads as counting, never as a zero. */}
+      <span className={`tabular text-title font-semibold ${tint}`}>{value === undefined ? 'counting' : shown ? now : 0}</span>
       <span className="text-footnote text-white/55">{label}</span>
     </span>
   );
 }
 
 /** The totals along the bottom in the island's own black pill. */
-function Summary({ shown, totals, bottom }: { shown: boolean; totals: ReturnType<typeof scanTotals>; bottom: number }) {
+function Summary({ shown, totals, capabilities, bottom }: { shown: boolean; totals: ReturnType<typeof scanTotals>; capabilities: number | undefined; bottom: number }) {
   return (
     <div
       className="pointer-events-none absolute left-1/2 flex items-center gap-[22px] rounded-full bg-black px-[22px] py-3 shadow-[0_10px_48px_rgb(0_0_0/0.6)] transition-[opacity,translate] duration-[550ms] ease-[cubic-bezier(0.34,1.45,0.64,1)]"
@@ -202,7 +204,7 @@ function Summary({ shown, totals, bottom }: { shown: boolean; totals: ReturnType
     >
       <Figure value={totals.agents} label="agents" shown={shown} />
       <Figure value={totals.tools} label="MCP tools" shown={shown} />
-      <Figure value={totals.changing} label="can change things" tint="text-amber" shown={shown} />
+      <Figure value={capabilities} label="real capabilities" tint="text-amber" shown={shown} />
       <Figure value={totals.working} label="working" tint="text-green" shown={shown} />
       <span className="h-[22px] w-px bg-white/10" />
       <span className="flex items-center gap-1.5">

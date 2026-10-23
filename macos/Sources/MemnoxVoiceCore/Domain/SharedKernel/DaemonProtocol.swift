@@ -543,9 +543,11 @@ public struct AgentNode: Decodable, Equatable, Identifiable, Sendable {
     public let mcp: [AgentServer]?
     /// Command line tools signed in on this Mac that its shell can run.
     public let clis: [String]?
+    /// This agent's share of the Mac's real capabilities, so the shares add up to the machine; absent from an older daemon.
+    public let capabilities: CapabilityShare?
 
     public init(id: String, kind: String, name: String, servers: Int = 0, reaches: [String] = [], working: Int = 0, open: Int = 0,
-                mcp: [AgentServer]? = nil, clis: [String]? = nil) {
+                mcp: [AgentServer]? = nil, clis: [String]? = nil, capabilities: CapabilityShare? = nil) {
         self.id = id
         self.kind = kind
         self.name = name
@@ -555,6 +557,16 @@ public struct AgentNode: Decodable, Equatable, Identifiable, Sendable {
         self.open = open
         self.mcp = mcp
         self.clis = clis
+        self.capabilities = capabilities
+    }
+}
+
+/// What one agent is credited with of the things that change something outside the Mac; no total means still counting.
+public struct CapabilityShare: Decodable, Equatable, Sendable {
+    public let total: Int?
+
+    public init(total: Int? = nil) {
+        self.total = total
     }
 }
 

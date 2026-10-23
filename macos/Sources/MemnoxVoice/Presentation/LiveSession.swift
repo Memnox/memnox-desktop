@@ -16,6 +16,8 @@ final class LiveModel: ObservableObject {
     /// Each opened file's diff as last read, and the files whose diff could not be read.
     @Published var diffs: [String: [DiffLine]] = [:]
     @Published var missingDiffs: Set<String> = []
+    /// What the voice wrote about this session when it was asked, shown above the tabs until it is put away.
+    @Published var summary: SummaryCard?
     /// A starting height only, until the window is laid out around its content.
     private static let initialHeight: CGFloat = 600
 }
@@ -27,10 +29,11 @@ final class KeyablePanel: NSPanel {
 
 }
 
-/// The live window's content, which lets a drag on any empty part of it move the window, as a title bar does.
+/// The live window's content. A drag moves the window only from its header and its handle, since moving it from
+/// anywhere took a scroll, a text selection or a press on a button for a drag and jumped the window under them.
 final class MovableHosting<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    override var mouseDownCanMoveWindow: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
 }
 
 /// The SF Symbols the live window draws.
@@ -125,7 +128,7 @@ final class LivePanel {
         panel.backgroundColor = .clear
         // The system shadow follows the rounded card, now that the window is the card's own size.
         panel.hasShadow = true
-        panel.isMovableByWindowBackground = true
+        panel.isMovableByWindowBackground = false
         panel.minSize = Layout.minSize
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -133,7 +136,8 @@ final class LivePanel {
         panel.acceptsMouseMovedEvents = true
     }
 
-    func present(session: String, host: DisplayHost?) async {
+    func present(session: String, host: DisplayHost?, summary: SummaryCard? = nil) async {
+        model.summary = summary
         model.view = await fetch?(session)
         model.tab = nil
         model.diffs = [:]
@@ -276,6 +280,10 @@ struct LiveSessionView: View {
         let tab = Binding(get: { model.tab ?? LiveTab.first(for: view) }, set: { model.tab = $0 })
         LiveHeader(view: view, close: close).reveal(model.shown, order: Order.header)
         LiveBrief(view: view).reveal(model.shown, order: Order.brief)
+        if let summary = model.summary {
+            LiveSummary(summary: summary) { withAnimation(.snappy) { model.summary = nil } }
+                .reveal(model.shown, order: Order.brief)
+        }
         LiveNow(view: view).reveal(model.shown, order: Order.now)
         LiveTabBar(tab: tab, counts: [
             .conversation: (view.conversation ?? []).filter { LineAuthor(rawValue: $0.who) == .person }.count,
@@ -344,6 +352,53 @@ struct LiveSessionView: View {
             .clipShape(shape)
             .animation(.easeInOut(duration: Memnox.Motion.slow), value: model.view?.state)
     }
+}
+
+/// What the voice said about this session when asked, its words laid out, in a section of its own above the tabs
+/// that the person puts away once read. It stands where a separate summary card used to, beside the live session.
+private struct LiveSummary: View {
+    let summary: SummaryCard
+    let close: () -> Void
+
+    private enum Layout {
+        static let padding: CGFloat = 14
+        /// Room for a summary's heading and bullets while the tabs below keep most of the window.
+        static let maxHeight: CGFloat = 220
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+            HStack(spacing: Memnox.Spacing.small) {
+                Image(systemName: LiveSymbol.thinking).foregroundStyle(Memnox.Palette.primary)
+                Text(summary.title)
+                    .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
+                    .foregroundStyle(Memnox.Palette.foreground)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Button(action: close) {
+                    Image(systemName: LiveSymbol.close)
+                        .font(.system(size: Memnox.TextSize.caption, weight: .bold))
+                        .foregroundStyle(Memnox.Palette.muted)
+                }
+                .buttonStyle(PressableStyle())
+                .help("Put the summary away")
+                .accessibilityLabel("Put the summary away")
+            }
+            ScrollView(.vertical, showsIndicators: true) {
+                ReplyView(text: summary.text).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: Layout.maxHeight)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Layout.padding)
+        .background(RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous).fill(LiveStyle.section))
+        .overlay(RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous)
+            .strokeBorder(Memnox.Palette.primary.opacity(LiveSummaryShade.edge), lineWidth: Memnox.Stroke.hairline))
+    }
+}
+
+private enum LiveSummaryShade {
+    static let edge = 0.45
 }
 
 /// The bottom of the window: a call this session holds, answered in place, pinned above the footer while it waits.

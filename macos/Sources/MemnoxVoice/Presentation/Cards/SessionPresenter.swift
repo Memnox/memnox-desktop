@@ -558,6 +558,12 @@ final class SessionPresenter: Presenter {
 
     func card(_ summary: SummaryCard) async {
         let session = summary.sessionId
+        // About one session, the summary goes into that session's live window, which already holds its changes and
+        // its conversation, rather than a card of its own that says the same thing again.
+        if let session {
+            await livePanel.present(session: session, host: summary.host, summary: summary)
+            return
+        }
         card.present(
             summary,
             open: session.map { id in

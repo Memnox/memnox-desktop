@@ -52,6 +52,9 @@ struct CardFace: ViewModifier {
     private enum Layout {
         /// The edge lifts a little under the pointer, so the card in hand reads apart from its neighbours.
         static let edgeFacing = 0.16
+        static let edgeResting = 0.07
+        /// The live window's corner, so a card and the live window sit side by side as one family.
+        static let radius: CGFloat = 28
         static let shadowOpacity = 0.5
         static let shadowRadius: CGFloat = 30
         static let shadowDrop: CGFloat = 12
@@ -66,11 +69,13 @@ struct CardFace: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: SurfaceStyle.radius, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Layout.radius, style: .continuous)
         content
             .padding(FloatingCard.padding)
             .frame(width: CardPanel.width, alignment: .leading)
-            .surface(accent: entrance.facing ? Memnox.ink(Layout.edgeFacing) : nil)
+            // The live window's own page and rim, so every window Memnox puts up reads as one family.
+            .background(shape.fill(LiveStyle.page))
+            .overlay(shape.strokeBorder(Memnox.ink(entrance.facing ? Layout.edgeFacing : Layout.edgeResting), lineWidth: Memnox.Stroke.hairline))
             .shadow(color: .black.opacity(Layout.shadowOpacity), radius: Layout.shadowRadius, y: Layout.shadowDrop)
             .contentShape(shape)
             .onHover { inside in

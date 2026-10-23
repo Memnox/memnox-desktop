@@ -12,11 +12,12 @@ final class AnnouncingTests: XCTestCase {
     func testReadsEveryNoticeTheRuntimeSendsAndANewOneAsUnknown() throws {
         XCTAssertEqual(try notice("would-have").noticeKind, .wouldHave)
         XCTAssertEqual(try notice("collision").noticeKind, .collision)
+        XCTAssertEqual(try notice("message").noticeKind, .message)
         XCTAssertNil(try notice("something-newer").noticeKind)
     }
 
     func testSaysWhatTheyAskedForOrWhatWaitsOnThemWhateverTheSetting() throws {
-        for kind in ["watched", "question", "collision"] {
+        for kind in ["watched", "question", "collision", "message"] {
             XCTAssertTrue(try notice(kind).isSaid(speakUp: false), kind)
         }
         for kind in ["finished", "committed", "pushed", "would-have", "ended", "something-newer"] {
@@ -35,6 +36,7 @@ final class AnnouncingTests: XCTestCase {
         XCTAssertTrue(held.awaitsAnswer)
         XCTAssertTrue(try notice("question").awaitsAnswer)
         XCTAssertTrue(try notice("collision").awaitsAnswer)
+        XCTAssertTrue(try notice("message").awaitsAnswer)
         // An agent stopped in its terminal on their answer, so the microphone stays open for it.
         XCTAssertTrue(try notice("asking").awaitsAnswer)
         XCTAssertFalse(try notice("watched").awaitsAnswer)

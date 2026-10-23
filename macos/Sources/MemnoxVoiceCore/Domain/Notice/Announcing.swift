@@ -4,7 +4,7 @@ extension NoticeKind {
     /// Said whatever the speak up setting, because the person asked for it or somebody waits on them.
     public var isAlwaysSaid: Bool {
         switch self {
-        case .watched, .question, .asking, .collision, .gone, .signedIn, .signInStalled: true
+        case .watched, .question, .asking, .collision, .message, .gone, .signedIn, .signInStalled: true
         case .finished, .committed, .pushed, .wouldHave, .ended, .started, .closed: false
         }
     }
@@ -12,7 +12,7 @@ extension NoticeKind {
     /// Keeps the microphone open once said, because only the person can answer it.
     public var awaitsAnswer: Bool {
         switch self {
-        case .question, .asking, .collision: true
+        case .question, .asking, .collision, .message: true
         case .finished, .committed, .pushed, .watched, .wouldHave, .ended, .started, .closed, .gone, .signedIn, .signInStalled: false
         }
     }

@@ -321,6 +321,8 @@ public enum NoticeKind: String, CaseIterable, Sendable {
     case ended
     /// Two agents on one piece of work, here or across machines.
     case collision
+    /// A teammate speaking to the person through the workspace, from their own computer.
+    case message
     /// A session began.
     case started
     /// A session ended, closed by the person or with nothing in progress.

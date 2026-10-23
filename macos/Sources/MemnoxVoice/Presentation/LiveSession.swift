@@ -149,11 +149,7 @@ final class LivePanel {
             }
         )
         panel.contentView = MovableHosting(rootView: view)
-        // Where the person last left it, else the middle of the screen at a size that shows a good stretch of work.
-        if !panel.setFrameUsingName(Layout.frameName), let screen = NSScreen.main?.visibleFrame {
-            let height: CGFloat = min(Layout.maxHeight, screen.height - Layout.screenMargin)
-            panel.setFrame(NSRect(x: screen.midX - Self.width / 2, y: screen.midY - height / 2, width: Self.width, height: height), display: true)
-        }
+        placeOnPointerScreen()
         panel.setFrameAutosaveName(Layout.frameName)
         model.shown = false
         model.tilt = .zero
@@ -161,6 +157,18 @@ final class LivePanel {
         panel.makeKey()
         withAnimation(.spring(response: Timing.entranceResponse, dampingFraction: Timing.entranceDamping)) { model.shown = true }
         poll(session)
+    }
+
+    /// On the screen the person is looking at, so it never opens on another display or Space they would have to go to.
+    /// The size and spot they left it at are kept where that was this screen, and carried over to it otherwise.
+    private func placeOnPointerScreen() {
+        let mouse = NSEvent.mouseLocation
+        guard let screen = (NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main)?.visibleFrame else { return }
+        let remembered = panel.setFrameUsingName(Layout.frameName) ? panel.frame : nil
+        if let remembered, screen.intersects(remembered) { return }
+        let width = min(remembered?.width ?? Self.width, screen.width - Layout.screenMargin)
+        let height = min(remembered?.height ?? min(Layout.maxHeight, screen.height - Layout.screenMargin), screen.height - Layout.screenMargin)
+        panel.setFrame(NSRect(x: screen.midX - width / 2, y: screen.midY - height / 2, width: width, height: height), display: true)
     }
 
     func dismiss() {
@@ -253,6 +261,7 @@ struct LiveSessionView: View {
                 .strokeBorder(Memnox.ink(Layout.edgeOpacity), lineWidth: Memnox.Stroke.hairline)
         )
         .overlay(alignment: .bottomTrailing) { ResizeGrip().padding(Memnox.Spacing.small) }
+        .overlay(alignment: .top) { DragHandle().padding(.top, Memnox.Spacing.xSmall) }
         // Settles in the way the island opens, and stays flat so every button is where it is drawn.
         .scaleEffect(settled ? 1 : Layout.hiddenScale)
         .offset(y: settled ? 0 : Layout.hiddenLift)
@@ -299,6 +308,10 @@ struct LiveSessionView: View {
         .overlay(RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous)
             .strokeBorder(Memnox.ink(LiveStyle.sectionEdgeOpacity), lineWidth: Memnox.Stroke.hairline))
         .reveal(model.shown, order: Order.body)
+        if let island {
+            LiveReply(island: island, session: view.sessionId, agentName: view.agentName)
+                .reveal(model.shown, order: Order.dock)
+        }
         Group {
             if let island {
                 LiveDock(island: island, session: view.sessionId, spacing: Layout.sectionSpacing) {
@@ -733,11 +746,32 @@ private struct LiveFooter: View {
     }
 }
 
-/// Everything it ran, newest first and each with when, then the helpers it sent off.
+/// What it did that matters to the person first: a count of what it changed, ran and reached, what failed or was
+/// blocked, then every step newest first, narrowed to the changes or to the problems with one click.
 private struct LiveActivity: View {
     let steps: [SessionViewStep]
     let helpers: [String]
+    @State private var only = ActivityFilter.all
 
+    private enum ActivityFilter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case changes = "Changes"
+        case problems = "Problems"
+
+        var id: String { rawValue }
+
+        func keeps(_ step: SessionViewStep) -> Bool {
+            switch self {
+            case .all: return true
+            case .changes: return step.stepSurface == .filesystem || step.stepSurface == .git
+            case .problems: return step.failed == true || step.refused == true
+            }
+        }
+    }
+
+    private var shown: [SessionViewStep] { steps.filter(only.keeps) }
+
+    private func count(_ surface: StepSurface) -> Int { steps.filter { $0.stepSurface == surface }.count }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
@@ -747,7 +781,19 @@ private struct LiveActivity: View {
                         .font(Memnox.sans(Memnox.TextSize.footnote))
                         .foregroundStyle(Memnox.Palette.muted)
                 } else {
-                    LiveStepRows(steps: steps, most: steps.count, newestFirst: true)
+                    tally
+                    Picker("Show", selection: $only) {
+                        ForEach(ActivityFilter.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    if shown.isEmpty {
+                        Text(only == .problems ? "Nothing failed and nothing was blocked." : "No changes to its files or git yet.")
+                            .font(Memnox.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(Memnox.Palette.muted)
+                    } else {
+                        LiveStepRows(steps: shown, most: shown.count, newestFirst: true)
+                    }
                 }
                 if !helpers.isEmpty {
                     VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
@@ -761,13 +807,66 @@ private struct LiveActivity: View {
             .padding(.trailing, Memnox.Spacing.small)
         }
     }
+
+    /// The counts a person asks about first, each only when it is not nothing.
+    private var tally: some View {
+        let failed = steps.filter { $0.failed == true }.count
+        let blocked = steps.filter { $0.refused == true }.count
+        let parts: [(String, Int, Color)] = [
+            ("files", count(.filesystem), Memnox.Palette.foreground),
+            ("commands", count(.shell), Memnox.Palette.foreground),
+            ("git", count(.git), Memnox.Palette.foreground),
+            ("tools and sites", count(.mcp) + count(.network), Memnox.Palette.foreground),
+            ("failed", failed, Memnox.Palette.destructive),
+            ("blocked", blocked, Memnox.Palette.warm),
+        ]
+        return HStack(spacing: Memnox.Spacing.small) {
+            ForEach(parts.filter { $0.1 > 0 }, id: \.0) { part in
+                HStack(spacing: Memnox.Spacing.xSmall) {
+                    Text("\(part.1)").font(Memnox.sans(Memnox.TextSize.footnote, .bold).monospacedDigit())
+                    Text(part.0).font(Memnox.sans(Memnox.TextSize.caption))
+                }
+                .foregroundStyle(part.2)
+                .padding(.horizontal, Memnox.Spacing.medium)
+                .padding(.vertical, Memnox.Spacing.xSmall)
+                .background(Capsule().fill(Memnox.ink(ActivityShade.chip)))
+            }
+        }
+    }
+}
+
+private enum ActivityShade {
+    static let chip = 0.06
+}
+
+/// A short bar along the top that says the window can be picked up, and moves it like a title bar.
+private struct DragHandle: View {
+    private static let size = CGSize(width: 40, height: 5)
+    private static let ink = 0.22
+    /// Taller than the bar, so it is easy to catch.
+    private static let reach: CGFloat = 14
+
+    var body: some View {
+        Capsule()
+            .fill(Memnox.ink(Self.ink))
+            .frame(width: Self.size.width, height: Self.size.height)
+            .frame(width: Self.size.width * 2, height: Self.reach)
+            .background(WindowDragArea())
+            .help("Drag to move")
+            .accessibilityHidden(true)
+    }
 }
 
 /// The corner a window is pulled from to resize it, drawn as two short lines since the window has no frame of its own.
 private struct ResizeGrip: NSViewRepresentable {
     final class Grip: NSView {
         private var start: (mouse: NSPoint, frame: NSRect)?
-        override func resetCursorRects() { addCursorRect(bounds, cursor: .crosshair) }
+        override func resetCursorRects() { addCursorRect(bounds, cursor: Grip.diagonal) }
+        /// The diagonal resize arrows where macOS has them, else the crosshair a frameless corner used before.
+        private static var diagonal: NSCursor {
+            if #available(macOS 15, *) { return NSCursor.frameResize(position: .bottomRight, directions: .all) }
+            return .crosshair
+        }
         override func mouseDown(with event: NSEvent) {
             guard let window else { return }
             start = (NSEvent.mouseLocation, window.frame)
@@ -782,6 +881,21 @@ private struct ResizeGrip: NSViewRepresentable {
         }
         override func mouseUp(with event: NSEvent) { start = nil }
         override var mouseDownCanMoveWindow: Bool { false }
+        /// Two short diagonal lines in the corner, the mark people know a window is pulled from.
+        override func draw(_ dirtyRect: NSRect) {
+            NSColor.secondaryLabelColor.withAlphaComponent(Grip.ink).setStroke()
+            for inset in Grip.insets {
+                let line = NSBezierPath()
+                line.lineWidth = Grip.lineWidth
+                line.lineCapStyle = .round
+                line.move(to: NSPoint(x: bounds.maxX - inset, y: bounds.minY + Grip.lineWidth))
+                line.line(to: NSPoint(x: bounds.maxX - Grip.lineWidth, y: bounds.minY + inset))
+                line.stroke()
+            }
+        }
+        private static let insets: [CGFloat] = [12, 7]
+        private static let lineWidth: CGFloat = 1.5
+        private static let ink: CGFloat = 0.8
     }
 
     private static let side: CGFloat = 16

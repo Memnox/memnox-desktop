@@ -211,14 +211,15 @@ struct ReplyView: View {
     }
 }
 
-/// The whole conversation: the opening ask and each follow-up marked as such, the agent's replies laid out,
-/// and each tool it ran as a quiet line between them.
+/// The whole conversation as a chat, the way the agent's own terminal shows it: the opening ask and each follow-up
+/// as the person's bubbles, the agent's replies laid out, the tools it ran between two replies folded into one
+/// line that opens into each of them, and while it works a line of how long it has been at it.
 struct LiveTalk: View {
     let lines: [ConversationLine]
     let thinking: Bool
 
     private enum Layout {
-        static let lineSpacing: CGFloat = 12
+        static let lineSpacing: CGFloat = 14
         static let personIndent: CGFloat = 56
         static let bubbleRadius: CGFloat = 14
         static let bubbleInk = 0.28
@@ -226,9 +227,8 @@ struct LiveTalk: View {
         static let bottom = "bottom"
     }
 
-    private enum Symbol {
-        static let tool = "gearshape"
-    }
+    /// The conversation folded into what a person reads: each run of tool calls is one block.
+    private var blocks: [TalkBlock] { TalkBlock.of(lines) }
 
     /// The first thing the person said opened the session; everything after it is a follow-up.
     private var firstAsk: Int? { lines.firstIndex { LineAuthor(rawValue: $0.who) == .person } }
@@ -236,16 +236,9 @@ struct LiveTalk: View {
     var body: some View {
         ScrollViewReader { reader in
             ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: Layout.lineSpacing) {
-                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                        row(line, index: index)
-                    }
-                    if thinking {
-                        Text("Thinking\u{2026}")
-                            .font(Memnox.sans(Memnox.TextSize.footnote))
-                            .foregroundStyle(Memnox.Palette.muted)
-                            .phaseAnimator([1.0, 0.4]) { text, ink in text.opacity(ink) }
-                    }
+                LazyVStack(alignment: .leading, spacing: Layout.lineSpacing) {
+                    ForEach(blocks) { block in row(block) }
+                    if thinking { LiveWorkingLine(since: lastAsk) }
                     Color.clear.frame(height: 1).id(Layout.bottom)
                 }
                 .padding(.trailing, Memnox.Spacing.small)
@@ -257,12 +250,17 @@ struct LiveTalk: View {
         }
     }
 
+    /// When the person last spoke, which is when the agent started on what it is doing now.
+    private var lastAsk: Date? {
+        lines.last { LineAuthor(rawValue: $0.who) == .person }.flatMap { LiveClock.date($0.at) }
+    }
+
     @ViewBuilder
-    private func row(_ line: ConversationLine, index: Int) -> some View {
-        switch LineAuthor(rawValue: line.who) {
-        case .person:
+    private func row(_ block: TalkBlock) -> some View {
+        switch block.kind {
+        case .person(let line, let index):
             VStack(alignment: .trailing, spacing: Memnox.Spacing.xSmall) {
-                Text(index == firstAsk ? "You asked" : "Follow-up")
+                Text(index == firstAsk ? "You asked" : "You")
                     .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
                     .foregroundStyle(index == firstAsk ? Memnox.Palette.muted : Memnox.Palette.primary)
                 Text(SessionReading.readable(line.text) ?? line.text)
@@ -276,14 +274,203 @@ struct LiveTalk: View {
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.leading, Layout.personIndent)
-        case .tool:
-            Label(line.text, systemImage: Symbol.tool)
-                .font(.system(size: Memnox.TextSize.caption, design: .monospaced))
-                .foregroundStyle(Memnox.Palette.muted)
-                .lineLimit(1)
-                .truncationMode(.middle)
-        case .agent, nil:
-            ReplyView(text: line.text)
+        case .tools(let calls):
+            LiveToolRun(calls: calls)
+        case .agent(let line):
+            HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.medium) {
+                Circle().fill(Memnox.Palette.foreground).frame(width: LiveToolRun.dotSide, height: LiveToolRun.dotSide)
+                    .accessibilityHidden(true)
+                ReplyView(text: line.text)
+            }
+        }
+    }
+}
+
+/// One stretch of the conversation as it is drawn: something the person said, something the agent said, or the
+/// tool calls it made in a row between them.
+struct TalkBlock: Identifiable {
+    enum Kind {
+        case person(ConversationLine, index: Int)
+        case agent(ConversationLine)
+        case tools([ConversationLine])
+    }
+
+    let id: Int
+    let kind: Kind
+
+    static func of(_ lines: [ConversationLine]) -> [TalkBlock] {
+        var blocks: [TalkBlock] = []
+        var calls: [ConversationLine] = []
+        func closeCalls(at index: Int) {
+            guard !calls.isEmpty else { return }
+            blocks.append(TalkBlock(id: index - calls.count, kind: .tools(calls)))
+            calls = []
+        }
+        for (index, line) in lines.enumerated() {
+            switch LineAuthor(rawValue: line.who) {
+            case .tool:
+                calls.append(line)
+            case .person:
+                closeCalls(at: index)
+                blocks.append(TalkBlock(id: index, kind: .person(line, index: index)))
+            case .agent, nil:
+                closeCalls(at: index)
+                blocks.append(TalkBlock(id: index, kind: .agent(line)))
+            }
+        }
+        closeCalls(at: lines.count)
+        return blocks
+    }
+}
+
+/// Tool calls in a row, folded to the latest with a count of the rest the way a terminal agent folds them, and
+/// opened into every one on a click.
+struct LiveToolRun: View {
+    let calls: [ConversationLine]
+    @State private var open = false
+
+    static let dotSide: CGFloat = 7
+
+    private enum Layout {
+        static let callSpacing: CGFloat = 4
+        static let railWidth: CGFloat = 1
+        static let railInk = 0.12
+        static let indent: CGFloat = 14
+    }
+
+    private enum Symbol {
+        static let opened = "chevron.down"
+        static let closed = "chevron.right"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Layout.callSpacing) {
+            Button { withAnimation(.snappy) { open.toggle() } } label: {
+                HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.medium) {
+                    Circle().fill(Memnox.Palette.success).frame(width: Self.dotSide, height: Self.dotSide)
+                    Text(calls.last?.text ?? "")
+                        .font(.system(size: Memnox.TextSize.footnote, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Memnox.Palette.foreground.opacity(LiveStyle.softTextOpacity))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    if calls.count > 1 {
+                        Text(open ? "hide" : "+\(calls.count - 1)")
+                            .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
+                            .foregroundStyle(Memnox.Palette.muted)
+                        Image(systemName: open ? Symbol.opened : Symbol.closed)
+                            .font(.system(size: Memnox.TextSize.micro, weight: .bold))
+                            .foregroundStyle(Memnox.Palette.muted)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(calls.count < 2)
+            .pointingHand()
+            .help(open ? "Fold these steps" : "Show every step it ran here")
+            if open {
+                VStack(alignment: .leading, spacing: Layout.callSpacing) {
+                    ForEach(Array(calls.enumerated()), id: \.offset) { _, call in
+                        Text(call.text)
+                            .font(.system(size: Memnox.TextSize.caption, design: .monospaced))
+                            .foregroundStyle(Memnox.Palette.muted)
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding(.leading, Layout.indent)
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(Memnox.ink(Layout.railInk)).frame(width: Layout.railWidth).padding(.leading, Self.dotSide / 2)
+                }
+                .transition(.opacity)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(calls.count == 1 ? "Ran \(calls.last?.text ?? "")" : "Ran \(calls.count) steps, the latest \(calls.last?.text ?? "")")
+    }
+}
+
+/// While the agent works: a star that turns and how long it has been at it, the way its own terminal shows it.
+struct LiveWorkingLine: View {
+    let since: Date?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let star = "asterisk"
+    private static let turnSeconds: Double = 2.4
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            HStack(spacing: Memnox.Spacing.medium) {
+                Image(systemName: Self.star)
+                    .font(.system(size: Memnox.TextSize.footnote, weight: .bold))
+                    .foregroundStyle(Memnox.Palette.warm)
+                    .rotationEffect(.degrees(reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate / Self.turnSeconds * 360))
+                ShimmerText(text: words(at: timeline.date))
+            }
+        }
+        .accessibilityLabel("Working")
+    }
+
+    private func words(at now: Date) -> String {
+        guard let since else { return "Working\u{2026}" }
+        return "Working\u{2026} \(LiveClock.span(now.timeIntervalSince(since)))"
+    }
+}
+
+/// The transcript's moments read as dates, and how long a stretch has run said the way a terminal says it.
+enum LiveClock {
+    static func date(_ text: String) -> Date? {
+        let reader = ISO8601DateFormatter()
+        reader.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = reader.date(from: text) { return date }
+        reader.formatOptions = [.withInternetDateTime]
+        return reader.date(from: text)
+    }
+
+    /// "42s", "3m 05s" or "1h 12m", never a negative.
+    static func span(_ seconds: TimeInterval) -> String {
+        let whole = max(0, Int(seconds))
+        let hours = whole / 3_600, minutes = (whole % 3_600) / 60, rest = whole % 60
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        if minutes > 0 { return String(format: "%dm %02ds", minutes, rest) }
+        return "\(rest)s"
+    }
+}
+
+/// The reply box at the bottom of the window, which types into the session the way the notch's does, signed alike.
+struct LiveReply: View {
+    @ObservedObject var island: IslandModel
+    let session: String
+    let agentName: String
+    @State private var words = ""
+    @State private var sending = false
+    @State private var replied: String?
+
+    private static let symbol = "arrow.turn.down.right"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
+            SearchField(prompt: "Message \(agentName)", text: $words, symbol: Self.symbol, submit: send)
+                .disabled(sending)
+            if let replied {
+                Text(replied)
+                    .font(Memnox.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(Memnox.Palette.muted)
+                    .lineLimit(1)
+                    .padding(.leading, Memnox.Spacing.medium)
+            }
+        }
+    }
+
+    private func send() {
+        let said = words.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !said.isEmpty, !sending else { return }
+        sending = true
+        Task { @MainActor in
+            let state = await island.followUp(said, session)
+            sending = false
+            if case .sent = state { words = "" }
+            replied = FollowUpWords.of(state)
         }
     }
 }

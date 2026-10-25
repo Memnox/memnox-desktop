@@ -1,7 +1,7 @@
 {
   "name": "@memnox/desktop-core",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The Tauri app Memnox runs on Windows and Linux: a face and a signing key over the daemon.",
   "type": "module",
   "scripts": {

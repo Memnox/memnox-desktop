@@ -71,6 +71,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # The cache keeps a build script output that names target/sherpa-onnx-prebuilt but deletes that folder, so the libraries live outside target.
+      - name: Fetch the sherpa-onnx libraries
+        run: sh scripts/sherpa-libs.sh
+
       - name: Install the signing tool
         if: runner.os == 'Windows' && env.SIGNS == 'true'
         run: cargo install trusted-signing-cli --locked

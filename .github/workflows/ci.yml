@@ -164,7 +164,7 @@ jobs:
       - name: No dash stands in copy or comments
         # The characters are written as escapes so this file never contains the dashes it forbids.
         run: |
-          if grep -rnP '\x{2014}|\x{2013}' macos/Sources macos/Tests macos/scripts macos/docs macos/README.md macos/CLAUDE.md macos/CONTRIBUTING.md linux windows shared README.md CLAUDE.md SECURITY.md CODE_OF_CONDUCT.md; then
+          if grep -rnIP '\x{2014}|\x{2013}' macos/Sources macos/Tests macos/scripts macos/docs macos/README.md macos/CLAUDE.md macos/CONTRIBUTING.md linux windows shared README.md CLAUDE.md SECURITY.md CODE_OF_CONDUCT.md; then
             echo "::error::An em or en dash stands in the lines above. Write the word it stood for (because, so, which) or two sentences."
             exit 1
           fi

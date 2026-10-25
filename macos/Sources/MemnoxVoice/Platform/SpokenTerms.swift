@@ -64,6 +64,7 @@ enum SpokenTerms {
         "API", "endpoint", "webhook", "CI", "GitHub Actions", "Homebrew", "SwiftUI", "Cloudflare", "Netlify",
         "Heroku", "Terraform", "Stripe", "OAuth", "JWT", "localhost", "refactor", "unit test", "Playwright",
         "Figma", "Sentry", "Datadog", "PostHog", "Electron", "monorepo", "changeset", "lockfile", "dependency",
+        "repo", "repos", "connector", "connectors", "follow up",
     ]
 
     private static let workspace = [
@@ -170,6 +171,20 @@ enum SpokenTerms {
         ("open a pull request", 100),
         ("wait no", 100),
         ("actually", 100),
+        // "push to get up", "depository" and "within Lab Babco" were heard for these on 2026-10-24.
+        ("push to GitHub", 200),
+        ("push it to GitHub", 150),
+        ("ask it to push to GitHub", 150),
+        ("open a pull request on GitHub", 100),
+        ("check the repository", 150),
+        ("on that repository", 100),
+        ("check the last PR", 150),
+        ("the last PR", 150),
+        ("start a new session within the", 150),
+        ("in the same session", 150),
+        ("a follow up question in the same session", 150),
+        ("send a message to", 150),
+        ("check the connector tools", 100),
     ]
 
     private static let ruling: [(String, Int)] = [

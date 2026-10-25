@@ -58,7 +58,10 @@ final class AnalyzerEars {
         // Heard from the first buffer, before the analyzer has loaded, so the first word is never lost to a cold start.
         let recording = Recording()
         let early = Feeder()
+        // Every buffer measured, those heard while the analyzer loaded too, so a short answer said early still counts as a voice.
+        let peak = Peak()
         audio.onMicrophone = { buffer in
+            peak.hear(loudness(of: buffer))
             recording.keep(buffer)
             early.take(buffer)
         }
@@ -166,7 +169,14 @@ final class AnalyzerEars {
         let words = heard.read().0.trimmingCharacters(in: .whitespacesAndNewlines)
         diary.note("SpeechAnalyzer heard \(words.isEmpty ? "nothing" : words)")
         let loudest = meter.loudest
-        diary.note("microphone levels: quietest \(meter.quietest), loudest \(loudest)")
+        // A meter that never took a reading still holds where it starts, which read as quietest 1, loudest 0.
+        diary.note(meter.measured
+            ? "microphone levels: quietest \(meter.quietest), loudest \(loudest), peak \(peak.loudest)"
+            : "microphone levels: nothing measured, peak \(peak.loudest)")
+        if !words.isEmpty, heardFromSilence(peak: peak.loudest) {
+            diary.note("dropped words heard from near silence, peak \(peak.loudest): \(words)")
+            return .silence
+        }
         if words.isEmpty, loudest > AudioIO.voiceLevel {
             // The microphone heard a voice and no word came back: the analyzer is not working here.
             diary.note("heard a voice at level \(loudest) and no words")
@@ -331,6 +341,20 @@ private final class Heard: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return (joinedSpeech(settled, volatile), changed)
+    }
+}
+
+/// The loudest microphone buffer of one listen, measured on the audio thread and read once it ends.
+private final class Peak: @unchecked Sendable {
+    private let lock = NSLock()
+    private var highest: Float = 0
+
+    func hear(_ level: Float) { lock.lock(); highest = max(highest, level); lock.unlock() }
+
+    var loudest: Float {
+        lock.lock()
+        defer { lock.unlock() }
+        return highest
     }
 }
 

@@ -4,6 +4,8 @@ import Foundation
 private let trailingWords: Set<String> = [
     "uh", "um", "er", "erm", "hmm", "so", "and", "but", "or", "like", "the", "a", "an", "to", "of", "with", "because",
     "i", "my", "your", "our", "was", "is", "are", "that", "if", "when", "about", "for", "in", "on", "at", "then", "which", "we", "it's", "its",
+    // Words that only lead into what follows, so "start a new session within" is half a request, never all of it.
+    "within", "into", "onto", "from", "via", "than", "whether", "until", "unless", "their",
 ]
 
 /// The openings of a request, which said alone are somebody gathering the rest of it even when the
@@ -124,6 +126,9 @@ public struct VoiceMeter: Sendable {
 
     public init() {}
 
+    /// Whether any sound was measured at all, since before the first the floor and the peak are only where they start.
+    public var measured: Bool { loudest > 0 }
+
     /// Takes one reading and says whether it is somebody speaking.
     public mutating func hear(_ level: Float) -> Bool {
         // Nothing at all is a reading taken before the first sound arrived, not the room going quiet;
@@ -138,3 +143,13 @@ public struct VoiceMeter: Sendable {
 /// About five and a half decibels over the room on the microphone's zero to one scale: a voice
 /// clears it, the hum of a room does not.
 public let voiceAbove: Float = 0.12
+
+/// The loudest a listen can peak and still be nobody talking, about forty six decibels under full scale:
+/// a quiet room peaks under 0.1 and a voice at arm's length over 0.4. Words from a listen that never
+/// rose past it were made up by the recognizer out of the room, so they are dropped rather than sent.
+public let nobodyTalkingPeak: Float = 0.2
+
+/// Whether words heard in a listen whose loudest buffer peaked at `peak` came from near silence.
+public func heardFromSilence(peak: Float) -> Bool {
+    peak < nobodyTalkingPeak
+}

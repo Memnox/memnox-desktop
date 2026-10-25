@@ -78,6 +78,32 @@ final class TurnTakingTests: XCTestCase {
         XCTAssertEqual(starting.quietest, 0.3)
     }
 
+    func testWaitsWhenASentenceStopsOnAWordThatLeadsIntoMore() {
+        // Cut here on 2026-10-24, so "within Lab Babco folder" came as a second question.
+        let half = "Can you do this I want you to start a new session within"
+        XCTAssertEqual(endOfSpeechPause(after: half), 3.0)
+        XCTAssertFalse(mayGuess(half, pausedFor: 0.6))
+        XCTAssertEqual(endOfSpeechPause(after: "copy it from"), 3.0)
+        XCTAssertEqual(endOfSpeechPause(after: "Push it to GitHub."), 1.1)
+    }
+
+    func testAMeterThatHeardNothingSaysSo() {
+        var meter = VoiceMeter()
+        XCTAssertFalse(meter.measured)
+        _ = meter.hear(0)
+        XCTAssertFalse(meter.measured)
+        _ = meter.hear(0.04)
+        XCTAssertTrue(meter.measured)
+    }
+
+    func testWordsFromARoomNobodySpokeInAreTakenForMadeUp() {
+        // The quiet listen of 2026-10-24 peaked at 0.10; a voice at arm's length reads 0.4 and over.
+        XCTAssertTrue(heardFromSilence(peak: 0))
+        XCTAssertTrue(heardFromSilence(peak: 0.10))
+        XCTAssertFalse(heardFromSilence(peak: 0.25))
+        XCTAssertFalse(heardFromSilence(peak: 0.45))
+    }
+
     func testWaitsForWhatToDoWhenARequestIsOnlyBegun() {
         XCTAssertEqual(endOfSpeechPause(after: "Can you open?"), 3.0)
         XCTAssertEqual(endOfSpeechPause(after: "Close them."), 1.1)

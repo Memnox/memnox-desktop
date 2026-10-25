@@ -1145,14 +1145,12 @@ final class LegacyEars {
 }
 
 /// The model trained on the agents' names, when it is built in this recognizer's language; it only runs on this Mac.
-private func useVocabulary(in request: SFSpeechAudioBufferRecognitionRequest, with recognizer: SFSpeechRecognizer) {
+func useVocabulary(in request: SFSpeechAudioBufferRecognitionRequest, with recognizer: SFSpeechRecognizer) {
     guard let trained = Vocabulary.trained, recognizer.supportsOnDeviceRecognition,
           recognizer.locale.identifier == Vocabulary.locale.identifier else { return }
     request.requiresOnDeviceRecognition = true
     request.customizedLanguageModel = trained
 }
-
-/// Two stretches of what somebody said, run together as one.
 
 /// The recognizer's latest words, written from its thread and read from the listening loop.
 final class Latest: @unchecked Sendable {

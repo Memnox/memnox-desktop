@@ -84,6 +84,8 @@ final class BargeEars {
         request.shouldReportPartialResults = true
         request.requiresOnDeviceRecognition = true
         request.contextualStrings = recognizerHints
+        // Words said over it become the next question whole, so they are heard with the names this Mac was taught too.
+        if let recognizer { useVocabulary(in: request, with: recognizer) }
         let room = Loudness()
         room.count(from: Date())
         let talkingLevel = BargeEars.talkingLevel

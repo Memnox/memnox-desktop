@@ -89,6 +89,14 @@ public final class Conversation {
         return drivenBy.name
     }
 
+    /// The phone a yes to this event is left to: the one answering for this Mac now, else the paired phone the daemon
+    /// named on it, since pairing is enough and the person may be too far from the Mac to touch Touch ID.
+    public func phoneFor(_ event: DaemonEvent) -> String? {
+        if let phoneAnswers { return phoneAnswers }
+        guard let paired = event.answerOn, !OwnDevices.shared.ids.contains(paired.deviceId) else { return nil }
+        return paired.name
+    }
+
     /// Whether an event is only shown here: stamped for a phone, or arriving while a phone holds the voice or drives.
     public func isQuiet(_ event: DaemonEvent) -> Bool {
         event.quietOnMac(phoneHolds: phoneAnswers != nil)
@@ -699,9 +707,11 @@ public final class Conversation {
             } else if let rule = event.rule, asked {
                 // A rule waits on the card for where it holds; the sheet comes up only once a place is picked.
                 face.rule(subject: event.subject, rule)
+                if let phone = phoneFor(event) { await leaveForPhone(event, phone) }
             } else if let work = event.work, asked {
                 // What goes out in their name waits on its card, read whole; the sheet comes up on Send.
                 face.work(subject: event.subject, work)
+                if let phone = phoneFor(event) { await leaveForPhone(event, phone) }
             } else if asked {
                 // The same proposal can arrive twice, from the live feed and from a look at what waits, and confirming
                 // it twice put Touch ID up twice for one request; so each is put to the sensor once.
@@ -827,8 +837,8 @@ public final class Conversation {
         // This Mac's own label for the sheet, so what the sensor is touched for never rests on the daemon's words.
         let reason = CallLabel.touchIDReason(call.who, what: call.what, answer: answer)
         var signatures: [String]?
-        if answer != .deny, let phone = phoneAnswers {
-            diary.note("\(event.subject) left for \(phone) to answer with Face ID")
+        if answer != .deny, let phone = phoneFor(event) {
+            await leaveForPhone(event, phone)
             return
         }
         if answer != .deny {
@@ -1230,9 +1240,9 @@ public final class Conversation {
         let answerKind: ProposalAnswer
         var signature: String?
         let needsTouchID = event.needsTouchID || signsEveryYes(event.subject)
-        // Queued before the phone took over, so it is left for that phone rather than put to Touch ID now.
-        if needsTouchID, let phone = phoneAnswers {
-            diary.note("\(event.subject) left for \(phone) to answer with Face ID")
+        // A paired phone answers it, or one took over since it was queued, so it goes to Face ID there rather than Touch ID here.
+        if needsTouchID, let phone = phoneFor(event) {
+            await leaveForPhone(event, phone)
             return
         }
         if needsTouchID, await registerKey() == .anotherKey {
@@ -1267,6 +1277,15 @@ public final class Conversation {
             chimes?.play(.failed)
             await say("My apologies, that was not confirmed: \(response?.error ?? "Memnox did not answer").")
         }
+    }
+
+    /// A yes left to the phone's Face ID: said and shown here unless that phone speaks, so the person knows where to look.
+    private func leaveForPhone(_ event: DaemonEvent, _ phone: String) async {
+        diary.note("\(event.subject) left for \(phone) to answer with Face ID")
+        guard !isQuiet(event) else { return }
+        let line = Self.answerOnPhone(phone)
+        face.show(.idle, caption: caption(line))
+        await say(line)
     }
 
     /// Replies streaming in now; a proposal arrives while its own read back is still being written.
@@ -1458,6 +1477,7 @@ public final class Conversation {
     private func signature(
         _ subject: String, answer: String, edited: String? = nil, editedTo: String? = nil, reason: String
     ) async -> Signing {
+        // A press is a hand at this Mac, so only a phone holding the voice or driving takes it from Touch ID; a paired one still gets it.
         if let phone = phoneAnswers {
             face.show(.idle, caption: "")
             return .refused(.failed(Self.answerOnPhone(phone)))

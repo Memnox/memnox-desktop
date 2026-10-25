@@ -1196,6 +1196,9 @@ public struct DaemonEvent: Decodable, Equatable, Sendable {
     public let heardOn: VoiceHolder?
     /// On a notice, a phone took the voice from the Mac or gave it back.
     public let voiceOn: VoiceOn?
+    /// On a held call or a proposal while a paired phone may answer it: that phone, which asks Face ID for the yes,
+    /// so the Mac leaves the yes there rather than putting it to Touch ID.
+    public let answerOn: VoiceHolder?
     /// On a proposal answering a team's question, which this Mac carries out with the workspace before confirming it.
     public let teamAnswer: TeamAnswerBrief?
     /// On a proposal to act in one of the person's tools, what goes out, drawn the way that tool draws it.

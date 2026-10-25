@@ -118,6 +118,25 @@ final class TeamAnswerByVoiceTests: XCTestCase {
         XCTAssertEqual(carried.map(\.1), [.answered])
     }
 
+    func testAYesWhileAPhoneIsPairedIsLeftToItsFaceIDAndTouchesNothingHere() async throws {
+        await showing(heldJSON("apr_1"))
+        local.answers["ask"] = [try line(done)]
+        await conversation.heard("allow it once")
+        let paired = try event(#"""
+        {"kind":"proposal","subject":"prp_1","agent":"agt_memnox-operator","summary":"answer your team's call","at":"t",\#
+        "teamAnswer":{"callId":"apr_1","answer":"once","label":"codex on build-box, from your team"},\#
+        "answerOn":{"deviceId":"dev_1","name":"iPhone"}}
+        """#)
+        target.remember(subject: paired.subject, from: .thisMac)
+
+        await conversation.handle(paired)
+
+        XCTAssertEqual(key.signed, [])
+        XCTAssertTrue(cloud.sent(answerRoute).isEmpty)
+        XCTAssertTrue(confirms(local).isEmpty)
+        XCTAssertTrue(answering.owns("apr_1"))
+    }
+
     func testADenyGoesUnsignedToTheWorkspaceAndIsConfirmedUnsigned() async throws {
         await showing(heldJSON("apr_1"))
         local.answers["ask"] = [try line(done)]

@@ -72,6 +72,9 @@ public enum YourApps {
         return catalogue(featured, connections: connections)
     }
 
+    /// What may be done in those apps a month, said before anybody meets the limit; the cloud enforces the numbers.
+    public static let allowanceLine = "Free includes 500 actions a month in your apps, and 100 before you sign in. Paid plans have no limit."
+
     /// The count over the results, counted rather than estimated; the catalogue answers at most thirty a search.
     public static func countLine(_ count: Int, query: String) -> String {
         let typed = query.trimmingCharacters(in: .whitespacesAndNewlines)

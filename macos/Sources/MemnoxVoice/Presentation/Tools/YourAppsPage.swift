@@ -20,7 +20,12 @@ struct YourAppsPage: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(Memnox.Palette.muted)
             } content: {
-                yours
+                VStack(alignment: .leading, spacing: SettingsMetrics.cardSpacing) {
+                    yours
+                    Text(YourApps.allowanceLine)
+                        .font(.system(size: SettingsMetrics.captionSize))
+                        .foregroundStyle(Memnox.Palette.muted)
+                }
             }
             if let why = tools.actionNote {
                 SettingsCard {

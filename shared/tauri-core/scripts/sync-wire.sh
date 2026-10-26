@@ -7,10 +7,16 @@ set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 runtime=${MEMNOX_RUNTIME:-$here/../../../memnox-runtime}
 if [ ! -f "$runtime/packages/core/src/wire.ts" ]; then
-  echo "memnox-runtime with packages/core/src/wire.ts not found at $runtime; set MEMNOX_RUNTIME" >&2
+  echo "memnox-runtime with packages/core/src/wire.ts not found at $runtime; clone it beside this repo with" >&2
+  echo "  git clone https://github.com/Memnox/memnox.git memnox-runtime" >&2
+  echo "or set MEMNOX_RUNTIME to where it is" >&2
   exit 1
 fi
 runtime=$(cd "$runtime" && pwd)
+if ! command -v corepack >/dev/null 2>&1; then
+  echo "corepack is not on PATH, and the runtime needs the pnpm it pins; Node 25 and later need npm install -g corepack" >&2
+  exit 1
+fi
 # The runtime runs under the pnpm its own packageManager names, since an older pnpm misreads its lockfile.
 rpnpm() { (cd "$runtime" && COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm "$@"); }
 if [ ! -d "$runtime/node_modules" ]; then

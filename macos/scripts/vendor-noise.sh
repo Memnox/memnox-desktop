@@ -3,6 +3,8 @@
 # Taken from memnox-runtime's build when there is one, else from the iPhone app in memnox-mobile/ios, else built in memnox-runtime with cargo.
 # Run on its own, or by bundle.sh and sync-relay.sh when Vendor is empty.
 set -eu
+# The Noise framework, the bundled Node and the voice's Python are all arm64, so an Intel Mac stops here rather than at a link error.
+[ "$(uname -m)" = arm64 ] || { echo "the Mac app builds on Apple silicon only, and this Mac is $(uname -m)" >&2; exit 1; }
 here="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="${MEMNOX_RUNTIME:-$here/../../memnox-runtime}"
 ios="${MEMNOX_IOS:-$here/../../memnox-mobile/ios}"

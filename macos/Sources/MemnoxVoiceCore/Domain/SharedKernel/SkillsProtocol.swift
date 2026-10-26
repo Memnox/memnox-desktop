@@ -177,7 +177,7 @@ public struct SkillsSyncSummary: Decodable, Equatable, Sendable {
 }
 
 /// The part of a skill's reach a draft names; a list left out is empty.
-public struct SkillDraftPermissions: Encodable, Equatable, Sendable {
+public struct SkillDraftPermissions: Codable, Equatable, Sendable {
     public let filesystem: [String]?
     public let network: [String]?
     public let commands: [String]?
@@ -189,24 +189,96 @@ public struct SkillDraftPermissions: Encodable, Equatable, Sendable {
     }
 }
 
-/// A skill as a form fills it in, sent as `skillDraft`; every list left out is empty.
-public struct SkillDraft: Encodable, Equatable, Sendable {
+/// A text file beside a skill's instructions, by its path inside the skill.
+public struct SkillDraftFile: Codable, Equatable, Sendable {
+    public let path: String
+    public let text: String
+
+    public init(path: String, text: String) {
+        self.path = path
+        self.text = text
+    }
+}
+
+/// A skill as a form fills it in, sent as `skillDraft`; every list left out is empty. A calibration from the runtime
+/// carries every field, so accepting it sends the skill whole rather than dropping its files.
+public struct SkillDraft: Codable, Equatable, Sendable {
     public let name: String
     public let version: String
     public let description: String
     public let category: String?
+    public let publisher: String?
     public let instructions: String
+    public let files: [SkillDraftFile]?
     public let tools: [String]?
+    public let mcpServers: [String]?
+    public let dependencies: [String]?
+    public let agents: [String]?
     public let permissions: SkillDraftPermissions?
 
-    public init(name: String, version: String, description: String, category: String? = nil, instructions: String,
-                tools: [String]? = nil, permissions: SkillDraftPermissions? = nil) {
+    public init(name: String, version: String, description: String, category: String? = nil, publisher: String? = nil,
+                instructions: String, files: [SkillDraftFile]? = nil, tools: [String]? = nil, mcpServers: [String]? = nil,
+                dependencies: [String]? = nil, agents: [String]? = nil, permissions: SkillDraftPermissions? = nil) {
         self.name = name
         self.version = version
         self.description = description
         self.category = category
+        self.publisher = publisher
         self.instructions = instructions
+        self.files = files
         self.tools = tools
+        self.mcpServers = mcpServers
+        self.dependencies = dependencies
+        self.agents = agents
         self.permissions = permissions
+    }
+}
+
+/// One skill's use over the chats lately, as the runtime read it from the transcripts it already reads.
+public struct SkillStatsView: Decodable, Equatable, Identifiable, Sendable {
+    public let name: String
+    public let uses: Int
+    /// Tool calls inside the skill's turn that ended in an error.
+    public let failures: Int
+    /// Tool calls inside the skill's turn that a permission or a rule refused.
+    public let refusals: Int
+    public let lastUsedAt: String?
+    /// The fix backlog, oldest first.
+    public let notes: [String]
+    /// The first line of a few recent failures, newest first.
+    public let recentFailures: [String]
+
+    public var id: String { name }
+
+    public init(name: String, uses: Int, failures: Int, refusals: Int, lastUsedAt: String? = nil, notes: [String] = [],
+                recentFailures: [String] = []) {
+        self.name = name
+        self.uses = uses
+        self.failures = failures
+        self.refusals = refusals
+        self.lastUsedAt = lastUsedAt
+        self.notes = notes
+        self.recentFailures = recentFailures
+    }
+}
+
+/// A suggested change to one skill, built by the runtime from its backlog and failures; accepted through skill-put.
+public struct SkillCalibration: Decodable, Equatable, Sendable {
+    public let name: String
+    public let section: String
+    public let before: [String]
+    public let after: [String]
+    public let draft: SkillDraft
+    public let notes: Int
+    public let failures: Int
+
+    public init(name: String, section: String, before: [String], after: [String], draft: SkillDraft, notes: Int, failures: Int) {
+        self.name = name
+        self.section = section
+        self.before = before
+        self.after = after
+        self.draft = draft
+        self.notes = notes
+        self.failures = failures
     }
 }

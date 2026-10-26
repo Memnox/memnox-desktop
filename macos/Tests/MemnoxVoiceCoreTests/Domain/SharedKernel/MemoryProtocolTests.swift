@@ -40,6 +40,14 @@ final class MemoryProtocolTests: XCTestCase {
         XCTAssertEqual(read.extractorState, .unavailable)
         XCTAssertEqual(read.droppedCitations, 1)
         XCTAssertNil(read.error)
+        XCTAssertNil(read.skipped)
+    }
+
+    func testReadsWhatAReadPassedOverAndKeepsAReasonItDoesNotKnow() throws {
+        let response = try line(#"{"id":2,"ok":true,"memoryRead":{"sourceId":"src_1","documents":1,"passages":2,"added":0,"merged":0,"rejectedBefore":0,"droppedCitations":0,"discarded":0,"outdated":0,"extractor":"answered","skipped":[{"document":"dump.md","reason":"too-large"},{"document":"x.md","reason":"encrypted"}]}}"#)
+        let skipped = try XCTUnwrap(response.memoryRead?.skipped)
+        XCTAssertEqual(skipped.map(\.skipReason), [.tooLarge, nil])
+        XCTAssertEqual(skipped.last?.reason, "encrypted")
     }
 
     func testAnOlderRuntimeLeavesMemoryOutAndANewerValueIsKeptButNotNamed() throws {
@@ -80,9 +88,11 @@ final class MemoryProtocolTests: XCTestCase {
 
     func testNamesEveryMethodAsTheRuntimeDoes() {
         let methods: [DaemonMethod] = [.memorySources, .memorySourceAdd, .memorySourceRemove, .memorySourceRead, .memoryLearn,
-                                       .memoryConfirm, .memoryReject, .memoryEdit, .memorySearch, .memoryFacts, .memoryForget]
+                                       .memoryConfirm, .memoryReject, .memoryEdit, .memorySearch, .memoryFacts, .memoryForget,
+                                       .workspaceMemory, .workspaceGraph]
         XCTAssertEqual(methods.map(\.rawValue), ["memory-sources", "memory-source-add", "memory-source-remove", "memory-source-read",
                                                  "memory-learn", "memory-confirm", "memory-reject", "memory-edit", "memory-search",
-                                                 "memory-facts", "memory-forget"])
+                                                 "memory-facts", "memory-forget", "workspace-memory",
+                                                 "workspace-graph"])
     }
 }

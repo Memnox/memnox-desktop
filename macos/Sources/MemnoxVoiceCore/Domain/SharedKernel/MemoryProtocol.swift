@@ -68,7 +68,7 @@ public enum ExtractorState: String, CaseIterable, Sendable {
 /// A source as a form adds it, sent as `memorySource`; a key is named, never sent, and kept with the hub's secrets.
 public struct MemorySourceInput: Encodable, Equatable, Sendable {
     public let kind: String
-    /// A folder, absolute, or a repository for instruction files.
+    /// A folder, absolute, or a repository for instruction files; a Markdown, Notion or instructions source may name one file.
     public let location: String?
     public let name: String?
     public let scope: String?
@@ -157,14 +157,44 @@ public struct MemoryEvidenceView: Decodable, Equatable, Sendable {
     public let source: String
     /// The passage changed or went away since it was read.
     public let stale: Bool
+    /// For evidence read from an agent's call: who made it, through what, and when, never what it carried.
+    public let call: MemoryCallView?
 
-    public init(ref: String, document: String, heading: String? = nil, url: String? = nil, source: String, stale: Bool = false) {
+    public init(ref: String, document: String, heading: String? = nil, url: String? = nil, source: String, stale: Bool = false,
+                call: MemoryCallView? = nil) {
         self.ref = ref
         self.document = document
         self.heading = heading
         self.url = url
         self.source = source
         self.stale = stale
+        self.call = call
+    }
+}
+
+/// One call an agent made through an app or an MCP server, as the runtime's MemoryCallView names it, so the map joins a
+/// fact to the agent, its conversation and the app it read.
+public struct MemoryCallView: Decodable, Equatable, Sendable {
+    /// `app` for a connected app reached through Memnox, `mcp` for an MCP server.
+    public let via: String
+    public let agent: String
+    public let sessionId: String?
+    /// The app's toolkit slug, on a call through Memnox.
+    public let app: String?
+    /// The MCP server's name, on a call to one.
+    public let server: String?
+    public let tool: String
+    public let at: String
+
+    public init(via: String, agent: String, sessionId: String? = nil, app: String? = nil, server: String? = nil, tool: String,
+                at: String) {
+        self.via = via
+        self.agent = agent
+        self.sessionId = sessionId
+        self.app = app
+        self.server = server
+        self.tool = tool
+        self.at = at
     }
 }
 
@@ -266,6 +296,30 @@ public struct MemoryItemsView: Decodable, Equatable, Sendable {
     }
 }
 
+/// Why a read passed over a document its source holds, as the runtime's SKIP_REASON names it.
+public enum SkipReason: String, CaseIterable, Sendable {
+    /// Past the bytes a note may have, so an attachment or a dump.
+    case tooLarge = "too-large"
+    /// Past the documents one source reads.
+    case pastLimit = "past-limit"
+    /// Listed, then gone or not text when it was opened.
+    case unreadable
+}
+
+/// One document a read passed over, and why.
+public struct MemorySkippedDocument: Decodable, Equatable, Sendable {
+    public let document: String
+    public let reason: String
+
+    public init(document: String, reason: SkipReason) {
+        self.document = document
+        self.reason = reason.rawValue
+    }
+
+    /// The reason as a known case, or nil for one this app does not know yet.
+    public var skipReason: SkipReason? { SkipReason(rawValue: reason) }
+}
+
 /// What one read came to, so an empty read and a failed one are told apart.
 public struct MemoryReadSummary: Decodable, Equatable, Sendable {
     public let sourceId: String
@@ -283,9 +337,12 @@ public struct MemoryReadSummary: Decodable, Equatable, Sendable {
     public let outdated: Int
     public let extractor: String
     public let error: String?
+    /// Documents the source holds that this read passed over; nil when none were, or from an older runtime.
+    public let skipped: [MemorySkippedDocument]?
 
     public init(sourceId: String, documents: Int = 0, passages: Int = 0, added: Int = 0, merged: Int = 0, rejectedBefore: Int = 0,
-                droppedCitations: Int = 0, discarded: Int = 0, outdated: Int = 0, extractor: ExtractorState = .idle, error: String? = nil) {
+                droppedCitations: Int = 0, discarded: Int = 0, outdated: Int = 0, extractor: ExtractorState = .idle, error: String? = nil,
+                skipped: [MemorySkippedDocument]? = nil) {
         self.sourceId = sourceId
         self.documents = documents
         self.passages = passages
@@ -297,6 +354,7 @@ public struct MemoryReadSummary: Decodable, Equatable, Sendable {
         self.outdated = outdated
         self.extractor = extractor.rawValue
         self.error = error
+        self.skipped = skipped
     }
 
     public var extractorState: ExtractorState? { ExtractorState(rawValue: extractor) }
@@ -319,4 +377,154 @@ public struct MemoryEditInput: Encodable, Equatable, Sendable {
 public enum MemorySearchMode: String, Sendable {
     case keyword
     case semantic
+}
+
+/// What a workspace fact is, as the control plane files it.
+public enum WorkspaceFactKind: String, CaseIterable, Sendable {
+    case decision
+    case policy
+    /// Who approves an action, and the ceiling on it.
+    case authority
+    /// Who owns a thing.
+    case responsibility
+    case relationship
+}
+
+/// Where a workspace fact came from, as the control plane writes its provenance.
+public enum WorkspaceProvenance: String, CaseIterable, Sendable {
+    /// Written down by a person.
+    case declared
+    /// From a system of record.
+    case authoritative
+    /// Read from a conversation.
+    case observed
+}
+
+/// One thing the workspace settled, as the runtime's WorkspaceFact keeps it from `GET :ws/memory`.
+public struct WorkspaceFact: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let kind: String
+    /// Verbatim, since a summary of a decision is a second one.
+    public let statement: String
+    public let subject: String
+    public let scope: String?
+    /// The person it names: the owner, the approver, the party.
+    public let principal: String?
+    public let capability: String?
+    public let object: String?
+    /// What lets an agent cite rather than assert: a link or a reference into a connected tool.
+    public let sourceRef: String?
+    /// declared, authoritative or observed.
+    public let provenance: String?
+    /// Who confirmed it.
+    public let verifiedBy: String?
+    public let settledAt: String?
+
+    public init(id: String, kind: WorkspaceFactKind = .decision, statement: String, subject: String = "", scope: String? = nil,
+                principal: String? = nil, capability: String? = nil, object: String? = nil, sourceRef: String? = nil,
+                provenance: String? = nil, verifiedBy: String? = nil, settledAt: String? = nil) {
+        self.id = id
+        self.kind = kind.rawValue
+        self.statement = statement
+        self.subject = subject
+        self.scope = scope
+        self.principal = principal
+        self.capability = capability
+        self.object = object
+        self.sourceRef = sourceRef
+        self.provenance = provenance
+        self.verifiedBy = verifiedBy
+        self.settledAt = settledAt
+    }
+
+    public var factKind: WorkspaceFactKind? { WorkspaceFactKind(rawValue: kind) }
+}
+
+/// Something a connected tool said that nobody approved, as the runtime's WorkspaceCandidate keeps it: context, never
+/// a decision.
+public struct WorkspaceCandidate: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let kind: String
+    public let statement: String
+    public let subject: String
+    public let scope: String?
+    public let principal: String?
+    /// The connected tools it was read out of, by their lowercase slug: slack, notion, linear.
+    public let sources: [String]
+    /// Who said what it was read out of, as the tool names them.
+    public let saidBy: [String]
+    public let sourceRef: String?
+    /// Anything it was read from came from outside the workspace's trust.
+    public let untrusted: Bool
+    public let detectedAt: String?
+
+    private enum Field: String, CodingKey {
+        case id, kind, statement, subject, scope, principal, sources, saidBy, sourceRef, untrusted, detectedAt
+    }
+
+    public init(id: String, kind: WorkspaceFactKind = .decision, statement: String, subject: String = "", scope: String? = nil,
+                principal: String? = nil, sources: [String] = [], saidBy: [String] = [], sourceRef: String? = nil,
+                untrusted: Bool = false, detectedAt: String? = nil) {
+        self.id = id
+        self.kind = kind.rawValue
+        self.statement = statement
+        self.subject = subject
+        self.scope = scope
+        self.principal = principal
+        self.sources = sources
+        self.saidBy = saidBy
+        self.sourceRef = sourceRef
+        self.untrusted = untrusted
+        self.detectedAt = detectedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let fields = try decoder.container(keyedBy: Field.self)
+        id = try fields.decode(String.self, forKey: .id)
+        kind = try fields.decode(String.self, forKey: .kind)
+        statement = try fields.decode(String.self, forKey: .statement)
+        subject = (try? fields.decodeIfPresent(String.self, forKey: .subject)) ?? ""
+        scope = try? fields.decodeIfPresent(String.self, forKey: .scope)
+        principal = try? fields.decodeIfPresent(String.self, forKey: .principal)
+        sources = (try? fields.decodeIfPresent([String].self, forKey: .sources)) ?? []
+        saidBy = (try? fields.decodeIfPresent([String].self, forKey: .saidBy)) ?? []
+        sourceRef = try? fields.decodeIfPresent(String.self, forKey: .sourceRef)
+        untrusted = (try? fields.decodeIfPresent(Bool.self, forKey: .untrusted)) ?? false
+        detectedAt = try? fields.decodeIfPresent(String.self, forKey: .detectedAt)
+    }
+
+    public var factKind: WorkspaceFactKind? { WorkspaceFactKind(rawValue: kind) }
+}
+
+/// The workspace's memory as this machine last pulled it, sent as `workspaceMemory` on `workspace-memory`.
+public struct WorkspaceMemoryView: Decodable, Equatable, Sendable {
+    public let hash: String
+    public let facts: [WorkspaceFact]
+    public let unconfirmed: [WorkspaceCandidate]
+    /// How many facts this machine is not cleared for, so a partial set is never read as whole.
+    public let withheld: Int
+    /// When this machine last heard from the control plane about it.
+    public let syncedAt: String
+
+    private enum Field: String, CodingKey {
+        case hash, facts, unconfirmed, withheld, syncedAt
+    }
+
+    public init(hash: String = "", facts: [WorkspaceFact] = [], unconfirmed: [WorkspaceCandidate] = [], withheld: Int = 0,
+                syncedAt: String = "") {
+        self.hash = hash
+        self.facts = facts
+        self.unconfirmed = unconfirmed
+        self.withheld = withheld
+        self.syncedAt = syncedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let fields = try decoder.container(keyedBy: Field.self)
+        hash = (try? fields.decodeIfPresent(String.self, forKey: .hash)) ?? ""
+        facts = (try? fields.decodeIfPresent([WorkspaceFact].self, forKey: .facts)) ?? []
+        unconfirmed = (try? fields.decodeIfPresent([WorkspaceCandidate].self, forKey: .unconfirmed)) ?? []
+        withheld = (try? fields.decodeIfPresent(Int.self, forKey: .withheld)) ?? 0
+        syncedAt = (try? fields.decodeIfPresent(String.self, forKey: .syncedAt)) ?? ""
+    }
 }

@@ -365,7 +365,7 @@ public struct DecisionView: Decodable, Equatable, Sendable {
 
 /// Where an agent stands with Memnox, as the runtime's AGENT_STATUS names it.
 public enum AgentStatus: String, CaseIterable, Sendable {
-    /// Its hook is in, so every action is ruled on.
+    /// Its hook is in, or every server it starts runs through Memnox, so whatever Memnox can see of it is ruled on.
     case protected
     /// Found here and running outside Memnox.
     case unprotected
@@ -373,6 +373,14 @@ public enum AgentStatus: String, CaseIterable, Sendable {
     case dormant
     /// A person paused it; nothing it asks for runs.
     case paused
+}
+
+/// What Memnox holds an agent through, the runtime's AGENT_SEAM, which says what Protect changes for it and when.
+public enum AgentSeam: String, CaseIterable, Sendable {
+    /// Its own hook, which every action passes.
+    case hook
+    /// Only the MCP servers it starts, as for Claude Desktop, which reads them when it opens.
+    case servers
 }
 
 public struct AgentSessions: Decodable, Equatable, Sendable {
@@ -403,6 +411,8 @@ public struct AgentStanding: Decodable, Equatable, Identifiable, Sendable {
     public let kind: String
     public let name: String
     public let status: String
+    /// What Memnox holds it through; absent for an agent it has no way into, and from a runtime before seams.
+    public let seam: String?
     /// Where its binary sits: installed, or somewhere unusual. Never the path, which names the user.
     public let installed: String?
     /// Its MCP config file, where the hub found one.
@@ -422,6 +432,7 @@ public struct AgentStanding: Decodable, Equatable, Identifiable, Sendable {
 
     public var id: String { kind }
     public var agentStatus: AgentStatus? { AgentStatus(rawValue: status) }
+    public var agentSeam: AgentSeam? { seam.flatMap(AgentSeam.init(rawValue:)) }
     /// Launch is offered only where the runtime said it can open the agent.
     public var canLaunch: Bool { launchable == true }
 }

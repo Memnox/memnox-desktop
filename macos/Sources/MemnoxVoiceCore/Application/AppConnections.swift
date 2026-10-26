@@ -2,7 +2,8 @@ import Foundation
 
 /// The tools Memnox Cloud's catalogue offers for a search, or why none could be read.
 public enum ToolkitsAnswer: Equatable, Sendable {
-    case toolkits([ToolkitSummary])
+    /// What the catalogue matched, and whether the daemon said connecting waits on a Memnox Cloud sign in.
+    case toolkits([ToolkitSummary], signInNeeded: Bool)
     /// The daemon said no in its own words, such as nobody signed in to Memnox Cloud yet.
     case refused(String)
     case unreachable
@@ -14,11 +15,14 @@ public enum ConnectionSignInAnswer: Equatable, Sendable {
     case started(ConnectionSignIn)
     /// The daemon said no in its own words, such as the tool being connected already.
     case refused(String)
+    /// Nobody is signed in to Memnox Cloud on the daemon's side, which connecting needs; the daemon's own words.
+    case signInNeeded(String)
     case unreachable
 }
 
-/// Connects any tool the person uses and disconnects it again, with no admin in between: the daemon holds the
-/// sign in and the cloud keeps it, so this only carries the person's wish and reads back where each tool stands.
+/// Connects any tool the person uses and disconnects it again, with no admin in between once they are signed in to
+/// Memnox Cloud: the daemon holds the sign in and the cloud keeps it, so this only carries the person's wish and reads
+/// back where each tool stands, including the daemon saying a Memnox Cloud sign in comes first.
 public final class AppConnections {
     private let link: DaemonLink
     private let ids: RequestIds
@@ -53,7 +57,9 @@ public final class AppConnections {
         let query = words.trimmingCharacters(in: .whitespacesAndNewlines)
         request.query = query.isEmpty ? nil : query
         guard let response = try? await link.request(request) else { return .unreachable }
-        if response.ok, let toolkits = response.toolkits { return .toolkits(toolkits) }
+        if response.ok, let toolkits = response.toolkits {
+            return .toolkits(toolkits, signInNeeded: response.connectStateKind == .signInNeeded)
+        }
         return .refused(Self.why(response))
     }
 
@@ -64,6 +70,7 @@ public final class AppConnections {
         if again { request.again = true }
         guard let response = try? await link.request(request) else { return .unreachable }
         if response.ok, let signIn = response.signIn { return .started(signIn) }
+        if response.connectStateKind == .signInNeeded { return .signInNeeded(Self.why(response)) }
         return .refused(Self.why(response))
     }
 

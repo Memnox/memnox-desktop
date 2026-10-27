@@ -1,8 +1,10 @@
+import MemnoxVoiceCore
 import SwiftUI
 
-/// The first run spoken as well as shown: Memnox says what each step is for, what it will do on this Mac, and what
-/// to do in System Settings when a grant waits on the person. The words never decide anything; they only follow the
-/// step, the part the notch plays and the grants, and the person's mute silences all of it.
+/// The first run spoken as well as shown: Memnox walks the person through every step until setup is finished, says
+/// what each feature is for as the step that turns it on opens, and what to do in System Settings when a grant waits on
+/// the person. The words never decide anything; they only follow the page, the part the notch plays and the grants, and
+/// the person's mute silences all of it. Every line it says lives in `FirstRunGuide`, so it is tested headless.
 struct OnboardingNarration: ViewModifier {
     @ObservedObject var flow: OnboardingFlow
     @ObservedObject var setup: SetupModel
@@ -10,7 +12,7 @@ struct OnboardingNarration: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onChange(of: flow.page, initial: true) { _, page in introduce(page) }
+            .onChange(of: flow.page, initial: true) { _, _ in introduce(flow.guidePage) }
             .onChange(of: flow.highlight) { _, part in follow(part) }
             .onChange(of: setup.typing) { _, state in
                 if case .needs = state { setup.guide(GuideLines.typing(SettingsPane.typing.title)) }
@@ -22,50 +24,26 @@ struct OnboardingNarration: ViewModifier {
             .onChange(of: mute.on) { _, muted in if muted { setup.stopGuide() } }
     }
 
-    /// A page's own line, once in the first run; the first step then names the part the notch is already playing.
-    private func introduce(_ page: Int) {
-        guard flow.firstVisit(page) else { return }
-        if flow.optional {
-            setup.guide(GuideLines.optional)
-            return
-        }
-        switch flow.step {
-        case .connect:
-            setup.guide(GuideLines.welcome(name: setup.name))
-            setup.guide(GuideLines.setup, interrupting: false)
-            if let part = flow.highlight { follow(part) }
-        case .workspace: setup.guide(GuideLines.workspace)
-        case .boundaries: setup.guide(GuideLines.boundaries)
-        }
+    /// A page's own lines, once in the first run, said as one so a voice still starting holds all of it; the first step
+    /// opens with the greeting, then names the part the notch is already playing.
+    private func introduce(_ page: FirstRunPage) {
+        guard flow.firstVisit(page.rawValue) else { return }
+        let greeting = page == .connect ? [FirstRunGuide.welcome(name: setup.name)] : []
+        setup.guide((greeting + FirstRunGuide.lines(page)).joined(separator: " "))
+        if page == .connect, let part = flow.highlight { follow(part) }
     }
 
     /// The part the notch moved on to, said once and only while the first step is the page on screen.
     private func follow(_ part: Highlight?) {
-        guard flow.step == .connect, !flow.optional, let part, flow.narrated.insert(part).inserted else { return }
+        guard flow.guidePage == .connect, let part, flow.narrated.insert(part).inserted else { return }
         setup.guide(part.spoken, interrupting: false)
     }
 }
 
-/// What the guide says at each step, written to be heard.
+/// What the guide says about System Settings, which names the panes as this Mac shows them.
 enum GuideLines {
     /// Said over the opening, with the same words it shows.
-    static let askName = "Welcome to Memnox. I'm the voice over your agents. So, what should I call you?"
-
-    static func welcome(name: String) -> String {
-        "Hi\(greeting(name)), I'm Memnox. I live in your notch and watch over your AI agents, so they can work on their own and stay inside the boundaries you set. No account needed."
-    }
-
-    /// What Memnox puts on this Mac and the one thing it asks for now, said before any of it happens.
-    static let setup = "Here is what I will do on this Mac. I install the Memnox service in your home folder and keep it running and up to date, and I connect it to the agents I find, like Claude Code, Codex and Cursor, so what they do passes your rules first. From you I need one thing now: Touch ID so only you approve."
-
-    /// Said over the second step, before anything is brought in.
-    static let workspace = "Your agents already have servers and skills of their own. Bring them in with one tap, so each is set up once and given to the agents you choose."
-
-    /// Said over the third step: a pack is only proposed, and each rule waits for the person.
-    static let boundaries = "Last, choose your boundaries. Pick a pack of rules to start from, and confirm each rule with Touch ID on the island. You can change any of them later."
-
-    /// Said once the three steps are done, over what is left and optional.
-    static let optional = "That is everything your agents need. The rest is optional: the microphone so you can talk to me, a voice to answer, and your phone for when you are away."
+    static let askName = FirstRunGuide.askName
 
     static func typing(_ pane: String) -> String {
         "System Settings is opening. Find Memnox under \(pane) and switch it on. If Memnox is not in the list, press the plus button and choose it from Applications."
@@ -76,11 +54,6 @@ enum GuideLines {
     }
 
     static let seeingStale = "macOS still says no, so the switch that shows on is an old one. Press Start over, and I will ask for it fresh."
-
-    private static func greeting(_ name: String) -> String {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        return trimmed.isEmpty ? "" : " \(trimmed)"
-    }
 }
 
 /// Mutes and unmutes Memnox, in the first run's footer, the one place a new person reaches for it.

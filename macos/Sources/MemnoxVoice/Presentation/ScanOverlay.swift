@@ -8,15 +8,22 @@ private let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
 /// The scan, on the whole screen: Memnox in the middle, a sweep going round, and each agent on
 /// this Mac found in turn and set in a ring with its own logo, a line back to the middle, what it
-/// reaches and what it is doing now. A click or Escape closes it, and it goes on its own after a while.
+/// reaches and what it is doing now. A click or Escape closes it, and it goes on its own once nothing is left to say.
 @MainActor
 final class ScanPanel {
     private let panel: KeyablePanel
     private var hide: Task<Void, Never>?
     private var escape: EventMonitor?
     private let model = ScanModel()
-    /// Long enough to hear it said and look at every agent, never a screen that stays up on its own.
-    private static let showFor: TimeInterval = 25
+    /// Told once when the scan goes, by a click, Escape or its own timeout, then forgotten until set again.
+    var closed: (() -> Void)?
+    /// Told when the person closes it, never when it goes on its own, so a voice still explaining it stops with it.
+    var interrupted: (() -> Void)?
+    /// Whether the voice saying the scan has been heard yet; nil for a scan nothing is said over.
+    var voiceStarted: (() -> Bool)?
+    /// When the narration over it finished, set by `narrationFinished`, so it closes a moment after the last word.
+    private var narratedAt: Date?
+    private var heardVoice = false
     /// The fade out, a touch quicker than the panel's removal so it is gone before the panel is.
     private static let fadeOut: TimeInterval = 0.35
     private static let removeAfter: TimeInterval = 0.4
@@ -39,14 +46,17 @@ final class ScanPanel {
         panel.hidesOnDeactivate = false
     }
 
-    func present(_ agents: [AgentNode], title: String) {
+    /// `sessionsKnown` is false for agents drawn from cards that cannot tell a working session from an open one.
+    func present(_ agents: [AgentNode], title: String, sessionsKnown: Bool = true) {
         // The same agents again is the count landing after the scan, so the figure updates in place rather than sweeping again.
         if panel.isVisible, model.phase != .leaving, model.agents.map(\.id) == agents.map(\.id) {
             model.agents = agents
+            model.sessionsKnown = sessionsKnown
             return
         }
         guard let screen = NSScreen.main else { return }
         model.agents = agents
+        model.sessionsKnown = sessionsKnown
         model.title = title
         model.phase = .hidden
         panel.setFrame(screen.frame, display: false)
@@ -61,15 +71,51 @@ final class ScanPanel {
             if event.keyCode == KeyCode.escape { self?.dismiss(); return nil }
             return event
         }
+        narratedAt = nil
+        heardVoice = false
+        let shown = Date()
         hide?.cancel()
         hide = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(Self.showFor * nanosecondsPerSecond))
-            guard !Task.isCancelled else { return }
-            self?.dismiss()
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(ScanStay.checkEvery * nanosecondsPerSecond))
+                guard !Task.isCancelled, let self else { return }
+                if self.voiceStarted?() == true { self.heardVoice = true }
+                let narratedFor = self.narratedAt.map { Date().timeIntervalSince($0) }
+                if ScanStay.closes(shownFor: Date().timeIntervalSince(shown), voiceStarted: self.heardVoice, narratedFor: narratedFor) {
+                    self.close()
+                    return
+                }
+            }
         }
     }
 
+    /// The same agents counted again, drawn in place only while the scan is still up; false once it has gone, so a
+    /// recount never brings back a scan the person closed.
+    func recount(_ agents: [AgentNode]) -> Bool {
+        guard panel.isVisible, model.phase != .leaving else { return false }
+        if model.agents.map(\.id) == agents.map(\.id) { model.agents = agents }
+        return true
+    }
+
+    /// The voice has said all of the scan, or was stopped, so the screen may go a moment from now.
+    func narrationFinished() {
+        if narratedAt == nil { narratedAt = Date() }
+    }
+
+    /// Closed by the person, with a click or Escape, which also quiets whatever is still being said over it.
     func dismiss() {
+        let stop = interrupted
+        interrupted = nil
+        stop?()
+        close()
+    }
+
+    private func close() {
+        interrupted = nil
+        voiceStarted = nil
+        let after = closed
+        closed = nil
+        after?()
         hide?.cancel()
         escape?.stop()
         escape = nil
@@ -88,6 +134,8 @@ final class ScanModel: ObservableObject {
 
     @Published var phase: Phase = .hidden
     @Published var agents: [AgentNode] = []
+    /// Whether `working` on the agents is sessions working now, rather than unknown.
+    @Published var sessionsKnown = true
     @Published var title = "Your agents"
     /// How many agents the sweep has reached so far, so they appear as it passes them.
     @Published var revealed = 0
@@ -158,7 +206,7 @@ struct ScanView: View {
                 }
                 ScanHeading(found: model.revealed, total: model.agents.count, phase: model.phase)
                     .position(x: center.x, y: max(Layout.headingTop, center.y - ring.height - Layout.headingAboveRing))
-                ScanSummary(agents: model.agents, phase: model.phase)
+                ScanSummary(agents: model.agents, sessionsKnown: model.sessionsKnown, phase: model.phase)
                     .position(x: center.x, y: size.height - Layout.summaryFromBottom)
             }
             .contentShape(Rectangle())
@@ -519,6 +567,7 @@ private struct AgentCard: View {
 /// The totals along the bottom in the island's own black pill, counting up once the scan is done.
 private struct ScanSummary: View {
     let agents: [AgentNode]
+    let sessionsKnown: Bool
     let phase: ScanModel.Phase
 
     private enum Layout {
@@ -544,9 +593,9 @@ private struct ScanSummary: View {
         let done = phase == .found
         HStack(spacing: Layout.spacing) {
             figure(agents.count, "agents")
-            figure(agents.reduce(0) { $0 + ($1.mcp ?? []).reduce(0) { $0 + ($1.tools ?? 0) } }, "MCP tools")
-            capabilitiesFigure
-            figure(agents.reduce(0) { $0 + $1.working }, "working", tint: IslandPalette.green)
+            shown(ScanFigures.tools(agents), "MCP tools")
+            shown(ScanFigures.capabilities(agents), "real capabilities", tint: IslandPalette.amber)
+            shown(ScanFigures.working(agents, sessionsKnown: sessionsKnown), "working", tint: IslandPalette.green)
             Rectangle().fill(Color.white.opacity(Layout.dividerOpacity)).frame(width: Memnox.Stroke.hairline, height: Layout.dividerHeight)
             HStack(spacing: Memnox.Spacing.small) {
                 Keycap(label: "esc")
@@ -564,18 +613,19 @@ private struct ScanSummary: View {
         .allowsHitTesting(false)
     }
 
-    /// The runtime's shares added up; counting while any share is, never a zero; the older per server figure from an older daemon.
-    @ViewBuilder private var capabilitiesFigure: some View {
-        let shares = agents.compactMap(\.capabilities)
-        if shares.isEmpty {
-            figure(agents.reduce(0) { $0 + ($1.mcp ?? []).reduce(0) { $0 + ($1.changing ?? 0) } }, "real capabilities", tint: IslandPalette.amber)
-        } else if shares.contains(where: { $0.total == nil }) {
+    /// A counted figure, "counting" while the runtime asks the servers, and nothing at all where it cannot be known, so
+    /// a zero on this pill is always a counted zero.
+    @ViewBuilder private func shown(_ value: ScanFigure, _ label: String, tint: Color = .white) -> some View {
+        switch value {
+        case .counted(let count):
+            figure(count, label, tint: tint)
+        case .counting:
             HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.small) {
-                Text("counting").font(Memnox.sans(Memnox.TextSize.title, .semibold)).foregroundStyle(IslandPalette.amber)
-                Text("real capabilities").font(Memnox.sans(Memnox.TextSize.footnote)).foregroundStyle(.white.opacity(Layout.labelOpacity))
+                Text("counting").font(Memnox.sans(Memnox.TextSize.title, .semibold)).foregroundStyle(tint)
+                Text(label).font(Memnox.sans(Memnox.TextSize.footnote)).foregroundStyle(.white.opacity(Layout.labelOpacity))
             }
-        } else {
-            figure(shares.reduce(0) { $0 + ($1.total ?? 0) }, "real capabilities", tint: IslandPalette.amber)
+        case .unknown:
+            EmptyView()
         }
     }
 

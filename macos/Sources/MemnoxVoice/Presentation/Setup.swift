@@ -433,6 +433,17 @@ final class SetupModel: ObservableObject {
         sayHeldGuide()
     }
 
+    /// Says the scan after setup and returns once all of it is said, stopped or muted, so the scan stays up exactly as
+    /// long as it is explained. Said now in whichever voice is ready, since a line held for Kokoro here would be dropped.
+    func narrate(_ lines: [String]) async {
+        guard !VoiceMute.shared.on, let last = lines.last else { return }
+        for line in lines.dropLast() { voice.queue(line) }
+        await voice.speak(last)
+    }
+
+    /// Whether the voice is sounding now, which the scan reads to know its narration has started.
+    var voiceSounding: Bool { voice.level > 0 }
+
     /// Quiet at once, for the first run closing or the person muting it.
     func stopGuide() {
         heldGuide.removeAll()
@@ -703,7 +714,9 @@ final class SetupModel: ObservableObject {
     /// The name as a step: done once there is one.
     var nameState: StepState { name.trimmingCharacters(in: .whitespaces).isEmpty ? .waiting : .done }
 
-    func finish() {
+    /// Setup is done; from the first run the full screen scan of this Mac then goes up over the closed setup window, and
+    /// closing it opens the Memnox window on Home.
+    func finish(scanning: Bool = false) {
         let chosen = name.trimmingCharacters(in: .whitespaces)
         owner.name = chosen.isEmpty ? nil : chosen
         UserDefaults.standard.set(catchUp, forKey: SetupModel.catchUpKey)
@@ -711,6 +724,7 @@ final class SetupModel: ObservableObject {
         Task {
             await usePicked()
             finished()
+            if scanning { await SetupScan.shared.run(self) }
         }
     }
 

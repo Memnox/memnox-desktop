@@ -43,6 +43,14 @@ final class OnboardingFlow: ObservableObject {
     @Published private(set) var jump: HighlightJump?
     /// The parts the guide has already spoken, so the notch going round again stays quiet.
     var narrated: Set<Highlight> = []
+    /// The lines a step said once what it waited on answered, such as what the second step found, so a return is quiet.
+    var answered: Set<String> = []
+
+    /// Says a step's line after the page's own, once in this first run.
+    func sayOnce(_ line: String, key: String) {
+        guard answered.insert(key).inserted else { return }
+        setup?.guide(line, interrupting: false)
+    }
 
     /// The step the window was on, kept so a reopen for Screen Recording comes back to the same page.
     private static let stepKey = "onboardingStep"
@@ -93,7 +101,20 @@ final class OnboardingFlow: ObservableObject {
     }
 
     /// The page on screen, a step or what is optional, so each is introduced once.
-    var page: Int { optional ? OnboardingStep.allCases.count : step.rawValue }
+    var page: Int { guidePage.rawValue }
+
+    /// The page as the spoken guide knows it.
+    var guidePage: FirstRunPage {
+        switch stage {
+        case .optional: return .optional
+        case .intro, .name, .steps:
+            switch step {
+            case .connect: return .connect
+            case .workspace: return .workspace
+            case .boundaries: return .boundaries
+            }
+        }
+    }
 
     /// True the first time a page opens in this first run, so a restart for Screen Recording does not hear it again.
     func firstVisit(_ page: Int) -> Bool {

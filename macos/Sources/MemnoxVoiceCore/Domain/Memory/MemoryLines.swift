@@ -121,7 +121,7 @@ public enum MemoryLines {
     /// The kinds the Add source sheet offers, each with what its location is.
     public static let sourceKinds: [SourceKindChoice] = [
         SourceKindChoice(kind: .obsidian, label: "Obsidian vault", place: .folder),
-        SourceKindChoice(kind: .markdown, label: "Markdown folder", place: .folder),
+        SourceKindChoice(kind: .markdown, label: "Markdown files", place: .folder),
         SourceKindChoice(kind: .instructions, label: "Agent instruction files", place: .repository),
         SourceKindChoice(kind: .notionExport, label: "Notion export", place: .folder),
         SourceKindChoice(kind: .supermemory, label: "Supermemory", place: .secret),
@@ -292,16 +292,23 @@ public enum MemoryLines {
     public static func sourceFormProblem(_ form: SourceForm) -> String? {
         switch place(form.kind) {
         case .folder, .repository:
-            let location = form.location.trimmingCharacters(in: .whitespacesAndNewlines)
-            if location.isEmpty {
-                return place(form.kind) == .repository ? "Choose the repository whose instruction files it reads." : "Choose the folder it reads."
-            }
-            return LaunchLines.isAbsoluteFolder(location) ? nil : "Give the whole path, from the top of the drive."
+            let paths = form.location.split(whereSeparator: \.isNewline).map { trimmed(String($0)) }.filter { !$0.isEmpty }
+            if paths.isEmpty { return emptyLocationProblem(form.kind) }
+            return paths.allSatisfy(LaunchLines.isAbsoluteFolder) ? nil : "Give the whole path, from the top of the drive."
         case .secret:
             return trimmed(form.secret).isEmpty ? "Name the secret that holds the key." : nil
         case .server:
             if trimmed(form.server).isEmpty { return "Choose the hub server it reads." }
             return trimmed(form.tool).isEmpty ? "Choose the tool that reads its memory." : nil
+        }
+    }
+
+    private static func emptyLocationProblem(_ kind: MemorySourceKind) -> String {
+        switch kind {
+        case .instructions: "Choose the repository whose instruction files it reads."
+        case .markdown: "Choose the notes or the folder it reads."
+        case .notionExport: "Choose the export, as its zip or the folder it unzipped into."
+        case .obsidian, .supermemory, .mcp: "Choose the folder it reads."
         }
     }
 

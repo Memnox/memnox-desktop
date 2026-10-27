@@ -21,9 +21,12 @@ public struct Placed: Equatable, Sendable {
     public let captioned: Bool
     /// The name under the mark, which is the widest part of a node.
     public let label: String
+    /// How far in front of or behind the drawing's plane it floats, in world points: the third axis the map turns
+    /// about. The forces never move it, so the settling stays flat and the depth is only how it is looked at.
+    public var lift: Double
 
     public init(id: String, x: Double, y: Double, depth: Double, width: Double, height: Double? = nil, captioned: Bool = true,
-                label: String) {
+                label: String, lift: Double = 0) {
         self.id = id
         self.x = x
         self.y = y
@@ -32,6 +35,7 @@ public struct Placed: Equatable, Sendable {
         self.height = height
         self.captioned = captioned
         self.label = label
+        self.lift = lift
     }
 }
 
@@ -63,8 +67,8 @@ public struct SurfaceRoom: Equatable, Sendable {
 
 public enum SurfaceGeometry {
     /// How far the camera may be pushed either way.
-    public static let zoomMin = 0.2
-    public static let zoomMax = 3.0
+    public static let zoomMin = 0.45
+    public static let zoomMax = 12.0
     /// How big a mark may be drawn, over whatever the camera is doing.
     public static let nodeSizeMin = 0.7
     public static let nodeSizeMax = 1.8

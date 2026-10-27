@@ -73,4 +73,25 @@ public struct SurfaceCamera: Equatable, Sendable {
         let middle = size.width - roomWidth / 2 - margin
         return SurfaceCamera(x: box.x + box.width / 2 - (middle - size.width / 2) / k, y: box.y + box.height / 2, k: k)
     }
+
+    /// The share of the frame Fit lets the brain's marks fill across and down, the console's own, so a tile at the
+    /// edge keeps its name on screen.
+    public static let fillAcross = 0.84
+    public static let fillDown = 0.76
+    /// A brain whose marks stand on one spot is framed at least this wide, in world points, rather than at the most zoom.
+    public static let leastSpan = 240.0
+
+    /// The camera that holds these marks, each a world point with the room it takes, which is what Fit means on the
+    /// brain: centred on the bounds of what is drawn and zoomed until it fills the frame, never an outline around nothing.
+    public static func fitted(points: [(x: Double, y: Double, radius: Double)], size: (width: Double, height: Double)) -> SurfaceCamera {
+        guard !points.isEmpty, size.width > 0, size.height > 0 else { return atRest }
+        let left = points.map { $0.x - $0.radius }.min() ?? 0
+        let right = points.map { $0.x + $0.radius }.max() ?? 0
+        let top = points.map { $0.y - $0.radius }.min() ?? 0
+        let bottom = points.map { $0.y + $0.radius }.max() ?? 0
+        let across = max(leastSpan, right - left)
+        let down = max(leastSpan, bottom - top)
+        let k = min(size.width * fillAcross / across, size.height * fillDown / down)
+        return SurfaceCamera(x: (left + right) / 2, y: (top + bottom) / 2, k: min(SurfaceGeometry.zoomMax, max(SurfaceGeometry.zoomMin, k)))
+    }
 }

@@ -14,6 +14,63 @@ public enum MemoryMapNodeKind: String, Sendable {
     case source
     /// The rule a fact governs, from `item.rule`.
     case rule
+    /// One conversation an agent held: what was said and worked on, which memory was read into.
+    case conversation
+    /// One of the person's own connected apps whose calls fed memory.
+    case app
+    /// A project folder a source, a fact or a conversation names.
+    case workspace
+    /// One thing the workspace settled, or that a connected tool said and nobody approved, as this machine pulled it.
+    case decision
+    /// Somebody a workspace decision names, confirmed or said: the owner, the approver, who said it.
+    case person
+    /// A skill the Skills Hub keeps or an agent folder holds, which the brain draws at its core.
+    case skill
+    /// A rule in force or a standing permission, which runs without the person and rings the brain.
+    case standing
+}
+
+/// Where a node's memory is held: learned on this Mac, pulled down from the workspace, or a thing both name, such as
+/// an app this Mac uses that the workspace also reads from.
+public enum MemoryHome: String, CaseIterable, Sendable {
+    case thisMac
+    case workspace
+    case both
+}
+
+/// Which memory the map shows: everything, only what this Mac learned, or only what the workspace settled.
+public enum MemoryHomeFilter: String, CaseIterable, Sendable {
+    case everything
+    case thisMac
+    case workspace
+
+    /// Whether a node held there is shown; a node both name is shown under either.
+    public func shows(_ home: MemoryHome) -> Bool {
+        switch (self, home) {
+        case (.everything, _), (_, .both), (.thisMac, .thisMac), (.workspace, .workspace): true
+        case (.thisMac, .workspace), (.workspace, .thisMac): false
+        }
+    }
+}
+
+/// The workspace record a decision node stands for, kept whole so its details say its source and who said it.
+public enum WorkspaceEntry: Equatable, Sendable {
+    case settled(WorkspaceFact)
+    case unconfirmed(WorkspaceCandidate)
+
+    public var id: String {
+        switch self {
+        case .settled(let fact): fact.id
+        case .unconfirmed(let candidate): candidate.id
+        }
+    }
+
+    public var statement: String {
+        switch self {
+        case .settled(let fact): fact.statement
+        case .unconfirmed(let candidate): candidate.statement
+        }
+    }
 }
 
 public enum MemoryLinkKind: String, CaseIterable, Sendable {
@@ -25,6 +82,26 @@ public enum MemoryLinkKind: String, CaseIterable, Sendable {
     case governs
     /// A fact and the earlier fact it restates, through `duplicateOf`.
     case restates
+    /// A conversation and the project its folder is in, from `host.cwd` or its repository.
+    case worksIn = "works_in"
+    /// A conversation and what it read: a document from a call it made, or an app it worked in.
+    case reads
+    /// A source or a fact and the project it is kept for, from `project`.
+    case within
+    /// A workspace decision and the connected tool it was read out of, from `sources` or the host of `sourceRef`.
+    case pulledFrom = "pulled_from"
+    /// A person and what they said that a decision was read out of, from `saidBy`.
+    case said
+    /// A decision and the person it names as owner, approver or party, from `principal`.
+    case names
+    /// A person and the decision they confirmed, from `verifiedBy`.
+    case confirmed
+    /// A person and the team the directory puts them on, or the person they report to.
+    case memberOf = "member_of"
+    /// A thing and what its words link to, often in another tool.
+    case linksTo = "links_to"
+    /// Two things that say something alike, proposed by comparison and stated by nobody.
+    case relates
 }
 
 public struct MemoryMapNode: Equatable, Sendable, SurfacePlaced {
@@ -38,6 +115,22 @@ public struct MemoryMapNode: Equatable, Sendable, SurfacePlaced {
     public let tainted: Bool
     /// What the node is, said under its name: the source's kind, a rule's effect, a document's source.
     public let detail: String?
+    /// What draws its logo: an app's slug, nil for a node drawn with its kind's icon.
+    public var mark: String? = nil
+    /// The agents that read, wrote or worked in it, by name: said in its details, never drawn as nodes of their own.
+    public var usedBy: [String] = []
+    /// Learned on this Mac, pulled from the workspace, or named by both.
+    public var home: MemoryHome = .thisMac
+    /// The workspace record a decision stands for, nil for every other node.
+    public var workspace: WorkspaceEntry? = nil
+    /// The node of the workspace's live graph this one is, whole, so its details say what arrived, who said it and where.
+    public var live: WorkspaceGraphNode? = nil
+    /// How many times the same thing was said, or how many messages an author's mark counts, worn as a badge.
+    public var count: Int? = nil
+    /// How many lines the record says touch it, so the heavy ones are named before anything is hovered.
+    public var weight = 0
+    /// When it was learned, written or last used, as the runtime writes a time, which lays it along the Timeline.
+    public var at: String? = nil
 
     public var id: String { place.id }
     public var label: String { place.label }
@@ -63,6 +156,11 @@ public struct MemoryMapEdge: Equatable, Sendable {
 public struct MemoryMap: Equatable, Sendable {
     public let nodes: [MemoryMapNode]
     public let edges: [MemoryMapEdge]
+
+    public init(nodes: [MemoryMapNode], edges: [MemoryMapEdge]) {
+        self.nodes = nodes
+        self.edges = edges
+    }
 }
 
 public enum MemoryMaps {
@@ -164,7 +262,9 @@ public enum MemoryMaps {
     }
 
     private static func memoryNode(_ item: MemoryItemView) -> MemoryMapNode {
-        blank(item.id, item.statement, .memory, item: item.id, status: item.status, memoryKind: item.kind, tainted: item.tainted)
+        var node = blank(item.id, item.statement, .memory, item: item.id, status: item.status, memoryKind: item.kind, tainted: item.tainted)
+        node.at = item.decidedAt ?? item.createdAt
+        return node
     }
 
     /// A node before it is placed, sized for its kind. Cards write their own name; a source's hangs below it.
@@ -172,7 +272,7 @@ public enum MemoryMaps {
                               memoryKind: String? = nil, tainted: Bool = false, detail: String? = nil) -> MemoryMapNode {
         let place: Placed
         switch kind {
-        case .source:
+        case .source, .conversation, .app, .workspace, .decision, .person, .skill, .standing:
             place = Placed(id: id, x: middle.x, y: middle.y, depth: middle.y, width: Size.source, label: label)
         case .memory, .document, .rule:
             let box = kind == .memory ? Size.memory : kind == .document ? Size.document : Size.rule
@@ -223,15 +323,46 @@ public enum MemoryMaps {
         min(orbitMost, max(orbitLeast, orbitLeast + Double(memories) * orbitPer))
     }
 
-    /// What travels with a dragged document: the facts that cite it, or the cluster tears in half.
-    public static func carriedWith(_ map: MemoryMap, _ id: String) -> [String] {
-        guard let node = map.nodes.first(where: { $0.id == id }), node.kind == .document else { return [] }
-        return map.edges.filter { $0.to == id && $0.kind == .cites }.map(\.from)
+    /// The map under a filter of where memory is held: the nodes it shows, and only the lines both of whose ends stay.
+    public static func held(_ map: MemoryMap, _ filter: MemoryHomeFilter) -> MemoryMap {
+        guard filter != .everything else { return map }
+        let nodes = map.nodes.filter { filter.shows($0.home) }
+        let kept = Set(nodes.map(\.id))
+        return MemoryMap(nodes: nodes, edges: map.edges.filter { kept.contains($0.from) && kept.contains($0.to) })
     }
 
-    /// The order the arrow keys walk the map in: facts first, as listed, then what they cite.
+    /// What travels with a dragged hub: a document's citing facts and a project's conversations, or the cluster tears.
+    public static func carriedWith(_ map: MemoryMap, _ id: String) -> [String] {
+        guard let node = map.nodes.first(where: { $0.id == id }) else { return [] }
+        let held: MemoryLinkKind
+        switch node.kind {
+        case .document: held = .cites
+        case .workspace: held = .worksIn
+        case .memory, .source, .rule, .conversation, .app, .decision, .person, .skill, .standing: return []
+        }
+        return map.edges.filter { $0.to == id && $0.kind == held }.map(\.from)
+    }
+
+    /// Every node one line from a node, with the line joining them, in walk order, so its details list what it is
+    /// linked to.
+    public static func linked(_ map: MemoryMap, _ id: String) -> [(node: MemoryMapNode, kind: MemoryLinkKind)] {
+        var found: [String: MemoryLinkKind] = [:]
+        for edge in map.edges {
+            if edge.from == id, found[edge.to] == nil { found[edge.to] = edge.kind }
+            if edge.to == id, found[edge.from] == nil { found[edge.from] = edge.kind }
+        }
+        let order = walkOrder(map)
+        let byId = Dictionary(map.nodes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return order.compactMap { other in
+            guard let kind = found[other], let node = byId[other] else { return nil }
+            return (node, kind)
+        }
+    }
+
+    /// The order the arrow keys walk the map in: facts first, as listed, then what they cite, then where they were said.
     public static func walkOrder(_ map: MemoryMap) -> [String] {
-        let rank: [MemoryMapNodeKind: Int] = [.memory: 0, .rule: 1, .document: 2, .source: 3]
+        let rank: [MemoryMapNodeKind: Int] = [.memory: 0, .rule: 1, .document: 2, .source: 3, .conversation: 4,
+                                              .workspace: 5, .app: 6, .decision: 7, .person: 8, .skill: 9, .standing: 10]
         return map.nodes.sorted { left, right in
             let a = rank[left.kind] ?? 0
             let b = rank[right.kind] ?? 0

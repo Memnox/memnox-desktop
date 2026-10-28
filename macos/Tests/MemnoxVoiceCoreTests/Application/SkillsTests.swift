@@ -75,4 +75,22 @@ final class SkillsTests: XCTestCase {
         XCTAssertEqual(link.sent.last?.skillFoundId, "f1")
         XCTAssertNil(hub.busy)
     }
+
+    func testImportsEveryFoundSkillOneRequestEachAndCountsHowEachEnded() async throws {
+        let link = AnsweringLink { request in
+            switch request.skillFoundId {
+            case "f1": return try line(#"{"id":1,"ok":true}"#)
+            case "f2": return try line(#"{"id":2,"ok":true,"proposed":"prp_2"}"#)
+            default: return try line(#"{"id":3,"ok":false,"error":"Its folder would not read."}"#)
+            }
+        }
+        let hub = SkillsHub(link: link)
+        let found = ["f1", "f2", "f3"].map {
+            FoundSkillView(id: $0, name: $0, agent: "codex-cli", kind: "skill", path: "/p/\($0)", tools: [], grant: "", imported: false)
+        }
+        let results = await hub.importAll(found)
+        XCTAssertEqual(results, ImportResults(done: 1, proposed: 1, failed: ["Its folder would not read."]))
+        XCTAssertEqual(link.sent.map(\.skillFoundId), ["f1", "f2", "f3"])
+        XCTAssertNil(hub.busy)
+    }
 }

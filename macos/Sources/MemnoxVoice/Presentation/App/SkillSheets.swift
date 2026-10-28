@@ -223,3 +223,62 @@ struct NewSkillSheet: View {
         }
     }
 }
+
+/// A skill an agent already has, read from its own SKILL.md and drawn formatted, with Import at the foot so reading
+/// it and bringing it in are one place.
+struct FoundSkillSheet: View {
+    @ObservedObject var screen: SkillsScreen
+    let found: FoundSkillView
+    let label: String
+    let close: () -> Void
+    @State private var document: SkillDocument?
+    @State private var unreadable = false
+
+    private static let height: CGFloat = 600
+
+    var body: some View {
+        SkillSheetFrame(title: found.name, step: label) {
+            Text(SkillSearch.shortPath(SkillSearch.instructionsFile(found), home: NSHomeDirectory()))
+                .font(Memnox.Console.code(Memnox.Console.TextSize.label))
+                .foregroundStyle(Memnox.Console.muted)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+            if let document {
+                if !document.fields.isEmpty {
+                    FactList(facts: document.fields.map { ($0.key, $0.value) })
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    ShellDivider()
+                }
+                SkillMarkdown(blocks: document.blocks)
+            } else if unreadable {
+                QuietLine("Its SKILL.md could not be read here, so import it and read it in the hub.")
+            } else {
+                ProgressView().controlSize(.small)
+            }
+        } footer: {
+            Button("Close", action: close).buttonStyle(KitButton(kind: .secondary)).keyboardShortcut(.cancelAction)
+            Spacer(minLength: Memnox.Spacing.medium)
+            Button("Import") {
+                let id = found.id
+                let name = found.name
+                screen.press { await $0.importFound(id: id, name: name) }
+                close()
+            }
+            .buttonStyle(KitButton(kind: .primary))
+            .keyboardShortcut(.defaultAction)
+            .disabled(screen.skills.busy != nil || screen.importing != nil)
+        }
+        .frame(height: Self.height)
+        .task(id: found.id) { read() }
+    }
+
+    /// The agent's own file, read as it is on disk; nothing here writes to it.
+    private func read() {
+        guard let text = try? String(contentsOfFile: SkillSearch.instructionsFile(found), encoding: .utf8) else {
+            unreadable = true
+            return
+        }
+        document = SkillMarkdownReader.document(text)
+    }
+}

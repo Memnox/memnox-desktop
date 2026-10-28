@@ -110,6 +110,21 @@ public final class SkillsHub: @unchecked Sendable {
         return await change(name, request, done: "\(name) is in the hub now.")
     }
 
+    /// Imports each found skill in turn, one request each so the runtime rules on every one, telling `progress` how many
+    /// have answered so far.
+    public func importAll(_ found: [FoundSkillView], progress: @Sendable (Int) async -> Void = { _ in }) async -> ImportResults {
+        var results = ImportResults()
+        for (index, each) in found.enumerated() {
+            switch await importFound(id: each.id, name: each.name) {
+            case .done: results.done += 1
+            case .proposed: results.proposed += 1
+            case .failed(let why): results.failed.append(why)
+            }
+            await progress(index + 1)
+        }
+        return results
+    }
+
     public func put(_ draft: SkillDraft) async -> SkillOutcome {
         var request = DaemonRequest(id: ids.next(), method: .skillPut)
         request.skillDraft = draft

@@ -9,6 +9,8 @@ final class SkillsScreen: ObservableObject {
     @Published private(set) var tick = 0
     /// What the last press came to, shown above the page until the next one.
     @Published var note: String?
+    /// Each skill's use and its fixes, nil until the app wires it, which leaves a skill's page without that section.
+    @Published var care: SkillCareScreen?
 
     init(skills: SkillsHub) {
         self.skills = skills
@@ -29,6 +31,30 @@ final class SkillsScreen: ObservableObject {
     func press(_ work: @escaping (SkillsHub) async -> SkillOutcome) {
         Task { said(await work(skills)) }
     }
+
+    /// How far an Import all has come, nil while none runs.
+    @Published private(set) var importing: ImportProgress?
+
+    /// Imports every skill given, one request each, and says in one line what it came to.
+    func importAll(_ found: [FoundSkillView]) {
+        guard importing == nil, !found.isEmpty else { return }
+        importing = ImportProgress(done: 0, total: found.count)
+        Task {
+            let results = await skills.importAll(found) { [weak self] done in await self?.advance(done) }
+            importing = nil
+            note = SkillSearch.imported(results)
+        }
+    }
+
+    private func advance(_ done: Int) {
+        if let total = importing?.total { importing = ImportProgress(done: done, total: total) }
+    }
+}
+
+/// How many of an Import all have answered, of how many.
+struct ImportProgress: Equatable {
+    let done: Int
+    let total: Int
 }
 
 /// The Skills Hub: skills kept once and written into each agent's own format. Giving a skill to an agent and accepting
@@ -65,9 +91,9 @@ struct SkillsDestination: View {
                     MySkills(screen: screen, view: view, current: current, scope: scope, width: width) { assigning = $0 }
                 }
             }
-            .sheet(isPresented: Binding(get: { assigning != nil }, set: { if !$0 { assigning = nil } })) {
+            .consoleSheet(isPresented: Binding(get: { assigning != nil }, set: { if !$0 { assigning = nil } })) {
                 if let skill = view.skills.first(where: { $0.name == assigning }) {
-                    AssignSkillSheet(screen: screen, view: view, skill: skill) { assigning = nil }.consoleLook()
+                    AssignSkillSheet(screen: screen, view: view, skill: skill) { assigning = nil }
                 }
             }
         } else if skills.unreadable {
@@ -83,13 +109,14 @@ private enum SkillsLayout {
     static let searchWidth: CGFloat = 320
     static let logo: CGFloat = 22
     static let smallLogo: CGFloat = 20
-    static let instructionsHeight: CGFloat = 420
     static let column: CGFloat = 96
     /// The wide column takes this much more than the narrow one, as the console sets a skill's page.
     static let leftShare: CGFloat = 1.4
+    static let instructionsPadding: CGFloat = 20
 }
 
-/// Every skill as a card, with search, Sync and New skill above, and what agents already had below.
+/// Every skill as a card, with search, Sync and New skill above, and what agents already had below. One search narrows
+/// both, and each says how many of how many it shows.
 private struct MySkills: View {
     @ObservedObject var screen: SkillsScreen
     let view: SkillsHubView
@@ -100,6 +127,7 @@ private struct MySkills: View {
     @State private var query = ""
     @State private var opened: String?
     @State private var creating = false
+    @State private var previewing: FoundSkillView?
 
     var body: some View {
         Group {
@@ -109,48 +137,60 @@ private struct MySkills: View {
                     SkillDetail(screen: screen, view: view, skill: picked, width: width, back: { opened = nil }) { manage(picked.name) }
                 }
             } else {
-                ShellScroll(width: width) {
-                    NoteBanner(text: screen.note)
-                    toolbar
-                    if scope == .organization {
-                        QuietLine(shown.isEmpty ? ShellLines.noOrganizationItems : ShellLines.organizationReadOnly)
-                    }
-                    if view.skills.isEmpty {
-                        VStack(spacing: Memnox.Spacing.large) {
-                            EmptyState(symbol: "sparkles", title: "No skills in the hub yet",
-                                       detail: "Write a skill once and give it to any agent, or bring in one an agent already has from Found on this computer below.")
-                            Button { creating = true } label: { Label("New skill", systemImage: "plus") }
-                                .buttonStyle(KitButton(kind: .primary))
-                        }
-                    } else {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: SkillsLayout.cardWidth), spacing: Memnox.Spacing.large)],
-                                  spacing: Memnox.Spacing.large) {
-                            ForEach(shown) { skill in
-                                SkillCard(screen: screen, skill: skill, view: { opened = skill.name }) { manage(skill.name) }
-                            }
-                        }
-                    }
-                    SkillsFound(screen: screen, view: view)
-                }
+                list
             }
         }
-        .sheet(isPresented: $creating) {
-            NewSkillSheet(screen: screen) { creating = false }.consoleLook()
+        .consoleSheet(isPresented: $creating) {
+            NewSkillSheet(screen: screen) { creating = false }
+        }
+        .consoleSheet(item: $previewing) { found in
+            FoundSkillSheet(screen: screen, found: found, label: labelOf(view, found.agent)) { previewing = nil }
         }
     }
 
-    private var shown: [SkillView] {
-        // The switcher's project and the scope selector narrow the hub before the search does.
+    private var list: some View {
+        let label: (String) -> String = { labelOf(view, $0) }
+        let searching = SkillSearch.words(query) != nil
+        let scoped = inScope
+        let hub = SkillSearch.hub(scoped, query, label: label)
+        let found = SkillSearch.found(view.found, query, label: label)
+        let foundTotal = view.found.filter { !$0.imported }.count
+        return ShellScroll(width: width) {
+            NoteBanner(text: screen.note)
+            toolbar
+            if scope == .organization {
+                QuietLine(scoped.isEmpty ? ShellLines.noOrganizationItems : ShellLines.organizationReadOnly)
+            }
+            if searching {
+                QuietLine("\(SkillSearch.counted(shown: hub.count, of: scoped.count, searching: true)) in the hub, \(SkillSearch.counted(shown: found.count, of: foundTotal, searching: true)) found on this computer")
+            }
+            if hub.isEmpty, searching {
+                EmptyState(symbol: "magnifyingglass", title: SkillSearch.noMatch(query),
+                           detail: SkillSearch.noMatchDetail(foundMatching: found.count))
+            } else if view.skills.isEmpty {
+                EmptyState(symbol: "sparkles", title: "No skills in the hub yet",
+                           detail: "Write one with New skill and give it to any agent, or import one an agent already has from Found on this computer below.")
+            } else if !hub.isEmpty {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: SkillsLayout.cardWidth), spacing: Memnox.Spacing.large)],
+                          spacing: Memnox.Spacing.large) {
+                    ForEach(hub) { skill in
+                        SkillCard(screen: screen, skill: skill, view: { opened = skill.name }) { manage(skill.name) }
+                    }
+                }
+            }
+            SkillsFound(screen: screen, view: view, found: found, total: foundTotal, searching: searching) { previewing = $0 }
+        }
+    }
+
+    /// The switcher's project and the scope selector narrow the hub before the search does.
+    private var inScope: [SkillView] {
         let inProject = ShellLines.skillsShown(view.skills, current: current)
-        let scoped = ShellLines.inScope(inProject, scope) { ScopeLines.skill($0) == .organization }
-        let words = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !words.isEmpty else { return scoped }
-        return scoped.filter { "\($0.name) \($0.description) \($0.category ?? "")".lowercased().contains(words) }
+        return ShellLines.inScope(inProject, scope) { ScopeLines.skill($0) == .organization }
     }
 
     private var toolbar: some View {
         HStack(spacing: Memnox.Spacing.regular) {
-            SearchField(prompt: "Search skills", text: $query).frame(maxWidth: SkillsLayout.searchWidth)
+            SearchField(prompt: "Search skills and what agents have", text: $query).frame(maxWidth: SkillsLayout.searchWidth)
             Spacer(minLength: Memnox.Spacing.medium)
             Button { screen.press { await $0.sync() } } label: { Label("Sync", systemImage: "arrow.clockwise") }
                 .buttonStyle(KitButton(kind: .secondary))
@@ -268,20 +308,13 @@ private struct SkillDetail: View {
                 .foregroundStyle(Memnox.Console.foreground)
                 .fixedSize(horizontal: false, vertical: true)
             ShellSection(title: "Instructions") {
-                ScrollView {
-                    Text(skill.instructions)
-                        .font(Memnox.Console.code(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Console.foreground)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                        .padding(ShellMetrics.rowPaddingH)
-                }
-                .frame(maxHeight: SkillsLayout.instructionsHeight)
-                .fixedSize(horizontal: false, vertical: true)
+                SkillMarkdown(blocks: SkillMarkdownReader.parse(skill.instructions))
+                .padding(SkillsLayout.instructionsPadding)
                 .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
                     .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             }
+            if let care = screen.care { SkillCareSection(care: care, screen: screen, skill: skill) }
             FactList(facts: [
                 ("Version", skill.version),
                 ("Publisher", skill.publisher ?? "You"),
@@ -420,7 +453,8 @@ private struct SkillDetail: View {
     }
 }
 
-/// Removing only narrows, so it is done at once; a second press confirms, since its kept versions go with it.
+/// Removing only narrows, so it is done at once once the console's confirm is answered, since its kept versions go
+/// with it.
 private struct RemoveSkill: View {
     @ObservedObject var screen: SkillsScreen
     let skill: SkillView
@@ -430,15 +464,16 @@ private struct RemoveSkill: View {
     var body: some View {
         ShellSection(title: "Remove") {
             QuietLine("Takes \(skill.name) out of the hub and out of every agent it was given to, with every version kept of it.")
-            HStack(spacing: Memnox.Spacing.medium) {
-                if confirming {
-                    Button("Remove \(skill.name)", systemImage: "trash", action: remove)
-                        .buttonStyle(KitButton(kind: .primary))
-                        .disabled(screen.skills.busy == skill.name)
-                    Button("Cancel") { confirming = false }.buttonStyle(KitButton(kind: .secondary))
-                } else {
-                    Button("Remove skill", systemImage: "trash") { confirming = true }.buttonStyle(KitButton(kind: .secondary))
-                }
+            Button("Remove skill", systemImage: "trash") { confirming = true }
+                .buttonStyle(KitButton(kind: .secondary))
+                .disabled(screen.skills.busy == skill.name)
+        }
+        .consoleSheet(isPresented: $confirming) {
+            ConsoleConfirm(symbol: "trash", title: "Remove \(skill.name)?",
+                           message: "It leaves the hub and every agent it was given to, and every version kept of it goes too.",
+                           confirm: "Remove skill", cancel: { confirming = false }) {
+                confirming = false
+                remove()
             }
         }
     }
@@ -487,31 +522,133 @@ private func labelOf(_ view: SkillsHubView, _ agent: String) -> String {
     view.agents.first { $0.agent == agent }?.label ?? McpHubLines.agentLabel(agent)
 }
 
-/// Skills an agent already had in its own folder, offered to bring in and never touched until then.
+/// Skills an agent already had in its own folder, offered to bring in and never touched until then: grouped by agent,
+/// each group cut to a few rows until Show all, with one Import all for every row the search leaves.
 private struct SkillsFound: View {
     @ObservedObject var screen: SkillsScreen
     let view: SkillsHubView
+    /// What the search leaves, not yet in the hub.
+    let found: [FoundSkillView]
+    /// Everything not yet in the hub, before the search.
+    let total: Int
+    let searching: Bool
+    let preview: (FoundSkillView) -> Void
+    @State private var expanded: Set<String> = []
 
     var body: some View {
-        let waiting = view.found.filter { !$0.imported }
-        if !waiting.isEmpty {
-            ShellSection(title: "Found on this computer \u{00B7} \(waiting.count)") {
-                ShellPanel {
-                    ForEach(Array(waiting.enumerated()), id: \.element.id) { index, found in
-                        if index > 0 { ShellDivider() }
-                        let label = labelOf(view, found.agent)
-                        ShellRow(title: found.name, caption: "\(label) \u{00B7} \(found.grant) \u{00B7} \(found.path)") {
-                            BrandLogo(agent: found.agent, name: label, size: SkillsLayout.logo)
-                        } trailing: {
-                            Button("Import") { screen.press { await $0.importFound(id: found.id, name: found.name) } }
-                                .buttonStyle(KitButton(kind: .secondary))
-                                .disabled(screen.skills.busy == found.name)
-                        }
-                    }
+        if total > 0 {
+            ShellSection(title: "Found on this computer \u{00B7} \(SkillSearch.counted(shown: found.count, of: total, searching: searching))") {
+                importAll
+            } content: {
+                if found.isEmpty {
+                    QuietLine("Nothing an agent already has matches that search.")
+                } else {
+                    ForEach(SkillSearch.grouped(found) { labelOf(view, $0) }, id: \.agent) { each in agentGroup(each) }
                 }
                 QuietLine("Importing a skill keeps it once in the hub, with its files, so it can be given to any agent in that agent\u{2019}s own format.")
             }
         }
+    }
+
+    @ViewBuilder private var importAll: some View {
+        if let progress = screen.importing {
+            HStack(spacing: Memnox.Spacing.medium) {
+                ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
+                    .frame(width: FoundLayout.progressWidth)
+                Text(SkillSearch.importing(done: progress.done, of: progress.total))
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote).monospacedDigit())
+                    .foregroundStyle(Memnox.Console.muted)
+            }
+            .accessibilityElement(children: .combine)
+        } else if !found.isEmpty {
+            Button(SkillSearch.importAllTitle(found.count, searching: searching), systemImage: "square.and.arrow.down.on.square") {
+                screen.importAll(found)
+            }
+            .buttonStyle(KitButton(kind: .primary))
+            .disabled(screen.skills.busy != nil)
+            .help("Imports each one in turn; any that reaches further than reading its folder waits for your signature on the island")
+        }
+    }
+
+    private func agentGroup(_ group: FoundSkillGroup) -> some View {
+        let open = searching || expanded.contains(group.agent)
+        let rows = open ? group.skills : Array(group.skills.prefix(SkillSearch.collapsedRows))
+        let hidden = group.skills.count - rows.count
+        return VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+            HStack(spacing: Memnox.Spacing.regular) {
+                BrandLogo(agent: group.agent, name: group.label, size: SkillsLayout.smallLogo)
+                Text(group.label)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
+                Text("\(group.skills.count)")
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote).monospacedDigit())
+                    .foregroundStyle(Memnox.Console.muted)
+                Spacer(minLength: Memnox.Spacing.medium)
+            }
+            .accessibilityElement(children: .combine)
+            ShellPanel {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, each in
+                    if index > 0 { ShellDivider() }
+                    FoundRow(screen: screen, found: each) { preview(each) }
+                }
+                if hidden > 0 || (expanded.contains(group.agent) && !searching && group.skills.count > SkillSearch.collapsedRows) {
+                    ShellDivider()
+                    Button(hidden > 0 ? "Show all \(group.skills.count)" : "Show fewer") {
+                        if hidden > 0 { expanded.insert(group.agent) } else { expanded.remove(group.agent) }
+                    }
+                    .buttonStyle(QuietButton())
+                    .padding(.horizontal, ShellMetrics.rowPaddingH)
+                    .padding(.vertical, ShellMetrics.rowPaddingV)
+                }
+            }
+        }
+    }
+}
+
+private enum FoundLayout {
+    static let progressWidth: CGFloat = 120
+}
+
+/// One skill an agent has: its name, its folder from ~ cut in the middle so both ends read, what it uses when it says,
+/// and View and Import at its end. The row itself opens its SKILL.md.
+private struct FoundRow: View {
+    @ObservedObject var screen: SkillsScreen
+    let found: FoundSkillView
+    let open: () -> Void
+
+    var body: some View {
+        HStack(spacing: Memnox.Spacing.large) {
+            Button(action: open) {
+                VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
+                    Text(found.name)
+                        .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
+                        .foregroundStyle(Memnox.Console.foreground)
+                        .lineLimit(1)
+                    HStack(spacing: Memnox.Spacing.small) {
+                        Text(SkillSearch.shortPath(found.path, home: NSHomeDirectory()))
+                            .font(Memnox.Console.code(Memnox.Console.TextSize.label))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if let reach = SkillSearch.reach(found) {
+                            Text("\u{00B7} \(reach)").lineLimit(1)
+                        }
+                    }
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                    .foregroundStyle(Memnox.Console.muted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PressDip())
+            .help(found.path)
+            .accessibilityLabel("Read \(found.name)")
+            Button("View", action: open).buttonStyle(KitButton(kind: .secondary))
+            Button("Import") { screen.press { await $0.importFound(id: found.id, name: found.name) } }
+                .buttonStyle(KitButton(kind: .secondary))
+                .disabled(screen.skills.busy != nil || screen.importing != nil)
+        }
+        .padding(.horizontal, ShellMetrics.rowPaddingH)
+        .padding(.vertical, ShellMetrics.rowPaddingV)
     }
 }
 

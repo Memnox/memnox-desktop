@@ -5,6 +5,7 @@ public struct MemoryUnreadable: Equatable, Sendable {
     public var sources = false
     public var learn = false
     public var facts = false
+    public var workspace = false
 }
 
 /// Memory as the runtime keeps it: the sources a person pointed it at, the Learn queue read out of them, and the facts
@@ -24,6 +25,9 @@ public final class Memory: @unchecked Sendable {
     private var failed = MemoryUnreadable()
     private var busyWith: String?
     private var searched: MemorySearch?
+    private var pulled: WorkspaceMemoryView?
+    private var drawn: WorkspaceGraphView?
+    private var joinedNow: Bool?
 
     /// Told after anything here changed, on whatever thread that happened.
     public var changed: (@Sendable () -> Void)?
@@ -43,6 +47,14 @@ public final class Memory: @unchecked Sendable {
     public var unreadable: MemoryUnreadable { lock.withLock { failed } }
     /// How the last search was answered, by keyword or by meaning, and why it fell back; nil when the list is no search.
     public var search: MemorySearch? { lock.withLock { searched } }
+
+    /// What the workspace settled and its tools said, as this machine last pulled it; nil where none was pulled.
+    public var workspace: WorkspaceMemoryView? { lock.withLock { pulled } }
+    /// The workspace's graph as the console draws it, read live by the runtime, or its saved facts with why; nil from a
+    /// runtime too old to answer it, where the pulled memory alone is drawn.
+    public var workspaceGraph: WorkspaceGraphView? { lock.withLock { drawn } }
+    /// Whether this machine is joined to a workspace, nil until the runtime has said.
+    public var joined: Bool? { lock.withLock { joinedNow } }
 
     /// The source or item a press is still working on, so its controls can say so.
     public var busy: String? { lock.withLock { busyWith } }
@@ -66,6 +78,25 @@ public final class Memory: @unchecked Sendable {
         lock.withLock {
             failed.learn = response?.ok != true
             take(response)
+        }
+        changed?()
+    }
+
+    /// Reads the workspace's memory as this machine last pulled it, its live graph, and whether it is joined to one, all
+    /// off the runtime: this app never reaches the cloud itself, and nothing local goes up with the read. `fresh` asks the
+    /// runtime to read the cloud again now, as a press on Refresh does.
+    public func refreshWorkspace(fresh: Bool = false) async {
+        let memory = await ask(DaemonRequest(id: ids.next(), method: .workspaceMemory))
+        var asked = DaemonRequest(id: ids.next(), method: .workspaceGraph)
+        if fresh { asked.workspaceGraphFresh = true }
+        let graph = await ask(asked)
+        let machine = await ask(DaemonRequest(id: ids.next(), method: .machine))
+        lock.withLock {
+            failed.workspace = memory?.ok != true
+            if memory?.ok == true { pulled = memory?.workspaceMemory }
+            // A graph that could not be read keeps the last one rather than blanking the picture.
+            if graph?.ok == true, let view = graph?.workspaceGraph { drawn = view }
+            if let standing = machine?.machine { joinedNow = standing.signedIn }
         }
         changed?()
     }

@@ -29,6 +29,60 @@ final class MemoryTests: XCTestCase {
         XCTAssertFalse(gone.unreadable.sources)
     }
 
+    func testReadsTheWorkspacePullAndWhetherThisMacIsJoinedOffTheRuntime() async throws {
+        let link = ScriptedLink()
+        link.answers["workspace-memory"] = [try line(#"{"id":1,"ok":true,"workspaceMemory":{"hash":"h","facts":[{"id":"f1","kind":"decision","statement":"Retry three times.","subject":"payments","verifiedBy":"Ben"}],"unconfirmed":[{"id":"c1","kind":"decision","statement":"Ship Monday.","subject":"beta","standing":"candidate","approved":false,"sources":["slack"],"saidBy":["Cara"],"untrusted":true}],"withheld":1,"syncedAt":"2026-10-30T12:00:00Z"}}"#)]
+        link.answers["machine"] = [try line(#"{"id":2,"ok":true,"machine":{"signedIn":true,"name":"Acme"}}"#)]
+        let memory = Memory(link: link)
+        await memory.refreshWorkspace()
+        XCTAssertEqual(link.sent.map(\.method), ["workspace-memory", "workspace-graph", "machine"])
+        XCTAssertEqual(memory.workspace?.facts.first?.verifiedBy, "Ben")
+        XCTAssertEqual(memory.workspace?.unconfirmed.first?.saidBy, ["Cara"])
+        XCTAssertEqual(memory.workspace?.unconfirmed.first?.untrusted, true)
+        XCTAssertEqual(memory.workspace?.withheld, 1)
+        XCTAssertEqual(memory.joined, true)
+        XCTAssertFalse(memory.unreadable.workspace)
+
+        let never = ScriptedLink()
+        never.answers["workspace-memory"] = [try line(#"{"id":1,"ok":true}"#)]
+        never.answers["machine"] = [try line(#"{"id":2,"ok":true,"machine":{"signedIn":false}}"#)]
+        let fresh = Memory(link: never)
+        await fresh.refreshWorkspace()
+        XCTAssertNil(fresh.workspace)
+        XCTAssertEqual(fresh.joined, false)
+
+        let down = ScriptedLink()
+        down.unreachable = true
+        let gone = Memory(link: down)
+        await gone.refreshWorkspace()
+        XCTAssertTrue(gone.unreadable.workspace)
+        XCTAssertNil(gone.joined)
+    }
+
+    func testReadsTheLiveGraphOffTheRuntimeAndAsksFreshOnlyOnRefresh() async throws {
+        let link = ScriptedLink()
+        link.answers["workspace-memory"] = [try line(#"{"id":1,"ok":true}"#)]
+        let graph = #"{"id":2,"ok":true,"workspaceGraph":{"nodes":[{"id":"item:ev1","kind":"document","label":"Beta on Monday","tool":"slack","count":21,"weight":3},{"id":"x","kind":"martian","label":"?","weight":0},{"kind":"broken"}],"links":[{"from":"source:slack","to":"item:ev1","kind":"carries"}],"withheld":2,"truncated":false,"source":"live","readAt":"2026-11-01T09:00:00Z"}}"#
+        link.answers["workspace-graph"] = [try line(graph)]
+        link.answers["machine"] = [try line(#"{"id":3,"ok":true,"machine":{"signedIn":true}}"#)]
+        let memory = Memory(link: link)
+
+        await memory.refreshWorkspace()
+        XCTAssertEqual(memory.workspaceGraph?.graphSource, .live)
+        XCTAssertEqual(memory.workspaceGraph?.withheld, 2)
+        // An unknown kind is kept as sent and read as nil; a node missing its id is dropped alone.
+        XCTAssertEqual(memory.workspaceGraph?.nodes.map(\.id), ["item:ev1", "x"])
+        XCTAssertNil(memory.workspaceGraph?.nodes.last?.nodeKind)
+        XCTAssertEqual(memory.workspaceGraph?.nodes.first?.count, 21)
+        XCTAssertNil(link.sent[1].workspaceGraphFresh)
+
+        link.answers["workspace-graph"] = [try line(#"{"id":5,"ok":false,"error":"no"}"#)]
+        await memory.refreshWorkspace(fresh: true)
+        XCTAssertEqual(link.sent[4].workspaceGraphFresh, true)
+        // A refused read keeps the last picture rather than blanking it.
+        XCTAssertEqual(memory.workspaceGraph?.nodes.first?.id, "item:ev1")
+    }
+
     func testListsByStatusAndScopeAndSearchesWhenWordsAreTyped() async throws {
         let link = ScriptedLink()
         link.answers["memory-facts"] = [try line(#"{"id":1,"ok":true,"memoryFacts":{"items":["# + Self.item("v", status: "verified") + #"],"more":2}}"#)]

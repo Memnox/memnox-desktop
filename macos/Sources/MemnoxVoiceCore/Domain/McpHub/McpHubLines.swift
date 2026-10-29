@@ -7,6 +7,16 @@ public enum McpTone: Equatable, Sendable {
     case quiet
 }
 
+/// Where one press on the hub stands, said in its own row rather than at the top of a page the person may not be looking at.
+public enum McpPress: Equatable, Sendable {
+    /// With the runtime now.
+    case working
+    /// Proposed, and waiting for the person's signature on the island, with what the runtime said about it.
+    case waiting(String?)
+    case done(String)
+    case failed(String)
+}
+
 /// A secret named across the hub, with every server that uses it and whether this computer holds it.
 public struct HubSecret: Equatable, Sendable {
     public let name: String
@@ -44,6 +54,19 @@ public enum McpHubLines {
     public static func agents(_ count: Int) -> String {
         if count == 0 { return "Given to no agent yet" }
         return count == 1 ? "Given to 1 agent" : "Given to \(count) agents"
+    }
+
+    /// The pill a card wears beside its name: reached over the network or started on this computer.
+    public static func transport(_ server: McpHubServerView) -> String {
+        server.hubTransport == .http ? "Remote" : "Local"
+    }
+
+    /// Which agents use a server, by name: "Claude Code and Cursor", or that none was given it yet.
+    public static func usedBy(_ server: McpHubServerView) -> String {
+        let names = agentsOnce(server).map(agentLabel)
+        guard let last = names.last else { return agents(0) }
+        if names.count == 1 { return last }
+        return "\(names.dropLast().joined(separator: ", ")) and \(last)"
     }
 
     /// What one card says under the name: how it is reached, without the arguments, which can be long.
@@ -123,6 +146,39 @@ public enum McpHubLines {
         if parts.isEmpty { return "Every agent already has what the hub gives it." }
         let files = synced.files.count == 1 ? "1 config" : "\(synced.files.count) configs"
         return "Wrote \(files): \(parts.joined(separator: ", "))."
+    }
+
+    /// Said in a row while its change waits on the island, since a press there otherwise seems to do nothing.
+    public static let waitingForTouchID = "Waiting for Touch ID on the island"
+    /// Said once a proposal stopped waiting and the hub does not show it written: declined, or run out.
+    public static let notSigned = "Not signed, so nothing changed."
+
+    /// The words a row shows for where its last press stands, and their tone; nothing while none was made.
+    public static func pressLine(_ press: McpPress?) -> (text: String, tone: McpTone)? {
+        switch press {
+        case nil, .working?: return nil
+        case .waiting(let note)?: return ([waitingForTouchID, note].compactMap { $0 }.joined(separator: ". "), .quiet)
+        case .done(let line)?: return (line, .good)
+        case .failed(let why)?: return (why, .bad)
+        }
+    }
+
+    /// What the page says after a server is added: who it waits on, what will run, and who gets it once signed.
+    public static func added(_ press: McpPress?, server: String, agents: [String]) -> String? {
+        guard case .waiting(let note)? = press else { return pressLine(press)?.text }
+        var parts = ["\(server) waits for Touch ID on the island"]
+        if let note { parts.append(sentence(note)) }
+        let names = agents.map(agentLabel)
+        if let last = names.last {
+            let who = names.count == 1 ? last : "\(names.dropLast().joined(separator: ", ")) and \(last)"
+            parts.append("Once it is signed, giving it to \(who) asks for Touch ID again")
+        }
+        return parts.joined(separator: ". ") + "."
+    }
+
+    /// A line without the full stop it may already carry, so two joined never read "..".
+    private static func sentence(_ line: String) -> String {
+        line.hasSuffix(".") ? String(line.dropLast()) : line
     }
 
     /// Why a line the hub wrote is left alone, in the person's terms.

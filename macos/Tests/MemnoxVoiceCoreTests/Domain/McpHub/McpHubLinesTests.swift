@@ -53,6 +53,14 @@ final class McpHubLinesTests: XCTestCase {
         return try JSONDecoder().decode(McpHubServerView.self, from: Data(json.utf8))
     }
 
+    func testNamesTheAgentsThatUseAServerOnceEach() throws {
+        XCTAssertEqual(McpHubLines.usedBy(try server("")), "Claude Code and Cursor")
+        let none = try JSONDecoder().decode(McpHubServerView.self, from: Data(#"{"name":"x","transport":"http","envNames":[],"governed":false,"toolCount":0,"health":{"state":"unknown"},"agents":[],"secretsHeld":{},"callsThisWeek":0}"#.utf8))
+        XCTAssertEqual(McpHubLines.usedBy(none), "Given to no agent yet")
+        XCTAssertEqual(McpHubLines.transport(none), "Remote")
+        XCTAssertEqual(McpHubLines.transport(try server("")), "Local")
+    }
+
     func testNamesTheRepositoryAnAgentWasGivenAServerIn() throws {
         let given = try server(#","projects":[{"agent":"claude-code","project":"/Users/bo/code/billing"}]"#)
         XCTAssertEqual(McpHubLines.projects(given, agent: "claude-code"),
@@ -91,5 +99,20 @@ final class McpHubLinesTests: XCTestCase {
         XCTAssertEqual(McpHubLines.giveEverywhere, "Give in every project")
         XCTAssertEqual(McpHubLines.projectOnlyLine,
                        "A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Workspaces, and giving it here gives it in every project.")
+    }
+
+    func testAPressIsSaidInItsRowWaitingDoneOrRefused() {
+        XCTAssertNil(McpHubLines.pressLine(nil))
+        XCTAssertNil(McpHubLines.pressLine(.working))
+        XCTAssertEqual(McpHubLines.pressLine(.waiting(nil))?.text, "Waiting for Touch ID on the island")
+        XCTAssertEqual(McpHubLines.pressLine(.failed("No."))?.tone, .bad)
+        XCTAssertEqual(McpHubLines.pressLine(.done("Given."))?.tone, .good)
+    }
+
+    func testAnAddedServerSaysWhatWaitsWhatRunsAndWhoIsAskedForNext() {
+        let line = McpHubLines.added(.waiting("pip install comfy-mcp only installs comfy-mcp, so the hub starts it with uvx comfy-mcp."),
+                                     server: "comfyui", agents: ["cursor", "claude-code"])
+        XCTAssertEqual(line, "comfyui waits for Touch ID on the island. pip install comfy-mcp only installs comfy-mcp, so the hub starts it with uvx comfy-mcp. Once it is signed, giving it to Cursor and Claude Code asks for Touch ID again.")
+        XCTAssertEqual(McpHubLines.added(.waiting(nil), server: "github", agents: []), "github waits for Touch ID on the island.")
     }
 }

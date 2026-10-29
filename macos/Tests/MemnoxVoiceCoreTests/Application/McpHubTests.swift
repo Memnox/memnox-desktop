@@ -48,7 +48,7 @@ final class McpHubTests: XCTestCase {
         link.answers["mcp-assign"] = [try line(#"{"id":1,"ok":true}"#)]
         let hub = McpHub(link: link)
         let outcome = await hub.assign("github", agent: "cursor", on: false)
-        XCTAssertEqual(outcome, .done("cursor no longer has github."))
+        XCTAssertEqual(outcome, .done("Cursor no longer has github."))
     }
 
     func testPassesOnTheRuntimesRefusalInItsOwnWords() async throws {
@@ -92,5 +92,71 @@ final class McpHubTests: XCTestCase {
         let assigned = link.sent.filter { $0.method == "mcp-assign" }
         XCTAssertEqual(assigned.count, 1)
         XCTAssertEqual(assigned.first?.mcpAgent, "codex-cli")
+    }
+
+    private static let comfyui = HubServer(name: "comfyui", transport: .stdio, command: "pip", args: ["install", "comfy-mcp"],
+                                           env: [:], secrets: [:])
+
+    private static func hubWith(_ servers: String) -> String {
+        #"{"servers":["# + servers + #"],"agents":[{"agent":"cursor","path":"/home/me/.cursor/mcp.json"}],"found":[],"drifted":[],"skipped":[]}"#
+    }
+
+    private static func comfyuiView(agents: [String]) -> String {
+        let given = agents.map { "\"\($0)\"" }.joined(separator: ",")
+        return #"{"name":"comfyui","transport":"stdio","command":"uvx","args":["comfy-mcp"],"envNames":[],"governed":true,"toolCount":0,"health":{"state":"unknown"},"agents":["# + given + #"],"secretsHeld":{},"callsThisWeek":0}"#
+    }
+
+    func testAServerAddedIsGivenToItsAgentsOnceTheIslandSignsItAndTheDaemonSaysItSettled() async throws {
+        let link = ScriptedLink()
+        link.answers["mcp-server-put"] = [try line(#"{"id":1,"ok":true,"proposed":"prp_put","outcome":"pip install comfy-mcp only installs comfy-mcp, so the hub starts it with uvx comfy-mcp, which installs it the first time it starts."}"#)]
+        let hub = McpHub(link: link)
+        let outcome = await hub.putServer(Self.comfyui, giveTo: ["cursor"])
+        XCTAssertEqual(outcome, .proposed("prp_put"))
+        guard case .waiting(let note)? = hub.press("comfyui") else { return XCTFail("the row says it waits on the island") }
+        XCTAssertTrue(note?.contains("uvx comfy-mcp") == true)
+        XCTAssertTrue(link.sent.filter { $0.method == "mcp-assign" }.isEmpty)
+
+        link.answers["mcp-hub"] = [try line(#"{"id":2,"ok":true,"mcpHub":"# + Self.hubWith(Self.comfyuiView(agents: [])) + "}")]
+        link.answers["mcp-assign"] = [try line(#"{"id":3,"ok":true,"proposed":"prp_give"}"#)]
+        await hub.settled("prp_put")
+        XCTAssertEqual(hub.press("comfyui"), .done("comfyui is in the hub."))
+        let assigned = link.sent.filter { $0.method == "mcp-assign" }
+        XCTAssertEqual(assigned.map(\.mcpAgent), ["cursor"])
+        XCTAssertEqual(assigned.first?.mcpServerName, "comfyui")
+        XCTAssertEqual(hub.press(McpHub.pair("comfyui", "cursor")), .waiting(nil))
+
+        link.answers["mcp-hub"] = [try line(#"{"id":4,"ok":true,"mcpHub":"# + Self.hubWith(Self.comfyuiView(agents: ["cursor"])) + "}")]
+        await hub.settled("prp_give")
+        XCTAssertEqual(hub.press(McpHub.pair("comfyui", "cursor")), .done("Cursor has comfyui now."))
+    }
+
+    func testAProposalThatSettlesWithoutBeingWrittenSaysSoAndGivesNothing() async throws {
+        let link = ScriptedLink()
+        link.answers["mcp-server-put"] = [try line(#"{"id":1,"ok":true,"proposed":"prp_put"}"#)]
+        let hub = McpHub(link: link)
+        _ = await hub.putServer(Self.comfyui, giveTo: ["cursor"])
+        link.answers["mcp-hub"] = [try line(#"{"id":2,"ok":true,"mcpHub":"# + Self.hubWith("") + "}")]
+        await hub.settled("prp_put")
+        XCTAssertEqual(hub.press("comfyui"), .failed(McpHubLines.notSigned))
+        link.answers["mcp-hub"] = [try line(#"{"id":3,"ok":true,"mcpHub":"# + Self.hubWith(Self.comfyuiView(agents: [])) + "}")]
+        await hub.refresh()
+        XCTAssertTrue(link.sent.filter { $0.method == "mcp-assign" }.isEmpty)
+    }
+
+    func testASettledEventForSomethingElseReadsNothing() async throws {
+        let link = ScriptedLink()
+        let hub = McpHub(link: link)
+        await hub.settled("prp_other")
+        XCTAssertTrue(link.sent.isEmpty)
+    }
+
+    func testAnImportIsKeptUnderItsFoundLineAndARefusalIsSaidThere() async throws {
+        let link = ScriptedLink()
+        link.answers["mcp-import"] = [try line(#"{"id":1,"ok":false,"error":"The hub already has a different server named notion."}"#)]
+        let hub = McpHub(link: link)
+        _ = await hub.importServer(agent: "cursor", server: "notion")
+        XCTAssertEqual(hub.press(McpHub.found("notion", "cursor")), .failed("The hub already has a different server named notion."))
+        XCTAssertNil(hub.press("notion"))
+        XCTAssertNil(hub.busy)
     }
 }

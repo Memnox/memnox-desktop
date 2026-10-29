@@ -133,6 +133,7 @@ struct AddServerSheet: View {
                     .kitField()
                     .font(Memnox.Console.code(Memnox.TextSize.body))
             }
+            quiet("The command that starts it. An install such as pip install or npm install is fine too: Memnox starts it with the runner that installs it.")
         }
     }
 
@@ -336,14 +337,15 @@ struct AddServerSheet: View {
                 return
             }
         }
-        let outcome = await hub.putServer(server)
+        // Each agent is asked for once the person has signed the server in, one signature each, by the name the hub keeps.
+        let chosen = agents.filter(given.contains)
+        let outcome = await hub.putServer(server, giveTo: chosen)
         if case .failed(let why) = outcome {
             problem = why
             return
         }
-        screen.said(outcome)
-        // Each agent is asked for once the person has signed the server in, one signature each.
-        hub.giveOnceAdded(server.name, agents: agents.filter(given.contains))
+        // What waits, what will run in place of an install, and who is asked for next, said on the page the sheet leaves.
+        screen.note = McpHubLines.added(hub.press(server.name), server: server.name, agents: chosen)
         close()
     }
 

@@ -19,7 +19,7 @@ final class McpHubScreen: ObservableObject {
 
     func said(_ outcome: McpHubOutcome) {
         switch outcome {
-        case .proposed: note = "Waiting for you on the island: confirm it with Touch ID and the runtime writes it."
+        case .proposed: note = "\(McpHubLines.waitingForTouchID): confirm it there and the runtime writes it."
         case .failed(let why): note = why
         case .done(let line): note = line
         }
@@ -53,9 +53,8 @@ struct McpHubDestination: View {
 
     var body: some View {
         page
+            // A proposal signed or declined on the island is read back by the hub itself, from the daemon's settled event.
             .task(id: tab) { await screen.hub.refresh() }
-            // A signed or declined proposal leaves the island, and the hub is read again so it shows what was written.
-            .onChange(of: island.waiting.count) { Task { await screen.hub.refresh() } }
     }
 
     @ViewBuilder private var page: some View {
@@ -94,7 +93,8 @@ struct McpHubDestination: View {
 }
 
 private enum McpServersLayout {
-    static let cardWidth: CGFloat = 260
+    /// The narrowest a server card reads well at: its name beside the transport pill, and its status row whole.
+    static let cardWidth: CGFloat = 300
     static let searchWidth: CGFloat = 320
 }
 
@@ -125,11 +125,8 @@ private struct McpServers<Note: View>: View {
                             .buttonStyle(KitButton(kind: .primary))
                     }
                 } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: McpServersLayout.cardWidth), spacing: Memnox.Spacing.large)],
-                              spacing: Memnox.Spacing.large) {
-                        ForEach(shown) { server in
-                            McpServerCard(server: server, chosen: server.name == shell.inspecting) { shell.inspecting = server.name }
-                        }
+                    EqualRowsGrid(items: shown, cardWidth: McpServersLayout.cardWidth) { server in
+                        McpServerCard(screen: screen, server: server, chosen: server.name == shell.inspecting) { shell.inspecting = server.name }
                     }
                 }
                 McpFound(screen: screen, view: view)
@@ -140,8 +137,8 @@ private struct McpServers<Note: View>: View {
                 McpServerDetail(screen: screen, view: view, server: picked, workspaces: { shell.go(WindowRoute(.workspaces, tab: "projects")) }) { shell.inspecting = nil }
             }
         }
-        .sheet(isPresented: $adding) {
-            AddServerSheet(screen: screen, agents: view.agents.map(\.agent)) { adding = false }.consoleLook()
+        .consoleSheet(isPresented: $adding) {
+            AddServerSheet(screen: screen, agents: view.agents.map(\.agent)) { adding = false }
         }
     }
 
@@ -167,86 +164,212 @@ private struct McpServers<Note: View>: View {
     }
 }
 
+/// One server as a card: its name and transport on top, how it is reached in mono, a calm status row with Test, then
+/// the agents by logo beside Governed. Every pill keeps its words whole, and a row too narrow drops what matters least
+/// rather than squeezing a word. The card is not itself a button, so Test is its own press; a tap elsewhere opens details.
 private struct McpServerCard: View {
+    @ObservedObject var screen: McpHubScreen
     let server: McpHubServerView
     let chosen: Bool
     let pick: () -> Void
 
-    private static let logo: CGFloat = 20
-    private static let overlap: CGFloat = -6
+    private static let logo: CGFloat = 18
+    private static let overlap: CGFloat = -5
     private static let ring: CGFloat = 2
+    /// The most logos a card stacks before the names beside them carry the rest.
+    private static let logosShown = 4
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
-        let health = McpHubLines.health(server.health)
-        let missing = McpHubLines.missingSecrets(server)
-        Button(action: pick) {
-            VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
-                VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
-                    Text(server.name)
-                        .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
-                        .foregroundStyle(Memnox.Console.foreground)
-                        .lineLimit(1)
-                    Text(server.description ?? McpHubLines.launch(server))
-                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Console.muted)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                ShellDivider()
-                HStack(spacing: Memnox.Spacing.large) {
-                    if missing.isEmpty {
-                        StatusWord(Tone(health.tone), health.word)
-                    } else {
-                        StatusWord(.bad, "Needs a secret")
-                    }
-                    Text(server.hubTransport == .http ? "Remote" : "Local")
-                    Text(McpHubLines.tools(server.toolCount))
-                    ScopeChip(ScopeLines.server(server))
-                }
-                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Console.muted)
-                HStack {
-                    if server.agents.isEmpty {
-                        Text(McpHubLines.agents(0))
-                            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                            .foregroundStyle(Memnox.Console.muted)
-                    } else {
-                        HStack(spacing: Self.overlap) {
-                            ForEach(McpHubLines.agentsOnce(server), id: \.self) { agent in
-                                BrandLogo(agent: agent, name: McpHubLines.agentLabel(agent), size: Self.logo)
-                                    .overlay(RoundedRectangle(cornerRadius: Self.logo / 4, style: .continuous)
-                                        .strokeBorder(Memnox.Console.card, lineWidth: Self.ring))
-                            }
-                        }
-                        .accessibilityLabel(McpHubLines.agents(server.agents.count))
-                    }
-                    Spacer(minLength: Memnox.Spacing.medium)
-                    if server.governed {
-                        StatusWord(.good, "Governed")
-                    } else {
-                        StatusWord(.attention, "Not governed")
-                    }
-                }
-                if !(server.projects ?? []).isEmpty {
-                    HStack(spacing: Memnox.Spacing.small) {
-                        ForEach(McpHubLines.agentsOnce(server), id: \.self) { agent in
-                            McpProjectChips(server: server, agent: agent)
-                        }
-                    }
-                }
+        VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
+            header
+            ShellDivider()
+            standing
+            Spacer(minLength: 0)
+            footer
+        }
+        .padding(Memnox.Spacing.xLarge)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Memnox.Console.card, in: shape)
+        .overlay(shape.strokeBorder(chosen ? Memnox.Console.primary : Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .contentShape(shape)
+        .onTapGesture(perform: pick)
+        .pointingHand()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(server.name)
+        .accessibilityAddTraits(chosen ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction(named: "Show details", pick)
+    }
+
+    /// The name with the transport pill on one line, and how it is reached in mono beneath, cut in the middle.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
+            HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.medium) {
+                Text(server.name)
+                    .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: Memnox.Spacing.small)
+                StatusWord(.quiet, McpHubLines.transport(server))
             }
-            .padding(Memnox.Spacing.xLarge)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Memnox.Console.card, in: shape)
-            .overlay(shape.strokeBorder(chosen ? Memnox.Console.primary : Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
-            .contentShape(shape)
+            Text(McpHubLines.launch(server))
+                .font(Memnox.Console.code(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.muted)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help(([McpHubLines.launch(server)] + (server.args ?? [])).joined(separator: " "))
+            if let description = server.description {
+                Text(description)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    /// How it stands with how many tools it listed beside it, and Test at the end; the count goes first when it is narrow.
+    private var standing: some View {
+        let health = screen.hub.testOf(server.name) ?? server.health
+        let tools = McpHubLines.tools(health.tools?.count ?? server.toolCount)
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Memnox.Spacing.medium) {
+                state
+                Text(tools)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                    .foregroundStyle(Memnox.Console.faint)
+                    .lineLimit(1)
+                    .fixedSize()
+                Spacer(minLength: Memnox.Spacing.small)
+                test
+            }
+            HStack(spacing: Memnox.Spacing.medium) {
+                state
+                Spacer(minLength: Memnox.Spacing.small)
+                test
+            }
+        }
+    }
+
+    @ViewBuilder private var state: some View {
+        let health = screen.hub.testOf(server.name) ?? server.health
+        let words = McpHubLines.health(health)
+        if McpHubLines.missingSecrets(server).isEmpty {
+            StatusWord(Tone(words.tone), words.word)
+        } else {
+            StatusWord(.bad, "Needs a secret")
+        }
+    }
+
+    private var test: some View {
+        let busy = screen.hub.busy == server.name
+        return Button { screen.press { await $0.test(server.name) } } label: {
+            HStack(spacing: Memnox.Spacing.xSmall) {
+                if busy { ProgressView().controlSize(.mini) }
+                Text(busy ? "Testing" : "Test")
+            }
+            .font(Memnox.Console.sans(Memnox.Console.TextSize.meta, .medium))
+            .foregroundStyle(Memnox.Console.primary)
+            .fixedSize()
         }
         .buttonStyle(.plain)
         .pointingHand()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(server.name)
-        .accessibilityAddTraits(chosen ? [.isButton, .isSelected] : .isButton)
+        .disabled(busy)
+        .help("Starts the server once and asks what it offers")
+        .accessibilityLabel("Test \(server.name)")
+    }
+
+    /// The agents by logo and name, then Governed and whose it is; whose it is goes first, then the pills take a line.
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Memnox.Spacing.medium) { users; Spacer(minLength: Memnox.Spacing.small); governed; scope }
+                HStack(spacing: Memnox.Spacing.medium) { users; Spacer(minLength: Memnox.Spacing.small); governed }
+                VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+                    users
+                    HStack(spacing: Memnox.Spacing.small) { governed; scope }
+                }
+            }
+            if !(server.projects ?? []).isEmpty {
+                HStack(spacing: Memnox.Spacing.small) {
+                    ForEach(McpHubLines.agentsOnce(server), id: \.self) { agent in
+                        McpProjectChips(server: server, agent: agent)
+                    }
+                }
+            }
+        }
+    }
+
+    private var governed: some View {
+        server.governed ? StatusWord(.good, "Governed") : StatusWord(.attention, "Not governed")
+    }
+
+    private var scope: some View {
+        ScopeChip(ScopeLines.server(server))
+    }
+
+    /// The agents given it, by logo and by name on one line cut at its end.
+    private var users: some View {
+        let agents = McpHubLines.agentsOnce(server)
+        return HStack(spacing: Memnox.Spacing.medium) {
+            if !agents.isEmpty {
+                HStack(spacing: Self.overlap) {
+                    ForEach(agents.prefix(Self.logosShown), id: \.self) { agent in
+                        BrandLogo(agent: agent, name: McpHubLines.agentLabel(agent), size: Self.logo)
+                            .overlay(RoundedRectangle(cornerRadius: Self.logo / 4, style: .continuous)
+                                .strokeBorder(Memnox.Console.card, lineWidth: Self.ring))
+                    }
+                }
+                .fixedSize()
+                .accessibilityHidden(true)
+            }
+            Text(McpHubLines.usedBy(server))
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                .foregroundStyle(agents.isEmpty ? Memnox.Console.faint : Memnox.Console.muted)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .help(McpHubLines.usedBy(server))
+        }
+    }
+}
+
+/// Where the last press on one row stands, in that row: a spinner while the runtime works, then the island it waits on,
+/// what it came to, or why it did not go through.
+private struct McpPressLine: View {
+    let press: McpPress?
+
+    var body: some View {
+        if press == .working {
+            HStack(spacing: Memnox.Spacing.small) {
+                ProgressView().controlSize(.mini)
+                Text("Asking the runtime")
+            }
+            .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+            .foregroundStyle(Memnox.Console.muted)
+        } else if let line = McpHubLines.pressLine(press) {
+            Label {
+                Text(line.text).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            } icon: {
+                Image(systemName: Self.symbol(line.tone, waiting: press.map(Self.waits) ?? false)).accessibilityHidden(true)
+            }
+            .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+            .foregroundStyle(Tone(line.tone).color)
+            .accessibilityAddTraits(.updatesFrequently)
+        }
+    }
+
+    private static func waits(_ press: McpPress) -> Bool {
+        if case .waiting = press { return true }
+        return false
+    }
+
+    private static func symbol(_ tone: McpTone, waiting: Bool) -> String {
+        if waiting { return "touchid" }
+        switch tone {
+        case .good: return "checkmark.circle"
+        case .bad: return "exclamationmark.triangle"
+        case .quiet: return "clock"
+        }
     }
 }
 
@@ -399,16 +522,34 @@ private struct McpServerDetail: View {
         // Taking away removes only the everywhere assignment, so a project only one is offered Give alone.
         let on = reach == .everywhere
         let label = McpHubLines.agentLabel(agent)
-        return ShellRow(title: label, caption: McpHubLines.reachCaption(server, agent: agent)) {
-            BrandLogo(agent: agent, name: label, size: Self.logo)
-        } trailing: {
-            McpProjectChips(server: server, agent: agent)
-            if reach == .projects { GoLink(McpHubLines.workspacesLink, action: workspaces) }
-            Button(on ? "Take away" : reach == .projects ? McpHubLines.giveEverywhere : "Give") {
-                screen.press { await $0.assign(server.name, agent: agent, on: !on) }
+        let pair = McpHub.pair(server.name, agent)
+        let press = screen.hub.press(pair)
+        let working = press == .working
+        return VStack(alignment: .leading, spacing: 0) {
+            ShellRow(title: label, caption: McpHubLines.reachCaption(server, agent: agent)) {
+                BrandLogo(agent: agent, name: label, size: Self.logo)
+            } trailing: {
+                McpProjectChips(server: server, agent: agent)
+                if reach == .projects { GoLink(McpHubLines.workspacesLink, action: workspaces) }
+                Button {
+                    screen.hub.clear(pair)
+                    screen.press { await $0.assign(server.name, agent: agent, on: !on) }
+                } label: {
+                    HStack(spacing: Memnox.Spacing.xSmall) {
+                        if working { ProgressView().controlSize(.mini) }
+                        Text(on ? "Take away" : reach == .projects ? McpHubLines.giveEverywhere : "Give")
+                    }
+                    .fixedSize()
+                }
+                .buttonStyle(KitButton(kind: .secondary))
+                .disabled(working)
             }
-            .buttonStyle(KitButton(kind: .secondary))
-            .disabled(screen.hub.busy == McpHub.pair(server.name, agent))
+            if press != nil, !working {
+                McpPressLine(press: press)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, ShellMetrics.rowPaddingH)
+                    .padding(.bottom, ShellMetrics.rowPaddingV)
+            }
         }
     }
 
@@ -420,7 +561,8 @@ private struct McpServerDetail: View {
     }
 }
 
-/// Servers an agent already had before the hub, offered to bring in and never touched until then.
+/// Servers an agent already had before the hub, offered to bring in and never touched until then. A line brought in
+/// leaves this list as the answer redraws the hub, and its server shows in the grid above.
 private struct McpFound: View {
     @ObservedObject var screen: McpHubScreen
     let view: McpHubView
@@ -445,21 +587,38 @@ private struct McpFound: View {
 
     private func row(_ entry: McpHubEntryView) -> some View {
         let who = entry.agent.map(McpHubLines.agentLabel) ?? "Shared by several agents"
-        return ShellRow(title: entry.name, caption: "\(who) \u{00B7} \(entry.path)") {
-            if let agent = entry.agent {
-                BrandLogo(agent: agent, name: McpHubLines.agentLabel(agent), size: Self.logo)
-            } else {
-                Image(systemName: "powerplug").foregroundStyle(Memnox.Console.muted).accessibilityHidden(true)
-            }
-        } trailing: {
-            if let agent = entry.agent {
-                Button("Bring into the hub") { screen.press { await $0.importServer(agent: agent, server: entry.name) } }
+        let subject = entry.agent.map { McpHub.found(entry.name, $0) }
+        let press = subject.flatMap(screen.hub.press)
+        let working = press == .working
+        return VStack(alignment: .leading, spacing: 0) {
+            ShellRow(title: entry.name, caption: "\(who) \u{00B7} \(entry.path)") {
+                if let agent = entry.agent {
+                    BrandLogo(agent: agent, name: McpHubLines.agentLabel(agent), size: Self.logo)
+                } else {
+                    Image(systemName: "powerplug").foregroundStyle(Memnox.Console.muted).accessibilityHidden(true)
+                }
+            } trailing: {
+                if let agent = entry.agent {
+                    Button { screen.press { await $0.importServer(agent: agent, server: entry.name) } } label: {
+                        HStack(spacing: Memnox.Spacing.xSmall) {
+                            if working { ProgressView().controlSize(.mini) }
+                            Text(working ? "Bringing in" : "Bring into the hub")
+                        }
+                        .fixedSize()
+                    }
                     .buttonStyle(KitButton(kind: .secondary))
-                    .disabled(screen.hub.busy == entry.name)
-            } else {
-                Text("A repository\u{2019}s own file")
-                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Console.muted)
+                    .disabled(working)
+                } else {
+                    Text("A repository\u{2019}s own file")
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.muted)
+                }
+            }
+            if press != nil, !working {
+                McpPressLine(press: press)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, ShellMetrics.rowPaddingH)
+                    .padding(.bottom, ShellMetrics.rowPaddingV)
             }
         }
     }

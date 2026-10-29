@@ -48,8 +48,8 @@ struct ProfilesDestination: View {
                 await shell.studio?.studio.readPacks()
                 await shell.projects?.projects.refresh()
             }
-            .sheet(isPresented: $creating) {
-                ProfileSheet(shell: shell, screen: screen) { creating = false }.consoleLook()
+            .consoleSheet(isPresented: $creating) {
+                ProfileSheet(shell: shell, screen: screen) { creating = false }
             }
     }
 
@@ -156,8 +156,8 @@ private struct ProfileCard: View {
         .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(profile.name)
-        .sheet(isPresented: $editing) {
-            ProfileSheet(shell: shell, screen: screen, editing: profile) { editing = false }.consoleLook()
+        .consoleSheet(isPresented: $editing) {
+            ProfileSheet(shell: shell, screen: screen, editing: profile) { editing = false }
         }
     }
 
@@ -183,9 +183,7 @@ private struct ApplyForm: View {
         let projects = shell.projects?.projects.projects ?? []
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             ShellDivider()
-            Picker("Agent", selection: $agent) {
-                ForEach(agents, id: \.agent) { each in Text(each.label).tag(each.agent) }
-            }
+            ConsoleSelect(label: "Agent", selection: $agent, options: agents.map { SelectOption(value: $0.agent, title: $0.label) })
             HStack(spacing: Memnox.Spacing.medium) {
                 TextField("Repository, optional", text: $project)
                     .kitField()
@@ -261,13 +259,10 @@ private struct ProfileSheet: View {
             choices("Skills from the Skills Hub", empty: "The Skills Hub holds no skill yet.", names: skills, chosen: $form.skills)
             choices("Servers from the MCP Hub", empty: "The MCP Hub holds no server yet.", names: servers, chosen: $form.servers)
             labelled("Rule pack") {
-                Picker("Rule pack", selection: $form.pack) {
-                    Text("No rule pack").tag("")
-                    ForEach(packs) { pack in
-                        Text("\(pack.name), \(ProjectLines.counted(pack.ruleCount, "rule", "rules"))").tag(pack.id)
-                    }
-                }
-                .labelsHidden()
+                ConsoleSelect(label: "Rule pack", selection: $form.pack,
+                              options: [SelectOption(value: "", title: "No rule pack")] + packs.map { pack in
+                                  SelectOption(value: pack.id, title: "\(pack.name), \(ProjectLines.counted(pack.ruleCount, "rule", "rules"))")
+                              })
             }
             if let editing, let change = ProfileLines.packChange(kept: editing.rulePack, form: form, packs: packs) {
                 QuietLine(change)

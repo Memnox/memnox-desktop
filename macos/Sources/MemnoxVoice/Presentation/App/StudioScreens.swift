@@ -58,8 +58,34 @@ final class AgentsScreen: ObservableObject {
         }
     }
 
+    /// What the last Protect press came to, shown on the cards it was for and on the strip.
+    @Published private(set) var protectResult: ProtectResult?
+
     func press(_ work: @escaping (Agents) async -> StudioOutcome) {
         Task { note = StudioNotes.line(await work(agents), proposed: "Waiting for you on the island: confirm it with Touch ID.") }
+    }
+
+    /// Runs the home's Protect, then reads the cards again, since only the runtime's new standing says whether these
+    /// agents are held now; the result names what changed, what still keeps one outside, or why it failed.
+    func protect(_ kinds: [String], with home: HomeModel) {
+        guard !home.protecting else { return }
+        protectResult = nil
+        Task {
+            let failed = await home.protectNow()
+            await agents.refresh()
+            protectResult = AgentLines.afterProtect(kinds, agents: agents.agents ?? [], failed: failed, at: Date())
+        }
+    }
+
+    /// Restarts the Memnox service for a result that said it was too old to see these agents held, then reads the
+    /// cards again, so the line says whether the newer service counts them protected.
+    func restartService(_ kinds: [String], with home: HomeModel) {
+        guard !home.restarting, !home.protecting else { return }
+        Task {
+            let failed = await home.restartService()
+            await agents.refresh()
+            protectResult = AgentLines.afterProtect(kinds, agents: agents.agents ?? [], failed: failed, restarted: true, at: Date())
+        }
     }
 }
 

@@ -2,8 +2,9 @@ import AppKit
 import MemnoxVoiceCore
 import SwiftUI
 
-/// Every agent on this Mac as the runtime sees it, the ones needing a decision first: paused, then not protected, then
-/// protected, then dormant. Pausing is at once; resuming gives an agent back its reach, so it waits for Touch ID.
+/// Every agent on this Mac as the runtime sees it: a summary with filters on top, a strip naming any agent running
+/// outside Memnox with the one Protect press, then the cards, the ones needing a decision first, in rows that line up.
+/// Pausing is at once; resuming gives an agent back its reach, so it waits for Touch ID.
 struct AgentListDestination: View {
     @ObservedObject var screen: AgentsScreen
     /// The sessions lately, whose workspaces are the folders offered to launch an agent in.
@@ -15,8 +16,7 @@ struct AgentListDestination: View {
     var current: ProjectView?
     let width: WidthClass
     @State private var launching: String?
-
-    private static let cardWidth: CGFloat = 300
+    @State private var filter = AgentFilter.all
 
     var body: some View {
         page.task {
@@ -34,16 +34,25 @@ struct AgentListDestination: View {
                     EmptyState(symbol: "cpu", title: "No agents found yet",
                                detail: "Install Claude Code, Codex, Cursor or another agent and it appears here.")
                 } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.cardWidth), spacing: Memnox.Spacing.large)],
-                              spacing: Memnox.Spacing.large) {
+                    AgentsHeader(list: list, filter: $filter)
+                    if let open = AgentLines.needsProtecting(list) {
+                        NeedsYouStrip(screen: screen, line: open, kinds: AgentLines.unprotectedKinds(list), home: home)
+                    }
+                    let shown = AgentLines.shown(list, filter)
+                    if shown.isEmpty {
+                        QuietLine(AgentLines.noneShown(filter))
+                    } else {
                         let seen = SeenWorkspaces.from(island.cards, now: Date()).map { FolderPick(path: $0.path, name: $0.name) }
-                        let folders = ShellLines.withCurrent(seen, current: current)
-                        ForEach(StudioLines.sortedAgents(list)) { agent in
-                            AgentCard(screen: screen, home: home, agent: agent, folders: folders,
+                        EqualRowsGrid(items: shown, cardWidth: AgentGridMetrics.cardWidth) { agent in
+                            AgentStandingCard(screen: screen, agent: agent, home: home, folders: ShellLines.withCurrent(seen, current: current),
                                       profiles: profiles?.profiles.profiles ?? [], launching: $launching)
                         }
                     }
                 }
+            }
+            // A filter that no agent is in any more, after a protect or a resume, falls back to all of them.
+            .onChange(of: AgentLines.filters(list)) { _, offered in
+                if !offered.contains(filter) { filter = .all }
             }
         } else if agents.unreadable {
             ShellScroll(width: width) { ReadFailed(what: "the agents") { Task { await agents.refresh() } } }
@@ -53,203 +62,183 @@ struct AgentListDestination: View {
     }
 }
 
-private struct AgentCard: View {
-    @ObservedObject var screen: AgentsScreen
-    let home: HomeModel?
-    let agent: AgentStanding
-    let folders: [FolderPick]
-    let profiles: [ProfileView]
-    /// The one card whose Launch form is open, by agent kind.
-    @Binding var launching: String?
+/// How many agents there are and how many are protected and running, with chips to narrow the cards to some of them.
+private struct AgentsHeader: View {
+    let list: [AgentStanding]
+    @Binding var filter: AgentFilter
 
-    private static let logo: CGFloat = 30
+    var body: some View {
+        HStack(alignment: .center, spacing: Memnox.Spacing.large) {
+            Text(AgentLines.summary(list))
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
+                .foregroundStyle(Memnox.Console.muted)
+                .lineLimit(1)
+            Spacer(minLength: Memnox.Spacing.medium)
+            HStack(spacing: Memnox.Spacing.small) {
+                ForEach(AgentLines.filters(list)) { each in
+                    FilterChip(title: each.title, chosen: filter == each, count: AgentLines.count(list, each)) { filter = each }
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Show")
+        }
+    }
+}
+
+/// The agents running outside Memnox, named in amber with the one Protect press, since that is the thing to act on.
+private struct NeedsYouStrip: View {
+    @ObservedObject var screen: AgentsScreen
+    let line: String
+    /// The agents it names, which its Protect press is for.
+    let kinds: [String]
+    let home: HomeModel?
+
+    /// The strip's amber edge and wash, a little stronger than a pill's so it reads as the page's call to act.
+    private static let edge = 0.45
+    private static let wash = 0.08
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
-        let standing = StudioLines.statusWord(agent.status)
-        VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
-            HStack(spacing: Memnox.Spacing.regular) {
-                BrandLogo(agent: agent.kind, name: agent.name, size: Self.logo)
-                VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
-                    Text(agent.name)
-                        .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
-                        .foregroundStyle(Memnox.Console.foreground)
-                        .lineLimit(1)
-                    StatusWord(Tone(standing.tone), standing.word)
-                }
-                Spacer(minLength: 0)
-            }
-            QuietLine(StudioLines.agentCounts(agent))
-            if !agent.mcpServers.isEmpty {
-                Text("Servers: \(agent.mcpServers.joined(separator: ", "))")
-                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Console.muted)
-                    .lineLimit(1)
-            }
-            if let skills = agent.skills, !skills.isEmpty {
-                Text("Skills: \(skills.joined(separator: ", "))")
-                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Console.muted)
-                    .lineLimit(1)
-            }
-            if !agent.recent.isEmpty {
-                VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
-                    ForEach(agent.recent) { action in
-                        HStack(spacing: Memnox.Spacing.medium) {
-                            Text(StudioLines.activityLine(operation: action.operation, target: action.target))
-                                .font(Memnox.Console.code(Memnox.TextSize.footnote))
-                                .foregroundStyle(Memnox.Console.foreground)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer(minLength: Memnox.Spacing.small)
-                            if let ago = SessionText.ago(action.at, now: Date()) {
-                                Text(ago)
-                                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                                    .foregroundStyle(Memnox.Console.muted)
-                            }
-                            StatusWord(Tone(effect: action.effect), StudioLines.title(action.effect))
-                        }
-                    }
-                }
-            }
-            HStack(spacing: Memnox.Spacing.medium) {
-                let busy = screen.agents.busy == agent.kind
-                if agent.agentStatus == .paused {
-                    Button { screen.press { await $0.resume(agent.kind) } } label: { Label("Resume", systemImage: "play.fill") }
-                        .buttonStyle(KitButton(kind: .secondary))
-                        .disabled(busy)
-                        .help("Lets it carry on once you confirm with Touch ID")
+        HStack(spacing: Memnox.Spacing.large) {
+            Image(systemName: "exclamationmark.shield")
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.base, .medium))
+                .foregroundStyle(Memnox.Console.warm)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
+                Text(line)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
+                // What the last press came to stands in for the reminder, since it is the newer thing to read.
+                if let result = screen.protectResult, kinds.contains(where: result.covers) {
+                    ProtectResultLine(result: result, screen: screen, home: home)
                 } else {
-                    Button { screen.press { await $0.pause(agent.kind) } } label: { Label("Pause", systemImage: "pause.fill") }
-                        .buttonStyle(KitButton(kind: .secondary))
-                        .disabled(busy)
-                        .help("Holds everything it tries until you resume it")
-                }
-                if agent.canLaunch, launching != agent.kind {
-                    Button { launching = agent.kind } label: { Label("Launch", systemImage: "apple.terminal") }
-                        .buttonStyle(KitButton(kind: .secondary))
-                        .help("Opens it in a new terminal in a folder you choose")
-                }
-                if agent.agentStatus == .unprotected, let home, !home.remote() {
-                    ProtectButton(home: home)
+                    Text("Outside Memnox, nothing an agent tries is ruled on.")
+                        .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                        .foregroundStyle(Memnox.Console.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            if launching == agent.kind {
-                LaunchForm(folders: folders, profiles: profiles, busy: screen.agents.busy == Agents.launching(agent.kind)) {
-                    launching = nil
-                } launch: { folder, profile in
-                    let kind = agent.kind
-                    Task {
-                        let outcome = await screen.agents.launch(kind, in: folder, profile: profile)
-                        screen.note = StudioNotes.line(outcome, proposed: "Waiting for you on the island: confirm it with Touch ID.")
-                        if case .failed = outcome { return }
-                        launching = nil
-                    }
-                }
-            }
+            Spacer(minLength: Memnox.Spacing.medium)
+            if let home, !home.remote() { ProtectButton(home: home, screen: screen, kinds: kinds) }
         }
-        .padding(Memnox.Spacing.xLarge)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(Memnox.Console.card, in: shape)
-        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .padding(.horizontal, ShellMetrics.rowPaddingH)
+        .padding(.vertical, ShellMetrics.rowPaddingV)
+        .background(Memnox.Console.warm.opacity(Self.wash), in: shape)
+        .overlay(shape.strokeBorder(Memnox.Console.warm.opacity(Self.edge), lineWidth: Memnox.Stroke.hairline))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(agent.name)
+        .accessibilityLabel("Needs you")
     }
 }
 
-/// The home's own Protect press, which hooks every agent found on this Mac into Memnox the way setup does.
-private struct ProtectButton: View {
-    @ObservedObject var home: HomeModel
+/// Cards in as many columns as fit, each row top aligned and every card in it as tall as the tallest, which a lazy
+/// grid does not do; a card fills its cell with a frame whose height is unbounded.
+struct EqualRowsGrid<Item: Identifiable, Card: View>: View {
+    let items: [Item]
+    /// The narrowest a card reads well at, which sets how many columns fit.
+    let cardWidth: CGFloat
+    @ViewBuilder let card: (Item) -> Card
+    @State private var available: CGFloat = 0
 
     var body: some View {
-        Button(home.protecting ? "Protecting" : "Protect", action: home.protect)
-            .buttonStyle(KitButton(kind: .primary))
-            .disabled(home.protecting)
-            .help("Hooks every agent found on this Mac into Memnox, the way setup does")
-    }
-}
-
-/// The folder an agent opens in, chosen in Finder's own panel, typed whole or one of the workspaces its sessions ran in,
-/// and a profile to apply first.
-private struct LaunchForm: View {
-    let folders: [FolderPick]
-    let profiles: [ProfileView]
-    let busy: Bool
-    let cancel: () -> Void
-    let launch: (String, String?) -> Void
-    @State private var folder = ""
-    @State private var profile = ""
-    @State private var problem: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-            ShellDivider()
-            Text("Open it in")
-                .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
-                .foregroundStyle(Memnox.Console.muted)
-            HStack(spacing: Memnox.Spacing.medium) {
-                TextField("/Users/you/code/project", text: $folder)
-                    .kitField()
-                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                    .onSubmit(go)
-                    .accessibilityLabel("The folder it opens in")
-                Button("Choose", systemImage: "folder", action: choose)
-                    .buttonStyle(KitButton(kind: .secondary))
-                    .help("Pick the folder in Finder")
-            }
-            if !folders.isEmpty {
-                // The workspaces as quick picks, so the usual folder is one click away.
-                ScrollView(.horizontal) {
-                    HStack(spacing: Memnox.Spacing.small) {
-                        ForEach(folders, id: \.path) { each in
-                            Button(each.name) { folder = each.path }
-                                .buttonStyle(KitButton(kind: folder == each.path ? .primary : .secondary))
-                                .help(each.path)
-                                .accessibilityAddTraits(folder == each.path ? .isSelected : [])
-                        }
-                    }
+        let columns = max(1, Int((available + Memnox.Spacing.large) / (cardWidth + Memnox.Spacing.large)))
+        let rows = stride(from: 0, to: items.count, by: columns).map { Array(items[$0 ..< min($0 + columns, items.count)]) }
+        Grid(alignment: .topLeading, horizontalSpacing: Memnox.Spacing.large, verticalSpacing: Memnox.Spacing.large) {
+            ForEach(rows, id: \.first?.id) { row in
+                GridRow(alignment: .top) {
+                    ForEach(row) { card($0) }
+                    // Empty cells keep a short last row's cards as wide as the rows above it.
+                    ForEach(row.count ..< columns, id: \.self) { _ in Color.clear.gridCellUnsizedAxes(.vertical) }
                 }
-                .scrollIndicators(.never)
-                .accessibilityLabel("Your workspaces")
-            }
-            if !profiles.isEmpty {
-                Picker("With a profile", selection: $profile) {
-                    Text("No profile").tag("")
-                    ForEach(profiles) { each in Text(each.name).tag(each.id) }
-                }
-                if !profile.isEmpty { QuietLine("What the profile gives waits for your signature on the island as the agent opens.") }
-            }
-            if let problem {
-                Text(problem)
-                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Console.destructive)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack(spacing: Memnox.Spacing.medium) {
-                Button(busy ? "Opening" : "Open a terminal", systemImage: "apple.terminal", action: go)
-                    .buttonStyle(KitButton(kind: .primary))
-                    .disabled(busy)
-                Button("Cancel", action: cancel).buttonStyle(KitButton(kind: .secondary))
             }
         }
-        .onAppear { if folder.isEmpty, let first = folders.first { folder = first.path } }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(GeometryReader { geometry in
+            Color.clear
+                .onAppear { available = geometry.size.width }
+                .onChange(of: geometry.size.width) { _, now in available = now }
+        })
+    }
+}
+
+/// The agent grid's measure.
+private enum AgentGridMetrics {
+    /// The narrowest a card reads well at, its name, pill and numbers on their lines.
+    static let cardWidth: CGFloat = 300
+}
+
+/// The home's own Protect press, which hooks every agent found on this Mac into Memnox the way setup does, then reads
+/// the cards again so the ones it was pressed for show what it came to. It waits while a press or a restart runs.
+struct ProtectButton: View {
+    @ObservedObject var home: HomeModel
+    @ObservedObject var screen: AgentsScreen
+    /// The agents this press is for, whose cards and strip report the result.
+    let kinds: [String]
+
+    var body: some View {
+        let busy = home.protecting || home.restarting
+        Button { screen.protect(kinds, with: home) } label: {
+            HStack(spacing: Memnox.Spacing.small) {
+                if home.protecting { ProgressView().controlSize(.small) }
+                Text(home.protecting ? "Protecting" : "Protect")
+            }
+        }
+        .buttonStyle(KitButton(kind: .primary))
+        .disabled(busy)
+        .help("Puts every agent found on this Mac under Memnox the way setup does")
+    }
+}
+
+/// What a Protect press came to, in green once the agents are held and in amber while something keeps one outside,
+/// with when it was read and the one step the app can take for the person where there is one.
+struct ProtectResultLine: View {
+    let result: ProtectResult
+    @ObservedObject var screen: AgentsScreen
+    let home: HomeModel?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+            Label {
+                Text(lineWithTime)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            } icon: {
+                Image(systemName: result.held ? "checkmark.shield" : "exclamationmark.triangle")
+                    .accessibilityHidden(true)
+            }
+            .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+            .foregroundStyle(result.held ? Memnox.Console.success : Memnox.Console.warm)
+            if let home, let followUp = result.followUp { followUpButton(followUp, home: home) }
+        }
     }
 
-    private func go() {
-        problem = LaunchLines.folderProblem(folder)
-        if problem == nil { launch(folder, profile.isEmpty ? nil : profile) }
+    private var lineWithTime: String {
+        guard let at = result.at else { return result.line }
+        return "\(result.line) \u{00B7} \(at.formatted(date: .omitted, time: .shortened))"
     }
 
-    private func choose() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Open here"
-        if !folder.isEmpty { panel.directoryURL = URL(fileURLWithPath: folder) }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        folder = url.path
-        problem = nil
+    @ViewBuilder private func followUpButton(_ followUp: ProtectFollowUp, home: HomeModel) -> some View {
+        switch followUp {
+        case .restartService:
+            RestartServiceButton(home: home, screen: screen, kinds: result.kinds)
+        }
+    }
+}
+
+/// Rebuilds and restarts the Memnox service the way Update does, for a service too old to see an agent is held.
+private struct RestartServiceButton: View {
+    @ObservedObject var home: HomeModel
+    @ObservedObject var screen: AgentsScreen
+    let kinds: [String]
+
+    var body: some View {
+        Button { screen.restartService(kinds, with: home) } label: {
+            HStack(spacing: Memnox.Spacing.small) {
+                if home.restarting { ProgressView().controlSize(.small) }
+                Text(home.restarting ? "Restarting Memnox service" : "Restart Memnox service")
+            }
+        }
+        .buttonStyle(KitButton(kind: .secondary))
+        .disabled(home.restarting || home.protecting)
+        .help("Starts the Memnox service again on the newest runtime on this Mac, then reads your agents again")
     }
 }

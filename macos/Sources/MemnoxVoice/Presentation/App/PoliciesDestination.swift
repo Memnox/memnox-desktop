@@ -3,8 +3,9 @@ import MemnoxVoiceCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// What agents may do here, read first and changed second. Every rule is said as a sentence before its fields, and a
-/// rule built here only goes in force once the person signs it on the island with Touch ID.
+/// The Rules page, laid out as the console's: the three effects said once, the rules in force, then the ready-made
+/// rules to add. What is already true is read first and changed second, and a rule built here only goes in force
+/// once the person signs it on the island with Touch ID.
 struct PoliciesDestination: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var screen: StudioScreen
@@ -14,16 +15,18 @@ struct PoliciesDestination: View {
 
     @State private var filter: RuleEffect?
     @State private var building = false
-
-    private static let effectWidth: CGFloat = 200
+    @State private var adding: RuleAdding?
 
     var body: some View {
         page
             .task { await screen.studio.refresh() }
             // A signed or declined proposal leaves the island, and the rules are read again so they show what holds.
             .onChange(of: island.waiting.count) { Task { await screen.studio.refresh() } }
-            .sheet(isPresented: $building) {
-                RuleBuilderSheet(screen: screen, agents: shell.hub?.hub.hub?.agents.map(\.agent) ?? []) { building = false }.consoleLook()
+            .consoleSheet(isPresented: $building) {
+                RuleBuilderSheet(screen: screen, agents: shell.hub?.hub.hub?.agents.map(\.agent) ?? []) { building = false }
+            }
+            .consoleSheet(item: $adding) { each in
+                RuleAddSheet(screen: screen, adding: each) { adding = nil }
             }
     }
 
@@ -31,13 +34,16 @@ struct PoliciesDestination: View {
         let studio = screen.studio
         if let view = studio.rules {
             let picked = view.rules.first { $0.name == shell.inspecting }
+            // Nothing in force means the ready-made rules are where to start, so they lead.
+            let libraryFirst = view.rules.isEmpty
             InspectorLayout(width: width, title: picked?.name, close: { shell.inspecting = nil }) {
                 ShellScroll(width: width) {
                     NoteBanner(text: screen.note)
-                    effects
-                    if let progress = studio.progress { LetGo(screen: screen, home: home, progress: progress) }
-                    alwaysAsk(view)
+                    EffectCards(counts: StudioLines.countsByEffect(scoped(view)), filter: $filter, stacked: width.stacksCards)
+                    if libraryFirst { library(view) }
                     rulesInForce(view)
+                    if !libraryFirst { library(view) }
+                    if let progress = studio.progress { LetGo(screen: screen, home: home, progress: progress) }
                     if shell.supports("index-list") == true, let index = shell.index { IndexPacks(screen: index) }
                     TryAction(screen: screen)
                 }
@@ -51,53 +57,17 @@ struct PoliciesDestination: View {
         }
     }
 
-    /// The three effects, each explained once, before any rule uses them.
-    private var effects: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.effectWidth), spacing: Memnox.Spacing.regular)],
-                  spacing: Memnox.Spacing.regular) {
-            ForEach(RuleEffect.allCases, id: \.self) { effect in
-                let words = StudioLines.words(effect)
-                VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
-                    StatusWord(Tone(effect: effect.rawValue), words.title)
-                    QuietLine(words.says)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, ShellMetrics.rowPaddingH)
-                .padding(.vertical, ShellMetrics.rowPaddingV)
-                .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
-                    .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
-                .accessibilityElement(children: .combine)
-            }
-        }
+    private func library(_ view: PolicyRulesView) -> some View {
+        RulesLibrary(shell: shell, screen: screen, rules: view.rules, width: width) { adding = $0 }
     }
 
-    private func alwaysAsk(_ view: PolicyRulesView) -> some View {
-        ShellSection(title: "Always ask me before") {
-            ShellPanel {
-                ForEach(Array(StudioLines.alwaysAsk.enumerated()), id: \.element.id) { index, each in
-                    if index > 0 { ShellDivider() }
-                    let on = StudioLines.switchOn(view.rules, action: each.draft.action, branches: each.draft.branches)
-                    ShellRow(title: each.title,
-                             caption: on ? "A rule asks about this now" : "Agents go ahead unless another rule says otherwise") {
-                        EmptyView()
-                    } trailing: {
-                        // Only turning one on is offered here: a switch that is on is a rule, removed from its inspector.
-                        Toggle(each.title, isOn: Binding(get: { on }, set: { want in
-                            if want { screen.press { await $0.propose(each.draft) } }
-                        }))
-                        .toggleStyle(MemnoxSwitch())
-                        .labelsHidden()
-                        .disabled(on || screen.studio.busy != nil)
-                    }
-                }
-            }
-        }
+    /// The scope selector shows the person's rules or the organization's, never the two mixed.
+    private func scoped(_ view: PolicyRulesView) -> [PolicyRuleView] {
+        ShellLines.inScope(view.rules, shell.scope) { ScopeLines.rule($0) == .organization }
     }
 
     private func rulesInForce(_ view: PolicyRulesView) -> some View {
-        // The scope selector shows the person's rules or the organization's, never the two mixed.
-        let scoped = ShellLines.inScope(view.rules, shell.scope) { ScopeLines.rule($0) == .organization }
+        let scoped = self.scoped(view)
         let counts = StudioLines.countsByEffect(scoped)
         let shown = scoped.filter { filter == nil || $0.ruleEffect == filter }
         return ShellSection(title: "Rules in force") {
@@ -109,14 +79,14 @@ struct PoliciesDestination: View {
                     .buttonStyle(KitButton(kind: .secondary))
                     .disabled(screen.studio.busy == Studio.importing)
                     .help("Propose every rule in a TOML file, each signed on its own")
-                Button { building = true } label: { Label("New rule", systemImage: "plus") }
+                Button { building = true } label: { Label("Propose a rule", systemImage: RuleSymbols.add) }
                     .buttonStyle(KitButton(kind: .primary))
             }
         } content: {
             HStack(spacing: Memnox.Spacing.small) {
-                FilterChip(title: "All \(scoped.count)", chosen: filter == nil) { filter = nil }
+                FilterChip(title: "All", chosen: filter == nil, count: scoped.count) { filter = nil }
                 ForEach(RuleEffect.allCases, id: \.self) { effect in
-                    FilterChip(title: "\(StudioLines.words(effect).title) \(counts[effect] ?? 0)", chosen: filter == effect) { filter = effect }
+                    FilterChip(title: StudioLines.words(effect).title, chosen: filter == effect, count: counts[effect] ?? 0) { filter = effect }
                 }
             }
             .accessibilityElement(children: .contain)
@@ -142,8 +112,8 @@ struct PoliciesDestination: View {
                 QuietLine(scoped.isEmpty ? ShellLines.noOrganizationItems : ShellLines.organizationReadOnly)
             }
             if shown.isEmpty {
-                EmptyState(symbol: "checkmark.shield", title: "No rules of this kind",
-                           detail: "Build one with New rule, or turn on a switch above.")
+                EmptyState(symbol: "checkmark.shield", title: "No rule here yet",
+                           detail: "Propose one with Propose a rule, or add a ready-made rule.")
             } else {
                 ShellPanel {
                     ForEach(Array(shown.enumerated()), id: \.element.id) { index, rule in
@@ -338,55 +308,77 @@ private struct HandOverNote: View {
     }
 }
 
-/// One rule whole: its sentence, its effect, its fields, where it came from, and Remove where it is this Mac's own.
+/// One rule whole, as the console's rule panel: its effect as a band, its actions as the title, then a plain sentence,
+/// why it exists, the rule as code, its other fields, and Remove where it is this Mac's own.
 private struct RuleDetail: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var screen: StudioScreen
     let rule: PolicyRuleView
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
-            VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-                Text(rule.sentence)
-                    .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
+                if let effect = rule.ruleEffect { EffectBand(effect: effect) }
+                Text(RuleDetailLines.title(rule.match.actions))
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.large, .semibold))
                     .foregroundStyle(Memnox.Console.foreground)
                     .fixedSize(horizontal: false, vertical: true)
-                StatusWord(Tone(effect: rule.effect), StudioLines.says(rule.effect))
-                if let reason = rule.reason {
-                    Text(reason)
-                        .font(Memnox.Console.sans(Memnox.TextSize.body))
-                        .foregroundStyle(Memnox.Console.foreground)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                    .textSelection(.enabled)
+                    .accessibilityAddTraits(.isHeader)
             }
-            FactList(facts: facts)
-            if rule.editable {
-                VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-                    ShellDivider()
-                    Button(rule.ruleEffect == .allow ? "Remove" : "Propose removing it", action: remove)
-                        .buttonStyle(KitButton(kind: .secondary))
-                        .disabled(screen.studio.busy == rule.name)
-                    if rule.ruleEffect != .allow {
-                        QuietLine("Removing a rule that asks or refuses lets agents do more, so it waits for your signature.")
+            .padding(.bottom, Memnox.Spacing.xLarge)
+            ShellDivider()
+            VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
+                Text(sentence)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.base))
+                    .foregroundStyle(Memnox.Console.foreground)
+                    .lineSpacing(Memnox.Spacing.xSmall)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let reason = rule.reason { fact("Why", reason) }
+                CodeBlock(code: RuleToml.text(RuleToml.table(of: rule)), label: RuleToml.file)
+                FactList(facts: facts)
+                if rule.editable {
+                    VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+                        Button(rule.ruleEffect == .allow ? "Remove" : "Propose removing it", action: remove)
+                            .buttonStyle(KitButton(kind: .secondary))
+                            .disabled(screen.studio.busy == rule.name)
+                        if rule.ruleEffect != .allow {
+                            QuietLine("Removing a rule that asks or refuses lets agents do more, so it waits for your signature.")
+                        }
                     }
+                } else {
+                    QuietLine("This rule is not one set on this computer, so it is changed where it came from.")
                 }
-            } else {
-                QuietLine("This rule is not one set on this computer, so it is changed where it came from.")
             }
+            .padding(.top, Memnox.Spacing.xLarge)
         }
     }
 
-    private var facts: [(String, String)] {
-        let match = rule.match
-        let fields: [(String, [String]?)] = [
-            ("Actions", match.actions), ("Targets", match.targets), ("Agents", match.agents),
-            ("Folders", match.workingDirectories), ("Branches", match.branches), ("Kinds", match.classes),
-        ]
-        var facts = fields.compactMap { name, values -> (String, String)? in
-            guard let values, !values.isEmpty else { return nil }
-            return (name, values.joined(separator: ", "))
+    /// The rule as one sentence, or the runtime's own where its effect is not one of the three.
+    private var sentence: String {
+        guard let effect = rule.ruleEffect else { return rule.sentence }
+        return RuleDetailLines.sentence(agents: rule.match.agents, actions: rule.match.actions, targets: rule.match.targets,
+                                        effect: effect, agentName: McpHubLines.agentLabel)
+    }
+
+    private func fact(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
+            Text(label)
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                .foregroundStyle(Memnox.Console.muted)
+            Text(value)
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
+                .foregroundStyle(Memnox.Console.foreground)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
         }
-        facts.append(("From", StudioLines.sourceWords(rule)))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// What the code does not already say plainly: where the rule came from, its name, and when it ends.
+    private var facts: [(String, String)] {
+        var facts = [("Name", rule.name), ("From", StudioLines.sourceWords(rule))]
+        if let file = rule.file { facts.append(("File", file)) }
         if let until = rule.until { facts.append(("Until", StudioNotes.moment(until))) }
         return facts
     }
@@ -397,6 +389,129 @@ private struct RuleDetail: View {
             let outcome = await screen.studio.remove(name)
             screen.said(outcome)
             if case .done = outcome { shell.inspecting = nil }
+        }
+    }
+}
+
+/// An effect as the panel's full width band: its symbol and word in the effect's colour on its own tint.
+private struct EffectBand: View {
+    let effect: RuleEffect
+
+    private enum Layout {
+        static let height: CGFloat = 30
+        static let icon: CGFloat = 12
+    }
+
+    var body: some View {
+        let tone = Tone(effect: effect.rawValue)
+        HStack(spacing: Memnox.Spacing.small) {
+            Image(systemName: RuleSymbols.effect(effect))
+                .font(.system(size: Layout.icon, weight: .semibold))
+            Text(StudioLines.words(effect).title)
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
+        }
+        .foregroundStyle(tone.color)
+        .padding(.horizontal, Memnox.Spacing.medium)
+        .frame(maxWidth: .infinity, minHeight: Layout.height, alignment: .leading)
+        .background(tone.pill, in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The three effects said once at the top of the page, each with how many rules in force use it, and each a filter
+/// over the rules below: pressing one shows only its rules, pressing it again shows them all.
+private struct EffectCards: View {
+    let counts: [RuleEffect: Int]
+    @Binding var filter: RuleEffect?
+    /// One under another where the window is too narrow for three across.
+    let stacked: Bool
+
+    var body: some View {
+        let layout = stacked ? AnyLayout(VStackLayout(spacing: Memnox.Spacing.medium))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: Memnox.Spacing.medium))
+        layout {
+            ForEach(RuleEffect.allCases, id: \.self) { effect in
+                EffectCard(effect: effect, count: counts[effect] ?? 0, chosen: filter == effect) {
+                    filter = filter == effect ? nil : effect
+                }
+            }
+        }
+        // Every card as tall as the tallest, so the three read as one row however their lines wrap.
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Show rules that")
+    }
+}
+
+private struct EffectCard: View {
+    let effect: RuleEffect
+    let count: Int
+    let chosen: Bool
+    let choose: () -> Void
+    @State private var hovering = false
+
+    private enum Layout {
+        static let tile: CGFloat = 32
+        static let icon: CGFloat = 14
+        static let countSize: CGFloat = 26
+        /// The chosen card's wash, the console's blue at 5 percent under its outline.
+        static let chosenWash = 0.05
+    }
+
+    var body: some View {
+        let words = StudioLines.words(effect)
+        let tone = Tone(effect: effect.rawValue)
+        let shape = RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous)
+        Button(action: choose) {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
+                HStack(alignment: .center, spacing: Memnox.Spacing.medium) {
+                    Image(systemName: RuleSymbols.effect(effect))
+                        .font(.system(size: Layout.icon, weight: .semibold))
+                        .foregroundStyle(tone.color)
+                        .frame(width: Layout.tile, height: Layout.tile)
+                        .background(tone.pill, in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
+                    Text(words.title)
+                        .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
+                        .foregroundStyle(Memnox.Console.foreground)
+                    Spacer(minLength: Memnox.Spacing.medium)
+                    Text("\(count)")
+                        .font(Memnox.Console.sans(Layout.countSize, .semibold).monospacedDigit())
+                        .foregroundStyle(count == 0 ? Memnox.Console.faint : Memnox.Console.foreground)
+                }
+                VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
+                    Text(words.says)
+                        .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                        .foregroundStyle(Memnox.Console.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(count == 1 ? "1 rule in force" : "\(count) rules in force")
+                        .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                        .foregroundStyle(Memnox.Console.faint)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(Memnox.Spacing.xLarge)
+            .background(chosen ? Memnox.Console.primary.opacity(Layout.chosenWash) : hovering ? Memnox.Console.hover : Memnox.Console.card,
+                        in: shape)
+            .overlay(shape.strokeBorder(chosen ? Memnox.Console.primary : Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .contentShape(shape)
+            .animation(.easeOut(duration: Memnox.Motion.quick), value: hovering)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .pointingHand()
+        .help(chosen ? "Show every rule" : "Show only the rules that \(words.title.lowercased())")
+        .accessibilityLabel("\(words.title), \(count) rules. \(words.says)")
+        .accessibilityAddTraits(chosen ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+private extension WidthClass {
+    /// Three cards fit side by side only on a wide or medium window.
+    var stacksCards: Bool {
+        switch self {
+        case .wide, .medium: false
+        case .narrow, .compact: true
         }
     }
 }

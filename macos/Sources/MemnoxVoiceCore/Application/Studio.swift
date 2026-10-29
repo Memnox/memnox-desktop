@@ -329,6 +329,14 @@ public final class Agents: @unchecked Sendable {
         changed?()
     }
 
+    /// The runtime's own scan of the agents here, with counted servers, tools, sessions and capabilities; nil from a
+    /// daemon too old to answer it, or one that could not, so the caller falls back to the cards it already reads.
+    public func scan() async -> AgentsScanView? {
+        let response = await ask(link, DaemonRequest(id: ids.next(), method: .agentsScan))
+        guard response?.ok == true else { return nil }
+        return response?.agentsScan
+    }
+
     /// Holds the agent at once, since that only narrows.
     public func pause(_ kind: String) async -> StudioOutcome {
         var request = DaemonRequest(id: ids.next(), method: .agentPause)

@@ -47,6 +47,21 @@ final class ProjectsTests: XCTestCase {
         XCTAssertEqual(link.sent.last?.projectId, "prj_9")
     }
 
+    func testAnApplyThatChangedNothingIsUpToDateAndOneThatWroteIsDone() async throws {
+        let link = ScriptedLink()
+        link.answers["project-apply"] = [
+            try line(#"{"id":1,"ok":true,"projectApplied":{"written":[],"removed":[],"kept":[],"governed":[],"missing":[]}}"#),
+        ]
+        let projects = Projects(link: link)
+        let first = await projects.apply("prj_1")
+        XCTAssertEqual(first, .upToDate("Nothing needed applying: every agent here already has this project\u{2019}s instructions."))
+        link.answers["project-apply"] = [
+            try line(#"{"id":2,"ok":true,"projectApplied":{"written":["AGENTS.md"],"removed":[],"kept":[],"governed":[],"missing":[]}}"#),
+        ]
+        let second = await projects.apply("prj_1")
+        XCTAssertEqual(second, .done("Wrote 1 instruction file."))
+    }
+
     func testSendsTheDraftWithOnlyTheListsItHas() throws {
         var request = DaemonRequest(id: 1, method: .projectPut)
         request.projectDraft = ProjectDraft(name: "app", skills: ["review"])

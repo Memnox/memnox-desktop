@@ -18,6 +18,18 @@ final class ProjectsScreen: ObservableObject {
         }
     }
 
+    /// What the last Apply on each project came to and when, by project id, shown under its button rather than as the page note.
+    @Published private(set) var applied: [String: (outcome: ProjectOutcome, at: Date)] = [:]
+
+    /// Applies one project and keeps what the runtime said beside its button.
+    func apply(_ id: String) {
+        applied[id] = nil
+        Task {
+            let outcome = await projects.apply(id)
+            applied[id] = (outcome, Date())
+        }
+    }
+
     /// Runs one press and says how it ended, the part waiting on the island named with Touch ID.
     func press(_ work: @escaping (Projects) async -> ProjectOutcome, then: ((ProjectOutcome) -> Void)? = nil) {
         Task {
@@ -284,7 +296,7 @@ private struct ProjectInspector: View {
         ("agents", "Agents"),
         ("skills", "Skills"),
         ("tools", "Tools"),
-        ("policies", "Policies"),
+        ("policies", "Rules"),
     ]
 
     var body: some View {
@@ -411,10 +423,7 @@ private struct Overview: View {
     @ViewBuilder private func editControls(busy: Bool) -> some View {
         Group {
             if project.declared {
-                Button(busy ? "Applying" : "Apply", systemImage: "play") {
-                    let id = project.id
-                    screen.press { await $0.apply(id) }
-                }
+                applyButton(busy: busy)
             } else {
                 Button(busy ? "Saving" : "Save as project", systemImage: "square.and.arrow.down") {
                     let path = project.path, draft = ProjectLines.draft(of: project)
@@ -424,7 +433,68 @@ private struct Overview: View {
         }
         .buttonStyle(KitButton(kind: .primary))
         .disabled(busy)
-        Muted(ProjectLines.pressLine(declared: project.declared))
+        if project.declared, let last = screen.applied[project.id] {
+            ApplyResultLine(outcome: last.outcome, at: last.at)
+        } else {
+            Muted(ProjectLines.pressLine(declared: project.declared))
+        }
+    }
+
+    /// Apply with a spinner while it runs; once the runtime found nothing to change it reads Up to date, still
+    /// pressable since only a new apply can tell whether an instruction file changed since.
+    @ViewBuilder private func applyButton(busy: Bool) -> some View {
+        let id = project.id
+        let current = screen.applied[id].map { ProjectLines.mark($0.outcome) } == .upToDate
+        Button { screen.apply(id) } label: {
+            HStack(spacing: Memnox.Spacing.small) {
+                if busy {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: current ? "checkmark" : "play").accessibilityHidden(true)
+                }
+                Text(busy ? "Applying" : current ? "Up to date" : "Apply")
+            }
+        }
+        .help(current ? "Nothing needed applying when you last pressed. Press to check again." : "Hands this project\u{2019}s instructions to its agents")
+    }
+}
+
+/// What the last Apply came to, under its button: a tick for a change, a note for nothing to change, amber for what
+/// waits on the island, red for a refusal, with the time it was said.
+private struct ApplyResultLine: View {
+    let outcome: ProjectOutcome
+    let at: Date
+
+    var body: some View {
+        let mark = ProjectLines.mark(outcome)
+        Label {
+            Text("\(ProjectLines.note(outcome))\(SessionText.separator)\(at.formatted(date: .omitted, time: .shortened))")
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        } icon: {
+            Image(systemName: Self.symbol(mark)).accessibilityHidden(true)
+        }
+        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+        .foregroundStyle(Self.tint(mark))
+        .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    private static func symbol(_ mark: ProjectResultMark) -> String {
+        switch mark {
+        case .changed: "checkmark.circle"
+        case .waiting: "hand.raised"
+        case .upToDate: "checkmark"
+        case .failed: "exclamationmark.triangle"
+        }
+    }
+
+    private static func tint(_ mark: ProjectResultMark) -> Color {
+        switch mark {
+        case .changed: Memnox.Console.success
+        case .waiting: Memnox.Console.warm
+        case .upToDate: Memnox.Console.muted
+        case .failed: Memnox.Console.destructive
+        }
     }
 }
 

@@ -1,10 +1,23 @@
 import Foundation
 
-/// How one press on a project ended: done at once, done with the rest waiting for a signature on the island, or refused.
+/// How one press on a project ended: done at once, done with the rest waiting for a signature on the island, nothing
+/// to do because the runtime found every agent already had it, or refused.
 public enum ProjectOutcome: Equatable, Sendable {
     case done(String)
     case proposed(id: String, note: String)
+    case upToDate(String)
     case failed(String)
+}
+
+/// How a press's result line is marked beside its words.
+public enum ProjectResultMark: String, Sendable {
+    /// Something was written or put behind the proxy.
+    case changed
+    /// Applied, with what widens an agent waiting for Touch ID on the island.
+    case waiting
+    /// The runtime had nothing to change.
+    case upToDate
+    case failed
 }
 
 /// Where a project stands, said in a word beside its tone.
@@ -105,9 +118,17 @@ public enum ProjectLines {
             applied.kept.isEmpty ? nil : "left \(applied.kept.count) of yours alone",
             applied.governed.isEmpty ? nil : "put \(counted(applied.governed.count, "server", "servers")) behind the proxy",
         ].compactMap { $0 }
-        let done = parts.isEmpty ? "Every agent already had this project\u{2019}s instructions." : "\(capital(parts.joined(separator: ", ")))."
+        let done = parts.isEmpty
+            ? "Nothing needed applying: every agent here already has this project\u{2019}s instructions."
+            : "\(capital(parts.joined(separator: ", ")))."
         if applied.missing.isEmpty { return done }
         return "\(done) The hub here lacks \(listed(applied.missing)), so no agent is given \(applied.missing.count == 1 ? "it" : "them")."
+    }
+
+    /// True when applying changed no file and put no server behind the proxy, so the project was already applied;
+    /// a file of the person's left alone or a name the hub lacks is said, but applying again would not change it.
+    public static func upToDate(_ applied: ProjectApplySummary) -> Bool {
+        applied.written.isEmpty && applied.removed.isEmpty && applied.governed.isEmpty
     }
 
     /// What a press said, the part waiting on the island named with the key that signs it.
@@ -115,7 +136,17 @@ public enum ProjectLines {
         switch outcome {
         case .failed(let why): return why
         case .proposed(_, let note): return "\(note) Its servers, skills and rules wait for you on the island: confirm them with Touch ID."
-        case .done(let note): return note
+        case .done(let note), .upToDate(let note): return note
+        }
+    }
+
+    /// The mark a press's result line wears.
+    public static func mark(_ outcome: ProjectOutcome) -> ProjectResultMark {
+        switch outcome {
+        case .done: .changed
+        case .proposed: .waiting
+        case .upToDate: .upToDate
+        case .failed: .failed
         }
     }
 

@@ -39,6 +39,11 @@ final class AppWindow {
         didSet { shell.activity = activity.map(ActivityScreen.init) }
     }
 
+    /// Today's own read of the activity, kept apart from Activity's so neither page moves the other's filter.
+    var todayActivity: Activity? {
+        didSet { shell.todayActivity = todayActivity.map(ActivityScreen.init) }
+    }
+
     /// Every agent found on this Mac with its standing, read by the Agents tab.
     var agents: Agents? {
         didSet { shell.agents = agents.map(AgentsScreen.init) }
@@ -46,7 +51,20 @@ final class AppWindow {
 
     /// The Skills Hub as this Mac's runtime keeps it, read by My Skills and Assigned under Workspaces.
     var skills: SkillsHub? {
-        didSet { shell.skills = skills.map(SkillsScreen.init) }
+        didSet {
+            shell.skills = skills.map(SkillsScreen.init)
+            shell.skills?.care = skillCare.map(SkillCareScreen.init)
+        }
+    }
+
+    /// Each skill's use, its fix backlog and the fix the runtime suggests, drawn on a skill's page under My Skills.
+    var skillCare: SkillCare? {
+        didSet { shell.skills?.care = skillCare.map(SkillCareScreen.init) }
+    }
+
+    /// The memory layers and the cold cache count, drawn by the Memory page's Layers view.
+    var memoryLayers: MemoryLayers? {
+        didSet { shell.memoryLayers = memoryLayers.map(MemoryLayersScreen.init) }
     }
 
     /// The projects as this Mac's runtime keeps them, read by the Workspaces tab once the runtime answers `projects`.
@@ -143,7 +161,7 @@ final class AppWindow {
 /// on a route.
 @MainActor
 final class AppShellModel: ObservableObject {
-    @Published private(set) var history = RouteHistory(WindowRoute(.home))
+    @Published private(set) var history = RouteHistory(Destinations.landing)
     @Published var palette = false
     /// The sidebar as a sheet over the page, on the narrowest windows.
     @Published var sheet = false
@@ -182,6 +200,8 @@ final class AppShellModel: ObservableObject {
         didSet { follow() }
     }
     @Published var activity: ActivityScreen?
+    /// What the agents did since midnight, for Today's Done today and Log.
+    @Published var todayActivity: ActivityScreen?
     @Published var agents: AgentsScreen?
     /// The Skills Hub for My Skills and Assigned, nil until the app wires it, which keeps those tabs empty rather than broken.
     @Published var skills: SkillsScreen? {
@@ -193,6 +213,8 @@ final class AppShellModel: ObservableObject {
     }
     /// Memory for its tab, Learn and Home, nil until the app wires it, which keeps those empty rather than broken.
     @Published var memory: MemoryScreen?
+    /// The memory layers for the Memory page's Layers view, nil until the app wires it, which leaves that view out.
+    @Published var memoryLayers: MemoryLayersScreen?
     /// The Backup page's use case, nil until the app wires it, which leaves that page empty rather than broken.
     @Published var backup: Backup?
     /// The local network, nil until the app wires it, which leaves its page empty and Phones without its line.

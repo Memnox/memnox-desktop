@@ -69,6 +69,7 @@ public final class Projects: @unchecked Sendable {
         guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
         let note = response.projectApplied.map(ProjectLines.appliedLine) ?? done
         if let proposed = response.proposed { return .proposed(id: proposed, note: note) }
+        if let applied = response.projectApplied, ProjectLines.upToDate(applied) { return .upToDate(note) }
         return .done(note)
     }
 

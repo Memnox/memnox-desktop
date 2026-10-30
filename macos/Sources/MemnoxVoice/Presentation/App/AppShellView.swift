@@ -1,14 +1,16 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// The window's frame, as the console frames its own: the sidebar, a flat ground with a 56 high top bar holding Back,
-/// Forward, where you are and Go to, and the page under it. The window's width decides the layout, at the same
+/// The window's frame: the sidebar on the ground, and beside it the page in one bordered panel with rounded corners,
+/// its top bar holding Back, Forward and where you are. No rule divides the two; the panel's edge does. The window's width decides the layout, at the same
 /// breakpoints Windows and Linux use.
 struct AppShellView: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var models: SettingsModels
     /// Closes the window, for Escape when nothing else is open.
     let close: () -> Void
+    /// Blurs and dims the page behind any dialog a page opens, as the console does.
+    @StateObject private var backdrop = ModalBackdrop()
 
     private enum Layout {
         /// Room for the window's buttons when there is no sidebar under them.
@@ -20,6 +22,9 @@ struct AppShellView: View {
         static let barPadding: CGFloat = 20
         static let compactBarPadding: CGFloat = 12
         static let disabledOpacity = 0.35
+        /// The panel stands this far from the window's edges and the sidebar, so its border reads all the way round.
+        static let panelInset: CGFloat = 8
+        static let panelRadius: CGFloat = Memnox.Console.cardRadius
     }
 
     var body: some View {
@@ -42,37 +47,55 @@ struct AppShellView: View {
                 }
                 main(route, width)
             }
+            .blur(radius: backdrop.showing ? ModalMetrics.blur : 0)
+            .overlay {
+                if backdrop.showing {
+                    Color.black.opacity(ModalMetrics.scrim).allowsHitTesting(false).transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: Memnox.Motion.quick), value: backdrop.showing)
             if width == .compact, shell.sheet { sheet(route) }
             if shell.palette {
                 CommandPalette(supports: shell.supports, go: shell.go) { shell.palette = false }
             }
         }
         .background(keys)
+        .environment(\.modalBackdrop, backdrop)
         .animation(.snappy(duration: Memnox.Motion.quick), value: shell.inspecting)
     }
 
     private func main(_ route: WindowRoute, _ width: WidthClass) -> some View {
-        VStack(spacing: 0) {
+        let shape = RoundedRectangle(cornerRadius: Layout.panelRadius, style: .continuous)
+        return VStack(spacing: 0) {
             topBar(route, width)
             AppPage(shell: shell, models: models, route: route, width: width)
                 .id(route)
                 .environment(\.paneHeading, heading(route))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Memnox.Console.background)
+        .background(Memnox.Console.card, in: shape)
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .padding(.vertical, Layout.panelInset)
+        .padding(.trailing, Layout.panelInset)
+        // On the narrowest windows there is no sidebar, so the panel keeps its distance from the left edge too.
+        .padding(.leading, width == .compact ? Layout.panelInset : 0)
     }
 
-    /// The console's sub navigation where a destination shows two tabs or more, its title and line where it shows one,
-    /// and nothing over Home.
+    /// Settings keeps its tree beside the page; every other page is reached from the sidebar, so it shows only its own
+    /// title and line, and Home and Today show neither, since Today writes its own line from what waits.
     private func heading(_ route: WindowRoute) -> PaneHeading? {
         let info = Destinations.info(route.destination)
         let tabs = Destinations.visibleTabs(route.destination, supports: shell.supports)
+        if route.destination != .settings, route.destination != .home, route.destination != .today, let shown = Destinations.tab(of: route) {
+            return .page(title: shown.tab.title, subtitle: shown.tab.summary)
+        }
         if tabs.count > 1, let shown = Destinations.tab(of: route) {
             let context = SubNavContext(title: info.title, groups: Destinations.tabGroups(route.destination, supports: shell.supports),
                                         chosen: route.tab) { shell.go(WindowRoute(route.destination, tab: $0)) }
             return .subNav(context, tab: shown.tab, group: shown.group)
         }
-        return route.destination == .home ? nil : .page(title: info.title, subtitle: info.subtitle)
+        return route.destination == .home || route.destination == .today ? nil : .page(title: info.title, subtitle: info.subtitle)
     }
 
     private func topBar(_ route: WindowRoute, _ width: WidthClass) -> some View {
@@ -87,13 +110,14 @@ struct AppShellView: View {
             Spacer(minLength: Memnox.Spacing.medium)
             if width != .compact {
                 TopBarPickers(shell: shell)
+            } else {
+                // The sidebar holds the search; with no sidebar, Go to stays in the bar.
+                goTo(width).padding(.leading, Memnox.Spacing.xSmall)
             }
-            goTo(width).padding(.leading, Memnox.Spacing.xSmall)
         }
         .padding(.leading, width == .compact ? Layout.trafficLights : Layout.compactBarPadding)
         .padding(.trailing, width == .compact ? Layout.compactBarPadding : Layout.barPadding)
-        .frame(height: ShellMetrics.barHeight)
-        .overlay(alignment: .bottom) { ShellDivider() }
+        .frame(height: ShellMetrics.barHeight - Layout.panelInset)
     }
 
     /// Where the window is, as the console's top bar says it: the destination, then its tab once there are tabs.
@@ -167,7 +191,7 @@ struct AppShellView: View {
     private func sheet(_ route: WindowRoute) -> some View {
         HStack(spacing: 0) {
             AppSidebar(shell: shell, route: route, rail: false, canFold: false, home: models.home)
-                .background(Memnox.Console.surface)
+                .background(Memnox.Console.background)
                 .accessibilityAddTraits(.isModal)
             Color.black.opacity(Layout.sheetScrim)
                 .contentShape(Rectangle())
@@ -213,6 +237,9 @@ private struct AppPage: View {
     var body: some View {
         if let menu = models.menu, let setup = models.setup, let island = shell.island {
             switch route.destination {
+            case .today:
+                TodayDestination(shell: shell, island: island, home: models.home, agents: shell.agents, activity: shell.todayActivity,
+                                 width: width)
             case .home:
                 HomeDestination(shell: shell, menu: menu, setup: setup, island: island, models: models, width: width)
             case .agents:
@@ -232,6 +259,9 @@ private struct AppPage: View {
                         SkillsDestination(screen: skills, island: island, tab: route.tab, current: shell.currentProject,
                                           scope: shell.scope, width: width)
                     }
+                } else if route.tab == "sources" {
+                    // Where memory is read from, under Inputs beside the connectors, as Memnox Cloud places its sources.
+                    if let memory = shell.memory { ShellScroll(width: width) { MemorySourcesPage(screen: memory, shell: shell) } }
                 } else if route.tab == "memory" {
                     if let memory = shell.memory { MemoryDestination(screen: memory, shell: shell, island: island, width: width) }
                 } else if route.tab == "discover" {
@@ -244,7 +274,7 @@ private struct AppPage: View {
             case .mcp:
                 // Servers, Clients and Secrets read `mcp-hub`; until this Mac's runtime answers it only Your apps shows.
                 if route.tab == "apps" || route.tab == nil {
-                    SettingsPageColumn { YourAppsPage(tools: menu.tools) }
+                    SettingsPageColumn(wide: true) { YourAppsPage(tools: menu.tools) }
                 } else if let hub = shell.hub {
                     McpHubDestination(shell: shell, screen: hub, island: island, tab: route.tab, width: width)
                 }
@@ -273,10 +303,11 @@ private struct AppPage: View {
 struct SettingsPageColumn<Content: View>: View {
     var title: String?
     var subtitle: String?
+    var wide = false
     @ViewBuilder let content: Content
 
     var body: some View {
-        SettingsColumn(title: title, subtitle: subtitle) { content }
+        SettingsColumn(title: title, subtitle: subtitle, wide: wide) { content }
             .environment(\.rimlessCards, true)
             // Any button a page leaves unstyled is the grey capsule, so no system button shows here.
             .buttonStyle(QuietButton())

@@ -25,7 +25,7 @@ final class DestinationsTests: XCTestCase {
 
     func testShowsTheSkillsHubOnlyWhereTheRuntimeKeepsOne() {
         XCTAssertEqual(Destinations.visibleTabs(.workspaces, supports: nothingNew).map(\.id), ["projects"])
-        XCTAssertEqual(Destinations.visibleTabs(.workspaces, supports: everything).map(\.id), ["projects", "memory", "skills", "assigned", "discover", "profiles"])
+        XCTAssertEqual(Destinations.visibleTabs(.workspaces, supports: everything).map(\.id), ["projects", "memory", "sources", "skills", "assigned", "discover", "profiles"])
     }
 
     func testLandsOnTheFirstTabShownWhenTheOneAskedForIsHidden() {
@@ -78,10 +78,10 @@ final class DestinationsTests: XCTestCase {
     func testGroupsEveryDestinationAsWindowsAndLinuxDo() {
         let titles = { (id: Destination) in Destinations.tabGroups(id, supports: self.everything).map { [$0.title] + $0.tabs.map(\.title) } }
         XCTAssertEqual(titles(.agents), [["Agents", "Agents", "Sessions"], ["This computer", "On this computer"]])
-        XCTAssertEqual(titles(.workspaces), [["Projects", "Workspaces", "Profiles"], ["Knowledge", "Memory"],
+        XCTAssertEqual(titles(.workspaces), [["Projects", "Workspaces", "Profiles"], ["Knowledge", "Memory", "Sources"],
                                              ["Skills", "My Skills", "Assigned", "Discover"]])
-        XCTAssertEqual(titles(.mcp), [["Hub", "Servers", "Clients", "Secrets"], ["Apps", "Your apps"]])
-        XCTAssertEqual(titles(.governance), [["Waiting on you", "Approvals", "Learn"], ["Rules", "Policies"], ["Record", "Activity"]])
+        XCTAssertEqual(titles(.mcp), [["Hub", "Servers", "Clients", "Secrets"], ["Apps", "Connectors"]])
+        XCTAssertEqual(titles(.governance), [["Waiting on you", "Approvals", "Learn"], ["Rules", "Rules"], ["Record", "Activity"]])
     }
 
     func testDropsAHeadingWhoseEveryTabIsHiddenSoNoGroupStandsOverNothing() {
@@ -107,7 +107,7 @@ final class DestinationsTests: XCTestCase {
     func testFindsAPlaceByAnyWordOfItTitlesThatStartWithItFirst() {
         let found = Destinations.matchCommands("app", supports: nothingNew).map(\.title)
         XCTAssertEqual(found.first, "Approvals")
-        XCTAssertTrue(found.contains("Your apps"))
+        XCTAssertTrue(Destinations.matchCommands("conn", supports: nothingNew).map(\.title).contains("Connectors"))
         XCTAssertEqual(Destinations.matchCommands("servers", supports: nothingNew), [])
         XCTAssertEqual(Destinations.matchCommands("  ", supports: nothingNew), Destinations.commands(supports: nothingNew))
     }
@@ -133,5 +133,15 @@ final class DestinationsTests: XCTestCase {
         let keys = Destinations.all.compactMap(\.key)
         XCTAssertEqual(keys, ["1", "2", "3", "4", "5"])
         XCTAssertNil(Destinations.info(.settings).key)
+    }
+
+    func testOpensOnTodayWithHomeStillReachable() {
+        XCTAssertEqual(Destinations.landing, WindowRoute(.today))
+        XCTAssertEqual(Destinations.all.first?.id, .today)
+        XCTAssertEqual(Destinations.settled(WindowRoute(.today), supports: everything), WindowRoute(.today))
+        // Today keeps no digit, so Command 1 to 5 still open what they opened on Windows and Linux.
+        XCTAssertNil(Destinations.info(.today).key)
+        XCTAssertEqual(Destinations.route(forPage: "home"), WindowRoute(.home))
+        XCTAssertEqual(Destinations.route(forPage: "today"), WindowRoute(.today))
     }
 }

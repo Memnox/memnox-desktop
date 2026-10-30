@@ -3,6 +3,8 @@ import Foundation
 /// The Memnox window's five destinations and Settings, the same on the Mac, Windows and Linux. A tab that needs a
 /// daemon method is shown only once the daemon answers it, so nothing on screen is a promise.
 public enum Destination: String, CaseIterable, Sendable {
+    /// What needs the person today, most urgent first; the window opens on it.
+    case today
     case home
     case agents
     case workspaces
@@ -146,7 +148,12 @@ public enum Destinations {
         "apps": WindowRoute(.mcp, tab: "apps"),
     ]
 
+    /// Where the window opens: what needs the person today, with Home still one row below it.
+    public static let landing = WindowRoute(.today)
+
     public static let all: [DestinationInfo] = [
+        DestinationInfo(id: .today, title: "Today", subtitle: "What needs you today, the most urgent first, and what your agents did.",
+                        key: nil, tabs: []),
         DestinationInfo(id: .home, title: "Home", subtitle: "What is running, what needs you, and where to carry on.",
                         key: "1", tabs: []),
         DestinationInfo(id: .agents, title: "Agents", subtitle: "The agents on this Mac, their sessions, and what each can reach.",
@@ -166,6 +173,9 @@ public enum Destinations {
                             TabInfo(id: "memory", title: "Memory", group: .knowledge,
                                     summary: "What your agents know, each fact with the evidence it was read from, and the sources it came out of.",
                                     needs: "memory-facts"),
+                            TabInfo(id: "sources", title: "Sources", group: .knowledge,
+                                    summary: "Where your agents' memory is read from: notes, instruction files, exports and memory servers.",
+                                    needs: "memory-facts"),
                             TabInfo(id: "skills", title: "My Skills", group: .skills,
                                     summary: "The skills you keep, and the agents each one is given to.", needs: "skills-hub"),
                             TabInfo(id: "assigned", title: "Assigned", group: .skills, summary: "Which skills each agent carries.",
@@ -184,7 +194,7 @@ public enum Destinations {
                                     needs: "mcp-hub"),
                             TabInfo(id: "secrets", title: "Secrets", group: .hub,
                                     summary: "Each secret by name, where it is used, and whether this Mac holds it.", needs: "mcp-hub"),
-                            TabInfo(id: "apps", title: "Your apps", group: .apps,
+                            TabInfo(id: "apps", title: "Connectors", group: .apps,
                                     summary: "Connect any tool you use as yourself, and see the ones this Mac already reaches."),
                         ]),
         DestinationInfo(id: .governance, title: "Governance",
@@ -192,7 +202,7 @@ public enum Destinations {
                         key: "5", tabs: [
                             TabInfo(id: "approvals", title: "Approvals", group: .review,
                                     summary: "What waits on you, oldest first, each saying what the agent wants to do and where."),
-                            TabInfo(id: "policies", title: "Policies", group: .rules,
+                            TabInfo(id: "policies", title: "Rules", group: .rules,
                                     summary: "What your agents may do, ask about first, or never do.", needs: "rules"),
                             TabInfo(id: "activity", title: "Activity", group: .record,
                                     summary: "What your agents did, newest first, beside what was decided.", needs: "activity"),

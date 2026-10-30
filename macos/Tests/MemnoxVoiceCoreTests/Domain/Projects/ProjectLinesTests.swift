@@ -79,7 +79,21 @@ final class ProjectLinesTests: XCTestCase {
     func testSaysWhatApplyingDidAtOnceAndWhatTheHubLacks() {
         XCTAssertEqual(ProjectLines.appliedLine(ProjectApplySummary(written: ["AGENTS.md", "CLAUDE.md"], kept: [".cursorrules"], missing: ["linear"])),
                        "Wrote 2 instruction files, left 1 of yours alone. The hub here lacks linear, so no agent is given it.")
-        XCTAssertEqual(ProjectLines.appliedLine(ProjectApplySummary()), "Every agent already had this project\u{2019}s instructions.")
+        XCTAssertEqual(ProjectLines.appliedLine(ProjectApplySummary()),
+                       "Nothing needed applying: every agent here already has this project\u{2019}s instructions.")
+    }
+
+    func testCountsAnApplyThatChangedNothingAsUpToDate() {
+        XCTAssertTrue(ProjectLines.upToDate(ProjectApplySummary()))
+        XCTAssertTrue(ProjectLines.upToDate(ProjectApplySummary(kept: [".cursorrules"], missing: ["linear"])))
+        XCTAssertFalse(ProjectLines.upToDate(ProjectApplySummary(written: ["AGENTS.md"])))
+        XCTAssertFalse(ProjectLines.upToDate(ProjectApplySummary(removed: ["AGENTS.md"])))
+        XCTAssertFalse(ProjectLines.upToDate(ProjectApplySummary(governed: ["linear"])))
+        XCTAssertEqual(ProjectLines.mark(.upToDate("x")), .upToDate)
+        XCTAssertEqual(ProjectLines.mark(.done("x")), .changed)
+        XCTAssertEqual(ProjectLines.mark(.proposed(id: "p", note: "x")), .waiting)
+        XCTAssertEqual(ProjectLines.mark(.failed("x")), .failed)
+        XCTAssertEqual(ProjectLines.note(.upToDate("Nothing.")), "Nothing.")
     }
 
     func testKeepsToTheRulesThatReachIntoTheProjectCountingTheOnesThatHoldEverywhereApart() {

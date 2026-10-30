@@ -78,14 +78,8 @@ struct ActivityDestination: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Decided")
-            Picker("Kind", selection: $kind) {
-                ForEach(Self.kinds, id: \.1) { each in
-                    Text(each.1).tag(each.0)
-                }
-            }
-            .labelsHidden()
-            .frame(maxWidth: Self.kindWidth)
-            .accessibilityLabel("Kind")
+            ConsoleSelect(label: "Kind", selection: $kind, options: Self.kinds.map { SelectOption(value: $0.0, title: $0.1) })
+                .frame(maxWidth: Self.kindWidth)
             Spacer(minLength: Memnox.Spacing.medium)
             Button(action: copyRecord) { Label("Copy signed record", systemImage: "doc.on.doc") }
                 .buttonStyle(KitButton(kind: .secondary))

@@ -128,6 +128,21 @@ struct ShellPanel<Content: View>: View {
     }
 }
 
+/// A press that answers at once: the row or chip dips a little and dims while held, so a click is felt before it lands.
+struct PressDip: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let pressedScale: CGFloat = 0.98
+    private static let pressedOpacity = 0.75
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? Self.pressedScale : 1)
+            .opacity(configuration.isPressed ? Self.pressedOpacity : 1)
+            .animation(.easeOut(duration: Memnox.Motion.quick), value: configuration.isPressed)
+    }
+}
+
 /// The hairline between two rows of a panel.
 struct ShellDivider: View {
     var body: some View {
@@ -148,7 +163,7 @@ struct ShellRow<Leading: View, Trailing: View>: View {
     var body: some View {
         if let action {
             Button(action: action) { face.contentShape(Rectangle()) }
-                .buttonStyle(.plain)
+                .buttonStyle(PressDip())
                 .hoverLight(radius: 0, inset: 0)
                 .accessibilityAddTraits(chosen ? .isSelected : [])
         } else {

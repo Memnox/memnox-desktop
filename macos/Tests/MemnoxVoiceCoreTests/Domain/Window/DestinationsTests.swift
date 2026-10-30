@@ -23,6 +23,11 @@ final class DestinationsTests: XCTestCase {
                        ["approvals", "policies", "activity"])
     }
 
+    func testShowsTheSkillsHubOnlyWhereTheRuntimeKeepsOne() {
+        XCTAssertEqual(Destinations.visibleTabs(.workspaces, supports: nothingNew).map(\.id), ["projects"])
+        XCTAssertEqual(Destinations.visibleTabs(.workspaces, supports: everything).map(\.id), ["projects", "skills", "assigned"])
+    }
+
     func testLandsOnTheFirstTabShownWhenTheOneAskedForIsHidden() {
         XCTAssertEqual(Destinations.settled(WindowRoute(.mcp, tab: "servers"), supports: nothingNew), WindowRoute(.mcp, tab: "apps"))
         XCTAssertEqual(Destinations.settled(WindowRoute(.home), supports: everything), WindowRoute(.home))

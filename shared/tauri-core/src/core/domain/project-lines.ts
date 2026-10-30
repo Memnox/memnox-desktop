@@ -1,4 +1,4 @@
-import type { PolicyRuleView, ProjectApplySummary, ProjectDraft, ProjectInstructionView, ProjectView } from '@memnox/core/wire';
+import type { PolicyRuleView, ProjectApplySummary, ProjectDraft, ProjectInstructionView, ProjectOrganizationView, ProjectView } from '@memnox/core/wire';
 import { agentLabel } from './mcp-hub-lines';
 
 /** "1 agent", "3 agents": a count, never a score. */
@@ -113,6 +113,27 @@ export function draftOf(project: Pick<ProjectView, 'name' | 'agents' | 'servers'
     ...(project.rules.file === undefined ? {} : { policy: project.rules.file }),
     ...(project.memoryScope === '' ? {} : { memory: project.memoryScope }),
   };
+}
+
+/** The badge on a project the organization shares, which is read only here. */
+export const FROM_ORGANIZATION = 'From your organization';
+
+/** What the organization hands a shared project, or undefined for the person's own. */
+export function sharedBy(project: Pick<ProjectView, 'scope' | 'organization'>): ProjectOrganizationView | undefined {
+  return project.scope === 'organization' ? project.organization : undefined;
+}
+
+/** "Release rules, 4 rules", or that the organization gives this project no rule pack. */
+export function organizationRulesLine(organization: Pick<ProjectOrganizationView, 'rulePack' | 'rules'>): string {
+  if (organization.rulePack === undefined) return 'No rule pack from the organization.';
+  return `${organization.rulePack}, ${counted(organization.rules, 'rule', 'rules')}`;
+}
+
+/** Where what its agents learn is kept, as the organization set it. */
+export function organizationMemoryLine(memory: string): string {
+  if (memory === 'none') return 'Its agents keep no memory from this project.';
+  if (memory === 'project') return 'What its agents learn is kept under the organization’s project rather than this folder.';
+  return `Memory is kept as ${memory}.`;
 }
 
 /** Folders the sessions ran in that are not projects yet, offered as quick picks to open. */

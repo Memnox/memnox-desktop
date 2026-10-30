@@ -8,12 +8,15 @@ import {
   foldersToOpen,
   grantLine,
   instructionWord,
+  organizationMemoryLine,
+  organizationRulesLine,
   projectRules,
   projectStanding,
   projectTiles,
   questionsLine,
   readersLine,
   rulesLine,
+  sharedBy,
 } from '../src/core/domain/project-lines';
 import { ScriptedDaemon } from './doubles';
 
@@ -148,5 +151,22 @@ describe('the projects use case', () => {
     expect((await projects.put(project.path, { name: 'memnox-desktop' })).kind).toBe('done');
     expect(daemon.sent('project-put')[0]).toMatchObject({ projectPath: '/code/memnox-desktop', projectDraft: { name: 'memnox-desktop' } });
     expect(await projects.apply('prj_9')).toEqual({ kind: 'failed', why: 'No project prj_9.' });
+  });
+});
+
+describe('a project the organization shares', () => {
+  const organization = { id: 'op_1', name: 'API', repository: 'github.com/acme/api', servers: ['github'], skills: [], rulePack: 'Release rules', rules: 4, memory: 'project', skipped: [], editedIn: 'API is the organization’s project, so it is changed in Memnox Cloud rather than here.' };
+
+  it('is read only only when the organization names it', () => {
+    expect(sharedBy({ scope: 'organization', organization })).toBe(organization);
+    expect(sharedBy({ organization })).toBeUndefined();
+    expect(sharedBy({})).toBeUndefined();
+  });
+
+  it('says its rule pack with a count and where its memory is kept', () => {
+    expect(organizationRulesLine(organization)).toBe('Release rules, 4 rules');
+    expect(organizationRulesLine({ rules: 0 })).toBe('No rule pack from the organization.');
+    expect(organizationMemoryLine('none')).toBe('Its agents keep no memory from this project.');
+    expect(organizationMemoryLine('project')).toBe('What its agents learn is kept under the organization’s project rather than this folder.');
   });
 });

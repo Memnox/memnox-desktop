@@ -1,0 +1,81 @@
+import { describe, expect, it } from 'vitest';
+import { DaemonSupport } from '../src/core/application/daemon-support';
+import { RequestIds } from '../src/core/application/request-ids';
+import {
+  matchCommands,
+  RouteHistory,
+  routeForPage,
+  routeFrom,
+  searchOf,
+  settled,
+  visibleTabs,
+  widthClass,
+  type Supports,
+} from '../src/core/domain/destinations';
+import { ScriptedDaemon } from './doubles';
+
+const nothingNew: Supports = () => false;
+const everything: Supports = () => true;
+
+describe('the window’s destinations', () => {
+  it('hides a tab until the daemon answers the method it reads', () => {
+    expect(visibleTabs('mcp', nothingNew).map((tab) => tab.id)).toEqual(['apps']);
+    expect(visibleTabs('mcp', everything).map((tab) => tab.id)).toEqual(['servers', 'clients', 'secrets', 'apps']);
+  });
+
+  it('lands on the first tab shown when the one asked for is hidden', () => {
+    expect(settled({ destination: 'mcp', tab: 'servers' }, nothingNew)).toEqual({ destination: 'mcp', tab: 'apps' });
+    expect(settled({ destination: 'home' }, everything)).toEqual({ destination: 'home' });
+  });
+
+  it('keeps every old settings link working', () => {
+    expect(routeFrom('?page=overview')).toEqual({ destination: 'home' });
+    expect(routeFrom('?page=phones')).toEqual({ destination: 'settings', tab: 'phones' });
+    expect(routeFrom('?page=tools')).toEqual({ destination: 'agents', tab: 'computer' });
+    expect(routeFrom('?page=apps')).toEqual({ destination: 'mcp', tab: 'apps' });
+    expect(routeFrom('')).toEqual({ destination: 'home' });
+    expect(routeForPage('voice')).toEqual({ destination: 'settings', tab: 'voice' });
+    expect(routeForPage('governance')).toEqual({ destination: 'governance' });
+  });
+
+  it('writes a route a link can carry and reads it back', () => {
+    const route = { destination: 'governance' as const, tab: 'approvals' };
+    expect(routeFrom(searchOf(route))).toEqual(route);
+  });
+
+  it('changes layout at the same widths as the Mac', () => {
+    expect([1280, 1000, 760, 480].map(widthClass)).toEqual(['wide', 'medium', 'narrow', 'compact']);
+  });
+
+  it('finds a place by any word of it, titles that start with it first', () => {
+    const found = matchCommands('app', nothingNew).map((each) => each.title);
+    expect(found[0]).toBe('Approvals');
+    expect(found).toContain('Your apps');
+    expect(matchCommands('servers', nothingNew)).toEqual([]);
+  });
+
+  it('goes back and forward through routes as a browser does', () => {
+    const history = new RouteHistory({ destination: 'home' });
+    history.visit({ destination: 'agents' });
+    history.visit({ destination: 'agents' });
+    history.visit({ destination: 'mcp', tab: 'apps' });
+    history.back();
+    expect(history.current).toEqual({ destination: 'agents' });
+    history.visit({ destination: 'settings', tab: 'voice' });
+    expect(history.canGoForward).toBe(false);
+  });
+});
+
+describe('what the daemon answers', () => {
+  it('asks once per method and remembers a refusal as not supported', async () => {
+    const daemon = new ScriptedDaemon({ 'mcp-hub': (request) => [{ id: request.id, ok: true }] });
+    const support = new DaemonSupport(daemon, new RequestIds());
+    expect(support.supports('mcp-hub')).toBeUndefined();
+    expect(support.supports('rules')).toBeUndefined();
+    support.supports('mcp-hub');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(support.supports('mcp-hub')).toBe(true);
+    expect(support.supports('rules')).toBe(false);
+    expect(daemon.sent('mcp-hub')).toHaveLength(1);
+  });
+});

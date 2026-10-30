@@ -386,13 +386,15 @@ function syncAnswer(request: DaemonRequest): Partial<DaemonResponse> {
 /** The community index: a skill already held at an older version, a pack, and a skill whose every version was marked unsafe. */
 const previewIndex: CommunityIndexView = {
   source: 'https://memnox.com/index.json',
+  marketplace: true,
   fetchedAt: '2026-10-30T11:40:00Z',
   complete: true,
   ...(previewState === 'offline' ? { said: 'The index could not be reached, so this is what was read this morning.' } : {}),
   entries: [
-    { id: 'lst_review', name: 'review-checklist', kind: 'skill', description: 'Walks a pull request against the team checklist before it is sent for review', category: 'Code review', publisher: { kind: 'organization', name: 'Acme' }, license: 'MIT', agents: ['claude-code', 'codex-cli'], latest: { version: '2.1.0', digest: 'sha256:9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b' }, yanked: ['2.0.0'], unsafe: false, installed: '1.4.0' },
-    { id: 'lst_pushes', name: 'careful-pushes', kind: 'rule_pack', description: 'Asks before a push to main, a force push or a deleted branch', category: 'Git', publisher: { kind: 'member', name: 'Priya Shah' }, license: 'Apache-2.0', agents: [], latest: { version: '1.0.2', digest: 'sha256:1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c' }, yanked: [], unsafe: false },
-    { id: 'lst_scrape', name: 'site-scraper', kind: 'skill', description: 'Fetches pages and keeps their text for later', category: 'Research', publisher: { kind: 'member', name: 'jdoe' }, agents: ['claude-code'], yanked: ['0.3.0', '0.3.1'], unsafe: true },
+    { id: 'lst_review', name: 'review-checklist', kind: 'skill', description: 'Walks a pull request against the team checklist before it is sent for review', category: 'Code review', publisher: { kind: 'organization', name: 'Acme' }, license: 'MIT', agents: ['claude-code', 'codex-cli'], latest: { version: '2.1.0', digest: 'sha256:9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b' }, yanked: ['2.0.0'], unsafe: false, installed: '1.4.0', needs: { filesystem: ['./.github/pull_request_template.md'], network: [], commands: ['git diff', 'gh pr view'], mcpServers: ['github'], tools: ['Read', 'Bash'] }, warnings: [] },
+    { id: 'lst_pushes', name: 'careful-pushes', kind: 'rule_pack', description: 'Asks before a push to main, a force push or a deleted branch', category: 'Git', publisher: { kind: 'member', name: 'Priya Shah' }, license: 'Apache-2.0', agents: [], latest: { version: '1.0.2', digest: 'sha256:1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c' }, yanked: [], unsafe: false, needs: { filesystem: [], network: [], commands: [], mcpServers: [], tools: [] }, warnings: [] },
+    { id: 'lst_scrape', name: 'site-scraper', kind: 'skill', description: 'Fetches pages and keeps their text for later', category: 'Research', publisher: { kind: 'member', name: 'jdoe' }, agents: ['claude-code'], yanked: ['0.3.0', '0.3.1'], unsafe: true, needs: { filesystem: ['~/.cache/site-scraper'], network: ['*'], commands: ['curl'], mcpServers: [], tools: ['WebFetch'] }, warnings: ['It reaches any host on the internet, not only the sites you name.', 'It runs curl, which can send what it reads anywhere.'] },
+    { id: 'lst_standup', name: 'standup-notes', kind: 'skill', description: 'Writes yesterday into three lines for the morning standup', category: 'Writing', publisher: { kind: 'member', name: 'Lee' }, agents: [], latest: { version: '0.4.0', digest: 'sha256:5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f' }, yanked: [], unsafe: false, warnings: ['Its publisher is a member rather than an organization, and nobody has reviewed it yet.'] },
   ],
 };
 
@@ -401,6 +403,8 @@ function indexAnswer(request: DaemonRequest): Partial<DaemonResponse> {
   const words = (request.indexQuery ?? '').toLowerCase();
   const entries = previewIndex.entries.filter((entry) => (request.indexKind === undefined || entry.kind === request.indexKind) && `${entry.name} ${entry.description}`.toLowerCase().includes(words));
   const communityIndex = { ...previewIndex, entries };
+  // Another index only waits on the island, so the scene keeps showing the marketplace, as the runtime does.
+  if (request.method === 'index-source-set') return { communityIndex: previewIndex, ...(request.indexSource === undefined || request.indexSource === 'marketplace' ? {} : { proposed: 'prp_preview' }) };
   if (request.method !== 'index-install') return { communityIndex };
   const entry = previewIndex.entries.find((each) => each.name === request.indexName || each.id === request.indexName);
   if (entry === undefined || entry.latest === undefined) return { communityIndex };

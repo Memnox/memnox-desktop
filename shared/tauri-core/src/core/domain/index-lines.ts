@@ -1,9 +1,27 @@
-import type { CommunityIndexView, IndexEntryView, IndexInstalled, IndexKind } from '@memnox/core/wire';
+import type { CommunityIndexView, IndexEntryView, IndexInstalled, IndexKind, IndexNeedsView } from '@memnox/core/wire';
 import { agentLabel } from './mcp-hub-lines';
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
+/** An https address with a host and no spaces; the runtime checks it again before anything is proposed. */
+const HTTPS_ADDRESS = /^https:\/\/[^\s/?#]+[^\s]*$/i;
+
+/** One kind of need, as Discover groups them: what it is called, what it means, and the word to count it in. */
+export interface NeedsGroup {
+  readonly title: string;
+  readonly caption: string;
+  readonly items: readonly string[];
+}
+
+/** The needs a manifest declares, in the order a person weighs them: what it touches first, what it asks for last. */
+const NEEDS: readonly { key: keyof IndexNeedsView; title: string; caption: string; one: string; many: string }[] = [
+  { key: 'filesystem', title: 'Files', caption: 'Paths it reads or writes', one: 'path', many: 'paths' },
+  { key: 'network', title: 'Network', caption: 'Hosts it reaches', one: 'host', many: 'hosts' },
+  { key: 'commands', title: 'Commands', caption: 'Commands it runs', one: 'command', many: 'commands' },
+  { key: 'mcpServers', title: 'MCP servers', caption: 'MCP servers it uses', one: 'MCP server', many: 'MCP servers' },
+  { key: 'tools', title: 'Tools', caption: 'Tools it asks its agent for', one: 'tool', many: 'tools' },
+];
 
 /** The kind filter on Discover: everything, or one of the two kinds the index lists. */
 export type IndexKindFilter = 'all' | IndexKind;
@@ -83,6 +101,54 @@ export function indexInstalledLine(installed: Pick<IndexInstalled, 'name' | 'kin
   if (installed.held) return `${installed.name} v${installed.version} is in My Skills, waiting for you to accept it.`;
   return `${installed.name} v${installed.version} is in My Skills.`;
 }
+
+/** The kinds of need a listing declares, each with what it names, leaving out the kinds it names nothing in. */
+export function needsGroups(needs: IndexNeedsView | undefined): NeedsGroup[] {
+  if (needs === undefined) return [];
+  return NEEDS.filter((each) => needs[each.key].length > 0).map((each) => ({ title: each.title, caption: each.caption, items: needs[each.key] }));
+}
+
+/** What a listing needs in a line, counted by kind, or that it declares nothing, or that it carries no manifest at all. */
+export function needsSummaryLine(needs: IndexNeedsView | undefined): string {
+  if (needs === undefined) return 'Says nothing about what it needs, since the index carries no manifest for it';
+  const counts = NEEDS.filter((each) => needs[each.key].length > 0).map((each) => {
+    const count = needs[each.key].length;
+    return `${count} ${count === 1 ? each.one : each.many}`;
+  });
+  if (counts.length === 0) return 'Needs no files, network, commands, MCP servers or tools';
+  return `Needs ${listed(counts)}`;
+}
+
+/** How many things to know before installing, or undefined when nothing stands out. */
+export function warningsCountLine(warnings: readonly string[]): string | undefined {
+  if (warnings.length === 0) return undefined;
+  return warnings.length === 1 ? '1 thing to know before installing' : `${warnings.length} things to know before installing`;
+}
+
+/** Where listings come from, and whether that is the Memnox marketplace or an index somebody named. */
+export function indexSourceLine(view: Pick<CommunityIndexView, 'source' | 'marketplace'>): string {
+  if (view.marketplace) return `Listings come from the Memnox marketplace, at ${view.source}.`;
+  return `Listings come from ${view.source}, an index you named rather than the Memnox marketplace.`;
+}
+
+/** Only an https address is offered to the runtime, which refuses anything else as well. */
+export function isIndexAddress(text: string): boolean {
+  return HTTPS_ADDRESS.test(text.trim());
+}
+
+/** Said when the address typed is not one the runtime would read. */
+export const INDEX_ADDRESS_WANTED = 'Give an https address to an index.json.';
+
+/** Said once another index is proposed: it holds only once signed, so the page still shows the current source. */
+export function indexSourceProposedLine(keyTitle: string): string {
+  return `Waiting on the island: sign it with ${keyTitle} and listings come from there.`;
+}
+
+/** Said once the marketplace is the source again, which narrows and so holds at once. */
+export const INDEX_SOURCE_RESET = 'Listings come from the Memnox marketplace again.';
+
+/** Said when the address named is already where listings come from, so nothing was proposed. */
+export const INDEX_SOURCE_SAME = 'Listings already come from there.';
 
 function sinceLine(at: string, now: number): string {
   const then = Date.parse(at);

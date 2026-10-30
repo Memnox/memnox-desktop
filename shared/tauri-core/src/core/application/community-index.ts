@@ -1,11 +1,17 @@
-import { INDEX_KIND, INDEX_METHOD, type CommunityIndexView, type DaemonRequest, type DaemonResponse, type IndexEntryView } from '@memnox/core/wire';
-import { indexInstalledLine, type IndexKindFilter } from '../domain/index-lines';
+import { INDEX_KIND, INDEX_METHOD, INDEX_SOURCE, type CommunityIndexView, type DaemonRequest, type DaemonResponse, type IndexEntryView } from '@memnox/core/wire';
+import { INDEX_SOURCE_RESET, INDEX_SOURCE_SAME, indexInstalledLine, indexSourceProposedLine, type IndexKindFilter } from '../domain/index-lines';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
 
 /** How an Install ended: said in a line, since a skill only waits in My Skills and a pack only waits on the island. */
 export type IndexOutcome = { kind: 'done'; note: string } | { kind: 'failed'; why: string };
+
+/** How setting the source ended: another index waits on the island, the marketplace holds at once, or it was refused. */
+export type IndexSourceOutcome = { kind: 'proposed'; note: string } | { kind: 'done'; note: string } | { kind: 'failed'; why: string };
+
+/** What `busy` reads while the source is being set. */
+export const SETTING_SOURCE = 'source';
 
 /** What Discover asks the runtime for: words and a kind; the category is filtered by the window. */
 export interface IndexFilter {
@@ -89,6 +95,22 @@ export class CommunityIndex extends Observed {
     if (!response.ok) return { kind: 'failed', why: response.error ?? 'The runtime refused this.' };
     if (response.indexInstalled === undefined) return { kind: 'done', note: `${name} is installed.` };
     return { kind: 'done', note: indexInstalledLine(response.indexInstalled, this.keyTitle) };
+  }
+
+  /** Names another index, which only proposes it, or the marketplace when absent, which holds at once. */
+  async setSource(address?: string): Promise<IndexSourceOutcome> {
+    const source = address === undefined ? INDEX_SOURCE.MARKETPLACE : address.trim();
+    this.busyWith = SETTING_SOURCE;
+    this.changed();
+    const response = await this.ask({ method: INDEX_METHOD.INDEX_SOURCE_SET, indexSource: source });
+    this.busyWith = undefined;
+    // The view still names the current source while a proposal waits, so it is taken as it came.
+    if (response?.communityIndex !== undefined) this.view = response.communityIndex;
+    this.changed();
+    if (response === undefined) return { kind: 'failed', why: 'The runtime is not answering.' };
+    if (!response.ok) return { kind: 'failed', why: response.error ?? 'The runtime refused this.' };
+    if (response.proposed !== undefined) return { kind: 'proposed', note: indexSourceProposedLine(this.keyTitle) };
+    return { kind: 'done', note: source === INDEX_SOURCE.MARKETPLACE ? INDEX_SOURCE_RESET : INDEX_SOURCE_SAME };
   }
 
   private async ask(fields: Omit<DaemonRequest, 'id'>): Promise<DaemonResponse | undefined> {

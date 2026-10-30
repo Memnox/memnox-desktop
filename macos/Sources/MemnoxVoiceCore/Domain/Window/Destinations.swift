@@ -65,6 +65,7 @@ public enum Destinations {
         TabInfo(id: "connection", title: "Connection"),
         TabInfo(id: "phones", title: "Phones"),
         TabInfo(id: "appearance", title: "Appearance"),
+        TabInfo(id: "backup", title: "Backup"),
         TabInfo(id: "voice", title: "Voice"),
         TabInfo(id: "listening", title: "Listening"),
         TabInfo(id: "dictation", title: "Dictation"),

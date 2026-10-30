@@ -120,6 +120,8 @@ struct AppShellView: View {
 
     private func title(_ route: WindowRoute) -> String {
         if route.destination == .settings, let tab = route.tab, let page = SettingsPage(rawValue: tab) { return page.title }
+        // Backup is the window's own page, so its title is the tab's rather than a Settings window page's.
+        if route.destination == .settings, let tab = Destinations.settingsTabs.first(where: { $0.id == route.tab }) { return tab.title }
         return Destinations.info(route.destination).title
     }
 
@@ -222,7 +224,7 @@ private struct AppPage: View {
                     ApprovalsDestination(island: island, width: width)
                 }
             case .settings:
-                SettingsDestination(models: models, menu: menu, setup: setup, tab: route.tab)
+                SettingsDestination(models: models, menu: menu, setup: setup, tab: route.tab, backup: shell.backup)
             }
         } else {
             ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)

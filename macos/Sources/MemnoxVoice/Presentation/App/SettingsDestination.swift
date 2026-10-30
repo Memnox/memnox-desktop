@@ -8,8 +8,24 @@ struct SettingsDestination: View {
     @ObservedObject var menu: MenuModel
     @ObservedObject var setup: SetupModel
     let tab: String?
+    /// The setup sealed under a passphrase and put back once signed, nil until the app wires it.
+    let backup: Backup?
+
+    /// The Backup page is the window's own, so it has no page in the Settings window to borrow.
+    static let backupTab = "backup"
 
     var body: some View {
+        if tab == Self.backupTab {
+            SettingsPageColumn(title: "Backup",
+                               subtitle: "Your rules, hubs, skills, projects and memory, sealed under a passphrase and put back once you sign.") {
+                if let backup { BackupPage(backup: backup) }
+            }
+        } else {
+            page
+        }
+    }
+
+    @ViewBuilder private var page: some View {
         let page = tab.flatMap(SettingsPage.init(rawValue:)) ?? .account
         SettingsPageColumn(title: page.title, subtitle: page.subtitle) {
             switch page {

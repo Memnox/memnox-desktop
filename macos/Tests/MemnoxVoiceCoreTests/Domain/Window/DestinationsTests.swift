@@ -44,6 +44,13 @@ final class DestinationsTests: XCTestCase {
         XCTAssertNil(Destinations.route(forPage: "nowhere"))
     }
 
+    func testKeepsBackupUnderSettingsAfterAppearanceAsWindowsAndLinuxDo() {
+        let tabs = Destinations.settingsTabs.map(\.id)
+        XCTAssertEqual(tabs.firstIndex(of: "backup"), tabs.firstIndex(of: "appearance").map { $0 + 1 })
+        XCTAssertEqual(Destinations.route(forPage: "backup"), WindowRoute(.settings, tab: "backup"))
+        XCTAssertEqual(Destinations.settled(WindowRoute(.settings, tab: "backup"), supports: { _ in false }), WindowRoute(.settings, tab: "backup"))
+    }
+
     func testChangesLayoutAtTheSameWidthsAsWindowsAndLinux() {
         XCTAssertEqual([1280, 1000, 760, 480].map { WidthClass(width: $0) }, [.wide, .medium, .narrow, .compact])
         XCTAssertEqual([1200, 900, 640].map { WidthClass(width: $0) }, [.wide, .medium, .narrow])

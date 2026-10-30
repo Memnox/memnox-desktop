@@ -359,6 +359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppWindow.shared.agents = Agents(link: link, ids: ids)
         AppWindow.shared.skills = SkillsHub(link: link, ids: ids)
         AppWindow.shared.projects = Projects(link: link, ids: ids)
+        AppWindow.shared.backup = Backup(link: link, ids: ids)
         let chosen = UserDefaults.standard.string(forKey: Self.voiceChoiceKey) ?? VoiceChoice.kokoro
         Task {
             await chooseVoice(chosen, announce: false)

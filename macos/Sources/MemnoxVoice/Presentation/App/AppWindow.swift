@@ -49,6 +49,11 @@ final class AppWindow {
         didSet { shell.projects = projects.map(ProjectsScreen.init) }
     }
 
+    /// Making a backup and putting one back, read by the Backup page under Settings.
+    var backup: Backup? {
+        didSet { shell.backup = backup }
+    }
+
     let shell = AppShellModel()
     private var window: NSWindow?
 
@@ -129,6 +134,8 @@ final class AppShellModel: ObservableObject {
     @Published var skills: SkillsScreen?
     /// The projects for the Workspaces tab, nil until the app wires it, which keeps the repositories the sessions met.
     @Published var projects: ProjectsScreen?
+    /// The Backup page's use case, nil until the app wires it, which leaves that page empty rather than broken.
+    @Published var backup: Backup?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.
     @Published private(set) var answers = 0
     private var support: DaemonSupport?

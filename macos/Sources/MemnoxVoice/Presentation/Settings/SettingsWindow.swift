@@ -1,8 +1,10 @@
 import AppKit
+import MemnoxVoiceCore
 import SwiftUI
 
-/// The one ordinary window Memnox opens: setup on the first run and Settings after it, as pages of one window rather
-/// than two. The menu bar hands it the menu's model and setup hands it its own, so every page reads live state.
+/// The models of the one ordinary window Memnox opens, and the old way into it: setup on the first run and Settings
+/// after it now open the Memnox window. The menu bar hands it the menu's model and setup hands it its own, so every
+/// page reads live state.
 @MainActor
 final class SettingsWindow {
     static let shared = SettingsWindow()
@@ -36,62 +38,30 @@ final class SettingsWindow {
     }
 
     /// Whether the window is on screen, so the home is read on stream events only while somebody can see it.
-    var isShowing: Bool { window?.isVisible == true }
+    var isShowing: Bool { AppWindow.shared.isShowing }
 
     let navigation = SettingsNavigation()
-    private let models = SettingsModels()
-    private var window: NSWindow?
-
-    private enum Layout {
-        static let width: CGFloat = 940
-        static let height: CGFloat = 720
-    }
+    /// The models every page reads, which the Memnox window shares.
+    let models = SettingsModels()
 
     private init() {}
 
-    /// Opens on the page given, or stays on the one last shown when none is.
+    /// Opens the Memnox window on the page given, or where it was left when none is. A page that moved out of Settings
+    /// lands on the destination that took its place, so every old way in still works.
     func show(_ page: SettingsPage? = nil) {
         if setup == nil { prepareSetup?() }
-        if let page { navigation.go(page) }
         // The numbers, the phones and the voice are read fresh each time the window comes forward.
         menu?.kokoroVoice = KokoroVoice.chosen().voice
         menu?.loadDevices()
         menu?.loadOverview()
         menu?.tools.refresh()
         home?.refresh()
-        if let window {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: Layout.width, height: Layout.height),
-            // A set size, as Vorssaint's window is, so every page is laid out once for the size it is seen at.
-            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "Memnox"
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        // An empty toolbar gives the title bar its taller height, so the window's buttons sit level with Back and Forward.
-        window.toolbar = NSToolbar()
-        window.toolbarStyle = .unified
-        window.isMovableByWindowBackground = true
-        window.isReleasedWhenClosed = false
-        // Clear, so the sidebar's and the page's glass show the desktop through them.
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.contentView = FirstClickHosting(rootView: SettingsView(models: models, navigation: navigation) { [weak self] in self?.close() })
-        window.center()
-        self.window = window
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        let route = page.map { Destinations.route(forPage: $0.rawValue) ?? WindowRoute(.settings, tab: $0.rawValue) }
+        AppWindow.shared.show(route, models: models)
     }
 
     func close() {
-        window?.close()
-        window = nil
+        AppWindow.shared.close()
     }
 }
 

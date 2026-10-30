@@ -13,6 +13,9 @@ import { AddServerDialog } from './AddServerDialog';
 import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
 import { serverScope } from '../../../core/domain/scope-lines';
 import { GoLink } from './HomePage';
+import { usePicked } from '../inspector-host';
+import { useShellChoices } from '../shell-choices';
+import { inScope, NO_ORGANIZATION_ITEMS, ORGANIZATION_READ_ONLY } from '../../../core/domain/shell-lines';
 
 /**
  * The MCP Hub: servers set up once and given to the agents the person chooses. Every config is written
@@ -58,10 +61,12 @@ function noteOf(outcome: HubOutcome, keyTitle: string): string {
 function Servers({ parts, view, width, said, workspaces }: { parts: SettingsParts; view: McpHubView; width: WidthClass; said: (outcome: HubOutcome) => void; workspaces: () => void }) {
   const { hub } = parts;
   const [query, setQuery] = useState('');
-  const [chosen, choose] = useState<string | undefined>(undefined);
+  const [chosen, choose] = usePicked();
   const [adding, setAdding] = useState(false);
+  const { scope, connected } = useShellChoices();
   const words = query.trim().toLowerCase();
-  const shown = view.servers.filter((server) => words === '' || `${server.name} ${server.description ?? ''}`.toLowerCase().includes(words));
+  const scoped = inScope(view.servers, scope, fromOrganization);
+  const shown = scoped.filter((server) => words === '' || `${server.name} ${server.description ?? ''}`.toLowerCase().includes(words));
   const picked = view.servers.find((server) => server.name === chosen);
   return (
     <div className="flex min-h-0">
@@ -78,13 +83,16 @@ function Servers({ parts, view, width, said, workspaces }: { parts: SettingsPart
             Add server
           </KitButton>
         </div>
-        {view.servers.length === 0 ? (
+        {connected && scope === 'organization' && <p className="text-footnote text-muted">{scoped.length === 0 ? NO_ORGANIZATION_ITEMS : ORGANIZATION_READ_ONLY}</p>}
+        {scoped.length === 0 ? (
+          scope === 'personal' && (
           <EmptyState
             icon={Plug}
             title="No servers in the hub yet"
             body="Add a server once and give it to any agent, or bring in one an agent already has from Found on this computer below."
             action={<KitButton kind="primary" icon={Plus} onClick={() => setAdding(true)}>Add server</KitButton>}
           />
+          )
         ) : (
           <CardGrid>
             {shown.map((server) => (
@@ -96,7 +104,7 @@ function Servers({ parts, view, width, said, workspaces }: { parts: SettingsPart
         <Drift view={view} />
       </div>
       {picked !== undefined && (
-        <Inspector title={picked.name} width={width} close={() => choose(undefined)}>
+        <Inspector title={picked.name} width={width} close={() => choose(undefined)} item={picked.name}>
           <ServerDetail parts={parts} view={view} server={picked} said={said} removed={() => choose(undefined)} workspaces={workspaces} />
         </Inspector>
       )}

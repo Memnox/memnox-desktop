@@ -10,6 +10,7 @@ import { useObserved, type SettingsParts } from '../../settings/parts';
 import { ToolsPage } from '../../settings/pages/ToolsPage';
 import { AgentListTab } from './AgentListTab';
 import { EmptyState, Inspector, Panel, Row, Section, StatusWord, type Tone } from '../widgets';
+import { usePicked } from '../inspector-host';
 
 /** The order the groups are read in: what needs the person, then what runs, then what is done. */
 const GROUPS: readonly { title: string; holds: readonly SessionStatus[] }[] = [
@@ -39,7 +40,7 @@ function SessionsTab({ parts, width }: { parts: SettingsParts; width: WidthClass
     sessions.start();
     return () => sessions.stop();
   }, []);
-  const [chosen, choose] = useState<string | undefined>(undefined);
+  const [chosen, choose] = usePicked();
   const cards = sessions.state.cards;
   const picked = cards.find((card) => card.sessionId === chosen);
 
@@ -64,7 +65,7 @@ function SessionsTab({ parts, width }: { parts: SettingsParts; width: WidthClass
         })}
       </div>
       {picked !== undefined && (
-        <Inspector title={picked.agentName} width={width} close={() => choose(undefined)}>
+        <Inspector title={picked.agentName} width={width} close={() => choose(undefined)} item={picked.sessionId}>
           <SessionDetail card={picked} open={() => host.openLive?.(picked.sessionId)} />
         </Inspector>
       )}

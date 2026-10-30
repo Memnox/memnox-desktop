@@ -31,6 +31,7 @@ import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AddMemorySourceDialog } from './MemorySourceDialog';
 import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
 import { memoryScope } from '../../../core/domain/scope-lines';
+import { usePicked } from '../inspector-host';
 
 const CHIP = 'mx-focus cursor-pointer rounded-full border px-3 py-1 text-footnote';
 const chip = (on: boolean) => `${CHIP} ${on ? 'border-primary bg-hover font-medium text-foreground' : 'border-panel-edge text-muted hover:bg-hover'}`;
@@ -53,7 +54,7 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
   const [status, setStatus] = useState<MemoryStatusName>('verified');
   const [scope, setScope] = useState<MemoryScopeName | undefined>(undefined);
   const [query, setQuery] = useState('');
-  const [chosen, choose] = useState<string | undefined>(undefined);
+  const [chosen, choose] = usePicked();
   const [note, setNote] = useState<string | undefined>(undefined);
   useEffect(() => {
     void memory.refreshSources();
@@ -132,7 +133,7 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
         <MemorySources parts={parts} said={setNote} />
       </div>
       {picked !== undefined && (
-        <Inspector title={kindWord(picked.kind)} width={width} close={() => choose(undefined)}>
+        <Inspector title={kindWord(picked.kind)} width={width} close={() => choose(undefined)} item={picked.id}>
           <FactDetail
             parts={parts}
             item={picked}

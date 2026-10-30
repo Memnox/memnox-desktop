@@ -10,6 +10,8 @@ import { BrandLogo } from '../../kit/logos';
 import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { CardGrid, EmptyState, ReadFailed, StatusWord, type Tone } from '../widgets';
+import { useShellChoices } from '../shell-choices';
+import { withCurrent } from '../../../core/domain/shell-lines';
 
 const STATUS: Record<AgentView['status'], { word: string; tone: Tone }> = {
   protected: { word: 'Protected', tone: 'good' },
@@ -34,7 +36,12 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
   }, []);
   const [note, setNote] = useState<string | undefined>(undefined);
   const [launching, setLaunching] = useState<string | undefined>(undefined);
-  const folders = workspacesFrom(sessions.state.cards, Date.now()).map((each) => ({ path: each.path, name: each.name }));
+  const { project } = useShellChoices();
+  // The current project is offered first, so an agent launches there unless the person picks another folder.
+  const folders = withCurrent(
+    workspacesFrom(sessions.state.cards, Date.now()).map((each) => ({ path: each.path, name: each.name })),
+    project,
+  );
   const said = (outcome: StudioOutcome) =>
     setNote(outcome.kind === 'proposed' ? `Waiting for you on the island: confirm it with ${words.keyTitle}.` : outcome.kind === 'failed' ? outcome.why : outcome.note);
 

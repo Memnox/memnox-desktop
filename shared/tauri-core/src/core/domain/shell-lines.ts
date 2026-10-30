@@ -41,6 +41,12 @@ export function preselectedFolder(offered: readonly string[], current: Pick<Proj
   return offered.find((folder) => folder === current.path) ?? fallback;
 }
 
+/** The folders a launch or open form offers, with the current project's first so the form starts on it. */
+export function withCurrent<F extends { readonly path: string; readonly name: string }>(folders: readonly F[], current: Pick<ProjectView, 'path' | 'name'> | undefined): readonly { path: string; name: string }[] {
+  if (current === undefined) return folders;
+  return [{ path: current.path, name: current.name }, ...folders.filter((folder) => folder.path !== current.path)];
+}
+
 /** Personal is what this computer keeps; Organization is what Memnox Cloud hands down, read only here. */
 export type ShownScope = 'personal' | 'organization';
 

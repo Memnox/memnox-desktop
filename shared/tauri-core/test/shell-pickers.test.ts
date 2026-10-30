@@ -10,6 +10,7 @@ import {
   shortcutWords,
   shownScope,
   skillsShown,
+  withCurrent,
 } from '../src/core/domain/shell-lines';
 
 const app = { id: 'p1', path: '/code/app' };
@@ -39,6 +40,12 @@ describe('the workspace switcher', () => {
     expect(insideProject('/code/app', app)).toBe(true);
     expect(insideProject('/code/app/web', app)).toBe(true);
     expect(insideProject('/code/apparel', app)).toBe(false);
+  });
+
+  it('offers the current project first in a launch or open form', () => {
+    const folders = [{ path: '/code/site', name: 'site' }, { path: '/code/app', name: 'app' }];
+    expect(withCurrent(folders, { path: '/code/app', name: 'app' }).map((each) => each.path)).toEqual(['/code/app', '/code/site']);
+    expect(withCurrent(folders, undefined)).toBe(folders);
   });
 
   it('starts a launch or open form on the current project when the form offers it', () => {

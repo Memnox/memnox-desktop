@@ -11,6 +11,8 @@ import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AssignSkillDialog, NewSkillDialog } from './SkillDialogs';
 import { CardGrid, EmptyState, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
 import { skillScope } from '../../../core/domain/scope-lines';
+import { useShellChoices } from '../shell-choices';
+import { inScope, NO_ORGANIZATION_ITEMS, ORGANIZATION_READ_ONLY, skillsShown } from '../../../core/domain/shell-lines';
 
 /**
  * The Skills Hub: skills kept once and written into each agent's own format. Giving a skill to an agent
@@ -55,10 +57,12 @@ function MySkills({ parts, view, width, said, manage }: { parts: SettingsParts; 
   const [query, setQuery] = useState('');
   const [opened, open] = useState<string | undefined>(undefined);
   const [creating, setCreating] = useState(false);
+  const { project, scope, connected } = useShellChoices();
   const picked = view.skills.find((skill) => skill.name === opened);
   if (picked !== undefined) return <SkillDetail parts={parts} view={view} skill={picked} width={width} back={() => open(undefined)} said={said} manage={() => manage(picked.name)} />;
   const words = query.trim().toLowerCase();
-  const shown = view.skills.filter((skill) => words === '' || `${skill.name} ${skill.description} ${skill.category ?? ''}`.toLowerCase().includes(words));
+  const scoped = inScope(skillsShown(view.skills, project), scope, (skill) => skill.scope === 'organization');
+  const shown = scoped.filter((skill) => words === '' || `${skill.name} ${skill.description} ${skill.category ?? ''}`.toLowerCase().includes(words));
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-2.5">
@@ -73,7 +77,8 @@ function MySkills({ parts, view, width, said, manage }: { parts: SettingsParts; 
           New skill
         </KitButton>
       </div>
-      {view.skills.length === 0 ? (
+      {connected && scope === 'organization' && <p className="text-footnote text-muted">{scoped.length === 0 ? NO_ORGANIZATION_ITEMS : ORGANIZATION_READ_ONLY}</p>}
+      {scope === 'personal' && view.skills.length === 0 ? (
         <EmptyState
           icon={Sparkles}
           title="No skills in the hub yet"

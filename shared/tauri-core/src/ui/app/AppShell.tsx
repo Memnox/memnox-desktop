@@ -3,10 +3,14 @@ import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
 import {
   destinationInfo,
   DESTINATIONS,
+  inspectedItem,
+  inspectorAlone,
+  inspectorSearch,
   RouteHistory,
   routeForPage,
   searchOf,
   settled,
+  shellLayout,
   visibleTabs,
   type Destination,
   type Route,
@@ -22,6 +26,9 @@ import { GovernancePage } from './pages/GovernancePage';
 import { HomePage } from './pages/HomePage';
 import { McpHubPage } from './pages/McpHubPage';
 import { WorkspacesPage } from './pages/WorkspacesPage';
+import { InspectorWindow, type InspectorHost } from './inspector-host';
+import { ShellChoicesProvider } from './shell-choices';
+import { TopBarPickers } from './TopBarPickers';
 import { useWidthClass } from './use-width';
 import { StatusWord, TabBar } from './widgets';
 import './shell.css';
@@ -43,6 +50,28 @@ const COLLAPSED_KEY = 'memnox.sidebar.collapsed';
  * and to a sheet on the narrowest, so nothing is lost when it is made small.
  */
 export function AppShell({ parts, first }: { parts: SettingsParts; first: Route }) {
+  return (
+    <ShellChoicesProvider parts={parts}>
+      {inspectorAlone(window.location.search) ? <AloneInspector parts={parts} route={first} /> : <Shell parts={parts} first={first} />}
+    </ShellChoicesProvider>
+  );
+}
+
+/** A popped out inspector: the page is drawn hidden so it reads the item, and its inspector fills the window. */
+function AloneInspector({ parts, route }: { parts: SettingsParts; route: Route }) {
+  useLook(parts.preferences);
+  const width = useWidthClass();
+  const host: InspectorHost = { alone: true, item: inspectedItem(window.location.search), popOut: undefined, close: () => parts.host.close() };
+  return (
+    <InspectorWindow.Provider value={host}>
+      <div className="mx-app hidden" aria-hidden>
+        <Page parts={parts} route={route} width={width} go={() => undefined} />
+      </div>
+    </InspectorWindow.Provider>
+  );
+}
+
+function Shell({ parts, first }: { parts: SettingsParts; first: Route }) {
   useLook(parts.preferences);
   const { support } = parts;
   useObserved(support);
@@ -79,7 +108,15 @@ export function AppShell({ parts, first }: { parts: SettingsParts; first: Route 
   );
   useEffect(() => shortcuts({ go, step, openPalette: () => setPalette(true), close: () => (palette || sheet ? (setPalette(false), setSheet(false)) : parts.host.close()) }), [palette, sheet]);
 
-  const rail = width === 'narrow' || (collapsed && width !== 'compact');
+  const layout = shellLayout(width, collapsed);
+  const rail = layout.sidebar === 'rail';
+  const popOut = parts.host.popOut;
+  const inspectors: InspectorHost = {
+    alone: false,
+    item: undefined,
+    popOut: popOut === undefined ? undefined : (item, title) => popOut(inspectorSearch(route, item), title),
+    close: () => undefined,
+  };
   const info = destinationInfo(route.destination);
   const tabs = visibleTabs(route.destination, supports);
   const title = route.destination === 'settings' && route.tab !== undefined ? pageInfo(pageNamed(route.tab) ?? 'account').title : info.title;
@@ -91,7 +128,7 @@ export function AppShell({ parts, first }: { parts: SettingsParts; first: Route 
       go={go}
       runtime={<RuntimeStatus parts={parts} rail={rail && !sheet} />}
       toggle={
-        width === 'compact' || width === 'narrow'
+        !layout.canFold
           ? undefined
           : () => {
               localStorage.setItem(COLLAPSED_KEY, String(!collapsed));
@@ -110,6 +147,7 @@ export function AppShell({ parts, first }: { parts: SettingsParts; first: Route 
           <IconButton icon={ChevronLeft} label="Back" disabled={!history.canGoBack} onClick={() => step(true)} />
           <IconButton icon={ChevronRight} label="Forward" disabled={!history.canGoForward} onClick={() => step(false)} />
           <span className="min-w-0 flex-1 truncate pl-1 text-headline font-semibold text-foreground">{title}</span>
+          <TopBarPickers width={width} />
           <button
             type="button"
             onClick={() => setPalette(true)}
@@ -125,7 +163,9 @@ export function AppShell({ parts, first }: { parts: SettingsParts; first: Route 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div key={`${route.destination}/${route.tab ?? ''}`} className="mx-auto flex max-w-[1180px] flex-col gap-5 px-5 pt-5 pb-8 max-[639px]:px-3.5">
             {route.destination !== 'home' && route.destination !== 'settings' && tabs.length < 2 && <p className="text-footnote text-muted">{info.subtitle}</p>}
-            <Page parts={parts} route={route} width={width} go={go} />
+            <InspectorWindow.Provider value={inspectors}>
+              <Page parts={parts} route={route} width={width} go={go} />
+            </InspectorWindow.Provider>
           </div>
         </div>
       </main>
@@ -260,6 +300,12 @@ interface ShortcutActions {
   close: () => void;
 }
 
+/** Whether a key went to somewhere the person types, where a digit is theirs rather than a shortcut. */
+function typing(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+}
+
 /** Ctrl or Cmd with K opens the palette, with a digit opens a destination; Alt and an arrow go back or forward. */
 function shortcuts(actions: ShortcutActions): () => void {
   const keys = (event: KeyboardEvent) => {
@@ -270,7 +316,8 @@ function shortcuts(actions: ShortcutActions): () => void {
       return;
     }
     const numbered = DESTINATIONS.find((each) => each.key === event.key);
-    if (command && numbered !== undefined) {
+    // A digit typed into a field belongs to the field, so the destinations wait until focus leaves it.
+    if (command && numbered !== undefined && !typing(event.target)) {
       event.preventDefault();
       actions.go({ destination: numbered.id });
       return;

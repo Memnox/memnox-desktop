@@ -10,6 +10,9 @@ import { KitButton, Switch } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
 import { ruleScope } from '../../../core/domain/scope-lines';
+import { usePicked } from '../inspector-host';
+import { useShellChoices } from '../shell-choices';
+import { inScope, NO_ORGANIZATION_ITEMS, ORGANIZATION_READ_ONLY } from '../../../core/domain/shell-lines';
 
 type Filter = 'all' | Effect;
 
@@ -25,20 +28,23 @@ export function PoliciesPage({ parts, width }: { parts: SettingsParts; width: Wi
   }, []);
   useEffect(() => parts.host.onHomeStale?.(() => void studio.refresh()), []);
   const [filter, setFilter] = useState<Filter>('all');
-  const [chosen, choose] = useState<string | undefined>(undefined);
+  const [chosen, choose] = usePicked();
   const [building, setBuilding] = useState<Partial<RuleDraftInput> | undefined>(undefined);
   const [note, setNote] = useState<string | undefined>(undefined);
   const said = (outcome: StudioOutcome) => setNote(noteOf(outcome, parts.words.keyTitle));
+  const { scope, connected } = useShellChoices();
 
   const view = studio.rules;
   if (view === undefined) return studio.unreadable ? <ReadFailed what="the rules" retry={() => void studio.refresh()} /> : null;
-  const counts = countsByEffect(view.rules);
-  const shown = view.rules.filter((rule) => filter === 'all' || rule.effect === filter);
+  const scoped = inScope(view.rules, scope, (rule) => rule.source === 'workspace');
+  const counts = countsByEffect(scoped);
+  const shown = scoped.filter((rule) => filter === 'all' || rule.effect === filter);
   const picked = view.rules.find((rule) => rule.name === chosen);
   return (
     <div className="flex min-h-0">
       <div className="flex min-w-0 flex-1 flex-col gap-6">
         {note !== undefined && <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote">{note}</p>}
+        {connected && scope === 'organization' && <p className="text-footnote text-muted">{scoped.length === 0 ? NO_ORGANIZATION_ITEMS : ORGANIZATION_READ_ONLY}</p>}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2.5">
           {(Object.keys(EFFECT_WORDS) as Effect[]).map((effect) => (
             <div key={effect} className="flex flex-col gap-1 rounded-xl border border-panel-edge bg-card px-3.5 py-3">
@@ -133,7 +139,7 @@ export function PoliciesPage({ parts, width }: { parts: SettingsParts; width: Wi
         <TryAction parts={parts} />
       </div>
       {picked !== undefined && (
-        <Inspector title={picked.name} width={width} close={() => choose(undefined)}>
+        <Inspector title={picked.name} width={width} close={() => choose(undefined)} item={picked.name}>
           <RuleDetail rule={picked} remove={() => void studio.remove(picked.name).then((outcome) => (said(outcome), outcome.kind === 'done' && choose(undefined)))} busy={studio.busy === picked.name} />
         </Inspector>
       )}

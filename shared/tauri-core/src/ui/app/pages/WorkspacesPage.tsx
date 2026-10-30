@@ -18,6 +18,9 @@ import { OrganizationBadge, ProjectInspector, projectNote } from './ProjectInspe
 import { SkillsPage } from './SkillsPage';
 import { CardGrid, EmptyState, Inspector, ReadFailed, ScopeChip, Section, StatTile, StatusWord } from '../widgets';
 import { projectScope } from '../../../core/domain/scope-lines';
+import { usePicked } from '../inspector-host';
+import { useShellChoices } from '../shell-choices';
+import { projectsShown, withCurrent } from '../../../core/domain/shell-lines';
 
 /**
  * Projects as the runtime keeps them, with what each gives the agents opened in it. A runtime too old to
@@ -43,15 +46,21 @@ function ProjectsTab({ parts, width }: { parts: SettingsParts; width: WidthClass
     sessions.start();
     return () => sessions.stop();
   }, []);
-  const [chosen, choose] = useState<string | undefined>(undefined);
+  const [chosen, choose] = usePicked();
   const [opening, setOpening] = useState(false);
   const [note, setNote] = useState<string | undefined>(undefined);
-  const list = projects.projects;
-  if (list === undefined) return projects.unreadable ? <ReadFailed what="the projects" retry={() => void projects.refresh()} /> : null;
+  const { project } = useShellChoices();
+  const all = projects.projects;
+  if (all === undefined) return projects.unreadable ? <ReadFailed what="the projects" retry={() => void projects.refresh()} /> : null;
+  const list = projectsShown(all, project);
   const picked = list.find((each) => each.id === chosen);
-  const folders = foldersToOpen(
-    workspacesFrom(sessions.state.cards, Date.now()).map((each) => ({ path: each.path, name: each.name })),
-    list,
+  // The current project is offered first, so opening it again to reapply its setup is one press.
+  const folders = withCurrent(
+    foldersToOpen(
+      workspacesFrom(sessions.state.cards, Date.now()).map((each) => ({ path: each.path, name: each.name })),
+      all,
+    ),
+    project,
   );
   const open = (
     <KitButton icon={FolderOpen} onClick={() => setOpening(!opening)} aria-expanded={opening}>
@@ -90,7 +99,7 @@ function ProjectsTab({ parts, width }: { parts: SettingsParts; width: WidthClass
         )}
       </div>
       {picked !== undefined && (
-        <Inspector title={picked.name} width={width} close={() => choose(undefined)}>
+        <Inspector title={picked.name} width={width} close={() => choose(undefined)} item={picked.id}>
           <ProjectInspector key={picked.id} parts={parts} project={picked} said={setNote} />
         </Inspector>
       )}
@@ -192,7 +201,7 @@ function SeenTab({ parts, width, go }: { parts: SettingsParts; width: WidthClass
     sessions.start();
     return () => sessions.stop();
   }, []);
-  const [chosen, choose] = useState<string | undefined>(undefined);
+  const [chosen, choose] = usePicked();
   const workspaces = workspacesFrom(sessions.state.cards, Date.now());
   const picked = workspaces.find((each) => each.path === chosen);
 
@@ -209,7 +218,7 @@ function SeenTab({ parts, width, go }: { parts: SettingsParts; width: WidthClass
         </CardGrid>
       </div>
       {picked !== undefined && (
-        <Inspector title={picked.name} width={width} close={() => choose(undefined)}>
+        <Inspector title={picked.name} width={width} close={() => choose(undefined)} item={picked.path}>
           <WorkspaceOverview workspace={picked} go={go} />
         </Inspector>
       )}

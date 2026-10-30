@@ -10,6 +10,7 @@ mod glass;
 mod island;
 mod key;
 mod keys;
+mod local_file;
 mod panels;
 mod permissions;
 mod presence;
@@ -165,6 +166,7 @@ pub fn run() {
             settings_windows::set_start_at_sign_in,
             settings_windows::restart_memnox,
             settings_windows::open_page,
+            local_file::open_file,
             permissions::permission_facts,
             permissions::open_privacy,
         ])

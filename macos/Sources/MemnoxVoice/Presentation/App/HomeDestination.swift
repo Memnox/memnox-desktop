@@ -47,7 +47,13 @@ private struct HomeAtAGlance: View {
             if home.unavailable, view == nil { ReadFailed(what: "the runtime", retry: home.refresh) }
             tiles(running: running.count, view: view)
             runningSection(running)
-            if let view { HomeAttention(shell: shell, home: home, view: view) }
+            if let view {
+                if let memory = shell.memory {
+                    LearnWaiting(screen: memory) { HomeAttention(shell: shell, home: home, view: view, toConfirm: $0) }
+                } else {
+                    HomeAttention(shell: shell, home: home, view: view, toConfirm: 0)
+                }
+            }
             if !recent.isEmpty { carryOn(recent) }
             if let studio = shell.studio { HomeThisWeek(shell: shell, screen: studio) }
             if let view {
@@ -60,6 +66,7 @@ private struct HomeAtAGlance: View {
             home.refresh()
             // A runtime that does not answer progress yet leaves the week out rather than asking on every opening.
             if let studio = shell.studio, shell.supports("progress") != false { await studio.studio.refresh() }
+            if let memory = shell.memory, shell.supports("memory-learn") != false { await memory.memory.refreshLearn() }
         }
     }
 
@@ -199,12 +206,14 @@ private struct HomeAttention: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var home: HomeModel
     let view: DaemonHome
+    /// What waits in Learn, counted past the ones the queue listed.
+    let toConfirm: Int
 
     private static let icon: CGFloat = 16
 
     var body: some View {
         let needs = view.needsYou ?? []
-        let nothing = view.waiting == 0 && needs.isEmpty && view.ready == nil && view.notCovered.unprotected == 0
+        let nothing = view.waiting == 0 && needs.isEmpty && view.ready == nil && view.notCovered.unprotected == 0 && toConfirm == 0
         if !nothing {
             ShellSection(title: "Needs your attention") {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
@@ -233,8 +242,17 @@ private struct HomeAttention: View {
             if index > 0 || view.waiting > 0 { ShellDivider() }
             ShellRow(title: line) { icon("exclamationmark.circle", Memnox.Palette.warm) } trailing: { EmptyView() }
         }
-        if let ready = view.ready {
+        if toConfirm > 0 {
             if view.waiting > 0 || !needs.isEmpty { ShellDivider() }
+            ShellRow(title: MemoryLines.learnWaitingLine(toConfirm),
+                     caption: "What your agent read from your sources, and what agents suggested, counts only once you confirm it.") {
+                icon("graduationcap", Memnox.Palette.warm)
+            } trailing: {
+                Button("Open Learn") { shell.go(WindowRoute(.governance, tab: "learn")) }.buttonStyle(KitButton(kind: .secondary))
+            }
+        }
+        if let ready = view.ready {
+            if view.waiting > 0 || !needs.isEmpty || toConfirm > 0 { ShellDivider() }
             ShellRow(title: HomeLines.ready(ready), caption: ready.because) {
                 icon("arrow.right", Memnox.Palette.primary)
             } trailing: {
@@ -245,7 +263,7 @@ private struct HomeAttention: View {
             }
         }
         if view.notCovered.unprotected > 0 {
-            if view.waiting > 0 || !needs.isEmpty || view.ready != nil { ShellDivider() }
+            if view.waiting > 0 || !needs.isEmpty || toConfirm > 0 || view.ready != nil { ShellDivider() }
             ShellRow(title: HomeLines.notCovered(view.notCovered).first ?? "",
                      caption: home.remote() ? "Run memnox setup on that server to put them under Memnox." : nil) {
                 icon("shield", Memnox.Palette.warm)
@@ -274,5 +292,16 @@ private struct HomeAttention: View {
             .font(Memnox.sans(Memnox.TextSize.footnote))
             .foregroundStyle(Memnox.Palette.muted)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Hands Home the count waiting in Learn, drawn again whenever the queue changes.
+private struct LearnWaiting<Content: View>: View {
+    @ObservedObject var screen: MemoryScreen
+    @ViewBuilder let content: (Int) -> Content
+
+    var body: some View {
+        let queue = screen.memory.learn
+        content(queue.map { $0.items.count + $0.more } ?? 0)
     }
 }

@@ -84,3 +84,30 @@ export function answeredWords(row: Pick<ActivityRow, 'answeredBy' | 'answeredHow
 export function exportedCount(toml: string): number {
   return toml.split('\n').filter((line) => line.trim() === '[[policies]]').length;
 }
+
+/** What a rule being built will do, read back before it is proposed; the runtime words the one it keeps. */
+export function draftSentence(draft: { effect: string; action: string; agents?: readonly string[]; targets?: readonly string[]; branches?: readonly string[]; workingDirectories?: readonly string[] }, agentName: (kind: string) => string): string {
+  const who = draft.agents === undefined || draft.agents.length === 0 ? 'any agent' : draft.agents.map(agentName).join(' or ');
+  const what = draft.action.trim() === '' ? 'this action' : draft.action.trim();
+  const on = [
+    ...(draft.targets ?? []).map((target) => `on ${target}`),
+    ...(draft.branches ?? []).map((branch) => `on the ${branch} branch`),
+    ...(draft.workingDirectories ?? []).map((folder) => `in ${folder}`),
+  ].join(' ');
+  const tail = on === '' ? '' : ` ${on}`;
+  if (draft.effect === 'allow') return `Let ${who} run ${what}${tail} without asking.`;
+  if (draft.effect === 'deny') return `Never let ${who} run ${what}${tail}.`;
+  return `Ask you before ${who} runs ${what}${tail}.`;
+}
+
+/** The switches most people want first, each only a rule proposed with these fields. */
+export const ALWAYS_ASK = [
+  { id: 'push-main', title: 'Pushing to main', draft: { effect: 'ask', action: 'git.push', branches: ['main'], reason: 'you chose to be asked before anything reaches main' } },
+  { id: 'delete-files', title: 'Deleting files', draft: { effect: 'ask', action: 'filesystem.delete', reason: 'you chose to be asked before files are deleted' } },
+  { id: 'mcp-writes', title: 'MCP tools that change something', draft: { effect: 'ask', action: 'mcp.*', classes: ['write', 'destructive', 'communication'], reason: 'you chose to be asked before a tool changes something outside this computer' } },
+] as const;
+
+/** Whether a rule already in force asks about this switch's action, so the switch shows on. */
+export function switchOn(rules: readonly Pick<PolicyRuleView, 'effect' | 'match'>[], action: string, branches?: readonly string[]): boolean {
+  return rules.some((rule) => rule.effect !== 'allow' && rule.match.actions.includes(action) && (branches === undefined || branches.every((branch) => rule.match.branches?.includes(branch) === true)));
+}

@@ -77,3 +77,13 @@ describe('the studio’s words', () => {
     expect(exportedCount('[[policies]]\nname = "a"\n[[policies]]\n')).toBe(2);
   });
 });
+
+describe('a rule being built', () => {
+  it('reads back what it will do before anything is proposed', async () => {
+    const { draftSentence, switchOn } = await import('../src/core/domain/studio-lines');
+    expect(draftSentence({ effect: 'ask', action: 'git.push', agents: ['codex-cli'], branches: ['main'] }, () => 'Codex')).toBe('Ask you before Codex runs git.push on the main branch.');
+    expect(draftSentence({ effect: 'deny', action: '' }, (kind) => kind)).toBe('Never let any agent run this action.');
+    expect(switchOn([{ effect: 'ask', match: { actions: ['git.push'], branches: ['main'] } }], 'git.push', ['main'])).toBe(true);
+    expect(switchOn([{ effect: 'allow', match: { actions: ['git.push'] } }], 'git.push')).toBe(false);
+  });
+});

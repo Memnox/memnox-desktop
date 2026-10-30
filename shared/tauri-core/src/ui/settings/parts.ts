@@ -6,6 +6,7 @@ import { DaemonSupport } from '../../core/application/daemon-support';
 import { HeldCalls } from '../../core/application/held-calls';
 import { Home } from '../../core/application/home';
 import { McpHub } from '../../core/application/mcp-hub';
+import { Activity, Agents, Studio } from '../../core/application/studio';
 import { Sessions } from '../../core/application/sessions';
 import { PhonePairing } from '../../core/application/pairing';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
@@ -62,6 +63,12 @@ export interface SettingsParts {
   readonly calls: HeldCalls;
   /** The MCP servers set up once and given to the agents the person chose. */
   readonly hub: McpHub;
+  /** The rules in force and what could be let go next. */
+  readonly studio: Studio;
+  /** What the agents did, a page at a time, and why. */
+  readonly activity: Activity;
+  /** The agents on this computer as the runtime sees them. */
+  readonly agents: Agents;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -102,6 +109,9 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     sessions: new Sessions(link, ids, timer),
     calls: new HeldCalls(link, signer, ids, { timer }),
     hub: new McpHub(link, ids),
+    studio: new Studio(link, ids),
+    activity: new Activity(link, ids),
+    agents: new Agents(link, ids),
     host,
     words: platformWords(host.platform),
     setup,

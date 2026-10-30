@@ -51,6 +51,7 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
     subtitle: 'The agents on this computer, their sessions, and what each can reach.',
     key: '2',
     tabs: [
+      { id: 'list', title: 'Agents', needs: 'agents' },
       { id: 'sessions', title: 'Sessions' },
       { id: 'computer', title: 'On this computer' },
     ],

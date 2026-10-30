@@ -28,7 +28,7 @@ struct RuleBuilderSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("New rule")
-                .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.large, .semibold))
                 .foregroundStyle(Memnox.Console.foreground)
                 .accessibilityAddTraits(.isHeader)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -46,7 +46,7 @@ struct RuleBuilderSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, ShellMetrics.rowPaddingH)
                         .padding(.vertical, Memnox.Spacing.large)
-                        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                        .background(Memnox.Console.hover, in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
                         .accessibilityLabel("This rule would say: \(StudioLines.draftSentence(draft, agentName: McpHubLines.agentLabel))")
                     DisclosureGroup("Show the rule as written", isExpanded: $written) {
                         ScrollView {
@@ -58,7 +58,7 @@ struct RuleBuilderSheet: View {
                                 .padding(Memnox.Spacing.large)
                         }
                         .frame(maxHeight: Self.writtenHeight)
-                        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
+                        .background(Memnox.Console.hover, in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
                     }
                     .font(Memnox.Console.sans(Memnox.TextSize.footnote))
                     .foregroundStyle(Memnox.Console.muted)
@@ -76,7 +76,7 @@ struct RuleBuilderSheet: View {
             footer
         }
         .frame(width: Self.width)
-        .background(Memnox.Console.background)
+        .background(Memnox.Console.card)
         .buttonStyle(QuietButton())
         .onAppear { actionFocused = true }
     }

@@ -75,14 +75,14 @@ struct AddServerSheet: View {
         }
         .frame(width: Self.width)
         .frame(minHeight: Self.minHeight)
-        .background(Memnox.Console.background)
+        .background(Memnox.Console.card)
         .buttonStyle(QuietButton())
     }
 
     private var header: some View {
         HStack(spacing: Memnox.Spacing.large) {
             Text("Add a server")
-                .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.large, .semibold))
                 .foregroundStyle(Memnox.Console.foreground)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: Memnox.Spacing.medium)
@@ -257,7 +257,7 @@ struct AddServerSheet: View {
                     .padding(Memnox.Spacing.large)
             }
             .frame(maxHeight: Self.preview)
-            .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+            .background(Memnox.Console.hover, in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
         }
     }
 

@@ -21,7 +21,7 @@ struct AddMemorySourceSheet: View {
         let adding = screen.memory.busy == Memory.adding
         VStack(spacing: 0) {
             Text("Add a memory source")
-                .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.large, .semibold))
                 .foregroundStyle(Memnox.Console.foreground)
                 .accessibilityAddTraits(.isHeader)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -74,7 +74,7 @@ struct AddMemorySourceSheet: View {
         }
         .frame(width: SourceSheetLayout.width)
         .frame(minHeight: SourceSheetLayout.minHeight)
-        .background(Memnox.Console.background)
+        .background(Memnox.Console.card)
         .buttonStyle(QuietButton())
         .task(id: place) {
             if place == .server, let hub, hub.hub.hub == nil { await hub.hub.refresh() }

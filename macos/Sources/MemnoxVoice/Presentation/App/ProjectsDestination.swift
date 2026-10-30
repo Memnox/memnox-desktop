@@ -362,7 +362,8 @@ private struct Overview: View {
                     .padding(.horizontal, Memnox.Spacing.xLarge)
                     .padding(.vertical, Memnox.Spacing.large)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                    // Set apart on the hover fill, since the details it sits in are already a card.
+                    .background(Memnox.Console.hover, in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
             } else {
                 editControls(busy: busy)
             }

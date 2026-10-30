@@ -156,7 +156,7 @@ struct ActivityDestination: View {
                        chosen: shell.inspecting == row.id, action: { open(row.id) }) {
             BrandLogo(agent: row.agent, name: name, size: Self.logo)
         } trailing: {
-            StatusWord(Tone(effect: row.effect), StudioLines.title(row.effect))
+            StatusWord(Tone(effect: row.effect), StudioLines.verdict(row.effect))
         }
     }
 
@@ -170,7 +170,7 @@ struct ActivityDestination: View {
         } trailing: {
             HStack(spacing: Memnox.Spacing.large) {
                 if let failed = row.failed { StatusWord(.bad, "Failed, exit \(failed)") }
-                StatusWord(Tone(effect: row.effect), StudioLines.title(row.effect))
+                StatusWord(Tone(effect: row.effect), StudioLines.verdict(row.effect))
             }
         }
     }
@@ -256,7 +256,7 @@ private struct DecisionDetail: View {
                                     caption: SessionText.ago(step.at, now: Date())) {
                                 EmptyView()
                             } trailing: {
-                                StatusWord(Tone(effect: step.effect), StudioLines.title(step.effect))
+                                StatusWord(Tone(effect: step.effect), StudioLines.verdict(step.effect))
                             }
                         }
                     }

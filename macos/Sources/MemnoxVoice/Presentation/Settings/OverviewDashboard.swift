@@ -56,7 +56,8 @@ struct OverviewHero: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(SettingsMetrics.cardPadding)
-        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: SettingsMetrics.cardRadius, style: .continuous))
+        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous).strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .accessibilityElement(children: .combine)
     }
 }

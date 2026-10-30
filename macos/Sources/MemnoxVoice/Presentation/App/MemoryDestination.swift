@@ -162,26 +162,14 @@ struct MemoryDestination: View {
     }
 }
 
-/// One filter or scope as a capsule, drawn strongest while it is chosen.
+/// One filter or scope as the console's chip, washed in its blue while it is chosen.
 struct MemoryChip: View {
     let title: String
     let on: Bool
     let choose: () -> Void
 
     var body: some View {
-        Button(action: choose) {
-            Text(title)
-                .font(Memnox.Console.sans(Memnox.TextSize.footnote, on ? .medium : .regular))
-                .foregroundStyle(on ? Memnox.Console.foreground : Memnox.Console.muted)
-                .padding(.horizontal, Memnox.Spacing.regular)
-                .padding(.vertical, Memnox.Spacing.xSmall)
-                .background(on ? Memnox.Console.hover : Color.clear, in: Capsule())
-                .overlay(Capsule().strokeBorder(on ? Memnox.Console.primary : Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .pointingHand()
-        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+        FilterChip(title: title, chosen: on, choose: choose)
     }
 }
 

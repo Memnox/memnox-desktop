@@ -22,7 +22,7 @@ struct SkillSheetFrame<Body: View, Footer: View>: View {
         VStack(spacing: 0) {
             HStack(spacing: Memnox.Spacing.large) {
                 Text(title)
-                    .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.large, .semibold))
                     .foregroundStyle(Memnox.Console.foreground)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: Memnox.Spacing.medium)
@@ -48,7 +48,7 @@ struct SkillSheetFrame<Body: View, Footer: View>: View {
         }
         .frame(width: SheetLayout.width)
         .frame(minHeight: SheetLayout.minHeight)
-        .background(Memnox.Console.background)
+        .background(Memnox.Console.card)
         .buttonStyle(QuietButton())
     }
 }

@@ -134,6 +134,8 @@ struct PoliciesDestination: View {
                 .padding(.horizontal, ShellMetrics.rowPaddingH)
                 .padding(.vertical, ShellMetrics.rowPaddingV)
                 .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
+                    .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
                 .accessibilityElement(children: .combine)
             }
             if shell.scope == .organization {
@@ -444,6 +446,8 @@ private struct TryAction: View {
                 .padding(.horizontal, Memnox.Spacing.xLarge)
                 .padding(.vertical, Memnox.Spacing.large)
                 .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
+                    .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
                 .accessibilityElement(children: .combine)
             case nil:
                 EmptyView()

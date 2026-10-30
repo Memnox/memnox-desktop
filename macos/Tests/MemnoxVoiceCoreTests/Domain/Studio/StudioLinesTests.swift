@@ -65,6 +65,13 @@ final class StudioLinesTests: XCTestCase {
         XCTAssertNil(StudioLines.answeredWords(by: nil, how: "signed"))
     }
 
+    func testSaysARuleInThePresentAndADecisionInThePastTenseAsTheConsolesActivityDoes() {
+        XCTAssertEqual(RuleEffect.allCases.map { [StudioLines.words($0).title, StudioLines.words($0).verdict] },
+                       [["Allow", "Allowed"], ["Ask", "Asked"], ["Deny", "Denied"]])
+        XCTAssertEqual(StudioLines.verdict("deny"), "Denied")
+        XCTAssertEqual(StudioLines.verdict("redact"), "redact")
+    }
+
     func testPutsTheAgentsNeedingADecisionFirst() throws {
         let json = #"[{"kind":"d","name":"D","status":"dormant"},{"kind":"p","name":"P","status":"protected"},{"kind":"u","name":"U","status":"unprotected"},{"kind":"z","name":"Z","status":"paused"},{"kind":"p2","name":"P2","status":"protected"}]"#
         let filled = json.replacingOccurrences(of: #""}"#, with: #"","sessions":{"running":1,"idle":2,"finished":4},"mcpServers":[],"today":{"actions":3,"asked":1,"refused":0},"recent":[]}"#)

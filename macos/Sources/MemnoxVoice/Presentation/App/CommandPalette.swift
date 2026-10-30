@@ -16,10 +16,7 @@ struct CommandPalette: View {
         static let listHeight: CGFloat = 340
         static let fieldHeight: CGFloat = 48
         static let topShare: CGFloat = 0.12
-        static let radius: CGFloat = 16
         static let scrim = 0.4
-        static let shadow = 0.3
-        static let shadowRadius: CGFloat = 24
     }
 
     var body: some View {
@@ -40,7 +37,8 @@ struct CommandPalette: View {
     }
 
     private func panel(_ found: [PaletteCommand]) -> some View {
-        let shape = RoundedRectangle(cornerRadius: Layout.radius, style: .continuous)
+        // The console's palette: a bordered card at radius 12, lifted off the page by a long soft shadow.
+        let shape = RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous)
         return VStack(spacing: 0) {
             HStack(spacing: Memnox.Spacing.regular) {
                 Image(systemName: "magnifyingglass")
@@ -87,10 +85,10 @@ struct CommandPalette: View {
             }
         }
         .frame(maxWidth: Layout.width)
-        .background(Memnox.Console.background, in: shape)
+        .background(Memnox.Console.card, in: shape)
         .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .clipShape(shape)
-        .shadow(color: .black.opacity(Layout.shadow), radius: Layout.shadowRadius)
+        .shadow(color: .black.opacity(Memnox.Console.liftShadow), radius: Memnox.Console.liftRadius, y: Memnox.Console.liftDrop)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Go to")
         .accessibilityAddTraits(.isModal)
@@ -100,7 +98,7 @@ struct CommandPalette: View {
         Button { go(each.route) } label: {
             HStack(spacing: Memnox.Spacing.large) {
                 Text(each.title)
-                    .font(Memnox.Console.sans(Memnox.TextSize.body))
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, chosen ? .medium : .regular))
                     .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(1)
                 Spacer(minLength: Memnox.Spacing.medium)
@@ -120,8 +118,8 @@ struct CommandPalette: View {
             }
             .padding(.horizontal, Memnox.Spacing.large)
             .padding(.vertical, Memnox.Spacing.medium)
-            .background(chosen ? Memnox.Console.hover : Color.clear,
-                        in: RoundedRectangle(cornerRadius: SettingsMetrics.hoverRadius, style: .continuous))
+            .background(chosen ? Memnox.Console.active : Color.clear,
+                        in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

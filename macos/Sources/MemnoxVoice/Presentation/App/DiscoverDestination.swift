@@ -181,6 +181,8 @@ private struct ListingsSource: View {
             .padding(ShellMetrics.rowPaddingH)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
+                .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         }
     }
 

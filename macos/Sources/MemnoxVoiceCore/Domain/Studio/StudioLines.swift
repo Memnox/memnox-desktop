@@ -8,9 +8,10 @@ public enum StudioTone: Equatable, Sendable {
     case quiet
 }
 
-/// One effect in the words the console uses: its name, and what it means for an agent.
+/// One effect in the words the console uses: a rule's name for it, a decision's past tense, and what it means for an agent.
 public struct EffectWords: Equatable, Sendable {
     public let title: String
+    public let verdict: String
     public let says: String
 }
 
@@ -26,15 +27,21 @@ public enum StudioLines {
     /// The three effects, each explained once.
     public static func words(_ effect: RuleEffect) -> EffectWords {
         switch effect {
-        case .allow: EffectWords(title: "Allow", says: "Goes ahead on its own")
-        case .ask: EffectWords(title: "Ask", says: "Waits for a person to say yes")
-        case .deny: EffectWords(title: "Deny", says: "Refused, and told what to do instead")
+        case .allow: EffectWords(title: "Allow", verdict: "Allowed", says: "Goes ahead on its own")
+        case .ask: EffectWords(title: "Ask", verdict: "Asked", says: "Waits for a person to say yes")
+        case .deny: EffectWords(title: "Deny", verdict: "Denied", says: "Refused, and told what to do instead")
         }
     }
 
     /// An effect's name, or the runtime's own word for one this app does not know yet.
     public static func title(_ effect: String) -> String {
         RuleEffect(rawValue: effect).map { words($0).title } ?? effect
+    }
+
+    /// What was decided, in the past tense the console's activity says it in, or the runtime's own word for one this app
+    /// does not know yet.
+    public static func verdict(_ effect: String) -> String {
+        RuleEffect(rawValue: effect).map { words($0).verdict } ?? effect
     }
 
     /// What an effect means, or the runtime's own word for one this app does not know yet.

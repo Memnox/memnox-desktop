@@ -11,12 +11,14 @@ import {
   searchOf,
   settled,
   shellLayout,
+  tabGroups,
+  tabOf,
   visibleTabs,
   type Destination,
   type Route,
   type WidthClass,
 } from '../../core/domain/destinations';
-import { pageInfo, pageNamed } from '../../core/domain/settings-pages';
+import { pageNamed } from '../../core/domain/settings-pages';
 import { MemnoxTile, PageTitle } from '../settings/kit';
 import { PageBody } from '../settings/SettingsApp';
 import { useLook, useObserved, type SettingsParts } from '../settings/parts';
@@ -30,7 +32,8 @@ import { InspectorWindow, type InspectorHost } from './inspector-host';
 import { ShellChoicesProvider } from './shell-choices';
 import { TopBarPickers } from './TopBarPickers';
 import { useWidthClass } from './use-width';
-import { StatusWord, TabBar } from './widgets';
+import { SubNavFrame } from './SubNav';
+import { StatusWord } from './widgets';
 import './shell.css';
 
 const ICONS: Record<Destination, LucideIcon> = {
@@ -119,7 +122,7 @@ function Shell({ parts, first }: { parts: SettingsParts; first: Route }) {
   };
   const info = destinationInfo(route.destination);
   const tabs = visibleTabs(route.destination, supports);
-  const title = route.destination === 'settings' && route.tab !== undefined ? pageInfo(pageNamed(route.tab) ?? 'account').title : info.title;
+  const shown = tabs.length < 2 ? undefined : tabOf(route);
 
   const sidebar = (
     <Sidebar
@@ -139,32 +142,50 @@ function Shell({ parts, first }: { parts: SettingsParts; first: Route }) {
     />
   );
   return (
-    <div className="mx-app flex h-full bg-surface text-foreground" data-width={width}>
+    <div className="mx-app flex h-full bg-background text-foreground" data-width={width}>
       {width !== 'compact' && sidebar}
-      <main className={`flex min-w-0 flex-1 flex-col overflow-hidden bg-background ${width === 'compact' ? '' : 'my-2 mr-2 rounded-2xl border border-panel-edge'}`}>
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-panel-edge px-3">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+        {/* As tall as the sidebar's head, so the two rules meet at the corner as the console's do. */}
+        <header className="flex h-14 shrink-0 items-center gap-1 border-b border-panel-edge px-3 min-[640px]:px-5">
           {width === 'compact' && <IconButton icon={Menu} label="Open the menu" onClick={() => setSheet(true)} />}
           <IconButton icon={ChevronLeft} label="Back" disabled={!history.canGoBack} onClick={() => step(true)} />
           <IconButton icon={ChevronRight} label="Forward" disabled={!history.canGoForward} onClick={() => step(false)} />
-          <span className="min-w-0 flex-1 truncate pl-1 text-headline font-semibold text-foreground">{title}</span>
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate pl-2 text-body-sm">
+            <span className={shown === undefined ? 'font-medium text-foreground' : 'text-muted'}>{info.title}</span>
+            {shown !== undefined && (
+              <>
+                <span aria-hidden className="text-faint">
+                  /
+                </span>
+                <span className="truncate font-medium text-foreground">{shown.tab.title}</span>
+              </>
+            )}
+          </span>
           <TopBarPickers width={width} />
           <button
             type="button"
             onClick={() => setPalette(true)}
-            className="mx-focus flex h-8 cursor-pointer items-center gap-2 rounded-lg border border-panel-edge bg-card px-2.5 text-footnote text-muted hover:bg-hover"
+            className="mx-focus ml-1 flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-panel-edge bg-card px-3 text-body-sm text-muted hover:bg-hover hover:text-foreground"
             aria-label="Go to anything"
           >
-            <Search size={13} />
+            <Search size={14} />
             {width !== 'compact' && <span>Go to</span>}
-            <kbd className="rounded border border-panel-edge px-1 font-mono text-micro">Ctrl K</kbd>
+            <kbd className="rounded-md border border-panel-edge bg-hover px-1.5 text-label font-medium">Ctrl K</kbd>
           </button>
         </header>
-        {route.destination !== 'settings' && <TabBar tabs={tabs} chosen={route.tab} choose={(tab) => go({ destination: route.destination, tab })} />}
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div key={`${route.destination}/${route.tab ?? ''}`} className="mx-auto flex max-w-[1180px] flex-col gap-5 px-5 pt-5 pb-8 max-[639px]:px-3.5">
-            {route.destination !== 'home' && route.destination !== 'settings' && tabs.length < 2 && <p className="text-footnote text-muted">{info.subtitle}</p>}
+          <div key={`${route.destination}/${route.tab ?? ''}`} className="mx-auto flex max-w-[1216px] flex-col gap-5 px-5 pt-6 pb-10 min-[1200px]:px-7 max-[639px]:px-3.5">
             <InspectorWindow.Provider value={inspectors}>
-              <Page parts={parts} route={route} width={width} go={go} />
+              {shown !== undefined ? (
+                <SubNavFrame title={info.title} groups={tabGroups(route.destination, supports)} route={route} choose={(tab) => go({ destination: route.destination, tab })}>
+                  <Page parts={parts} route={route} width={width} go={go} />
+                </SubNavFrame>
+              ) : (
+                <>
+                  {route.destination !== 'home' && <PageTitle title={info.title} subtitle={info.subtitle} />}
+                  <Page parts={parts} route={route} width={width} go={go} />
+                </>
+              )}
             </InspectorWindow.Provider>
           </div>
         </div>
@@ -194,10 +215,9 @@ function Page({ parts, route, width, go }: { parts: SettingsParts; route: Route;
       return <GovernancePage parts={parts} tab={route.tab} width={width} go={go} />;
     case 'settings': {
       const page = pageNamed(route.tab) ?? 'account';
-      const info = pageInfo(page);
+      // The pane header above it names the page, as the console's settings pane does.
       return (
-        <div className="mx-auto flex w-full max-w-[760px] flex-col gap-5">
-          <PageTitle title={info.title} subtitle={info.subtitle} />
+        <div className="flex w-full max-w-[760px] flex-col gap-5">
           <PageBody page={page} parts={parts} go={(next) => go(routeForPage(next) ?? { destination: 'settings', tab: next })} />
         </div>
       );
@@ -222,18 +242,18 @@ function Sidebar({
 }) {
   const main = DESTINATIONS.filter((each) => each.id !== 'settings');
   return (
-    <nav aria-label="Memnox" className={`flex h-full shrink-0 flex-col bg-surface py-3 ${rail ? 'w-[60px] items-center px-2' : 'w-[232px] px-2.5'}`}>
-      <div className={`flex items-center gap-2 pb-4 ${rail ? 'justify-center' : 'px-1.5'}`}>
-        <MemnoxTile size={24} />
-        {!rail && <span className="flex-1 text-headline font-semibold">Memnox</span>}
-        {!rail && <span className="rounded-md border border-panel-edge px-1.5 text-micro text-muted">Local</span>}
+    <nav aria-label="Memnox" className={`flex h-full shrink-0 flex-col border-r border-panel-edge bg-surface ${rail ? 'w-16 items-center' : 'w-[240px]'}`}>
+      <div className={`flex h-14 w-full shrink-0 items-center gap-2.5 border-b border-panel-edge ${rail ? 'justify-center' : 'px-4'}`}>
+        <MemnoxTile size={26} />
+        {!rail && <span className="flex-1 text-base font-semibold tracking-[-0.02em]">Memnox</span>}
+        {!rail && <span className="rounded-full border border-panel-edge px-2 py-px text-[10px] font-medium tracking-[0.14em] text-muted uppercase">Local</span>}
       </div>
-      <div className="flex flex-1 flex-col gap-0.5">
+      <div className={`flex flex-1 flex-col gap-0.5 overflow-y-auto pt-3 pb-2 ${rail ? 'items-center px-2' : 'px-3'}`}>
         {main.map((each) => (
           <NavItem key={each.id} icon={ICONS[each.id]} title={each.title} hint={each.subtitle} rail={rail} chosen={route.destination === each.id} onClick={() => go({ destination: each.id })} />
         ))}
       </div>
-      <div className="flex flex-col gap-0.5 border-t border-panel-edge pt-2">
+      <div className={`flex w-full flex-col gap-0.5 border-t border-panel-edge py-2 ${rail ? 'items-center px-2' : 'px-3'}`}>
         {runtime}
         <NavItem icon={Settings} title="Settings" hint="This computer, your account, and the voice." rail={rail} chosen={route.destination === 'settings'} onClick={() => go({ destination: 'settings' })} />
         {toggle !== undefined && <NavItem icon={collapsed ? PanelLeftOpen : PanelLeftClose} title={collapsed ? 'Show labels' : 'Hide labels'} hint="Fold the sidebar to its icons" rail={rail} chosen={false} onClick={toggle} />}
@@ -250,9 +270,9 @@ function NavItem({ icon: Icon, title, hint, rail, chosen, onClick }: { icon: Luc
       title={rail ? title : hint}
       aria-label={rail ? title : undefined}
       aria-current={chosen ? 'page' : undefined}
-      className={`mx-focus flex h-9 cursor-pointer items-center gap-2.5 rounded-lg text-body transition-colors ${rail ? 'w-10 justify-center' : 'w-full px-2.5'} ${chosen ? 'bg-hover font-medium text-foreground' : 'text-muted hover:bg-hover hover:text-foreground'}`}
+      className={`mx-focus flex min-h-9 cursor-pointer items-center gap-2.5 rounded-lg text-body-sm transition-colors ${rail ? 'w-10 justify-center' : 'w-full px-3'} ${chosen ? 'bg-active font-medium text-foreground' : 'text-muted hover:bg-hover hover:text-foreground'}`}
     >
-      <Icon size={16} strokeWidth={1.9} className={chosen ? 'text-primary' : undefined} aria-hidden />
+      <Icon size={16} strokeWidth={1.9} aria-hidden />
       {!rail && <span className="truncate">{title}</span>}
     </button>
   );
@@ -272,7 +292,7 @@ function RuntimeStatus({ parts, rail }: { parts: SettingsParts; rail: boolean })
     );
   }
   return (
-    <div className="flex h-9 items-center px-2.5">
+    <div className="flex h-9 items-center px-2">
       <StatusWord tone={up ? 'good' : home.unavailable ? 'bad' : 'quiet'}>{words}</StatusWord>
     </div>
   );
@@ -286,7 +306,7 @@ function IconButton({ icon: Icon, label, onClick, disabled = false }: { icon: Lu
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className="mx-focus grid size-8 cursor-pointer place-items-center rounded-lg text-muted hover:bg-hover hover:text-foreground disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent"
+      className="mx-focus grid size-9 cursor-pointer place-items-center rounded-lg text-muted hover:bg-hover hover:text-foreground disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent"
     >
       <Icon size={16} />
     </button>

@@ -8,6 +8,8 @@ import {
   routeFrom,
   searchOf,
   settled,
+  tabGroups,
+  tabOf,
   visibleTabs,
   widthClass,
   type Supports,
@@ -31,7 +33,29 @@ describe('the window’s destinations', () => {
   it('shows the local network and personal sync under Settings only where the runtime answers them', () => {
     expect(visibleTabs('settings', nothingNew).map((tab) => tab.id)).not.toContain('network');
     expect(visibleTabs('settings', nothingNew).map((tab) => tab.id)).not.toContain('sync');
-    expect(visibleTabs('settings', everything).map((tab) => tab.id).slice(3, 8)).toEqual(['phones', 'network', 'appearance', 'backup', 'sync']);
+    expect(visibleTabs('settings', everything).map((tab) => tab.id).slice(3, 6)).toEqual(['phones', 'network', 'sync']);
+  });
+
+  it('groups Settings under who a change is about, as the console’s settings tree does', () => {
+    const groups = tabGroups('settings', everything).map((group) => [group.title, group.tabs.map((tab) => tab.id)]);
+    expect(groups).toEqual([
+      ['Account', ['account', 'permissions', 'connection']],
+      ['Devices', ['phones', 'network', 'sync']],
+      ['Voice', ['voice', 'listening', 'dictation']],
+      ['App', ['appearance', 'backup', 'help']],
+    ]);
+  });
+
+  it('drops a heading whose every tab is hidden, so no group stands over nothing', () => {
+    expect(tabGroups('mcp', nothingNew).map((group) => group.title)).toEqual(['Apps']);
+    expect(tabGroups('mcp', everything).map((group) => group.title)).toEqual(['Hub', 'Apps']);
+    expect(tabGroups('home', everything)).toEqual([]);
+  });
+
+  it('names the pane a route opens with its heading and what it is for', () => {
+    expect(tabOf({ destination: 'workspaces', tab: 'memory' })).toMatchObject({ group: 'Knowledge', tab: { title: 'Memory' } });
+    expect(tabOf({ destination: 'settings', tab: 'voice' })?.tab.summary).toBe('Who thinks for the voice, and the voice it answers in.');
+    expect(tabOf({ destination: 'home' })).toBeUndefined();
   });
 
   it('lands on the first tab shown when the one asked for is hidden', () => {

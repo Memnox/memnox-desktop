@@ -7,11 +7,55 @@ import { pageInfo, pageNamed, type SettingsPage } from './settings-pages';
 
 export type Destination = 'home' | 'agents' | 'workspaces' | 'mcp' | 'governance' | 'settings';
 
+/** The headings a destination's sub navigation groups its tabs under, as the console's settings tree does. */
+export type TabGroupId =
+  | 'agents'
+  | 'computer'
+  | 'projects'
+  | 'knowledge'
+  | 'skills'
+  | 'hub'
+  | 'apps'
+  | 'review'
+  | 'rules'
+  | 'record'
+  | 'account'
+  | 'devices'
+  | 'voice'
+  | 'app';
+
+const GROUP_TITLES: Record<TabGroupId, string> = {
+  agents: 'Agents',
+  computer: 'This computer',
+  projects: 'Projects',
+  knowledge: 'Knowledge',
+  skills: 'Skills',
+  hub: 'Hub',
+  apps: 'Apps',
+  review: 'Waiting on you',
+  rules: 'Rules',
+  record: 'Record',
+  account: 'Account',
+  devices: 'Devices',
+  voice: 'Voice',
+  app: 'App',
+};
+
 export interface TabInfo {
   readonly id: string;
   readonly title: string;
+  /** The heading it sits under in the destination's sub navigation. */
+  readonly group: TabGroupId;
+  /** One line under the pane's title saying what the tab is for. */
+  readonly summary: string;
   /** The daemon method this tab reads; absent when the tab needs nothing new. */
   readonly needs?: string;
+}
+
+export interface TabGroup {
+  readonly id: TabGroupId;
+  readonly title: string;
+  readonly tabs: readonly TabInfo[];
 }
 
 export interface DestinationInfo {
@@ -30,21 +74,40 @@ const MOVED: Partial<Record<SettingsPage, Route>> = {
   apps: { destination: 'mcp', tab: 'apps' },
 };
 
-/** What stays under Settings, in the order the sidebar groups had them. */
+/** What stays under Settings, in the order its sub navigation groups them. */
 export const SETTINGS_TABS: readonly SettingsPage[] = [
   'account',
   'permissions',
   'connection',
   'phones',
   'network',
-  'appearance',
-  'backup',
   'sync',
   'voice',
   'listening',
   'dictation',
+  'appearance',
+  'backup',
   'help',
 ];
+
+/** Who a settings change is about: the person, their devices, the voice, or this app. */
+const SETTINGS_GROUP: Record<SettingsPage, TabGroupId> = {
+  account: 'account',
+  permissions: 'account',
+  connection: 'account',
+  phones: 'devices',
+  network: 'devices',
+  sync: 'devices',
+  voice: 'voice',
+  listening: 'voice',
+  dictation: 'voice',
+  appearance: 'app',
+  backup: 'app',
+  help: 'app',
+  overview: 'app',
+  tools: 'app',
+  apps: 'app',
+};
 
 /** Settings pages that read a daemon method, hidden until the runtime answers it. */
 const SETTINGS_NEEDS: Partial<Record<SettingsPage, string>> = {
@@ -60,9 +123,9 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
     subtitle: 'The agents on this computer, their sessions, and what each can reach.',
     key: '2',
     tabs: [
-      { id: 'list', title: 'Agents', needs: 'agents' },
-      { id: 'sessions', title: 'Sessions' },
-      { id: 'computer', title: 'On this computer' },
+      { id: 'list', title: 'Agents', group: 'agents', summary: 'The agents on this computer and what each can reach.', needs: 'agents' },
+      { id: 'sessions', title: 'Sessions', group: 'agents', summary: 'What each agent is doing: what needs you, what runs, and what is done.' },
+      { id: 'computer', title: 'On this computer', group: 'computer', summary: 'The agents on this computer and the apps Memnox can act in as you.' },
     ],
   },
   {
@@ -71,12 +134,12 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
     subtitle: 'Your projects, with the skills, tools, memory and rules each one carries.',
     key: '3',
     tabs: [
-      { id: 'projects', title: 'Workspaces' },
-      { id: 'memory', title: 'Memory', needs: 'memory-facts' },
-      { id: 'skills', title: 'My Skills', needs: 'skills-hub' },
-      { id: 'assigned', title: 'Assigned', needs: 'skills-hub' },
-      { id: 'discover', title: 'Discover', needs: 'index-list' },
-      { id: 'profiles', title: 'Profiles', needs: 'profiles' },
+      { id: 'projects', title: 'Workspaces', group: 'projects', summary: 'Your projects, with the skills, tools, memory and rules each one carries.' },
+      { id: 'memory', title: 'Memory', group: 'knowledge', summary: 'What your agents know, each fact with the evidence it was read from, and the sources it came out of.', needs: 'memory-facts' },
+      { id: 'skills', title: 'My Skills', group: 'skills', summary: 'The skills you keep, and the agents each one is given to.', needs: 'skills-hub' },
+      { id: 'assigned', title: 'Assigned', group: 'skills', summary: 'Which skills each agent carries.', needs: 'skills-hub' },
+      { id: 'discover', title: 'Discover', group: 'skills', summary: 'The community index. Installing makes nothing live until you accept it.', needs: 'index-list' },
+      { id: 'profiles', title: 'Profiles', group: 'projects', summary: 'Named bundles of skills, servers and a rule pack, each piece given to an agent only once you sign.', needs: 'profiles' },
     ],
   },
   {
@@ -85,10 +148,10 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
     subtitle: 'Servers set up once and given to the agents you choose.',
     key: '4',
     tabs: [
-      { id: 'servers', title: 'Servers', needs: 'mcp-hub' },
-      { id: 'clients', title: 'Clients', needs: 'mcp-hub' },
-      { id: 'secrets', title: 'Secrets', needs: 'mcp-hub' },
-      { id: 'apps', title: 'Your apps' },
+      { id: 'servers', title: 'Servers', group: 'hub', summary: 'Servers set up once and given to the agents you choose.', needs: 'mcp-hub' },
+      { id: 'clients', title: 'Clients', group: 'hub', summary: 'Which agent has which server, set in one place.', needs: 'mcp-hub' },
+      { id: 'secrets', title: 'Secrets', group: 'hub', summary: 'Each secret by name, where it is used, and whether this computer holds it.', needs: 'mcp-hub' },
+      { id: 'apps', title: 'Your apps', group: 'apps', summary: 'Connect any tool you use as yourself, and see the ones this computer already reaches.' },
     ],
   },
   {
@@ -97,10 +160,10 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
     subtitle: 'What your agents may do, what waits on you, and what happened.',
     key: '5',
     tabs: [
-      { id: 'approvals', title: 'Approvals' },
-      { id: 'policies', title: 'Policies', needs: 'rules' },
-      { id: 'activity', title: 'Activity', needs: 'activity' },
-      { id: 'learn', title: 'Learn', needs: 'memory-learn' },
+      { id: 'approvals', title: 'Approvals', group: 'review', summary: 'What waits on you, oldest first, each saying what the agent wants to do and where.' },
+      { id: 'policies', title: 'Policies', group: 'rules', summary: 'What your agents may do, ask about first, or never do.', needs: 'rules' },
+      { id: 'activity', title: 'Activity', group: 'record', summary: 'What your agents did, newest first, beside what was decided.', needs: 'activity' },
+      { id: 'learn', title: 'Learn', group: 'review', summary: 'What was read out of your sources, waiting for you to confirm or reject it.', needs: 'memory-learn' },
     ],
   },
   {
@@ -109,7 +172,8 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
     subtitle: 'This computer, your account, and the voice.',
     tabs: SETTINGS_TABS.map((page) => {
       const needs = SETTINGS_NEEDS[page];
-      return { id: page, title: pageInfo(page).title, ...(needs === undefined ? {} : { needs }) };
+      const info = pageInfo(page);
+      return { id: page, title: info.title, group: SETTINGS_GROUP[page], summary: info.subtitle, ...(needs === undefined ? {} : { needs }) };
     }),
   },
 ];
@@ -130,6 +194,26 @@ export function destinationInfo(id: Destination): DestinationInfo {
 /** The tabs shown now: those needing nothing, and those whose method the daemon answered. */
 export function visibleTabs(id: Destination, supports: Supports): readonly TabInfo[] {
   return destinationInfo(id).tabs.filter((tab) => tab.needs === undefined || supports(tab.needs) === true);
+}
+
+/**
+ * The tabs shown now under their headings, in the order the headings first appear, an empty heading
+ * dropped so a group never stands over nothing.
+ */
+export function tabGroups(id: Destination, supports: Supports): readonly TabGroup[] {
+  const groups: { id: TabGroupId; tabs: TabInfo[] }[] = [];
+  for (const tab of visibleTabs(id, supports)) {
+    const known = groups.find((group) => group.id === tab.group);
+    if (known === undefined) groups.push({ id: tab.group, tabs: [tab] });
+    else known.tabs.push(tab);
+  }
+  return groups.map((group) => ({ id: group.id, title: GROUP_TITLES[group.id], tabs: group.tabs }));
+}
+
+/** The tab a route names, with its heading, for the pane's own header. */
+export function tabOf(route: Route): { tab: TabInfo; group: string } | undefined {
+  const tab = destinationInfo(route.destination).tabs.find((each) => each.id === route.tab);
+  return tab === undefined ? undefined : { tab, group: GROUP_TITLES[tab.group] };
 }
 
 /** The route as it will be drawn: a missing or hidden tab falls back to the first one shown. */

@@ -23,6 +23,11 @@ describe('the window’s destinations', () => {
     expect(visibleTabs('mcp', everything).map((tab) => tab.id)).toEqual(['servers', 'clients', 'secrets', 'apps']);
   });
 
+  it('shows the Skills Hub only where the runtime keeps one', () => {
+    expect(visibleTabs('workspaces', nothingNew).map((tab) => tab.id)).toEqual(['projects']);
+    expect(visibleTabs('workspaces', everything).map((tab) => tab.id)).toEqual(['projects', 'skills', 'assigned']);
+  });
+
   it('lands on the first tab shown when the one asked for is hidden', () => {
     expect(settled({ destination: 'mcp', tab: 'servers' }, nothingNew)).toEqual({ destination: 'mcp', tab: 'apps' });
     expect(settled({ destination: 'home' }, everything)).toEqual({ destination: 'home' });

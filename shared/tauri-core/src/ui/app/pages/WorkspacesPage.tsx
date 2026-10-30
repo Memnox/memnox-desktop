@@ -6,13 +6,19 @@ import { ago } from '../../../core/domain/session-text';
 import { BrandLogo } from '../../kit/logos';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { GoLink } from './HomePage';
+import { SkillsPage } from './SkillsPage';
 import { CardGrid, EmptyState, Inspector, Section, StatTile } from '../widgets';
 
 /**
  * Projects as the agents met them: every repository a session ran in, with who worked there. A workspace
  * that also carries its own skills, servers and rules joins this once the runtime keeps them per project.
  */
-export function WorkspacesPage({ parts, width, go }: { parts: SettingsParts; width: WidthClass; go: (route: Route) => void }) {
+export function WorkspacesPage({ parts, tab, width, go }: { parts: SettingsParts; tab: string | undefined; width: WidthClass; go: (route: Route) => void }) {
+  if (tab === 'skills' || tab === 'assigned') return <SkillsPage parts={parts} tab={tab} width={width} />;
+  return <ProjectsTab parts={parts} width={width} go={go} />;
+}
+
+function ProjectsTab({ parts, width, go }: { parts: SettingsParts; width: WidthClass; go: (route: Route) => void }) {
   const { sessions } = parts;
   useObserved(sessions);
   useEffect(() => {

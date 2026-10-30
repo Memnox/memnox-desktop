@@ -63,7 +63,8 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
     key: '3',
     tabs: [
       { id: 'projects', title: 'Workspaces' },
-      { id: 'skills', title: 'Skills', needs: 'skills-hub' },
+      { id: 'skills', title: 'My Skills', needs: 'skills-hub' },
+      { id: 'assigned', title: 'Assigned', needs: 'skills-hub' },
     ],
   },
   {

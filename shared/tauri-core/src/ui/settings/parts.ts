@@ -8,6 +8,7 @@ import { Home } from '../../core/application/home';
 import { McpHub } from '../../core/application/mcp-hub';
 import { Activity, Agents, Studio } from '../../core/application/studio';
 import { Sessions } from '../../core/application/sessions';
+import { SkillsHub } from '../../core/application/skills';
 import { PhonePairing } from '../../core/application/pairing';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
@@ -69,6 +70,8 @@ export interface SettingsParts {
   readonly activity: Activity;
   /** The agents on this computer as the runtime sees them. */
   readonly agents: Agents;
+  /** Skills kept once and written into each agent's own format. */
+  readonly skills: SkillsHub;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -112,6 +115,7 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     studio: new Studio(link, ids),
     activity: new Activity(link, ids),
     agents: new Agents(link, ids),
+    skills: new SkillsHub(link, ids),
     host,
     words: platformWords(host.platform),
     setup,

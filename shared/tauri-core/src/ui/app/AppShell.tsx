@@ -147,7 +147,7 @@ function Page({ parts, route, width, go }: { parts: SettingsParts; route: Route;
     case 'agents':
       return <AgentsPage parts={parts} tab={route.tab} width={width} />;
     case 'workspaces':
-      return <WorkspacesPage parts={parts} width={width} go={go} />;
+      return <WorkspacesPage parts={parts} tab={route.tab} width={width} go={go} />;
     case 'mcp':
       return <McpHubPage parts={parts} tab={route.tab} width={width} />;
     case 'governance':

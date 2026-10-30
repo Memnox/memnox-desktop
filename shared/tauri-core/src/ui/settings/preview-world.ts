@@ -1,4 +1,4 @@
-import type { ActivityRow, AgentView, DaemonRequest, DaemonResponse, DeviceWire, HomeView, McpHubView, PolicyRulesView, ProgressView, SessionCard, VoiceAgentStatus } from '@memnox/core/wire';
+import type { ActivityRow, AgentView, DaemonRequest, DaemonResponse, DeviceWire, HomeView, McpHubView, PolicyRulesView, ProgressView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
@@ -100,9 +100,106 @@ const previewActivity: ActivityRow[] = [
 ];
 
 const previewAgents: AgentView[] = [
-  { kind: 'claude-code', name: 'Claude Code', status: 'protected', sessions: { running: 1, idle: 2, finished: 14 }, mcpServers: ['github', 'postgres'], today: { actions: 37, asked: 3, refused: 0 }, recent: [{ id: 'e1', at: '2026-10-30T11:58:00Z', operation: 'git.push', target: 'origin main', effect: 'ask' }] },
-  { kind: 'codex-cli', name: 'Codex', status: 'protected', sessions: { running: 0, idle: 1, finished: 6 }, mcpServers: ['github'], today: { actions: 12, asked: 2, refused: 1 }, recent: [{ id: 'e4', at: '2026-10-30T11:30:00Z', operation: 'git.push-force', target: 'origin main', effect: 'deny' }] },
-  { kind: 'cursor', name: 'Cursor', status: 'unprotected', sessions: { running: 0, idle: 0, finished: 2 }, mcpServers: ['docs'], today: { actions: 0, asked: 0, refused: 0 }, recent: [] },
+  { kind: 'claude-code', name: 'Claude Code', status: 'protected', sessions: { running: 1, idle: 2, finished: 14 }, mcpServers: ['github', 'postgres'], skills: ['release-notes', 'review-checklist'], launchable: true, today: { actions: 37, asked: 3, refused: 0 }, recent: [{ id: 'e1', at: '2026-10-30T11:58:00Z', operation: 'git.push', target: 'origin main', effect: 'ask' }] },
+  { kind: 'codex-cli', name: 'Codex', status: 'protected', sessions: { running: 0, idle: 1, finished: 6 }, mcpServers: ['github'], skills: ['review-checklist'], launchable: true, today: { actions: 12, asked: 2, refused: 1 }, recent: [{ id: 'e4', at: '2026-10-30T11:30:00Z', operation: 'git.push-force', target: 'origin main', effect: 'deny' }] },
+  { kind: 'cursor', name: 'Cursor', status: 'unprotected', sessions: { running: 0, idle: 0, finished: 2 }, mcpServers: ['docs'], skills: [], launchable: false, today: { actions: 0, asked: 0, refused: 0 }, recent: [] },
+];
+
+/** Skills in each standing: one in use, one held for reaching further, one off, and two found to bring in. */
+const previewSkills: SkillsHubView = {
+  skills: [
+    {
+      name: 'release-notes',
+      scope: 'personal',
+      category: 'Writing',
+      version: '1.2.0',
+      description: 'Drafts release notes from the pull requests merged since the last tag',
+      publisher: 'Sam Rivera',
+      enabled: true,
+      digest: 'sha256:5f1c0a9e2b7d4c3a8e6f1b2d9c0a7e4f3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e',
+      agents: ['claude-code', 'codex-cli'],
+      assignments: [{ agent: 'claude-code' }, { agent: 'codex-cli' }],
+      compatibility: [
+        { agent: 'claude-code', label: 'Claude Code', supported: true, loses: [] },
+        { agent: 'codex-cli', label: 'Codex', supported: true, loses: ['Its tool grant, since Codex reads instructions only'] },
+        { agent: 'cursor', label: 'Cursor', supported: true, loses: ['Its tool grant, since a Cursor rule carries none', 'The files beside the instructions'] },
+      ],
+      versions: [
+        { version: '1.0.0', current: false, acceptedAt: '2026-09-02T10:00:00Z' },
+        { version: '1.1.0', current: false, acceptedAt: '2026-10-01T10:00:00Z' },
+        { version: '1.2.0', current: true, acceptedAt: '2026-10-26T10:00:00Z' },
+      ],
+      updatedAt: '2026-10-26T10:00:00Z',
+      files: ['template.md', 'examples/0.19.md'],
+      instructions: '# Release notes\n\n1. List the pull requests merged since the last tag with gh.\n2. Group them by area.\n3. Write one line each, in the past tense, and link the pull request.',
+      tools: ['Read', 'Bash'],
+      mcpServers: ['github'],
+      permissions: { filesystem: [], network: ['api.github.com'], commands: ['gh', 'git'] },
+      dependencies: [],
+    },
+    {
+      name: 'review-checklist',
+      scope: 'project',
+      project: '/code/memnox-desktop',
+      category: 'Review',
+      version: '0.3.0',
+      description: 'Checks a change against the repository conventions before it is pushed',
+      enabled: true,
+      digest: 'sha256:9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b',
+      held: { standing: 'widened', gained: ['Bash', 'curl'], signed: true },
+      agents: ['claude-code', 'codex-cli'],
+      assignments: [{ agent: 'claude-code', project: '/code/memnox-desktop' }, { agent: 'codex-cli', project: '/code/memnox-desktop' }],
+      compatibility: [
+        { agent: 'claude-code', label: 'Claude Code', supported: true, loses: [] },
+        { agent: 'codex-cli', label: 'Codex', supported: true, loses: [] },
+        { agent: 'cursor', label: 'Cursor', supported: true, loses: [] },
+      ],
+      versions: [{ version: '0.2.0', current: false, acceptedAt: '2026-10-10T10:00:00Z' }, { version: '0.3.0', current: true }],
+      updatedAt: '2026-10-29T15:00:00Z',
+      files: [],
+      instructions: 'Read CLAUDE.md, then check every changed line against it.',
+      tools: ['Read', 'Bash'],
+      mcpServers: [],
+      permissions: { filesystem: [], network: [], commands: ['curl'] },
+      dependencies: ['release-notes'],
+    },
+    {
+      name: 'triage',
+      scope: 'personal',
+      version: '1.0.0',
+      description: 'Labels new issues and asks for what is missing',
+      enabled: false,
+      digest: 'sha256:1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c',
+      agents: [],
+      assignments: [],
+      compatibility: [{ agent: 'claude-code', label: 'Claude Code', supported: true, loses: [] }],
+      versions: [{ version: '1.0.0', current: true, acceptedAt: '2026-08-14T10:00:00Z' }],
+      updatedAt: '2026-08-14T10:00:00Z',
+      files: [],
+      instructions: 'Read the issue, label it, and ask the author for steps to reproduce when there are none.',
+      tools: [],
+      mcpServers: ['github'],
+      permissions: { filesystem: [], network: [], commands: [] },
+      dependencies: [],
+    },
+  ],
+  found: [
+    { id: 'f1', name: 'frontend-design', agent: 'claude-code', kind: 'skill', path: '~/.claude/skills/frontend-design', tools: ['Read', 'Write'], grant: 'reads and writes files', imported: false },
+    { id: 'f2', name: 'security-review', agent: 'cursor', kind: 'skill', path: '~/.cursor/rules/security-review.mdc', tools: [], grant: 'no tools of its own', imported: false },
+  ],
+  agents: [
+    { agent: 'claude-code', label: 'Claude Code', installed: true },
+    { agent: 'codex-cli', label: 'Codex', installed: true },
+    { agent: 'cursor', label: 'Cursor', installed: true },
+    { agent: 'gemini-cli', label: 'Gemini CLI', installed: false },
+  ],
+};
+
+/** The packs Memnox ships, as the boundaries step lists them. */
+const previewPacks: RulePackView[] = [
+  { id: 'careful', name: 'Careful', description: 'Asks before anything leaves this computer or rewrites history.', ruleCount: 6, toml: '[[policies]]' },
+  { id: 'balanced', name: 'Balanced', description: 'Lets routine work run and asks before pushes to main, deploys and deletes.', ruleCount: 4, toml: '[[policies]]' },
+  { id: 'open', name: 'Open', description: 'Refuses only what cannot be undone, and records everything else.', ruleCount: 2, toml: '[[policies]]' },
 ];
 
 const phones: DeviceWire[] = [{ id: 'dev_1', name: 'Sam’s iPhone', kind: 'phone', fingerprint: 'fp', capabilities: ['see', 'ask', 'answer', 'mac'], pairedAt: '2026-10-01T10:00:00Z' }];
@@ -112,7 +209,7 @@ const qr =
 
 /** Every method a page asks, answered from the scene. */
 /** Methods no runtime answers yet, so the preview hides the tabs that read them, as the app does. */
-const NOT_YET: readonly string[] = ['skills-hub', 'memory-learn'];
+const NOT_YET: readonly string[] = ['memory-learn'];
 
 function answer(request: DaemonRequest): DaemonResponse[] {
   const ok = { id: request.id, ok: true };
@@ -127,6 +224,10 @@ function answer(request: DaemonRequest): DaemonResponse[] {
     const row = previewActivity.find((each) => each.id === request.decisionId) ?? previewActivity[0];
     return row === undefined ? [ok] : [{ ...ok, decision: { row, ...(row.rule === undefined ? {} : { rule: { name: row.rule, source: 'person', decidedBy: 'Sam' } }), chain: 'Claude Code for Sam', context: [], before: [], trace: { mode: 'shell', exitCode: 0 } } }];
   }
+  if (request.method === 'skills-hub' || request.method.startsWith('skill-')) return [{ ...ok, ...skillAnswer(request) }];
+  if (request.method === 'rule-packs') return [{ ...ok, rulePacks: previewPacks }];
+  if (request.method === 'rule-pack-import') return [{ ...ok, packProposed: ['prp_preview_1', 'prp_preview_2'] }];
+  if (request.method === 'agent-launch') return [{ ...ok, agentLaunched: { agent: request.agentKind ?? '', workingDirectory: request.workingDirectory ?? '', line: request.agentKind === 'codex-cli' ? 'codex' : 'claude' } }];
   if (request.method.startsWith('agent') || request.method === 'session-stop') return [{ ...ok, agentsView: previewAgents }];
   switch (request.method) {
     case 'ping':
@@ -165,6 +266,13 @@ function answer(request: DaemonRequest): DaemonResponse[] {
     default:
       return [ok];
   }
+}
+
+/** The hub after any skill press: a give, an accept or a widening rollback waits on a signature, the rest are done. */
+function skillAnswer(request: DaemonRequest): Partial<DaemonResponse> {
+  const signed = (request.method === 'skill-assign' && request.skillOn === true) || request.method === 'skill-accept';
+  if (request.method === 'skill-sync') return { skillsHub: previewSkills, skillsSynced: { written: 3, removed: 1, files: ['~/.claude/skills/release-notes/SKILL.md'], skipped: [] } };
+  return { skillsHub: previewSkills, ...(signed ? { proposed: 'prp_preview' } : {}) };
 }
 
 export const previewLink: DaemonLink = {

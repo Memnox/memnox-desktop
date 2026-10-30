@@ -12,6 +12,10 @@ struct ActivityDestination: View {
     @State private var effect: RuleEffect?
     @State private var kind: ActivityKind?
     @State private var text = ""
+    /// Whether the list is scrolled to its top, so live rows go up there or wait behind the pill.
+    @State private var atTop = true
+    /// Bumped by the pill, which scrolls the list back to its top.
+    @State private var scrollUp = 0
 
     private static let kinds: [(ActivityKind?, String)] = [
         (nil, "Everything"), (.command, "Commands"), (.file, "Files"), (.mcp, "MCP tools"), (.tool, "Other tools"),
@@ -19,21 +23,39 @@ struct ActivityDestination: View {
     private static let searchWidth: CGFloat = 280
     private static let kindWidth: CGFloat = 150
     private static let logo: CGFloat = 24
+    private static let topID = "activity-top"
+    private static let space = "activity-scroll"
+    /// How far the list may move before it no longer counts as at the top.
+    private static let topSlack: CGFloat = 8
 
     var body: some View {
         let activity = screen.activity
         let decision = shell.inspecting == nil ? nil : activity.decision
         InspectorLayout(width: width, title: decision == nil ? nil : "Why", close: close) {
             ShellScroll(width: width) {
-                toolbar
-                if let note = screen.note { QuietLine(note) }
-                list
-                if activity.more {
-                    Button(activity.loading ? "Reading" : "Show older") { Task { await activity.readOn() } }
-                        .buttonStyle(KitButton(kind: .secondary))
-                        .disabled(activity.loading)
+                ScrollViewReader { proxy in
+                    VStack(alignment: .leading, spacing: ShellMetrics.sectionSpacing) {
+                        topMark
+                        toolbar
+                        if let note = screen.note { QuietLine(note) }
+                        if activity.missed > 0 { missedLine }
+                        list
+                        if activity.more {
+                            Button(activity.loading ? "Reading" : "Show older") { Task { await activity.readOn() } }
+                                .buttonStyle(KitButton(kind: .secondary))
+                                .disabled(activity.loading)
+                        }
+                    }
+                    .onChange(of: scrollUp) { withAnimation { proxy.scrollTo(Self.topID, anchor: .top) } }
                 }
             }
+            .coordinateSpace(name: Self.space)
+            .onPreferenceChange(TopOffset.self) { offset in
+                let top = offset > -Self.topSlack
+                if top != atTop { atTop = top }
+            }
+            .onChange(of: atTop) { activity.atTop(atTop) }
+            .overlay(alignment: .top) { pill }
         } detail: {
             if let decision { DecisionDetail(view: decision) { shell.go(WindowRoute(.governance, tab: "policies")) } }
         }
@@ -71,21 +93,70 @@ struct ActivityDestination: View {
         }
     }
 
+    /// A point at the very top of the list, whose place tells whether the person is at the top and which the pill scrolls to.
+    private var topMark: some View {
+        Color.clear
+            .frame(height: 0)
+            .id(Self.topID)
+            .background(GeometryReader { geometry in
+                Color.clear.preference(key: TopOffset.self, value: geometry.frame(in: .named(Self.space)).minY)
+            })
+    }
+
+    @ViewBuilder private var pill: some View {
+        let waiting = screen.activity.waiting
+        if waiting > 0 {
+            Button {
+                screen.activity.showWaiting()
+                scrollUp += 1
+            } label: {
+                Label(LiveActivityLines.newRows(waiting), systemImage: "arrow.up")
+            }
+            .buttonStyle(KitButton(kind: .primary))
+            .padding(.top, Memnox.Spacing.medium)
+        }
+    }
+
+    private var missedLine: some View {
+        HStack(spacing: Memnox.Spacing.medium) {
+            QuietLine(LiveActivityLines.missedRows(screen.activity.missed))
+            Button("Refresh") { Task { await screen.activity.show(filter) } }
+                .buttonStyle(KitButton(kind: .secondary))
+        }
+    }
+
     @ViewBuilder private var list: some View {
         let activity = screen.activity
         let rows = activity.rows
-        if activity.unreadable, rows.isEmpty {
+        let live = activity.live
+        let names = Dictionary(rows.map { ($0.agent, $0.agentName) }, uniquingKeysWith: { first, _ in first })
+        if activity.unreadable, rows.isEmpty, live.isEmpty {
             ReadFailed(what: "the activity") { Task { await activity.show(filter) } }
-        } else if rows.isEmpty, !activity.loading {
+        } else if rows.isEmpty, live.isEmpty, !activity.loading {
             EmptyState(symbol: "clock.arrow.circlepath", title: "Nothing here yet",
                        detail: "What your agents do on this computer appears here as it happens, with what your rules decided.")
         } else {
             ShellPanel {
-                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                ForEach(Array(live.enumerated()), id: \.element.id) { index, row in
                     if index > 0 { ShellDivider() }
+                    liveRowView(row, name: names[row.agent] ?? row.agent)
+                }
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    if index > 0 || !live.isEmpty { ShellDivider() }
                     rowView(row)
                 }
             }
+        }
+    }
+
+    /// A row that arrived live, with names only, which says less until the list is read again.
+    private func liveRowView(_ row: LiveActivityRow, name: String) -> some View {
+        let caption = [name, SessionText.ago(row.at, now: Date())].compactMap { $0 }.joined(separator: SessionText.separator)
+        return CodeRow(title: StudioLines.activityLine(operation: row.operation, target: row.target), caption: caption,
+                       chosen: shell.inspecting == row.id, action: { open(row.id) }) {
+            BrandLogo(agent: row.agent, name: name, size: Self.logo)
+        } trailing: {
+            StatusWord(Tone(effect: row.effect), StudioLines.title(row.effect))
         }
     }
 
@@ -201,4 +272,10 @@ private struct DecisionDetail: View {
         if let approver = view.trace.approvedBy { facts.append(("Approved by", approver)) }
         return facts
     }
+}
+
+/// Where the top of the activity list sits in its scroll view, which goes negative once it is scrolled down.
+private struct TopOffset: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }

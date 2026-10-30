@@ -595,11 +595,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if event.eventKind == .settled { target.forget(subject: event.subject) }
     }
 
+    /// Rows the ledger gained, shown at the top of Activity and counted into the home's actions today, with no read each second.
+    private func liveActivity(_ event: DaemonEvent) {
+        let rows = event.activityRows ?? []
+        let missed = event.activityMissed ?? 0
+        AppWindow.shared.activity?.heard(rows, missed: missed)
+        home?.heard(rows.count + missed)
+    }
+
     /// Something began or stopped waiting: said out loud, then listened to for the answer.
     private func arrived(_ event: DaemonEvent) {
         // Shown at once, since it belongs to the answer being said now and a queue would hold it until after.
         // A card, a window or a Touch ID sheet belongs to the conversation happening now, so it
         // comes up at once; queued, it would wait until the person stopped talking.
+        // Live rows come once a second while anybody listens: handed to the window, never said and never a reason to read the home again.
+        if event.eventKind == .activity {
+            liveActivity(event)
+            return
+        }
         // Saying the name near the phone must not wake the Mac as well, so the name is not listened for while a phone holds the voice.
         if let voiceOn = event.voiceOn {
             phoneHoldsVoice = voiceOn.holding

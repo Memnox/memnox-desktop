@@ -69,6 +69,12 @@ final class HomeModel: ObservableObject {
         }
     }
 
+    /// Actions the runtime sent live, counted into today at once rather than read again every second.
+    func heard(_ actions: Int) {
+        guard let home else { return }
+        self.home = home.counting(actions: actions)
+    }
+
     /// Something on the stream changed what the home counts: read once the burst has passed.
     func refreshSoon() {
         guard soon == nil else { return }

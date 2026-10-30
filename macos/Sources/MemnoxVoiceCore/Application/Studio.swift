@@ -157,6 +157,10 @@ public final class Activity: @unchecked Sendable {
     private let ids: RequestIds
     private let lock = NSLock()
     private var rowsRead: [ActivityRow] = []
+    private var liveRows: [LiveActivityRow] = []
+    private var waitingRows: [LiveActivityRow] = []
+    private var missedCount = 0
+    private var top = true
     private var cursor: String?
     private var filterNow = ActivityFilter()
     private var failed = false
@@ -179,12 +183,66 @@ public final class Activity: @unchecked Sendable {
     public var loading: Bool { lock.withLock { reading } }
     public var unreadable: Bool { lock.withLock { failed } }
     public var decision: DecisionView? { lock.withLock { opened } }
+    /// Rows that arrived since the first page was read, newest first, drawn above it.
+    public var live: [LiveActivityRow] { lock.withLock { liveRows } }
+    /// Rows that arrived while the person was scrolled away, which the pill counts.
+    public var waiting: Int { lock.withLock { waitingRows.count } }
+    /// Rows the runtime counted without carrying, or that names alone could not place under the filter.
+    public var missed: Int { lock.withLock { missedCount } }
+
+    /// Rows a burst brought, oldest first: those the filter shows go up top or wait for the pill, the rest are counted or left.
+    public func heard(_ rows: [LiveActivityRow], missed: Int) {
+        let moved: Bool = lock.withLock {
+            let known = Set(rowsRead.map(\.id) + liveRows.map(\.id) + waitingRows.map(\.id))
+            var shown: [LiveActivityRow] = []
+            var unknown = missed
+            for row in rows where !known.contains(row.id) {
+                switch LiveActivityLines.match(row, filterNow) {
+                case .shown: shown.insert(row, at: 0)
+                case .unknown: unknown += 1
+                case .hidden: break
+                }
+            }
+            if shown.isEmpty, unknown == 0 { return false }
+            if top { liveRows = shown + liveRows } else { waitingRows = shown + waitingRows }
+            missedCount += unknown
+            // Bounded, so a window left open all day does not grow without end; what is let go is counted for a refresh.
+            let over = liveRows.count - LiveActivityLines.mostKept
+            if over > 0 {
+                liveRows = Array(liveRows.prefix(LiveActivityLines.mostKept))
+                missedCount += over
+            }
+            return true
+        }
+        if moved { changed?() }
+    }
+
+    /// Whether the list is scrolled to its top; arriving there shows what waited.
+    public func atTop(_ isTop: Bool) {
+        let reveal: Bool = lock.withLock {
+            top = isTop
+            return isTop && !waitingRows.isEmpty
+        }
+        if reveal { showWaiting() }
+    }
+
+    /// The pill pressed: what waited goes up top.
+    public func showWaiting() {
+        lock.withLock {
+            liveRows = waitingRows + liveRows
+            waitingRows = []
+        }
+        changed?()
+    }
 
     /// Reads from the newest again under this filter.
     public func show(_ filter: ActivityFilter) async {
         let mine: Int = lock.withLock {
             filterNow = filter
             rowsRead = []
+            liveRows = []
+            waitingRows = []
+            missedCount = 0
             cursor = nil
             generation += 1
             return generation

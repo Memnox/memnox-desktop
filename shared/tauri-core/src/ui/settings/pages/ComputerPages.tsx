@@ -268,7 +268,7 @@ export function AppearancePage({ parts }: { parts: SettingsParts }) {
   };
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex gap-4 rounded-2xl bg-card p-4">
+      <div className="flex gap-4 rounded-xl border border-panel-edge bg-card p-5">
         {LOOKS.map((look) => (
           <button key={look} type="button" className="flex cursor-pointer flex-col items-center gap-2 transition-transform duration-200 ease-press active:scale-[0.94]" onClick={() => pick(look)} aria-pressed={look === chosen}>
             <span
@@ -282,7 +282,7 @@ export function AppearancePage({ parts }: { parts: SettingsParts }) {
         ))}
       </div>
       <p className="px-1 text-caption text-ink-secondary">{ISLAND_STAYS_DARK}</p>
-      <div className="rounded-2xl bg-card p-4">
+      <div className="rounded-xl border border-panel-edge bg-card p-5">
         <IslandScreenPicker />
       </div>
     </div>

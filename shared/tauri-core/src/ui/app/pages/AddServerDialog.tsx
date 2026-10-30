@@ -196,7 +196,7 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
                 {advanced ? 'Hide what will be written' : 'Show what will be written'}
               </button>
               {advanced && (
-                <pre className="max-h-48 overflow-auto rounded-lg bg-card p-3 font-mono text-micro text-foreground">
+                <pre className="max-h-48 overflow-auto rounded-lg bg-hover p-3 font-mono text-micro text-foreground">
                   {typeof preview === 'string' ? preview : JSON.stringify(preview, null, 2)}
                 </pre>
               )}

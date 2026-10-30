@@ -75,7 +75,7 @@ export function YourAppsPage({ parts }: { parts: SettingsParts }) {
 /** One card: the mark, the name, one line, and what can be done at its foot. */
 function AppCard({ toolkit, name, line, children }: { toolkit: string; name: string; line: string; children?: ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-3 rounded-2xl bg-card p-4">
+    <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-panel-edge bg-card p-5">
       <div className="flex min-w-0 items-center gap-3">
         <ToolMark toolkit={toolkit} size={MARK_SIDE} />
         <div className="flex min-w-0 flex-col gap-0.5">

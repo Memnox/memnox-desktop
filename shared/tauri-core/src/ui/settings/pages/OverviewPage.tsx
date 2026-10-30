@@ -249,7 +249,7 @@ function HomeBlocks({ parts, view }: { parts: SettingsParts; view: HomeView }) {
 function HomeBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <SettingsSection title={title}>
-      <div className="flex flex-col gap-2 rounded-2xl bg-card p-4">{children}</div>
+      <div className="flex flex-col gap-2 rounded-xl border border-panel-edge bg-card p-5">{children}</div>
     </SettingsSection>
   );
 }

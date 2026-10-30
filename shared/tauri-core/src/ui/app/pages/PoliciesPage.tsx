@@ -263,10 +263,10 @@ function RuleBuilder({ parts, start, close, said }: { parts: SettingsParts; star
             </div>
             <input className={field} placeholder="Why, in your words" value={reason} onChange={(event) => setReason(event.target.value)} aria-label="Why" />
           </fieldset>
-          <p className="rounded-lg bg-card px-3.5 py-3 text-body text-foreground">{draftSentence(draft, agentLabel)}</p>
+          <p className="rounded-lg bg-hover px-3.5 py-3 text-body text-foreground">{draftSentence(draft, agentLabel)}</p>
           <details>
             <summary className="mx-focus cursor-pointer text-footnote text-muted">Show the rule as written</summary>
-            <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-card p-3 font-mono text-micro">{JSON.stringify(draft, null, 2)}</pre>
+            <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-hover p-3 font-mono text-micro">{JSON.stringify(draft, null, 2)}</pre>
           </details>
         </div>
         <footer className="flex items-center gap-2 border-t border-panel-edge px-5 py-3.5">

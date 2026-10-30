@@ -63,6 +63,11 @@ final class ProtocolVectorsTests: XCTestCase {
         XCTAssertEqual(Set(FollowUpOutcome.allCases.map(\.rawValue)), runtime)
     }
 
+    func testWaitsOnPressesOfEveryMethodTheRuntimeSaysCanPropose() throws {
+        let runtime = Set(try XCTUnwrap(vectors().values["proposingMethods"]))
+        XCTAssertEqual(ProposingMethods.all, runtime)
+    }
+
     /// The Swift builder for one vector; a name nobody mirrors yet fails, so a new signed message cannot go unseen.
     private func built(_ vector: Message) throws -> String? {
         switch vector.name {

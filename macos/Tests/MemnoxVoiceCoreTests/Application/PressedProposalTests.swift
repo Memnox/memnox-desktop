@@ -69,7 +69,7 @@ final class PressedProposalTests: XCTestCase {
     func testAPressAnsweredAfterTheEventIsStillHonoured() async throws {
         let slow = SlowWindowLink(proposed: "prp_late")
         let pressing = PressingLink(link: slow, presses: conversation.presses)
-        let pressed = Task { try await pressing.request(DaemonRequest(id: 1, method: .mcpSecretSet)) }
+        let pressed = Task { try await pressing.request(DaemonRequest(id: 1, method: .mcpServerPut)) }
         while !slow.asked { await Task.yield() }
 
         await conversation.handle(try event(proposal("prp_late")))
@@ -77,6 +77,21 @@ final class PressedProposalTests: XCTestCase {
         XCTAssertFalse(declined())
         XCTAssertTrue(key.signed.contains { $0.hasPrefix("memnox-confirm:v1:prp_late:") })
         _ = try await pressed.value
+    }
+
+    func testABackgroundReadInFlightLeavesAnUnaskedProposalDeclined() async throws {
+        let slow = SlowWindowLink(proposed: nil, delay: 2_000_000_000)
+        let pressing = PressingLink(link: slow, presses: conversation.presses)
+        let read = Task { try await pressing.request(DaemonRequest(id: 1, method: .mcpHub)) }
+        while !slow.asked { await Task.yield() }
+
+        await conversation.handle(try event(proposal("prp_unasked")))
+
+        // Declined at once rather than once the read came back, since a read is not a press.
+        XCTAssertFalse(slow.answered)
+        XCTAssertTrue(declined())
+        XCTAssertEqual(key.signed, [])
+        _ = try await read.value
     }
 
     func testAPressedProposalThatWaitedTooLongIsDeclined() async throws {
@@ -105,16 +120,23 @@ final class PressedProposalTests: XCTestCase {
 
 /// A daemon whose answer to a window's press comes a moment after the proposal event, as it can on two sockets.
 private final class SlowWindowLink: DaemonLink {
-    let proposed: String
+    let proposed: String?
+    let delay: UInt64
     var asked = false
-    init(proposed: String) { self.proposed = proposed }
+    var answered = false
+    init(proposed: String?, delay: UInt64 = 100_000_000) {
+        self.proposed = proposed
+        self.delay = delay
+    }
 
     func stream(_ request: DaemonRequest) -> AsyncThrowingStream<DaemonResponse, Error> {
         asked = true
-        let answer = #"{"id":\#(request.id),"ok":true,"proposed":"\#(proposed)"}"#
+        let answer = proposed.map { #"{"id":\#(request.id),"ok":true,"proposed":"\#($0)"}"# }
+            ?? #"{"id":\#(request.id),"ok":true}"#
         return AsyncThrowingStream { continuation in
             Task {
-                try? await Task.sleep(nanoseconds: 100_000_000)
+                try? await Task.sleep(nanoseconds: self.delay)
+                self.answered = true
                 if let response = try? line(answer) { continuation.yield(response) }
                 continuation.finish()
             }

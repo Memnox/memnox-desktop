@@ -72,8 +72,20 @@ public final class Presses: @unchecked Sendable {
     }
 }
 
-/// The daemon as this app's own window reaches it: every proposal an answer names is noted as pressed for. Only the
-/// window's use cases are given this link; the voice and anything the daemon pushes go over the plain one.
+/// Every daemon method whose answer can name a proposal, as the runtime's PROPOSING_METHODS lists them and the vectors
+/// check, so only a press of one makes a proposal wait and a page's background read never does.
+public enum ProposingMethods {
+    public static let all: Set<String> = Set([
+        DaemonMethod.handOver, .rule, .mcpServerPut, .mcpAssign, .rulePropose, .ruleRemove, .rulePackImport,
+        .agentResume, .agentLaunch, .skillImport, .skillPut, .skillAssign, .skillAccept, .skillRollback,
+        .projectOpen, .projectApply, .backupRestore, .memoryConfirm, .lanSet, .personalSyncKeyOffer,
+        .personalSyncKeyAccept, .profileApply, .indexInstall, .indexSourceSet,
+    ].map(\.rawValue))
+}
+
+/// The daemon as this app's own window reaches it: every proposal an answer names is noted as pressed for, and only a
+/// method that can propose is waited on. Only the window's use cases are given this link; the voice and anything the
+/// daemon pushes go over the plain one.
 public final class PressingLink: DaemonLink {
     private let link: DaemonLink
     private let presses: Presses
@@ -85,7 +97,7 @@ public final class PressingLink: DaemonLink {
 
     public func stream(_ request: DaemonRequest) -> AsyncThrowingStream<DaemonResponse, Error> {
         let presses = self.presses
-        let token = presses.began()
+        let token = ProposingMethods.all.contains(request.method) ? presses.began() : nil
         let answers = link.stream(request)
         return AsyncThrowingStream { continuation in
             let reading = Task {
@@ -94,7 +106,7 @@ public final class PressingLink: DaemonLink {
                     for try await response in answers {
                         // Noted before the caller sees it, so the page and the island never disagree on what was asked.
                         presses.raised(response.proposalIds)
-                        if first { presses.ended(token) }
+                        if first, let token { presses.ended(token) }
                         first = false
                         continuation.yield(response)
                     }
@@ -102,11 +114,11 @@ public final class PressingLink: DaemonLink {
                 } catch {
                     continuation.finish(throwing: error)
                 }
-                presses.ended(token)
+                if let token { presses.ended(token) }
             }
             continuation.onTermination = { _ in
                 reading.cancel()
-                presses.ended(token)
+                if let token { presses.ended(token) }
             }
         }
     }

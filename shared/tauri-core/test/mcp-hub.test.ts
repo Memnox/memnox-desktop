@@ -2,7 +2,7 @@ import type { DaemonRequest, McpHubView } from '@memnox/core/wire';
 import { describe, expect, it } from 'vitest';
 import { McpHub, syncedLine } from '../src/core/application/mcp-hub';
 import { RequestIds } from '../src/core/application/request-ids';
-import { fromOrganization, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, missingSecrets, projectFolder, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, serverNameFrom, splitCommand } from '../src/core/domain/mcp-hub-lines';
+import { fromOrganization, GIVE_EVERYWHERE, headerLines, headerProblem, headerReference, headersOf, headerSecretName, isCredentialHeader, remoteAddressProblem, PROJECT_ONLY_LINE, missingSecrets, projectFolder, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, serverNameFrom, splitCommand } from '../src/core/domain/mcp-hub-lines';
 import { ScriptedDaemon } from './doubles';
 
 const view: McpHubView = {
@@ -154,5 +154,46 @@ describe('how far an agent has a server', () => {
   it('offers a project only agent the server in every project, never a take away', () => {
     expect(GIVE_EVERYWHERE).toBe('Give in every project');
     expect(reachOf(server, 'cursor')).not.toBe('everywhere');
+  });
+});
+
+describe('a remote server’s headers', () => {
+  it('keeps a credential header as a secret from its name, whatever its case', () => {
+    expect(isCredentialHeader('Authorization')).toBe(true);
+    expect(isCredentialHeader('x-api-key')).toBe(true);
+    expect(isCredentialHeader('Cookie')).toBe(true);
+    expect(isCredentialHeader('X-Trace')).toBe(false);
+  });
+
+  it('refuses a credential sent plain, a bad name, a repeat and an empty value, as the runtime would', () => {
+    expect(headerProblem([{ name: 'Authorization', value: 'Bearer abc', secret: false }])).toBe('Authorization carries a credential, so keep its value as a secret.');
+    expect(headerProblem([{ name: 'Bad Name', value: 'x', secret: false }])).toBe('Bad Name is not a header name.');
+    expect(headerProblem([{ name: 'X-Team', value: 'a', secret: false }, { name: 'x-team', value: 'b', secret: false }])).toBe('x-team is given twice.');
+    expect(headerProblem([{ name: 'X-Team', value: ' ', secret: false }])).toBe('Give the value X-Team is sent with.');
+    expect(headerProblem([{ name: '', value: '', secret: false }, { name: 'Authorization', value: 'Bearer abc', secret: true }])).toBeUndefined();
+  });
+
+  it('sends a kept header as its reference, the token scheme kept in front', () => {
+    expect(headerSecretName('docs', 'X-Api-Key')).toBe('docs-x-api-key');
+    expect(headerReference('Bearer abc.def', 'docs-authorization')).toEqual({ sent: 'Bearer memnox-secret:docs-authorization', secret: 'abc.def' });
+    expect(headerReference('abc', 'docs-x-api-key')).toEqual({ sent: 'memnox-secret:docs-x-api-key', secret: 'abc' });
+    expect(headersOf('docs', [{ name: 'Authorization', value: 'Bearer abc', secret: true }, { name: 'X-Team', value: 'core', secret: false }])).toEqual({
+      headers: { Authorization: 'Bearer memnox-secret:docs-authorization', 'X-Team': 'core' },
+      secrets: { 'docs-authorization': 'abc' },
+    });
+  });
+
+  it('takes plain http only for this computer', () => {
+    expect(remoteAddressProblem('https://mcp.example.com/mcp')).toBeUndefined();
+    expect(remoteAddressProblem('http://localhost:3000/mcp')).toBeUndefined();
+    expect(remoteAddressProblem('http://127.0.0.1:3000/mcp')).toBeUndefined();
+    expect(remoteAddressProblem('http://mcp.example.com/mcp')).toBe('Plain http is only for a server on this computer, at localhost or 127.0.0.1. Use https for one anywhere else.');
+    expect(remoteAddressProblem('ftp://example.com')).toBe('A remote server is reached over http or https.');
+    expect(remoteAddressProblem('mcp.example')).toBe('mcp.example is not an address.');
+  });
+
+  it('lists headers by name, with whether the secret the dialog named is held', () => {
+    expect(headerLines({ name: 'docs', headerNames: ['Authorization', 'X-Team'], secretsHeld: { 'docs-authorization': false } })).toEqual([{ name: 'Authorization', held: false }, { name: 'X-Team' }]);
+    expect(headerLines({ name: 'docs', secretsHeld: {} })).toEqual([]);
   });
 });

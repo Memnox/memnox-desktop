@@ -3,7 +3,7 @@ import { Folder, KeyRound, MoreVertical, Plug, Plus, RefreshCw } from 'lucide-re
 import { useEffect, useState, type ReactNode } from 'react';
 import type { HubOutcome } from '../../../core/application/mcp-hub';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
-import { agentLabel, agentsLine, callsLine, fromOrganization, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
+import { agentLabel, agentsLine, callsLine, fromOrganization, headerLines, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
 import { ago } from '../../../core/domain/session-text';
 import { BrandLogo } from '../../kit/logos';
 import { KitButton, SearchField } from '../../settings/kit';
@@ -211,6 +211,21 @@ function ServerDetail({ parts, view, server, said, removed, workspaces }: { part
           </Panel>
           <p className="text-footnote text-muted">{`Giving a server to an agent waits for your signature with ${parts.words.keyTitle}. Taking it away happens at once.`}</p>
           {(server.projects ?? []).length > 0 && <p className="text-footnote text-muted">{PROJECT_ONLY_LINE}</p>}
+        </Section>
+      )}
+
+      {(server.headerNames ?? []).length > 0 && (
+        <Section title="Headers">
+          <Panel>
+            {headerLines(server).map((header) => (
+              <Row
+                key={header.name}
+                title={<span className="font-mono">{header.name}</span>}
+                trailing={header.held === undefined ? undefined : <StatusWord tone={header.held ? 'good' : 'bad'}>{header.held ? 'Secret kept by this computer' : 'Secret not set'}</StatusWord>}
+              />
+            ))}
+          </Panel>
+          <p className="text-footnote text-muted">Sent with every call to the server. Only the names are shown here, never the values.</p>
         </Section>
       )}
 

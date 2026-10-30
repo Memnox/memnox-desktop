@@ -1,7 +1,7 @@
 import { Minus, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { HubOutcome, HubServerDraft } from '../../../core/application/mcp-hub';
-import { agentLabel, serverNameFrom, splitCommand } from '../../../core/domain/mcp-hub-lines';
+import { agentLabel, headerProblem, headersOf, isCredentialHeader, remoteAddressProblem, serverNameFrom, splitCommand, type HeaderRow } from '../../../core/domain/mcp-hub-lines';
 import { BrandLogo } from '../../kit/logos';
 import { KitButton } from '../../settings/kit';
 import type { SettingsParts } from '../../settings/parts';
@@ -16,7 +16,8 @@ const STEPS = ['Server', 'Variables', 'Agents'] as const;
 
 /**
  * Adding a server in three short steps, with no JSON unless asked for. A variable marked secret goes to
- * this computer's own store and the server is written with only its name, so no agent's config holds it.
+ * this computer's own store and the server is written with only its name, so no agent's config holds it. A remote
+ * server's header kept as a secret goes the same way, sent as `memnox-secret:<name>` for the proxy to fill in.
  */
 export function AddServerDialog({ parts, agents, close, said }: { parts: SettingsParts; agents: readonly string[]; close: () => void; said: (outcome: HubOutcome) => void }) {
   const { hub } = parts;
@@ -27,6 +28,7 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
   const [launch, setLaunch] = useState('');
   const [url, setUrl] = useState('');
   const [variables, setVariables] = useState<Variable[]>([]);
+  const [headers, setHeaders] = useState<HeaderRow[]>([]);
   const [given, setGiven] = useState<ReadonlySet<string>>(new Set());
   const [advanced, setAdvanced] = useState(false);
   const [problem, setProblem] = useState<string | undefined>(undefined);
@@ -43,7 +45,13 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
       else env[each.name.trim()] = each.value;
     }
     const base = { name: named, ...(description.trim() === '' ? {} : { description: description.trim() }), env, secrets };
-    if (remote) return url.trim() === '' ? 'Give the address the server answers on.' : { ...base, transport: 'http', url: url.trim() };
+    if (remote) {
+      if (url.trim() === '') return 'Give the address the server answers on.';
+      const problem = remoteAddressProblem(url) ?? headerProblem(headers);
+      if (problem !== undefined) return problem;
+      const sent = headersOf(named, headers).headers;
+      return { ...base, transport: 'http', url: url.trim(), ...(Object.keys(sent).length === 0 ? {} : { headers: sent }) };
+    }
     const split = splitCommand(launch);
     if (split === undefined) return 'Give the command that starts the server.';
     return { ...base, transport: 'stdio', command: split.command, args: split.args };
@@ -56,6 +64,14 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
       return;
     }
     // Secrets first, so the server never starts without its credential.
+    const headerSecrets = remote ? Object.entries(headersOf(server.name, headers).secrets) : [];
+    for (const [secret, value] of headerSecrets) {
+      const outcome = await hub.setSecret(secret, value);
+      if (outcome.kind === 'failed') {
+        setProblem(outcome.why);
+        return;
+      }
+    }
     for (const each of variables.filter((variable) => variable.secret && variable.name.trim() !== '' && variable.value !== '')) {
       const outcome = await hub.setSecret(server.secrets[each.name.trim()] ?? '', each.value);
       if (outcome.kind === 'failed') {
@@ -109,7 +125,8 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
                   <input className={`${field} font-mono`} value={launch} onChange={(event) => setLaunch(event.target.value)} placeholder="npx -y @modelcontextprotocol/server-github" />
                 </Labelled>
               )}
-              {remote && <p className="text-footnote text-muted">Remote servers are written for the agents that read them, and are not yet ruled on call by call.</p>}
+              {remote && <HeaderRows rows={headers} change={setHeaders} field={field} />}
+              {remote && <p className="text-footnote text-muted">Memnox stands in front of a remote server, so every call to it is ruled on and recorded. Plain http is only for one on this computer.</p>}
             </>
           )}
 
@@ -205,6 +222,49 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
             </KitButton>
           )}
         </footer>
+      </div>
+    </div>
+  );
+}
+
+/** A remote server's headers, a credential kept as a secret from the moment its name is typed. */
+function HeaderRows({ rows, change, field }: { rows: readonly HeaderRow[]; change: (rows: HeaderRow[]) => void; field: string }) {
+  const update = (at: number, next: Partial<HeaderRow>) => change(rows.map((each, i) => (i === at ? { ...each, ...next } : each)));
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-footnote font-medium text-muted">Headers, optional</span>
+      {rows.map((row, at) => (
+        <div key={at} className="flex flex-wrap items-center gap-2">
+          <input
+            className={`${field} max-w-[170px] font-mono`}
+            aria-label="Header name"
+            placeholder="Authorization"
+            value={row.name}
+            // A credential header starts kept, and is kept while its name says it is one.
+            onChange={(event) => update(at, { name: event.target.value, ...(isCredentialHeader(event.target.value) ? { secret: true } : {}) })}
+          />
+          <input
+            className={`${field} min-w-[140px] flex-1`}
+            aria-label="Header value"
+            placeholder="Bearer your token"
+            type={row.secret ? 'password' : 'text'}
+            autoComplete="off"
+            value={row.value}
+            onChange={(event) => update(at, { value: event.target.value })}
+          />
+          <label className="flex items-center gap-1.5 text-footnote text-foreground" title={isCredentialHeader(row.name) ? 'This header carries a credential, so it is always kept as a secret.' : undefined}>
+            <input type="checkbox" checked={row.secret} disabled={isCredentialHeader(row.name)} onChange={() => update(at, { secret: !row.secret })} />
+            Keep as secret
+          </label>
+          <button type="button" aria-label="Remove this header" onClick={() => change(rows.filter((_, i) => i !== at))} className="mx-focus grid size-7 cursor-pointer place-items-center rounded-md text-muted hover:bg-hover">
+            <Minus size={14} />
+          </button>
+        </div>
+      ))}
+      <div>
+        <KitButton icon={Plus} onClick={() => change([...rows, { name: '', value: '', secret: false }])}>
+          Add a header
+        </KitButton>
       </div>
     </div>
   );

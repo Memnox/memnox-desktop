@@ -146,3 +146,93 @@ export function projectOnlyHelp(server: Pick<McpHubServerView, 'projects'>, agen
   const paths = projectsFor(server, agent).map((each) => each.path);
   return `${agentLabel(agent)} has this server only in ${paths.join(', ')}, given in that project's settings in Workspaces.`;
 }
+
+/** One header row as the Add server dialog fills it: a name, the value as typed, and whether this computer keeps it. */
+export interface HeaderRow {
+  readonly name: string;
+  readonly value: string;
+  readonly secret: boolean;
+}
+
+/** Headers that carry a credential, which the runtime refuses unless their value is a secret reference. */
+const CREDENTIAL_HEADERS: readonly string[] = ['authorization', 'proxy-authorization', 'cookie', 'x-api-key', 'api-key'];
+/** A header's name as HTTP spells a token, the runtime's own check. */
+const HEADER_NAME = /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/;
+/** How a header value names a kept secret, which the proxy swaps for the secret on every request. */
+export const SECRET_REFERENCE = 'memnox-secret:';
+/** A scheme a token is written after, kept in front of the reference so the server still reads `Bearer <token>`. */
+const TOKEN_SCHEME = /^(Bearer|Basic|Token|Bot)\s+(\S.*)$/i;
+/** The longest secret name the runtime keeps. */
+const SECRET_NAME_LENGTH = 64;
+/** Plain http is for a server on this computer only, since a header may carry a credential. */
+const LOOPBACK_HOSTS: readonly string[] = ['localhost', '127.0.0.1', '[::1]'];
+
+/** Whether a header carries a credential, so its row starts kept as a secret and cannot be sent plain. */
+export function isCredentialHeader(name: string): boolean {
+  return CREDENTIAL_HEADERS.includes(name.trim().toLowerCase());
+}
+
+/** The name this computer keeps a header's secret under, from the server's and the header's names. */
+export function headerSecretName(server: string, header: string): string {
+  return `${server}-${header.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-')}`.slice(0, SECRET_NAME_LENGTH);
+}
+
+/** What a kept header is sent as, a scheme in front kept as typed, and the secret itself, which goes to this computer's store. */
+export function headerReference(value: string, secretName: string): { sent: string; secret: string } {
+  const scheme = TOKEN_SCHEME.exec(value.trim());
+  if (scheme === null) return { sent: `${SECRET_REFERENCE}${secretName}`, secret: value.trim() };
+  return { sent: `${scheme[1] ?? ''} ${SECRET_REFERENCE}${secretName}`, secret: scheme[2] ?? '' };
+}
+
+/** What is wrong with the header rows, said as the runtime would refuse it, or undefined when they can be sent. */
+export function headerProblem(rows: readonly HeaderRow[]): string | undefined {
+  const seen = new Set<string>();
+  for (const row of rows.filter((each) => each.name.trim() !== '')) {
+    const name = row.name.trim();
+    if (!HEADER_NAME.test(name)) return `${name} is not a header name.`;
+    if (seen.has(name.toLowerCase())) return `${name} is given twice.`;
+    seen.add(name.toLowerCase());
+    if (isCredentialHeader(name) && !row.secret) return `${name} carries a credential, so keep its value as a secret.`;
+    if (row.value.trim() === '') return `Give the value ${name} is sent with.`;
+  }
+  return undefined;
+}
+
+/** The headers as the server is written with them, a kept one as its reference, and the secrets to keep first by name. */
+export function headersOf(server: string, rows: readonly HeaderRow[]): { headers: Record<string, string>; secrets: Record<string, string> } {
+  const headers: Record<string, string> = {};
+  const secrets: Record<string, string> = {};
+  for (const row of rows.filter((each) => each.name.trim() !== '')) {
+    const name = row.name.trim();
+    if (!row.secret) {
+      headers[name] = row.value;
+      continue;
+    }
+    const kept = headerReference(row.value, headerSecretName(server, name));
+    headers[name] = kept.sent;
+    secrets[headerSecretName(server, name)] = kept.secret;
+  }
+  return { headers, secrets };
+}
+
+/** Why a remote server cannot be reached at this address, in the runtime's terms, or undefined when it can. */
+export function remoteAddressProblem(url: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(url.trim());
+  } catch {
+    // A half typed address is the person's to finish, so it is said rather than thrown.
+    return `${url.trim()} is not an address.`;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return 'A remote server is reached over http or https.';
+  if (parsed.protocol === 'http:' && !LOOPBACK_HOSTS.includes(parsed.hostname)) return 'Plain http is only for a server on this computer, at localhost or 127.0.0.1. Use https for one anywhere else.';
+  return undefined;
+}
+
+/** A header as the inspector lists it, by name only, and whether the secret the Add server dialog named for it is held. */
+export function headerLines(server: Pick<McpHubServerView, 'name' | 'headerNames' | 'secretsHeld'>): { name: string; held?: boolean }[] {
+  return (server.headerNames ?? []).map((name) => {
+    const held = server.secretsHeld[headerSecretName(server.name, name)];
+    return held === undefined ? { name } : { name, held };
+  });
+}

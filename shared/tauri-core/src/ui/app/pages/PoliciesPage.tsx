@@ -98,7 +98,7 @@ export function PoliciesPage({ parts, width }: { parts: SettingsParts; width: Wi
                 role="tab"
                 aria-selected={filter === each}
                 onClick={() => setFilter(each)}
-                className={`mx-focus cursor-pointer rounded-full border px-3 py-1 text-footnote ${filter === each ? 'border-primary bg-hover font-medium text-foreground' : 'border-panel-edge text-muted hover:bg-hover'}`}
+                className={`mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm ${filter === each ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`}
               >
                 {each === 'all' ? `All ${view.rules.length}` : `${EFFECT_WORDS[each].title} ${counts[each]}`}
               </button>
@@ -227,11 +227,11 @@ function RuleBuilder({ parts, start, close, said }: { parts: SettingsParts; star
     ...(list(branch) === undefined ? {} : { branches: list(branch) }),
     ...(list(folder) === undefined ? {} : { workingDirectories: list(folder) }),
   } as RuleDraftInput;
-  const field = 'h-9 w-full rounded-lg border border-field-edge bg-field px-3 text-body text-foreground outline-none placeholder:text-faint focus:border-primary';
+  const field = 'h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-body text-foreground outline-none placeholder:text-faint focus:border-primary';
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-[8vh]" role="presentation" onMouseDown={close}>
-      <div role="dialog" aria-modal="true" aria-label="New rule" className="flex w-full max-w-[560px] flex-col rounded-2xl border border-panel-edge bg-background shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-        <header className="border-b border-panel-edge px-5 py-3.5 text-headline font-semibold">New rule</header>
+      <div role="dialog" aria-modal="true" aria-label="New rule" className="flex w-full max-w-[560px] flex-col rounded-xl border border-panel-edge bg-card shadow-[0_24px_60px_rgb(0_0_0/0.18)]" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="border-b border-panel-edge px-5 py-3.5 text-lg font-semibold">New rule</header>
         <div className="flex flex-col gap-4 px-5 py-5">
           <fieldset className="flex flex-col gap-2">
             <legend className="pb-1.5 text-footnote font-semibold text-muted">When</legend>
@@ -340,7 +340,7 @@ function TryAction({ parts }: { parts: SettingsParts }) {
   const [action, setAction] = useState('');
   const [target, setTarget] = useState('');
   const [verdict, setVerdict] = useState<RuleVerdictView | string | undefined>(undefined);
-  const field = 'h-9 min-w-[140px] flex-1 rounded-lg border border-field-edge bg-field px-3 text-body text-foreground outline-none placeholder:text-faint focus:border-primary';
+  const field = 'h-9 min-w-[140px] flex-1 mx-field rounded-lg border border-field-edge bg-field px-3 text-body text-foreground outline-none placeholder:text-faint focus:border-primary';
   return (
     <Section title="Try an action">
       <p className="text-footnote text-muted">See what your rules would do, without anything running or being recorded.</p>

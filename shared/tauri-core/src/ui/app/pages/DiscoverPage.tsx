@@ -207,7 +207,7 @@ function Chip({ on, pick, children }: { on: boolean; pick: () => void; children:
       role="tab"
       aria-selected={on}
       onClick={pick}
-      className={`mx-focus cursor-pointer rounded-full border px-3 py-1 text-footnote ${on ? 'border-primary bg-hover font-medium text-foreground' : 'border-panel-edge text-muted hover:bg-hover'}`}
+      className={`mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm ${on ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`}
     >
       {children}
     </button>

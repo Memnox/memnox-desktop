@@ -154,8 +154,8 @@ function AddAppSheet({ apps, done }: { apps: AppConnections; done: () => void })
   }, []);
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-4" onClick={done}>
-      <div role="dialog" aria-modal="true" aria-label="Add an app" className="flex max-h-full w-[420px] max-w-full flex-col gap-[13px] rounded-2xl bg-card p-4 shadow-[0_12px_40px_rgb(0_0_0/0.3)]" onClick={(event) => event.stopPropagation()}>
-        <h3 className="text-headline font-semibold text-foreground">Add an app</h3>
+      <div role="dialog" aria-modal="true" aria-label="Add an app" className="flex max-h-full w-[420px] max-w-full flex-col gap-[13px] rounded-xl border border-panel-edge bg-card p-5 shadow-[0_24px_60px_rgb(0_0_0/0.18)]" onClick={(event) => event.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-foreground">Add an app</h3>
         <p className="text-footnote text-muted">Pick the app and sign in to it in your browser. Nobody else has to approve it.</p>
         <SearchField value={query} placeholder="Search apps" onChange={(words) => apps.search(words)} />
         <div className="flex h-[320px] flex-col gap-1.5 overflow-y-auto px-2">

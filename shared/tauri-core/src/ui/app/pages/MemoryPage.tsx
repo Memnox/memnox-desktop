@@ -34,8 +34,8 @@ import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Sec
 import { memoryScope } from '../../../core/domain/scope-lines';
 import { useInspectorHost, usePicked } from '../inspector-host';
 
-const CHIP = 'mx-focus cursor-pointer rounded-full border px-3 py-1 text-footnote';
-const chip = (on: boolean) => `${CHIP} ${on ? 'border-primary bg-hover font-medium text-foreground' : 'border-panel-edge text-muted hover:bg-hover'}`;
+const CHIP = 'mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm';
+const chip = (on: boolean) => `${CHIP} ${on ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`;
 
 /** How long typing rests before the search is asked, so each key is not a request. */
 const SEARCH_REST_MS = 300;

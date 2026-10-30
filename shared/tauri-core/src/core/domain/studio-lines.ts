@@ -1,11 +1,11 @@
 import type { ActivityRow, DecisionView, PolicyRuleView, ProgressView } from '@memnox/core/wire';
 import { isAbsoluteFolder } from './launch-lines';
 
-/** The three effects, each explained once, in the words the console uses. */
+/** The three effects, each explained once, in the words the console uses: a rule's title, and a decision's past tense. */
 export const EFFECT_WORDS = {
-  allow: { title: 'Allow', says: 'Goes ahead on its own' },
-  ask: { title: 'Ask', says: 'Waits for a person to say yes' },
-  deny: { title: 'Deny', says: 'Refused, and told what to do instead' },
+  allow: { title: 'Allow', verdict: 'Allowed', says: 'Goes ahead on its own' },
+  ask: { title: 'Ask', verdict: 'Asked', says: 'Waits for a person to say yes' },
+  deny: { title: 'Deny', verdict: 'Denied', says: 'Refused, and told what to do instead' },
 } as const;
 
 export type Effect = keyof typeof EFFECT_WORDS;

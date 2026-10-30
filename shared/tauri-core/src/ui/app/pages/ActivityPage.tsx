@@ -59,7 +59,7 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
   const names = useMemo(() => new Map(activity.rows.map((row) => [row.agent, row.agentName])), [activity.rows]);
   const shown: readonly ShownActivity[] = [...activity.live, ...activity.rows];
 
-  const chip = (on: boolean) => `mx-focus cursor-pointer rounded-full border px-3 py-1 text-footnote ${on ? 'border-primary bg-hover font-medium text-foreground' : 'border-panel-edge text-muted hover:bg-hover'}`;
+  const chip = (on: boolean) => `mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm ${on ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`;
   return (
     <div className="flex min-h-0">
       <div className="flex min-w-0 flex-1 flex-col gap-4">
@@ -92,7 +92,7 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
               </button>
             ))}
           </div>
-          <select value={kind} onChange={(event) => setKind(event.target.value)} aria-label="Kind" className="h-8 rounded-lg border border-field-edge bg-field px-2.5 text-footnote text-foreground">
+          <select value={kind} onChange={(event) => setKind(event.target.value)} aria-label="Kind" className="h-8 mx-field rounded-lg border border-field-edge bg-field px-2.5 text-footnote text-foreground">
             {KINDS.map((each) => (
               <option key={each.id} value={each.id}>
                 {each.title}
@@ -160,7 +160,7 @@ function ActivityRowView({ row, name, chosen, open }: { row: ShownActivity; name
       trailing={
         <>
           {row.failed !== undefined && <StatusWord tone="bad">{`Failed, exit ${row.failed}`}</StatusWord>}
-          <StatusWord tone={effectTone(row.effect)}>{isEffect(row.effect) ? EFFECT_WORDS[row.effect].title : row.effect}</StatusWord>
+          <StatusWord tone={effectTone(row.effect)}>{isEffect(row.effect) ? EFFECT_WORDS[row.effect].verdict : row.effect}</StatusWord>
         </>
       }
       onClick={open}

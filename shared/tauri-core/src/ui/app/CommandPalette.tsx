@@ -35,7 +35,7 @@ export function CommandPalette({ supports, go, close }: { supports: Supports; go
         role="dialog"
         aria-modal="true"
         aria-label="Go to"
-        className="flex w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-panel-edge bg-background shadow-2xl"
+        className="flex w-full max-w-[560px] flex-col overflow-hidden rounded-xl border border-panel-edge bg-card shadow-[0_24px_60px_rgb(0_0_0/0.18)]"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-center gap-2.5 border-b border-panel-edge px-4">

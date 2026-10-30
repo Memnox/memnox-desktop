@@ -2,7 +2,7 @@ import type { PolicyRulesView } from '@memnox/core/wire';
 import { describe, expect, it } from 'vitest';
 import { RequestIds } from '../src/core/application/request-ids';
 import { Activity, Agents, Studio } from '../src/core/application/studio';
-import { almostLine, countsByEffect, decisionFiles, exportedCount, packCopiedLine, packSavedLine, sourceWords, weekLine } from '../src/core/domain/studio-lines';
+import { almostLine, countsByEffect, decisionFiles, EFFECT_WORDS, exportedCount, packCopiedLine, packSavedLine, sourceWords, weekLine } from '../src/core/domain/studio-lines';
 import { ScriptedDaemon } from './doubles';
 
 const rules: PolicyRulesView = {
@@ -123,5 +123,15 @@ describe('the files a decision names', () => {
     ]);
     expect(decisionFiles({ row: { kind: 'command', target: '/usr/bin/git' } })).toEqual([]);
     expect(decisionFiles({ row: { kind: 'file', target: 'src/db.ts' }, rule: { file: 'rules.toml' } })).toEqual([]);
+  });
+});
+
+describe('what a decision is called', () => {
+  it('says a rule in the present and a decision in the past tense, as the console’s activity does', () => {
+    expect(Object.values(EFFECT_WORDS).map((each) => [each.title, each.verdict])).toEqual([
+      ['Allow', 'Allowed'],
+      ['Ask', 'Asked'],
+      ['Deny', 'Denied'],
+    ]);
   });
 });

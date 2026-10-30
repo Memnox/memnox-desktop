@@ -90,13 +90,13 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
     close();
   };
 
-  const field = 'h-9 w-full rounded-lg border border-field-edge bg-field px-3 text-body text-foreground outline-none placeholder:text-faint focus:border-primary';
+  const field = 'h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-body text-foreground outline-none placeholder:text-faint focus:border-primary';
   const preview = draft();
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-[8vh]" role="presentation" onMouseDown={close}>
-      <div role="dialog" aria-modal="true" aria-label="Add a server" className="flex w-full max-w-[560px] flex-col rounded-2xl border border-panel-edge bg-background shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label="Add a server" className="flex w-full max-w-[560px] flex-col rounded-xl border border-panel-edge bg-card shadow-[0_24px_60px_rgb(0_0_0/0.18)]" onMouseDown={(event) => event.stopPropagation()}>
         <header className="flex items-center gap-3 border-b border-panel-edge px-5 py-3.5">
-          <span className="flex-1 text-headline font-semibold">Add a server</span>
+          <span className="flex-1 text-lg font-semibold">Add a server</span>
           <span className="text-footnote text-muted">{`${STEPS[step]} · step ${step + 1} of ${STEPS.length}`}</span>
           <button type="button" aria-label="Close" onClick={close} className="mx-focus grid size-7 cursor-pointer place-items-center rounded-md text-muted hover:bg-hover">
             <X size={15} />

@@ -6,7 +6,7 @@ import { useObserved, type SettingsParts } from '../../settings/parts';
 import { memoryNote } from './MemoryPage';
 import { Dialog } from './SkillDialogs';
 
-const FIELD = 'h-9 w-full rounded-lg border border-field-edge bg-field px-3 text-footnote text-foreground outline-none placeholder:text-faint focus:border-primary';
+const FIELD = 'h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-footnote text-foreground outline-none placeholder:text-faint focus:border-primary';
 
 /**
  * Adds one place memory is read from. A key is never part of the form: it is named here, and set once
@@ -60,7 +60,7 @@ export function AddMemorySourceDialog({ parts, close, said }: { parts: SettingsP
               setForm({ ...emptySourceForm(each.kind), name: form.name, scope: form.scope });
               setProblem(undefined);
             }}
-            className={`mx-focus cursor-pointer rounded-full border px-3 py-1 text-footnote ${form.kind === each.kind ? 'border-primary bg-hover font-medium text-foreground' : 'border-panel-edge text-muted hover:bg-hover'}`}
+            className={`mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm ${form.kind === each.kind ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`}
           >
             {each.label}
           </button>

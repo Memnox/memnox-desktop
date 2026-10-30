@@ -55,10 +55,9 @@ export function ProjectInspector({ parts, project, said }: { parts: SettingsPart
             role="tab"
             aria-selected={tab === each.id}
             onClick={() => setTab(each.id)}
-            className={`mx-focus relative cursor-pointer px-2 py-2 text-footnote whitespace-nowrap ${tab === each.id ? 'font-medium text-foreground' : 'text-muted hover:text-foreground'}`}
+            className={`mx-focus -mb-px cursor-pointer border-b-2 px-3 py-2.5 text-body-sm font-medium whitespace-nowrap transition-colors ${tab === each.id ? 'border-primary text-foreground' : 'border-transparent text-muted hover:text-foreground'}`}
           >
             {each.title}
-            {tab === each.id && <span aria-hidden className="absolute inset-x-1.5 -bottom-px h-0.5 rounded-full bg-primary" />}
           </button>
         ))}
       </div>

@@ -41,4 +41,10 @@ final class McpHubLinesTests: XCTestCase {
         XCTAssertEqual(McpHubLines.agentLabel("codex-cli"), "Codex")
         XCTAssertEqual(McpHubLines.agentLabel("newcomer"), "newcomer")
     }
+
+    func testAnOrganizationServerIsReadOnlyOnThisComputer() {
+        XCTAssertTrue(McpHubLines.fromOrganization(scope: "organization"))
+        XCTAssertFalse(McpHubLines.fromOrganization(scope: "personal"))
+        XCTAssertFalse(McpHubLines.fromOrganization(scope: nil))
+    }
 }

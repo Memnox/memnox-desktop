@@ -132,6 +132,18 @@ public enum McpHubLines {
         return "You changed the line the hub wrote, so the hub leaves it alone."
     }
 
+    /// An organization's server is read only here: it is given, changed and removed in Memnox Cloud.
+    public static func fromOrganization(_ server: McpHubServerView) -> Bool {
+        fromOrganization(scope: server.scope)
+    }
+
+    public static func fromOrganization(scope: String?) -> Bool {
+        scope == McpScope.organization.rawValue
+    }
+
+    public static let organizationWord = "From your organization"
+    public static let organizationLine = "Your organization set this server up, so who has it is changed in Memnox Cloud rather than here."
+
     /// The name an agent goes by, from the kind the runtime reports; an unknown kind is shown as it is.
     public static func agentLabel(_ kind: String) -> String {
         agentNames[kind] ?? kind

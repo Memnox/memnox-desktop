@@ -94,3 +94,19 @@ export function fromOrganization(server: Pick<McpHubServerView, 'scope'>): boole
 
 export const ORGANIZATION_WORD = 'From your organization';
 export const ORGANIZATION_LINE = 'Your organization set this server up, so who has it is changed in Memnox Cloud rather than here.';
+
+/** A repository's folder name from its absolute path, on either separator, so a chip stays short. */
+export function projectFolder(path: string): string {
+  const parts = path.split(/[\\/]+/).filter((part) => part !== '');
+  return parts.at(-1) ?? path;
+}
+
+/** The repositories one agent was given a server in, each by folder name with its full path for the tooltip. */
+export function projectsFor(server: Pick<McpHubServerView, 'projects'>, agent: string): { name: string; path: string }[] {
+  return (server.projects ?? []).filter((each) => each.agent === agent).map((each) => ({ name: projectFolder(each.project), path: each.project }));
+}
+
+/** What a project chip's tooltip says: whose assignment it is and the repository in full. */
+export function projectHelp(agent: string, path: string): string {
+  return `Given to ${agentLabel(agent)} in ${path} only`;
+}

@@ -2,7 +2,7 @@ import type { DaemonRequest, McpHubView } from '@memnox/core/wire';
 import { describe, expect, it } from 'vitest';
 import { McpHub, syncedLine } from '../src/core/application/mcp-hub';
 import { RequestIds } from '../src/core/application/request-ids';
-import { fromOrganization, missingSecrets, secretsAcross, serverNameFrom, splitCommand } from '../src/core/domain/mcp-hub-lines';
+import { fromOrganization, missingSecrets, projectFolder, projectHelp, projectsFor, secretsAcross, serverNameFrom, splitCommand } from '../src/core/domain/mcp-hub-lines';
 import { ScriptedDaemon } from './doubles';
 
 const view: McpHubView = {
@@ -98,5 +98,25 @@ describe('an organization server', () => {
   it('is read only on this computer', () => {
     expect(fromOrganization({ scope: 'organization' })).toBe(true);
     expect(fromOrganization({ scope: 'personal' })).toBe(false);
+  });
+});
+
+describe('an assignment held to one repository', () => {
+  const server = {
+    projects: [
+      { agent: 'claude-code', project: '/Users/bo/code/billing' },
+      { agent: 'cursor', project: 'C:\\Users\\bo\\code\\web\\' },
+    ],
+  };
+
+  it('is named by its folder, with the full path for the tooltip', () => {
+    expect(projectsFor(server, 'claude-code')).toEqual([{ name: 'billing', path: '/Users/bo/code/billing' }]);
+    expect(projectFolder('C:\\Users\\bo\\code\\web\\')).toBe('web');
+    expect(projectHelp('claude-code', '/Users/bo/code/billing')).toBe('Given to Claude Code in /Users/bo/code/billing only');
+  });
+
+  it('names nothing for an agent given it everywhere, or a runtime that sends no projects', () => {
+    expect(projectsFor(server, 'codex-cli')).toEqual([]);
+    expect(projectsFor({}, 'claude-code')).toEqual([]);
   });
 });

@@ -1,9 +1,9 @@
 import type { McpHubServerView, McpHubView } from '@memnox/core/wire';
-import { KeyRound, MoreVertical, Plug, Plus, RefreshCw } from 'lucide-react';
+import { Folder, KeyRound, MoreVertical, Plug, Plus, RefreshCw } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { HubOutcome } from '../../../core/application/mcp-hub';
 import type { WidthClass } from '../../../core/domain/destinations';
-import { agentLabel, agentsLine, callsLine, fromOrganization, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, secretsAcross, toolsLine } from '../../../core/domain/mcp-hub-lines';
+import { agentLabel, agentsLine, callsLine, fromOrganization, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, projectHelp, projectsFor, secretsAcross, toolsLine } from '../../../core/domain/mcp-hub-lines';
 import { ago } from '../../../core/domain/session-text';
 import { BrandLogo } from '../../kit/logos';
 import { KitButton, SearchField } from '../../settings/kit';
@@ -131,6 +131,11 @@ function ServerCard({ server, chosen, pick }: { server: McpHubServerView; chosen
         </span>
         {server.governed ? <StatusWord tone="good">Governed</StatusWord> : <StatusWord tone="attention">Not governed</StatusWord>}
       </div>
+      {(server.projects ?? []).length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {[...new Set(server.agents)].flatMap((agent) => projectsFor(server, agent).map((project) => <ProjectChip key={`${agent}/${project.path}`} agent={agent} {...project} />))}
+        </div>
+      )}
     </button>
   );
 }
@@ -159,8 +164,8 @@ function ServerDetail({ parts, view, server, said, removed }: { parts: SettingsP
           <StatusWord tone="quiet">{ORGANIZATION_WORD}</StatusWord>
           {server.agents.length > 0 && (
             <Panel>
-              {server.agents.map((agent) => (
-                <Row key={agent} leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />} title={agentLabel(agent)} caption="Has this server" />
+              {[...new Set(server.agents)].map((agent) => (
+                <Row key={agent} leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />} title={agentLabel(agent)} caption="Has this server" trailing={<ProjectChips server={server} agent={agent} />} />
               ))}
             </Panel>
           )}
@@ -178,9 +183,12 @@ function ServerDetail({ parts, view, server, said, removed }: { parts: SettingsP
                   title={agentLabel(agent)}
                   caption={on ? 'Has this server' : undefined}
                   trailing={
-                    <KitButton disabled={hub.busy === `${server.name}/${agent}`} onClick={() => void hub.assign(server.name, agent, !on).then(said)}>
-                      {on ? 'Take away' : 'Give'}
-                    </KitButton>
+                    <>
+                      <ProjectChips server={server} agent={agent} />
+                      <KitButton disabled={hub.busy === `${server.name}/${agent}`} onClick={() => void hub.assign(server.name, agent, !on).then(said)}>
+                        {on ? 'Take away' : 'Give'}
+                      </KitButton>
+                    </>
                   }
                 />
               );
@@ -313,15 +321,18 @@ function Clients({ parts, view, said }: { parts: SettingsParts; view: McpHubView
                 const on = server.agents.includes(agent);
                 return (
                   <td key={agent} className="px-3 py-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      disabled={fromOrganization(server) || hub.busy === `${server.name}/${agent}`}
-                      title={fromOrganization(server) ? ORGANIZATION_LINE : undefined}
-                      aria-label={`${server.name} for ${agentLabel(agent)}`}
-                      className="size-4 cursor-pointer accent-[var(--color-primary)]"
-                      onChange={() => void hub.assign(server.name, agent, !on).then(said)}
-                    />
+                    <span className="inline-flex items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={fromOrganization(server) || hub.busy === `${server.name}/${agent}`}
+                        title={fromOrganization(server) ? ORGANIZATION_LINE : undefined}
+                        aria-label={`${server.name} for ${agentLabel(agent)}`}
+                        className="size-4 cursor-pointer accent-[var(--color-primary)]"
+                        onChange={() => void hub.assign(server.name, agent, !on).then(said)}
+                      />
+                      <ProjectChips server={server} agent={agent} />
+                    </span>
                   </td>
                 );
               })}
@@ -330,6 +341,30 @@ function Clients({ parts, view, said }: { parts: SettingsParts; view: McpHubView
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** One repository an agent was given a server in: its folder name, with whose it is and the full path on hover. */
+function ProjectChip({ agent, name, path }: { agent: string; name: string; path: string }) {
+  const help = projectHelp(agent, path);
+  return (
+    <span title={help} aria-label={help} className="inline-flex max-w-40 items-center gap-1 rounded-md border border-panel-edge bg-hover px-1.5 py-0.5 text-micro text-muted">
+      <Folder size={11} aria-hidden className="shrink-0" />
+      <span className="truncate">{name}</span>
+    </span>
+  );
+}
+
+/** Every repository one agent was given a server in, or nothing for one given it everywhere. */
+function ProjectChips({ server, agent }: { server: McpHubServerView; agent: string }) {
+  const projects = projectsFor(server, agent);
+  if (projects.length === 0) return null;
+  return (
+    <>
+      {projects.map((project) => (
+        <ProjectChip key={project.path} agent={agent} {...project} />
+      ))}
+    </>
   );
 }
 

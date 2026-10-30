@@ -286,6 +286,27 @@ struct ReadFailed: View {
     }
 }
 
+/// A text editor in the console's field: bordered at radius 6, its border blue with a soft ring while it is typed in.
+struct ConsoleEditor: ViewModifier {
+    @FocusState private var focused: Bool
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous)
+        content
+            .scrollContentBackground(.hidden)
+            .focused($focused)
+            .padding(Memnox.Spacing.small)
+            .background(Memnox.Console.field, in: shape)
+            .overlay(shape.strokeBorder(focused ? Memnox.Console.primary : Memnox.Console.fieldEdge, lineWidth: Memnox.Stroke.hairline))
+            .background(shape.stroke(focused ? Memnox.Console.ring : Color.clear, lineWidth: Memnox.Console.ringWidth * 2))
+            .animation(.easeOut(duration: Memnox.Motion.quick), value: focused)
+    }
+}
+
+extension View {
+    func consoleEditor() -> some View { modifier(ConsoleEditor()) }
+}
+
 /// A quiet link to another place in the window.
 struct GoLink: View {
     let title: String

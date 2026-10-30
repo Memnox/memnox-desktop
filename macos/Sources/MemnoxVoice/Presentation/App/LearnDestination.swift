@@ -68,12 +68,8 @@ private struct Suggestion: View {
             if editing {
                 TextEditor(text: $draft)
                     .font(Memnox.Console.sans(Memnox.TextSize.body))
-                    .scrollContentBackground(.hidden)
-                    .padding(Memnox.Spacing.small)
                     .frame(minHeight: Self.editorHeight)
-                    .background(Memnox.Console.field, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous)
-                        .strokeBorder(Memnox.Console.fieldEdge, lineWidth: Memnox.Stroke.hairline))
+                    .consoleEditor()
                     .accessibilityLabel("The statement")
             } else {
                 Text(item.statement)

@@ -171,12 +171,8 @@ struct NewSkillSheet: View {
             labelled("Instructions") {
                 TextEditor(text: $form.instructions)
                     .font(Memnox.Console.code(Memnox.TextSize.footnote))
-                    .scrollContentBackground(.hidden)
-                    .padding(Memnox.Spacing.small)
                     .frame(height: SheetLayout.instructionsHeight)
-                    .background(Memnox.Console.field, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous)
-                        .strokeBorder(Memnox.Console.fieldEdge, lineWidth: Memnox.Stroke.hairline))
+                    .consoleEditor()
                     .accessibilityLabel("Instructions")
             }
             labelled("Agent tools it needs, separated by commas") {

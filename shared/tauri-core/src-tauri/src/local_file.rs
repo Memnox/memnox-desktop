@@ -15,7 +15,7 @@ const DOCUMENTS: &[&str] = &[
 /// Opens a file evidence names, from the Memnox window only, once `openable` has passed it.
 #[tauri::command]
 pub fn open_file(window: WebviewWindow, path: String) -> Result<(), String> {
-    if window.label() != crate::settings_windows::SETTINGS {
+    if !crate::settings_windows::is_memnox_window(window.label()) {
         return Err("only the Memnox window opens a file".to_owned());
     }
     let file = openable(&path)?;

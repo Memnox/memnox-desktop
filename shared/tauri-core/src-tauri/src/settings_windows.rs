@@ -20,6 +20,55 @@ const ONBOARDING_MIN: (f64, f64) = (860.0, 560.0);
 /// Told to an open Settings window when the island or the tray asks for one page of it.
 const SHOW_PAGE: &str = "settings-page";
 
+/// A popped out inspector's label starts with this, which the settings capability names with a wildcard.
+const INSPECTOR_PREFIX: &str = "inspector-";
+/// Wide enough for the details at their widest, tall enough for a server's tools.
+const INSPECTOR_SIZE: (f64, f64) = (460.0, 640.0);
+const INSPECTOR_MIN: (f64, f64) = (320.0, 360.0);
+/// Each popped out inspector is its own window, so each gets a label of its own.
+static INSPECTORS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// Governance on Approvals, where a held call's notification lands; an open window is told the destination by name.
+const APPROVALS_PAGE: &str = "governance";
+const APPROVALS_QUERY: &str = "dest=governance&tab=approvals";
+
+/// The Memnox window and its popped out inspectors, the windows that draw the destinations.
+pub fn is_memnox_window(label: &str) -> bool {
+    label == SETTINGS || label.starts_with(INSPECTOR_PREFIX)
+}
+
+/// Opens the Memnox window on Approvals, or brings it forward there.
+pub fn show_approvals(app: &AppHandle) -> tauri::Result<()> {
+    if app.get_webview_window(SETTINGS).is_some() {
+        return show_settings(app, Some(APPROVALS_PAGE));
+    }
+    let window = settings_builder(app, format!("settings.html?{APPROVALS_QUERY}")).build()?;
+    bring_forward(&window)
+}
+
+/// Pops the selected item's details out into a window of their own, on the link the page names for that item.
+#[tauri::command]
+pub fn open_inspector(app: AppHandle, window: WebviewWindow, search: String, title: String) -> Result<(), String> {
+    if !is_memnox_window(window.label()) {
+        return Err("only the Memnox window pops out its details".to_owned());
+    }
+    if !search.starts_with('?') {
+        return Err("the details are opened on a link of the Memnox window".to_owned());
+    }
+    let count = INSPECTORS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let label = format!("{INSPECTOR_PREFIX}{count}");
+    let path = format!("settings.html{search}");
+    WebviewWindowBuilder::new(&app, label, WebviewUrl::App(path.into()))
+        .title(title)
+        .inner_size(INSPECTOR_SIZE.0, INSPECTOR_SIZE.1)
+        .min_inner_size(INSPECTOR_MIN.0, INSPECTOR_MIN.1)
+        .resizable(true)
+        .theme(chosen_theme(&app))
+        .build()
+        .and_then(|window| bring_forward(&window))
+        .map_err(|error| error.to_string())
+}
+
 /// Opens Settings on a page, or brings it forward on that page when it is already open.
 #[tauri::command]
 pub fn open_settings(app: AppHandle, page: Option<String>) -> Result<(), String> {
@@ -38,15 +87,18 @@ pub fn show_settings(app: &AppHandle, page: Option<&str>) -> tauri::Result<()> {
         Some(page) => format!("settings.html?page={page}"),
         None => "settings.html".to_owned(),
     };
-    let window = WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App(path.into()))
+    let window = settings_builder(app, path).build()?;
+    bring_forward(&window)
+}
+
+fn settings_builder(app: &AppHandle, path: String) -> WebviewWindowBuilder<'_, tauri::Wry, AppHandle> {
+    WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App(path.into()))
         .title("Memnox")
         .inner_size(SETTINGS_SIZE.0, SETTINGS_SIZE.1)
         .min_inner_size(SETTINGS_MIN.0, SETTINGS_MIN.1)
         .resizable(true)
         .center()
         .theme(chosen_theme(app))
-        .build()?;
-    bring_forward(&window)
 }
 
 /// Opens the first run, or brings it forward when it is already up. It opens as the Mac's veil, over the
@@ -190,6 +242,14 @@ fn chosen_theme(app: &AppHandle) -> Option<Theme> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_memnox_window_and_its_inspectors_draw_destinations() {
+        assert!(is_memnox_window("settings"));
+        assert!(is_memnox_window("inspector-3"));
+        assert!(!is_memnox_window("island"));
+        assert!(!is_memnox_window("onboarding"));
+    }
 
     #[test]
     fn system_leaves_the_frame_to_the_computer() {

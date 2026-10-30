@@ -11,11 +11,13 @@ mod island;
 mod key;
 mod keys;
 mod local_file;
+mod notices;
 mod panels;
 mod permissions;
 mod presence;
 mod presses;
 mod relay;
+mod rule_pack;
 mod runtime;
 mod sessions;
 mod settings_windows;
@@ -39,6 +41,8 @@ pub fn run() {
             None,
         ))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(awake::Awake::default())
         .manage(relay::Relays::default())
         .manage(glass::Glassed::default())
@@ -83,6 +87,8 @@ pub fn run() {
             keys::start(app.handle());
             // The screen locking and unlocking, for Catch me up.
             presence::watch(app.handle().clone());
+            // A press on a held call's notification opens Approvals.
+            notices::answer_presses(app.handle());
             tray::build(app)?;
             tray::start_at_sign_in_once(app);
             // Another app holding the key is no reason not to start; the Talk button still works.
@@ -168,6 +174,9 @@ pub fn run() {
             settings_windows::set_start_at_sign_in,
             settings_windows::restart_memnox,
             settings_windows::open_page,
+            settings_windows::open_inspector,
+            rule_pack::pick_rule_pack,
+            rule_pack::save_rule_pack,
             local_file::open_file,
             presses::presses_listen,
             presses::window_press,

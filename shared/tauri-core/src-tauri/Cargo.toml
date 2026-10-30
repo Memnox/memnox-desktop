@@ -17,6 +17,9 @@ tauri-build = { version = "2.5", features = [] }
 tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
 tauri-plugin-autostart = "2.5"
 tauri-plugin-global-shortcut = "2.3"
+# A new held call said by the system when the island is not showing it, and the rule pack file dialogs.
+tauri-plugin-notification = "2"
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "sync", "time"] }

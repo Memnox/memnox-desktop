@@ -46,6 +46,12 @@ final class ShellLinesTests: XCTestCase {
         XCTAssertFalse(ShellLines.inside("/code/apparel", project: "/code/app"))
     }
 
+    func testOffersTheCurrentProjectFirstInALaunchOrOpenForm() {
+        let folders = [FolderPick(path: "/code/site", name: "site"), FolderPick(path: "/code/app", name: "app")]
+        XCTAssertEqual(ShellLines.withCurrent(folders, current: project("app", "/code/app")).map(\.path), ["/code/app", "/code/site"])
+        XCTAssertEqual(ShellLines.withCurrent(folders, current: nil), folders)
+    }
+
     func testStartsALaunchOrOpenFormOnTheCurrentProjectWhenTheFormOffersIt() {
         let app = project("p1", "/code/app")
         XCTAssertEqual(ShellLines.preselectedFolder(["/code/site", "/code/app"], current: app, fallback: "/code/site"), "/code/app")

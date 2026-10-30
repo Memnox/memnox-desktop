@@ -41,6 +41,12 @@ public enum ShellLines {
         return offered.first { $0 == current.path } ?? fallback
     }
 
+    /// The folders a launch or open form offers, with the current project's first so the form starts on it.
+    public static func withCurrent(_ folders: [FolderPick], current: ProjectView?) -> [FolderPick] {
+        guard let current else { return folders }
+        return [FolderPick(path: current.path, name: current.name)] + folders.filter { $0.path != current.path }
+    }
+
     /// Where the chosen scope is remembered between openings.
     public static let scopeKey = "memnox.scope.current"
     public static let scopeLabel = "Scope"

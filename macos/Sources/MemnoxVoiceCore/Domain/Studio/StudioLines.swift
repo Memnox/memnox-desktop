@@ -118,6 +118,18 @@ public enum StudioLines {
     }
 
     /// The rules in an exported file, counted so a person knows what they are saving.
+    public static let nothingToExport = "No rule set on this computer to export yet."
+
+    /// Said once a pack was written to the file the person picked.
+    public static func packSaved(_ count: Int) -> String {
+        count == 1 ? "Saved 1 rule as TOML, ready to share." : "Saved \(count) rules as TOML, ready to share."
+    }
+
+    /// Said once a pack was copied, where no save dialog is to be had.
+    public static func packCopied(_ count: Int) -> String {
+        "Copied \(count) rules as TOML, ready to save or share."
+    }
+
     public static func exportedCount(_ toml: String) -> Int {
         toml.split(separator: "\n", omittingEmptySubsequences: false)
             .filter { $0.trimmingCharacters(in: .whitespaces) == "[[policies]]" }

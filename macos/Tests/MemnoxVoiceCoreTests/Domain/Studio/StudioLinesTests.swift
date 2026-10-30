@@ -73,4 +73,11 @@ final class StudioLinesTests: XCTestCase {
         XCTAssertEqual(StudioLines.statusWord("unprotected").word, "Not protected")
         XCTAssertEqual(StudioLines.agentCounts(agents[0]), "1 running, 2 idle, 4 finished \u{00B7} Today 3 actions, 1 asked, 0 refused")
     }
+
+    func testSaysWhereAnExportedPackWent() {
+        XCTAssertEqual(StudioLines.nothingToExport, "No rule set on this computer to export yet.")
+        XCTAssertEqual(StudioLines.packSaved(1), "Saved 1 rule as TOML, ready to share.")
+        XCTAssertEqual(StudioLines.packSaved(4), "Saved 4 rules as TOML, ready to share.")
+        XCTAssertEqual(StudioLines.packCopied(4), "Copied 4 rules as TOML, ready to save or share.")
+    }
 }

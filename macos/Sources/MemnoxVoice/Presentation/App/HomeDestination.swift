@@ -49,13 +49,18 @@ private struct HomeAtAGlance: View {
             runningSection(running)
             if let view { HomeAttention(shell: shell, home: home, view: view) }
             if !recent.isEmpty { carryOn(recent) }
+            if let studio = shell.studio { HomeThisWeek(shell: shell, screen: studio) }
             if let view {
                 Text(HomeLines.today(view.today))
                     .font(Memnox.sans(Memnox.TextSize.footnote))
                     .foregroundStyle(Memnox.Palette.muted)
             }
         }
-        .task { home.refresh() }
+        .task {
+            home.refresh()
+            // A runtime that does not answer progress yet leaves the week out rather than asking on every opening.
+            if let studio = shell.studio, shell.supports("progress") != false { await studio.studio.refresh() }
+        }
     }
 
     private func header(_ view: DaemonHome?) -> some View {
@@ -164,6 +169,25 @@ private struct HomeAtAGlance: View {
                         EmptyView()
                     }
                 }
+            }
+        }
+    }
+}
+
+/// The week in counts, never hours saved, and the way to what could run on its own; nothing until progress is read.
+private struct HomeThisWeek: View {
+    @ObservedObject var shell: AppShellModel
+    @ObservedObject var screen: StudioScreen
+
+    var body: some View {
+        if let progress = screen.studio.progress {
+            ShellSection(title: "This week") {
+                GoLink("What could run on its own") { shell.go(WindowRoute(.governance, tab: "policies")) }
+            } content: {
+                Text(StudioLines.thisWeek(progress))
+                    .font(Memnox.sans(Memnox.TextSize.body))
+                    .foregroundStyle(Memnox.Palette.foreground)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

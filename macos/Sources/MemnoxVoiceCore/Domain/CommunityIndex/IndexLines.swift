@@ -15,11 +15,42 @@ public enum IndexKindFilter: String, CaseIterable, Sendable {
     }
 }
 
+/// One kind of need, as Discover groups them: what it is called, what it means, and what the listing names in it.
+public struct NeedsGroup: Equatable, Sendable {
+    public let title: String
+    public let caption: String
+    public let items: [String]
+}
+
+/// How setting the source ended: another index waits on the island, the marketplace holds at once, or it was refused.
+public enum IndexSourceOutcome: Equatable, Sendable {
+    case proposed(String)
+    case done(String)
+    case failed(String)
+}
+
 /// The words Discover and the Policies packs say, the same as Windows and Linux say them in index-lines.ts.
 public enum IndexLines {
     private static let minute: TimeInterval = 60
     private static let hour: TimeInterval = 3_600
     private static let day: TimeInterval = 86_400
+    private static let https = "https://"
+
+    /// The needs a manifest declares, in the order a person weighs them: what it touches first, what it asks for last.
+    private static let needKinds: [(read: @Sendable (IndexNeedsView) -> [String], title: String, caption: String, one: String, many: String)] = [
+        ({ $0.filesystem }, "Files", "Paths it reads or writes", "path", "paths"),
+        ({ $0.network }, "Network", "Hosts it reaches", "host", "hosts"),
+        ({ $0.commands }, "Commands", "Commands it runs", "command", "commands"),
+        ({ $0.mcpServers }, "MCP servers", "MCP servers it uses", "MCP server", "MCP servers"),
+        ({ $0.tools }, "Tools", "Tools it asks its agent for", "tool", "tools"),
+    ]
+
+    /// Said when the address typed is not one the runtime would read.
+    public static let addressWanted = "Give an https address to an index.json."
+    /// Said once the marketplace is the source again, which narrows and so holds at once.
+    public static let sourceReset = "Listings come from the Memnox marketplace again."
+    /// Said when the address named is already where listings come from, so nothing was proposed.
+    public static let sourceSame = "Listings already come from there."
 
     /// What a listing is, in a word a person reads.
     public static func kindWord(_ kind: String) -> String {
@@ -97,6 +128,52 @@ public enum IndexLines {
         }
         if installed.held { return "\(installed.name) v\(installed.version) is in My Skills, waiting for you to accept it." }
         return "\(installed.name) v\(installed.version) is in My Skills."
+    }
+
+    /// The kinds of need a listing declares, each with what it names, leaving out the kinds it names nothing in.
+    public static func needsGroups(_ needs: IndexNeedsView?) -> [NeedsGroup] {
+        guard let needs else { return [] }
+        return needKinds.compactMap { kind in
+            let items = kind.read(needs)
+            return items.isEmpty ? nil : NeedsGroup(title: kind.title, caption: kind.caption, items: items)
+        }
+    }
+
+    /// What a listing needs in a line, counted by kind, or that it declares nothing, or that it carries no manifest at all.
+    public static func needsSummary(_ needs: IndexNeedsView?) -> String {
+        guard let needs else { return "Says nothing about what it needs, since the index carries no manifest for it" }
+        let counts = needKinds.compactMap { kind -> String? in
+            let count = kind.read(needs).count
+            if count == 0 { return nil }
+            return "\(count) \(count == 1 ? kind.one : kind.many)"
+        }
+        if counts.isEmpty { return "Needs no files, network, commands, MCP servers or tools" }
+        return "Needs \(SkillsLines.listed(counts))"
+    }
+
+    /// How many things to know before installing, or nil when nothing stands out.
+    public static func warningsCount(_ warnings: [String]) -> String? {
+        if warnings.isEmpty { return nil }
+        return warnings.count == 1 ? "1 thing to know before installing" : "\(warnings.count) things to know before installing"
+    }
+
+    /// Where listings come from, and whether that is the Memnox marketplace or an index somebody named.
+    public static func source(_ view: CommunityIndexView) -> String {
+        if view.marketplace { return "Listings come from the Memnox marketplace, at \(view.source)." }
+        return "Listings come from \(view.source), an index you named rather than the Memnox marketplace."
+    }
+
+    /// Only an https address with a host is offered to the runtime, which checks it again before proposing anything.
+    public static func isIndexAddress(_ text: String) -> Bool {
+        let address = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard address.lowercased().hasPrefix(https), !address.contains(where: \.isWhitespace) else { return false }
+        let host = address.dropFirst(https.count).prefix { $0 != "/" && $0 != "?" && $0 != "#" }
+        return !host.isEmpty
+    }
+
+    /// Said once another index is proposed: it holds only once signed, so the page still shows the current source.
+    public static func sourceProposed(keyTitle: String) -> String {
+        "Waiting on the island: sign it with \(keyTitle) and listings come from there."
     }
 
     private static func since(_ at: String, now: Date) -> String {

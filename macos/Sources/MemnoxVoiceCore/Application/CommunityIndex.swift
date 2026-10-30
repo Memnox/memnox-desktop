@@ -35,6 +35,8 @@ public final class CommunityIndex: @unchecked Sendable {
 
     /// What `busy` reads while a fresh read runs.
     public static let refreshing = "refresh"
+    /// What `busy` reads while the source is being set.
+    public static let settingSource = "source"
 
     public init(link: DaemonLink, ids: RequestIds = RequestIds(), keyTitle: String = "Touch ID") {
         self.link = link
@@ -104,6 +106,26 @@ public final class CommunityIndex: @unchecked Sendable {
         guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
         guard let installed = response.indexInstalled else { return .done("\(name) is installed.") }
         return .done(IndexLines.installedNote(installed, keyTitle: keyTitle))
+    }
+
+    /// Names another index, which only proposes it, or the marketplace when nil, which holds at once.
+    public func setSource(_ address: String? = nil) async -> IndexSourceOutcome {
+        let source = address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? IndexSource.marketplace
+        lock.withLock { busyWith = Self.settingSource }
+        changed?()
+        var request = DaemonRequest(id: ids.next(), method: .indexSourceSet)
+        request.indexSource = source
+        let response = await ask(request)
+        lock.withLock {
+            busyWith = nil
+            // The view still names the current source while a proposal waits, so it is taken as it came.
+            if let index = response?.communityIndex { view = index }
+        }
+        changed?()
+        guard let response else { return .failed("The runtime is not answering.") }
+        guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
+        if response.proposed != nil { return .proposed(IndexLines.sourceProposed(keyTitle: keyTitle)) }
+        return .done(source == IndexSource.marketplace ? IndexLines.sourceReset : IndexLines.sourceSame)
     }
 
     /// A runtime that went away is said by `unreadable` and the outcome, never thrown at the page.

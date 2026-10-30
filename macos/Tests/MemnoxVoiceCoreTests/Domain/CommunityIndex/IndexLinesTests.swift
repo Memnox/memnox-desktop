@@ -61,4 +61,34 @@ final class IndexLinesTests: XCTestCase {
         XCTAssertEqual(IndexLines.installedNote(IndexInstalled(id: "2", name: "careful", kind: .rulePack, version: "2.0.0", digest: "d", proposed: ["p1", "p2", "p3"]), keyTitle: "Touch ID"),
                        "3 rules wait from careful v2.0.0 for your signature with Touch ID on the island.")
     }
+
+    func testSaysWhatAListingNeedsInALineAndEachKindOnOpen() {
+        let needs = IndexNeedsView(filesystem: ["./CHANGELOG.md"], commands: ["git log", "gh pr list"], mcpServers: ["github"])
+        XCTAssertEqual(IndexLines.needsSummary(needs), "Needs 1 path, 2 commands and 1 MCP server")
+        XCTAssertEqual(IndexLines.needsSummary(nil), "Says nothing about what it needs, since the index carries no manifest for it")
+        XCTAssertEqual(IndexLines.needsSummary(IndexNeedsView()), "Needs no files, network, commands, MCP servers or tools")
+        XCTAssertEqual(IndexLines.needsGroups(needs).map(\.title), ["Files", "Commands", "MCP servers"])
+        XCTAssertEqual(IndexLines.needsGroups(needs).last?.items, ["github"])
+        XCTAssertEqual(IndexLines.needsGroups(needs).first?.caption, "Paths it reads or writes")
+        XCTAssertEqual(IndexLines.needsGroups(nil), [])
+    }
+
+    func testCountsWhatToKnowBeforeInstalling() {
+        XCTAssertEqual(IndexLines.warningsCount(["It runs any command its rules allow."]), "1 thing to know before installing")
+        XCTAssertEqual(IndexLines.warningsCount(["a", "b"]), "2 things to know before installing")
+        XCTAssertNil(IndexLines.warningsCount([]))
+    }
+
+    func testSaysWhereListingsComeFromAndOffersOnlyAnHttpsIndex() {
+        XCTAssertEqual(IndexLines.source(CommunityIndexView(source: "https://memnox.com/index.json")),
+                       "Listings come from the Memnox marketplace, at https://memnox.com/index.json.")
+        XCTAssertEqual(IndexLines.source(CommunityIndexView(source: "https://example.com/index.json", marketplace: false)),
+                       "Listings come from https://example.com/index.json, an index you named rather than the Memnox marketplace.")
+        XCTAssertTrue(IndexLines.isIndexAddress(" https://example.com/index.json "))
+        XCTAssertFalse(IndexLines.isIndexAddress("http://example.com/index.json"))
+        XCTAssertFalse(IndexLines.isIndexAddress("https://"))
+        XCTAssertFalse(IndexLines.isIndexAddress("index.json"))
+        XCTAssertEqual(IndexLines.addressWanted, "Give an https address to an index.json.")
+        XCTAssertEqual(IndexLines.sourceProposed(keyTitle: "Touch ID"), "Waiting on the island: sign it with Touch ID and listings come from there.")
+    }
 }

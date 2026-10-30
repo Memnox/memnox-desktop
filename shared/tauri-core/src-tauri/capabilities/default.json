@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "The island may call this app's own commands, listen on their channels, hear the talk key and post a held call's notification, and nothing else. Start at sign in and the talk key are driven from Rust, so the webview holds neither permission.",
   "windows": ["island"],
-  "permissions": ["core:default", "notification:default"]
+  "permissions": ["core:default", "notification:allow-is-permission-granted", "notification:allow-request-permission", "notification:allow-notify"]
 }

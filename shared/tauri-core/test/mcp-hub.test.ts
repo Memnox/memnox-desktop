@@ -13,6 +13,7 @@ const view: McpHubView = {
       command: 'npx',
       args: ['-y', 'server-github'],
       envNames: [],
+      scope: 'personal',
       governed: true,
       toolCount: 3,
       health: { state: 'unknown' },

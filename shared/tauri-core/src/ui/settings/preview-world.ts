@@ -1,4 +1,4 @@
-import type { DaemonRequest, DaemonResponse, DeviceWire, HomeView, VoiceAgentStatus } from '@memnox/core/wire';
+import type { DaemonRequest, DaemonResponse, DeviceWire, HomeView, McpHubView, SessionCard, VoiceAgentStatus } from '@memnox/core/wire';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
@@ -43,14 +43,47 @@ const home: HomeView = {
   needsYou: ['Approve the Memnox hooks in Codex, so its commands are checked.'],
 };
 
+/** A few sessions across two repositories, so Home, Agents and Workspaces have something to lay out. */
+const previewSessions: SessionCard[] = [
+  { sessionId: 's1', agent: 'claude-code', agentName: 'Claude Code', task: 'Port the Settings window', repository: '/code/memnox-desktop', state: 'working', thinking: false, lastActive: '2026-10-30T11:58:00Z', actions: 37 },
+  { sessionId: 's2', agent: 'codex', agentName: 'Codex', task: 'Fix the flaky relay test', repository: '/code/memnox-runtime', state: 'open', thinking: false, lastActive: '2026-10-30T11:40:00Z', actions: 12 },
+  { sessionId: 's3', agent: 'cursor', agentName: 'Cursor', task: 'Tidy the onboarding copy', repository: '/code/memnox-desktop', state: 'ended', thinking: false, lastActive: '2026-10-29T17:10:00Z', actions: 8 },
+];
+
+/** A hub with servers in each state, found ones to bring in, and one a person edited by hand. */
+const previewHub: McpHubView = {
+  servers: [
+    { name: 'github', description: 'Issues and pull requests', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], envNames: [], governed: true, toolCount: 26, health: { state: 'healthy', checkedAt: '2026-10-30T11:50:00Z', tools: [{ name: 'create_pull_request', description: 'Open a pull request' }, { name: 'list_issues', description: 'List the issues of a repository' }] }, agents: ['claude-code', 'codex-cli'], secretsHeld: { 'github-token': true }, callsThisWeek: 48 },
+    { name: 'postgres', description: 'The local development database', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-postgres'], envNames: ['DATABASE_URL'], governed: true, toolCount: 0, health: { state: 'unknown' }, agents: ['claude-code'], secretsHeld: {}, callsThisWeek: 3 },
+    { name: 'linear', transport: 'stdio', command: 'npx', args: ['-y', 'linear-mcp'], envNames: [], governed: true, toolCount: 0, health: { state: 'error', checkedAt: '2026-10-30T09:00:00Z', error: 'LINEAR_API_KEY is not set' }, agents: [], secretsHeld: { 'linear-api-key': false }, callsThisWeek: 0 },
+    { name: 'docs', description: 'Company documentation', transport: 'http', url: 'https://mcp.example.com/docs', envNames: [], governed: false, toolCount: 4, health: { state: 'unknown' }, agents: ['cursor'], secretsHeld: {}, callsThisWeek: 11 },
+  ],
+  agents: [
+    { agent: 'claude-code', path: '~/.claude.json' },
+    { agent: 'codex-cli', path: '~/.codex/config.toml' },
+    { agent: 'cursor', path: '~/.cursor/mcp.json' },
+  ],
+  found: [
+    { agent: 'cursor', path: '~/.cursor/mcp.json', name: 'notion' },
+    { path: '/code/memnox-runtime/.mcp.json', name: 'playwright' },
+  ],
+  drifted: [{ agent: 'codex-cli', path: '~/.codex/config.toml', name: 'postgres', kind: 'edited' }],
+  skipped: [],
+};
+
 const phones: DeviceWire[] = [{ id: 'dev_1', name: 'Sam’s iPhone', kind: 'phone', fingerprint: 'fp', capabilities: ['see', 'ask', 'answer', 'mac'], pairedAt: '2026-10-01T10:00:00Z' }];
 
 const qr =
   'memnox://pair?d=eyJ2IjoxLCJtYWNoaW5lSWQiOiJtX2Rlc2siLCJtYWNoaW5lIjoiRGVzayIsInJlbGF5VXJsIjoid3NzOi8vcmVsYXkubWVtbm94LmNvbSIsIm1haWxib3giOiJhYmNkZWYiLCJwYWlyaW5nVG9rZW4iOiJybHBfMTIzIn0';
 
 /** Every method a page asks, answered from the scene. */
+/** Methods no runtime answers yet, so the preview hides the tabs that read them, as the app does. */
+const NOT_YET: readonly string[] = ['skills-hub', 'rules', 'activity', 'memory-learn'];
+
 function answer(request: DaemonRequest): DaemonResponse[] {
   const ok = { id: request.id, ok: true };
+  if (NOT_YET.includes(request.method)) return [{ id: request.id, ok: false, error: `no method ${request.method}` }];
+  if (request.method.startsWith('mcp-')) return [{ ...ok, mcpHub: previewHub, ...(request.method === 'mcp-assign' && request.mcpOn === true ? { proposed: 'prp_preview' } : {}) }];
   switch (request.method) {
     case 'ping':
       return [{ ...ok, version: '0.20.0' }];
@@ -64,7 +97,7 @@ function answer(request: DaemonRequest): DaemonResponse[] {
     case 'waiting':
       return [{ ...ok, waiting: [] }];
     case 'sessions-list':
-      return [{ ...ok, sessions: [] }];
+      return [{ ...ok, sessions: previewSessions }];
     case 'person':
       return [{ ...ok, person: previewState === 'signed-in' ? { signedIn: true, name: 'Sam Rivera' } : { signedIn: false, ...(previewState === 'code' ? { code: { userCode: 'WDJB-MJHT', expiresAt: Date.now() + 600_000 } } : {}) } }];
     case 'machine':

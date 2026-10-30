@@ -23,6 +23,7 @@ public final class Memory: @unchecked Sendable {
     private var reads: [String: MemoryReadSummary] = [:]
     private var failed = MemoryUnreadable()
     private var busyWith: String?
+    private var searched: MemorySearch?
 
     /// Told after anything here changed, on whatever thread that happened.
     public var changed: (@Sendable () -> Void)?
@@ -40,6 +41,8 @@ public final class Memory: @unchecked Sendable {
     public var facts: MemoryItemsView? { lock.withLock { listed } }
     public var filter: MemoryFilter { lock.withLock { shown } }
     public var unreadable: MemoryUnreadable { lock.withLock { failed } }
+    /// How the last search was answered, by keyword or by meaning, and why it fell back; nil when the list is no search.
+    public var search: MemorySearch? { lock.withLock { searched } }
 
     /// The source or item a press is still working on, so its controls can say so.
     public var busy: String? { lock.withLock { busyWith } }
@@ -84,6 +87,7 @@ public final class Memory: @unchecked Sendable {
             guard ticket == asked else { return false }
             failed.facts = response?.ok != true
             listed = response?.memoryFacts ?? (response?.ok == true ? MemoryItemsView(items: []) : listed)
+            searched = MemorySearch(query: query, response: response)
             return true
         }
         if current { changed?() }
@@ -181,5 +185,24 @@ public final class Memory: @unchecked Sendable {
     /// A runtime that went away is said by `unreadable` and the outcome, never thrown at the page.
     private func ask(_ request: DaemonRequest) async -> DaemonResponse? {
         try? await link.request(request)
+    }
+}
+
+/// How a search was answered, as the runtime says it.
+public struct MemorySearch: Equatable, Sendable {
+    public let mode: MemorySearchMode
+    /// Why it was keyword only although search by meaning is on.
+    public let note: String?
+
+    public init(mode: MemorySearchMode, note: String? = nil) {
+        self.mode = mode
+        self.note = note
+    }
+
+    /// Nil for a list that is no search; an older runtime that names no mode searched by keyword.
+    init?(query: String, response: DaemonResponse?) {
+        guard !query.isEmpty, let response, response.ok else { return nil }
+        mode = response.memorySearchMode.flatMap(MemorySearchMode.init(rawValue:)) ?? .keyword
+        note = response.memorySearchNote
     }
 }

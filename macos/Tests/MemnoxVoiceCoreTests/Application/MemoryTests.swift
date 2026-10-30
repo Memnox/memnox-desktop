@@ -47,6 +47,25 @@ final class MemoryTests: XCTestCase {
         XCTAssertEqual(memory.filter, MemoryFilter(status: .verified, query: " tuesday "))
     }
 
+    func testKeepsHowASearchWasAnsweredAndReadsAnOlderRuntimeAsKeyword() async throws {
+        let link = ScriptedLink()
+        link.answers["memory-search"] = [try line(#"{"id":1,"ok":true,"memoryFacts":{"items":[],"more":0},"memorySearchMode":"semantic"}"#)]
+        link.answers["memory-facts"] = [try line(#"{"id":4,"ok":true,"memoryFacts":{"items":[],"more":0}}"#)]
+        let memory = Memory(link: link)
+        await memory.show(MemoryFilter(status: .verified, query: "release days"))
+        XCTAssertEqual(memory.search, MemorySearch(mode: .semantic))
+        link.answers["memory-search"] = [try line(#"{"id":2,"ok":true,"memoryFacts":{"items":[],"more":0},"memorySearchMode":"keyword","memorySearchNote":"The embedding model did not answer."}"#)]
+        await memory.show(MemoryFilter(status: .verified, query: "release"))
+        XCTAssertEqual(memory.search, MemorySearch(mode: .keyword, note: "The embedding model did not answer."))
+        link.answers["memory-search"] = [try line(#"{"id":3,"ok":true,"memoryFacts":{"items":[],"more":0}}"#)]
+        await memory.show(MemoryFilter(status: .verified, query: "older"))
+        XCTAssertEqual(memory.search, MemorySearch(mode: .keyword))
+        await memory.show(MemoryFilter(status: .verified))
+        XCTAssertNil(memory.search)
+        XCTAssertEqual(MemoryLines.searchModeLine(.keyword), "Searched by keyword")
+        XCTAssertEqual(MemoryLines.searchModeLine(.semantic), "Searched by meaning, and by keyword")
+    }
+
     func testReadsASourceNowAndKeepsTheSummaryUnderItsCard() async throws {
         let link = ScriptedLink()
         link.answers["memory-source-read"] = [try line(#"{"id":1,"ok":true,"memorySources":["# + Self.source + #"],"memoryRead":{"sourceId":"src_1","documents":4,"passages":12,"added":3,"merged":2,"rejectedBefore":0,"droppedCitations":1,"discarded":0,"outdated":0,"extractor":"unavailable"}}"#)]

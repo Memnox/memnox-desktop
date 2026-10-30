@@ -119,7 +119,12 @@ struct MemoryDestination: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Status")
             } else {
-                MemoryQuiet("Searching every status for these words.")
+                if let search = screen.memory.search {
+                    MemoryQuiet("\(MemoryLines.searchModeLine(search.mode)), over every status.")
+                    if let note = search.note { MemoryQuiet(note) }
+                } else {
+                    MemoryQuiet("Searching every status for these words.")
+                }
             }
         }
     }

@@ -1,3 +1,4 @@
+import AppKit
 import MemnoxVoiceCore
 import SwiftUI
 
@@ -25,6 +26,16 @@ struct ToolsPage: View {
             }
             // The same checklist as the first run, for an app installed since or a step skipped then.
             SettingsSection(title: "Where your agents run") { AgentHomesSetup() }
+            // Search by meaning is a CLI setting, so this says the command rather than keeping a second copy of the choice.
+            SettingsCard(title: "Memory") {
+                SettingsRow(symbol: "brain", title: MemoryLines.meaningSearchTitle,
+                            caption: "\(MemoryLines.meaningSearchLine) \(MemoryLines.embeddingCommand)") {
+                    Button("Copy") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(MemoryLines.embeddingCommand, forType: .string)
+                    }
+                }
+            }
             HStack {
                 Spacer()
                 Button { tools.refresh() } label: { Label("Check again", systemImage: Self.refreshSymbol) }

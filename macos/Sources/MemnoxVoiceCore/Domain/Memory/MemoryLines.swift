@@ -269,6 +269,17 @@ public enum MemoryLines {
         more > 0 ? "\(more) more not shown" : nil
     }
 
+    /// How a search was answered, said under the box so keyword alone never passes for both.
+    public static func searchModeLine(_ mode: MemorySearchMode) -> String {
+        mode == .semantic ? "Searched by meaning, and by keyword" : "Searched by keyword"
+    }
+
+    /// The command that turns search by meaning on, a CLI setting rather than one this window keeps.
+    public static let embeddingCommand = "memnox config set embeddingModel <model>"
+    public static let meaningSearchTitle = "Search memory by meaning"
+    /// What Settings says about it, the command shown after these words.
+    public static let meaningSearchLine = "Memory is searched by keyword. To search it by meaning as well, with an embedding model running on this Mac such as nomic-embed-text in Ollama, run this in a terminal:"
+
     /// What a confirm did: a fact is verified at once, a rule waits for its signature on the island.
     public static func confirmedLine(kind: String, proposed: Bool, keyTitle: String) -> String {
         if proposed || kind == MemoryKind.rule.rawValue {

@@ -1239,11 +1239,11 @@ public final class Conversation {
             return
         }
         if needsTouchID {
-            face.show(.needsYou, caption: caption("Touch ID to \(event.summary)"))
+            face.show(.needsYou, caption: caption(ProposalLines.caption(kind: event.proposalKind, summary: event.summary)))
             do {
                 signature = try await key.sign(
                     confirmationMessage(subject: event.subject, answer: ProposalAnswer.confirmed.rawValue),
-                    reason: event.summary
+                    reason: ProposalLines.prompt(kind: event.proposalKind, summary: event.summary)
                 )
                 answerKind = signature == nil ? .declined : .confirmed
             } catch {
@@ -1526,7 +1526,7 @@ public final class Conversation {
         request.answer = ProposalAnswer.declined.rawValue
         _ = try? await link.request(request)
         chimes?.play(.declined)
-        await say("Something proposed an allow you did not ask for. I have declined it.")
+        await say(ProposalLines.unasked(kind: event.proposalKind))
     }
 
     /// The app's part of the answer, sent once it is spoken, so a trace shows where the seconds went:

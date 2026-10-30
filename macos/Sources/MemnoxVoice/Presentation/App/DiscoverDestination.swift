@@ -24,9 +24,23 @@ final class IndexScreen: ObservableObject {
         }
     }
 
+    func said(_ outcome: IndexSourceOutcome) {
+        switch outcome {
+        case .proposed(let line), .done(let line): note = line
+        case .failed(let why): note = why
+        }
+    }
+
     /// Installs and says how it ended; nothing installed here is live until it is accepted or signed.
     func install(_ name: String, version: String?) {
         Task { said(await index.install(name, version: version)) }
+    }
+
+    /// Names another index, which waits on the island, or the marketplace when nil, which holds at once.
+    func setSource(_ address: String?) async -> IndexSourceOutcome {
+        let outcome = await index.setSource(address)
+        said(outcome)
+        return outcome
     }
 }
 
@@ -37,6 +51,7 @@ private enum DiscoverLayout {
     static let leftShare: CGFloat = 1.4
     /// Words go to the runtime this long after the last key, so each key is not a request.
     static let typingPause: UInt64 = 250_000_000
+    static let addressWidth: CGFloat = 360
 }
 
 /// The community index under the Skills Hub. Install never makes anything live: the runtime checks the digest, a skill
@@ -124,6 +139,126 @@ struct DiscoverDestination: View {
             }
         }
         QuietLine("\(IndexLines.installWaits(kind: IndexKind.skill.rawValue, keyTitle: "Touch ID")) \(IndexLines.installWaits(kind: IndexKind.rulePack.rawValue, keyTitle: "Touch ID"))")
+        ListingsSource(screen: screen, view: view)
+    }
+}
+
+/// Where listings come from: another index is only proposed and signed on the island, the marketplace again is at once.
+private struct ListingsSource: View {
+    @ObservedObject var screen: IndexScreen
+    let view: CommunityIndexView
+    @State private var address = ""
+
+    var body: some View {
+        let usable = IndexLines.isIndexAddress(address)
+        let busy = screen.index.busy == CommunityIndex.settingSource
+        ShellSection(title: "Where listings come from") {
+            if view.marketplace { StatusWord(.good, "Memnox marketplace") } else { StatusWord(.attention, "An index you named") }
+        } content: {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
+                Text(IndexLines.source(view))
+                    .font(Memnox.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Palette.foreground)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: Memnox.Spacing.regular) {
+                    TextField("https://example.com/index.json", text: $address)
+                        .kitField()
+                        .frame(maxWidth: DiscoverLayout.addressWidth)
+                        .onSubmit(propose)
+                        .accessibilityLabel("Address of an index.json")
+                    Button("Propose this index", systemImage: "globe", action: propose)
+                        .buttonStyle(KitButton(kind: .secondary))
+                        .disabled(!usable || busy)
+                }
+                if !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !usable {
+                    StatusWord(.attention, IndexLines.addressWanted)
+                }
+                QuietLine("Another index decides what can be installed here, so naming one waits on the island for your signature with Touch ID.")
+                Button("Use the Memnox marketplace") { Task { _ = await screen.setSource(nil) } }
+                    .buttonStyle(KitButton(kind: .secondary))
+                    .disabled(view.marketplace || busy)
+            }
+            .padding(ShellMetrics.rowPaddingH)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+        }
+    }
+
+    private func propose() {
+        guard IndexLines.isIndexAddress(address), screen.index.busy != CommunityIndex.settingSource else { return }
+        let typed = address
+        Task {
+            if case .failed = await screen.setSource(typed) { return }
+            address = ""
+        }
+    }
+}
+
+/// What a listing needs in one line, the paths, hosts, commands, servers and tools themselves on open.
+private struct NeedsView: View {
+    let needs: IndexNeedsView?
+    @State private var open = false
+
+    var body: some View {
+        let groups = IndexLines.needsGroups(needs)
+        if groups.isEmpty {
+            summary
+        } else {
+            DisclosureGroup(isExpanded: $open) {
+                VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
+                    ForEach(groups, id: \.title) { group in
+                        VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
+                            HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.small) {
+                                Text(group.title)
+                                    .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
+                                    .foregroundStyle(Memnox.Palette.foreground)
+                                Text(group.caption)
+                                    .font(Memnox.sans(Memnox.TextSize.footnote))
+                                    .foregroundStyle(Memnox.Palette.muted)
+                            }
+                            ForEach(group.items, id: \.self) { item in
+                                Text(item)
+                                    .font(Memnox.mono(Memnox.TextSize.micro))
+                                    .foregroundStyle(Memnox.Palette.foreground)
+                                    .textSelection(.enabled)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+                .padding(.top, Memnox.Spacing.small)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } label: {
+                summary
+            }
+        }
+    }
+
+    private var summary: some View {
+        Text(IndexLines.needsSummary(needs))
+            .font(Memnox.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Palette.foreground)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// What to know before installing, each sentence in amber beside its words, since colour alone says nothing.
+private struct WarningsView: View {
+    let warnings: [String]
+
+    var body: some View {
+        if let count = IndexLines.warningsCount(warnings) {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+                StatusWord(.attention, count)
+                ForEach(warnings, id: \.self) { warning in
+                    Text(warning)
+                        .font(Memnox.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Palette.warm)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .accessibilityElement(children: .combine)
+        }
     }
 }
 
@@ -156,6 +291,11 @@ private struct ListingCard: View {
             .font(Memnox.sans(Memnox.TextSize.footnote))
             .foregroundStyle(Memnox.Palette.muted)
             .lineLimit(1)
+            Text(IndexLines.needsSummary(entry.needs))
+                .font(Memnox.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Palette.muted)
+                .lineLimit(1)
+            if let warnings = IndexLines.warningsCount(entry.warnings) { StatusWord(.attention, warnings) }
             ShellDivider()
             Button("View listing", action: view).buttonStyle(KitButton(kind: .secondary))
         }
@@ -217,6 +357,9 @@ private struct ListingDetail: View {
                 .foregroundStyle(Memnox.Palette.foreground)
                 .fixedSize(horizontal: false, vertical: true)
             FactList(facts: facts)
+            ShellSection(title: "What it needs") {
+                NeedsView(needs: entry.needs)
+            }
             ShellSection(title: "Versions") {
                 ShellPanel {
                     if let latest = entry.latest {
@@ -244,6 +387,8 @@ private struct ListingDetail: View {
         let busy = screen.index.busy == entry.name
         return VStack(alignment: .leading, spacing: ShellMetrics.sectionSpacing) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
+                WarningsView(warnings: entry.warnings)
+                QuietLine(IndexLines.needsSummary(entry.needs))
                 if IndexLines.canInstall(entry) {
                     Button(busy ? "Installing" : "Install \(IndexLines.latest(entry))", systemImage: "arrow.down.circle") {
                         screen.install(entry.name, version: entry.latest?.version)

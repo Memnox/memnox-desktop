@@ -224,7 +224,7 @@ struct SettingsView: View {
 }
 
 /// The phones: pairing one, then the ones already paired with what each may do.
-private struct PhonesPage: View {
+struct PhonesPage: View {
     @ObservedObject var menu: MenuModel
     @ObservedObject var setup: SetupModel
 
@@ -245,7 +245,7 @@ private struct PhonesPage: View {
 }
 
 /// Who thinks for the voice and which voice speaks, the Mac's own or a Kokoro one, in one row.
-private struct VoicePage: View {
+struct VoicePage: View {
     @ObservedObject var menu: MenuModel
     @ObservedObject var setup: SetupModel
 
@@ -256,7 +256,7 @@ private struct VoicePage: View {
 
 /// The switches for when Memnox listens and speaks up, with catching up after time away, in two cards as Vorssaint
 /// groups its own: hearing the person, then speaking to them.
-private struct ListeningPage: View {
+struct ListeningPage: View {
     @ObservedObject var menu: MenuModel
     @ObservedObject private var mute = VoiceMute.shared
     @ObservedObject var setup: SetupModel
@@ -316,7 +316,7 @@ private struct ChimeVolumeRow: View {
 }
 
 /// Saying a rule or a line, and copying what happened for support, each a row with its button at the end.
-private struct HelpPage: View {
+struct HelpPage: View {
     @ObservedObject var menu: MenuModel
 
     var body: some View {

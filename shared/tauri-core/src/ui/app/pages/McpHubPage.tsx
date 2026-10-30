@@ -3,7 +3,7 @@ import { KeyRound, MoreVertical, Plug, Plus, RefreshCw } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { HubOutcome } from '../../../core/application/mcp-hub';
 import type { WidthClass } from '../../../core/domain/destinations';
-import { agentLabel, agentsLine, callsLine, healthWords, launchLine, missingSecrets, secretsAcross, toolsLine } from '../../../core/domain/mcp-hub-lines';
+import { agentLabel, agentsLine, callsLine, fromOrganization, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, secretsAcross, toolsLine } from '../../../core/domain/mcp-hub-lines';
 import { ago } from '../../../core/domain/session-text';
 import { BrandLogo } from '../../kit/logos';
 import { KitButton, SearchField } from '../../settings/kit';
@@ -123,6 +123,7 @@ function ServerCard({ server, chosen, pick }: { server: McpHubServerView; chosen
         {missing.length > 0 ? <StatusWord tone="bad">Needs a secret</StatusWord> : <StatusWord tone={health.tone}>{health.word}</StatusWord>}
         <span className="text-footnote text-muted">{server.transport === 'http' ? 'Remote' : 'Local'}</span>
         <span className="text-footnote text-muted">{toolsLine(server.toolCount)}</span>
+        {fromOrganization(server) && <StatusWord tone="quiet">{ORGANIZATION_WORD}</StatusWord>}
       </div>
       <div className="flex items-center justify-between gap-2">
         <span className="flex -space-x-1.5" aria-label={agentsLine(server.agents.length)}>
@@ -153,27 +154,41 @@ function ServerDetail({ parts, view, server, said, removed }: { parts: SettingsP
         {hub.busy === server.name ? 'Testing' : 'Test connection'}
       </KitButton>
 
-      <Section title="Agents">
-        <Panel>
-          {view.agents.map(({ agent }) => {
-            const on = server.agents.includes(agent);
-            return (
-              <Row
-                key={agent}
-                leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />}
-                title={agentLabel(agent)}
-                caption={on ? 'Has this server' : undefined}
-                trailing={
-                  <KitButton disabled={hub.busy === `${server.name}/${agent}`} onClick={() => void hub.assign(server.name, agent, !on).then(said)}>
-                    {on ? 'Take away' : 'Give'}
-                  </KitButton>
-                }
-              />
-            );
-          })}
-        </Panel>
-        <p className="text-footnote text-muted">{`Giving a server to an agent waits for your signature with ${parts.words.keyTitle}. Taking it away happens at once.`}</p>
-      </Section>
+      {fromOrganization(server) ? (
+        <Section title="Agents">
+          <StatusWord tone="quiet">{ORGANIZATION_WORD}</StatusWord>
+          {server.agents.length > 0 && (
+            <Panel>
+              {server.agents.map((agent) => (
+                <Row key={agent} leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />} title={agentLabel(agent)} caption="Has this server" />
+              ))}
+            </Panel>
+          )}
+          <p className="text-footnote text-muted">{ORGANIZATION_LINE}</p>
+        </Section>
+      ) : (
+        <Section title="Agents">
+          <Panel>
+            {view.agents.map(({ agent }) => {
+              const on = server.agents.includes(agent);
+              return (
+                <Row
+                  key={agent}
+                  leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />}
+                  title={agentLabel(agent)}
+                  caption={on ? 'Has this server' : undefined}
+                  trailing={
+                    <KitButton disabled={hub.busy === `${server.name}/${agent}`} onClick={() => void hub.assign(server.name, agent, !on).then(said)}>
+                      {on ? 'Take away' : 'Give'}
+                    </KitButton>
+                  }
+                />
+              );
+            })}
+          </Panel>
+          <p className="text-footnote text-muted">{`Giving a server to an agent waits for your signature with ${parts.words.keyTitle}. Taking it away happens at once.`}</p>
+        </Section>
+      )}
 
       {Object.keys(server.secretsHeld).length > 0 && (
         <Section title="Credentials">
@@ -198,20 +213,22 @@ function ServerDetail({ parts, view, server, said, removed }: { parts: SettingsP
         )}
       </Section>
 
-      {/* Set apart at the end, away from the routine controls. */}
-      <div className="border-t border-panel-edge pt-4">
-        <KitButton
-          disabled={hub.busy === server.name}
-          onClick={() =>
-            void hub.removeServer(server.name).then((outcome) => {
-              said(outcome);
-              if (outcome.kind === 'done') removed();
-            })
-          }
-        >
-          Remove from every agent
-        </KitButton>
-      </div>
+      {/* Set apart at the end, away from the routine controls; an organization's server is removed in Memnox Cloud. */}
+      {!fromOrganization(server) && (
+        <div className="border-t border-panel-edge pt-4">
+          <KitButton
+            disabled={hub.busy === server.name}
+            onClick={() =>
+              void hub.removeServer(server.name).then((outcome) => {
+                said(outcome);
+                if (outcome.kind === 'done') removed();
+              })
+            }
+          >
+            Remove from every agent
+          </KitButton>
+        </div>
+      )}
     </div>
   );
 }
@@ -299,7 +316,8 @@ function Clients({ parts, view, said }: { parts: SettingsParts; view: McpHubView
                     <input
                       type="checkbox"
                       checked={on}
-                      disabled={hub.busy === `${server.name}/${agent}`}
+                      disabled={fromOrganization(server) || hub.busy === `${server.name}/${agent}`}
+                      title={fromOrganization(server) ? ORGANIZATION_LINE : undefined}
                       aria-label={`${server.name} for ${agentLabel(agent)}`}
                       className="size-4 cursor-pointer accent-[var(--color-primary)]"
                       onChange={() => void hub.assign(server.name, agent, !on).then(said)}

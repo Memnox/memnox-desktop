@@ -86,3 +86,11 @@ const AGENT_NAMES: Readonly<Record<string, string>> = {
 export function agentLabel(kind: string): string {
   return AGENT_NAMES[kind] ?? kind;
 }
+
+/** An organization's server is read only here: it is given, changed and removed in Memnox Cloud. */
+export function fromOrganization(server: Pick<McpHubServerView, 'scope'>): boolean {
+  return server.scope === 'organization';
+}
+
+export const ORGANIZATION_WORD = 'From your organization';
+export const ORGANIZATION_LINE = 'Your organization set this server up, so who has it is changed in Memnox Cloud rather than here.';

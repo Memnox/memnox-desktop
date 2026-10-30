@@ -2,7 +2,7 @@ import type { DaemonRequest, McpHubView } from '@memnox/core/wire';
 import { describe, expect, it } from 'vitest';
 import { McpHub, syncedLine } from '../src/core/application/mcp-hub';
 import { RequestIds } from '../src/core/application/request-ids';
-import { missingSecrets, secretsAcross, serverNameFrom, splitCommand } from '../src/core/domain/mcp-hub-lines';
+import { fromOrganization, missingSecrets, secretsAcross, serverNameFrom, splitCommand } from '../src/core/domain/mcp-hub-lines';
 import { ScriptedDaemon } from './doubles';
 
 const view: McpHubView = {
@@ -91,5 +91,12 @@ describe('a server added with agents chosen', () => {
     await hub.refresh();
     await hub.refresh();
     expect(daemon.sent('mcp-assign')).toHaveLength(1);
+  });
+});
+
+describe('an organization server', () => {
+  it('is read only on this computer', () => {
+    expect(fromOrganization({ scope: 'organization' })).toBe(true);
+    expect(fromOrganization({ scope: 'personal' })).toBe(false);
   });
 });

@@ -192,6 +192,7 @@ private struct McpServerCard: View {
                     }
                     Text(server.hubTransport == .http ? "Remote" : "Local")
                     Text(McpHubLines.tools(server.toolCount))
+                    if McpHubLines.fromOrganization(server) { StatusWord(.quiet, McpHubLines.organizationWord) }
                 }
                 .font(Memnox.sans(Memnox.TextSize.footnote))
                 .foregroundStyle(Memnox.Palette.muted)
@@ -276,14 +277,34 @@ private struct McpServerDetail: View {
                 .buttonStyle(KitButton(kind: .secondary))
                 .disabled(busy)
 
-            ShellSection(title: "Agents") {
-                ShellPanel {
-                    ForEach(Array(view.agents.enumerated()), id: \.element.agent) { index, each in
-                        if index > 0 { ShellDivider() }
-                        agentRow(each.agent)
+            if McpHubLines.fromOrganization(server) {
+                // Given by the organization, so who has it is changed in Memnox Cloud and only shown here.
+                ShellSection(title: "Agents") {
+                    StatusWord(.quiet, McpHubLines.organizationWord)
+                    if !server.agents.isEmpty {
+                        ShellPanel {
+                            ForEach(Array(server.agents.enumerated()), id: \.element) { index, agent in
+                                if index > 0 { ShellDivider() }
+                                ShellRow(title: McpHubLines.agentLabel(agent), caption: "Has this server") {
+                                    BrandLogo(agent: agent, name: McpHubLines.agentLabel(agent), size: Self.logo)
+                                } trailing: {
+                                    EmptyView()
+                                }
+                            }
+                        }
                     }
+                    quiet(McpHubLines.organizationLine)
                 }
-                quiet("Giving a server to an agent waits for your signature with Touch ID. Taking it away happens at once.")
+            } else {
+                ShellSection(title: "Agents") {
+                    ShellPanel {
+                        ForEach(Array(view.agents.enumerated()), id: \.element.agent) { index, each in
+                            if index > 0 { ShellDivider() }
+                            agentRow(each.agent)
+                        }
+                    }
+                    quiet("Giving a server to an agent waits for your signature with Touch ID. Taking it away happens at once.")
+                }
             }
 
             if !server.secretsHeld.isEmpty {
@@ -316,19 +337,21 @@ private struct McpServerDetail: View {
                 }
             }
 
-            // Set apart at the end, away from the routine controls.
-            VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
-                ShellDivider()
-                Button("Remove from every agent") {
-                    let name = server.name
-                    Task {
-                        let outcome = await hub.removeServer(name)
-                        screen.said(outcome)
-                        if case .done = outcome { removed() }
+            // Set apart at the end, away from the routine controls; an organization's server is removed in Memnox Cloud.
+            if !McpHubLines.fromOrganization(server) {
+                VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
+                    ShellDivider()
+                    Button("Remove from every agent") {
+                        let name = server.name
+                        Task {
+                            let outcome = await hub.removeServer(name)
+                            screen.said(outcome)
+                            if case .done = outcome { removed() }
+                        }
                     }
+                    .buttonStyle(KitButton(kind: .secondary))
+                    .disabled(busy)
                 }
-                .buttonStyle(KitButton(kind: .secondary))
-                .disabled(busy)
             }
         }
     }
@@ -484,7 +507,8 @@ private struct McpClients: View {
         return Toggle("", isOn: given)
             .labelsHidden()
             .toggleStyle(CheckboxStyle())
-            .disabled(screen.hub.busy == McpHub.pair(server.name, agent))
+            .disabled(McpHubLines.fromOrganization(server) || screen.hub.busy == McpHub.pair(server.name, agent))
+            .help(McpHubLines.fromOrganization(server) ? McpHubLines.organizationLine : "")
             .accessibilityLabel("\(server.name) for \(McpHubLines.agentLabel(agent))")
     }
 }

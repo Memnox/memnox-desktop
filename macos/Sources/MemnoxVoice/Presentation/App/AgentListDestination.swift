@@ -1,3 +1,4 @@
+import AppKit
 import MemnoxVoiceCore
 import SwiftUI
 
@@ -5,8 +6,11 @@ import SwiftUI
 /// protected, then dormant. Pausing is at once; resuming gives an agent back its reach, so it waits for Touch ID.
 struct AgentListDestination: View {
     @ObservedObject var screen: AgentsScreen
+    /// The sessions lately, whose workspaces are the folders offered to launch an agent in.
+    @ObservedObject var island: IslandModel
     let home: HomeModel?
     let width: WidthClass
+    @State private var launching: String?
 
     private static let cardWidth: CGFloat = 300
 
@@ -25,8 +29,9 @@ struct AgentListDestination: View {
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.cardWidth), spacing: Memnox.Spacing.large)],
                               spacing: Memnox.Spacing.large) {
+                        let folders = SeenWorkspaces.from(island.cards, now: Date())
                         ForEach(StudioLines.sortedAgents(list)) { agent in
-                            AgentCard(screen: screen, home: home, agent: agent)
+                            AgentCard(screen: screen, home: home, agent: agent, folders: folders, launching: $launching)
                         }
                     }
                 }
@@ -43,6 +48,9 @@ private struct AgentCard: View {
     @ObservedObject var screen: AgentsScreen
     let home: HomeModel?
     let agent: AgentStanding
+    let folders: [SeenWorkspace]
+    /// The one card whose Launch form is open, by agent kind.
+    @Binding var launching: String?
 
     private static let logo: CGFloat = 30
 
@@ -64,6 +72,12 @@ private struct AgentCard: View {
             QuietLine(StudioLines.agentCounts(agent))
             if !agent.mcpServers.isEmpty {
                 Text("Servers: \(agent.mcpServers.joined(separator: ", "))")
+                    .font(Memnox.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Palette.muted)
+                    .lineLimit(1)
+            }
+            if let skills = agent.skills, !skills.isEmpty {
+                Text("Skills: \(skills.joined(separator: ", "))")
                     .font(Memnox.sans(Memnox.TextSize.footnote))
                     .foregroundStyle(Memnox.Palette.muted)
                     .lineLimit(1)
@@ -101,8 +115,26 @@ private struct AgentCard: View {
                         .disabled(busy)
                         .help("Holds everything it tries until you resume it")
                 }
+                if agent.canLaunch, launching != agent.kind {
+                    Button { launching = agent.kind } label: { Label("Launch", systemImage: "apple.terminal") }
+                        .buttonStyle(KitButton(kind: .secondary))
+                        .help("Opens it in a new terminal in a folder you choose")
+                }
                 if agent.agentStatus == .unprotected, let home, !home.remote() {
                     ProtectButton(home: home)
+                }
+            }
+            if launching == agent.kind {
+                LaunchForm(folders: folders, busy: screen.agents.busy == Agents.launching(agent.kind)) {
+                    launching = nil
+                } launch: { folder in
+                    let kind = agent.kind
+                    Task {
+                        let outcome = await screen.agents.launch(kind, in: folder)
+                        screen.note = StudioNotes.line(outcome, proposed: "Waiting for you on the island: confirm it with Touch ID.")
+                        if case .failed = outcome { return }
+                        launching = nil
+                    }
                 }
             }
         }
@@ -124,5 +156,80 @@ private struct ProtectButton: View {
             .buttonStyle(KitButton(kind: .primary))
             .disabled(home.protecting)
             .help("Hooks every agent found on this Mac into Memnox, the way setup does")
+    }
+}
+
+/// The folder an agent opens in: chosen in Finder's own panel, typed whole, or one of the workspaces its sessions ran in.
+private struct LaunchForm: View {
+    let folders: [SeenWorkspace]
+    let busy: Bool
+    let cancel: () -> Void
+    let launch: (String) -> Void
+    @State private var folder = ""
+    @State private var problem: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+            ShellDivider()
+            Text("Open it in")
+                .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
+                .foregroundStyle(Memnox.Palette.muted)
+            HStack(spacing: Memnox.Spacing.medium) {
+                TextField("/Users/you/code/project", text: $folder)
+                    .kitField()
+                    .font(Memnox.mono(Memnox.TextSize.footnote))
+                    .onSubmit(go)
+                    .accessibilityLabel("The folder it opens in")
+                Button("Choose", systemImage: "folder", action: choose)
+                    .buttonStyle(KitButton(kind: .secondary))
+                    .help("Pick the folder in Finder")
+            }
+            if !folders.isEmpty {
+                // The workspaces as quick picks, so the usual folder is one click away.
+                ScrollView(.horizontal) {
+                    HStack(spacing: Memnox.Spacing.small) {
+                        ForEach(folders) { each in
+                            Button(each.name) { folder = each.path }
+                                .buttonStyle(KitButton(kind: folder == each.path ? .primary : .secondary))
+                                .help(each.path)
+                                .accessibilityAddTraits(folder == each.path ? .isSelected : [])
+                        }
+                    }
+                }
+                .scrollIndicators(.never)
+                .accessibilityLabel("Your workspaces")
+            }
+            if let problem {
+                Text(problem)
+                    .font(Memnox.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Palette.destructive)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: Memnox.Spacing.medium) {
+                Button(busy ? "Opening" : "Open a terminal", systemImage: "apple.terminal", action: go)
+                    .buttonStyle(KitButton(kind: .primary))
+                    .disabled(busy)
+                Button("Cancel", action: cancel).buttonStyle(KitButton(kind: .secondary))
+            }
+        }
+        .onAppear { if folder.isEmpty, let first = folders.first { folder = first.path } }
+    }
+
+    private func go() {
+        problem = LaunchLines.folderProblem(folder)
+        if problem == nil { launch(folder) }
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Open here"
+        if !folder.isEmpty { panel.directoryURL = URL(fileURLWithPath: folder) }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        folder = url.path
+        problem = nil
     }
 }

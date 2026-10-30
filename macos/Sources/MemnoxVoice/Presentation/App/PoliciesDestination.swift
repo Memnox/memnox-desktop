@@ -96,13 +96,15 @@ struct PoliciesDestination: View {
     }
 
     private func rulesInForce(_ view: PolicyRulesView) -> some View {
-        let counts = StudioLines.countsByEffect(view.rules)
-        let shown = view.rules.filter { filter == nil || $0.ruleEffect == filter }
+        // The scope selector shows the person's rules or the organization's, never the two mixed.
+        let scoped = ShellLines.inScope(view.rules, shell.scope) { ScopeLines.rule($0) == .organization }
+        let counts = StudioLines.countsByEffect(scoped)
+        let shown = scoped.filter { filter == nil || $0.ruleEffect == filter }
         return ShellSection(title: "Rules in force") {
             HStack(spacing: Memnox.Spacing.medium) {
                 Button(action: exportRules) { Label("Export", systemImage: "square.and.arrow.down") }
                     .buttonStyle(KitButton(kind: .secondary))
-                    .help("Copy the rules set on this computer as TOML")
+                    .help("Save the rules set on this computer as a TOML file")
                 Button(action: importPack) { Label("Import", systemImage: "square.and.arrow.up") }
                     .buttonStyle(KitButton(kind: .secondary))
                     .disabled(screen.studio.busy == Studio.importing)
@@ -112,7 +114,7 @@ struct PoliciesDestination: View {
             }
         } content: {
             HStack(spacing: Memnox.Spacing.small) {
-                FilterChip(title: "All \(view.rules.count)", chosen: filter == nil) { filter = nil }
+                FilterChip(title: "All \(scoped.count)", chosen: filter == nil) { filter = nil }
                 ForEach(RuleEffect.allCases, id: \.self) { effect in
                     FilterChip(title: "\(StudioLines.words(effect).title) \(counts[effect] ?? 0)", chosen: filter == effect) { filter = effect }
                 }
@@ -134,6 +136,9 @@ struct PoliciesDestination: View {
                 .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
                 .accessibilityElement(children: .combine)
             }
+            if shell.scope == .organization {
+                QuietLine(scoped.isEmpty ? ShellLines.noOrganizationItems : ShellLines.organizationReadOnly)
+            }
             if shown.isEmpty {
                 EmptyState(symbol: "checkmark.shield", title: "No rules of this kind",
                            detail: "Build one with New rule, or turn on a switch above.")
@@ -145,6 +150,7 @@ struct PoliciesDestination: View {
                                  action: { shell.inspecting = rule.name }) {
                             EmptyView()
                         } trailing: {
+                            ScopeChip(ScopeLines.rule(rule))
                             StatusWord(Tone(effect: rule.effect), StudioLines.title(rule.effect))
                         }
                     }
@@ -153,17 +159,26 @@ struct PoliciesDestination: View {
         }
     }
 
-    /// A pack is a TOML file: exported to the pasteboard, and imported one rule proposal at a time.
+    /// A pack is a TOML file: saved where the person picks in a save panel, and imported one rule proposal at a time.
     private func exportRules() {
         Task {
             let toml = await screen.studio.exportToml()
             guard let toml, StudioLines.exportedCount(toml) > 0 else {
-                screen.note = "No rule set on this computer to export yet."
+                screen.note = StudioLines.nothingToExport
                 return
             }
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(toml, forType: .string)
-            screen.note = "Copied \(StudioLines.exportedCount(toml)) rules as TOML, ready to save or share."
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [UTType(filenameExtension: "toml")].compactMap { $0 }
+            panel.nameFieldStringValue = "memnox-rules.toml"
+            panel.prompt = "Export"
+            // A cancelled save says nothing, since nothing happened.
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            do {
+                try toml.write(to: url, atomically: true, encoding: .utf8)
+                screen.note = StudioLines.packSaved(StudioLines.exportedCount(toml))
+            } catch {
+                screen.note = "That file could not be written: \(error.localizedDescription)"
+            }
         }
     }
 

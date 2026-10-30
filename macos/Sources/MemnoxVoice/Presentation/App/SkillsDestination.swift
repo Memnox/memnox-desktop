@@ -37,6 +37,10 @@ struct SkillsDestination: View {
     @ObservedObject var screen: SkillsScreen
     @ObservedObject var island: IslandModel
     let tab: String?
+    /// The project the top bar's switcher picked, nil for every project.
+    var current: ProjectView?
+    /// Whose skills show: the person's, or the organization's once Memnox Cloud hands any down.
+    var scope: ShownScope = .personal
     let width: WidthClass
     /// The skill whose Assign sheet is open, by name.
     @State private var assigning: String?
@@ -58,7 +62,7 @@ struct SkillsDestination: View {
                         AssignedGrid(view: view) { assigning = $0 }
                     }
                 } else {
-                    MySkills(screen: screen, view: view, width: width) { assigning = $0 }
+                    MySkills(screen: screen, view: view, current: current, scope: scope, width: width) { assigning = $0 }
                 }
             }
             .sheet(isPresented: Binding(get: { assigning != nil }, set: { if !$0 { assigning = nil } })) {
@@ -89,6 +93,8 @@ private enum SkillsLayout {
 private struct MySkills: View {
     @ObservedObject var screen: SkillsScreen
     let view: SkillsHubView
+    let current: ProjectView?
+    let scope: ShownScope
     let width: WidthClass
     let manage: (String) -> Void
     @State private var query = ""
@@ -106,6 +112,9 @@ private struct MySkills: View {
                 ShellScroll(width: width) {
                     NoteBanner(text: screen.note)
                     toolbar
+                    if scope == .organization {
+                        QuietLine(shown.isEmpty ? ShellLines.noOrganizationItems : ShellLines.organizationReadOnly)
+                    }
                     if view.skills.isEmpty {
                         VStack(spacing: Memnox.Spacing.large) {
                             EmptyState(symbol: "sparkles", title: "No skills in the hub yet",
@@ -131,9 +140,12 @@ private struct MySkills: View {
     }
 
     private var shown: [SkillView] {
+        // The switcher's project and the scope selector narrow the hub before the search does.
+        let inProject = ShellLines.skillsShown(view.skills, current: current)
+        let scoped = ShellLines.inScope(inProject, scope) { ScopeLines.skill($0) == .organization }
         let words = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !words.isEmpty else { return view.skills }
-        return view.skills.filter { "\($0.name) \($0.description) \($0.category ?? "")".lowercased().contains(words) }
+        guard !words.isEmpty else { return scoped }
+        return scoped.filter { "\($0.name) \($0.description) \($0.category ?? "")".lowercased().contains(words) }
     }
 
     private var toolbar: some View {
@@ -186,6 +198,7 @@ private struct SkillCard: View {
                 .foregroundStyle(Memnox.Palette.foreground)
                 .lineLimit(1)
             HStack(spacing: Memnox.Spacing.large) {
+                ScopeChip(ScopeLines.skill(skill))
                 if skill.held != nil { StatusWord(.attention, "Held") }
                 if !skill.enabled { StatusWord(.quiet, "Off") }
                 Text(SkillsLines.assigned(skill.agents.count))

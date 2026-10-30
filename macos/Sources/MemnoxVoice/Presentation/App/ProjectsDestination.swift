@@ -93,7 +93,8 @@ struct ProjectsDestination: View {
                     } else {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: ProjectsLayout.cardWidth), spacing: Memnox.Spacing.large)],
                                   spacing: Memnox.Spacing.large) {
-                            ForEach(list) { each in
+                            // The top bar's switcher narrows the list to the project picked.
+                            ForEach(ShellLines.projectsShown(list, current: shell.currentProject)) { each in
                                 ProjectCard(project: each, chosen: each.id == shell.inspecting) { shell.inspecting = each.id }
                             }
                         }
@@ -114,7 +115,8 @@ struct ProjectsDestination: View {
     /// The folders the sessions ran in that are not projects yet, offered as quick picks to open.
     private func folders(_ list: [ProjectView]) -> [FolderPick] {
         let seen = SeenWorkspaces.from(island.cards, now: Date()).map { FolderPick(path: $0.path, name: $0.name) }
-        return ProjectLines.foldersToOpen(seen, projects: list)
+        // The switcher's project comes first, so the form starts on it.
+        return ShellLines.withCurrent(ProjectLines.foldersToOpen(seen, projects: list), current: shell.currentProject)
     }
 }
 
@@ -135,6 +137,7 @@ private struct ProjectCard: View {
                         .foregroundStyle(Memnox.Palette.foreground)
                         .lineLimit(1)
                     Spacer(minLength: Memnox.Spacing.small)
+                    ScopeChip(ScopeLines.project(project))
                     if project.sharedBy != nil { OrganizationBadge() } else { StatusWord(Tone(standing.tone), standing.word) }
                 }
                 Text(project.path)

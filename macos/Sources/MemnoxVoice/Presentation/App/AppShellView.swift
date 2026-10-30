@@ -92,6 +92,9 @@ struct AppShellView: View {
                 .lineLimit(1)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: Memnox.Spacing.medium)
+            if width != .compact {
+                TopBarPickers(shell: shell)
+            }
             Button { shell.palette = true } label: {
                 HStack(spacing: Memnox.Spacing.small) {
                     Image(systemName: "magnifyingglass").font(.system(size: Memnox.TextSize.caption, weight: .medium))
@@ -197,14 +200,18 @@ private struct AppPage: View {
                     SettingsPageColumn { ToolsPage(tools: menu.tools) }
                 } else if route.tab == "list", let agents = shell.agents {
                     AgentListDestination(screen: agents, island: island, home: models.home,
-                                         profiles: shell.supports("profiles") == true ? shell.profiles : nil, width: width)
+                                         profiles: shell.supports("profiles") == true ? shell.profiles : nil,
+                                         current: shell.currentProject, width: width)
                 } else {
                     SessionsDestination(shell: shell, island: island, width: width)
                 }
             case .workspaces:
                 // Memory reads `memory-facts`, My Skills and Assigned `skills-hub`, Discover `index-list` and Profiles `profiles`; until this Mac's runtime answers them only the projects show.
                 if route.tab == "skills" || route.tab == "assigned" {
-                    if let skills = shell.skills { SkillsDestination(screen: skills, island: island, tab: route.tab, width: width) }
+                    if let skills = shell.skills {
+                        SkillsDestination(screen: skills, island: island, tab: route.tab, current: shell.currentProject,
+                                          scope: shell.scope, width: width)
+                    }
                 } else if route.tab == "memory" {
                     if let memory = shell.memory { MemoryDestination(screen: memory, shell: shell, island: island, width: width) }
                 } else if route.tab == "discover" {
@@ -253,5 +260,58 @@ struct SettingsPageColumn<Content: View>: View {
             .environment(\.rimlessCards, true)
             // Any button a page leaves unstyled is the grey capsule, so no system button shows here.
             .buttonStyle(QuietButton())
+    }
+}
+
+/// The workspace switcher and, once Memnox Cloud hands anything down, the scope selector. Neither decides anything:
+/// the switcher narrows the window to one project, and the selector shows the organization's read only items.
+private struct TopBarPickers: View {
+    @ObservedObject var shell: AppShellModel
+
+    var body: some View {
+        HStack(spacing: Memnox.Spacing.small) {
+            if shell.supports("projects") == true, let projects = shell.projects?.projects.projects, !projects.isEmpty {
+                let current = shell.currentProject
+                Menu {
+                    Button(ShellLines.allProjects) { shell.projectId = "" }
+                    Divider()
+                    ForEach(projects) { project in
+                        Button(project.name) { shell.projectId = project.id }
+                    }
+                } label: {
+                    picker(symbol: "folder", text: current?.name ?? ShellLines.allProjects)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(ShellLines.switcherLabel)
+                .accessibilityLabel("\(ShellLines.switcherLabel): \(current?.name ?? ShellLines.allProjects)")
+            }
+            // Shown only once the runtime hands down an organization's items; nothing here asks for Cloud.
+            if shell.hasOrganization {
+                Picker(ShellLines.scopeLabel, selection: Binding(get: { shell.scope }, set: { shell.scopeChoice = $0.rawValue })) {
+                    ForEach(ShownScope.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityLabel(ShellLines.scopeLabel)
+            }
+        }
+    }
+
+    private func picker(symbol: String, text: String) -> some View {
+        HStack(spacing: Memnox.Spacing.small) {
+            Image(systemName: symbol).font(.system(size: Memnox.TextSize.caption, weight: .medium))
+            Text(text).lineLimit(1)
+            Image(systemName: "chevron.down").font(.system(size: Memnox.TextSize.micro, weight: .semibold))
+        }
+        .font(Memnox.sans(Memnox.TextSize.footnote))
+        .foregroundStyle(Memnox.Palette.foreground)
+        .padding(.horizontal, Memnox.Spacing.regular)
+        .frame(height: 30)
+        .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous)
+            .strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
     }
 }

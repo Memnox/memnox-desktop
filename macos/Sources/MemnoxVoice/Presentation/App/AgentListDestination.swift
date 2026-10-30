@@ -11,6 +11,8 @@ struct AgentListDestination: View {
     let home: HomeModel?
     /// Profiles to apply as an agent opens, nil where this Mac's runtime keeps none.
     var profiles: ProfilesScreen?
+    /// The project the top bar's switcher picked, which the launch form starts on.
+    var current: ProjectView?
     let width: WidthClass
     @State private var launching: String?
 
@@ -34,7 +36,8 @@ struct AgentListDestination: View {
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.cardWidth), spacing: Memnox.Spacing.large)],
                               spacing: Memnox.Spacing.large) {
-                        let folders = SeenWorkspaces.from(island.cards, now: Date())
+                        let seen = SeenWorkspaces.from(island.cards, now: Date()).map { FolderPick(path: $0.path, name: $0.name) }
+                        let folders = ShellLines.withCurrent(seen, current: current)
                         ForEach(StudioLines.sortedAgents(list)) { agent in
                             AgentCard(screen: screen, home: home, agent: agent, folders: folders,
                                       profiles: profiles?.profiles.profiles ?? [], launching: $launching)
@@ -54,7 +57,7 @@ private struct AgentCard: View {
     @ObservedObject var screen: AgentsScreen
     let home: HomeModel?
     let agent: AgentStanding
-    let folders: [SeenWorkspace]
+    let folders: [FolderPick]
     let profiles: [ProfileView]
     /// The one card whose Launch form is open, by agent kind.
     @Binding var launching: String?
@@ -169,7 +172,7 @@ private struct ProtectButton: View {
 /// The folder an agent opens in, chosen in Finder's own panel, typed whole or one of the workspaces its sessions ran in,
 /// and a profile to apply first.
 private struct LaunchForm: View {
-    let folders: [SeenWorkspace]
+    let folders: [FolderPick]
     let profiles: [ProfileView]
     let busy: Bool
     let cancel: () -> Void
@@ -198,7 +201,7 @@ private struct LaunchForm: View {
                 // The workspaces as quick picks, so the usual folder is one click away.
                 ScrollView(.horizontal) {
                     HStack(spacing: Memnox.Spacing.small) {
-                        ForEach(folders) { each in
+                        ForEach(folders, id: \.path) { each in
                             Button(each.name) { folder = each.path }
                                 .buttonStyle(KitButton(kind: folder == each.path ? .primary : .secondary))
                                 .help(each.path)

@@ -114,6 +114,9 @@ private struct McpServers<Note: View>: View {
             ShellScroll(width: width) {
                 note
                 toolbar
+                if shell.scope == .organization {
+                    QuietLine(shown.isEmpty ? ShellLines.noOrganizationItems : ShellLines.organizationReadOnly)
+                }
                 if view.servers.isEmpty {
                     VStack(spacing: Memnox.Spacing.large) {
                         EmptyState(symbol: "powerplug", title: "No servers in the hub yet",
@@ -143,9 +146,11 @@ private struct McpServers<Note: View>: View {
     }
 
     private var shown: [McpHubServerView] {
+        // The scope selector shows the person's servers or the organization's, never the two mixed.
+        let scoped = ShellLines.inScope(view.servers, shell.scope) { McpHubLines.fromOrganization($0) }
         let words = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !words.isEmpty else { return view.servers }
-        return view.servers.filter { "\($0.name) \($0.description ?? "")".lowercased().contains(words) }
+        guard !words.isEmpty else { return scoped }
+        return scoped.filter { "\($0.name) \($0.description ?? "")".lowercased().contains(words) }
     }
 
     private var toolbar: some View {
@@ -197,7 +202,7 @@ private struct McpServerCard: View {
                     }
                     Text(server.hubTransport == .http ? "Remote" : "Local")
                     Text(McpHubLines.tools(server.toolCount))
-                    if McpHubLines.fromOrganization(server) { StatusWord(.quiet, McpHubLines.organizationWord) }
+                    ScopeChip(ScopeLines.server(server))
                 }
                 .font(Memnox.sans(Memnox.TextSize.footnote))
                 .foregroundStyle(Memnox.Palette.muted)

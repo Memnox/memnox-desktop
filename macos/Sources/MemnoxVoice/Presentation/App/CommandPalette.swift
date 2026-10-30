@@ -109,6 +109,9 @@ struct CommandPalette: View {
                         .font(Memnox.sans(Memnox.TextSize.footnote))
                         .foregroundStyle(Memnox.Palette.muted)
                 }
+                if let key = each.key {
+                    Keycap(label: ShellLines.shortcutWords(key, mac: true))
+                }
                 Image(systemName: "return")
                     .font(.system(size: Memnox.TextSize.caption))
                     .foregroundStyle(Memnox.Palette.muted)
@@ -123,6 +126,7 @@ struct CommandPalette: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(each.under.isEmpty ? each.title : "\(each.title), in \(each.under)")
+        .accessibilityHint(each.key.map { "Command \($0)" } ?? "")
         .accessibilityAddTraits(chosen ? .isSelected : [])
     }
 

@@ -352,19 +352,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsWindow.shared.home = home
         // The Memnox window reads sessions and waiting calls off the island, and asks this Mac's daemon what it answers.
         AppWindow.shared.island = panel.islandModel
-        AppWindow.shared.support = DaemonSupport(link: link, ids: ids)
-        AppWindow.shared.hub = McpHub(link: link, ids: ids)
-        AppWindow.shared.studio = Studio(link: link, ids: ids)
-        AppWindow.shared.activity = Activity(link: link, ids: ids)
-        AppWindow.shared.agents = Agents(link: link, ids: ids)
-        AppWindow.shared.skills = SkillsHub(link: link, ids: ids)
-        AppWindow.shared.projects = Projects(link: link, ids: ids)
-        AppWindow.shared.backup = Backup(link: link, ids: ids)
-        AppWindow.shared.memory = Memory(link: link, ids: ids)
-        AppWindow.shared.network = LocalNetwork(link: link, ids: ids)
-        AppWindow.shared.sync = PersonalSync(link: link, ids: ids)
-        AppWindow.shared.index = CommunityIndex(link: link, ids: ids)
-        AppWindow.shared.profiles = Profiles(link: link, ids: ids)
+        // Every press in the window goes over a link that notes the proposals it raised, so the island confirms them as asked.
+        let pressing = PressingLink(link: link, presses: conversation.presses)
+        AppWindow.shared.support = DaemonSupport(link: pressing, ids: ids)
+        AppWindow.shared.hub = McpHub(link: pressing, ids: ids)
+        AppWindow.shared.studio = Studio(link: pressing, ids: ids)
+        AppWindow.shared.activity = Activity(link: pressing, ids: ids)
+        AppWindow.shared.agents = Agents(link: pressing, ids: ids)
+        AppWindow.shared.skills = SkillsHub(link: pressing, ids: ids)
+        AppWindow.shared.projects = Projects(link: pressing, ids: ids)
+        AppWindow.shared.backup = Backup(link: pressing, ids: ids)
+        AppWindow.shared.memory = Memory(link: pressing, ids: ids)
+        AppWindow.shared.network = LocalNetwork(link: pressing, ids: ids)
+        AppWindow.shared.sync = PersonalSync(link: pressing, ids: ids)
+        AppWindow.shared.index = CommunityIndex(link: pressing, ids: ids)
+        AppWindow.shared.profiles = Profiles(link: pressing, ids: ids)
         let chosen = UserDefaults.standard.string(forKey: Self.voiceChoiceKey) ?? VoiceChoice.kokoro
         Task {
             await chooseVoice(chosen, announce: false)

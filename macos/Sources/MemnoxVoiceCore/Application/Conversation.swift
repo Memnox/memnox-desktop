@@ -69,10 +69,8 @@ public final class Conversation {
     }
     /// When the person last said something, since an allow may only follow their own words.
     private var lastHeard: Date?
-    /// Rule proposals the person asked for by pressing hand over, so they reach the card rather than a decline.
-    private var handedOver = Set<String>()
-    /// The hand over still waiting on the daemon, whose proposal event may arrive before its answer does.
-    private var handingOver: Task<DaemonResponse?, Never>?
+    /// Proposals the person asked for by a press in this app's own window, so they reach the card or the key rather than a decline.
+    public let presses: Presses
     /// A phone's turn put together from its notices, so each one shows the whole of it so far.
     private var phoneConversation = PhoneConversation()
     /// The phone holding this Mac's voice, set the moment the daemon says the voice moved, so nothing an event raises is said here meanwhile.
@@ -199,6 +197,7 @@ public final class Conversation {
         self.quietLimit = quietLimit
         self.reconnectWait = reconnectWait
         self.now = now
+        self.presses = Presses(now: now)
         self.address = address
         self.name = name
         self.lookingAt = lookingAt
@@ -251,25 +250,11 @@ public final class Conversation {
     public func handOver(_ action: String) async -> HandOver {
         var request = newRequest(.handOver)
         request.action = action
-        let link = self.link
-        let asking = Task { try? await link.request(request) }
-        handingOver = asking
-        let response = await asking.value
-        if handingOver == asking { handingOver = nil }
-        guard let response else { return .unreachable }
-        if response.ok, let proposed = response.proposed {
-            handedOver.insert(proposed)
-            return .proposed(proposed)
-        }
+        // Through the window's own link, so the proposal it makes is pressed for even when its event comes first.
+        guard let response = try? await PressingLink(link: link, presses: presses).request(request) else { return .unreachable }
+        if response.ok, let proposed = response.proposed { return .proposed(proposed) }
         // A runtime from before the home answers a method it does not know with a bare ok and nothing else.
         return .refused(response.reason ?? response.error ?? "This Memnox is older than the app")
-    }
-
-    /// Whether a proposal is the one a hand over asked for, waiting on one still in flight since its event can come first.
-    private func fromHandOver(_ subject: String) async -> Bool {
-        if handedOver.remove(subject) != nil { return true }
-        guard let pending = handingOver, let response = await pending.value else { return false }
-        return response.ok && response.proposed == subject
     }
 
     /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
@@ -696,9 +681,9 @@ public final class Conversation {
                 return
             }
             // Only after the person spoke: an allow nobody asked for is left alone, not put to Touch ID.
-            // Or pressed for: hand over names exactly this proposal, so nothing else rides on the press.
+            // Or pressed for: the answer to a press in this app's window names exactly this proposal, so nothing else rides on it.
             let spoke = lastHeard.map { now().timeIntervalSince($0) < Self.answerWindow } ?? false
-            let pressed = await fromHandOver(event.subject)
+            let pressed = spoke ? false : await presses.take(event.subject)
             let asked = spoke || pressed
             if let team = event.teamAnswer, asked {
                 // The read back names the call, so the sheet waits until it has been said, as any proposal's does.
@@ -722,6 +707,9 @@ public final class Conversation {
                 // The read back says what the sensor is for, so the sheet waits until it has been said.
                 await untilQuiet()
                 await confirm(event)
+            } else if takenUp.contains(event.subject) {
+                // A second copy of one already on the sensor, so declining it would undo the yes being given.
+                diary.note("\(event.subject) arrived again while being confirmed")
             } else {
                 await decline(event)
             }

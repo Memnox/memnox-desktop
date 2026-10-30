@@ -13,6 +13,7 @@ import { useObserved, type SettingsParts } from '../../settings/parts';
 import { GoLink } from './HomePage';
 import { DiscoverPage } from './DiscoverPage';
 import { MemoryPage } from './MemoryPage';
+import { ProfilesPage } from './ProfilesPage';
 import { OrganizationBadge, ProjectInspector, projectNote } from './ProjectInspector';
 import { SkillsPage } from './SkillsPage';
 import { CardGrid, EmptyState, Inspector, ReadFailed, Section, StatTile, StatusWord } from '../widgets';
@@ -27,6 +28,7 @@ export function WorkspacesPage({ parts, tab, width, go }: { parts: SettingsParts
   if (tab === 'skills' || tab === 'assigned') return <SkillsPage parts={parts} tab={tab} width={width} />;
   if (tab === 'memory') return <MemoryPage parts={parts} width={width} />;
   if (tab === 'discover') return <DiscoverPage parts={parts} width={width} />;
+  if (tab === 'profiles') return <ProfilesPage parts={parts} />;
   if (support.supports('projects') === true) return <ProjectsTab parts={parts} width={width} />;
   return <SeenTab parts={parts} width={width} go={go} />;
 }

@@ -181,7 +181,7 @@ export function NewSkillDialog({ parts, close, said }: { parts: SettingsParts; c
   );
 }
 
-function Labelled({ label, children }: { label: string; children: ReactNode }) {
+export function Labelled({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-footnote font-medium text-muted">{label}</span>

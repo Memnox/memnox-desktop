@@ -44,6 +44,11 @@ final class AppWindow {
         didSet { shell.skills = skills.map(SkillsScreen.init) }
     }
 
+    /// The projects as this Mac's runtime keeps them, read by the Workspaces tab once the runtime answers `projects`.
+    var projects: Projects? {
+        didSet { shell.projects = projects.map(ProjectsScreen.init) }
+    }
+
     let shell = AppShellModel()
     private var window: NSWindow?
 
@@ -122,6 +127,8 @@ final class AppShellModel: ObservableObject {
     @Published var agents: AgentsScreen?
     /// The Skills Hub for My Skills and Assigned, nil until the app wires it, which keeps those tabs empty rather than broken.
     @Published var skills: SkillsScreen?
+    /// The projects for the Workspaces tab, nil until the app wires it, which keeps the repositories the sessions met.
+    @Published var projects: ProjectsScreen?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.
     @Published private(set) var answers = 0
     private var support: DaemonSupport?

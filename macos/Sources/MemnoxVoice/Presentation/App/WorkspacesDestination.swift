@@ -1,9 +1,24 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// Projects as the agents met them: every repository a session ran in, with who worked there. A workspace that also
-/// carries its own skills, servers and rules joins this once the runtime keeps them per project.
+/// Projects as the runtime keeps them, with what each gives the agents opened in it. A runtime too old to answer
+/// `projects` still shows every repository a session ran in, with who worked there.
 struct WorkspacesDestination: View {
+    @ObservedObject var shell: AppShellModel
+    @ObservedObject var island: IslandModel
+    let width: WidthClass
+
+    var body: some View {
+        if shell.supports("projects") == true, let projects = shell.projects {
+            ProjectsDestination(screen: projects, shell: shell, island: island, width: width)
+        } else {
+            SeenWorkspacesPage(shell: shell, island: island, width: width)
+        }
+    }
+}
+
+/// Repositories as the sessions met them, for a runtime that does not answer `projects`.
+private struct SeenWorkspacesPage: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var island: IslandModel
     let width: WidthClass

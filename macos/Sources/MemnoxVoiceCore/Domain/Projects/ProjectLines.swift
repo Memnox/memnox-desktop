@@ -162,6 +162,24 @@ public enum ProjectLines {
             memory: project.memoryScope.isEmpty ? nil : project.memoryScope)
     }
 
+    /// The badge on a project the organization shares, which is read only here.
+    public static let fromOrganization = "From your organization"
+
+    /// "Release rules, 4 rules", or that the organization gives this project no rule pack.
+    public static func organizationRulesLine(_ organization: ProjectOrganizationView) -> String {
+        guard let pack = organization.rulePack else { return "No rule pack from the organization." }
+        return "\(pack), \(counted(organization.rules, "rule", "rules"))"
+    }
+
+    /// Where what its agents learn is kept, as the organization set it.
+    public static func organizationMemoryLine(_ memory: String) -> String {
+        switch memory {
+        case "none": "Its agents keep no memory from this project."
+        case "project": "What its agents learn is kept under the organization’s project rather than this folder."
+        default: "Memory is kept as \(memory)."
+        }
+    }
+
     /// Folders the sessions ran in that are not projects yet, offered as quick picks to open.
     public static func foldersToOpen(_ seen: [FolderPick], projects: [ProjectView]) -> [FolderPick] {
         let known = Set(projects.map { normalised($0.path) })

@@ -113,4 +113,16 @@ final class ProjectLinesTests: XCTestCase {
         XCTAssertEqual(ProjectLines.note(.failed("No project prj_9.")), "No project prj_9.")
         XCTAssertEqual(ProjectLines.everywhereLine(1), "1 rule of this computer holds here too.")
     }
+
+    func testSaysWhatAnOrganizationHandsASharedProject() {
+        let organization = ProjectOrganizationView(id: "op_1", name: "API", repository: "github.com/acme/api", rulePack: "Release rules",
+                                                   rules: 4, memory: "project", editedIn: "API is changed in Memnox Cloud.")
+        XCTAssertEqual(ProjectLines.organizationRulesLine(organization), "Release rules, 4 rules")
+        let bare = ProjectOrganizationView(id: "op_2", name: "Web", repository: "github.com/acme/web", memory: "none", editedIn: "")
+        XCTAssertEqual(ProjectLines.organizationRulesLine(bare), "No rule pack from the organization.")
+        XCTAssertEqual(ProjectLines.organizationMemoryLine("none"), "Its agents keep no memory from this project.")
+        XCTAssertEqual(ProjectLines.organizationMemoryLine("project"),
+                       "What its agents learn is kept under the organization’s project rather than this folder.")
+        XCTAssertEqual(ProjectLines.fromOrganization, "From your organization")
+    }
 }

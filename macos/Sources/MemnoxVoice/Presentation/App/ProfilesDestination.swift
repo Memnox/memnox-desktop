@@ -49,7 +49,7 @@ struct ProfilesDestination: View {
                 await shell.projects?.projects.refresh()
             }
             .sheet(isPresented: $creating) {
-                NewProfileSheet(shell: shell, screen: screen) { creating = false }
+                ProfileSheet(shell: shell, screen: screen) { creating = false }
             }
     }
 
@@ -90,6 +90,7 @@ private struct ProfileCard: View {
     let profile: ProfileView
     @State private var applying = false
     @State private var removing = false
+    @State private var editing = false
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
@@ -119,6 +120,7 @@ private struct ProfileCard: View {
                 if !applying {
                     Button("Apply", systemImage: "play") { applying = true }.buttonStyle(KitButton(kind: .secondary))
                 }
+                Button("Edit", systemImage: "pencil") { editing = true }.buttonStyle(KitButton(kind: .secondary))
                 if removing {
                     Button("Remove \(profile.name)", systemImage: "trash") {
                         let id = profile.id
@@ -150,6 +152,9 @@ private struct ProfileCard: View {
         .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(profile.name)
+        .sheet(isPresented: $editing) {
+            ProfileSheet(shell: shell, screen: screen, editing: profile) { editing = false }
+        }
     }
 
     private func muted(_ text: String) -> some View {
@@ -224,20 +229,28 @@ private struct ApplyForm: View {
     }
 }
 
-/// A profile chosen from what the Skills Hub, the MCP Hub and the rule packs hold now; keeping it grants nothing.
-private struct NewProfileSheet: View {
+/// A profile chosen from what the Skills Hub, the MCP Hub and the rule packs hold now, new or as kept when `editing`;
+/// saving grants nothing. An edit keeps the name, since the runtime finds a profile by it and a new name is a new profile.
+private struct ProfileSheet: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var screen: ProfilesScreen
+    var editing: ProfileView?
     let close: () -> Void
     @State private var form = ProfileForm()
     @State private var problem: String?
+    @State private var opened = false
 
     var body: some View {
         let packs = shell.studio?.studio.packs ?? []
-        let skills = shell.skills?.skills.hub?.skills.map(\.name) ?? []
-        let servers = shell.hub?.hub.hub?.servers.map(\.name) ?? []
-        SkillSheetFrame(title: "New profile") {
-            labelled("Name") { TextField("Backend Engineering", text: $form.name).kitField() }
+        let skills = ProfileLines.choiceNames(shell.skills?.skills.hub?.skills.map(\.name) ?? [], kept: Set(editing?.skills ?? []))
+        let servers = ProfileLines.choiceNames(shell.hub?.hub.hub?.servers.map(\.name) ?? [], kept: Set(editing?.mcpServers ?? []))
+        SkillSheetFrame(title: editing.map { "Edit \($0.name)" } ?? "New profile") {
+            if let editing {
+                labelled("Name") { Text(editing.name).font(Memnox.sans(Memnox.TextSize.body)).foregroundStyle(Memnox.Palette.foreground) }
+                QuietLine("The name stays, since a new name would keep a second profile beside this one.")
+            } else {
+                labelled("Name") { TextField("Backend Engineering", text: $form.name).kitField() }
+            }
             labelled("What it is for, optional") {
                 TextField("Reviews, release notes and the local database", text: $form.description).kitField()
             }
@@ -252,6 +265,9 @@ private struct NewProfileSheet: View {
                 }
                 .labelsHidden()
             }
+            if let editing, let change = ProfileLines.packChange(kept: editing.rulePack, form: form, packs: packs) {
+                QuietLine(change)
+            }
             if let problem {
                 Text(problem)
                     .font(Memnox.sans(Memnox.TextSize.footnote))
@@ -261,10 +277,16 @@ private struct NewProfileSheet: View {
         } footer: {
             Button("Cancel", action: close).buttonStyle(KitButton(kind: .secondary)).keyboardShortcut(.cancelAction)
             Spacer(minLength: Memnox.Spacing.medium)
-            Button("Keep profile") { save(packs) }
+            Button(editing == nil ? "Keep profile" : "Save changes") { save(packs) }
                 .buttonStyle(KitButton(kind: .primary))
                 .keyboardShortcut(.defaultAction)
                 .disabled(screen.profiles.busy != nil)
+        }
+        .onAppear {
+            // Opened once with the profile as kept, so a redraw never undoes what the person changed.
+            guard !opened, let editing else { return }
+            opened = true
+            form = ProfileLines.form(of: editing, packs: packs)
         }
     }
 
@@ -274,7 +296,7 @@ private struct NewProfileSheet: View {
             problem = missing.why
         case .success(let draft):
             Task {
-                let outcome = await screen.profiles.put(draft)
+                let outcome = await screen.profiles.put(draft, editing: editing != nil)
                 if case .failed(let why) = outcome {
                     problem = why
                     return

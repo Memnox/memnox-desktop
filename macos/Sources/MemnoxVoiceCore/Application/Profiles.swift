@@ -43,10 +43,11 @@ public final class Profiles: @unchecked Sendable {
         changed?()
     }
 
-    public func put(_ draft: ProfileDraft) async -> ProfileOutcome {
+    /// Keeps a new profile, or replaces the one of the same name when `editing`; either way it grants nothing.
+    public func put(_ draft: ProfileDraft, editing: Bool = false) async -> ProfileOutcome {
         var request = DaemonRequest(id: ids.next(), method: .profilePut)
         request.profileDraft = draft
-        return await change(draft.name, request) { _ in "\(draft.name) is kept. It gives nothing until you apply it." }
+        return await change(draft.name, request) { _ in ProfileLines.saved(draft.name, editing: editing) }
     }
 
     public func remove(_ name: String) async -> ProfileOutcome {

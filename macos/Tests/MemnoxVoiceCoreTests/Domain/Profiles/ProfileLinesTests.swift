@@ -21,6 +21,31 @@ final class ProfileLinesTests: XCTestCase {
         XCTAssertEqual(ProfileLines.applied(ProfileApplied(profile: "p", agent: "a"), keyTitle: "Touch ID"), "The profile holds nothing to give.")
     }
 
+    func testOpensAnEditWithTheProfileAsKeptAndItsPackMatchedByName() {
+        let backend = ProfileView(id: "backend", name: "Backend", skills: ["a"], mcpServers: ["postgres"],
+                                  rulePack: ProfilePackSummary(name: "Careful", rules: 6), updatedAt: "")
+        XCTAssertEqual(ProfileLines.form(of: backend, packs: packs), ProfileForm(name: "Backend", skills: ["a"], servers: ["postgres"], pack: "careful"))
+        XCTAssertEqual(ProfileLines.form(of: backend, packs: []).pack, "")
+    }
+
+    func testKeepsANameTheHubNoLongerHoldsTickableAfterWhatItHolds() {
+        XCTAssertEqual(ProfileLines.choiceNames(["a", "b"], kept: ["b", "z", "gone"]), ["a", "b", "gone", "z"])
+    }
+
+    func testSaysWhatSavingDoesToThePackTheProfileKeeps() {
+        let kept = ProfilePackSummary(name: "Careful", rules: 6)
+        XCTAssertNil(ProfileLines.packChange(kept: nil, form: ProfileForm(), packs: packs))
+        XCTAssertNil(ProfileLines.packChange(kept: kept, form: ProfileForm(pack: "careful"), packs: packs))
+        XCTAssertEqual(ProfileLines.packChange(kept: kept, form: ProfileForm(), packs: packs), "Saving takes Careful out of the profile.")
+        XCTAssertEqual(ProfileLines.packChange(kept: kept, form: ProfileForm(), packs: []),
+                       "Careful is no longer offered here, so saving takes it out of the profile. Choose a pack to keep one.")
+        let open = RulePackView(id: "open", name: "Open", description: "d", ruleCount: 2, toml: "")
+        XCTAssertEqual(ProfileLines.packChange(kept: kept, form: ProfileForm(pack: "open"), packs: packs + [open]), "Saving replaces Careful with Open.")
+        let grown = [RulePackView(id: "careful", name: "Careful", description: "d", ruleCount: 7, toml: "")]
+        XCTAssertEqual(ProfileLines.packChange(kept: kept, form: ProfileForm(pack: "careful"), packs: grown),
+                       "Saving takes Careful as it is offered now, 7 rules where the profile keeps 6.")
+    }
+
     func testSaysWhereSkillsGoBeforeApply() {
         XCTAssertEqual(ProfileLines.applyWhere(" "), "Skills go into the agent’s home folder.")
         XCTAssertEqual(ProfileLines.applyWhere("/code/api"), "Skills go into /code/api.")

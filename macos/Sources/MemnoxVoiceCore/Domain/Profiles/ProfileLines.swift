@@ -62,6 +62,40 @@ public enum ProfileLines {
         ))
     }
 
+    /// The form Edit opens with: the profile as kept, its pack matched by name among the packs offered now.
+    public static func form(of profile: ProfileView, packs: [RulePackView]) -> ProfileForm {
+        let pack = profile.rulePack.flatMap { kept in packs.first { $0.name == kept.name } }
+        return ProfileForm(name: profile.name, description: profile.description ?? "", skills: Set(profile.skills),
+                           servers: Set(profile.mcpServers), pack: pack?.id ?? "")
+    }
+
+    /// The names to tick: what the hub holds now, then any the profile keeps that the hub no longer does, so each can be unticked.
+    public static func choiceNames(_ hub: [String], kept: Set<String>) -> [String] {
+        hub + kept.filter { !hub.contains($0) }.sorted()
+    }
+
+    /// What saving an edit does to the pack the profile keeps. The runtime hands back only the pack's name, so a pack
+    /// is sent again from the packs offered now, and one no longer offered cannot be kept.
+    public static func packChange(kept: ProfilePackSummary?, form: ProfileForm, packs: [RulePackView]) -> String? {
+        guard let kept else { return nil }
+        let offered = packs.contains { $0.name == kept.name }
+        guard let chosen = packs.first(where: { $0.id == form.pack }) else {
+            return offered ? "Saving takes \(kept.name) out of the profile."
+                : "\(kept.name) is no longer offered here, so saving takes it out of the profile. Choose a pack to keep one."
+        }
+        if chosen.name != kept.name { return "Saving replaces \(kept.name) with \(chosen.name)." }
+        if chosen.ruleCount != kept.rules {
+            return "Saving takes \(kept.name) as it is offered now, \(ProjectLines.counted(chosen.ruleCount, "rule", "rules")) where the profile keeps \(kept.rules)."
+        }
+        return nil
+    }
+
+    /// What a save came to: nothing is given by keeping a profile, and an edit gives nothing new until it is applied again.
+    public static func saved(_ name: String, editing: Bool) -> String {
+        editing ? "\(name) is saved. What it already gave stays, and the change gives nothing until you apply it again."
+            : "\(name) is kept. It gives nothing until you apply it."
+    }
+
     /// Where a profile is applied, said before Apply: a repository, or the agent's home folder.
     public static func applyWhere(_ project: String) -> String {
         let trimmed = project.trimmingCharacters(in: .whitespacesAndNewlines)

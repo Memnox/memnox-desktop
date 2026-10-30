@@ -28,6 +28,14 @@ final class ProfilesTests: XCTestCase {
         XCTAssertEqual(profiles.profiles, [])
     }
 
+    func testSavesAnEditUnderTheSameNameAndSaysItGrantsNothing() async throws {
+        let link = ScriptedLink()
+        link.answers["profile-put"] = [try line(#"{"id":1,"ok":true,"profiles":"# + Self.backend + "}")]
+        let saved = await Profiles(link: link).put(ProfileDraft(name: "Backend Engineering", skills: ["release-notes"]), editing: true)
+        XCTAssertEqual(saved, .done("Backend Engineering is saved. What it already gave stays, and the change gives nothing until you apply it again."))
+        XCTAssertEqual(link.sent.first?.profileDraft, ProfileDraft(name: "Backend Engineering", skills: ["release-notes"]))
+    }
+
     func testLeavesTheProjectOutForTheHomeFolderAndSaysARefusal() async throws {
         let link = ScriptedLink()
         link.answers["profile-apply"] = [try line(#"{"id":1,"ok":false,"error":"No profile is called nope."}"#)]

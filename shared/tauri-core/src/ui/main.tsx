@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { HeldCalls, ProposalCards, RequestIds, Setup, Signer, Talking, VoiceSettings, Wakefulness, type Timer } from '../core';
 import { TauriConfirmKey } from './adapters/tauri-confirm-key';
 import { TauriDaemonLink } from './adapters/tauri-daemon-link';
+import { hearPresses } from './adapters/tauri-presses';
+import { Presses } from '../core/application/presses';
 import { islandRelay } from './relay-wiring';
 import { TauriPower } from './adapters/tauri-power';
 import { TauriRuntime } from './adapters/tauri-runtime';
@@ -78,6 +80,9 @@ const dictationWords = new DictationWords(localPreferences);
 const chimes = new TauriChimes();
 const typist = new TauriTypist();
 const cards = new ProposalCards(relay.target, signer, speaker, ids);
+// What a press in the Memnox window raised, heard over a channel only that window can write to.
+const presses = new Presses((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+hearPresses((press) => presses.heard(press));
 const talking = new Talking(relay.target, speaker, signer, ids, {
   ...relay.talkingOptions,
   timer,
@@ -85,6 +90,7 @@ const talking = new Talking(relay.target, speaker, signer, ids, {
   chimes: { play: (cue) => voicePreferences.choices.chimes && chimes.play(cue) },
   lookingAt: () => typist.focus(),
   owner: () => firstName(personal.name),
+  presses,
 });
 caption = (text) => talking.captioned(text);
 relay.start({ calls: heldCalls, talking });

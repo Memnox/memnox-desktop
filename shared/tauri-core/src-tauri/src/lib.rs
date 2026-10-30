@@ -14,6 +14,7 @@ mod local_file;
 mod panels;
 mod permissions;
 mod presence;
+mod presses;
 mod relay;
 mod runtime;
 mod sessions;
@@ -41,6 +42,7 @@ pub fn run() {
         .manage(awake::Awake::default())
         .manage(relay::Relays::default())
         .manage(glass::Glassed::default())
+        .manage(presses::PressRoute::default())
         .manage(Arc::new(island::HitAreas::default()))
         .setup(|app| {
             let window = app
@@ -167,6 +169,8 @@ pub fn run() {
             settings_windows::restart_memnox,
             settings_windows::open_page,
             local_file::open_file,
+            presses::presses_listen,
+            presses::window_press,
             permissions::permission_facts,
             permissions::open_privacy,
         ])

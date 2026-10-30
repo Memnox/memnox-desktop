@@ -37,6 +37,7 @@ import type { Chimes } from './ports/chimes';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { Speaker } from './ports/speaker';
 import type { RequestIds } from './request-ids';
+import type { Presses } from './presses';
 import type { ProposalCards } from './proposal-cards';
 import type { Signer } from './signer';
 
@@ -81,6 +82,8 @@ export interface TalkingOptions {
   readonly signsEveryYes?: (subject: string) => boolean;
   /** A teammate's call answered by voice, so the island takes its card down as a button would. */
   readonly teamAnswered?: (subject: string, outcome: HeldOutcome) => void;
+  /** Proposals a press in the Memnox window raised, asked for as surely as words; without it only words ask. */
+  readonly presses?: Presses;
 }
 
 /** What the voice needs of the workspace's calls, the Mac's `WorkspaceAnswering` as the conversation sees it. */
@@ -389,7 +392,11 @@ export class Talking {
    */
   private async proposal(event: DaemonEvent): Promise<void> {
     if (quietHere(event, this.phoneHolds)) return;
-    const asked = this.lastHeard !== undefined && this.now() - this.lastHeard < ANSWER_WINDOW_MS;
+    const spoke = this.lastHeard !== undefined && this.now() - this.lastHeard < ANSWER_WINDOW_MS;
+    // Or pressed for: the answer to a press in the Memnox window names exactly this proposal, so nothing else rides on it.
+    const asked = spoke || (await this.options.presses?.take(event.subject)) === true;
+    // A second copy of one already at the key is left alone, since declining it would undo the yes being given.
+    if (!asked && this.takenUp.has(event.subject)) return;
     if (!asked) return this.decline(event);
     if (event.teamAnswer !== undefined) {
       // The read back names the call, so the prompt waits until it has been said, as any proposal's does.

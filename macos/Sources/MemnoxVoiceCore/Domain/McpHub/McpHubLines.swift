@@ -170,6 +170,44 @@ public enum McpHubLines {
         "Given to \(agentLabel(agent)) in \(path) only"
     }
 
+    /// How far one agent has a server: in every project, only in the repositories named, or not at all.
+    public enum Reach: Equatable, Sendable {
+        case everywhere
+        case projects
+        case none
+    }
+
+    /// The runtime lists an agent in `agents` once per assignment, a repository's included, so an agent counted
+    /// there more often than in `projects` also has it everywhere.
+    public static func reach(_ server: McpHubServerView, agent: String) -> Reach {
+        let given = server.agents.filter { $0 == agent }.count
+        let inProjects = server.projects(of: agent).count
+        if given > inProjects { return .everywhere }
+        return inProjects > 0 ? .projects : .none
+    }
+
+    /// What an agent's row says under its name, for each reach, so a project only assignment never reads as everywhere.
+    public static func reachCaption(_ server: McpHubServerView, agent: String) -> String? {
+        switch reach(server, agent: agent) {
+        case .everywhere: return "Has this server in every project"
+        case .none: return nil
+        case .projects:
+            let chips = projects(server, agent: agent)
+            if chips.count == 1, let only = chips.first { return "Has this server only in \(only.name)" }
+            return "Has this server only in \(chips.count) projects"
+        }
+    }
+
+    /// Why a project only assignment has no switch here: taking it away here would remove nothing.
+    public static let projectOnlyLine = "A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Workspaces rather than here."
+    public static let workspacesLink = "Open Workspaces"
+
+    /// The help on a project only cell: who has it, where, and where it is changed.
+    public static func projectOnlyHelp(_ server: McpHubServerView, agent: String) -> String {
+        let paths = server.projects(of: agent).joined(separator: ", ")
+        return "\(agentLabel(agent)) has this server only in \(paths), given in that project's settings in Workspaces."
+    }
+
     /// Each agent a server is shown on once, in the hub's order, since one given in two repositories is listed twice.
     public static func agentsOnce(_ server: McpHubServerView) -> [String] {
         var seen = Set<String>()

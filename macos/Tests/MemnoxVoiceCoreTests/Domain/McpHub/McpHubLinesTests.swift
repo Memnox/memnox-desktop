@@ -67,4 +67,23 @@ final class McpHubLinesTests: XCTestCase {
         XCTAssertEqual(McpHubLines.projects(try server(""), agent: "claude-code"), [])
         XCTAssertEqual(McpHubLines.projectFolder("/Users/bo/code/web/"), "web")
     }
+
+    func testTellsAnEverywhereAssignmentFromAProjectOnlyOneAndFromNone() throws {
+        // Claude Code is listed twice: once everywhere and once in billing. Cursor only in web.
+        let given = try server(#","projects":[{"agent":"claude-code","project":"/Users/bo/code/billing"},{"agent":"cursor","project":"/Users/bo/code/web"}]"#)
+        XCTAssertEqual(McpHubLines.reach(given, agent: "claude-code"), .everywhere)
+        XCTAssertEqual(McpHubLines.reach(given, agent: "cursor"), .projects)
+        XCTAssertEqual(McpHubLines.reach(given, agent: "codex-cli"), .none)
+        XCTAssertEqual(McpHubLines.reach(try server(""), agent: "cursor"), .everywhere)
+        XCTAssertEqual(McpHubLines.reachCaption(given, agent: "claude-code"), "Has this server in every project")
+        XCTAssertEqual(McpHubLines.reachCaption(given, agent: "cursor"), "Has this server only in web")
+        XCTAssertNil(McpHubLines.reachCaption(given, agent: "codex-cli"))
+        XCTAssertEqual(McpHubLines.projectOnlyHelp(given, agent: "cursor"),
+                       "Cursor has this server only in /Users/bo/code/web, given in that project's settings in Workspaces.")
+    }
+
+    func testCountsTheProjectsOfAnAgentGivenAServerInMoreThanOne() throws {
+        let given = try server(#","projects":[{"agent":"cursor","project":"/a/web"},{"agent":"cursor","project":"/a/api"}]"#)
+        XCTAssertEqual(McpHubLines.reachCaption(given, agent: "cursor"), "Has this server only in 2 projects")
+    }
 }

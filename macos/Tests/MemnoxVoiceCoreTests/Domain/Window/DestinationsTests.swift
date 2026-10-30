@@ -14,6 +14,15 @@ final class DestinationsTests: XCTestCase {
         XCTAssertEqual(Destinations.visibleTabs(.governance, supports: { _ in nil }).map(\.id), ["approvals"])
     }
 
+    func testListsEveryAgentFirstOnceTheDaemonAnswersAgents() {
+        XCTAssertEqual(Destinations.visibleTabs(.agents, supports: everything).map(\.id), ["list", "sessions", "computer"])
+        XCTAssertEqual(Destinations.settled(WindowRoute(.agents), supports: everything), WindowRoute(.agents, tab: "list"))
+        // A runtime older than the agents view opens Agents on its sessions, as before.
+        XCTAssertEqual(Destinations.settled(WindowRoute(.agents), supports: nothingNew), WindowRoute(.agents, tab: "sessions"))
+        XCTAssertEqual(Destinations.visibleTabs(.governance, supports: { $0 == "rules" || $0 == "activity" }).map(\.id),
+                       ["approvals", "policies", "activity"])
+    }
+
     func testLandsOnTheFirstTabShownWhenTheOneAskedForIsHidden() {
         XCTAssertEqual(Destinations.settled(WindowRoute(.mcp, tab: "servers"), supports: nothingNew), WindowRoute(.mcp, tab: "apps"))
         XCTAssertEqual(Destinations.settled(WindowRoute(.home), supports: everything), WindowRoute(.home))

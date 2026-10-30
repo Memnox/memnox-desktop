@@ -83,6 +83,7 @@ public enum Destinations {
                         key: "1", tabs: []),
         DestinationInfo(id: .agents, title: "Agents", subtitle: "The agents on this Mac, their sessions, and what each can reach.",
                         key: "2", tabs: [
+                            TabInfo(id: "list", title: "Agents", needs: "agents"),
                             TabInfo(id: "sessions", title: "Sessions"),
                             TabInfo(id: "computer", title: "On this computer"),
                         ]),

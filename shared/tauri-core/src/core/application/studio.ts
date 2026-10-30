@@ -10,8 +10,10 @@ import {
   type DecisionView,
   type PolicyRulesView,
   type ProgressView,
+  type RulePackView,
   type RuleVerdictView,
 } from '@memnox/core/wire';
+import { launchedLine } from '../domain/launch-lines';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
@@ -48,6 +50,7 @@ function outcomeOf(response: DaemonResponse | undefined, done: string): StudioOu
 export class Studio extends Observed {
   private rulesView: PolicyRulesView | undefined;
   private progressView: ProgressView | undefined;
+  private packList: RulePackView[] | undefined;
   private failedRead = false;
   private working: string | undefined;
 
@@ -66,12 +69,23 @@ export class Studio extends Observed {
     return this.progressView;
   }
 
+  /** The packs Memnox ships, once read. */
+  get packs(): readonly RulePackView[] | undefined {
+    return this.packList;
+  }
+
   get unreadable(): boolean {
     return this.failedRead;
   }
 
   get busy(): string | undefined {
     return this.working;
+  }
+
+  async readPacks(): Promise<void> {
+    const response = await ask(this.link, this.ids, { method: POLICY_METHOD.RULE_PACKS });
+    this.packList = response?.rulePacks ?? (response?.ok === true ? [] : undefined);
+    this.changed();
   }
 
   async refresh(): Promise<void> {
@@ -264,6 +278,18 @@ export class Agents extends Observed {
 
   stopSession(sessionId: string): Promise<StudioOutcome> {
     return this.change(sessionId, { method: AGENTS_METHOD.SESSION_STOP, sessionId }, 'Stopped. The session waits until you let it carry on.');
+  }
+
+  /** Opens the agent in a new terminal in the folder; the runtime types its launch line, and nothing is widened. */
+  async launch(kind: string, folder: string): Promise<StudioOutcome> {
+    this.working = `launch/${kind}`;
+    this.changed();
+    const response = await ask(this.link, this.ids, { method: AGENTS_METHOD.AGENT_LAUNCH, agentKind: kind, workingDirectory: folder.trim() });
+    this.working = undefined;
+    this.changed();
+    const launched = response?.agentLaunched;
+    const name = this.view?.find((agent) => agent.kind === kind)?.name ?? kind;
+    return outcomeOf(response, launched === undefined ? `Opened ${name}.` : launchedLine(launched, name));
   }
 
   private async change(subject: string, fields: Omit<DaemonRequest, 'id'>, done: string): Promise<StudioOutcome> {

@@ -87,3 +87,27 @@ describe('a rule being built', () => {
     expect(switchOn([{ effect: 'allow', match: { actions: ['git.push'] } }], 'git.push')).toBe(false);
   });
 });
+
+describe('packs and launching', () => {
+  it('reads the packs Memnox ships and imports one as a proposal per rule', async () => {
+    const pack = { id: 'careful', name: 'Careful', description: 'Asks before anything outward', ruleCount: 2, toml: '[[policies]]' };
+    const daemon = new ScriptedDaemon({
+      'rule-packs': (request) => [{ id: request.id, ok: true, rulePacks: [pack] }],
+      'rule-pack-import': (request) => [{ id: request.id, ok: true, packProposed: ['prp_1', 'prp_2'] }],
+    });
+    const studio = new Studio(daemon, new RequestIds());
+    await studio.readPacks();
+    expect(studio.packs).toEqual([pack]);
+    expect(await studio.importPack(pack.toml)).toEqual({ kind: 'done', note: '2 rules wait for your signature on the island.' });
+    expect(daemon.sent('rule-pack-import')[0]?.rulePack).toBe('[[policies]]');
+  });
+
+  it('opens an agent in a folder and says what it typed', async () => {
+    const daemon = new ScriptedDaemon({
+      'agent-launch': (request) => [{ id: request.id, ok: true, agentLaunched: { agent: request.agentKind ?? '', workingDirectory: request.workingDirectory ?? '', line: 'claude' } }],
+    });
+    const agents = new Agents(daemon, new RequestIds());
+    expect(await agents.launch('claude-code', ' /code/app ')).toEqual({ kind: 'done', note: 'Opened claude-code in /code/app, typing claude.' });
+    expect(daemon.sent('agent-launch')[0]?.workingDirectory).toBe('/code/app');
+  });
+});

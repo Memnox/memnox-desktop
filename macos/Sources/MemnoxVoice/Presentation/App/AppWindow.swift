@@ -49,6 +49,11 @@ final class AppWindow {
         didSet { shell.projects = projects.map(ProjectsScreen.init) }
     }
 
+    /// Memory as this Mac's runtime keeps it, read by Memory under Workspaces, Learn under Governance and Home's count.
+    var memory: Memory? {
+        didSet { shell.memory = memory.map(MemoryScreen.init) }
+    }
+
     /// Making a backup and putting one back, read by the Backup page under Settings.
     var backup: Backup? {
         didSet { shell.backup = backup }
@@ -134,6 +139,8 @@ final class AppShellModel: ObservableObject {
     @Published var skills: SkillsScreen?
     /// The projects for the Workspaces tab, nil until the app wires it, which keeps the repositories the sessions met.
     @Published var projects: ProjectsScreen?
+    /// Memory for its tab, Learn and Home, nil until the app wires it, which keeps those empty rather than broken.
+    @Published var memory: MemoryScreen?
     /// The Backup page's use case, nil until the app wires it, which leaves that page empty rather than broken.
     @Published var backup: Backup?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.

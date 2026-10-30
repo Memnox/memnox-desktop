@@ -69,6 +69,11 @@ final class AppWindow {
         didSet { shell.sync = sync.map(SyncScreen.init) }
     }
 
+    /// Skills and rule packs from the community index, read by Discover under Workspaces and the packs under Policies.
+    var index: CommunityIndex? {
+        didSet { shell.index = index.map(IndexScreen.init) }
+    }
+
     let shell = AppShellModel()
     private var window: NSWindow?
 
@@ -157,6 +162,8 @@ final class AppShellModel: ObservableObject {
     @Published var network: NetworkScreen?
     /// Personal sync, nil until the app wires it, which leaves its page empty rather than broken.
     @Published var sync: SyncScreen?
+    /// The community index for Discover and the Policies packs, nil until the app wires it, which keeps both empty.
+    @Published var index: IndexScreen?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.
     @Published private(set) var answers = 0
     private var support: DaemonSupport?

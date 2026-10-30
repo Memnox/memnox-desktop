@@ -1,6 +1,6 @@
-//! The two ordinary windows beside the island, as the Mac's `SettingsWindow` and `OnboardingWindow` keep
-//! them: Settings at a fixed 940 by 720 with its sidebar, and the first run at 1000 by 660. Each is made
-//! the first time it is asked for and brought forward after that, so there is only ever one of each.
+//! The two ordinary windows beside the island: the Memnox window, which any size from a phone's width
+//! to the whole screen lays out for, and the first run at 1000 by 660. Each is made the first time it is
+//! asked for and brought forward after that, so there is only ever one of each.
 
 use tauri::{AppHandle, Emitter, Manager, Theme, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_autostart::ManagerExt;
@@ -10,8 +10,9 @@ pub const SETTINGS: &str = "settings";
 /// The first run's window, by the label the capability names.
 pub const ONBOARDING: &str = "onboarding";
 
-/// The Mac's `SettingsWindow` size, fixed, since its pages are laid out for that width.
-const SETTINGS_SIZE: (f64, f64) = (940.0, 720.0);
+/// The Memnox window opens wide enough for the inspector beside a page, and folds down to one column.
+const SETTINGS_SIZE: (f64, f64) = (1240.0, 780.0);
+const SETTINGS_MIN: (f64, f64) = (420.0, 520.0);
 /// The Mac's onboarding window, and the smallest it may be made.
 const ONBOARDING_SIZE: (f64, f64) = (1000.0, 660.0);
 const ONBOARDING_MIN: (f64, f64) = (860.0, 560.0);
@@ -40,8 +41,8 @@ pub fn show_settings(app: &AppHandle, page: Option<&str>) -> tauri::Result<()> {
     let window = WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App(path.into()))
         .title("Memnox")
         .inner_size(SETTINGS_SIZE.0, SETTINGS_SIZE.1)
-        .resizable(false)
-        .maximizable(false)
+        .min_inner_size(SETTINGS_MIN.0, SETTINGS_MIN.1)
+        .resizable(true)
         .center()
         .theme(chosen_theme(app))
         .build()?;

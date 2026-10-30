@@ -1,4 +1,4 @@
-import type { DaemonRequest, DaemonResponse, DeviceWire, HomeView, McpHubView, SessionCard, VoiceAgentStatus } from '@memnox/core/wire';
+import type { ActivityRow, AgentView, DaemonRequest, DaemonResponse, DeviceWire, HomeView, McpHubView, PolicyRulesView, ProgressView, SessionCard, VoiceAgentStatus } from '@memnox/core/wire';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
@@ -71,6 +71,40 @@ const previewHub: McpHubView = {
   skipped: [],
 };
 
+const previewRules: PolicyRulesView = {
+  rules: [
+    { name: 'git-deny', effect: 'deny', match: { actions: ['git.push-force', 'git.reset-hard'] }, sentence: 'Never force push or hard reset', reason: 'it rewrites history somebody may have pulled', source: 'default', editable: false },
+    { name: 'shell-ask', effect: 'ask', match: { actions: ['filesystem.delete'] }, sentence: 'Ask before deleting files', source: 'file', file: 'memnox.policies.toml', editable: false },
+    { name: 'push-main', effect: 'ask', match: { actions: ['git.push'], branches: ['main'] }, sentence: 'Ask before pushing to main', source: 'person', decidedBy: 'Sam', editable: true },
+    { name: 'read-docs', effect: 'allow', match: { actions: ['mcp.search_docs'], agents: ['claude-code'] }, sentence: 'Let Claude Code search the docs without asking', source: 'autopilot', editable: false },
+  ],
+  problems: [],
+  missing: [],
+};
+
+const previewProgress: ProgressView = {
+  ready: [{ action: 'git.push', approvals: 7, targets: ['origin feature/*'], because: 'Every push this week went to a feature branch and you allowed each one.' }],
+  almost: [{ action: 'npm.publish', approvals: 3, needed: 5 }],
+  grants: [{ id: 'ern_1', actions: ['mcp.search_docs'], targets: [], agents: ['claude-code'], since: '2026-10-27T09:00:00Z', until: '2026-11-03T09:00:00Z', says: 'Claude Code searches the docs without asking' }],
+  autopilotOn: true,
+  ladder: { level: 'supervised', says: 'Routine work runs; anything outward or destructive is held.', rungs: ['observe', 'assist', 'supervised', 'autonomous', 'trusted'], next: 'autonomous', needs: '38 more actions this week before Autonomous can be claimed.', actionsThisWeek: 12, asksThisWeek: 4, minimumEvidence: 50 },
+  thisWeek: { from: '2026-10-27', asked: 12, answeredByAutopilot: 9, handedOver: 1 },
+  lastWeek: { from: '2026-10-20', asked: 31, answeredByAutopilot: 2, handedOver: 0 },
+};
+
+const previewActivity: ActivityRow[] = [
+  { id: 'e1', at: '2026-10-30T11:58:00Z', agent: 'claude-code', agentName: 'Claude Code', session: 's1', kind: 'command', operation: 'git.push', target: 'origin main', effect: 'ask', rule: 'push-main', reason: 'you chose to be asked before anything reaches main', answeredBy: 'Sam', answeredHow: 'signed' },
+  { id: 'e2', at: '2026-10-30T11:50:00Z', agent: 'codex', agentName: 'Codex', session: 's2', kind: 'file', operation: 'filesystem.delete', target: 'build/', effect: 'ask', rule: 'shell-ask', reason: 'sometimes it really is the build directory' },
+  { id: 'e3', at: '2026-10-30T11:41:00Z', agent: 'claude-code', agentName: 'Claude Code', session: 's1', kind: 'mcp', operation: 'mcp.create_pull_request', target: 'github', effect: 'allow', reason: 'no rule held it' },
+  { id: 'e4', at: '2026-10-30T11:30:00Z', agent: 'codex', agentName: 'Codex', session: 's2', kind: 'command', operation: 'git.push-force', target: 'origin main', effect: 'deny', rule: 'git-deny', reason: 'it rewrites history somebody may have pulled' },
+];
+
+const previewAgents: AgentView[] = [
+  { kind: 'claude-code', name: 'Claude Code', status: 'protected', sessions: { running: 1, idle: 2, finished: 14 }, mcpServers: ['github', 'postgres'], today: { actions: 37, asked: 3, refused: 0 }, recent: [{ id: 'e1', at: '2026-10-30T11:58:00Z', operation: 'git.push', target: 'origin main', effect: 'ask' }] },
+  { kind: 'codex-cli', name: 'Codex', status: 'protected', sessions: { running: 0, idle: 1, finished: 6 }, mcpServers: ['github'], today: { actions: 12, asked: 2, refused: 1 }, recent: [{ id: 'e4', at: '2026-10-30T11:30:00Z', operation: 'git.push-force', target: 'origin main', effect: 'deny' }] },
+  { kind: 'cursor', name: 'Cursor', status: 'unprotected', sessions: { running: 0, idle: 0, finished: 2 }, mcpServers: ['docs'], today: { actions: 0, asked: 0, refused: 0 }, recent: [] },
+];
+
 const phones: DeviceWire[] = [{ id: 'dev_1', name: 'Sam’s iPhone', kind: 'phone', fingerprint: 'fp', capabilities: ['see', 'ask', 'answer', 'mac'], pairedAt: '2026-10-01T10:00:00Z' }];
 
 const qr =
@@ -78,12 +112,22 @@ const qr =
 
 /** Every method a page asks, answered from the scene. */
 /** Methods no runtime answers yet, so the preview hides the tabs that read them, as the app does. */
-const NOT_YET: readonly string[] = ['skills-hub', 'rules', 'activity', 'memory-learn'];
+const NOT_YET: readonly string[] = ['skills-hub', 'memory-learn'];
 
 function answer(request: DaemonRequest): DaemonResponse[] {
   const ok = { id: request.id, ok: true };
   if (NOT_YET.includes(request.method)) return [{ id: request.id, ok: false, error: `no method ${request.method}` }];
   if (request.method.startsWith('mcp-')) return [{ ...ok, mcpHub: previewHub, ...(request.method === 'mcp-assign' && request.mcpOn === true ? { proposed: 'prp_preview' } : {}) }];
+  if (request.method === 'rules' || request.method === 'rule-remove') return [{ ...ok, policyRules: previewRules }];
+  if (request.method === 'progress') return [{ ...ok, progress: previewProgress }];
+  if (request.method === 'rule-propose' || request.method === 'agent-resume') return [{ ...ok, proposed: 'prp_preview' }];
+  if (request.method === 'rule-test') return [{ ...ok, ruleVerdict: { effect: 'ask', reason: 'you chose to be asked before anything reaches main', rule: 'push-main' } }];
+  if (request.method === 'activity') return [{ ...ok, activity: { rows: previewActivity } }];
+  if (request.method === 'decision') {
+    const row = previewActivity.find((each) => each.id === request.decisionId) ?? previewActivity[0];
+    return row === undefined ? [ok] : [{ ...ok, decision: { row, ...(row.rule === undefined ? {} : { rule: { name: row.rule, source: 'person', decidedBy: 'Sam' } }), chain: 'Claude Code for Sam', context: [], before: [], trace: { mode: 'shell', exitCode: 0 } } }];
+  }
+  if (request.method.startsWith('agent') || request.method === 'session-stop') return [{ ...ok, agentsView: previewAgents }];
   switch (request.method) {
     case 'ping':
       return [{ ...ok, version: '0.20.0' }];

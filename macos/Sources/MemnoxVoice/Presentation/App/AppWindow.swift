@@ -19,6 +19,11 @@ final class AppWindow {
         didSet { shell.use(support) }
     }
 
+    /// The MCP Hub as this Mac's runtime keeps it, read by the hub's Servers, Clients and Secrets tabs.
+    var hub: McpHub? {
+        didSet { shell.hub = hub.map(McpHubScreen.init) }
+    }
+
     let shell = AppShellModel()
     private var window: NSWindow?
 
@@ -89,6 +94,8 @@ final class AppShellModel: ObservableObject {
         didSet { UserDefaults.standard.set(collapsed, forKey: Keys.collapsed) }
     }
     @Published var island: IslandModel?
+    /// The MCP Hub for its tabs; nil until the app wires it, which keeps those tabs empty rather than broken.
+    @Published var hub: McpHubScreen?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.
     @Published private(set) var answers = 0
     private var support: DaemonSupport?

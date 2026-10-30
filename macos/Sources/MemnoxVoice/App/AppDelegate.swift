@@ -353,6 +353,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The Memnox window reads sessions and waiting calls off the island, and asks this Mac's daemon what it answers.
         AppWindow.shared.island = panel.islandModel
         AppWindow.shared.support = DaemonSupport(link: link, ids: ids)
+        AppWindow.shared.hub = McpHub(link: link, ids: ids)
         let chosen = UserDefaults.standard.string(forKey: Self.voiceChoiceKey) ?? VoiceChoice.kokoro
         Task {
             await chooseVoice(chosen, announce: false)

@@ -202,6 +202,8 @@ private struct AppPage: View {
                 // Servers, Clients and Secrets read `mcp-hub`; until this Mac's runtime answers it only Your apps shows.
                 if route.tab == "apps" || route.tab == nil {
                     SettingsPageColumn { YourAppsPage(tools: menu.tools) }
+                } else if let hub = shell.hub {
+                    McpHubDestination(shell: shell, screen: hub, island: island, tab: route.tab, width: width)
                 }
             case .governance:
                 // Policies, Activity and Learn arrive with the runtime methods they read; until then Approvals stands alone.

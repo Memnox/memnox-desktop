@@ -80,7 +80,7 @@ private struct HeldCallCard: View {
     private var facts: [(String, String)] {
         var facts: [(String, String)] = []
         if let why = card.why { facts.append(("Why it asks", why)) }
-        facts.append(("Signed", card.touchID ? "A yes is signed with Touch ID" : "Inside its own repository, so a yes needs no signature"))
+        facts.append(("Signed", HeldSigning.line(touchID: card.touchID, actionDigest: card.actionDigest)))
         return facts
     }
 }

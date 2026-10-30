@@ -1110,6 +1110,8 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var subject: String?
     public var answer: String?
     public var signature: String?
+    /// On confirm of a held call: the digest of the call as shown, sent with every answer so one changed since is refused by name.
+    public var actionDigest: String?
     /// On confirm of a draft: the words the person rewrote on its card, which the signature then covers.
     public var edited: String?
     /// On confirm of a mail: the addresses the person typed on its card, joined by commas, which the signature covers too.
@@ -1299,6 +1301,8 @@ public struct DaemonEvent: Decodable, Equatable, Sendable {
     public let rule: RuleDraft?
     /// On a held call, or a proposal answering one, the daemon found it stays inside its session's repository.
     public let withinSession: Bool?
+    /// On a held call, the digest of exactly this call, which a yes signs and sends so one changed since is refused.
+    public let actionDigest: String?
     /// On an app start, the app's own links and what it reads as it opens.
     public let app: AppLinks?
     /// On a launch, a terminal app or an editor's agent panel rather than a terminal tab; on an app start, a new chat first.

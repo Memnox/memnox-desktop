@@ -669,7 +669,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         confirmations = Task { [weak self, conversation, panel] in
             await previous?.value
             guard let conversation, let panel else { return }
-            let outcome = await conversation.answerHeld(card.subject, answer, reason: card.reason(for: answer), touchID: card.touchID)
+            let outcome = await conversation.answerHeld(card.subject, answer, reason: card.reason(for: answer), touchID: card.touchID,
+                                                        actionDigest: card.actionDigest)
             panel.answered(card.subject, outcome)
             switch outcome {
             // The card already went, or says who got there first, so only the bookkeeping is left.

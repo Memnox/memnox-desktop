@@ -52,6 +52,8 @@ struct HeldCard: Equatable, Sendable {
     let sessionId: String?
     /// The machine it waits on, which the header groups waiting calls by.
     let machine: String
+    /// The digest of exactly this call, which a yes signs and sends so a call changed since it was shown is refused.
+    let actionDigest: String?
 
     /// `server` names the server that raised it, so the person sees where the call waits; nil for this Mac.
     init(_ event: DaemonEvent, server: String? = nil) {
@@ -65,6 +67,7 @@ struct HeldCard: Equatable, Sendable {
         summary = event.summary
         touchID = event.needsTouchID
         machine = place.machine
+        actionDigest = event.actionDigest
     }
 
     /// A teammate's call the workspace routed here: named with its machine and team, and every allow asks for Touch ID.
@@ -78,6 +81,7 @@ struct HeldCard: Equatable, Sendable {
         summary = call.what
         touchID = true
         machine = call.place.machine
+        actionDigest = nil
     }
 
     /// What the Touch ID sheet says this answer is for, naming the call by its one label.

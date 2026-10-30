@@ -23,7 +23,9 @@ decides that, never this app, and an event without the mark always asks for Touc
 `memnox-confirm:v1:<id>:<answer>`, or `memnox-confirm:v2:<id>:<answer>:<words>` when the person
 rewrote a draft's words on its card, or `memnox-confirm:v3:<id>:<answer>:<addresses>:<words>` when they
 retyped a mail's addresses, comma joined, which must stay byte for byte what the runtime's
-`confirmationMessage` builds.
+`confirmationMessage` builds. A yes to a held call whose event carries `actionDigest` signs
+`memnox-confirm:v4:<id>:<answer>:<actionDigest>` instead, as `actionConfirmationMessage` builds it, and every answer to
+that call, a deny included, sends the digest so the daemon refuses one that changed since it was shown.
 
 ## Layout
 

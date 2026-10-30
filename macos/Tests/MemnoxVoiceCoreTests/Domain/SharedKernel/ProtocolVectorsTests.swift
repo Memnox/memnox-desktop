@@ -40,6 +40,19 @@ final class ProtocolVectorsTests: XCTestCase {
         }
     }
 
+    func testFallsBackToTheOlderWordsForAHeldCallThatCarriesNoDigest() throws {
+        let plain = try XCTUnwrap(try vectors().messages.first { $0.name == "confirm" })
+        XCTAssertEqual(heldConfirmation(subject: try input(plain, "subject"), answer: try input(plain, "answer"), actionDigest: nil),
+                       plain.message)
+    }
+
+    func testDigestsTheCallItsCanonicalFormNames() throws {
+        let messages = try vectors().messages
+        let canonical = try XCTUnwrap(messages.first { $0.name == "action-canonical" })
+        let digest = try XCTUnwrap(messages.first { $0.name == "action-digest" })
+        XCTAssertEqual(actionDigest(ofCanonical: canonical.message), digest.message)
+    }
+
     func testKnowsEveryCapabilityTheRuntimeGrants() throws {
         let runtime = Set(try XCTUnwrap(vectors().values["capabilities"]))
         XCTAssertEqual(Set(Capability.allCases.map(\.rawValue)), runtime)
@@ -59,6 +72,15 @@ final class ProtocolVectorsTests: XCTestCase {
                 answer: try input(vector, "answer"),
                 edited: vector.inputs["edited"] ?? nil,
                 editedTo: vector.inputs["editedTo"] ?? nil)
+        case "confirm-action":
+            return heldConfirmation(subject: try input(vector, "subject"), answer: try input(vector, "answer"),
+                                    actionDigest: try input(vector, "actionDigest"))
+        case "action-canonical":
+            return canonicalAction(operation: try input(vector, "operation"), target: vector.inputs["target"] ?? nil,
+                                   command: vector.inputs["command"] ?? nil, fingerprint: try input(vector, "fingerprint"),
+                                   cwd: vector.inputs["cwd"] ?? nil, agent: try input(vector, "agent"))
+        case "action-digest":
+            return actionDigest(ofCanonical: try input(vector, "canonical"))
         case "pair":
             return pairingMessage(pairingId: try input(vector, "pairingId"), fingerprint: try input(vector, "fingerprint"))
         case "grant":

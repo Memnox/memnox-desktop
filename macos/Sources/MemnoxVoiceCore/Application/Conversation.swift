@@ -1313,8 +1313,10 @@ public final class Conversation {
     }
 
     /// A held call answered with a button: a deny goes as it is, and an allow only with Touch ID over exactly
-    /// this call, unless the daemon placed it inside its repository, where a tap is the answer.
-    public func answerHeld(_ subject: String, _ answer: HoldAnswer, reason: String, touchID: Bool = true) async -> HeldOutcome {
+    /// this call, unless the daemon placed it inside its repository, where a tap is the answer. `actionDigest` is the
+    /// call as the card showed it, which a yes signs in the v4 words when the daemon gave one.
+    public func answerHeld(_ subject: String, _ answer: HoldAnswer, reason: String, touchID: Bool = true,
+                           actionDigest: String? = nil) async -> HeldOutcome {
         // A teammate's call has no rule on this Mac to relax, so from now on is a yes to this call there.
         if let workspace, workspace.owns(subject) {
             return await answerForTeam(workspace, subject, answer == .always ? .once : answer, reason: reason)
@@ -1322,8 +1324,10 @@ public final class Conversation {
         var request = newRequest(.confirm)
         request.subject = subject
         request.answer = answer.rawValue
+        // The digest of the call as shown goes with every answer, so the daemon refuses by name one that changed since.
+        request.actionDigest = actionDigest
         if answer != .deny, touchID || signsEveryYes(subject) {
-            switch await signature(subject, answer: answer.rawValue, reason: reason) {
+            switch await signature(subject, answer: answer.rawValue, actionDigest: actionDigest, reason: reason) {
             case .signed(let signature): request.signature = signature
             case .refused(let outcome): return outcome
             }
@@ -1475,7 +1479,7 @@ public final class Conversation {
     /// Touch ID over this answer, asked only once the daemon trusts this Mac's key: a signature from any
     /// other key is refused after the fingerprint, which reads as the button doing nothing.
     private func signature(
-        _ subject: String, answer: String, edited: String? = nil, editedTo: String? = nil, reason: String
+        _ subject: String, answer: String, edited: String? = nil, editedTo: String? = nil, actionDigest: String? = nil, reason: String
     ) async -> Signing {
         // A press is a hand at this Mac, so only a phone holding the voice or driving takes it from Touch ID; a paired one still gets it.
         if let phone = phoneAnswers {
@@ -1489,7 +1493,10 @@ public final class Conversation {
             return .refused(.failed(Self.anotherKeyLine))
         }
         face.show(.needsYou, caption: caption("Touch ID to \(reason)"))
-        guard let signature = try? await key.sign(confirmationMessage(subject: subject, answer: answer, edited: edited, editedTo: editedTo), reason: reason) else {
+        // A held call's digest binds the yes to exactly the call shown; everything else signs the older words.
+        let message = actionDigest.map { actionConfirmationMessage(subject: subject, answer: answer, actionDigest: $0) }
+            ?? confirmationMessage(subject: subject, answer: answer, edited: edited, editedTo: editedTo)
+        guard let signature = try? await key.sign(message, reason: reason) else {
             face.show(.idle, caption: "")
             return .refused(.cancelled)
         }

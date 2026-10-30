@@ -85,7 +85,7 @@ function Servers({ parts, view, width, said, workspaces }: { parts: SettingsPart
         </div>
         {connected && scope === 'organization' && <p className="text-footnote text-muted">{scoped.length === 0 ? NO_ORGANIZATION_ITEMS : ORGANIZATION_READ_ONLY}</p>}
         {scoped.length === 0 ? (
-          scope === 'personal' && (
+          scope !== 'organization' && (
           <EmptyState
             icon={Plug}
             title="No servers in the hub yet"

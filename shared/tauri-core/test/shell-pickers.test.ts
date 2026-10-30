@@ -8,6 +8,8 @@ import {
   preselectedFolder,
   projectsShown,
   shortcutWords,
+  migratedScope,
+  SCOPE_CHOICES,
   shownScope,
   skillsShown,
   withCurrent,
@@ -63,14 +65,27 @@ describe('the scope selector', () => {
     expect(hasOrganization({ rules: [{ source: 'workspace' }] })).toBe(true);
   });
 
-  it('falls back to personal when nothing is connected', () => {
-    expect(shownScope('organization', false)).toBe('personal');
-    expect(shownScope('organization', true)).toBe('organization');
-    expect(shownScope(undefined, true)).toBe('personal');
+  it('offers All, Personal and Organization, All first', () => {
+    expect(SCOPE_CHOICES.map((each) => each.title)).toEqual(['All', 'Personal', 'Organization']);
   });
 
-  it('shows the person’s items or the organization’s, never both mixed', () => {
+  it('starts on All, and falls back to it when nothing is connected', () => {
+    expect(shownScope('organization', false)).toBe('all');
+    expect(shownScope('organization', true)).toBe('organization');
+    expect(shownScope('personal', true)).toBe('personal');
+    expect(shownScope(undefined, true)).toBe('all');
+    expect(shownScope('something else', true)).toBe('all');
+  });
+
+  it('keeps an earlier Organization and moves an earlier Personal to All', () => {
+    expect(migratedScope('organization')).toBe('organization');
+    expect(migratedScope('personal')).toBeUndefined();
+    expect(migratedScope(undefined)).toBeUndefined();
+  });
+
+  it('shows both mixed under All, and either alone under its own choice', () => {
     const items = [{ name: 'mine', org: false }, { name: 'theirs', org: true }];
+    expect(inScope(items, 'all', (item) => item.org).map((item) => item.name)).toEqual(['mine', 'theirs']);
     expect(inScope(items, 'personal', (item) => item.org).map((item) => item.name)).toEqual(['mine']);
     expect(inScope(items, 'organization', (item) => item.org).map((item) => item.name)).toEqual(['theirs']);
   });

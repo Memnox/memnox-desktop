@@ -1,6 +1,6 @@
 import type { ProjectView } from '@memnox/core/wire';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { currentProject, CURRENT_PROJECT_KEY, hasOrganization, SCOPE_KEY, shownScope, type ShownScope } from '../../core/domain/shell-lines';
+import { currentProject, CURRENT_PROJECT_KEY, hasOrganization, LEGACY_SCOPE_KEY, migratedScope, SCOPE_KEY, shownScope, type ShownScope } from '../../core/domain/shell-lines';
 import { useObserved, type SettingsParts } from '../settings/parts';
 
 /** The top bar's two choices, read by the pages they narrow: the current project and the scope shown. */
@@ -20,7 +20,7 @@ const NO_CHOICES: ShellChoices = {
   project: undefined,
   chooseProject: () => undefined,
   connected: false,
-  scope: 'personal',
+  scope: 'all',
   chooseScope: () => undefined,
 };
 
@@ -48,6 +48,15 @@ function useKept(key: string): [string | undefined, (value: string | undefined) 
   return [value, keep];
 }
 
+/** Moves a choice the two choice selector remembered to the three choice key, once, before the key is read. */
+function migrateScope(): void {
+  const legacy = localStorage.getItem(LEGACY_SCOPE_KEY);
+  if (legacy === null) return;
+  const migrated = migratedScope(legacy);
+  if (migrated !== undefined && localStorage.getItem(SCOPE_KEY) === null) localStorage.setItem(SCOPE_KEY, migrated);
+  localStorage.removeItem(LEGACY_SCOPE_KEY);
+}
+
 /**
  * Reads the projects for the switcher and the hub, the skills and the rules for whether an organization handed
  * anything down, each only where this computer's runtime answers it. Nothing here asks for Cloud.
@@ -56,6 +65,7 @@ export function ShellChoicesProvider({ parts, children }: { parts: SettingsParts
   const { support, projects, hub, skills, studio } = parts;
   useObserved(support, projects, hub, skills, studio);
   const [savedProject, keepProject] = useKept(CURRENT_PROJECT_KEY);
+  useState(migrateScope);
   const [savedScope, keepScope] = useKept(SCOPE_KEY);
   const reads = { projects: support.supports('projects'), hub: support.supports('mcp-hub'), skills: support.supports('skills-hub'), rules: support.supports('rules') };
   useEffect(() => {

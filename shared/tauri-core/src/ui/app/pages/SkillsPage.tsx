@@ -78,7 +78,7 @@ function MySkills({ parts, view, width, said, manage }: { parts: SettingsParts; 
         </KitButton>
       </div>
       {connected && scope === 'organization' && <p className="text-footnote text-muted">{scoped.length === 0 ? NO_ORGANIZATION_ITEMS : ORGANIZATION_READ_ONLY}</p>}
-      {scope === 'personal' && view.skills.length === 0 ? (
+      {scope !== 'organization' && view.skills.length === 0 ? (
         <EmptyState
           icon={Sparkles}
           title="No skills in the hub yet"
@@ -185,7 +185,7 @@ function SkillDetail({
                   trailing={
                     version.current ? (
                       <StatusWord tone="good">In use</StatusWord>
-                    ) : skill.scope === 'personal' && version.acceptedAt !== undefined ? (
+                    ) : skill.scope !== 'organization' && version.acceptedAt !== undefined ? (
                       <KitButton disabled={skills.busy === skill.name} onClick={() => void skills.rollback(skill.name, version.version).then(said)}>
                         Roll back
                       </KitButton>
@@ -253,7 +253,7 @@ function SkillDetail({
             </Panel>
           </Section>
           <Facts facts={[['Digest', skill.digest]]} mono />
-          {skill.scope === 'personal' && <RemoveSkill parts={parts} skill={skill} back={back} said={said} />}
+          {skill.scope !== 'organization' && <RemoveSkill parts={parts} skill={skill} back={back} said={said} />}
         </div>
       </div>
     </div>

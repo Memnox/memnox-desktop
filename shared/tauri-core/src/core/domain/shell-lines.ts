@@ -3,7 +3,7 @@ import type { McpHubServerView, PolicyRuleView, ProjectView, SkillView } from '@
 /**
  * The top bar's two pickers, the workspace switcher and the scope selector, with the words both say. Neither
  * decides anything: the switcher narrows what the window shows to one project, and the selector shows the
- * organization's read only items beside the person's own once Memnox Cloud hands any down.
+ * organization's read only items beside the person's own, or either alone, once Memnox Cloud hands any down.
  */
 
 /** Where the chosen project is remembered between openings, by its id. */
@@ -47,16 +47,27 @@ export function withCurrent<F extends { readonly path: string; readonly name: st
   return [{ path: current.path, name: current.name }, ...folders.filter((folder) => folder.path !== current.path)];
 }
 
-/** Personal is what this computer keeps; Organization is what Memnox Cloud hands down, read only here. */
-export type ShownScope = 'personal' | 'organization';
+/** All shows both mixed, each with its chip; Personal is what this computer keeps; Organization is what Memnox Cloud hands down, read only here. */
+export type ShownScope = 'all' | 'personal' | 'organization';
 
-/** Where the chosen scope is remembered between openings. */
-export const SCOPE_KEY = 'memnox.scope.current';
+/** Where the chosen scope is remembered between openings, under a new name since All joined the choices. */
+export const SCOPE_KEY = 'memnox.scope.shown';
+/** Where the two choice selector remembered it, read once so an earlier choice of Organization is kept. */
+export const LEGACY_SCOPE_KEY = 'memnox.scope.current';
 export const SCOPE_LABEL = 'Scope';
 export const SCOPE_CHOICES: readonly { readonly scope: ShownScope; readonly title: string }[] = [
+  { scope: 'all', title: 'All' },
   { scope: 'personal', title: 'Personal' },
   { scope: 'organization', title: 'Organization' },
 ];
+
+/**
+ * The scope the two choice selector remembered, as the three choices name it: Organization stays, and Personal
+ * becomes All, since Personal was where everybody started and it hid the organization's items by mistake.
+ */
+export function migratedScope(legacy: string | undefined): ShownScope | undefined {
+  return legacy === 'organization' ? 'organization' : undefined;
+}
 
 /** The line over the organization's items, so read only is said before anybody tries an edit. */
 export const ORGANIZATION_READ_ONLY = 'Your organization set these up in Memnox Cloud, so they are read only here.';
@@ -77,13 +88,15 @@ export function hasOrganization(items: OrganizationItems): boolean {
   );
 }
 
-/** A remembered scope stands only while there is an organization to show; otherwise everything is personal. */
+/** A remembered scope stands only while there is an organization to show; anything else, or nothing remembered, is All. */
 export function shownScope(saved: string | undefined, connected: boolean): ShownScope {
-  return connected && saved === 'organization' ? 'organization' : 'personal';
+  if (!connected) return 'all';
+  return saved === 'personal' || saved === 'organization' ? saved : 'all';
 }
 
-/** The items a list shows under the chosen scope, told apart by whether each is the organization's. */
+/** The items a list shows under the chosen scope: every one under All, else told apart by whether each is the organization's. */
 export function inScope<T>(items: readonly T[], scope: ShownScope, organizations: (item: T) => boolean): readonly T[] {
+  if (scope === 'all') return items;
   return items.filter((item) => organizations(item) === (scope === 'organization'));
 }
 

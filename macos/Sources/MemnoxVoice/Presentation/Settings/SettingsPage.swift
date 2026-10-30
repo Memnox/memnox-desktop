@@ -35,7 +35,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .connection: return "Connection"
         case .phones: return "Phones"
         case .tools: return "Agents"
-        case .apps: return "Your apps"
+        case .apps: return "Connectors"
         case .appearance: return "Appearance"
         case .voice: return "Voice"
         case .listening: return "Listening"

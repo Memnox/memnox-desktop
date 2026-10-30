@@ -8,6 +8,7 @@ struct FilterChip: View {
     var count: Int?
     let choose: () -> Void
     @Environment(\.look) private var look
+    @State private var hovering = false
 
     private static let height: CGFloat = 24
     /// The chosen chip's edge and wash, the console's blue at 45 and 7 percent.
@@ -34,12 +35,15 @@ struct FilterChip: View {
             .foregroundStyle(chosen ? Memnox.Console.foreground : Memnox.Console.muted)
             .padding(.horizontal, Memnox.Spacing.large)
             .frame(height: Memnox.Console.controlHeight)
-            .background(shape.fill(chosen ? Memnox.Console.primary.opacity(Self.chosenWash) : Memnox.Console.card))
+            .background(shape.fill(chosen ? Memnox.Console.primary.opacity(Self.chosenWash) : hovering ? Memnox.Console.hover : Memnox.Console.card))
             .overlay(shape.strokeBorder(chosen ? Memnox.Console.primary.opacity(Self.chosenEdge) : Memnox.Console.panelEdge,
                                         lineWidth: Memnox.Stroke.hairline))
             .contentShape(shape)
+            .animation(.easeOut(duration: Memnox.Motion.quick), value: hovering)
+            .animation(.easeOut(duration: Memnox.Motion.quick), value: chosen)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressDip())
+        .onHover { hovering = $0 }
         .pointingHand()
         .accessibilityAddTraits(chosen ? .isSelected : [])
     }

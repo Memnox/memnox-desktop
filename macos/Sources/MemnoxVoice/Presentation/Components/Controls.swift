@@ -108,6 +108,8 @@ struct SearchField: View {
     @Binding var text: String
     var symbol: String = Symbol.search
     var submit: (() -> Void)?
+    /// Bumped by a page to put the cursor in the field, as a slash key does on the memory brain.
+    var focusRequest = 0
     @FocusState private var focused: Bool
     @Environment(\.look) private var look
 
@@ -145,6 +147,7 @@ struct SearchField: View {
         .padding(.horizontal, console ? Self.consolePadding : ControlMetrics.horizontalPadding - ControlMetrics.fieldPadding)
         .frame(height: console ? Memnox.Console.fieldHeight : ControlMetrics.height)
         .onTapGesture { focused = true }
+        .onChange(of: focusRequest) { focused = true }
         if console {
             face
                 .background(shape.fill(tokens.field))

@@ -103,6 +103,36 @@ enum Memnox {
             static let dark = 0.45
         }
 
+        /// The memory brain's colours: one hue to each source group, bright enough to glow on the console's dark ground
+        /// and far enough apart on the wheel that eight read apart, and the grey of the brain's outline.
+        enum Brain {
+            /// The console's dark ground and its dark ink, card and border, fixed so the brain is drawn on the dark
+            /// console in either appearance.
+            static let ground = Color(hex: 0x030303)
+            static let ink = Color(hex: 0xFDFDFD)
+            static let quiet = Color(hex: 0xADADAD)
+            static let faint = Color(hex: 0x6B6B6B)
+            static let card = Color(hex: 0x0F0F0F)
+            static let edge = Color(hex: 0x313131)
+            static let outline = Color(hex: 0x8A8F98)
+            static let notes = Color(hex: 0x4C8DFF)
+            static let instructions = Color(hex: 0xF5C542)
+            static let servers = Color(hex: 0x2DD4BF)
+            static let conversations = Color(hex: 0xFF8A3D)
+            static let projects = Color(hex: 0x4ADE80)
+            static let apps = Color(hex: 0xF472B6)
+            static let team = Color(hex: 0xA78BFA)
+            static let unsourced = Color(hex: 0x9CA3AF)
+            /// The backing behind a name on the brain, dark enough that white reads over any dot.
+            static let labelBacking = Color(hex: 0x05070C)
+            /// The headline's two lines and the stats' numerals, sized past the console's page title.
+            static let headline: CGFloat = 34
+            static let numeral: CGFloat = 26
+            /// The mono overlines and captions, the console's smallest step and one under it.
+            static let overline: CGFloat = 11
+            static let caption: CGFloat = 10
+        }
+
         /// The console's ink at one of the `Ink` strengths, near black on the light ground and near white on the dark.
         static func ink(_ strength: Double) -> Color {
             Color(nsColor: NSColor(name: nil) { appearance in

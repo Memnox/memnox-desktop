@@ -208,6 +208,8 @@ struct SettingsColumn<Content: View>: View {
     /// Nil for a page that opens on its own greeting, such as the overview.
     var title: String?
     var subtitle: String?
+    /// True for a page laid out as a grid, which takes the window's full page width rather than a reading column.
+    var wide = false
     @ViewBuilder let content: Content
     @Environment(\.paneHeading) private var heading
 
@@ -224,7 +226,7 @@ struct SettingsColumn<Content: View>: View {
             ScrollView {
                 PaneFrame(heading: heading, width: min(geometry.size.width - ShellMetrics.pagePadding * 2, ShellMetrics.pageWidth)) {
                     VStack(alignment: .leading, spacing: SettingsMetrics.pageSpacing) { content }
-                        .frame(maxWidth: SettingsMetrics.pageWidth, alignment: .leading)
+                        .frame(maxWidth: wide ? ShellMetrics.pageWidth : SettingsMetrics.pageWidth, alignment: .leading)
                 }
                 .frame(maxWidth: ShellMetrics.pageWidth, alignment: .leading)
                 .frame(maxWidth: .infinity)

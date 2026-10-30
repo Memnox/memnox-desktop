@@ -260,6 +260,8 @@ struct ListeningPage: View {
     @ObservedObject var menu: MenuModel
     @ObservedObject private var mute = VoiceMute.shared
     @ObservedObject var setup: SetupModel
+    /// Off unless turned on here, since Apple's voice processing reshapes the whole Mac's audio while it runs.
+    @AppStorage(AudioIO.echoCancellationKey) private var cancelsEcho = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsMetrics.pageSpacing) {
@@ -269,6 +271,9 @@ struct ListeningPage: View {
                 SettingsDivider()
                 SwitchRow(symbol: MenuSymbol.talkOver, title: "Talk over it", detail: "Cut in just by speaking",
                           isOn: Binding(get: { menu.talkOverOn }, set: { menu.talkOverOn = $0; menu.setTalkOver($0) }))
+                SettingsDivider()
+                SwitchRow(symbol: MenuSymbol.echo, title: "Cancel echo", detail: "Talk over it on speakers, though macOS changes other sound while it listens",
+                          isOn: $cancelsEcho)
                 SettingsDivider()
                 SwitchRow(symbol: MenuSymbol.liveWords, title: "Live words", detail: "See what you say in the notch",
                           isOn: Binding(get: { menu.liveWordsOn }, set: { menu.liveWordsOn = $0; menu.setLiveWords($0) }))
@@ -280,7 +285,10 @@ struct ListeningPage: View {
                 SwitchRow(symbol: MenuSymbol.mute, title: "Mute the voice", detail: "Answers still show in the notch",
                           isOn: Binding(get: { mute.on }, set: { mute.set($0) }))
                 SettingsDivider()
-                SwitchRow(symbol: MenuSymbol.speakUp, title: "Speak up on its own", detail: "When work finishes or ships",
+                SwitchRow(symbol: MenuSymbol.sayFinished, title: "Say when a session finishes", detail: "Which agent, where and what you asked it",
+                          isOn: Binding(get: { menu.sayFinishedOn }, set: { menu.sayFinishedOn = $0; menu.setSayFinished($0) }))
+                SettingsDivider()
+                SwitchRow(symbol: MenuSymbol.speakUp, title: "Speak up on its own", detail: "Commits, pushes and other news",
                           isOn: Binding(get: { menu.speakUpOn }, set: { menu.speakUpOn = $0; menu.setSpeakUp($0) }))
                 SettingsDivider()
                 SwitchRow(symbol: MenuSymbol.sounds, title: "Sounds", detail: "A chime when something happens",

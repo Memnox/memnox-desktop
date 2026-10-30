@@ -209,6 +209,8 @@ private struct AppPage: View {
                 // Each tab past Approvals shows once this Mac's runtime answers the method it reads; Learn is still to come.
                 if route.tab == "policies", let studio = shell.studio {
                     PoliciesDestination(shell: shell, screen: studio, island: island, home: models.home, width: width)
+                } else if route.tab == "activity", let activity = shell.activity {
+                    ActivityDestination(shell: shell, screen: activity, width: width)
                 } else if route.tab == "approvals" || route.tab == nil {
                     ApprovalsDestination(island: island, width: width)
                 }

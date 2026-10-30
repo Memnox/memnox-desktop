@@ -124,7 +124,7 @@ export function SettingsApp({ parts, first }: { parts: SettingsParts; first?: Se
   );
 }
 
-function PageBody({ page, parts, go }: { page: SettingsPage; parts: SettingsParts; go: (page: SettingsPage) => void }): ReactNode {
+export function PageBody({ page, parts, go }: { page: SettingsPage; parts: SettingsParts; go: (page: SettingsPage) => void }): ReactNode {
   switch (page) {
     case 'overview':
       return <OverviewPage parts={parts} go={go} />;

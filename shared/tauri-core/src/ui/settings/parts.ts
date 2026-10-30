@@ -2,7 +2,11 @@ import { useEffect, useReducer } from 'react';
 import { Account } from '../../core/application/account';
 import { AppConnections } from '../../core/application/app-connections';
 import { DaemonAccount, DaemonSignIn } from '../../core/application/daemon-sign-in';
+import { DaemonSupport } from '../../core/application/daemon-support';
+import { HeldCalls } from '../../core/application/held-calls';
 import { Home } from '../../core/application/home';
+import { McpHub } from '../../core/application/mcp-hub';
+import { Sessions } from '../../core/application/sessions';
 import { PhonePairing } from '../../core/application/pairing';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
@@ -50,6 +54,14 @@ export interface SettingsParts {
   readonly team: TeamAccount;
   /** Where every setup step stands, shared by the overview, the setup pages and the first run. */
   readonly steps: SetupModel;
+  /** Which daemon methods this computer's runtime answers, so a tab needing a newer one stays hidden. */
+  readonly support: DaemonSupport;
+  /** The agents' sessions, for Home, Agents and Workspaces. */
+  readonly sessions: Sessions;
+  /** What waits on the person, answered here as on the island, signed the same way. */
+  readonly calls: HeldCalls;
+  /** The MCP servers set up once and given to the agents the person chose. */
+  readonly hub: McpHub;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -81,7 +93,15 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     return machine.step.kind === 'signed-out' ? false : undefined;
   };
   const tools = new Tools(link, ids);
+  const timer = (ms: number, fire: () => void) => {
+    const handle = setTimeout(fire, ms);
+    return () => clearTimeout(handle);
+  };
   const parts: Omit<SettingsParts, 'steps'> = {
+    support: new DaemonSupport(link, ids),
+    sessions: new Sessions(link, ids, timer),
+    calls: new HeldCalls(link, signer, ids, { timer }),
+    hub: new McpHub(link, ids),
     host,
     words: platformWords(host.platform),
     setup,

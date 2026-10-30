@@ -158,7 +158,22 @@
       "mcp-sync",
       "mcp-test",
       "mcp-secret-set",
-      "mcp-secret-remove"
+      "mcp-secret-remove",
+      "rules",
+      "rule-propose",
+      "rule-remove",
+      "rule-test",
+      "rules-export",
+      "rule-pack-import",
+      "progress",
+      "autopilot-revoke",
+      "activity",
+      "decision",
+      "activity-export",
+      "agents",
+      "agent-pause",
+      "agent-resume",
+      "session-stop"
     ],
     "events": [
       "held",

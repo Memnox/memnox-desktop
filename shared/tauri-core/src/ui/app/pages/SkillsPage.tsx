@@ -185,7 +185,7 @@ function SkillDetail({
                   trailing={
                     version.current ? (
                       <StatusWord tone="good">In use</StatusWord>
-                    ) : skill.scope !== 'organization' && version.acceptedAt !== undefined ? (
+                    ) : skill.scope === 'personal' && version.acceptedAt !== undefined ? (
                       <KitButton disabled={skills.busy === skill.name} onClick={() => void skills.rollback(skill.name, version.version).then(said)}>
                         Roll back
                       </KitButton>
@@ -253,7 +253,7 @@ function SkillDetail({
             </Panel>
           </Section>
           <Facts facts={[['Digest', skill.digest]]} mono />
-          {skill.scope !== 'organization' && <RemoveSkill parts={parts} skill={skill} back={back} said={said} />}
+          {skill.scope === 'personal' && <RemoveSkill parts={parts} skill={skill} back={back} said={said} />}
         </div>
       </div>
     </div>

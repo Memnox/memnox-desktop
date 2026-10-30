@@ -37,6 +37,7 @@ export const SETTINGS_TABS: readonly SettingsPage[] = [
   'connection',
   'phones',
   'appearance',
+  'backup',
   'voice',
   'listening',
   'dictation',

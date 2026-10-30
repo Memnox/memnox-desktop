@@ -10,6 +10,7 @@ export type SettingsPage =
   | 'connection'
   | 'phones'
   | 'appearance'
+  | 'backup'
   | 'tools'
   | 'apps'
   | 'voice'
@@ -31,6 +32,7 @@ const INFO: Record<SettingsPage, Omit<SettingsPageInfo, 'page'>> = {
   connection: { title: 'Connection', subtitle: 'The Memnox service your agents talk to, and the key your approvals are signed with.' },
   phones: { title: 'Phones', subtitle: 'Phones paired with this computer and what each may do.' },
   appearance: { title: 'Appearance', subtitle: 'Light, dark, or the same as this computer.' },
+  backup: { title: 'Backup', subtitle: 'Your rules, hubs, skills, projects and memory, sealed under a passphrase and put back once you sign.' },
   tools: { title: 'Connected tools', subtitle: 'The agents on this computer and the apps Memnox can act in as you.' },
   apps: { title: 'Your apps', subtitle: 'Connect any tool you use as yourself, and see the ones this computer already reaches.' },
   voice: { title: 'Voice', subtitle: 'Who thinks for the voice, and the voice it answers in.' },
@@ -49,7 +51,7 @@ export interface SettingsGroup {
 export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
   { title: undefined, pages: ['overview'] },
   { title: 'You', pages: ['account'] },
-  { title: 'This computer', pages: ['permissions', 'connection', 'phones', 'appearance'] },
+  { title: 'This computer', pages: ['permissions', 'connection', 'phones', 'appearance', 'backup'] },
   { title: 'Agents and tools', pages: ['tools', 'apps'] },
   { title: 'Voice', pages: ['voice', 'listening', 'dictation'] },
   { title: 'Support', pages: ['help'] },

@@ -41,13 +41,13 @@ class MemoryStore implements PreferenceStore {
 
 describe('the Settings pages', () => {
   it('lists twelve pages in the Mac sidebar order, the overview alone first', () => {
-    expect(SETTINGS_PAGES).toEqual(['overview', 'account', 'permissions', 'connection', 'phones', 'appearance', 'tools', 'apps', 'voice', 'listening', 'dictation', 'help']);
+    expect(SETTINGS_PAGES).toEqual(['overview', 'account', 'permissions', 'connection', 'phones', 'appearance', 'backup', 'tools', 'apps', 'voice', 'listening', 'dictation', 'help']);
     expect(SETTINGS_GROUPS[0]?.title).toBeUndefined();
     expect(SETTINGS_GROUPS.map((group) => group.title).slice(1)).toEqual(['You', 'This computer', 'Agents and tools', 'Voice', 'Support']);
   });
 
   it('filters by title or the line under it, and lists all for an empty search', () => {
-    expect(matchingPages('')).toHaveLength(12);
+    expect(matchingPages('')).toHaveLength(13);
     expect(matchingPages('phone')).toEqual(['phones']);
     expect(matchingPages('LISTENS')).toEqual(['listening']);
     expect(matchingPages('nothing like this')).toEqual([]);

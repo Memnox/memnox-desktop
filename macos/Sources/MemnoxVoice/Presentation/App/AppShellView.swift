@@ -206,8 +206,10 @@ private struct AppPage: View {
                     McpHubDestination(shell: shell, screen: hub, island: island, tab: route.tab, width: width)
                 }
             case .governance:
-                // Policies, Activity and Learn arrive with the runtime methods they read; until then Approvals stands alone.
-                if route.tab == "approvals" || route.tab == nil {
+                // Each tab past Approvals shows once this Mac's runtime answers the method it reads; Learn is still to come.
+                if route.tab == "policies", let studio = shell.studio {
+                    PoliciesDestination(shell: shell, screen: studio, island: island, home: models.home, width: width)
+                } else if route.tab == "approvals" || route.tab == nil {
                     ApprovalsDestination(island: island, width: width)
                 }
             case .settings:

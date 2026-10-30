@@ -117,4 +117,27 @@ final class StudioTests: XCTestCase {
         XCTAssertEqual(outcome, .done("Paused. Nothing it tries runs until you resume it."))
         XCTAssertNil(agents.busy)
     }
+
+    func testReadsThePacksMemnoxShipsAndAnEmptyAnswerAsNone() async throws {
+        let link = ScriptedLink()
+        link.answers["rule-packs"] = [try line(#"{"id":1,"ok":true,"rulePacks":[{"id":"careful","name":"Careful","description":"Asks before anything outward","ruleCount":2,"toml":"[[policies]]"}]}"#)]
+        let studio = Studio(link: link)
+        await studio.readPacks()
+        XCTAssertEqual(studio.packs?.map(\.name), ["Careful"])
+        let bare = ScriptedLink()
+        bare.answers["rule-packs"] = [try line(#"{"id":1,"ok":true}"#)]
+        let none = Studio(link: bare)
+        await none.readPacks()
+        XCTAssertEqual(none.packs, [])
+    }
+
+    func testOpensAnAgentInAFolderAndSaysWhatItTyped() async throws {
+        let link = ScriptedLink()
+        link.answers["agent-launch"] = [try line(#"{"id":1,"ok":true,"agentLaunched":{"agent":"claude-code","workingDirectory":"/code/app","line":"claude"}}"#)]
+        let agents = Agents(link: link)
+        let outcome = await agents.launch("claude-code", in: " /code/app ")
+        XCTAssertEqual(outcome, .done("Opened claude-code in /code/app, typing claude."))
+        XCTAssertEqual(link.sent.first?.workingDirectory, "/code/app")
+        XCTAssertNil(agents.busy)
+    }
 }

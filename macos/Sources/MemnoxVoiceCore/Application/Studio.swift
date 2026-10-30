@@ -36,6 +36,7 @@ public final class Studio: @unchecked Sendable {
     private let lock = NSLock()
     private var rulesView: PolicyRulesView?
     private var progressView: AutonomyProgress?
+    private var packList: [RulePackView]?
     private var failed = false
     private var working: String?
 
@@ -49,6 +50,8 @@ public final class Studio: @unchecked Sendable {
 
     public var rules: PolicyRulesView? { lock.withLock { rulesView } }
     public var progress: AutonomyProgress? { lock.withLock { progressView } }
+    /// The packs Memnox ships, once read; empty from a runtime that answered with none.
+    public var packs: [RulePackView]? { lock.withLock { packList } }
     /// The last read of the rules failed, so the page says so rather than drawing no rules.
     public var unreadable: Bool { lock.withLock { failed } }
     /// The rule, grant or pack a press is still working on, so its button can say so.
@@ -67,6 +70,18 @@ public final class Studio: @unchecked Sendable {
             failed = rulesRead?.ok != true
             if let view = rulesRead?.policyRules { rulesView = view }
             if let view = progressRead?.progress { progressView = view }
+        }
+        changed?()
+    }
+
+    public func readPacks() async {
+        let response = await ask(link, DaemonRequest(id: ids.next(), method: .rulePacks))
+        lock.withLock {
+            if let packs = response?.rulePacks {
+                packList = packs
+            } else if response?.ok == true {
+                packList = []
+            }
         }
         changed?()
     }
@@ -274,6 +289,24 @@ public final class Agents: @unchecked Sendable {
         var request = DaemonRequest(id: ids.next(), method: .sessionStop)
         request.sessionId = sessionId
         return await change(sessionId, request, done: "Stopped. The session waits until you let it carry on.")
+    }
+
+    /// What `busy` reads while one agent is being opened in a folder.
+    public static func launching(_ kind: String) -> String { "launch/\(kind)" }
+
+    /// Opens the agent in a new terminal in the folder; the runtime types its launch line, and nothing is widened.
+    public func launch(_ kind: String, in folder: String) async -> StudioOutcome {
+        var request = DaemonRequest(id: ids.next(), method: .agentLaunch)
+        request.agentKind = kind
+        request.workingDirectory = folder.trimmingCharacters(in: .whitespacesAndNewlines)
+        lock.withLock { working = Self.launching(kind) }
+        changed?()
+        let response = await ask(link, request)
+        lock.withLock { working = nil }
+        changed?()
+        let name = agents?.first { $0.kind == kind }?.name ?? kind
+        let done = response?.agentLaunched.map { LaunchLines.launched($0, name: name) } ?? "Opened \(name)."
+        return outcome(response, done: done)
     }
 
     private func change(_ subject: String, _ request: DaemonRequest, done: String) async -> StudioOutcome {

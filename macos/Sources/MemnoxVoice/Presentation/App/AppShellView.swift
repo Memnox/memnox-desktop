@@ -1,8 +1,9 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// The window's frame: the sidebar, a light top bar with Back, Forward and Go to, the destination's tabs, and the page.
-/// The window's width decides the layout, at the same breakpoints Windows and Linux use.
+/// The window's frame, as the console frames its own: the sidebar, a flat ground with a 56 high top bar holding Back,
+/// Forward, where you are and Go to, and the page under it. The window's width decides the layout, at the same
+/// breakpoints Windows and Linux use.
 struct AppShellView: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var models: SettingsModels
@@ -10,11 +11,15 @@ struct AppShellView: View {
     let close: () -> Void
 
     private enum Layout {
-        static let inset: CGFloat = 8
-        static let radius: CGFloat = 16
         /// Room for the window's buttons when there is no sidebar under them.
         static let trafficLights: CGFloat = 76
         static let sheetScrim = 0.4
+        static let iconButton: CGFloat = 36
+        static let goToPadding: CGFloat = 12
+        static let keyPadding: CGFloat = 6
+        static let barPadding: CGFloat = 20
+        static let compactBarPadding: CGFloat = 12
+        static let disabledOpacity = 0.35
     }
 
     var body: some View {
@@ -36,8 +41,6 @@ struct AppShellView: View {
                     AppSidebar(shell: shell, route: route, rail: rail, canFold: width == .wide || width == .medium, home: models.home)
                 }
                 main(route, width)
-                    .modifier(PagePanel(on: width != .compact))
-                    .padding(width == .compact ? [] : [.top, .trailing, .bottom], Layout.inset)
             }
             if width == .compact, shell.sheet { sheet(route) }
             if shell.palette {
@@ -71,61 +74,91 @@ struct AppShellView: View {
     }
 
     private func topBar(_ route: WindowRoute, _ width: WidthClass) -> some View {
-        HStack(spacing: Memnox.Spacing.medium) {
+        HStack(spacing: Memnox.Spacing.xSmall) {
             if width == .compact {
-                Button { shell.sheet = true } label: {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: Memnox.TextSize.callout, weight: .medium))
-                        .foregroundStyle(Memnox.Console.foreground)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .hoverLight(radius: Memnox.radius, inset: 0)
-                .help("Open the menu")
-                .accessibilityLabel("Open the menu")
+                iconButton("line.3.horizontal", "Open the menu", enabled: true) { shell.sheet = true }
             }
-            NavigationCapsule(canGoBack: shell.canGoBack, canGoForward: shell.canGoForward, back: shell.back, forward: shell.forward)
-            Text(title(route))
-                .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
-                .foregroundStyle(Memnox.Console.foreground)
-                .lineLimit(1)
-                .accessibilityAddTraits(.isHeader)
+            iconButton("chevron.left", "Back", enabled: shell.canGoBack, action: shell.back)
+            iconButton("chevron.right", "Forward", enabled: shell.canGoForward, action: shell.forward)
+            breadcrumb(route)
+                .padding(.leading, Memnox.Spacing.medium)
             Spacer(minLength: Memnox.Spacing.medium)
             if width != .compact {
                 TopBarPickers(shell: shell)
             }
-            Button { shell.palette = true } label: {
-                HStack(spacing: Memnox.Spacing.small) {
-                    Image(systemName: "magnifyingglass").font(.system(size: Memnox.TextSize.caption, weight: .medium))
-                    if width != .compact { Text("Go to") }
-                    Keycap(label: "\u{2318}K")
-                }
-                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Console.muted)
-                .padding(.horizontal, Memnox.Spacing.regular)
-                .frame(height: 30)
-                .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous)
-                    .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .pointingHand()
-            .help("Go to anything")
-            .accessibilityLabel("Go to anything")
+            goTo(width).padding(.leading, Memnox.Spacing.xSmall)
         }
-        .padding(.leading, width == .compact ? Layout.trafficLights : ShellMetrics.pagePadding - Memnox.Spacing.xSmall)
-        .padding(.trailing, Memnox.Spacing.large)
+        .padding(.leading, width == .compact ? Layout.trafficLights : Layout.compactBarPadding)
+        .padding(.trailing, width == .compact ? Layout.compactBarPadding : Layout.barPadding)
         .frame(height: ShellMetrics.barHeight)
         .overlay(alignment: .bottom) { ShellDivider() }
     }
 
-    private func title(_ route: WindowRoute) -> String {
-        if route.destination == .settings, let tab = route.tab, let page = SettingsPage(rawValue: tab) { return page.title }
-        // Backup is the window's own page, so its title is the tab's rather than a Settings window page's.
-        if route.destination == .settings, let tab = Destinations.settingsTabs.first(where: { $0.id == route.tab }) { return tab.title }
-        return Destinations.info(route.destination).title
+    /// Where the window is, as the console's top bar says it: the destination, then its tab once there are tabs.
+    private func breadcrumb(_ route: WindowRoute) -> some View {
+        let info = Destinations.info(route.destination)
+        let tabs = Destinations.visibleTabs(route.destination, supports: shell.supports)
+        let tab = tabs.count < 2 ? nil : tabs.first { $0.id == route.tab }
+        return HStack(spacing: Memnox.Spacing.small) {
+            Text(info.title)
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, tab == nil ? .medium : .regular))
+                .foregroundStyle(tab == nil ? Memnox.Console.foreground : Memnox.Console.muted)
+            if let tab {
+                Text("/").foregroundStyle(Memnox.Console.faint).accessibilityHidden(true)
+                Text(tab.title)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
+                    .foregroundStyle(Memnox.Console.foreground)
+            }
+        }
+        .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
+        .lineLimit(1)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// Back, Forward and the menu, each a 36 square that lights at radius 6 under the pointer.
+    private func iconButton(_ symbol: String, _ label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: Memnox.TextSize.body, weight: .medium))
+                .foregroundStyle(Memnox.Console.muted)
+                .frame(width: Layout.iconButton, height: Layout.iconButton)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverLight(radius: Memnox.Console.controlRadius, inset: 0)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : Layout.disabledOpacity)
+        .help(label)
+        .accessibilityLabel(label)
+    }
+
+    /// Go to, as the console's: a bordered button with its shortcut printed on a key beside the words.
+    private func goTo(_ width: WidthClass) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous)
+        return Button { shell.palette = true } label: {
+            HStack(spacing: Memnox.Spacing.medium) {
+                Image(systemName: "magnifyingglass").font(.system(size: Memnox.TextSize.callout))
+                if width != .compact { Text("Go to") }
+                Text("\u{2318}K")
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.label, .medium))
+                    .foregroundStyle(Memnox.Console.muted)
+                    .padding(.horizontal, Layout.keyPadding)
+                    .background(Memnox.Console.hover, in: shape)
+                    .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            }
+            .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
+            .foregroundStyle(Memnox.Console.muted)
+            .padding(.horizontal, Layout.goToPadding)
+            .frame(height: Memnox.Console.fieldHeight)
+            .background(Memnox.Console.card, in: shape)
+            .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .hoverLight(radius: Memnox.Console.controlRadius, inset: 0)
+        .help("Go to anything")
+        .accessibilityLabel("Go to anything")
     }
 
     /// The sidebar over the page on the narrowest windows, closed by a click beside it or by Escape.
@@ -165,21 +198,6 @@ struct AppShellView: View {
         }
         .opacity(0)
         .accessibilityHidden(true)
-    }
-}
-
-/// The page as Vorssaint sets its panels: solid, inset on the window's glass with rounded corners and one even edge.
-private struct PagePanel: ViewModifier {
-    let on: Bool
-
-    private static let radius: CGFloat = 16
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: on ? Self.radius : 0, style: .continuous)
-        content
-            .background(Memnox.Console.background, in: shape)
-            .clipShape(shape)
-            .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: on ? Memnox.Stroke.hairline : 0))
     }
 }
 
@@ -306,12 +324,12 @@ private struct TopBarPickers: View {
             Text(text).lineLimit(1)
             Image(systemName: "chevron.down").font(.system(size: Memnox.TextSize.micro, weight: .semibold))
         }
-        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+        .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
         .foregroundStyle(Memnox.Console.foreground)
-        .padding(.horizontal, Memnox.Spacing.regular)
-        .frame(height: 30)
-        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous)
-            .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .padding(.horizontal, Memnox.Spacing.large)
+        .frame(height: Memnox.Console.controlHeight)
+        .background(Memnox.Console.field, in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous)
+            .strokeBorder(Memnox.Console.controlEdge, lineWidth: Memnox.Stroke.hairline))
     }
 }

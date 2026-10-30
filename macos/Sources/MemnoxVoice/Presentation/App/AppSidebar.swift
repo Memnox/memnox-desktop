@@ -1,8 +1,10 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// The five destinations, with Settings and the runtime's standing at the foot. As a rail it keeps only the icons, each
-/// named for VoiceOver and on hover, so nothing is lost when the window is made narrow.
+/// The five destinations, with Settings and the runtime's standing at the foot, laid out as the console's sidebar: flat
+/// on the ground with a rule down its right, a 56 high head holding the mark, the name and a Local pill, and rows at
+/// radius 6 lit by the active fill. As a rail it keeps only the icons, each named for VoiceOver and on hover, so nothing
+/// is lost when the window is made narrow.
 struct AppSidebar: View {
     @ObservedObject var shell: AppShellModel
     let route: WindowRoute
@@ -12,17 +14,21 @@ struct AppSidebar: View {
     let home: HomeModel?
 
     enum Layout {
-        static let width: CGFloat = 232
-        static let railWidth: CGFloat = 60
-        /// The window's buttons sit over the sidebar's top, so its first row starts below them.
-        static let trafficLightsRoom: CGFloat = 44
-        static let padding: CGFloat = 10
-        static let rowHeight: CGFloat = 32
+        static let width: CGFloat = 240
+        static let railWidth: CGFloat = 64
+        /// The window's buttons sit at the head's start, so the mark begins after them.
+        static let trafficLightsRoom: CGFloat = 76
+        static let padding: CGFloat = 12
+        static let rowHeight: CGFloat = 36
         static let railRow: CGFloat = 40
-        static let rowRadius: CGFloat = 8
+        static let rowRadius: CGFloat = Memnox.Console.controlRadius
         static let iconWidth: CGFloat = 18
-        static let iconSize: CGFloat = 14
-        static let logo: CGFloat = 22
+        static let iconSize: CGFloat = 15
+        static let tile: CGFloat = 26
+        static let tileTint = 0.12
+        static let pillTracking: CGFloat = 1.4
+        static let pillText: CGFloat = 10
+        static let pillPadding: CGFloat = 8
     }
 
     static func symbol(_ destination: Destination) -> String {
@@ -37,80 +43,101 @@ struct AppSidebar: View {
     }
 
     var body: some View {
-        VStack(alignment: rail ? .center : .leading, spacing: 2) {
+        VStack(spacing: 0) {
             header
-            ForEach(Destinations.all.filter { $0.id != .settings }, id: \.id) { each in
-                item(symbol: Self.symbol(each.id), title: each.title, hint: each.subtitle, chosen: route.destination == each.id) {
-                    shell.go(WindowRoute(each.id))
+            ScrollView {
+                VStack(alignment: rail ? .center : .leading, spacing: Memnox.Spacing.xxSmall) {
+                    ForEach(Destinations.all.filter { $0.id != .settings }, id: \.id) { each in
+                        item(symbol: Self.symbol(each.id), title: each.title, hint: each.subtitle, chosen: route.destination == each.id) {
+                            shell.go(WindowRoute(each.id))
+                        }
+                    }
+                }
+                .padding(.horizontal, rail ? Memnox.Spacing.medium : Layout.padding)
+                .padding(.top, Layout.padding)
+                .padding(.bottom, Memnox.Spacing.medium)
+            }
+            .scrollIndicators(.never)
+            VStack(alignment: rail ? .center : .leading, spacing: Memnox.Spacing.xxSmall) {
+                if let home {
+                    RuntimeStanding(home: home, rail: rail)
+                } else {
+                    RuntimeWord(tone: .quiet, words: RuntimeStanding.reaching, rail: rail)
+                }
+                let settings = Destinations.info(.settings)
+                item(symbol: Self.symbol(.settings), title: settings.title, hint: settings.subtitle, chosen: route.destination == .settings) {
+                    shell.go(WindowRoute(.settings))
+                }
+                if canFold {
+                    item(symbol: "sidebar.left", title: shell.collapsed ? "Show labels" : "Hide labels",
+                         hint: "Fold the sidebar to its icons", chosen: false) {
+                        withAnimation(.snappy) { shell.collapsed.toggle() }
+                    }
                 }
             }
-            Spacer(minLength: Layout.padding)
-            ShellDivider().padding(.bottom, Memnox.Spacing.small)
-            if let home {
-                RuntimeStanding(home: home, rail: rail)
-            } else {
-                RuntimeWord(tone: .quiet, words: RuntimeStanding.reaching, rail: rail)
-            }
-            let settings = Destinations.info(.settings)
-            item(symbol: Self.symbol(.settings), title: settings.title, hint: settings.subtitle, chosen: route.destination == .settings) {
-                shell.go(WindowRoute(.settings))
-            }
-            if canFold {
-                item(symbol: "sidebar.left", title: shell.collapsed ? "Show labels" : "Hide labels",
-                     hint: "Fold the sidebar to its icons", chosen: false) {
-                    withAnimation(.snappy) { shell.collapsed.toggle() }
-                }
-            }
+            .padding(.horizontal, rail ? Memnox.Spacing.medium : Layout.padding)
+            .padding(.vertical, Memnox.Spacing.medium)
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .top) { ShellDivider() }
         }
-        .padding(.top, Layout.trafficLightsRoom)
-        .padding(.horizontal, rail ? Memnox.Spacing.medium : Layout.padding)
-        .padding(.bottom, Layout.padding)
         .frame(width: rail ? Layout.railWidth : Layout.width)
         .frame(maxHeight: .infinity, alignment: .top)
+        .background(Memnox.Console.surface)
+        .overlay(alignment: .trailing) {
+            Rectangle().fill(Memnox.Console.panelEdge).frame(width: Memnox.Stroke.hairline)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Memnox")
     }
 
+    /// The brand head, as tall as the top bar so their two rules meet. On the rail the window's buttons fill it.
     private var header: some View {
-        HStack(spacing: Memnox.Spacing.medium) {
-            LogoMark(size: Layout.logo)
+        HStack(spacing: Memnox.Spacing.regular) {
             if !rail {
+                BrandTile(side: Layout.tile, tint: Layout.tileTint)
                 Text("Memnox")
-                    .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.base, .semibold))
+                    .tracking(Memnox.Console.titleTracking / 2)
                     .foregroundStyle(Memnox.Console.foreground)
+                    .lineLimit(1)
                 Spacer(minLength: 0)
-                Text("Local")
-                    .font(Memnox.Console.sans(Memnox.TextSize.micro, .medium))
+                Text("Local".uppercased())
+                    .font(Memnox.Console.sans(Layout.pillText, .medium))
+                    .tracking(Layout.pillTracking)
                     .foregroundStyle(Memnox.Console.muted)
-                    .padding(.horizontal, Memnox.Spacing.small)
-                    .padding(.vertical, Memnox.Spacing.xxSmall)
-                    .overlay(RoundedRectangle(cornerRadius: Memnox.radius, style: .continuous)
-                        .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                    .padding(.horizontal, Layout.pillPadding)
+                    .padding(.vertical, 1)
+                    .overlay(Capsule().strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                    .fixedSize()
+                    .accessibilityLabel("Local")
             }
         }
-        .padding(.horizontal, rail ? 0 : Memnox.Spacing.small)
-        .padding(.bottom, Memnox.Spacing.xLarge)
+        .padding(.leading, rail ? 0 : Layout.trafficLightsRoom)
+        .padding(.trailing, rail ? 0 : Layout.padding + Memnox.Spacing.xSmall)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: ShellMetrics.barHeight)
+        .overlay(alignment: .bottom) { ShellDivider() }
     }
 
     private func item(symbol: String, title: String, hint: String, chosen: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: Memnox.Spacing.regular) {
                 Image(systemName: symbol)
-                    .font(.system(size: Layout.iconSize, weight: .medium))
-                    .foregroundStyle(chosen ? Memnox.Console.primary : Memnox.Console.muted)
+                    .font(.system(size: Layout.iconSize, weight: .regular))
+                    .foregroundStyle(chosen ? Memnox.Console.foreground : Memnox.Console.muted)
                     .frame(width: Layout.iconWidth)
                 if !rail {
                     Text(title)
-                        .font(Memnox.Console.sans(Memnox.TextSize.body, chosen ? .medium : .regular))
+                        .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, chosen ? .medium : .regular))
                         .foregroundStyle(chosen ? Memnox.Console.foreground : Memnox.Console.muted)
                         .lineLimit(1)
                     Spacer(minLength: 0)
                 }
             }
-            .padding(.horizontal, rail ? 0 : Memnox.Spacing.regular)
+            .padding(.horizontal, rail ? 0 : Layout.padding)
             .frame(width: rail ? Layout.railRow : nil, height: Layout.rowHeight)
             .frame(maxWidth: rail ? nil : .infinity, alignment: .leading)
-            .background(chosen ? Memnox.Console.hover : Color.clear,
+            .background(chosen ? Memnox.Console.active : Color.clear,
                         in: RoundedRectangle(cornerRadius: Layout.rowRadius, style: .continuous))
             .hoverLight(radius: Layout.rowRadius, inset: 0)
             .contentShape(Rectangle())
@@ -158,9 +185,37 @@ private struct RuntimeWord: View {
                     .accessibilityLabel(words)
             } else {
                 StatusWord(tone, words)
-                    .padding(.horizontal, Memnox.Spacing.regular)
+                    .padding(.horizontal, Memnox.Spacing.small)
                     .frame(maxWidth: .infinity, minHeight: AppSidebar.Layout.rowHeight, alignment: .leading)
             }
         }
+    }
+}
+
+/// The mark in the console's blue on a tile of its own tint, as the console's sidebar heads itself.
+private struct BrandTile: View {
+    let side: CGFloat
+    let tint: Double
+
+    /// The mark fills a little over half the tile.
+    private static let markShare: CGFloat = 0.6
+
+    var body: some View {
+        Group {
+            if let logo = MemnoxLogo.white {
+                Image(nsImage: logo)
+                    .renderingMode(.template)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundStyle(Memnox.Console.primary)
+            } else {
+                Circle().fill(Memnox.Console.primary)
+            }
+        }
+        .frame(width: side * Self.markShare, height: side * Self.markShare)
+        .frame(width: side, height: side)
+        .background(Memnox.Console.primary.opacity(tint), in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
+        .accessibilityHidden(true)
     }
 }

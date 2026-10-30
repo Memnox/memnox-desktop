@@ -122,9 +122,8 @@ final class AppWindow {
         window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: Layout.minWidth, height: Layout.minHeight)
-        // Clear, so the sidebar's glass shows the desktop through it while the page stays solid.
-        window.isOpaque = false
-        window.backgroundColor = .clear
+        // The console's ground under the sidebar and the page alike, so nothing of the desktop shows through.
+        window.backgroundColor = NSColor(Memnox.Console.background)
         window.contentView = FirstClickHosting(rootView: AppShellView(shell: shell, models: models) { [weak self] in self?.close() })
         window.center()
         // Opens where and as large as it was last left, once it has been left anywhere.

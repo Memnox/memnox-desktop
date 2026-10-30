@@ -159,6 +159,174 @@
   }
 }
 
+/*
+ * The Memnox window and the first run wear the Memnox Cloud console's palette, value for value from
+ * memnox-client packages/ui/src/styles/globals.css, so the desktop and the console read as one product.
+ * Light is a neutral ground under white cards and dark is the same shape inverted, each card read by its
+ * border rather than a fill, and the console's blue is the one hue. Status keeps the desktop's own words
+ * in the console's pill colours: green allows, amber asks, red denies, grey is not known.
+ * Scoped to `html.mx-window` so the island, the tray and the floating cards keep the Mac's palette.
+ */
+html.mx-window {
+  --mx-background: #fbfbfb;
+  --mx-surface: #fbfbfb;
+  --mx-card: #ffffff;
+  --mx-secondary: #ffffff;
+  --mx-control-edge: #e2e2e2;
+  --mx-border: #e2e2e2;
+  --mx-panel-edge: #e2e2e2;
+  --mx-foreground: #0f0f0f;
+  --mx-muted: #333333;
+  --mx-faint: #8a8a8a;
+  --mx-ink: #0f0f0f;
+  --mx-success: #37cd8f;
+  --mx-warm: #dd815d;
+  --mx-destructive: #e31957;
+  --mx-rim: #ffffff;
+  --mx-capsule: #ffffff;
+  --mx-capsule-edge: #e2e2e2;
+  --mx-hover: #f2f2f2;
+  --mx-active: #eaeaea;
+  --mx-field: #ffffff;
+  --mx-field-edge: #e2e2e2;
+  --mx-keycap: #f2f2f2;
+  --mx-raised: #ffffff;
+  --mx-panel: #ffffff;
+  --mx-sky: #1e86ee;
+  --mx-ring: rgb(30 134 238 / 0.35);
+  --mx-switch-knob: #ffffff;
+  --mx-ink-primary: rgb(15 15 15 / 1);
+  --mx-ink-secondary: rgb(15 15 15 / 0.8);
+  --mx-ink-tertiary: rgb(15 15 15 / 0.6);
+  --mx-ink-fill: rgb(15 15 15 / 0.08);
+  --mx-ink-faint-fill: rgb(15 15 15 / 0.05);
+  --mx-ink-edge: rgb(15 15 15 / 0.18);
+  --mx-ink-rim: rgb(15 15 15 / 0.08);
+
+  /* The console's blue for every primary, and its status colours, in this window alone. */
+  --color-primary: #1e86ee;
+  --color-deep: #1e86ee;
+  --color-green: #37cd8f;
+  --color-amber: #dd815d;
+  --color-red: #e31957;
+
+  /* Inter for everything, as the console sets it; a real monospace only where code is shown. */
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-display: Inter, system-ui, sans-serif;
+  --font-mono: Inter, system-ui, sans-serif;
+  --font-code: "DM Mono", ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+
+  /* Two shapes, as the console folds them: 6 for controls and tiles, 12 for cards and panels. */
+  --radius-sm: 6px;
+  --radius-md: 6px;
+  --radius-lg: 6px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
+  --radius-3xl: 12px;
+  --radius-control: 6px;
+  --radius-card: 12px;
+  color-scheme: light;
+}
+
+html.mx-window[data-theme="dark"] {
+  --mx-background: #030303;
+  --mx-surface: #030303;
+  --mx-card: #0f0f0f;
+  --mx-secondary: #0f0f0f;
+  --mx-control-edge: #313131;
+  --mx-border: #313131;
+  --mx-panel-edge: #313131;
+  --mx-foreground: #fdfdfd;
+  --mx-muted: #adadad;
+  --mx-faint: #6b6b6b;
+  --mx-ink: #fdfdfd;
+  --mx-rim: #0f0f0f;
+  --mx-capsule: #0f0f0f;
+  --mx-capsule-edge: #313131;
+  --mx-hover: #191919;
+  --mx-active: #1d1d1d;
+  --mx-field: #0f0f0f;
+  --mx-field-edge: #313131;
+  --mx-keycap: #191919;
+  --mx-raised: #0f0f0f;
+  --mx-panel: #0f0f0f;
+  --mx-sky: #3d97f3;
+  --mx-ring: rgb(30 134 238 / 0.45);
+  --mx-switch-knob: #9cd1fd;
+  --mx-ink-primary: rgb(253 253 253 / 0.92);
+  --mx-ink-secondary: rgb(253 253 253 / 0.62);
+  --mx-ink-tertiary: rgb(253 253 253 / 0.5);
+  --mx-ink-fill: rgb(253 253 253 / 0.08);
+  --mx-ink-faint-fill: rgb(253 253 253 / 0.06);
+  --mx-ink-edge: rgb(253 253 253 / 0.16);
+  --mx-ink-rim: rgb(253 253 253 / 0.07);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  html.mx-window:not([data-theme="light"]) {
+    --mx-background: #030303;
+    --mx-surface: #030303;
+    --mx-card: #0f0f0f;
+    --mx-secondary: #0f0f0f;
+    --mx-control-edge: #313131;
+    --mx-border: #313131;
+    --mx-panel-edge: #313131;
+    --mx-foreground: #fdfdfd;
+    --mx-muted: #adadad;
+    --mx-faint: #6b6b6b;
+    --mx-ink: #fdfdfd;
+    --mx-rim: #0f0f0f;
+    --mx-capsule: #0f0f0f;
+    --mx-capsule-edge: #313131;
+    --mx-hover: #191919;
+    --mx-active: #1d1d1d;
+    --mx-field: #0f0f0f;
+    --mx-field-edge: #313131;
+    --mx-keycap: #191919;
+    --mx-raised: #0f0f0f;
+    --mx-panel: #0f0f0f;
+    --mx-sky: #3d97f3;
+    --mx-ring: rgb(30 134 238 / 0.45);
+    --mx-switch-knob: #9cd1fd;
+    --mx-ink-primary: rgb(253 253 253 / 0.92);
+    --mx-ink-secondary: rgb(253 253 253 / 0.62);
+    --mx-ink-tertiary: rgb(253 253 253 / 0.5);
+    --mx-ink-fill: rgb(253 253 253 / 0.08);
+    --mx-ink-faint-fill: rgb(253 253 253 / 0.06);
+    --mx-ink-edge: rgb(253 253 253 / 0.16);
+    --mx-ink-rim: rgb(253 253 253 / 0.07);
+    color-scheme: dark;
+  }
+}
+
+/* The console sets its whole scale one step tight, since Inter is drawn loose for the web. */
+html.mx-window body {
+  letter-spacing: -0.01em;
+}
+
+/* Code and raw configuration keep a fixed advance, as the console's code block does; nothing else does. */
+html.mx-window pre,
+html.mx-window .font-code {
+  font-family: var(--font-code);
+  letter-spacing: 0;
+}
+
+/* A native check, radio or slider takes the blue rather than the system's accent. */
+html.mx-window input[type="checkbox"],
+html.mx-window input[type="radio"],
+html.mx-window input[type="range"] {
+  accent-color: var(--color-primary);
+}
+
+/* A field answers focus as the console's do: its border turns blue and a soft ring sits outside it. */
+html.mx-window .mx-field:focus-visible,
+html.mx-window .mx-field-within:focus-within {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--mx-ring);
+}
+
 /* The adaptive palette under Tailwind names, read through the variables so a theme change repaints. */
 @theme inline {
   --color-background: var(--mx-background);
@@ -195,6 +363,9 @@
   --color-primary-fill: var(--mx-primary-fill);
   --color-primary-text: var(--mx-primary-text);
   --color-soft: var(--mx-soft);
+  /* The console's active row and its switch knob; outside the Memnox window they fall back to the hover fill and white. */
+  --color-active: var(--mx-active, var(--mx-hover));
+  --color-switch-knob: var(--mx-switch-knob, #ffffff);
 }
 
 @theme {
@@ -257,6 +428,10 @@
   --text-callout: 14px;
   --text-headline: 15px;
   --text-title: 17px;
+  /* The console's own names for the steps it shares with this scale: label 11, meta 12, body-sm 13. */
+  --text-label: 11px;
+  --text-meta: 12px;
+  --text-body-sm: 13px;
 
   /* Radii: control, card on a page, keycap; then the island's card and tile, and the command box. */
   --radius-control: 6px;

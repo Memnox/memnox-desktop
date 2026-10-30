@@ -1,4 +1,4 @@
-import { Check, ChevronLeft, ChevronRight, ChevronsUpDown, CircleAlert, CircleX, LoaderCircle, Search, type LucideIcon } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, CircleX, LoaderCircle, Search, type LucideIcon } from 'lucide-react';
 import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import type { StepState } from '../../core/domain/step-state';
 import { MEMNOX_MARK } from '../kit/logos';
@@ -11,13 +11,13 @@ import { MEMNOX_MARK } from '../kit/logos';
 
 export type KitKind = 'primary' | 'secondary' | 'glass';
 
+/** The console's button at its small size: 32 tall, radius 6, 13 medium, a soft blue ring when focused by key. */
 const KIT_BASE =
-  'inline-flex h-7 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-body leading-none transition-[opacity,box-shadow,scale] duration-200 ease-out enabled:active:scale-[0.97] disabled:cursor-default';
+  'inline-flex h-8 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-body-sm font-medium leading-none outline-none transition-[opacity,background-color,border-color,box-shadow] duration-200 ease-out focus-visible:ring-[3px] focus-visible:ring-primary/30 disabled:cursor-default disabled:opacity-50';
 
 const KIT_KIND: Record<KitKind, string> = {
-  primary: 'bg-primary font-semibold text-white enabled:hover:opacity-[0.88] disabled:opacity-40',
-  secondary:
-    'border border-control-edge bg-secondary text-foreground enabled:hover:shadow-[inset_0_0_0_999px_var(--mx-ink-fill)] disabled:bg-[color-mix(in_srgb,var(--mx-secondary)_50%,transparent)] disabled:text-faint',
+  primary: 'bg-primary text-white shadow-[0_0_0_1px_var(--mx-ring,transparent)] enabled:hover:bg-primary/90',
+  secondary: 'border border-control-edge bg-secondary text-foreground enabled:hover:border-[color-mix(in_oklab,var(--mx-foreground)_30%,transparent)] enabled:hover:bg-hover',
   glass: 'border border-white/[0.28] bg-white/10 text-white enabled:hover:shadow-[inset_0_0_0_999px_rgb(255_255_255/0.08)]',
 };
 
@@ -25,7 +25,7 @@ export function kitButtonClass(kind: KitKind = 'secondary', wide = false): strin
   return `${KIT_BASE} ${KIT_KIND[kind]} ${wide ? 'w-full' : ''}`;
 }
 
-/** `KitButton`: a 28 tall capsule, 13 words, semibold when primary; a leading icon 12 semibold, 6 before the word. */
+/** `KitButton`, in the console's shape: 32 tall at radius 6, 13 medium words, a leading icon 14, 6 before the word. */
 export function KitButton({
   kind = 'secondary',
   icon: Icon,
@@ -37,9 +37,9 @@ export function KitButton({
 }: { kind?: KitKind; icon?: LucideIcon; trailing?: LucideIcon; wide?: boolean } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button type="button" className={`${kitButtonClass(kind, wide)} ${className ?? ''}`} {...rest}>
-      {Icon !== undefined && <Icon size={12} strokeWidth={2.6} aria-hidden />}
+      {Icon !== undefined && <Icon size={14} strokeWidth={2} aria-hidden />}
       {children}
-      {Trailing !== undefined && <Trailing size={12} strokeWidth={2.6} aria-hidden />}
+      {Trailing !== undefined && <Trailing size={14} strokeWidth={2} aria-hidden />}
     </button>
   );
 }
@@ -68,7 +68,7 @@ export function Spinner({ size = 14 }: { size?: number }) {
   return <LoaderCircle size={size} className="shrink-0 animate-spin text-muted" aria-label="Working" />;
 }
 
-/** `MemnoxSwitch`: a 34 by 20 track, blue when on, ink 14% when off, with a 16 white knob that springs across. */
+/** The console's switch: a squircle track blue when on and grey when off, its knob a tint of the blue on dark. */
 export function Switch({ on, label, onChange, disabled = false }: { on: boolean; label: string; onChange: (on: boolean) => void; disabled?: boolean }) {
   return (
     <button
@@ -81,22 +81,22 @@ export function Switch({ on, label, onChange, disabled = false }: { on: boolean;
         event.stopPropagation();
         onChange(!on);
       }}
-      className={`relative h-5 w-[34px] shrink-0 cursor-pointer rounded-full transition-colors duration-200 disabled:cursor-default ${on ? 'bg-primary' : 'bg-ink-edge'}`}
+      className={`mx-focus relative h-5 w-9 shrink-0 cursor-pointer rounded-[5px] transition-colors duration-200 disabled:cursor-default disabled:opacity-50 ${on ? 'bg-primary' : 'bg-[color-mix(in_oklab,var(--mx-muted)_40%,transparent)]'}`}
     >
       <span
-        className={`absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow-[0_1px_1px_rgba(0,0,0,.25)] transition-transform duration-[250ms] ease-[cubic-bezier(.34,1.3,.64,1)] ${on ? 'translate-x-[14px]' : ''}`}
+        className={`absolute top-0.5 left-0.5 size-4 rounded-[4px] shadow-[0_1px_2px_rgba(0,0,0,.2)] transition-transform duration-200 ease-out ${on ? 'translate-x-4 bg-switch-knob' : 'bg-white'}`}
       />
     </button>
   );
 }
 
-/** `SearchField`: a capsule of the field fill with a magnifier, and a clear button while there is text. */
+/** `SearchField`, as the console's: a bordered field at radius 6 with a magnifier, and a clear button while there is text. */
 export function SearchField({ value, placeholder, onChange }: { value: string; placeholder: string; onChange: (value: string) => void }) {
   return (
-    <label className="flex h-7 items-center gap-1.5 rounded-full border border-field-edge bg-field px-[9px]">
-      <Search size={13} className="shrink-0 text-muted" aria-hidden />
+    <label className="mx-field-within flex h-9 items-center gap-2 rounded-lg border border-field-edge bg-field px-3">
+      <Search size={14} className="shrink-0 text-muted" aria-hidden />
       <input
-        className="min-w-0 flex-1 bg-transparent text-body text-foreground outline-none placeholder:text-muted"
+        className="min-w-0 flex-1 bg-transparent text-body-sm text-foreground outline-none placeholder:text-muted"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
@@ -111,7 +111,7 @@ export function SearchField({ value, placeholder, onChange }: { value: string; p
   );
 }
 
-/** `KitField`: at least 28 tall, radius 7, the raised fill, a 1 px blue edge while focused and never thicker. */
+/** `KitField`, as the console's field: 36 tall at radius 6, white or the dark card, a blue border and soft ring when focused. */
 export function KitField({
   value,
   placeholder,
@@ -131,7 +131,7 @@ export function KitField({
 }) {
   return (
     <input
-      className={`h-7 min-w-0 rounded-[7px] border border-control-edge bg-raised px-2.5 text-body text-foreground outline-none placeholder:text-muted focus:border-primary ${className ?? ''}`}
+      className={`mx-field h-9 min-w-0 rounded-lg border border-control-edge bg-raised px-3 text-body-sm text-foreground outline-none placeholder:text-muted focus:border-primary ${className ?? ''}`}
       style={width === undefined ? undefined : { width }}
       value={value}
       placeholder={placeholder}
@@ -145,15 +145,15 @@ export function KitField({
   );
 }
 
-/** `IconTile`: a 26 square at radius 7 of the tint at 12%, its symbol 12 semibold in the tint. */
+/** `IconTile`, as the console's stat icon: a square at radius 6 of the tint at 14%, its symbol in the tint. */
 export function IconTile({ icon: Icon, tint = 'var(--color-primary)', size = 26 }: { icon: LucideIcon; tint?: string; size?: number }) {
   return (
     <span
-      className="grid shrink-0 place-items-center rounded-[7px]"
-      style={{ width: size, height: size, color: tint, backgroundColor: `color-mix(in srgb, ${tint} 12%, transparent)` }}
+      className="grid shrink-0 place-items-center rounded-lg"
+      style={{ width: size, height: size, color: tint, backgroundColor: `color-mix(in oklab, ${tint} 14%, transparent)` }}
       aria-hidden
     >
-      <Icon size={12} strokeWidth={2.4} />
+      <Icon size={Math.round(size * 0.5)} strokeWidth={2} />
     </span>
   );
 }
@@ -161,7 +161,7 @@ export function IconTile({ icon: Icon, tint = 'var(--color-primary)', size = 26 
 /** `MemnoxTile`: the same tile holding the Memnox mark at 60% of its side. */
 export function MemnoxTile({ size = 26 }: { size?: number }) {
   return (
-    <span className="grid shrink-0 place-items-center rounded-[7px] bg-primary/[0.12]" style={{ width: size, height: size }} aria-hidden>
+    <span className="grid shrink-0 place-items-center rounded-lg bg-primary/[0.12]" style={{ width: size, height: size }} aria-hidden>
       <span
         className="block bg-primary"
         style={{ width: size * 0.6, height: size * 0.6, mask: `url("${MEMNOX_MARK}") center / contain no-repeat`, WebkitMask: `url("${MEMNOX_MARK}") center / contain no-repeat` }}
@@ -204,11 +204,11 @@ export function NeedsHint({ why, size = 11 }: { why: string; size?: number }) {
   );
 }
 
-/** `SettingsCard`: padding 16, radius 16, the card fill, an optional 15 semibold heading, 13 between items. */
+/** `SettingsCard`, as the console's setting card: a bordered white card at radius 12, padding 20, a 16 medium heading. */
 export function SettingsCard({ title, children, className }: { title?: string; children: ReactNode; className?: string }) {
   return (
-    <section className={`flex flex-col gap-[13px] rounded-2xl bg-card p-4 ${className ?? ''}`}>
-      {title !== undefined && <h3 className="text-headline font-semibold text-foreground">{title}</h3>}
+    <section className={`flex flex-col gap-4 rounded-xl border border-panel-edge bg-card p-5 ${className ?? ''}`}>
+      {title !== undefined && <h3 className="text-base font-medium text-foreground">{title}</h3>}
       {children}
     </section>
   );
@@ -216,7 +216,7 @@ export function SettingsCard({ title, children, className }: { title?: string; c
 
 /** `.surface()` inside Settings: radius 16 and the card fill with no padding of its own, rows carry it. */
 export function Surface({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={`overflow-hidden rounded-2xl bg-card ${className ?? ''}`}>{children}</section>;
+  return <section className={`overflow-hidden rounded-xl border border-panel-edge bg-card ${className ?? ''}`}>{children}</section>;
 }
 
 /** `SettingsSection`: a 15 semibold title, something at its end on the baseline, then 10 to the card. */
@@ -224,7 +224,7 @@ export function SettingsSection({ title, trailing, children }: { title: string; 
   return (
     <section className="flex flex-col gap-2.5">
       <div className="flex items-baseline justify-between px-0.5">
-        <h3 className="text-headline font-semibold text-foreground">{title}</h3>
+        <h3 className="text-base font-medium text-foreground">{title}</h3>
         {trailing}
       </div>
       {children}
@@ -254,8 +254,8 @@ export function SettingsRow({
     <div className="flex items-center gap-3">
       {tile ?? (icon !== undefined && <IconTile icon={icon} tint={tint} />)}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className={titleClass ?? 'text-body text-foreground'}>{title}</span>
-        {caption !== undefined && <span className="text-footnote text-muted">{caption}</span>}
+        <span className={titleClass ?? 'text-body-sm font-medium text-foreground'}>{title}</span>
+        {caption !== undefined && <span className="text-meta leading-relaxed text-muted">{caption}</span>}
       </div>
       {children !== undefined && <div className="ml-3 flex shrink-0 items-center gap-1.5">{children}</div>}
     </div>
@@ -335,11 +335,11 @@ export function SelectMenu<T extends string>({
   const current = options.find((option) => option.value === value)?.label ?? '';
   return (
     <label
-      className={`relative inline-flex h-7 shrink-0 cursor-pointer items-center justify-between gap-1.5 text-body text-foreground ${plain ? '' : 'rounded-full border border-control-edge bg-secondary px-3.5 hover:shadow-[inset_0_0_0_999px_var(--mx-hover)]'}`}
+      className={`relative inline-flex h-8 shrink-0 cursor-pointer items-center justify-between gap-2 text-body-sm text-foreground ${plain ? '' : 'mx-field-within rounded-lg border border-control-edge bg-field px-3 hover:bg-hover'}`}
       style={width === undefined ? undefined : { width }}
     >
       <span className="truncate">{current}</span>
-      <ChevronsUpDown size={10} strokeWidth={2.5} className="shrink-0 text-muted" aria-hidden />
+      <ChevronDown size={14} className="shrink-0 text-muted" aria-hidden />
       <select className="absolute inset-0 cursor-pointer opacity-0" value={value} aria-label={label} onChange={(event) => onChange(event.target.value as T)}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -351,12 +351,13 @@ export function SelectMenu<T extends string>({
   );
 }
 
-/** A page's own column title: 19 bold over its line 13 muted. */
-export function PageTitle({ title, subtitle }: { title: string; subtitle: string }) {
+/** A page's heading, as the console's page header: a 24 semibold title over its line 13 muted. */
+export function PageTitle({ title, subtitle, eyebrow }: { title: string; subtitle: string; eyebrow?: string }) {
   return (
-    <header className="flex flex-col gap-1">
-      <h1 className="text-[19px] font-bold text-foreground">{title}</h1>
-      <p className="text-body text-muted">{subtitle}</p>
+    <header className="flex flex-col">
+      {eyebrow !== undefined && <p className="text-meta text-muted">{eyebrow}</p>}
+      <h1 className={`text-2xl font-semibold tracking-[-0.02em] text-foreground ${eyebrow === undefined ? '' : 'mt-1'}`}>{title}</h1>
+      <p className="mt-1.5 max-w-2xl text-body-sm leading-relaxed text-muted">{subtitle}</p>
     </header>
   );
 }

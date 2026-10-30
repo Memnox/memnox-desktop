@@ -201,14 +201,43 @@ extension View {
     }
 }
 
-/// A page's column: its title in the title font, then its cards, centred and never wider than a comfortable read.
+/// A page's column: its title in the title font, then its cards, centred and never wider than a comfortable read. In
+/// the Memnox window the shell's heading takes the title's place, the sub navigation beside it, and the cards keep
+/// their comfortable width inside the pane.
 struct SettingsColumn<Content: View>: View {
     /// Nil for a page that opens on its own greeting, such as the overview.
     var title: String?
     var subtitle: String?
     @ViewBuilder let content: Content
+    @Environment(\.paneHeading) private var heading
 
     var body: some View {
+        if let heading {
+            headed(heading)
+        } else {
+            plain
+        }
+    }
+
+    private func headed(_ heading: PaneHeading) -> some View {
+        GeometryReader { geometry in
+            ScrollView {
+                PaneFrame(heading: heading, width: min(geometry.size.width - ShellMetrics.pagePadding * 2, ShellMetrics.pageWidth)) {
+                    VStack(alignment: .leading, spacing: SettingsMetrics.pageSpacing) { content }
+                        .frame(maxWidth: SettingsMetrics.pageWidth, alignment: .leading)
+                }
+                .frame(maxWidth: ShellMetrics.pageWidth, alignment: .leading)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, ShellMetrics.pagePadding)
+                .padding(.top, ShellMetrics.pageTop)
+                .padding(.bottom, ShellMetrics.pageBottom)
+            }
+            .scrollIndicators(.automatic)
+        }
+        .clipped()
+    }
+
+    private var plain: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: SettingsMetrics.pageSpacing) {
                 if let title {

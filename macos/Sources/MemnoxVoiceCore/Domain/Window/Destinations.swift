@@ -11,17 +11,67 @@ public enum Destination: String, CaseIterable, Sendable {
     case settings
 }
 
+/// The headings a destination's sub navigation groups its tabs under, as the console's settings tree does.
+public enum TabGroupId: String, CaseIterable, Sendable {
+    case agents
+    case computer
+    case projects
+    case knowledge
+    case skills
+    case hub
+    case apps
+    case review
+    case rules
+    case record
+    case account
+    case devices
+    case voice
+    case app
+
+    public var title: String {
+        switch self {
+        case .agents: "Agents"
+        case .computer: "This computer"
+        case .projects: "Projects"
+        case .knowledge: "Knowledge"
+        case .skills: "Skills"
+        case .hub: "Hub"
+        case .apps: "Apps"
+        case .review: "Waiting on you"
+        case .rules: "Rules"
+        case .record: "Record"
+        case .account: "Account"
+        case .devices: "Devices"
+        case .voice: "Voice"
+        case .app: "App"
+        }
+    }
+}
+
 public struct TabInfo: Equatable, Sendable {
     public let id: String
     public let title: String
+    /// The heading it sits under in the destination's sub navigation.
+    public let group: TabGroupId
+    /// One line under the pane's title saying what the tab is for.
+    public let summary: String
     /// The daemon method this tab reads; nil when the tab needs nothing new.
     public let needs: String?
 
-    public init(id: String, title: String, needs: String? = nil) {
+    public init(id: String, title: String, group: TabGroupId, summary: String, needs: String? = nil) {
         self.id = id
         self.title = title
+        self.group = group
+        self.summary = summary
         self.needs = needs
     }
+}
+
+/// One heading of a destination's sub navigation and the tabs shown under it now.
+public struct TabGroup: Equatable, Sendable {
+    public let id: TabGroupId
+    public let title: String
+    public let tabs: [TabInfo]
 }
 
 public struct DestinationInfo: Equatable, Sendable {
@@ -67,20 +117,26 @@ public struct PaletteCommand: Equatable, Identifiable, Sendable {
 }
 
 public enum Destinations {
-    /// What stays under Settings, in the order the sidebar groups had them.
+    /// What stays under Settings, grouped by who a change is about: the person, their devices, the voice, or this app.
     public static let settingsTabs: [TabInfo] = [
-        TabInfo(id: "account", title: "Account"),
-        TabInfo(id: "permissions", title: "Permissions"),
-        TabInfo(id: "connection", title: "Connection"),
-        TabInfo(id: "phones", title: "Phones"),
-        TabInfo(id: "network", title: "Local network", needs: "lan-status"),
-        TabInfo(id: "appearance", title: "Appearance"),
-        TabInfo(id: "backup", title: "Backup"),
-        TabInfo(id: "sync", title: "Personal sync", needs: "personal-sync-status"),
-        TabInfo(id: "voice", title: "Voice"),
-        TabInfo(id: "listening", title: "Listening"),
-        TabInfo(id: "dictation", title: "Dictation"),
-        TabInfo(id: "help", title: "Help"),
+        TabInfo(id: "account", title: "Account", group: .account,
+                summary: "Your name, who you are in Memnox Cloud, and what that lets Memnox do on this Mac."),
+        TabInfo(id: "permissions", title: "Permissions", group: .account, summary: "What this Mac lets Memnox hear, type and see."),
+        TabInfo(id: "connection", title: "Connection", group: .account,
+                summary: "The Memnox service your agents talk to, and the key Touch ID signs with."),
+        TabInfo(id: "phones", title: "Phones", group: .devices, summary: "Phones paired with this Mac and what each may do."),
+        TabInfo(id: "network", title: "Local network", group: .devices,
+                summary: "Reach this Mac over the network you share, rather than through the relay.", needs: "lan-status"),
+        TabInfo(id: "sync", title: "Personal sync", group: .devices,
+                summary: "Your own setup carried between your machines, sealed under a key only they hold.", needs: "personal-sync-status"),
+        TabInfo(id: "voice", title: "Voice", group: .voice, summary: "Who thinks for the voice, and the voice it answers in."),
+        TabInfo(id: "listening", title: "Listening", group: .voice, summary: "When Memnox listens and how it speaks up."),
+        TabInfo(id: "dictation", title: "Dictation", group: .voice,
+                summary: "Speak instead of typing, in any app, written the way you would have typed it."),
+        TabInfo(id: "appearance", title: "Appearance", group: .app, summary: "Light, dark, or the same as this Mac."),
+        TabInfo(id: "backup", title: "Backup", group: .app,
+                summary: "Your rules, hubs, skills, projects and memory, sealed under a passphrase and put back once you sign."),
+        TabInfo(id: "help", title: "Help", group: .app, summary: "Rules, a quick test, and what happened for support."),
     ]
 
     /// Pages that moved out of Settings into a destination, so a link to one still lands.
@@ -95,34 +151,53 @@ public enum Destinations {
                         key: "1", tabs: []),
         DestinationInfo(id: .agents, title: "Agents", subtitle: "The agents on this Mac, their sessions, and what each can reach.",
                         key: "2", tabs: [
-                            TabInfo(id: "list", title: "Agents", needs: "agents"),
-                            TabInfo(id: "sessions", title: "Sessions"),
-                            TabInfo(id: "computer", title: "On this computer"),
+                            TabInfo(id: "list", title: "Agents", group: .agents,
+                                    summary: "The agents on this Mac and what each can reach.", needs: "agents"),
+                            TabInfo(id: "sessions", title: "Sessions", group: .agents,
+                                    summary: "What each agent is doing: what needs you, what runs, and what is done."),
+                            TabInfo(id: "computer", title: "On this computer", group: .computer,
+                                    summary: "The agents on this Mac and the apps Memnox can act in as you."),
                         ]),
         DestinationInfo(id: .workspaces, title: "Workspaces",
                         subtitle: "Your projects, with the skills, tools, memory and rules each one carries.",
                         key: "3", tabs: [
-                            TabInfo(id: "projects", title: "Workspaces"),
-                            TabInfo(id: "memory", title: "Memory", needs: "memory-facts"),
-                            TabInfo(id: "skills", title: "My Skills", needs: "skills-hub"),
-                            TabInfo(id: "assigned", title: "Assigned", needs: "skills-hub"),
-                            TabInfo(id: "discover", title: "Discover", needs: "index-list"),
-                            TabInfo(id: "profiles", title: "Profiles", needs: "profiles"),
+                            TabInfo(id: "projects", title: "Workspaces", group: .projects,
+                                    summary: "Your projects, with the skills, tools, memory and rules each one carries."),
+                            TabInfo(id: "memory", title: "Memory", group: .knowledge,
+                                    summary: "What your agents know, each fact with the evidence it was read from, and the sources it came out of.",
+                                    needs: "memory-facts"),
+                            TabInfo(id: "skills", title: "My Skills", group: .skills,
+                                    summary: "The skills you keep, and the agents each one is given to.", needs: "skills-hub"),
+                            TabInfo(id: "assigned", title: "Assigned", group: .skills, summary: "Which skills each agent carries.",
+                                    needs: "skills-hub"),
+                            TabInfo(id: "discover", title: "Discover", group: .skills,
+                                    summary: "The community index. Installing makes nothing live until you accept it.", needs: "index-list"),
+                            TabInfo(id: "profiles", title: "Profiles", group: .projects,
+                                    summary: "Named bundles of skills, servers and a rule pack, each piece given to an agent only once you sign.",
+                                    needs: "profiles"),
                         ]),
         DestinationInfo(id: .mcp, title: "MCP Hub", subtitle: "Servers set up once and given to the agents you choose.",
                         key: "4", tabs: [
-                            TabInfo(id: "servers", title: "Servers", needs: "mcp-hub"),
-                            TabInfo(id: "clients", title: "Clients", needs: "mcp-hub"),
-                            TabInfo(id: "secrets", title: "Secrets", needs: "mcp-hub"),
-                            TabInfo(id: "apps", title: "Your apps"),
+                            TabInfo(id: "servers", title: "Servers", group: .hub,
+                                    summary: "Servers set up once and given to the agents you choose.", needs: "mcp-hub"),
+                            TabInfo(id: "clients", title: "Clients", group: .hub, summary: "Which agent has which server, set in one place.",
+                                    needs: "mcp-hub"),
+                            TabInfo(id: "secrets", title: "Secrets", group: .hub,
+                                    summary: "Each secret by name, where it is used, and whether this Mac holds it.", needs: "mcp-hub"),
+                            TabInfo(id: "apps", title: "Your apps", group: .apps,
+                                    summary: "Connect any tool you use as yourself, and see the ones this Mac already reaches."),
                         ]),
         DestinationInfo(id: .governance, title: "Governance",
                         subtitle: "What your agents may do, what waits on you, and what happened.",
                         key: "5", tabs: [
-                            TabInfo(id: "approvals", title: "Approvals"),
-                            TabInfo(id: "policies", title: "Policies", needs: "rules"),
-                            TabInfo(id: "activity", title: "Activity", needs: "activity"),
-                            TabInfo(id: "learn", title: "Learn", needs: "memory-learn"),
+                            TabInfo(id: "approvals", title: "Approvals", group: .review,
+                                    summary: "What waits on you, oldest first, each saying what the agent wants to do and where."),
+                            TabInfo(id: "policies", title: "Policies", group: .rules,
+                                    summary: "What your agents may do, ask about first, or never do.", needs: "rules"),
+                            TabInfo(id: "activity", title: "Activity", group: .record,
+                                    summary: "What your agents did, newest first, beside what was decided.", needs: "activity"),
+                            TabInfo(id: "learn", title: "Learn", group: .review,
+                                    summary: "What was read out of your sources, waiting for you to confirm or reject it.", needs: "memory-learn"),
                         ]),
         DestinationInfo(id: .settings, title: "Settings", subtitle: "This Mac, your account, and the voice.",
                         key: nil, tabs: settingsTabs),
@@ -139,6 +214,26 @@ public enum Destinations {
             guard let needs = tab.needs else { return true }
             return supports(needs) == true
         }
+    }
+
+    /// The tabs shown now under their headings, in the order the headings first appear, an empty heading dropped so a
+    /// group never stands over nothing.
+    public static func tabGroups(_ id: Destination, supports: Supports) -> [TabGroup] {
+        var groups: [(id: TabGroupId, tabs: [TabInfo])] = []
+        for tab in visibleTabs(id, supports: supports) {
+            if let at = groups.firstIndex(where: { $0.id == tab.group }) {
+                groups[at].tabs.append(tab)
+            } else {
+                groups.append((tab.group, [tab]))
+            }
+        }
+        return groups.map { TabGroup(id: $0.id, title: $0.id.title, tabs: $0.tabs) }
+    }
+
+    /// The tab a route names, with its heading, for the pane's own header.
+    public static func tab(of route: WindowRoute) -> (tab: TabInfo, group: String)? {
+        guard let tab = info(route.destination).tabs.first(where: { $0.id == route.tab }) else { return nil }
+        return (tab, tab.group.title)
     }
 
     /// The route as it will be drawn: a missing or hidden tab falls back to the first one shown.

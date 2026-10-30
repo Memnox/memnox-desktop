@@ -52,25 +52,27 @@ struct AppShellView: View {
     }
 
     private func main(_ route: WindowRoute, _ width: WidthClass) -> some View {
-        let info = Destinations.info(route.destination)
-        let tabs = Destinations.visibleTabs(route.destination, supports: shell.supports)
-        return VStack(spacing: 0) {
+        VStack(spacing: 0) {
             topBar(route, width)
-            if tabs.count > 1 {
-                ShellTabBar(tabs: tabs, chosen: route.tab) { shell.go(WindowRoute(route.destination, tab: $0)) }
-            }
-            if route.destination != .home, route.destination != .settings, tabs.count < 2 {
-                Text(info.subtitle)
-                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Console.muted)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, ShellMetrics.pagePadding)
-                    .padding(.top, Memnox.Spacing.large)
-            }
             AppPage(shell: shell, models: models, route: route, width: width)
                 .id(route)
+                .environment(\.paneHeading, heading(route))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .background(Memnox.Console.background)
+    }
+
+    /// The console's sub navigation where a destination shows two tabs or more, its title and line where it shows one,
+    /// and nothing over Home.
+    private func heading(_ route: WindowRoute) -> PaneHeading? {
+        let info = Destinations.info(route.destination)
+        let tabs = Destinations.visibleTabs(route.destination, supports: shell.supports)
+        if tabs.count > 1, let shown = Destinations.tab(of: route) {
+            let context = SubNavContext(title: info.title, groups: Destinations.tabGroups(route.destination, supports: shell.supports),
+                                        chosen: route.tab) { shell.go(WindowRoute(route.destination, tab: $0)) }
+            return .subNav(context, tab: shown.tab, group: shown.group)
+        }
+        return route.destination == .home ? nil : .page(title: info.title, subtitle: info.subtitle)
     }
 
     private func topBar(_ route: WindowRoute, _ width: WidthClass) -> some View {

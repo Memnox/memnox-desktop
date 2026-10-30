@@ -279,17 +279,17 @@ private struct ProjectInspector: View {
     let project: ProjectView
     @State private var tab = "overview"
 
-    private static let tabs = [
-        TabInfo(id: "overview", title: "Overview"),
-        TabInfo(id: "agents", title: "Agents"),
-        TabInfo(id: "skills", title: "Skills"),
-        TabInfo(id: "tools", title: "Tools"),
-        TabInfo(id: "policies", title: "Policies"),
+    private static let tabs: [(id: String, title: String)] = [
+        ("overview", "Overview"),
+        ("agents", "Agents"),
+        ("skills", "Skills"),
+        ("tools", "Tools"),
+        ("policies", "Policies"),
     ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.xLarge) {
-            ShellTabBar(tabs: Self.tabs, chosen: tab) { tab = $0 }
+            InspectorTabs(tabs: Self.tabs, chosen: tab) { tab = $0 }
             switch tab {
             case "agents": AgentsHere(project: project)
             case "skills": Grants(project: project, grants: project.skills, empty: "This project names no skills.")

@@ -331,30 +331,30 @@ struct FactList: View {
     }
 }
 
-/// The tabs of a destination under the top bar, drawn only when there are two or more to choose between.
-struct ShellTabBar: View {
-    let tabs: [TabInfo]
-    let chosen: String?
+/// The tabs inside one item's details, the only tabs left in the window: each a 13 medium word over a blue rule when
+/// chosen, as the console's inspector tabs are. A destination's own tabs are its sub navigation instead.
+struct InspectorTabs: View {
+    let tabs: [(id: String, title: String)]
+    let chosen: String
     let choose: (String) -> Void
 
     private static let underline: CGFloat = 2
+    private static let padH: CGFloat = 12
+    private static let padV: CGFloat = 10
 
     var body: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: Memnox.Spacing.xSmall) {
+            HStack(spacing: 0) {
                 ForEach(tabs, id: \.id) { tab in
                     let on = tab.id == chosen
                     Button { choose(tab.id) } label: {
                         Text(tab.title)
-                            .font(Memnox.Console.sans(Memnox.TextSize.body, on ? .medium : .regular))
+                            .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
                             .foregroundStyle(on ? Memnox.Console.foreground : Memnox.Console.muted)
-                            .padding(.horizontal, Memnox.Spacing.regular)
-                            .padding(.vertical, Memnox.Spacing.regular)
+                            .padding(.horizontal, Self.padH)
+                            .padding(.vertical, Self.padV)
                             .overlay(alignment: .bottom) {
-                                if on {
-                                    Capsule().fill(Memnox.Console.primary).frame(height: Self.underline)
-                                        .padding(.horizontal, Memnox.Spacing.medium)
-                                }
+                                Rectangle().fill(on ? Memnox.Console.primary : Color.clear).frame(height: Self.underline)
                             }
                             .contentShape(Rectangle())
                     }
@@ -364,7 +364,6 @@ struct ShellTabBar: View {
                     .accessibilityHint("Tab")
                 }
             }
-            .padding(.horizontal, Memnox.Spacing.large)
         }
         .scrollIndicators(.never)
         .overlay(alignment: .bottom) { ShellDivider() }
@@ -375,17 +374,23 @@ struct ShellTabBar: View {
 struct ShellScroll<Content: View>: View {
     let width: WidthClass
     @ViewBuilder let content: Content
+    @Environment(\.paneHeading) private var heading
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: ShellMetrics.sectionSpacing) { content }
+        let side = Self.side(width)
+        GeometryReader { geometry in
+            ScrollView {
+                PaneFrame(heading: heading, width: min(geometry.size.width - side * 2, ShellMetrics.pageWidth)) {
+                    VStack(alignment: .leading, spacing: ShellMetrics.sectionSpacing) { content }
+                }
                 .frame(maxWidth: ShellMetrics.pageWidth, alignment: .leading)
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, ShellScroll.side(width))
+                .padding(.horizontal, side)
                 .padding(.top, ShellMetrics.pageTop)
                 .padding(.bottom, ShellMetrics.pageBottom)
+            }
+            .scrollIndicators(.automatic)
         }
-        .scrollIndicators(.automatic)
         .clipped()
     }
 

@@ -58,11 +58,45 @@ final class DestinationsTests: XCTestCase {
         XCTAssertEqual(Destinations.route(forPage: "network"), WindowRoute(.settings, tab: "network"))
     }
 
-    func testShowsPersonalSyncAfterBackupOnlyWhereTheRuntimeAnswersIt() {
+    func testShowsPersonalSyncAfterTheLocalNetworkOnlyWhereTheRuntimeAnswersIt() {
         XCTAssertFalse(Destinations.visibleTabs(.settings, supports: { _ in false }).map(\.id).contains("sync"))
         let tabs = Destinations.visibleTabs(.settings, supports: { _ in true }).map(\.id)
-        XCTAssertEqual(tabs.firstIndex(of: "sync"), tabs.firstIndex(of: "backup").map { $0 + 1 })
+        XCTAssertEqual(Array(tabs[3...5]), ["phones", "network", "sync"])
         XCTAssertEqual(Destinations.route(forPage: "sync"), WindowRoute(.settings, tab: "sync"))
+    }
+
+    func testGroupsSettingsUnderWhoAChangeIsAboutAsTheConsolesSettingsTreeDoes() {
+        let groups = Destinations.tabGroups(.settings, supports: everything).map { [$0.title] + $0.tabs.map(\.id) }
+        XCTAssertEqual(groups, [
+            ["Account", "account", "permissions", "connection"],
+            ["Devices", "phones", "network", "sync"],
+            ["Voice", "voice", "listening", "dictation"],
+            ["App", "appearance", "backup", "help"],
+        ])
+    }
+
+    func testGroupsEveryDestinationAsWindowsAndLinuxDo() {
+        let titles = { (id: Destination) in Destinations.tabGroups(id, supports: self.everything).map { [$0.title] + $0.tabs.map(\.title) } }
+        XCTAssertEqual(titles(.agents), [["Agents", "Agents", "Sessions"], ["This computer", "On this computer"]])
+        XCTAssertEqual(titles(.workspaces), [["Projects", "Workspaces", "Profiles"], ["Knowledge", "Memory"],
+                                             ["Skills", "My Skills", "Assigned", "Discover"]])
+        XCTAssertEqual(titles(.mcp), [["Hub", "Servers", "Clients", "Secrets"], ["Apps", "Your apps"]])
+        XCTAssertEqual(titles(.governance), [["Waiting on you", "Approvals", "Learn"], ["Rules", "Policies"], ["Record", "Activity"]])
+    }
+
+    func testDropsAHeadingWhoseEveryTabIsHiddenSoNoGroupStandsOverNothing() {
+        XCTAssertEqual(Destinations.tabGroups(.mcp, supports: nothingNew).map(\.title), ["Apps"])
+        XCTAssertEqual(Destinations.tabGroups(.mcp, supports: everything).map(\.title), ["Hub", "Apps"])
+        XCTAssertEqual(Destinations.tabGroups(.home, supports: everything), [])
+    }
+
+    func testNamesThePaneARouteOpensWithItsHeadingAndWhatItIsFor() {
+        let memory = Destinations.tab(of: WindowRoute(.workspaces, tab: "memory"))
+        XCTAssertEqual(memory?.group, "Knowledge")
+        XCTAssertEqual(memory?.tab.title, "Memory")
+        XCTAssertEqual(Destinations.tab(of: WindowRoute(.settings, tab: "voice"))?.tab.summary,
+                       "Who thinks for the voice, and the voice it answers in.")
+        XCTAssertNil(Destinations.tab(of: WindowRoute(.home)))
     }
 
     func testChangesLayoutAtTheSameWidthsAsWindowsAndLinux() {

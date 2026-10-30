@@ -25,7 +25,7 @@ final class DestinationsTests: XCTestCase {
 
     func testShowsTheSkillsHubOnlyWhereTheRuntimeKeepsOne() {
         XCTAssertEqual(Destinations.visibleTabs(.workspaces, supports: nothingNew).map(\.id), ["projects"])
-        XCTAssertEqual(Destinations.visibleTabs(.workspaces, supports: everything).map(\.id), ["projects", "memory", "skills", "assigned", "discover"])
+        XCTAssertEqual(Destinations.visibleTabs(.workspaces, supports: everything).map(\.id), ["projects", "memory", "skills", "assigned", "discover", "profiles"])
     }
 
     func testLandsOnTheFirstTabShownWhenTheOneAskedForIsHidden() {

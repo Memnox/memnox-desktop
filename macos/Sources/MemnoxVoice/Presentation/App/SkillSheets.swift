@@ -12,7 +12,7 @@ private enum SheetLayout {
 }
 
 /// A sheet's frame: the title with what it is on, its body scrolling, and its buttons along the foot.
-private struct SkillSheetFrame<Body: View, Footer: View>: View {
+struct SkillSheetFrame<Body: View, Footer: View>: View {
     let title: String
     var step: String?
     @ViewBuilder let content: Body

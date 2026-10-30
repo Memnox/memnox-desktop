@@ -201,13 +201,15 @@ private struct AppPage: View {
                     SessionsDestination(shell: shell, island: island, width: width)
                 }
             case .workspaces:
-                // Memory reads `memory-facts`, My Skills and Assigned `skills-hub` and Discover `index-list`; until this Mac's runtime answers them only the projects show.
+                // Memory reads `memory-facts`, My Skills and Assigned `skills-hub`, Discover `index-list` and Profiles `profiles`; until this Mac's runtime answers them only the projects show.
                 if route.tab == "skills" || route.tab == "assigned" {
                     if let skills = shell.skills { SkillsDestination(screen: skills, island: island, tab: route.tab, width: width) }
                 } else if route.tab == "memory" {
                     if let memory = shell.memory { MemoryDestination(screen: memory, shell: shell, island: island, width: width) }
                 } else if route.tab == "discover" {
                     if let index = shell.index { DiscoverDestination(screen: index, width: width) }
+                } else if route.tab == "profiles" {
+                    if let profiles = shell.profiles { ProfilesDestination(shell: shell, screen: profiles, width: width) }
                 } else {
                     WorkspacesDestination(shell: shell, island: island, width: width)
                 }

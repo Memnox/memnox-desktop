@@ -74,6 +74,11 @@ final class AppWindow {
         didSet { shell.index = index.map(IndexScreen.init) }
     }
 
+    /// Named bundles of skills, servers and a rule pack, read by Profiles under Workspaces and Launch on an agent's card.
+    var profiles: Profiles? {
+        didSet { shell.profiles = profiles.map(ProfilesScreen.init) }
+    }
+
     let shell = AppShellModel()
     private var window: NSWindow?
 
@@ -164,6 +169,8 @@ final class AppShellModel: ObservableObject {
     @Published var sync: SyncScreen?
     /// The community index for Discover and the Policies packs, nil until the app wires it, which keeps both empty.
     @Published var index: IndexScreen?
+    /// Profiles for their tab and Launch, nil until the app wires it, which keeps the tab empty and Launch without a choice.
+    @Published var profiles: ProfilesScreen?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.
     @Published private(set) var answers = 0
     private var support: DaemonSupport?

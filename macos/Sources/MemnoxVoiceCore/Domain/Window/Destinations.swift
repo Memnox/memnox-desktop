@@ -98,6 +98,7 @@ public enum Destinations {
                             TabInfo(id: "skills", title: "My Skills", needs: "skills-hub"),
                             TabInfo(id: "assigned", title: "Assigned", needs: "skills-hub"),
                             TabInfo(id: "discover", title: "Discover", needs: "index-list"),
+                            TabInfo(id: "profiles", title: "Profiles", needs: "profiles"),
                         ]),
         DestinationInfo(id: .mcp, title: "MCP Hub", subtitle: "Servers set up once and given to the agents you choose.",
                         key: "4", tabs: [

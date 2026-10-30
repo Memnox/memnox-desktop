@@ -158,6 +158,8 @@ public enum DaemonMethod: String, Sendable {
     case skillRollback = "skill-rollback"
     /// Accepts a held skill's folder as it is now; signed where it reaches further.
     case skillAccept = "skill-accept"
+    /// Takes a skill out of the hub and every agent at once, its kept versions with it, since that only narrows.
+    case skillRemove = "skill-remove"
     /// Every project on this machine, opened or found, most recently active first.
     case projects
     /// Takes a folder in as a project and applies it; what widens an agent waits on a signature.
@@ -208,6 +210,18 @@ public enum DaemonMethod: String, Sendable {
     case personalSyncKeyOffer = "personal-sync-key-offer"
     /// On a new Mac: proposes taking the key sealed to it, once the person compared the same fingerprint.
     case personalSyncKeyAccept = "personal-sync-key-accept"
+    /// Every profile kept here, with what of each the hubs no longer hold.
+    case profiles
+    /// Adds a profile or replaces one of the same name; it grants nothing until it is applied.
+    case profilePut = "profile-put"
+    /// Forgets a profile; what it already handed out stays where it was given.
+    case profileRemove = "profile-remove"
+    /// Proposes giving an agent the profile's servers and skills, in a project, and its rule pack's rules.
+    case profileApply = "profile-apply"
+    /// The community index, filtered by words and kind, read fresh or from what was last read.
+    case indexList = "index-list"
+    /// Fetches one version, checks its digest, and holds the skill or proposes the pack's rules.
+    case indexInstall = "index-install"
 }
 
 public enum EventKind: String, Sendable {
@@ -1329,6 +1343,24 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var syncMachineId: String?
     /// On personal-sync-key-offer and personal-sync-key-accept: the fingerprint the person compared.
     public var syncFingerprint: String?
+    /// On profile-put.
+    public var profileDraft: ProfileDraft?
+    /// On profile-remove, profile-apply and agent-launch: the profile, by id or by name.
+    public var profileName: String?
+    /// On profile-apply: the agent, by kind.
+    public var profileAgent: String?
+    /// On profile-apply: the repository its skills are written into, absolute; absent is the home folder.
+    public var profileProject: String?
+    /// On index-list: words, each found in the name or the description.
+    public var indexQuery: String?
+    /// On index-list: only skills, or only rule packs.
+    public var indexKind: String?
+    /// On index-list: read again now rather than from what was last read.
+    public var indexRefresh: Bool?
+    /// On index-install: the listing, by id or by name.
+    public var indexName: String?
+    /// On index-install: the version; absent is the newest not marked unsafe.
+    public var indexVersion: String?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -1675,6 +1707,14 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let personalSync: PersonalSyncStatus?
     /// On personal-sync-conflicts.
     public let syncConflicts: [PersonalSyncConflict]?
+    /// On every profile method, so a screen redraws from one answer.
+    public let profiles: [ProfileView]?
+    /// On profile-apply, and on agent-launch with a profile.
+    public let profileApplied: ProfileApplied?
+    /// On index-list, and after an install.
+    public let communityIndex: CommunityIndexView?
+    /// On index-install.
+    public let indexInstalled: IndexInstalled?
 
     /// The outcome as a known case, or nil for one this app does not know yet.
     public var outcomeKind: Outcome? { outcome.flatMap(Outcome.init(rawValue:)) }

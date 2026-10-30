@@ -24,6 +24,21 @@ final class AppWindow {
         didSet { shell.hub = hub.map(McpHubScreen.init) }
     }
 
+    /// The rules in force and how far the agents have been let go, read by Policies and by Home's week.
+    var studio: Studio? {
+        didSet { shell.studio = studio.map(StudioScreen.init) }
+    }
+
+    /// What the agents did and why, read by Activity.
+    var activity: Activity? {
+        didSet { shell.activity = activity.map(ActivityScreen.init) }
+    }
+
+    /// Every agent found on this Mac with its standing, read by the Agents tab.
+    var agents: Agents? {
+        didSet { shell.agents = agents.map(AgentsScreen.init) }
+    }
+
     let shell = AppShellModel()
     private var window: NSWindow?
 
@@ -96,6 +111,10 @@ final class AppShellModel: ObservableObject {
     @Published var island: IslandModel?
     /// The MCP Hub for its tabs; nil until the app wires it, which keeps those tabs empty rather than broken.
     @Published var hub: McpHubScreen?
+    /// Policies, Activity and the agents list, each nil until the app wires it, which keeps its tab empty rather than broken.
+    @Published var studio: StudioScreen?
+    @Published var activity: ActivityScreen?
+    @Published var agents: AgentsScreen?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.
     @Published private(set) var answers = 0
     private var support: DaemonSupport?

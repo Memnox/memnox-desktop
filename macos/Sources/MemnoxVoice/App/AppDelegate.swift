@@ -354,6 +354,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppWindow.shared.island = panel.islandModel
         AppWindow.shared.support = DaemonSupport(link: link, ids: ids)
         AppWindow.shared.hub = McpHub(link: link, ids: ids)
+        AppWindow.shared.studio = Studio(link: link, ids: ids)
+        AppWindow.shared.activity = Activity(link: link, ids: ids)
+        AppWindow.shared.agents = Agents(link: link, ids: ids)
         let chosen = UserDefaults.standard.string(forKey: Self.voiceChoiceKey) ?? VoiceChoice.kokoro
         Task {
             await chooseVoice(chosen, announce: false)

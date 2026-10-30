@@ -1,8 +1,9 @@
 import { CornerDownLeft, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { matchCommands, type Route, type Supports } from '../../core/domain/destinations';
+import { shortcutWords } from '../../core/domain/shell-lines';
 
-/** Go to any destination or tab by typing a word of it, then Enter; arrows move, Escape closes. */
+/** Go to any destination or tab by typing a word of it, then Enter; arrows move, Escape closes, and each destination shows its number key. */
 export function CommandPalette({ supports, go, close }: { supports: Supports; go: (route: Route) => void; close: () => void }) {
   const [query, setQuery] = useState('');
   const [at, setAt] = useState(0);
@@ -61,6 +62,7 @@ export function CommandPalette({ supports, go, close }: { supports: Supports; go
               >
                 <span className="flex-1 truncate">{each.title}</span>
                 {each.under !== '' && <span className="text-footnote text-muted">{each.under}</span>}
+                {each.key !== undefined && <kbd className="rounded border border-panel-edge px-1 font-mono text-micro text-muted">{shortcutWords(each.key, false)}</kbd>}
                 {index === at && <CornerDownLeft size={13} className="text-muted" aria-hidden />}
               </button>
             </li>

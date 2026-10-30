@@ -9,6 +9,8 @@ import {
   confidenceLine,
   decidedLine,
   evidenceLine,
+  evidenceTarget,
+  filePressLine,
   keyLine,
   kindWord,
   lastReadLine,
@@ -24,6 +26,7 @@ import {
   type MemoryStatusName,
 } from '../../../core/domain/memory-lines';
 import { KitButton, SearchField } from '../../settings/kit';
+import { openOrCopy } from '../../settings/host';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AddMemorySourceDialog } from './MemorySourceDialog';
 import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
@@ -199,23 +202,19 @@ function FactDetail({ parts, item, forget }: { parts: SettingsParts; item: Memor
 }
 
 /**
- * Where an item was read from, each piece a press: a link opens in the browser, and a file copies its whole
- * path, since this window opens only https pages. A passage that changed since is marked.
+ * Where an item was read from, each piece a press: a secure link opens in the browser, and a file opens in its own
+ * app, or copies its whole path when it is gone or is not a document. A passage that changed since is marked.
  */
 export function Evidence({ parts, evidence }: { parts: SettingsParts; evidence: readonly MemoryEvidenceView[] }) {
-  const [copied, setCopied] = useState<string | undefined>(undefined);
+  const [pressed, setPressed] = useState<{ ref: string; opened: boolean } | undefined>(undefined);
   if (evidence.length === 0) return <p className="text-footnote text-muted">No evidence: an agent suggested it without citing a passage.</p>;
-  const pathOf = (each: MemoryEvidenceView) => {
-    const source = parts.memory.sources?.find((one) => one.name === each.source || one.id === each.source);
-    return source === undefined ? each.document : `${source.location.replace(/[\\/]+$/, '')}/${each.document}`;
-  };
+  const targetOf = (each: MemoryEvidenceView) => evidenceTarget(each, parts.memory.sources ?? []);
   const press = (each: MemoryEvidenceView) => {
-    if (each.url !== undefined && each.url.startsWith('https://')) {
-      parts.host.openPage(each.url);
-      return;
-    }
-    void parts.host.copy(pathOf(each)).then(() => setCopied(each.ref));
+    const target = targetOf(each);
+    if (target.kind === 'link') return parts.host.openPage(target.url);
+    void openOrCopy(parts.host, target.path).then((opened) => setPressed({ ref: each.ref, opened }));
   };
+  const titleOf = (target: ReturnType<typeof targetOf>) => (target.kind === 'link' ? target.url : `Open ${target.path}`);
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-footnote font-medium text-muted">Evidence</span>
@@ -225,13 +224,13 @@ export function Evidence({ parts, evidence }: { parts: SettingsParts; evidence: 
             <button
               type="button"
               onClick={() => press(each)}
-              title={each.url ?? `Copy ${pathOf(each)}`}
+              title={titleOf(targetOf(each))}
               className="mx-focus flex w-full cursor-pointer items-start gap-2 rounded-md px-1.5 py-1 text-left text-footnote hover:bg-hover"
             >
               {each.url === undefined ? <FileText size={13} className="mt-0.5 shrink-0 text-muted" aria-hidden /> : <Link2 size={13} className="mt-0.5 shrink-0 text-muted" aria-hidden />}
               <span className={`min-w-0 flex-1 break-words ${each.stale ? 'text-muted line-through decoration-faint' : 'text-primary'}`}>{evidenceLine(each)}</span>
               {each.stale && <StatusWord tone="quiet">Stale</StatusWord>}
-              {copied === each.ref && <span className="shrink-0 text-muted">Path copied</span>}
+              {pressed !== undefined && pressed.ref === each.ref && <span className="shrink-0 text-muted">{filePressLine(pressed.opened)}</span>}
             </button>
           </li>
         ))}

@@ -2,7 +2,7 @@ import type { PolicyRulesView } from '@memnox/core/wire';
 import { describe, expect, it } from 'vitest';
 import { RequestIds } from '../src/core/application/request-ids';
 import { Activity, Agents, Studio } from '../src/core/application/studio';
-import { almostLine, countsByEffect, exportedCount, sourceWords, weekLine } from '../src/core/domain/studio-lines';
+import { almostLine, countsByEffect, decisionFiles, exportedCount, sourceWords, weekLine } from '../src/core/domain/studio-lines';
 import { ScriptedDaemon } from './doubles';
 
 const rules: PolicyRulesView = {
@@ -109,5 +109,16 @@ describe('packs and launching', () => {
     const agents = new Agents(daemon, new RequestIds());
     expect(await agents.launch('claude-code', ' /code/app ')).toEqual({ kind: 'done', note: 'Opened claude-code in /code/app, typing claude.' });
     expect(daemon.sent('agent-launch')[0]?.workingDirectory).toBe('/code/app');
+  });
+});
+
+describe('the files a decision names', () => {
+  it('offers the file touched and the rule file, each only by a whole path', () => {
+    expect(decisionFiles({ row: { kind: 'file', target: '/code/api/src/db.ts' }, rule: { file: 'C:\\Users\\sam\\.memnox\\rules.toml' } })).toEqual([
+      { title: 'Open the file', path: '/code/api/src/db.ts' },
+      { title: 'Open the rule file', path: 'C:\\Users\\sam\\.memnox\\rules.toml' },
+    ]);
+    expect(decisionFiles({ row: { kind: 'command', target: '/usr/bin/git' } })).toEqual([]);
+    expect(decisionFiles({ row: { kind: 'file', target: 'src/db.ts' }, rule: { file: 'rules.toml' } })).toEqual([]);
   });
 });

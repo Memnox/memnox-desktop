@@ -1,10 +1,12 @@
 import type { ActivityFilter, ActivityRow, DecisionView } from '@memnox/core/wire';
-import { Copy, History } from 'lucide-react';
+import { Copy, FileText, History } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
 import { ago } from '../../../core/domain/session-text';
-import { activityLine, answeredWords, EFFECT_WORDS, effectTone, isEffect, sourceWords } from '../../../core/domain/studio-lines';
+import { filePressLine } from '../../../core/domain/memory-lines';
+import { activityLine, answeredWords, decisionFiles, EFFECT_WORDS, effectTone, isEffect, sourceWords } from '../../../core/domain/studio-lines';
 import { BrandLogo } from '../../kit/logos';
+import { openOrCopy, type SettingsHost } from '../../settings/host';
 import { KitButton, SearchField } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { EmptyState, Inspector, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
@@ -98,7 +100,7 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
       </div>
       {activity.decision !== undefined && (
         <Inspector title="Why" width={width} close={() => activity.close()}>
-          <DecisionDetail view={activity.decision} change={() => go({ destination: 'governance', tab: 'policies' })} />
+          <DecisionDetail key={activity.decision.row.id} view={activity.decision} host={host} change={() => go({ destination: 'governance', tab: 'policies' })} />
         </Inspector>
       )}
     </div>
@@ -124,8 +126,9 @@ function ActivityRowView({ row, chosen, open }: { row: ActivityRow; chosen: bool
   );
 }
 
-function DecisionDetail({ view, change }: { view: DecisionView; change: () => void }) {
+function DecisionDetail({ view, host, change }: { view: DecisionView; host: SettingsHost; change: () => void }) {
   const { row } = view;
+  const files = decisionFiles(view);
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
@@ -168,6 +171,7 @@ function DecisionDetail({ view, change }: { view: DecisionView; change: () => vo
           </Panel>
         </Section>
       )}
+      {files.length > 0 && <LocalFiles host={host} files={files} />}
       <Section title="What happened">
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-footnote">
           <dt className="text-muted">Ran as</dt>
@@ -186,6 +190,26 @@ function DecisionDetail({ view, change }: { view: DecisionView; change: () => vo
           )}
         </dl>
       </Section>
+    </div>
+  );
+}
+
+/** The files a decision names, each opened in its own app, or its whole path copied when it is gone or is not a document. */
+function LocalFiles({ host, files }: { host: SettingsHost; files: readonly { title: string; path: string }[] }) {
+  const [pressed, setPressed] = useState<{ path: string; opened: boolean } | undefined>(undefined);
+  return (
+    <div className="flex flex-col gap-1.5">
+      {files.map((file) => (
+        <div key={file.title} className="flex min-w-0 flex-wrap items-center gap-2">
+          <KitButton icon={FileText} onClick={() => void openOrCopy(host, file.path).then((opened) => setPressed({ path: file.path, opened }))}>
+            {file.title}
+          </KitButton>
+          <span className="min-w-0 truncate font-mono text-footnote text-muted" title={file.path}>
+            {file.path}
+          </span>
+          {pressed !== undefined && pressed.path === file.path && <span className="text-footnote text-muted">{filePressLine(pressed.opened)}</span>}
+        </div>
+      ))}
     </div>
   );
 }

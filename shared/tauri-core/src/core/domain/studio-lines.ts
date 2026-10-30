@@ -1,4 +1,5 @@
-import type { ActivityRow, PolicyRuleView, ProgressView } from '@memnox/core/wire';
+import type { ActivityRow, DecisionView, PolicyRuleView, ProgressView } from '@memnox/core/wire';
+import { isAbsoluteFolder } from './launch-lines';
 
 /** The three effects, each explained once, in the words the console uses. */
 export const EFFECT_WORDS = {
@@ -110,4 +111,14 @@ export const ALWAYS_ASK = [
 /** Whether a rule already in force asks about this switch's action, so the switch shows on. */
 export function switchOn(rules: readonly Pick<PolicyRuleView, 'effect' | 'match'>[], action: string, branches?: readonly string[]): boolean {
   return rules.some((rule) => rule.effect !== 'allow' && rule.match.actions.includes(action) && (branches === undefined || branches.every((branch) => rule.match.branches?.includes(branch) === true)));
+}
+
+/** The local files a decision names that a press may open: the file the agent touched, and the rule's own file, each by a whole path. */
+export function decisionFiles(view: { row: Pick<ActivityRow, 'kind' | 'target'>; rule?: Pick<NonNullable<DecisionView['rule']>, 'file'> }): { title: string; path: string }[] {
+  const files: { title: string; path: string }[] = [];
+  const { target } = view.row;
+  if (view.row.kind === 'file' && target !== undefined && isAbsoluteFolder(target)) files.push({ title: 'Open the file', path: target.trim() });
+  const ruleFile = view.rule === undefined ? undefined : view.rule.file;
+  if (ruleFile !== undefined && isAbsoluteFolder(ruleFile)) files.push({ title: 'Open the rule file', path: ruleFile.trim() });
+  return files;
 }

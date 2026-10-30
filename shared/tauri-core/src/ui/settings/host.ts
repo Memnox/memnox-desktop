@@ -28,6 +28,8 @@ export interface SettingsHost {
   setStartsAtSignIn(on: boolean): Promise<boolean>;
   restart(): void;
   openPage(url: string): void;
+  /** Opens a local document in the app the system opens its kind with; false when it is not one, so the path is copied instead. */
+  openFile?(path: string): Promise<boolean>;
   openSettings(page?: string): void;
   openOnboarding(): void;
   /** Opens a working session's live window, as a Working now row does; nothing in a preview. */
@@ -72,6 +74,11 @@ export const tauriHost: SettingsHost = {
   setStartsAtSignIn: (on) => invoke<boolean>('set_start_at_sign_in', { on }),
   restart: () => void invoke('restart_memnox'),
   openPage: (url) => void invoke('open_page', { url }).catch(() => undefined),
+  // `local_file.rs` refuses a folder, a link and anything runnable, and the refusal is the copy fallback.
+  openFile: (path) => invoke('open_file', { path }).then(
+    () => true,
+    () => false,
+  ),
   openSettings: (page) => void invoke('open_settings', { page: page ?? null }),
   openOnboarding: () => void invoke('open_onboarding'),
   openLive: (sessionId) => void invoke('open_live_session', { sessionId }).catch(() => undefined),
@@ -106,6 +113,13 @@ export const tauriHost: SettingsHost = {
     stop: () => invoke<void>('speak_stop'),
   },
 };
+
+/** Opens a local file, or copies its whole path where it cannot be opened, so the person can still find it; true when opened. */
+export async function openOrCopy(host: Pick<SettingsHost, 'openFile' | 'copy'>, path: string): Promise<boolean> {
+  if (host.openFile !== undefined && (await host.openFile(path))) return true;
+  await host.copy(path);
+  return false;
+}
 
 /**
  * The webview's own storage, which every window of the app shares: Settings writes a switch and the island

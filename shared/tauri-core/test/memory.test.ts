@@ -9,6 +9,8 @@ import {
   duplicateLine,
   emptySourceForm,
   evidenceLine,
+  evidenceTarget,
+  filePressLine,
   extractorLine,
   keyLine,
   lastReadLine,
@@ -181,5 +183,29 @@ describe('the memory use case', () => {
     await memory.show({ status: 'verified' });
     await memory.forget('v');
     expect(memory.facts?.items.map((each) => each.id)).toEqual(['w']);
+  });
+});
+
+describe('a press on evidence', () => {
+  const sources = [
+    { id: 'src_1', name: 'Vault', location: '/home/sam/vault/' },
+    { id: 'src_2', name: 'Notes', location: 'C:\\Users\\sam\\notes' },
+  ];
+
+  it('sends a secure link to the browser and nothing else', () => {
+    expect(evidenceTarget({ document: 'a.md', source: 'Vault', url: 'https://www.notion.so/acme/a' }, sources)).toEqual({ kind: 'link', url: 'https://www.notion.so/acme/a' });
+    expect(evidenceTarget({ document: 'a.md', source: 'Vault', url: 'file:///etc/passwd' }, sources)).toEqual({ kind: 'file', path: '/home/sam/vault/a.md' });
+  });
+
+  it('joins a file onto its source, in the separator the source is written in', () => {
+    expect(evidenceTarget({ document: 'ops/releases.md', source: 'src_1' }, sources)).toEqual({ kind: 'file', path: '/home/sam/vault/ops/releases.md' });
+    expect(evidenceTarget({ document: 'releases.md', source: 'Notes' }, sources)).toEqual({ kind: 'file', path: 'C:\\Users\\sam\\notes\\releases.md' });
+    expect(evidenceTarget({ document: '/srv/whole.md', source: 'Vault' }, sources)).toEqual({ kind: 'file', path: '/srv/whole.md' });
+    expect(evidenceTarget({ document: 'loose.md', source: 'Gone' }, sources)).toEqual({ kind: 'file', path: 'loose.md' });
+  });
+
+  it('says whether the file opened or its path was copied', () => {
+    expect(filePressLine(true)).toBe('Opened');
+    expect(filePressLine(false)).toBe('Path copied');
   });
 });

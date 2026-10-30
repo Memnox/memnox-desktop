@@ -148,6 +148,23 @@ export function evidenceLine(evidence: Pick<MemoryEvidenceView, 'ref' | 'source'
   return `${evidence.ref} in ${evidence.source}${evidence.stale ? ', changed since it was read' : ''}`;
 }
 
+/** Where a press on evidence goes: a secure link to the browser, otherwise the file, joined onto its source's folder. */
+export type EvidenceTarget = { kind: 'link'; url: string } | { kind: 'file'; path: string };
+
+export function evidenceTarget(evidence: Pick<MemoryEvidenceView, 'document' | 'source' | 'url'>, sources: readonly Pick<MemorySourceView, 'id' | 'name' | 'location'>[]): EvidenceTarget {
+  if (evidence.url !== undefined && evidence.url.startsWith('https://')) return { kind: 'link', url: evidence.url };
+  const source = sources.find((one) => one.name === evidence.source || one.id === evidence.source);
+  if (source === undefined || isAbsoluteFolder(evidence.document)) return { kind: 'file', path: evidence.document };
+  // A Windows folder written with backslashes keeps them, so the path reads as the person's own.
+  const separator = source.location.includes('\\') && !source.location.includes('/') ? '\\' : '/';
+  return { kind: 'file', path: `${source.location.replace(/[\\/]+$/, '')}${separator}${evidence.document}` };
+}
+
+/** What a press on a local file came to: opened in its own app, or its path copied when it could not be. */
+export function filePressLine(opened: boolean): string {
+  return opened ? 'Opened' : 'Path copied';
+}
+
 /** Who settled it and when, for a verified or rejected item. */
 export function decidedLine(item: Pick<MemoryItemView, 'decidedAt' | 'decidedBy' | 'status'>, now: number): string | undefined {
   const when = ago(item.decidedAt, now);

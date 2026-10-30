@@ -196,7 +196,8 @@ private struct AppPage: View {
                 if route.tab == "computer" {
                     SettingsPageColumn { ToolsPage(tools: menu.tools) }
                 } else if route.tab == "list", let agents = shell.agents {
-                    AgentListDestination(screen: agents, island: island, home: models.home, width: width)
+                    AgentListDestination(screen: agents, island: island, home: models.home,
+                                         profiles: shell.supports("profiles") == true ? shell.profiles : nil, width: width)
                 } else {
                     SessionsDestination(shell: shell, island: island, width: width)
                 }

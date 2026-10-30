@@ -9,13 +9,18 @@ struct AgentListDestination: View {
     /// The sessions lately, whose workspaces are the folders offered to launch an agent in.
     @ObservedObject var island: IslandModel
     let home: HomeModel?
+    /// Profiles to apply as an agent opens, nil where this Mac's runtime keeps none.
+    var profiles: ProfilesScreen?
     let width: WidthClass
     @State private var launching: String?
 
     private static let cardWidth: CGFloat = 300
 
     var body: some View {
-        page.task { await screen.agents.refresh() }
+        page.task {
+            await screen.agents.refresh()
+            await profiles?.profiles.refresh()
+        }
     }
 
     @ViewBuilder private var page: some View {
@@ -31,7 +36,8 @@ struct AgentListDestination: View {
                               spacing: Memnox.Spacing.large) {
                         let folders = SeenWorkspaces.from(island.cards, now: Date())
                         ForEach(StudioLines.sortedAgents(list)) { agent in
-                            AgentCard(screen: screen, home: home, agent: agent, folders: folders, launching: $launching)
+                            AgentCard(screen: screen, home: home, agent: agent, folders: folders,
+                                      profiles: profiles?.profiles.profiles ?? [], launching: $launching)
                         }
                     }
                 }
@@ -49,6 +55,7 @@ private struct AgentCard: View {
     let home: HomeModel?
     let agent: AgentStanding
     let folders: [SeenWorkspace]
+    let profiles: [ProfileView]
     /// The one card whose Launch form is open, by agent kind.
     @Binding var launching: String?
 
@@ -125,12 +132,12 @@ private struct AgentCard: View {
                 }
             }
             if launching == agent.kind {
-                LaunchForm(folders: folders, busy: screen.agents.busy == Agents.launching(agent.kind)) {
+                LaunchForm(folders: folders, profiles: profiles, busy: screen.agents.busy == Agents.launching(agent.kind)) {
                     launching = nil
-                } launch: { folder in
+                } launch: { folder, profile in
                     let kind = agent.kind
                     Task {
-                        let outcome = await screen.agents.launch(kind, in: folder)
+                        let outcome = await screen.agents.launch(kind, in: folder, profile: profile)
                         screen.note = StudioNotes.line(outcome, proposed: "Waiting for you on the island: confirm it with Touch ID.")
                         if case .failed = outcome { return }
                         launching = nil
@@ -159,13 +166,16 @@ private struct ProtectButton: View {
     }
 }
 
-/// The folder an agent opens in: chosen in Finder's own panel, typed whole, or one of the workspaces its sessions ran in.
+/// The folder an agent opens in, chosen in Finder's own panel, typed whole or one of the workspaces its sessions ran in,
+/// and a profile to apply first.
 private struct LaunchForm: View {
     let folders: [SeenWorkspace]
+    let profiles: [ProfileView]
     let busy: Bool
     let cancel: () -> Void
-    let launch: (String) -> Void
+    let launch: (String, String?) -> Void
     @State private var folder = ""
+    @State private var profile = ""
     @State private var problem: String?
 
     var body: some View {
@@ -199,6 +209,13 @@ private struct LaunchForm: View {
                 .scrollIndicators(.never)
                 .accessibilityLabel("Your workspaces")
             }
+            if !profiles.isEmpty {
+                Picker("With a profile", selection: $profile) {
+                    Text("No profile").tag("")
+                    ForEach(profiles) { each in Text(each.name).tag(each.id) }
+                }
+                if !profile.isEmpty { QuietLine("What the profile gives waits for your signature on the island as the agent opens.") }
+            }
             if let problem {
                 Text(problem)
                     .font(Memnox.sans(Memnox.TextSize.footnote))
@@ -217,7 +234,7 @@ private struct LaunchForm: View {
 
     private func go() {
         problem = LaunchLines.folderProblem(folder)
-        if problem == nil { launch(folder) }
+        if problem == nil { launch(folder, profile.isEmpty ? nil : profile) }
     }
 
     private func choose() {

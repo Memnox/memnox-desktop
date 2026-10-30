@@ -7,6 +7,7 @@ import { DaemonSupport } from '../../core/application/daemon-support';
 import { HeldCalls } from '../../core/application/held-calls';
 import { Home } from '../../core/application/home';
 import { McpHub } from '../../core/application/mcp-hub';
+import { Memory } from '../../core/application/memory';
 import { Activity, Agents, Studio } from '../../core/application/studio';
 import { Sessions } from '../../core/application/sessions';
 import { SkillsHub } from '../../core/application/skills';
@@ -78,6 +79,8 @@ export interface SettingsParts {
   readonly projects: Projects;
   /** The setup sealed under a passphrase, and put back once signed on the island. */
   readonly backup: Backup;
+  /** The sources memory is read from, the Learn queue, and the facts a person confirmed. */
+  readonly memory: Memory;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -124,6 +127,7 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     skills: new SkillsHub(link, ids),
     projects: new Projects(link, ids),
     backup: new Backup(link, ids),
+    memory: new Memory(link, ids),
     host,
     words: platformWords(host.platform),
     setup,

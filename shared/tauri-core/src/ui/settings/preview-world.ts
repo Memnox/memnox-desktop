@@ -1,4 +1,4 @@
-import type { ActivityRow, AgentView, BackupSummary, DaemonRequest, DaemonResponse, DeviceWire, HomeView, McpHubView, PolicyRulesView, ProgressView, ProjectView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
+import type { ActivityRow, AgentView, BackupSummary, DaemonRequest, DaemonResponse, DeviceWire, HomeView, McpHubView, MemoryItemView, MemorySourceView, PolicyRulesView, ProgressView, ProjectView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
@@ -257,13 +257,60 @@ const phones: DeviceWire[] = [{ id: 'dev_1', name: 'Sam’s iPhone', kind: 'phon
 const qr =
   'memnox://pair?d=eyJ2IjoxLCJtYWNoaW5lSWQiOiJtX2Rlc2siLCJtYWNoaW5lIjoiRGVzayIsInJlbGF5VXJsIjoid3NzOi8vcmVsYXkubWVtbm94LmNvbSIsIm1haWxib3giOiJhYmNkZWYiLCJwYWlyaW5nVG9rZW4iOiJybHBfMTIzIn0';
 
-/** Every method a page asks, answered from the scene. */
-/** Methods no runtime answers yet, so the preview hides the tabs that read them, as the app does. */
-const NOT_YET: readonly string[] = ['memory-learn'];
+/** Three sources: a vault of the person's own, a Notion export read as untrusted, and Supermemory with no key. */
+const previewMemorySources: MemorySourceView[] = [
+  { id: 'src_vault', kind: 'obsidian', name: 'Vault', location: '/home/sam/vault', trust: 'trusted', scope: 'personal', watched: true, lastReadAt: '2026-10-30T11:20:00Z', counts: { candidate: 2, verified: 5, conflicting: 1, outdated: 1, rejected: 0 } },
+  { id: 'src_notion', kind: 'notion-export', name: 'Team wiki', location: '/home/sam/Downloads/notion-export', trust: 'tainted', scope: 'project', project: '/code/memnox-desktop', watched: true, lastReadAt: '2026-10-29T16:00:00Z', lastError: 'Export-2a1f.zip is still zipped, so it was skipped', counts: { candidate: 1, verified: 0, conflicting: 0, outdated: 0, rejected: 2 } },
+  { id: 'src_super', kind: 'supermemory', name: 'Supermemory', location: 'https://api.supermemory.ai', trust: 'tainted', scope: 'personal', watched: false, keyHeld: false, counts: { candidate: 0, verified: 0, conflicting: 0, outdated: 0, rejected: 0 } },
+];
 
+const vaultEvidence = (document: string, heading: string, stale = false) => ({ ref: `${document}#${heading}`, document, heading, source: 'Vault', stale });
+
+/** The queue and the facts, statements kept exactly as written, a stale passage and a rule among them. */
+const previewMemory: MemoryItemView[] = [
+  { id: 'mem_1', kind: 'fact', statement: 'Releases ship on Tuesdays, never on a Friday.', subject: 'releases', status: 'verified', scope: 'personal', origin: 'extracted', tainted: false, extractorConfidence: 0.91, evidence: [vaultEvidence('ops/releases.md', 'Cadence'), vaultEvidence('ops/old-releases.md', 'Cadence', true)], createdAt: '2026-10-20T09:00:00Z', decidedAt: '2026-10-21T09:00:00Z', decidedBy: 'Sam Rivera' },
+  { id: 'mem_2', kind: 'convention', statement: 'Commit messages are one line with a conventional prefix.', subject: 'commits', status: 'verified', scope: 'project', project: '/code/memnox-desktop', origin: 'agent', suggestedBy: 'claude-code', tainted: false, evidence: [], createdAt: '2026-10-22T09:00:00Z', decidedAt: '2026-10-22T10:00:00Z', decidedBy: 'Sam Rivera' },
+  { id: 'mem_3', kind: 'rule', statement: 'Never push straight to main; open a pull request instead.', subject: 'git', status: 'candidate', scope: 'personal', origin: 'extracted', tainted: false, extractorConfidence: 0.78, rule: { effect: 'ask', actions: ['git.push'], targets: ['main'], reason: 'main is protected', sentence: 'Ask before any agent pushes to main.' }, evidence: [vaultEvidence('eng/git.md', 'Branches')], createdAt: '2026-10-28T08:00:00Z' },
+  { id: 'mem_4', kind: 'fact', statement: 'The staging database is reset every night at 02:00 UTC.', subject: 'staging', status: 'candidate', scope: 'project', project: '/code/memnox-desktop', origin: 'extracted', tainted: true, extractorConfidence: 0.64, evidence: [{ ref: 'https://www.notion.so/acme/Staging-4f2a', document: 'Staging-4f2a.md', url: 'https://www.notion.so/acme/Staging-4f2a', source: 'Team wiki', stale: false }], createdAt: '2026-10-29T16:00:00Z' },
+  { id: 'mem_5', kind: 'fact', statement: 'Releases go out on Tuesdays.', subject: 'releases', status: 'candidate', scope: 'personal', origin: 'agent', suggestedBy: 'codex-cli', tainted: false, duplicateOf: { id: 'mem_1', statement: 'Releases ship on Tuesdays, never on a Friday.' }, evidence: [], createdAt: '2026-10-30T10:00:00Z' },
+  { id: 'mem_6', kind: 'fact', statement: 'Deploys are frozen during the last week of December.', subject: 'deploys', status: 'outdated', scope: 'personal', origin: 'extracted', tainted: false, evidence: [vaultEvidence('ops/freeze.md', 'Holidays', true)], createdAt: '2026-09-01T09:00:00Z' },
+];
+
+/** Every memory press answered from the scene: a confirmed rule waits on a signature, and a read says what it found. */
+function memoryAnswer(request: DaemonRequest): Partial<DaemonResponse> {
+  const learn = { items: previewMemory.filter((item) => item.status === 'candidate' || item.status === 'conflicting'), more: 0 };
+  const scoped = (item: MemoryItemView) => request.memoryScope === undefined || item.scope === request.memoryScope;
+  switch (request.method) {
+    case 'memory-learn':
+    case 'memory-reject':
+    case 'memory-edit':
+      return { memoryLearn: learn };
+    case 'memory-confirm': {
+      const item = previewMemory.find((each) => each.id === request.memoryItemId);
+      return { memoryLearn: learn, ...(item === undefined ? {} : { memoryItem: item }), ...(item !== undefined && item.kind === 'rule' ? { proposed: 'prp_preview' } : {}) };
+    }
+    case 'memory-facts':
+      return { memoryFacts: { items: previewMemory.filter((item) => item.status === (request.memoryStatus ?? 'verified') && scoped(item)), more: 0 } };
+    case 'memory-search': {
+      const words = (request.memoryQuery ?? '').toLowerCase();
+      return { memoryFacts: { items: previewMemory.filter((item) => item.statement.toLowerCase().includes(words) && scoped(item)), more: 0 } };
+    }
+    case 'memory-source-read':
+      return {
+        memorySources: previewMemorySources,
+        memoryRead: { sourceId: request.memorySourceId ?? '', documents: 14, passages: 61, added: 3, merged: 2, rejectedBefore: 1, droppedCitations: 1, discarded: 0, outdated: 0, extractor: previewState === 'no-agent' ? 'unavailable' : 'answered' },
+      };
+    case 'memory-forget':
+      return {};
+    default:
+      return { memorySources: previewMemorySources };
+  }
+}
+
+/** Every method a page asks, answered from the scene. */
 function answer(request: DaemonRequest): DaemonResponse[] {
   const ok = { id: request.id, ok: true };
-  if (NOT_YET.includes(request.method)) return [{ id: request.id, ok: false, error: `no method ${request.method}` }];
+  if (request.method.startsWith('memory-')) return [{ ...ok, ...memoryAnswer(request) }];
   if (request.method.startsWith('mcp-')) return [{ ...ok, mcpHub: previewHub, ...(request.method === 'mcp-assign' && request.mcpOn === true ? { proposed: 'prp_preview' } : {}) }];
   if (request.method === 'rules' || request.method === 'rule-remove') return [{ ...ok, policyRules: previewRules }];
   if (request.method === 'progress') return [{ ...ok, progress: previewProgress }];

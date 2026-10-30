@@ -7,7 +7,9 @@ import { DaemonSupport } from '../../core/application/daemon-support';
 import { HeldCalls } from '../../core/application/held-calls';
 import { Home } from '../../core/application/home';
 import { McpHub } from '../../core/application/mcp-hub';
+import { LocalNetwork } from '../../core/application/local-network';
 import { Memory } from '../../core/application/memory';
+import { PersonalSync } from '../../core/application/personal-sync';
 import { Activity, Agents, Studio } from '../../core/application/studio';
 import { Sessions } from '../../core/application/sessions';
 import { SkillsHub } from '../../core/application/skills';
@@ -81,6 +83,10 @@ export interface SettingsParts {
   readonly backup: Backup;
   /** The sources memory is read from, the Learn queue, and the facts a person confirmed. */
   readonly memory: Memory;
+  /** Whether paired phones reach this computer over the local network, turned on only once signed. */
+  readonly network: LocalNetwork;
+  /** The person's own setup carried between their machines, the key moved only once signed. */
+  readonly sync: PersonalSync;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -128,6 +134,8 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     projects: new Projects(link, ids),
     backup: new Backup(link, ids),
     memory: new Memory(link, ids),
+    network: new LocalNetwork(link, ids),
+    sync: new PersonalSync(link, ids),
     host,
     words: platformWords(host.platform),
     setup,

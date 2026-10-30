@@ -1,4 +1,4 @@
-import type { ActivityRow, AgentView, BackupSummary, DaemonRequest, DaemonResponse, DeviceWire, HomeView, McpHubView, MemoryItemView, MemorySourceView, PolicyRulesView, ProgressView, ProjectView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
+import type { ActivityRow, AgentView, BackupSummary, DaemonRequest, DaemonResponse, DeviceWire, HomeView, LanStatus, McpHubView, MemoryItemView, MemorySourceView, PersonalSyncConflict, PersonalSyncStatus, PolicyRulesView, ProgressView, ProjectView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
@@ -241,6 +241,38 @@ const previewProjects: ProjectView[] = [
     openQuestions: 0,
     lastActive: '2026-10-30T11:40:00Z',
   },
+  {
+    id: 'prj_api',
+    scope: 'organization',
+    organization: {
+      id: 'op_api',
+      name: 'Acme API',
+      repository: 'github.com/acme/api',
+      description: 'The public API and its workers',
+      servers: ['github', 'docs'],
+      skills: ['review-checklist'],
+      rulePack: 'Release rules',
+      rules: 4,
+      memory: 'project',
+      skipped: ['The skill api-style is not in the bundle this computer holds, so it was left out.'],
+      editedIn: 'Acme API is the organization’s project, so it is changed in Memnox Cloud rather than here.',
+    },
+    name: 'Acme API',
+    path: '/code/api',
+    declared: true,
+    opened: true,
+    agents: ['claude-code'],
+    agentsSeen: ['claude-code'],
+    sessions: { total: 2, ended: 2 },
+    servers: [{ name: 'github', inHub: true, agents: ['claude-code'] }],
+    skills: [{ name: 'review-checklist', inHub: true, agents: ['claude-code'] }],
+    rules: { count: 0, inForce: false },
+    instructions: [],
+    memoryScope: 'project',
+    openMissions: [],
+    openQuestions: 0,
+    lastActive: '2026-10-29T15:00:00Z',
+  },
 ];
 
 const previewBackup: BackupSummary = { createdAt: '2026-10-30T12:00:00.000Z', files: ['policies.toml', 'mcp-hub.json', 'skills/release-notes/SKILL.md', 'projects.json'], ledger: false };
@@ -307,10 +339,57 @@ function memoryAnswer(request: DaemonRequest): Partial<DaemonResponse> {
   }
 }
 
+/** The local network off, or on and listening with a phone over it: `?page=network&state=lan-on`. */
+const previewLan: LanStatus =
+  previewState === 'lan-on'
+    ? { on: true, listening: true, addresses: ['192.168.1.20'], port: 47_820, advertised: true, instance: 'mx-7f3a', reachable: [{ deviceId: 'dev_1', name: 'Sam’s iPhone' }] }
+    : { on: false, listening: false, addresses: [], advertised: false, reachable: [] };
+
+const syncKinds = [
+  { kind: 'servers', items: 3 },
+  { kind: 'skills', items: 2 },
+  { kind: 'projects', items: 2 },
+  { kind: 'rules', items: 5 },
+  { kind: 'memory', items: 7 },
+];
+
+/** Personal sync ready with a laptop waiting for the key, or the new machine's side: `state=key-arrived`, `state=not-on-plan`. */
+function previewSync(): PersonalSyncStatus {
+  const base = { kinds: syncKinds, conflicts: 0, skipped: [], openedElsewhere: [], waiting: [] };
+  if (previewState === 'key-arrived') return { ...base, state: 'key-arrived', said: 'A sync key arrived from another of your machines. Compare the fingerprint and accept it to start syncing.', arrivedFingerprint: '40917 22618 73501 09344 51872 66230' };
+  if (previewState === 'not-on-plan') return { ...base, state: 'not-on-plan', said: 'Your plan does not carry personal sync, so what is here stays on this machine.' };
+  return {
+    ...base,
+    state: 'ready',
+    said: 'Synced. Your other machines have everything this one carries.',
+    keyId: 'Hc2f9Qm1vT0aXr7LdPe4Zw',
+    lastSyncedAt: '2026-10-30T11:52:00Z',
+    conflicts: 1,
+    skipped: ['The skill design-review is larger than one item may be, so it stays on this machine.'],
+    openedElsewhere: ['github.com/acme/billing'],
+    waiting: [{ machineId: 'sam-laptop', fingerprint: '40917 22618 73501 09344 51872 66230', sealed: false }],
+  };
+}
+
+const previewConflicts: PersonalSyncConflict[] = [
+  { id: 'cfl_1', kind: 'skills', name: 'release-notes', writtenBy: 'sam-laptop', keptAt: '2026-10-30T10:15:00Z', theirs: 'Write the release notes from the merged pull requests, newest first.', mine: 'Write the release notes from the merged pull requests, grouped by area.' },
+];
+
+/** Every personal sync press answered from the scene: an offer or an accept waits on a signature. */
+function syncAnswer(request: DaemonRequest): Partial<DaemonResponse> {
+  const personalSync = previewSync();
+  if (request.method === 'personal-sync-conflicts') return { personalSync, syncConflicts: previewConflicts };
+  if (request.method === 'personal-sync-key-offer' || request.method === 'personal-sync-key-accept') return { personalSync, proposed: 'prp_preview' };
+  return { personalSync };
+}
+
 /** Every method a page asks, answered from the scene. */
 function answer(request: DaemonRequest): DaemonResponse[] {
   const ok = { id: request.id, ok: true };
   if (request.method.startsWith('memory-')) return [{ ...ok, ...memoryAnswer(request) }];
+  if (request.method.startsWith('personal-sync-')) return [{ ...ok, ...syncAnswer(request) }];
+  if (request.method === 'lan-status') return [{ ...ok, lan: previewLan }];
+  if (request.method === 'lan-set') return [{ ...ok, lan: previewLan, ...(request.lanOn === true ? { proposed: 'prp_preview' } : {}) }];
   if (request.method.startsWith('mcp-')) return [{ ...ok, mcpHub: previewHub, ...(request.method === 'mcp-assign' && request.mcpOn === true ? { proposed: 'prp_preview' } : {}) }];
   if (request.method === 'rules' || request.method === 'rule-remove') return [{ ...ok, policyRules: previewRules }];
   if (request.method === 'progress') return [{ ...ok, progress: previewProgress }];

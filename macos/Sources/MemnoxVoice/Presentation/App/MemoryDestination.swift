@@ -144,6 +144,7 @@ struct MemoryDestination: View {
                             EmptyView()
                         } trailing: {
                             HStack(spacing: Memnox.Spacing.medium) {
+                                ScopeChip(ScopeLines.memory(item))
                                 if item.tainted { StatusWord(.attention, "Untrusted source") }
                                 StatusWord(Tone(word.tone), word.word)
                             }

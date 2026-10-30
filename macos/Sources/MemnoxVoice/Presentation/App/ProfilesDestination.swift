@@ -97,10 +97,14 @@ private struct ProfileCard: View {
         let busy = screen.profiles.busy == profile.id
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
-                Text(profile.name)
-                    .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
-                    .lineLimit(1)
+                HStack(spacing: Memnox.Spacing.medium) {
+                    Text(profile.name)
+                        .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
+                        .foregroundStyle(Memnox.Palette.foreground)
+                        .lineLimit(1)
+                    Spacer(minLength: Memnox.Spacing.small)
+                    ScopeChip(ScopeLines.profile)
+                }
                 Text(ProfileLines.contents(profile))
                     .font(Memnox.sans(Memnox.TextSize.footnote))
                     .foregroundStyle(Memnox.Palette.muted)

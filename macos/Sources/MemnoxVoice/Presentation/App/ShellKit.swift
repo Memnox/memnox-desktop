@@ -67,6 +67,27 @@ struct StatusWord: View {
     }
 }
 
+/// Whose an item is, grey and always with its word, so the scope is never told by colour alone.
+struct ScopeChip: View {
+    let kind: ScopeKind
+
+    init(_ kind: ScopeKind) {
+        self.kind = kind
+    }
+
+    var body: some View {
+        Text(kind.word)
+            .font(Memnox.sans(Memnox.TextSize.caption, .medium))
+            .foregroundStyle(Memnox.Palette.muted)
+            .lineLimit(1)
+            .padding(.horizontal, Memnox.Spacing.small)
+            .padding(.vertical, 1)
+            .overlay(Capsule().strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .fixedSize()
+            .accessibilityLabel(kind.label)
+    }
+}
+
 /// A list in one rounded panel, rows divided by hairlines the caller draws between them.
 struct ShellPanel<Content: View>: View {
     @ViewBuilder let content: Content
@@ -366,6 +387,21 @@ struct InspectorLayout<Page: View, Detail: View>: View {
                     .lineLimit(1)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 0)
+                Button {
+                    // The same details in a window of their own, which leaves the page's pane free.
+                    InspectorWindows.open(title: title, content: AnyView(detail))
+                    close()
+                } label: {
+                    Image(systemName: "arrow.up.forward.square")
+                        .font(.system(size: Memnox.TextSize.footnote, weight: .semibold))
+                        .foregroundStyle(Memnox.Palette.muted)
+                        .frame(width: InspectorSize.closeSide, height: InspectorSize.closeSide)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .hoverLight(radius: Memnox.radius, inset: 0)
+                .help("Open the details in their own window")
+                .accessibilityLabel("Open the details in their own window")
                 Button(action: close) {
                     Image(systemName: "xmark")
                         .font(.system(size: Memnox.TextSize.footnote, weight: .semibold))

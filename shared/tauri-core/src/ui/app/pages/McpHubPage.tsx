@@ -1,0 +1,371 @@
+import type { McpHubServerView, McpHubView } from '@memnox/core/wire';
+import { KeyRound, MoreVertical, Plug, Plus, RefreshCw } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { HubOutcome } from '../../../core/application/mcp-hub';
+import type { WidthClass } from '../../../core/domain/destinations';
+import { agentLabel, agentsLine, callsLine, healthWords, launchLine, missingSecrets, secretsAcross, toolsLine } from '../../../core/domain/mcp-hub-lines';
+import { ago } from '../../../core/domain/session-text';
+import { BrandLogo } from '../../kit/logos';
+import { KitButton, SearchField } from '../../settings/kit';
+import { useObserved, type SettingsParts } from '../../settings/parts';
+import { YourAppsPage } from '../../settings/pages/YourAppsPage';
+import { AddServerDialog } from './AddServerDialog';
+import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
+
+/**
+ * The MCP Hub: servers set up once and given to the agents the person chooses. Every config is written
+ * by the runtime, a change that gives an agent more waits for a signature on the island, and a secret
+ * is kept by this computer and never shown again.
+ */
+export function McpHubPage({ parts, tab, width }: { parts: SettingsParts; tab: string | undefined; width: WidthClass }) {
+  const { hub } = parts;
+  useObserved(hub);
+  useEffect(() => {
+    if (tab !== 'apps') void hub.refresh();
+  }, [tab]);
+  // A signed proposal or a call through a hub server changes the stream, and the hub is read again.
+  useEffect(() => parts.host.onHomeStale?.(() => void hub.refresh()), []);
+  const [note, setNote] = useState<string | undefined>(undefined);
+  const said = (outcome: HubOutcome) => setNote(noteOf(outcome, parts.words.keyTitle));
+
+  if (tab === 'apps') return <YourAppsPage parts={parts} />;
+  const view = hub.hub;
+  if (view === undefined) return hub.unreadable ? <ReadFailed what="the MCP Hub" retry={() => void hub.refresh()} /> : null;
+  return (
+    <>
+      {note !== undefined && (
+        <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
+          {note}
+        </p>
+      )}
+      {tab === 'clients' && <Clients parts={parts} view={view} said={said} />}
+      {tab === 'secrets' && <Secrets parts={parts} view={view} said={said} />}
+      {(tab === 'servers' || tab === undefined) && <Servers parts={parts} view={view} width={width} said={said} />}
+    </>
+  );
+}
+
+function noteOf(outcome: HubOutcome, keyTitle: string): string {
+  if (outcome.kind === 'proposed') return `Waiting for you on the island: confirm it with ${keyTitle} and the runtime writes it.`;
+  if (outcome.kind === 'failed') return outcome.why;
+  return outcome.note;
+}
+
+function Servers({ parts, view, width, said }: { parts: SettingsParts; view: McpHubView; width: WidthClass; said: (outcome: HubOutcome) => void }) {
+  const { hub } = parts;
+  const [query, setQuery] = useState('');
+  const [chosen, choose] = useState<string | undefined>(undefined);
+  const [adding, setAdding] = useState(false);
+  const words = query.trim().toLowerCase();
+  const shown = view.servers.filter((server) => words === '' || `${server.name} ${server.description ?? ''}`.toLowerCase().includes(words));
+  const picked = view.servers.find((server) => server.name === chosen);
+  return (
+    <div className="flex min-h-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="w-full max-w-[320px] min-w-[180px] flex-1">
+            <SearchField value={query} placeholder="Search servers" onChange={setQuery} />
+          </div>
+          <span className="flex-1" />
+          <KitButton icon={RefreshCw} disabled={hub.busy === 'sync'} onClick={() => void hub.sync().then(said)} title="Write what the hub gives each agent into its config again">
+            Sync
+          </KitButton>
+          <KitButton kind="primary" icon={Plus} onClick={() => setAdding(true)}>
+            Add server
+          </KitButton>
+        </div>
+        {view.servers.length === 0 ? (
+          <EmptyState
+            icon={Plug}
+            title="No servers in the hub yet"
+            body="Add a server once and give it to any agent, or bring in one an agent already has from Found on this computer below."
+            action={<KitButton kind="primary" icon={Plus} onClick={() => setAdding(true)}>Add server</KitButton>}
+          />
+        ) : (
+          <CardGrid>
+            {shown.map((server) => (
+              <ServerCard key={server.name} server={server} chosen={server.name === chosen} pick={() => choose(server.name)} />
+            ))}
+          </CardGrid>
+        )}
+        <Found parts={parts} view={view} said={said} />
+        <Drift view={view} />
+      </div>
+      {picked !== undefined && (
+        <Inspector title={picked.name} width={width} close={() => choose(undefined)}>
+          <ServerDetail parts={parts} view={view} server={picked} said={said} removed={() => choose(undefined)} />
+        </Inspector>
+      )}
+      {adding && <AddServerDialog parts={parts} agents={view.agents.map((each) => each.agent)} close={() => setAdding(false)} said={said} />}
+    </div>
+  );
+}
+
+function ServerCard({ server, chosen, pick }: { server: McpHubServerView; chosen: boolean; pick: () => void }) {
+  const health = healthWords(server.health);
+  const missing = missingSecrets(server);
+  return (
+    <button
+      type="button"
+      onClick={pick}
+      aria-pressed={chosen}
+      className={`mx-focus flex cursor-pointer flex-col gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:bg-hover ${chosen ? 'border-primary' : 'border-panel-edge'}`}
+    >
+      <div className="flex items-start gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-headline font-semibold text-foreground">{server.name}</span>
+          <span className="truncate text-footnote text-muted">{server.description ?? launchLine(server)}</span>
+        </div>
+        <MoreVertical size={15} className="mt-1 shrink-0 text-muted" aria-hidden />
+      </div>
+      <div className="border-t border-panel-edge" />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        {missing.length > 0 ? <StatusWord tone="bad">Needs a secret</StatusWord> : <StatusWord tone={health.tone}>{health.word}</StatusWord>}
+        <span className="text-footnote text-muted">{server.transport === 'http' ? 'Remote' : 'Local'}</span>
+        <span className="text-footnote text-muted">{toolsLine(server.toolCount)}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex -space-x-1.5" aria-label={agentsLine(server.agents.length)}>
+          {server.agents.length === 0 ? <span className="text-footnote text-muted">{agentsLine(0)}</span> : server.agents.map((agent) => <BrandLogo key={agent} agent={agent} name={agentLabel(agent)} size={20} className="ring-2 ring-card" />)}
+        </span>
+        {server.governed ? <StatusWord tone="good">Governed</StatusWord> : <StatusWord tone="attention">Not governed</StatusWord>}
+      </div>
+    </button>
+  );
+}
+
+function ServerDetail({ parts, view, server, said, removed }: { parts: SettingsParts; view: McpHubView; server: McpHubServerView; said: (outcome: HubOutcome) => void; removed: () => void }) {
+  const { hub } = parts;
+  const health = hub.testOf(server.name) ?? server.health;
+  const words = healthWords(health);
+  const tools = health.tools ?? server.tools ?? [];
+  const missing = missingSecrets(server);
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1.5">
+        <StatusWord tone={missing.length > 0 ? 'bad' : words.tone}>{missing.length > 0 ? `Needs ${missing.join(', ')}` : words.word}</StatusWord>
+        {health.checkedAt !== undefined && <span className="text-footnote text-muted">{`Tested ${ago(health.checkedAt, Date.now()) ?? 'just now'}`}</span>}
+        {health.error !== undefined && <span className="text-footnote break-words text-destructive">{health.error}</span>}
+        <span className="font-mono text-micro break-all text-muted">{[launchLine(server), ...(server.args ?? [])].join(' ')}</span>
+        <span className="text-footnote text-muted">{callsLine(server.callsThisWeek)}</span>
+      </div>
+      <KitButton disabled={hub.busy === server.name} onClick={() => void hub.test(server.name).then(said)}>
+        {hub.busy === server.name ? 'Testing' : 'Test connection'}
+      </KitButton>
+
+      <Section title="Agents">
+        <Panel>
+          {view.agents.map(({ agent }) => {
+            const on = server.agents.includes(agent);
+            return (
+              <Row
+                key={agent}
+                leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />}
+                title={agentLabel(agent)}
+                caption={on ? 'Has this server' : undefined}
+                trailing={
+                  <KitButton disabled={hub.busy === `${server.name}/${agent}`} onClick={() => void hub.assign(server.name, agent, !on).then(said)}>
+                    {on ? 'Take away' : 'Give'}
+                  </KitButton>
+                }
+              />
+            );
+          })}
+        </Panel>
+        <p className="text-footnote text-muted">{`Giving a server to an agent waits for your signature with ${parts.words.keyTitle}. Taking it away happens at once.`}</p>
+      </Section>
+
+      {Object.keys(server.secretsHeld).length > 0 && (
+        <Section title="Credentials">
+          <Panel>
+            {Object.entries(server.secretsHeld).map(([name, held]) => (
+              <Row key={name} leading={<KeyRound size={16} className="text-muted" />} title={name} trailing={<StatusWord tone={held ? 'good' : 'bad'}>{held ? 'Kept by this computer' : 'Not set'}</StatusWord>} />
+            ))}
+          </Panel>
+          <p className="text-footnote text-muted">A secret is never shown again. Replace one under Secrets.</p>
+        </Section>
+      )}
+
+      <Section title="Tools">
+        {tools.length === 0 ? (
+          <p className="text-footnote text-muted">Test the connection to list what this server can do.</p>
+        ) : (
+          <Panel>
+            {tools.map((tool) => (
+              <Row key={tool.name} title={<span className="font-mono">{tool.name}</span>} caption={tool.description} />
+            ))}
+          </Panel>
+        )}
+      </Section>
+
+      {/* Set apart at the end, away from the routine controls. */}
+      <div className="border-t border-panel-edge pt-4">
+        <KitButton
+          disabled={hub.busy === server.name}
+          onClick={() =>
+            void hub.removeServer(server.name).then((outcome) => {
+              said(outcome);
+              if (outcome.kind === 'done') removed();
+            })
+          }
+        >
+          Remove from every agent
+        </KitButton>
+      </div>
+    </div>
+  );
+}
+
+/** Servers an agent already had before the hub, offered to bring in and never touched until then. */
+function Found({ parts, view, said }: { parts: SettingsParts; view: McpHubView; said: (outcome: HubOutcome) => void }) {
+  const { hub } = parts;
+  if (view.found.length === 0) return null;
+  return (
+    <Section title={`Found on this computer · ${view.found.length}`}>
+      <Panel>
+        {view.found.map((entry) => (
+          <Row
+            key={`${entry.path}/${entry.name}`}
+            leading={entry.agent === undefined ? <Plug size={18} className="text-muted" /> : <BrandLogo agent={entry.agent} name={agentLabel(entry.agent)} size={22} />}
+            title={entry.name}
+            caption={`${entry.agent === undefined ? 'Shared by several agents' : agentLabel(entry.agent)} · ${entry.path}`}
+            trailing={
+              entry.agent === undefined ? (
+                <span className="text-footnote text-muted">A repository’s own file</span>
+              ) : (
+                <KitButton disabled={hub.busy === entry.name} onClick={() => entry.agent !== undefined && void hub.importServer(entry.agent, entry.name).then(said)}>
+                  Bring into the hub
+                </KitButton>
+              )
+            }
+          />
+        ))}
+      </Panel>
+      <p className="text-footnote text-muted">Bringing a server in puts it behind Memnox, so every call it makes is ruled on and recorded.</p>
+    </Section>
+  );
+}
+
+/** Lines the hub wrote that a person changed since, left as they are and said. */
+function Drift({ view }: { view: McpHubView }) {
+  const entries = [...view.drifted, ...view.skipped];
+  if (entries.length === 0) return null;
+  return (
+    <Section title="Left as they are">
+      <Panel>
+        {entries.map((entry) => (
+          <Row
+            key={`${entry.path}/${entry.name}/${entry.kind ?? entry.reason ?? ''}`}
+            title={entry.name}
+            caption={`${entry.agent === undefined ? '' : `${agentLabel(entry.agent)} · `}${entry.reason ?? (entry.kind === 'removed' ? 'You removed the line the hub wrote, so it is not put back.' : 'You changed the line the hub wrote, so the hub leaves it alone.')}`}
+            trailing={<StatusWord tone="attention">Yours now</StatusWord>}
+          />
+        ))}
+      </Panel>
+    </Section>
+  );
+}
+
+/** Agents across, servers down: one place to see and change who has what. */
+function Clients({ parts, view, said }: { parts: SettingsParts; view: McpHubView; said: (outcome: HubOutcome) => void }) {
+  const { hub } = parts;
+  if (view.servers.length === 0 || view.agents.length === 0) {
+    return <EmptyState icon={Plug} title="Nothing to give yet" body="Once the hub holds a server and an agent with an MCP config is found, who has what is set here." />;
+  }
+  return (
+    <div className="overflow-x-auto rounded-xl border border-panel-edge">
+      <table className="w-full border-collapse text-body">
+        <thead>
+          <tr className="bg-card">
+            <th scope="col" className="px-3.5 py-2.5 text-left text-footnote font-semibold text-muted">Server</th>
+            {view.agents.map(({ agent }) => (
+              <th key={agent} scope="col" className="px-3 py-2.5 text-footnote font-semibold whitespace-nowrap text-muted">
+                <span className="inline-flex items-center gap-1.5">
+                  <BrandLogo agent={agent} name={agentLabel(agent)} size={18} />
+                  {agentLabel(agent)}
+                </span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {view.servers.map((server) => (
+            <tr key={server.name} className="border-t border-panel-edge">
+              <th scope="row" className="px-3.5 py-2.5 text-left font-medium whitespace-nowrap text-foreground">{server.name}</th>
+              {view.agents.map(({ agent }) => {
+                const on = server.agents.includes(agent);
+                return (
+                  <td key={agent} className="px-3 py-2.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      disabled={hub.busy === `${server.name}/${agent}`}
+                      aria-label={`${server.name} for ${agentLabel(agent)}`}
+                      className="size-4 cursor-pointer accent-[var(--color-primary)]"
+                      onChange={() => void hub.assign(server.name, agent, !on).then(said)}
+                    />
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Each secret by name, where it is used and whether this computer holds it. A value is typed in once and never read back. */
+function Secrets({ parts, view, said }: { parts: SettingsParts; view: McpHubView; said: (outcome: HubOutcome) => void }) {
+  const secrets = secretsAcross(view.servers);
+  if (secrets.length === 0) {
+    return <EmptyState icon={KeyRound} title="No secrets yet" body="When a server needs a token, mark it as a secret while adding the server. Its value stays with this computer and no agent's config ever holds it." />;
+  }
+  return (
+    <Panel>
+      {secrets.map((secret) => (
+        <SecretRow key={secret.name} name={secret.name} held={secret.held} usedBy={secret.usedBy} parts={parts} said={said} />
+      ))}
+    </Panel>
+  );
+}
+
+function SecretRow({ name, held, usedBy, parts, said }: { name: string; held: boolean; usedBy: string[]; parts: SettingsParts; said: (outcome: HubOutcome) => void }) {
+  const { hub } = parts;
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+  const save = () => {
+    void hub.setSecret(name, value).then((outcome) => {
+      said(outcome);
+      setValue('');
+      setEditing(false);
+    });
+  };
+  const trailing: ReactNode = editing ? (
+    <span className="flex items-center gap-2">
+      <input
+        type="password"
+        autoComplete="off"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => event.key === 'Enter' && value !== '' && save()}
+        aria-label={`The value of ${name}`}
+        className="h-8 w-48 rounded-lg border border-field-edge bg-field px-2.5 text-body text-foreground outline-none focus:border-primary"
+      />
+      <KitButton kind="primary" disabled={value === '' || hub.busy === name} onClick={save}>
+        Keep
+      </KitButton>
+    </span>
+  ) : (
+    <span className="flex items-center gap-2">
+      <StatusWord tone={held ? 'good' : 'bad'}>{held ? 'Kept' : 'Not set'}</StatusWord>
+      <KitButton onClick={() => setEditing(true)}>{held ? 'Replace' : 'Set'}</KitButton>
+      {held && (
+        <KitButton disabled={hub.busy === name} onClick={() => void hub.removeSecret(name).then(said)}>
+          Remove
+        </KitButton>
+      )}
+    </span>
+  );
+  return <Row leading={<KeyRound size={16} className="text-muted" />} title={name} caption={`Used by ${usedBy.join(', ')}`} trailing={trailing} />;
+}

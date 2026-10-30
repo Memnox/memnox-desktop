@@ -135,7 +135,7 @@ private struct ProjectCard: View {
                         .foregroundStyle(Memnox.Palette.foreground)
                         .lineLimit(1)
                     Spacer(minLength: Memnox.Spacing.small)
-                    StatusWord(Tone(standing.tone), standing.word)
+                    if project.sharedBy != nil { OrganizationBadge() } else { StatusWord(Tone(standing.tone), standing.word) }
                 }
                 Text(project.path)
                     .font(Memnox.mono(Memnox.TextSize.micro))
@@ -167,7 +167,7 @@ private struct ProjectCard: View {
         .buttonStyle(.plain)
         .pointingHand()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(project.name), \(standing.word)")
+        .accessibilityLabel("\(project.name), \(project.sharedBy == nil ? standing.word : ProjectLines.fromOrganization)")
         .accessibilityAddTraits(chosen ? [.isButton, .isSelected] : .isButton)
     }
 }
@@ -326,7 +326,7 @@ private struct Overview: View {
         let busy = screen.projects.busy == project.id || screen.projects.busy == project.path
         VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
             HStack(spacing: Memnox.Spacing.medium) {
-                StatusWord(Tone(standing.tone), standing.word)
+                if project.sharedBy != nil { OrganizationBadge() } else { StatusWord(Tone(standing.tone), standing.word) }
                 Spacer(minLength: Memnox.Spacing.medium)
                 Text(project.path)
                     .font(Memnox.mono(Memnox.TextSize.micro))
@@ -351,23 +351,18 @@ private struct Overview: View {
                     StatTile(value: tile.value, label: tile.label, symbol: Self.symbols[index % Self.symbols.count], tint: Memnox.Palette.faint)
                 }
             }
+            if let organization = project.sharedBy { OrganizationPanel(organization: organization) }
             Muted(ProjectLines.rulesLine(project.rules))
-            Group {
-                if project.declared {
-                    Button(busy ? "Applying" : "Apply", systemImage: "play") {
-                        let id = project.id
-                        screen.press { await $0.apply(id) }
-                    }
-                } else {
-                    Button(busy ? "Saving" : "Save as project", systemImage: "square.and.arrow.down") {
-                        let path = project.path, draft = ProjectLines.draft(of: project)
-                        screen.press { await $0.put(path, draft: draft) }
-                    }
-                }
+            if let organization = project.sharedBy {
+                // The organization's project is changed in Memnox Cloud, so its line stands where Apply and Save would.
+                Muted(organization.editedIn)
+                    .padding(.horizontal, Memnox.Spacing.xLarge)
+                    .padding(.vertical, Memnox.Spacing.large)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+            } else {
+                editControls(busy: busy)
             }
-            .buttonStyle(KitButton(kind: .primary))
-            .disabled(busy)
-            Muted(ProjectLines.pressLine(declared: project.declared))
             NoteBanner(text: screen.note)
             ShellSection(title: "Instructions") {
                 if project.instructions.isEmpty {
@@ -406,6 +401,69 @@ private struct Overview: View {
             }
             Muted(ProjectLines.sessionsLine(project, now: Date()))
         }
+    }
+
+    /// Apply or Save as project, on the person's own project only.
+    @ViewBuilder private func editControls(busy: Bool) -> some View {
+        Group {
+            if project.declared {
+                Button(busy ? "Applying" : "Apply", systemImage: "play") {
+                    let id = project.id
+                    screen.press { await $0.apply(id) }
+                }
+            } else {
+                Button(busy ? "Saving" : "Save as project", systemImage: "square.and.arrow.down") {
+                    let path = project.path, draft = ProjectLines.draft(of: project)
+                    screen.press { await $0.put(path, draft: draft) }
+                }
+            }
+        }
+        .buttonStyle(KitButton(kind: .primary))
+        .disabled(busy)
+        Muted(ProjectLines.pressLine(declared: project.declared))
+    }
+}
+
+/// The badge a project the organization shares carries in place of its standing.
+private struct OrganizationBadge: View {
+    var body: some View {
+        Label(ProjectLines.fromOrganization, systemImage: "building.2")
+            .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
+            .foregroundStyle(Memnox.Palette.muted)
+            .padding(.horizontal, Memnox.Spacing.medium)
+            .padding(.vertical, Memnox.Spacing.xSmall)
+            .overlay(Capsule().strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .lineLimit(1)
+    }
+}
+
+/// What the organization hands a shared project, read only: servers, skills, its rule pack, memory, and what was left out.
+private struct OrganizationPanel: View {
+    let organization: ProjectOrganizationView
+
+    var body: some View {
+        ShellSection(title: "From your organization") {
+            if let description = organization.description { Muted(description) }
+            ShellPanel {
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                    if index > 0 { ShellDivider() }
+                    ShellRow(title: row.title, caption: row.caption) { EmptyView() } trailing: { EmptyView() }
+                }
+            }
+            ForEach(organization.skipped, id: \.self) { Muted($0) }
+        }
+    }
+
+    private var rows: [(title: String, caption: String)] {
+        [("Repository", organization.repository),
+         ("MCP servers", names(organization.servers)),
+         ("Skills", names(organization.skills)),
+         ("Rule pack", ProjectLines.organizationRulesLine(organization)),
+         ("Memory", ProjectLines.organizationMemoryLine(organization.memory))]
+    }
+
+    private func names(_ list: [String]) -> String {
+        list.isEmpty ? "None" : list.joined(separator: ", ")
     }
 }
 

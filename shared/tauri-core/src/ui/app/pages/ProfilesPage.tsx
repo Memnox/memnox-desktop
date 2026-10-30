@@ -1,9 +1,9 @@
 import type { ProfileView } from '@memnox/core/wire';
-import { Layers, Play, Plus, Trash2 } from 'lucide-react';
+import { Layers, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ProfileOutcome } from '../../../core/application/profiles';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
-import { applyWhereLine, profileContents, profileDraftFrom, type ProfileForm } from '../../../core/domain/profile-lines';
+import { applyWhereLine, choiceNames, packChangeLine, profileContents, profileDraftFrom, profileFormOf, type ProfileForm } from '../../../core/domain/profile-lines';
 import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { CardGrid, EmptyState, ReadFailed, StatusWord } from '../widgets';
@@ -55,7 +55,7 @@ export function ProfilesPage({ parts }: { parts: SettingsParts }) {
           ))}
         </CardGrid>
       )}
-      {creating && <NewProfileDialog parts={parts} close={() => setCreating(false)} said={said} />}
+      {creating && <ProfileDialog parts={parts} close={() => setCreating(false)} said={said} />}
     </div>
   );
 }
@@ -64,6 +64,7 @@ function ProfileCard({ parts, profile, said }: { parts: SettingsParts; profile: 
   const { profiles } = parts;
   const [applying, setApplying] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [editing, setEditing] = useState(false);
   const busy = profiles.busy === profile.id || profiles.busy === profile.name;
   return (
     <article className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
@@ -85,6 +86,9 @@ function ProfileCard({ parts, profile, said }: { parts: SettingsParts; profile: 
             Apply
           </KitButton>
         )}
+        <KitButton icon={Pencil} onClick={() => setEditing(true)}>
+          Edit
+        </KitButton>
         {removing ? (
           <>
             <KitButton kind="primary" icon={Trash2} disabled={busy} onClick={() => void profiles.remove(profile.id).then(said)}>
@@ -112,6 +116,7 @@ function ProfileCard({ parts, profile, said }: { parts: SettingsParts; profile: 
           }
         />
       )}
+      {editing && <ProfileDialog parts={parts} editing={profile} close={() => setEditing(false)} said={said} />}
     </article>
   );
 }
@@ -167,14 +172,24 @@ function ApplyForm({ parts, busy, cancel, apply }: { parts: SettingsParts; busy:
 
 const EMPTY_FORM: ProfileForm = { name: '', description: '', skills: new Set(), servers: new Set(), pack: '' };
 
-/** A profile chosen from what the Skills Hub, the MCP Hub and the rule packs hold now; keeping it grants nothing. */
-function NewProfileDialog({ parts, close, said }: { parts: SettingsParts; close: () => void; said: (outcome: ProfileOutcome) => void }) {
+/**
+ * A profile chosen from what the Skills Hub, the MCP Hub and the rule packs hold now, new or as kept when `editing`;
+ * saving grants nothing. An edit keeps the name, since the runtime finds a profile by it and a new name is a new profile.
+ */
+function ProfileDialog({ parts, editing, close, said }: { parts: SettingsParts; editing?: ProfileView; close: () => void; said: (outcome: ProfileOutcome) => void }) {
   const { profiles, skills, hub, studio } = parts;
-  const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
+  const packs = studio.packs ?? [];
+  const [form, setForm] = useState<ProfileForm>(() => (editing === undefined ? EMPTY_FORM : profileFormOf(editing, packs)));
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const first = useRef<HTMLInputElement>(null);
   useEffect(() => first.current?.focus(), []);
-  const packs = studio.packs ?? [];
+  // Packs read after the dialog opened still match the kept pack, unless the person already chose one.
+  const chosePack = useRef(false);
+  useEffect(() => {
+    if (editing === undefined || chosePack.current || form.pack !== '') return;
+    const matched = profileFormOf(editing, packs).pack;
+    if (matched !== '') setForm((now) => ({ ...now, pack: matched }));
+  }, [studio.packs]);
   const toggle = (which: 'skills' | 'servers', name: string) => {
     const next = new Set(form[which]);
     if (next.has(name)) next.delete(name);
@@ -184,37 +199,42 @@ function NewProfileDialog({ parts, close, said }: { parts: SettingsParts; close:
   const save = async () => {
     const draft = profileDraftFrom(form, packs);
     if (typeof draft === 'string') return setProblem(draft);
-    const outcome = await profiles.put(draft);
+    const outcome = await profiles.put(draft, editing !== undefined);
     if (outcome.kind === 'failed') return setProblem(outcome.why);
     said(outcome);
     close();
   };
   const field = 'h-9 w-full rounded-lg border border-field-edge bg-field px-3 text-body text-foreground outline-none placeholder:text-faint focus:border-primary';
-  const skillNames = (skills.hub?.skills ?? []).map((skill) => skill.name);
-  const serverNames = (hub.hub?.servers ?? []).map((server) => server.name);
+  const skillNames = choiceNames((skills.hub?.skills ?? []).map((skill) => skill.name), editing === undefined ? new Set() : new Set(editing.skills));
+  const serverNames = choiceNames((hub.hub?.servers ?? []).map((server) => server.name), editing === undefined ? new Set() : new Set(editing.mcpServers));
+  const packChange = editing === undefined ? undefined : packChangeLine(editing.rulePack, form, packs);
   return (
     <Dialog
-      title="New profile"
+      title={editing === undefined ? 'New profile' : `Edit ${editing.name}`}
       close={close}
       footer={
         <>
           <span className="flex-1" />
           <KitButton kind="primary" disabled={profiles.busy !== undefined} onClick={() => void save()}>
-            Keep profile
+            {editing === undefined ? 'Keep profile' : 'Save changes'}
           </KitButton>
         </>
       }
     >
       <Labelled label="Name">
-        <input ref={first} className={field} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Backend Engineering" />
+        <input ref={editing === undefined ? first : undefined} className={field} value={form.name} readOnly={editing !== undefined} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Backend Engineering" />
       </Labelled>
+      {editing !== undefined && <p className="text-footnote text-muted">The name stays, since a new name would keep a second profile beside this one.</p>}
       <Labelled label="What it is for, optional">
-        <input className={field} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Reviews, release notes and the local database" />
+        <input ref={editing === undefined ? undefined : first} className={field} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Reviews, release notes and the local database" />
       </Labelled>
       <Choices title="Skills from the Skills Hub" empty="The Skills Hub holds no skill yet." names={skillNames} chosen={form.skills} toggle={(name) => toggle('skills', name)} />
       <Choices title="Servers from the MCP Hub" empty="The MCP Hub holds no server yet." names={serverNames} chosen={form.servers} toggle={(name) => toggle('servers', name)} />
       <Labelled label="Rule pack">
-        <select className={field} value={form.pack} onChange={(event) => setForm({ ...form, pack: event.target.value })}>
+        <select className={field} value={form.pack} onChange={(event) => {
+            chosePack.current = true;
+            setForm({ ...form, pack: event.target.value });
+          }}>
           <option value="">No rule pack</option>
           {packs.map((pack) => (
             <option key={pack.id} value={pack.id}>
@@ -223,6 +243,7 @@ function NewProfileDialog({ parts, close, said }: { parts: SettingsParts; close:
           ))}
         </select>
       </Labelled>
+      {packChange !== undefined && <p className="text-footnote text-muted">{packChange}</p>}
       {problem !== undefined && (
         <p role="alert" className="text-footnote text-destructive">
           {problem}

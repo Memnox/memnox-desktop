@@ -44,6 +44,37 @@ export function profileDraftFrom(form: ProfileForm, packs: readonly Pick<RulePac
   };
 }
 
+/** The form Edit opens with: the profile as kept, its pack matched by name among the packs offered now. */
+export function profileFormOf(profile: Pick<ProfileView, 'name' | 'description' | 'skills' | 'mcpServers' | 'rulePack'>, packs: readonly Pick<RulePackView, 'id' | 'name'>[]): ProfileForm {
+  const kept = profile.rulePack;
+  const pack = kept === undefined ? undefined : packs.find((each) => each.name === kept.name);
+  return { name: profile.name, description: profile.description ?? '', skills: new Set(profile.skills), servers: new Set(profile.mcpServers), pack: pack === undefined ? '' : pack.id };
+}
+
+/** The names to tick: what the hub holds now, then any the profile keeps that the hub no longer does, so each can be unticked. */
+export function choiceNames(hub: readonly string[], kept: ReadonlySet<string>): string[] {
+  return [...hub, ...[...kept].filter((name) => !hub.includes(name)).sort()];
+}
+
+/**
+ * What saving an edit does to the pack the profile keeps, said under the picker. The runtime hands back only the
+ * pack's name, so a pack is sent again from the packs offered now, and one no longer offered cannot be kept.
+ */
+export function packChangeLine(kept: ProfileView['rulePack'], form: Pick<ProfileForm, 'pack'>, packs: readonly Pick<RulePackView, 'id' | 'name' | 'ruleCount'>[]): string | undefined {
+  if (kept === undefined) return undefined;
+  const chosen = packs.find((each) => each.id === form.pack);
+  const offered = packs.some((each) => each.name === kept.name);
+  if (chosen === undefined) return offered ? `Saving takes ${kept.name} out of the profile.` : `${kept.name} is no longer offered here, so saving takes it out of the profile. Choose a pack to keep one.`;
+  if (chosen.name !== kept.name) return `Saving replaces ${kept.name} with ${chosen.name}.`;
+  if (chosen.ruleCount !== kept.rules) return `Saving takes ${kept.name} as it is offered now, ${counted(chosen.ruleCount, 'rule', 'rules')} where the profile keeps ${kept.rules}.`;
+  return undefined;
+}
+
+/** What a save came to: nothing is given by keeping a profile, and an edit gives nothing new until it is applied again. */
+export function profileSavedLine(name: string, editing: boolean): string {
+  return editing ? `${name} is saved. What it already gave stays, and the change gives nothing until you apply it again.` : `${name} is kept. It gives nothing until you apply it.`;
+}
+
 /** Where a profile is applied, said before Apply: a repository, or the agent's home folder. */
 export function applyWhereLine(project: string): string {
   return project.trim() === '' ? 'Skills go into the agent’s home folder.' : `Skills go into ${project.trim()}.`;

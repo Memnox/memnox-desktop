@@ -1,5 +1,5 @@
 import { PROFILES_METHOD, type DaemonRequest, type DaemonResponse, type ProfileDraft, type ProfileView } from '@memnox/core/wire';
-import { profileAppliedLine } from '../domain/profile-lines';
+import { profileAppliedLine, profileSavedLine } from '../domain/profile-lines';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
@@ -44,8 +44,9 @@ export class Profiles extends Observed {
     this.changed();
   }
 
-  put(draft: ProfileDraft): Promise<ProfileOutcome> {
-    return this.change(draft.name, { method: PROFILES_METHOD.PROFILE_PUT, profileDraft: draft }, () => `${draft.name} is kept. It gives nothing until you apply it.`);
+  /** Keeps a new profile, or replaces the one of the same name when `editing`; either way it grants nothing. */
+  put(draft: ProfileDraft, editing = false): Promise<ProfileOutcome> {
+    return this.change(draft.name, { method: PROFILES_METHOD.PROFILE_PUT, profileDraft: draft }, () => profileSavedLine(draft.name, editing));
   }
 
   remove(name: string): Promise<ProfileOutcome> {

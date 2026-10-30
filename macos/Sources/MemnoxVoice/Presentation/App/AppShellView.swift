@@ -228,7 +228,8 @@ private struct AppPage: View {
                     ApprovalsDestination(island: island, width: width)
                 }
             case .settings:
-                SettingsDestination(models: models, menu: menu, setup: setup, tab: route.tab, backup: shell.backup)
+                SettingsDestination(models: models, menu: menu, setup: setup, tab: route.tab, backup: shell.backup,
+                                    network: shell.network)
             }
         } else {
             ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)

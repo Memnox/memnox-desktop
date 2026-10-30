@@ -51,6 +51,13 @@ final class DestinationsTests: XCTestCase {
         XCTAssertEqual(Destinations.settled(WindowRoute(.settings, tab: "backup"), supports: { _ in false }), WindowRoute(.settings, tab: "backup"))
     }
 
+    func testShowsTheLocalNetworkAfterPhonesOnlyWhereTheRuntimeAnswersIt() {
+        XCTAssertFalse(Destinations.visibleTabs(.settings, supports: { _ in false }).map(\.id).contains("network"))
+        let tabs = Destinations.visibleTabs(.settings, supports: { _ in true }).map(\.id)
+        XCTAssertEqual(tabs.firstIndex(of: "network"), tabs.firstIndex(of: "phones").map { $0 + 1 })
+        XCTAssertEqual(Destinations.route(forPage: "network"), WindowRoute(.settings, tab: "network"))
+    }
+
     func testChangesLayoutAtTheSameWidthsAsWindowsAndLinux() {
         XCTAssertEqual([1280, 1000, 760, 480].map { WidthClass(width: $0) }, [.wide, .medium, .narrow, .compact])
         XCTAssertEqual([1200, 900, 640].map { WidthClass(width: $0) }, [.wide, .medium, .narrow])

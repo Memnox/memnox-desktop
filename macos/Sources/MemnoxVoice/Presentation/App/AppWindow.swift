@@ -59,6 +59,11 @@ final class AppWindow {
         didSet { shell.backup = backup }
     }
 
+    /// Whether paired phones reach this Mac over the local network, read by Local network and Phones under Settings.
+    var network: LocalNetwork? {
+        didSet { shell.network = network.map(NetworkScreen.init) }
+    }
+
     let shell = AppShellModel()
     private var window: NSWindow?
 
@@ -143,6 +148,8 @@ final class AppShellModel: ObservableObject {
     @Published var memory: MemoryScreen?
     /// The Backup page's use case, nil until the app wires it, which leaves that page empty rather than broken.
     @Published var backup: Backup?
+    /// The local network, nil until the app wires it, which leaves its page empty and Phones without its line.
+    @Published var network: NetworkScreen?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.
     @Published private(set) var answers = 0
     private var support: DaemonSupport?

@@ -1298,7 +1298,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return Task.detached {
             while !Task.isCancelled {
                 do {
-                    for try await response in link.stream(DaemonRequest(id: ids.next(), method: .subscribe)) {
+                    // Live activity is asked for, since Activity pages through the chosen machine's ledger and shows its rows.
+                    var subscribe = DaemonRequest(id: ids.next(), method: .subscribe)
+                    subscribe.subscribeActivity = true
+                    for try await response in link.stream(subscribe) {
                         guard let event = response.event else { continue }
                         await deliver(event)
                     }

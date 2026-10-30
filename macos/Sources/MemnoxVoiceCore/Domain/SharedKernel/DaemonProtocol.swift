@@ -1188,6 +1188,8 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var questionNumber: Int?
     /// On person-sign-in: this app's own waiting device code, so one approval in the browser signs the daemon in too.
     public var companionOf: String?
+    /// On subscribe: send live activity rows too, asked for, since an app built before them would say every row aloud.
+    public var subscribeActivity: Bool?
     public var point: String?
     public var said: String?
     /// On ask: they were waited on for the rest and said nothing more, so `said` is the whole of it.

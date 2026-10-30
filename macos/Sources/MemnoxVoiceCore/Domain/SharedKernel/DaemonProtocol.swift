@@ -1421,6 +1421,8 @@ public struct DaemonEvent: Decodable, Equatable, Sendable {
     public let draft: MailDraft?
     /// On a proposal of a rule, the rule and where it could hold, so the person picks a place before Touch ID.
     public let rule: RuleDraft?
+    /// On a proposal, what kind of change it is, as the runtime's PROPOSAL_KIND names it, so the island words each kind.
+    public let proposalKind: String?
     /// On a held call, or a proposal answering one, the daemon found it stays inside its session's repository.
     public let withinSession: Bool?
     /// On a held call, the digest of exactly this call, which a yes signs and sends so one changed since is refused.

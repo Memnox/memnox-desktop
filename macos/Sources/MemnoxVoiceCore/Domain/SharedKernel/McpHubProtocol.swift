@@ -83,6 +83,8 @@ public struct McpHubServerView: Decodable, Equatable, Identifiable, Sendable {
     public let tools: [McpToolSummary]?
     public let health: McpServerHealth
     public let agents: [String]
+    /// The agents given it in one repository only, each with that repository; absent from an older runtime.
+    public let projects: [McpProjectAssignment]?
     /// Each secret the server names, and whether the OS store holds it. Never the value.
     public let secretsHeld: [String: Bool]
     public let callsThisWeek: Int
@@ -90,6 +92,17 @@ public struct McpHubServerView: Decodable, Equatable, Identifiable, Sendable {
     public var id: String { name }
     public var hubTransport: HubTransport? { HubTransport(rawValue: transport) }
     public var mcpScope: McpScope? { scope.flatMap(McpScope.init(rawValue:)) }
+
+    /// The repositories one agent was given this server in, in the order the hub holds them.
+    public func projects(of agent: String) -> [String] {
+        (projects ?? []).filter { $0.agent == agent }.map(\.project)
+    }
+}
+
+/// One agent given a server in one repository, by its absolute path.
+public struct McpProjectAssignment: Decodable, Equatable, Sendable {
+    public let agent: String
+    public let project: String
 }
 
 /// An agent with an MCP config on this machine, and where it lives.

@@ -149,7 +149,16 @@
       "intercept",
       "intercept-acted",
       "intercept-ran",
-      "rule"
+      "rule",
+      "mcp-hub",
+      "mcp-server-put",
+      "mcp-server-remove",
+      "mcp-assign",
+      "mcp-import",
+      "mcp-sync",
+      "mcp-test",
+      "mcp-secret-set",
+      "mcp-secret-remove"
     ],
     "events": [
       "held",

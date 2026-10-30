@@ -1,7 +1,8 @@
-import type { ActivityFilter, ActivityRow, DecisionView } from '@memnox/core/wire';
-import { Copy, FileText, History } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import type { ActivityFilter, DecisionView } from '@memnox/core/wire';
+import { ArrowUp, Copy, FileText, History, RotateCw } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
+import { agentNameOf, missedRowsLine, newRowsLine, type ShownActivity } from '../../../core/domain/live-activity';
 import { ago } from '../../../core/domain/session-text';
 import { filePressLine } from '../../../core/domain/memory-lines';
 import { activityLine, answeredWords, decisionFiles, EFFECT_WORDS, effectTone, isEffect, sourceWords } from '../../../core/domain/studio-lines';
@@ -9,6 +10,7 @@ import { BrandLogo } from '../../kit/logos';
 import { openOrCopy, type SettingsHost } from '../../settings/host';
 import { KitButton, SearchField } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
+import { useInspectorHost } from '../inspector-host';
 import { EmptyState, Inspector, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
 
 const KINDS = [
@@ -40,11 +42,42 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
     void activity.show(filter);
   }, [key]);
   useEffect(() => parts.host.onHomeStale?.(() => void activity.show(activity.filter)), []);
+  useEffect(() => parts.host.onLiveActivity?.((rows, missed) => activity.heard(rows, missed)), []);
+  // A popped out Why window opens on the decision its link names.
+  const linked = useInspectorHost().item;
+  useEffect(() => {
+    if (linked !== undefined) void activity.open(linked);
+  }, []);
+  const top = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const mark = top.current;
+    if (mark === null) return;
+    const watch = new IntersectionObserver((seen) => activity.atTop(seen.some((each) => each.isIntersecting)));
+    watch.observe(mark);
+    return () => watch.disconnect();
+  }, []);
+  const names = useMemo(() => new Map(activity.rows.map((row) => [row.agent, row.agentName])), [activity.rows]);
+  const shown: readonly ShownActivity[] = [...activity.live, ...activity.rows];
 
   const chip = (on: boolean) => `mx-focus cursor-pointer rounded-full border px-3 py-1 text-footnote ${on ? 'border-primary bg-hover font-medium text-foreground' : 'border-panel-edge text-muted hover:bg-hover'}`;
   return (
     <div className="flex min-h-0">
       <div className="flex min-w-0 flex-1 flex-col gap-4">
+        <div ref={top} aria-hidden className="h-px" />
+        {activity.waiting > 0 && (
+          <div className="sticky top-2 z-10 flex justify-center">
+            <KitButton
+              kind="primary"
+              icon={ArrowUp}
+              onClick={() => {
+                top.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                activity.showWaiting();
+              }}
+            >
+              {newRowsLine(activity.waiting)}
+            </KitButton>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <div className="w-full max-w-[280px] min-w-[160px] flex-1">
             <SearchField value={text} placeholder="Search actions and targets" onChange={setText} />
@@ -81,14 +114,22 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
           </KitButton>
         </div>
         {note !== undefined && <p role="status" className="text-footnote text-muted">{note}</p>}
-        {activity.unreadable && activity.rows.length === 0 ? (
+        {activity.missed > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <p role="status" className="text-footnote text-muted">{missedRowsLine(activity.missed)}</p>
+            <KitButton icon={RotateCw} onClick={() => void activity.show(filter)}>
+              Refresh
+            </KitButton>
+          </div>
+        )}
+        {activity.unreadable && shown.length === 0 ? (
           <ReadFailed what="the activity" retry={() => void activity.show(filter)} />
-        ) : activity.rows.length === 0 && !activity.loading ? (
+        ) : shown.length === 0 && !activity.loading ? (
           <EmptyState icon={History} title="Nothing here yet" body="What your agents do on this computer appears here as it happens, with what your rules decided." />
         ) : (
           <Panel>
-            {activity.rows.map((row) => (
-              <ActivityRowView key={row.id} row={row} chosen={activity.decision?.row.id === row.id} open={() => void activity.open(row.id)} />
+            {shown.map((row) => (
+              <ActivityRowView key={row.id} row={row} name={agentNameOf(row, names)} chosen={activity.decision?.row.id === row.id} open={() => void activity.open(row.id)} />
             ))}
           </Panel>
         )}
@@ -99,7 +140,7 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
         )}
       </div>
       {activity.decision !== undefined && (
-        <Inspector title="Why" width={width} close={() => activity.close()}>
+        <Inspector title="Why" width={width} close={() => activity.close()} item={activity.decision.row.id}>
           <DecisionDetail key={activity.decision.row.id} view={activity.decision} host={host} change={() => go({ destination: 'governance', tab: 'policies' })} />
         </Inspector>
       )}
@@ -107,14 +148,15 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
   );
 }
 
-function ActivityRowView({ row, chosen, open }: { row: ActivityRow; chosen: boolean; open: () => void }) {
+/** A row paged in whole, or one that arrived live with names only, which says less until the list is read again. */
+function ActivityRowView({ row, name, chosen, open }: { row: ShownActivity; name: string; chosen: boolean; open: () => void }) {
   const answered = answeredWords(row);
   return (
     <Row
       chosen={chosen}
-      leading={<BrandLogo agent={row.agent} name={row.agentName} size={24} />}
+      leading={<BrandLogo agent={row.agent} name={name} size={24} />}
       title={<span className="font-mono">{activityLine(row)}</span>}
-      caption={[row.agentName, ago(row.at, Date.now()), row.rule, answered].filter((part) => part !== undefined).join(' · ')}
+      caption={[name, ago(row.at, Date.now()), row.rule, answered].filter((part) => part !== undefined).join(' · ')}
       trailing={
         <>
           {row.failed !== undefined && <StatusWord tone="bad">{`Failed, exit ${row.failed}`}</StatusWord>}

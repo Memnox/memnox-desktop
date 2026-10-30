@@ -20,6 +20,8 @@ const MACHINE = navigator.userAgent.includes('Windows') ? 'Windows' : 'Linux';
 export const COPY_WHAT_HAPPENED_EVENT = 'copy-what-happened';
 /** Told to every window when the stream changed what the home counts, which the Overview reads again. */
 export const HOME_STALE_EVENT = 'home-stale';
+/** Told to every window with the rows the ledger gained, which Activity and Home show without reading again. */
+export const LIVE_ACTIVITY_EVENT = 'live-activity';
 
 /** What the island's composition root hands in; everything the voice owns is optional. */
 export interface ExtrasParts {
@@ -62,6 +64,11 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
   const chiming = new Chiming(parts.chimes ?? { play: () => undefined }, () => notices.state.phoneVoice !== undefined);
 
   parts.calls.observeEvents((event) => {
+    // Live rows come once a second while anybody listens: handed to the windows, kept out of the diary and the home's reread.
+    if (event.kind === DAEMON_EVENT.ACTIVITY) {
+      void emit(LIVE_ACTIVITY_EVENT, { rows: event.activityRows ?? [], missed: event.activityMissed ?? 0 }).catch(() => undefined);
+      return;
+    }
     notices.handle(event);
     chiming.heard(event);
     diary.note(describe(event));

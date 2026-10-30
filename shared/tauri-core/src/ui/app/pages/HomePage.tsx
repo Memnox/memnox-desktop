@@ -33,6 +33,8 @@ export function HomePage({ parts, go }: { parts: SettingsParts; go: (route: Rout
     return () => sessions.stop();
   }, []);
   useEffect(() => host.onHomeStale?.(() => home.refreshSoon()), []);
+  // Live rows count into today's actions as they happen, with no read each second.
+  useEffect(() => host.onLiveActivity?.((rows, missed) => home.heard(rows.length + missed)), []);
 
   // Until setup is done, the first run's checklist is what Home has to say.
   if (!preferences.setupDone) {

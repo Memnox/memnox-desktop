@@ -11,9 +11,9 @@ const ALWAYS_SAID = new Set(['watched', 'question', 'asking', 'collision', 'gone
 /** Keeps the microphone open once said, because only the person can answer it. */
 const AWAITS_ANSWER = new Set(['question', 'asking', 'collision']);
 
-/** A drive grant, a phone's turn or the voice moving to a phone: put on the island at once and never said. */
+/** A drive grant, a phone's turn, the voice moving to a phone, or live activity for the screens: never said. */
 export function isShownOnly(event: DaemonEvent): boolean {
-  return event.drivenBy !== undefined || event.phoneTurn !== undefined || event.voiceOn !== undefined;
+  return event.kind === DAEMON_EVENT.ACTIVITY || event.drivenBy !== undefined || event.phoneTurn !== undefined || event.voiceOn !== undefined;
 }
 
 /** Whether to say this out loud: everything but a notice is, and a notice only when it must be or they asked for news. */

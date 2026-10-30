@@ -95,6 +95,13 @@ export class Home extends Observed {
     this.changed();
   }
 
+  /** Actions the runtime sent live, counted into today at once rather than read again every second; the next read corrects it. */
+  heard(actions: number): void {
+    if (this.read === undefined || actions <= 0) return;
+    this.read = { ...this.read, today: { ...this.read.today, actions: this.read.today.actions + actions } };
+    this.changed();
+  }
+
   /** Something on the stream changed what the home counts: read once the burst has passed. */
   refreshSoon(): void {
     if (this.soon) return;

@@ -8,12 +8,14 @@ import {
   type DaemonRequest,
   type DaemonResponse,
   type DecisionView,
+  type LiveActivityRow,
   type PolicyRulesView,
   type ProgressView,
   type RulePackView,
   type RuleVerdictView,
 } from '@memnox/core/wire';
 import { launchedLine } from '../domain/launch-lines';
+import { liveMatch, MOST_LIVE_ROWS_KEPT } from '../domain/live-activity';
 import { profileAppliedLine } from '../domain/profile-lines';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
@@ -149,9 +151,16 @@ export class Studio extends Observed {
   }
 }
 
-/** What the agents did, newest first, a page at a time, and why any one of it was decided as it was. */
+/**
+ * What the agents did, newest first, a page at a time, and why any one of it was decided as it was. Rows the runtime
+ * sends as they happen go above the first page while the person is at the top, and wait behind a pill while they are not.
+ */
 export class Activity extends Observed {
   private rowsRead: ActivityRow[] = [];
+  private liveRows: LiveActivityRow[] = [];
+  private waitingRows: LiveActivityRow[] = [];
+  private missedCount = 0;
+  private top = true;
   private cursor: string | undefined;
   private filterNow: ActivityFilter = {};
   private failedRead = false;
@@ -171,6 +180,58 @@ export class Activity extends Observed {
 
   get filter(): ActivityFilter {
     return this.filterNow;
+  }
+
+  /** Rows that arrived since the first page was read, newest first, drawn above it. */
+  get live(): readonly LiveActivityRow[] {
+    return this.liveRows;
+  }
+
+  /** Rows that arrived while the person was scrolled away, which the pill counts. */
+  get waiting(): number {
+    return this.waitingRows.length;
+  }
+
+  /** Rows the runtime counted without carrying, or that names alone could not place under the filter. */
+  get missed(): number {
+    return this.missedCount;
+  }
+
+  /** Rows a burst brought, oldest first: those the filter shows go up top or wait for the pill, the rest are counted or left. */
+  heard(rows: readonly LiveActivityRow[], missed: number): void {
+    const known = new Set([...this.rowsRead, ...this.liveRows, ...this.waitingRows].map((row) => row.id));
+    const shown: LiveActivityRow[] = [];
+    let unknown = missed;
+    for (const row of rows) {
+      if (known.has(row.id)) continue;
+      const match = liveMatch(row, this.filterNow);
+      if (match === 'shown') shown.unshift(row);
+      if (match === 'unknown') unknown += 1;
+    }
+    if (shown.length === 0 && unknown === 0) return;
+    if (this.top) this.liveRows = [...shown, ...this.liveRows];
+    else this.waitingRows = [...shown, ...this.waitingRows];
+    this.missedCount += unknown;
+    // Bounded, so a page left open all day does not grow without end; what is let go is counted for a refresh.
+    const over = this.liveRows.length - MOST_LIVE_ROWS_KEPT;
+    if (over > 0) {
+      this.liveRows = this.liveRows.slice(0, MOST_LIVE_ROWS_KEPT);
+      this.missedCount += over;
+    }
+    this.changed();
+  }
+
+  /** Whether the list is scrolled to its top; arriving there shows what waited. */
+  atTop(top: boolean): void {
+    this.top = top;
+    if (top && this.waitingRows.length > 0) this.showWaiting();
+  }
+
+  /** The pill pressed: what waited goes up top. */
+  showWaiting(): void {
+    this.liveRows = [...this.waitingRows, ...this.liveRows];
+    this.waitingRows = [];
+    this.changed();
   }
 
   get more(): boolean {
@@ -193,6 +254,9 @@ export class Activity extends Observed {
   async show(filter: ActivityFilter): Promise<void> {
     this.filterNow = filter;
     this.rowsRead = [];
+    this.liveRows = [];
+    this.waitingRows = [];
+    this.missedCount = 0;
     this.cursor = undefined;
     await this.page();
   }

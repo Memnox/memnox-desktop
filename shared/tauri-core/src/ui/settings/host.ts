@@ -2,6 +2,7 @@ import { invoke, Channel } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
+import type { LiveActivityRow } from '@memnox/core/wire';
 import type { Look } from '../../core/domain/appearance';
 import type { PermissionFacts, PrivacyPane } from '../../core/domain/permission-steps';
 import { platformOf, type Platform } from '../../core/domain/platform';
@@ -37,6 +38,8 @@ export interface SettingsHost {
   openLive?(sessionId: string): void;
   /** Told when the island hears the stream change what the home counts, so the Overview reads it again. */
   onHomeStale?(listener: () => void): () => void;
+  /** Told the rows the ledger gained, as the island hears them at most once a second, and how many it did not carry. */
+  onLiveActivity?(listener: (rows: readonly LiveActivityRow[], missed: number) => void): () => void;
   /** The first run's window over the whole screen for the opening, or the steps window after it; nothing in a preview. */
   onboardingVeil?(on: boolean): void;
   close(): void;
@@ -94,6 +97,11 @@ export const tauriHost: SettingsHost = {
   onHomeStale: (listener) => {
     // The name matches `HOME_STALE_EVENT`, which the island sends.
     const stop = listen('home-stale', () => listener());
+    return () => void stop.then((unlisten) => unlisten(), () => undefined);
+  },
+  onLiveActivity: (listener) => {
+    // The name matches `LIVE_ACTIVITY_EVENT`, which the island sends.
+    const stop = listen<{ rows: LiveActivityRow[]; missed: number }>('live-activity', (event) => listener(event.payload.rows, event.payload.missed));
     return () => void stop.then((unlisten) => unlisten(), () => undefined);
   },
   onboardingVeil: (on) => void invoke('onboarding_veil', { on }).catch(() => undefined),

@@ -372,20 +372,19 @@ private struct McpServerDetail: View {
 
     private func agentRow(_ agent: String) -> some View {
         let reach = McpHubLines.reach(server, agent: agent)
-        // Taking away removes only the everywhere assignment, so a project only one has no button here.
+        // Taking away removes only the everywhere assignment, so a project only one is offered Give alone.
         let on = reach == .everywhere
         let label = McpHubLines.agentLabel(agent)
         return ShellRow(title: label, caption: McpHubLines.reachCaption(server, agent: agent)) {
             BrandLogo(agent: agent, name: label, size: Self.logo)
         } trailing: {
             McpProjectChips(server: server, agent: agent)
-            if reach == .projects {
-                GoLink(McpHubLines.workspacesLink, action: workspaces)
-            } else {
-                Button(on ? "Take away" : "Give") { screen.press { await $0.assign(server.name, agent: agent, on: !on) } }
-                    .buttonStyle(KitButton(kind: .secondary))
-                    .disabled(screen.hub.busy == McpHub.pair(server.name, agent))
+            if reach == .projects { GoLink(McpHubLines.workspacesLink, action: workspaces) }
+            Button(on ? "Take away" : reach == .projects ? McpHubLines.giveEverywhere : "Give") {
+                screen.press { await $0.assign(server.name, agent: agent, on: !on) }
             }
+            .buttonStyle(KitButton(kind: .secondary))
+            .disabled(screen.hub.busy == McpHub.pair(server.name, agent))
         }
     }
 
@@ -534,16 +533,27 @@ private struct McpClients: View {
 
     @ViewBuilder private func cell(_ server: McpHubServerView, _ agent: String) -> some View {
         if McpHubLines.reach(server, agent: agent) == .projects {
-            // No switch: unticking would remove only an everywhere assignment, and this agent has none.
+            // Unticked, since ticking gives it everywhere; the project assignment is changed in Workspaces.
             let help = McpHubLines.projectOnlyHelp(server, agent: agent)
-            Button(action: workspaces) {
-                HStack(spacing: Memnox.Spacing.small) { McpProjectChips(server: server, agent: agent) }
+            let everywhere = Binding(get: { false }, set: { want in
+                if want { screen.press { await $0.assign(server.name, agent: agent, on: true) } }
+            })
+            HStack(spacing: Memnox.Spacing.small) {
+                Toggle("", isOn: everywhere)
+                    .labelsHidden()
+                    .toggleStyle(CheckboxStyle())
+                    .disabled(McpHubLines.fromOrganization(server) || screen.hub.busy == McpHub.pair(server.name, agent))
+                    .help(McpHubLines.fromOrganization(server) ? McpHubLines.organizationLine : McpHubLines.giveEverywhere)
+                    .accessibilityLabel("\(McpHubLines.giveEverywhere): \(server.name) for \(McpHubLines.agentLabel(agent))")
+                Button(action: workspaces) {
+                    HStack(spacing: Memnox.Spacing.small) { McpProjectChips(server: server, agent: agent) }
+                }
+                .buttonStyle(.plain)
+                .help(help)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(help)
+                .accessibilityAddTraits(.isButton)
             }
-            .buttonStyle(.plain)
-            .help(help)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(help)
-            .accessibilityAddTraits(.isButton)
         } else {
             toggleCell(server, agent)
         }

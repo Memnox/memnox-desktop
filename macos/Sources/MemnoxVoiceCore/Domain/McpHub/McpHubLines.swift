@@ -198,8 +198,10 @@ public enum McpHubLines {
         }
     }
 
-    /// Why a project only assignment has no switch here: taking it away here would remove nothing.
-    public static let projectOnlyLine = "A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Workspaces rather than here."
+    /// Why a project only assignment is never taken away here: unticking would remove nothing.
+    public static let projectOnlyLine = "A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Workspaces, and giving it here gives it in every project."
+    /// The control beside a project only assignment: it gives the server everywhere, signed like every other give.
+    public static let giveEverywhere = "Give in every project"
     public static let workspacesLink = "Open Workspaces"
 
     /// The help on a project only cell: who has it, where, and where it is changed.

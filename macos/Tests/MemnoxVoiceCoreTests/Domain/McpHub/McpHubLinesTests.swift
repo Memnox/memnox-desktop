@@ -86,4 +86,10 @@ final class McpHubLinesTests: XCTestCase {
         let given = try server(#","projects":[{"agent":"cursor","project":"/a/web"},{"agent":"cursor","project":"/a/api"}]"#)
         XCTAssertEqual(McpHubLines.reachCaption(given, agent: "cursor"), "Has this server only in 2 projects")
     }
+
+    func testOffersAProjectOnlyAgentTheServerInEveryProject() throws {
+        XCTAssertEqual(McpHubLines.giveEverywhere, "Give in every project")
+        XCTAssertEqual(McpHubLines.projectOnlyLine,
+                       "A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Workspaces, and giving it here gives it in every project.")
+    }
 }

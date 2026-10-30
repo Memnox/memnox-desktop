@@ -8,6 +8,7 @@ import { BrandLogo } from '../../kit/logos';
 import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { ToolsPage } from '../../settings/pages/ToolsPage';
+import { AgentListTab } from './AgentListTab';
 import { EmptyState, Inspector, Panel, Row, Section, StatusWord, type Tone } from '../widgets';
 
 /** The order the groups are read in: what needs the person, then what runs, then what is done. */
@@ -27,6 +28,7 @@ export function toneOf(status: SessionStatus): Tone {
 
 export function AgentsPage({ parts, tab, width }: { parts: SettingsParts; tab: string | undefined; width: WidthClass }) {
   if (tab === 'computer') return <ToolsPage parts={parts} />;
+  if (tab === 'list') return <AgentListTab parts={parts} />;
   return <SessionsTab parts={parts} width={width} />;
 }
 

@@ -75,6 +75,7 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
       { id: 'memory', title: 'Memory', needs: 'memory-facts' },
       { id: 'skills', title: 'My Skills', needs: 'skills-hub' },
       { id: 'assigned', title: 'Assigned', needs: 'skills-hub' },
+      { id: 'discover', title: 'Discover', needs: 'index-list' },
     ],
   },
   {

@@ -23,9 +23,9 @@ describe('the window’s destinations', () => {
     expect(visibleTabs('mcp', everything).map((tab) => tab.id)).toEqual(['servers', 'clients', 'secrets', 'apps']);
   });
 
-  it('shows memory and the Skills Hub only where the runtime keeps them', () => {
+  it('shows memory, the Skills Hub and the community index only where the runtime keeps them', () => {
     expect(visibleTabs('workspaces', nothingNew).map((tab) => tab.id)).toEqual(['projects']);
-    expect(visibleTabs('workspaces', everything).map((tab) => tab.id)).toEqual(['projects', 'memory', 'skills', 'assigned']);
+    expect(visibleTabs('workspaces', everything).map((tab) => tab.id)).toEqual(['projects', 'memory', 'skills', 'assigned', 'discover']);
   });
 
   it('shows the local network and personal sync under Settings only where the runtime answers them', () => {

@@ -195,6 +195,8 @@ html.mx-window {
   --mx-sky: #1e86ee;
   --mx-ring: rgb(30 134 238 / 0.35);
   --mx-switch-knob: #ffffff;
+  /* The console's sixth chart hue, which the memory map gives the line from a restatement to what it repeats. */
+  --mx-violet: #7c5cf0;
   --mx-ink-primary: rgb(15 15 15 / 1);
   --mx-ink-secondary: rgb(15 15 15 / 0.8);
   --mx-ink-tertiary: rgb(15 15 15 / 0.6);
@@ -253,6 +255,7 @@ html.mx-window[data-theme="dark"] {
   --mx-sky: #3d97f3;
   --mx-ring: rgb(30 134 238 / 0.45);
   --mx-switch-knob: #9cd1fd;
+  --mx-violet: #a78bfa;
   --mx-ink-primary: rgb(253 253 253 / 0.92);
   --mx-ink-secondary: rgb(253 253 253 / 0.62);
   --mx-ink-tertiary: rgb(253 253 253 / 0.5);
@@ -289,6 +292,7 @@ html.mx-window[data-theme="dark"] {
     --mx-sky: #3d97f3;
     --mx-ring: rgb(30 134 238 / 0.45);
     --mx-switch-knob: #9cd1fd;
+    --mx-violet: #a78bfa;
     --mx-ink-primary: rgb(253 253 253 / 0.92);
     --mx-ink-secondary: rgb(253 253 253 / 0.62);
     --mx-ink-tertiary: rgb(253 253 253 / 0.5);

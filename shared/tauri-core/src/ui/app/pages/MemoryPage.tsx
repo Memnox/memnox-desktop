@@ -1,5 +1,5 @@
 import type { MemoryEvidenceView, MemoryItemView, MemorySourceView } from '@memnox/core/wire';
-import { BookOpen, Brain, FileText, Link2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { BookOpen, Brain, FileText, Link2, List, Network, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { MemoryOutcome } from '../../../core/application/memory';
 import type { WidthClass } from '../../../core/domain/destinations';
@@ -30,12 +30,22 @@ import { KitButton, SearchField } from '../../settings/kit';
 import { openOrCopy } from '../../settings/host';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AddMemorySourceDialog } from './MemorySourceDialog';
+import { MemoryMapView } from './MemoryMap';
+import { memoryMapIds, MEMORY_MAP_NODE, type MemoryMapNode } from '../../../core/domain/memory-map';
 import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
 import { memoryScope } from '../../../core/domain/scope-lines';
 import { useInspectorHost, usePicked } from '../inspector-host';
 
 const CHIP = 'mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm';
 const chip = (on: boolean) => `${CHIP} ${on ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`;
+
+/** Whether memory is read as a list or drawn as a map, remembered for the next visit. */
+type MemoryView = 'list' | 'map';
+const VIEW_KEY = 'memnox.memory.view';
+const VIEWS: readonly { view: MemoryView; label: string; icon: typeof List }[] = [
+  { view: 'list', label: 'List', icon: List },
+  { view: 'map', label: 'Map', icon: Network },
+];
 
 /** How long typing rests before the search is asked, so each key is not a request. */
 const SEARCH_REST_MS = 300;
@@ -58,6 +68,17 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
   const [chosen, choose] = usePicked();
   const linked = useInspectorHost().item;
   const [note, setNote] = useState<string | undefined>(undefined);
+  const [view, setView] = useState<MemoryView>(() => (localStorage.getItem(VIEW_KEY) === 'map' ? 'map' : 'list'));
+  // A document or a source picked on the map, which is not an item and so is not the picked id.
+  const [place, setPlace] = useState<MemoryMapNode | undefined>(undefined);
+  const show = (next: MemoryView) => {
+    localStorage.setItem(VIEW_KEY, next);
+    setView(next);
+  };
+  const pickNode = (node: MemoryMapNode | undefined) => {
+    setPlace(node === undefined || node.item !== undefined ? undefined : node);
+    choose(node === undefined ? undefined : node.item);
+  };
   useEffect(() => {
     void memory.refreshSources();
     // An item a link names reopens whatever its status became, on the list that now holds it.
@@ -89,6 +110,20 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
               <SearchField value={query} placeholder="Search memory" onChange={setQuery} />
             </div>
             <span className="flex-1" />
+            <div className="inline-flex items-center gap-1 rounded-lg border border-panel-edge bg-card p-1" role="group" aria-label="Show memory as">
+              {VIEWS.map((each) => (
+                <button
+                  key={each.view}
+                  type="button"
+                  aria-pressed={view === each.view}
+                  onClick={() => show(each.view)}
+                  className={`mx-focus inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-3 text-body-sm transition-colors ${view === each.view ? 'bg-active font-medium text-foreground' : 'text-muted hover:text-foreground'}`}
+                >
+                  <each.icon size={14} aria-hidden />
+                  {each.label}
+                </button>
+              ))}
+            </div>
             <div className="flex gap-1.5" role="group" aria-label="Scope">
               <button type="button" className={chip(scope === undefined)} aria-pressed={scope === undefined} onClick={() => setScope(undefined)}>
                 Both
@@ -118,7 +153,10 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
           {listed !== undefined && listed.items.length === 0 && (
             <EmptyState icon={Brain} title={query.trim() === '' ? `Nothing ${statusWord(status).word.toLowerCase()} here` : 'Nothing learned says that'} body="Add a source below and Memnox reads it with your own agent. What it finds waits in Learn until you confirm it." />
           )}
-          {listed !== undefined && listed.items.length > 0 && (
+          {listed !== undefined && listed.items.length > 0 && view === 'map' && (
+            <MemoryMapView items={listed.items} sources={memory.sources ?? []} selected={place?.id ?? chosen} select={pickNode} />
+          )}
+          {listed !== undefined && listed.items.length > 0 && view === 'list' && (
             <Panel>
               {listed.items.map((item) => (
                 <Row
@@ -142,6 +180,11 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
         </Section>
         <MemorySources parts={parts} said={setNote} />
       </div>
+      {place !== undefined && (
+        <Inspector title={place.kind === MEMORY_MAP_NODE.DOCUMENT ? 'Document' : 'Source'} width={width} close={() => setPlace(undefined)}>
+          <PlaceDetail parts={parts} place={place} items={listed?.items ?? []} open={(id) => pickNode({ ...place, item: id })} />
+        </Inspector>
+      )}
       {picked !== undefined && (
         <Inspector title={kindWord(picked.kind)} width={width} close={() => choose(undefined)} item={picked.id}>
           <FactDetail
@@ -248,6 +291,47 @@ export function Evidence({ parts, evidence }: { parts: SettingsParts; evidence: 
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * A document or a source picked on the map: what it is, and the facts listed above that cite it, each a
+ * press that opens the fact. A document opens where it lives, as the evidence under a fact does.
+ */
+function PlaceDetail({ parts, place, items, open }: { parts: SettingsParts; place: MemoryMapNode; items: readonly MemoryItemView[]; open: (id: string) => void }) {
+  const document = place.kind === MEMORY_MAP_NODE.DOCUMENT;
+  const cites = (each: MemoryEvidenceView) => (document ? memoryMapIds.document(each.source, each.document) === place.id : memoryMapIds.source(each.source) === place.id);
+  const citing = items.filter((item) => item.evidence.some(cites));
+  const evidence = items.flatMap((item) => item.evidence).filter(cites);
+  const source = document ? undefined : (parts.memory.sources ?? []).find((each) => memoryMapIds.source(each.name) === place.id || memoryMapIds.source(each.id) === place.id);
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-1">
+        <p className="text-base font-medium break-words text-foreground">{place.label}</p>
+        {place.detail !== undefined && <p className="text-meta text-muted">{document ? `In ${place.detail}` : place.detail}</p>}
+      </div>
+      {document && evidence[0] !== undefined && <Evidence parts={parts} evidence={[evidence[0]]} />}
+      {source !== undefined && (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-meta">
+          <dt className="text-muted">Where</dt>
+          <dd className="min-w-0 break-words text-foreground">{source.location}</dd>
+          <dt className="text-muted">Trust</dt>
+          <dd className="text-foreground">{trustWord(source.trust).word}</dd>
+          <dt className="text-muted">Taught</dt>
+          <dd className="text-foreground">{sourceCountsLine(source.counts)}</dd>
+          <dt className="text-muted">Read</dt>
+          <dd className="text-foreground">{lastReadLine(source, Date.now())}</dd>
+        </dl>
+      )}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-label font-medium tracking-[0.14em] text-muted uppercase">{document ? 'Facts citing it' : 'Facts read from it'}</span>
+        <Panel>
+          {citing.map((item) => (
+            <Row key={item.id} title={item.statement} caption={statusWord(item.status).word} onClick={() => open(item.id)} />
+          ))}
+        </Panel>
+      </div>
     </div>
   );
 }

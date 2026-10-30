@@ -3,6 +3,7 @@ import { Download, FlaskConical, Plus, ShieldCheck, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react';
 import type { RuleDraftInput, StudioOutcome } from '../../../core/application/studio';
 import type { WidthClass } from '../../../core/domain/destinations';
+import { canInstall, installWaitsLine, latestLine, publisherLine } from '../../../core/domain/index-lines';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
 import { ALWAYS_ASK, almostLine, autopilotLine, countsByEffect, draftSentence, EFFECT_WORDS, effectTone, exportedCount, sourceWords, switchOn, weekLine, type Effect } from '../../../core/domain/studio-lines';
 import { KitButton, Switch } from '../../settings/kit';
@@ -120,6 +121,8 @@ export function PoliciesPage({ parts, width }: { parts: SettingsParts; width: Wi
             </Panel>
           )}
         </Section>
+
+        {parts.support.supports('index-list') === true && <IndexPacks parts={parts} said={setNote} />}
 
         <TryAction parts={parts} />
       </div>
@@ -342,6 +345,40 @@ function TryAction({ parts }: { parts: SettingsParts }) {
           {verdict.instead !== undefined && <span className="text-footnote text-muted">{`Instead: ${verdict.instead}`}</span>}
         </div>
       )}
+    </Section>
+  );
+}
+
+/** Rule packs from the community index, beside import and export; installing proposes each rule, signed on its own. */
+function IndexPacks({ parts, said }: { parts: SettingsParts; said: (note: string) => void }) {
+  const { index, words } = parts;
+  useObserved(index);
+  useEffect(() => {
+    void index.readPacks();
+  }, []);
+  const packs = index.packs;
+  if (packs === undefined || packs.length === 0) return null;
+  return (
+    <Section title="Rule packs from the community index">
+      <Panel>
+        {packs.map((pack) => (
+          <Row
+            key={pack.id}
+            title={pack.name}
+            caption={`${pack.description} · ${publisherLine(pack.publisher)} · ${latestLine(pack)}`}
+            trailing={
+              canInstall(pack) ? (
+                <KitButton icon={Download} disabled={index.busy === pack.name} onClick={() => void index.install(pack.name, pack.latest?.version).then((outcome) => said(outcome.kind === 'failed' ? outcome.why : outcome.note))}>
+                  Install
+                </KitButton>
+              ) : (
+                <StatusWord tone="bad">Marked unsafe</StatusWord>
+              )
+            }
+          />
+        ))}
+      </Panel>
+      <p className="text-footnote text-muted">{installWaitsLine('rule_pack', words.keyTitle)}</p>
     </Section>
   );
 }

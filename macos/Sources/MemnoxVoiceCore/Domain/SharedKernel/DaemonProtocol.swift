@@ -166,6 +166,10 @@ public enum DaemonMethod: String, Sendable {
     case projectPut = "project-put"
     /// Hands the project's instructions to its agents at once, and proposes its servers, skills and rules.
     case projectApply = "project-apply"
+    /// Seals the setup under a passphrase and hands the archive back as text.
+    case backupCreate = "backup-create"
+    /// Opens an archive and proposes putting it back, which holds once the person signs it.
+    case backupRestore = "backup-restore"
 }
 
 public enum EventKind: String, Sendable {
@@ -1257,6 +1261,12 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var projectId: String?
     /// On project-put.
     public var projectDraft: ProjectDraft?
+    /// On backup-create and backup-restore. Never stored, never logged.
+    public var backupPassphrase: String?
+    /// On backup-restore: the archive as backup-create handed it back.
+    public var backupArchive: String?
+    /// On backup-create: carry the ledger too.
+    public var backupLedger: Bool?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -1583,6 +1593,10 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let projects: ProjectsView?
     /// On project-open and project-apply: what was done at once.
     public let projectApplied: ProjectApplySummary?
+    /// On backup-create.
+    public let backupArchive: String?
+    /// On backup-create and backup-restore: what the archive holds.
+    public let backupSummary: BackupSummary?
 
     /// The outcome as a known case, or nil for one this app does not know yet.
     public var outcomeKind: Outcome? { outcome.flatMap(Outcome.init(rawValue:)) }

@@ -19,7 +19,7 @@ struct HomeDestination: View {
                              dictations: models.dictations, go: { shell.go(page: $0) })
             }
         } else if let home = models.home {
-            HomeAtAGlance(shell: shell, home: home, island: island, name: setup.name, width: width)
+            HomeAtAGlance(shell: shell, home: home, island: island, menu: menu, name: setup.name, width: width)
         } else {
             ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -30,6 +30,7 @@ private struct HomeAtAGlance: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var home: HomeModel
     @ObservedObject var island: IslandModel
+    let menu: MenuModel
     let name: String
     let width: WidthClass
 
@@ -45,6 +46,9 @@ private struct HomeAtAGlance: View {
         ShellScroll(width: width) {
             header(view)
             if home.unavailable, view == nil { ReadFailed(what: "the runtime", retry: home.refresh) }
+            // The getting started steps, as the cloud console's home lists them, above the counts until every one is done.
+            HomeStart(shell: shell, tools: menu.tools, menu: menu, home: home, actions: view?.today.actions ?? 0,
+                      mode: view.flatMap { HomeMode(rawValue: $0.mode) })
             tiles(running: running.count, view: view)
             runningSection(running)
             if let view {
@@ -97,7 +101,9 @@ private struct HomeAtAGlance: View {
     }
 
     @ViewBuilder private func standing(_ view: DaemonHome?) -> some View {
-        if view != nil {
+        if let view, let mode = HomeMode(rawValue: view.mode) {
+            StatusWord(mode == .enforce ? .good : .attention, mode.badge)
+        } else if view != nil {
             StatusWord(.good, "Runtime protecting this Mac")
         } else if home.unavailable {
             StatusWord(.bad, "The runtime is not answering")

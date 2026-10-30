@@ -14,12 +14,20 @@ final class HomeModel: ObservableObject {
     /// What the last hand over came to, in words for under the card.
     @Published private(set) var handOverNote: String?
     @Published private(set) var protecting = false
+    /// True while the runtime is asked to stop rather than watch, so Turn on stopping is not pressed twice.
+    @Published private(set) var enforcing = false
+    /// What the last Turn on stopping came to, in words for under the step.
+    @Published private(set) var enforceNote: String?
     /// Why putting the agents under Memnox did not go through, in words the person can act on.
     @Published private(set) var protectFailed: String?
+    /// True while the Memnox service is rebuilt and restarted for a Protect the old service could not see through.
+    @Published private(set) var restarting = false
 
     private let load: () async -> DaemonHome?
     private let handOverAction: (String) async -> HandOver
+    private let enforceAction: () async -> EnforceOutcome
     private let protectAgents: () async -> String?
+    private let restartServiceAction: () async -> String?
     /// True while the voice talks to a server, whose agents this Mac's own CLI cannot put under Memnox.
     let remote: () -> Bool
     let openWaiting: () -> Void
@@ -34,14 +42,18 @@ final class HomeModel: ObservableObject {
     init(
         load: @escaping () async -> DaemonHome?,
         handOver: @escaping (String) async -> HandOver,
+        enforce: @escaping () async -> EnforceOutcome,
         protectAgents: @escaping () async -> String?,
+        restartService: @escaping () async -> String?,
         remote: @escaping () -> Bool,
         openWaiting: @escaping () -> Void,
         openSession: @escaping (HomeWorking) -> Void
     ) {
         self.load = load
         handOverAction = handOver
+        enforceAction = enforce
         self.protectAgents = protectAgents
+        restartServiceAction = restartService
         self.remote = remote
         self.openWaiting = openWaiting
         self.openSession = openSession
@@ -104,16 +116,51 @@ final class HomeModel: ObservableObject {
         }
     }
 
-    /// One press: every agent found here goes under Memnox through the runtime's own setup, then the home is read again.
-    func protect() {
-        guard !protecting else { return }
-        protecting = true
-        protectFailed = nil
+    /// Asks the daemon to move this Mac to enforce, then reads the home again so its mode and stage follow. A window on a
+    /// server is told to do it there, because this Mac's own daemon is the one the method reaches.
+    func enforce() {
+        guard !enforcing else { return }
+        guard !remote() else {
+            enforceNote = HomeEnforce.remote
+            return
+        }
+        enforcing = true
+        enforceNote = nil
         Task { [weak self] in
             guard let self else { return }
-            self.protectFailed = await self.protectAgents()
-            self.protecting = false
+            let outcome = await self.enforceAction()
+            self.enforcing = false
+            self.enforceNote = HomeEnforce.line(outcome)
             self.refresh()
         }
+    }
+
+    /// One press: every agent found here goes under Memnox through the runtime's own setup, then the home is read again.
+    func protect() {
+        Task { _ = await protectNow() }
+    }
+
+    /// The same press for a page that reads its own cards after it: nil when setup went through, else why not,
+    /// and nil at once while a press is already under way, whose own caller reports it.
+    func protectNow() async -> String? {
+        guard !protecting else { return nil }
+        protecting = true
+        protectFailed = nil
+        let failed = await protectAgents()
+        protectFailed = failed
+        protecting = false
+        refresh()
+        return failed
+    }
+
+    /// Restarts the Memnox service on the newest runtime: nil once it answers again, else why not, and nil at once
+    /// while a restart or a Protect is already under way, whose own caller reports it.
+    func restartService() async -> String? {
+        guard !restarting, !protecting else { return nil }
+        restarting = true
+        let failed = await restartServiceAction()
+        restarting = false
+        refresh()
+        return failed
     }
 }

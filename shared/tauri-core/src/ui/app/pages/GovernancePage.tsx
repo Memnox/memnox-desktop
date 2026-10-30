@@ -9,6 +9,7 @@ import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
 import { ActivityPage } from './ActivityPage';
+import { LearnPage } from './LearnPage';
 import { PoliciesPage } from './PoliciesPage';
 import { EmptyState, StatusWord } from '../widgets';
 
@@ -18,7 +19,7 @@ const RECONNECT_MS = 2_000;
 export function GovernancePage({ parts, tab, width, go }: { parts: SettingsParts; tab: string | undefined; width: WidthClass; go: (route: Route) => void }) {
   if (tab === 'policies') return <PoliciesPage parts={parts} width={width} />;
   if (tab === 'activity') return <ActivityPage parts={parts} width={width} go={go} />;
-  // Learn arrives with the runtime's memory; until then Approvals and the two above stand.
+  if (tab === 'learn') return <LearnPage parts={parts} />;
   return <Approvals parts={parts} />;
 }
 

@@ -39,6 +39,7 @@ export const SETTINGS_TABS: readonly SettingsPage[] = [
   'network',
   'appearance',
   'backup',
+  'sync',
   'voice',
   'listening',
   'dictation',
@@ -48,6 +49,7 @@ export const SETTINGS_TABS: readonly SettingsPage[] = [
 /** Settings pages that read a daemon method, hidden until the runtime answers it. */
 const SETTINGS_NEEDS: Partial<Record<SettingsPage, string>> = {
   network: 'lan-status',
+  sync: 'personal-sync-status',
 };
 
 export const DESTINATIONS: readonly DestinationInfo[] = [

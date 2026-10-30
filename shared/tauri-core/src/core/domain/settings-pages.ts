@@ -12,6 +12,7 @@ export type SettingsPage =
   | 'network'
   | 'appearance'
   | 'backup'
+  | 'sync'
   | 'tools'
   | 'apps'
   | 'voice'
@@ -35,6 +36,7 @@ const INFO: Record<SettingsPage, Omit<SettingsPageInfo, 'page'>> = {
   network: { title: 'Local network', subtitle: 'Reach this computer over the network you share, rather than through the relay.' },
   appearance: { title: 'Appearance', subtitle: 'Light, dark, or the same as this computer.' },
   backup: { title: 'Backup', subtitle: 'Your rules, hubs, skills, projects and memory, sealed under a passphrase and put back once you sign.' },
+  sync: { title: 'Personal sync', subtitle: 'Your own setup carried between your machines, sealed under a key only they hold.' },
   tools: { title: 'Connected tools', subtitle: 'The agents on this computer and the apps Memnox can act in as you.' },
   apps: { title: 'Your apps', subtitle: 'Connect any tool you use as yourself, and see the ones this computer already reaches.' },
   voice: { title: 'Voice', subtitle: 'Who thinks for the voice, and the voice it answers in.' },
@@ -53,7 +55,7 @@ export interface SettingsGroup {
 export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
   { title: undefined, pages: ['overview'] },
   { title: 'You', pages: ['account'] },
-  { title: 'This computer', pages: ['permissions', 'connection', 'phones', 'network', 'appearance', 'backup'] },
+  { title: 'This computer', pages: ['permissions', 'connection', 'phones', 'network', 'appearance', 'backup', 'sync'] },
   { title: 'Agents and tools', pages: ['tools', 'apps'] },
   { title: 'Voice', pages: ['voice', 'listening', 'dictation'] },
   { title: 'Support', pages: ['help'] },

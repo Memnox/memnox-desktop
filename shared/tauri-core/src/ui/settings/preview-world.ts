@@ -1,4 +1,4 @@
-import type { ActivityRow, AgentView, BackupSummary, DaemonRequest, DaemonResponse, DeviceWire, HomeView, LanStatus, McpHubView, MemoryItemView, MemorySourceView, PersonalSyncConflict, PersonalSyncStatus, PolicyRulesView, ProgressView, ProjectView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
+import type { ActivityRow, AgentView, BackupSummary, CommunityIndexView, DaemonRequest, DaemonResponse, DeviceWire, HomeView, LanStatus, McpHubView, MemoryItemView, MemorySourceView, PersonalSyncConflict, PersonalSyncStatus, PolicyRulesView, ProfileView, ProgressView, ProjectView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
@@ -383,10 +383,48 @@ function syncAnswer(request: DaemonRequest): Partial<DaemonResponse> {
   return { personalSync };
 }
 
+/** The community index: a skill already held at an older version, a pack, and a skill whose every version was marked unsafe. */
+const previewIndex: CommunityIndexView = {
+  source: 'https://memnox.com/index.json',
+  fetchedAt: '2026-10-30T11:40:00Z',
+  complete: true,
+  ...(previewState === 'offline' ? { said: 'The index could not be reached, so this is what was read this morning.' } : {}),
+  entries: [
+    { id: 'lst_review', name: 'review-checklist', kind: 'skill', description: 'Walks a pull request against the team checklist before it is sent for review', category: 'Code review', publisher: { kind: 'organization', name: 'Acme' }, license: 'MIT', agents: ['claude-code', 'codex-cli'], latest: { version: '2.1.0', digest: 'sha256:9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b' }, yanked: ['2.0.0'], unsafe: false, installed: '1.4.0' },
+    { id: 'lst_pushes', name: 'careful-pushes', kind: 'rule_pack', description: 'Asks before a push to main, a force push or a deleted branch', category: 'Git', publisher: { kind: 'member', name: 'Priya Shah' }, license: 'Apache-2.0', agents: [], latest: { version: '1.0.2', digest: 'sha256:1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c' }, yanked: [], unsafe: false },
+    { id: 'lst_scrape', name: 'site-scraper', kind: 'skill', description: 'Fetches pages and keeps their text for later', category: 'Research', publisher: { kind: 'member', name: 'jdoe' }, agents: ['claude-code'], yanked: ['0.3.0', '0.3.1'], unsafe: true },
+  ],
+};
+
+/** Index answers from the scene: the words and kind filter as the runtime would, and an install says what waits. */
+function indexAnswer(request: DaemonRequest): Partial<DaemonResponse> {
+  const words = (request.indexQuery ?? '').toLowerCase();
+  const entries = previewIndex.entries.filter((entry) => (request.indexKind === undefined || entry.kind === request.indexKind) && `${entry.name} ${entry.description}`.toLowerCase().includes(words));
+  const communityIndex = { ...previewIndex, entries };
+  if (request.method !== 'index-install') return { communityIndex };
+  const entry = previewIndex.entries.find((each) => each.name === request.indexName || each.id === request.indexName);
+  if (entry === undefined || entry.latest === undefined) return { communityIndex };
+  const pack = entry.kind === 'rule_pack';
+  return { communityIndex: previewIndex, indexInstalled: { id: entry.id, name: entry.name, kind: entry.kind, version: request.indexVersion ?? entry.latest.version, digest: entry.latest.digest, proposed: pack ? ['prp_preview_1', 'prp_preview_2', 'prp_preview_3'] : [], held: !pack, said: '' } };
+}
+
+/** Two profiles: one whole, one naming a server the MCP Hub no longer holds. */
+const previewProfiles: ProfileView[] = [
+  { id: 'backend-engineering', name: 'Backend Engineering', description: 'Reviews, release notes and the local database, with careful pushes', skills: ['release-notes', 'review-checklist'], mcpServers: ['github', 'postgres'], rulePack: { name: 'Careful', rules: 6 }, updatedAt: '2026-10-28T09:00:00Z', missing: [] },
+  { id: 'docs-writer', name: 'Docs writer', skills: ['release-notes'], mcpServers: ['figma'], updatedAt: '2026-10-21T09:00:00Z', missing: ['figma is no longer in the MCP Hub.'] },
+];
+
+function profileAnswer(request: DaemonRequest): Partial<DaemonResponse> {
+  if (request.method === 'profile-apply') return { profiles: previewProfiles, profileApplied: { profile: request.profileName ?? '', agent: request.profileAgent ?? '', proposed: ['prp_preview_1', 'prp_preview_2'], already: ['github'], skipped: [] } };
+  return { profiles: previewProfiles };
+}
+
 /** Every method a page asks, answered from the scene. */
 function answer(request: DaemonRequest): DaemonResponse[] {
   const ok = { id: request.id, ok: true };
   if (request.method.startsWith('memory-')) return [{ ...ok, ...memoryAnswer(request) }];
+  if (request.method.startsWith('index-')) return [{ ...ok, ...indexAnswer(request) }];
+  if (request.method === 'profiles' || request.method.startsWith('profile-')) return [{ ...ok, ...profileAnswer(request) }];
   if (request.method.startsWith('personal-sync-')) return [{ ...ok, ...syncAnswer(request) }];
   if (request.method === 'lan-status') return [{ ...ok, lan: previewLan }];
   if (request.method === 'lan-set') return [{ ...ok, lan: previewLan, ...(request.lanOn === true ? { proposed: 'prp_preview' } : {}) }];
@@ -406,7 +444,7 @@ function answer(request: DaemonRequest): DaemonResponse[] {
   if (request.method === 'backup-restore') return [{ ...ok, proposed: 'prp_preview', backupSummary: previewBackup }];
   if (request.method === 'rule-packs') return [{ ...ok, rulePacks: previewPacks }];
   if (request.method === 'rule-pack-import') return [{ ...ok, packProposed: ['prp_preview_1', 'prp_preview_2'] }];
-  if (request.method === 'agent-launch') return [{ ...ok, agentLaunched: { agent: request.agentKind ?? '', workingDirectory: request.workingDirectory ?? '', line: request.agentKind === 'codex-cli' ? 'codex' : 'claude' } }];
+  if (request.method === 'agent-launch') return [{ ...ok, agentLaunched: { agent: request.agentKind ?? '', workingDirectory: request.workingDirectory ?? '', line: request.agentKind === 'codex-cli' ? 'codex' : 'claude' }, ...(request.profileName === undefined ? {} : { proposed: 'prp_preview_1', ...profileAnswer({ ...request, method: 'profile-apply', profileAgent: request.agentKind }) }) }];
   if (request.method.startsWith('agent') || request.method === 'session-stop') return [{ ...ok, agentsView: previewAgents }];
   switch (request.method) {
     case 'ping':

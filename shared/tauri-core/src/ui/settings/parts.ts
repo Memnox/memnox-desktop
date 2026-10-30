@@ -2,6 +2,7 @@ import { useEffect, useReducer } from 'react';
 import { Account } from '../../core/application/account';
 import { AppConnections } from '../../core/application/app-connections';
 import { Backup } from '../../core/application/backup';
+import { CommunityIndex } from '../../core/application/community-index';
 import { DaemonAccount, DaemonSignIn } from '../../core/application/daemon-sign-in';
 import { DaemonSupport } from '../../core/application/daemon-support';
 import { HeldCalls } from '../../core/application/held-calls';
@@ -10,6 +11,7 @@ import { McpHub } from '../../core/application/mcp-hub';
 import { LocalNetwork } from '../../core/application/local-network';
 import { Memory } from '../../core/application/memory';
 import { PersonalSync } from '../../core/application/personal-sync';
+import { Profiles } from '../../core/application/profiles';
 import { Activity, Agents, Studio } from '../../core/application/studio';
 import { Sessions } from '../../core/application/sessions';
 import { SkillsHub } from '../../core/application/skills';
@@ -87,6 +89,10 @@ export interface SettingsParts {
   readonly network: LocalNetwork;
   /** The person's own setup carried between their machines, the key moved only once signed. */
   readonly sync: PersonalSync;
+  /** Skills and rule packs from the community index, installed only as held skills and proposed rules. */
+  readonly index: CommunityIndex;
+  /** Named bundles of skills, servers and a rule pack, applied through signed proposals. */
+  readonly profiles: Profiles;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -136,6 +142,8 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     memory: new Memory(link, ids),
     network: new LocalNetwork(link, ids),
     sync: new PersonalSync(link, ids),
+    index: new CommunityIndex(link, ids, platformWords(host.platform).keyTitle),
+    profiles: new Profiles(link, ids, platformWords(host.platform).keyTitle),
     host,
     words: platformWords(host.platform),
     setup,

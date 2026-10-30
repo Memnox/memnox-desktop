@@ -193,17 +193,56 @@ export function widthClass(width: number): WidthClass {
   return 'compact';
 }
 
+/** How the shell lays itself out at a width: the sidebar with labels, as icons or as a sheet, and the inspector beside the page, floating over it or over the whole window. */
+export interface ShellLayout {
+  readonly sidebar: 'labels' | 'rail' | 'sheet';
+  readonly inspector: 'beside' | 'drawer' | 'full';
+  /** Whether the sidebar offers to fold, which it does only where labels fit. */
+  readonly canFold: boolean;
+}
+
+export function shellLayout(width: WidthClass, collapsed: boolean): ShellLayout {
+  switch (width) {
+    case 'wide':
+      return { sidebar: collapsed ? 'rail' : 'labels', inspector: 'beside', canFold: true };
+    case 'medium':
+      return { sidebar: collapsed ? 'rail' : 'labels', inspector: 'drawer', canFold: true };
+    case 'narrow':
+      return { sidebar: 'rail', inspector: 'full', canFold: false };
+    case 'compact':
+      return { sidebar: 'sheet', inspector: 'full', canFold: false };
+  }
+}
+
+/** The link a popped out inspector opens on: the page it came from, the item, and that only the inspector is drawn. */
+export function inspectorSearch(route: Route, item: string): string {
+  return `${searchOf(route)}&inspect=${encodeURIComponent(item)}&alone=1`;
+}
+
+/** The item a link names for its inspector, which a page opens with that item picked. */
+export function inspectedItem(search: string): string | undefined {
+  const item = queryOf(search).get('inspect');
+  return item === undefined || item === '' ? undefined : item;
+}
+
+/** Whether the window is a popped out inspector, drawing nothing but the details of one item. */
+export function inspectorAlone(search: string): boolean {
+  return queryOf(search).get('alone') === '1' && inspectedItem(search) !== undefined;
+}
+
 export interface Command {
   readonly route: Route;
   readonly title: string;
   /** The destination it sits under, shown beside it in the palette. */
   readonly under: string;
+  /** The digit that opens it with Command or Ctrl, on a destination that has one. */
+  readonly key?: string;
 }
 
 /** Every place the palette can go, in sidebar order. */
 export function commands(supports: Supports): readonly Command[] {
   return DESTINATIONS.flatMap((each) => {
-    const top: Command = { route: { destination: each.id }, title: each.title, under: '' };
+    const top: Command = { route: { destination: each.id }, title: each.title, under: '', ...(each.key === undefined ? {} : { key: each.key }) };
     const tabs = visibleTabs(each.id, supports).map((tab) => ({
       route: { destination: each.id, tab: tab.id },
       title: tab.title,

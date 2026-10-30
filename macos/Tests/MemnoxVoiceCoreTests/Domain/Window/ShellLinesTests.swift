@@ -66,15 +66,24 @@ final class ShellLinesTests: XCTestCase {
         XCTAssertTrue(ShellLines.hasOrganization(rules: [rule("workspace")]))
     }
 
-    func testTheScopeFallsBackToPersonalWhenNothingIsConnected() {
-        XCTAssertEqual(ShellLines.shownScope(saved: "organization", connected: false), .personal)
+    func testTheScopeStartsOnAllAndFallsBackToItWhenNothingIsConnected() {
+        XCTAssertEqual(ShellLines.shownScope(saved: "organization", connected: false), .all)
         XCTAssertEqual(ShellLines.shownScope(saved: "organization", connected: true), .organization)
-        XCTAssertEqual(ShellLines.shownScope(saved: nil, connected: true), .personal)
-        XCTAssertEqual(ShownScope.allCases.map(\.title), ["Personal", "Organization"])
+        XCTAssertEqual(ShellLines.shownScope(saved: "personal", connected: true), .personal)
+        XCTAssertEqual(ShellLines.shownScope(saved: nil, connected: true), .all)
+        XCTAssertEqual(ShellLines.shownScope(saved: "something else", connected: true), .all)
+        XCTAssertEqual(ShownScope.allCases.map(\.title), ["All", "Personal", "Organization"])
     }
 
-    func testShowsThePersonsItemsOrTheOrganizationsNeverBothMixed() {
+    func testKeepsAnEarlierOrganizationAndMovesAnEarlierPersonalToAll() {
+        XCTAssertEqual(ShellLines.migratedScope("organization"), .organization)
+        XCTAssertNil(ShellLines.migratedScope("personal"))
+        XCTAssertNil(ShellLines.migratedScope(nil))
+    }
+
+    func testShowsBothMixedUnderAllAndEitherAloneUnderItsOwnChoice() {
         let items = [("mine", false), ("theirs", true)]
+        XCTAssertEqual(ShellLines.inScope(items, .all) { $0.1 }.map(\.0), ["mine", "theirs"])
         XCTAssertEqual(ShellLines.inScope(items, .personal) { $0.1 }.map(\.0), ["mine"])
         XCTAssertEqual(ShellLines.inScope(items, .organization) { $0.1 }.map(\.0), ["theirs"])
     }

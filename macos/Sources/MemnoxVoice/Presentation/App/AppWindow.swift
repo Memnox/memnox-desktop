@@ -158,10 +158,22 @@ final class AppShellModel: ObservableObject {
         didSet { UserDefaults.standard.set(projectId, forKey: ShellLines.currentProjectKey) }
     }
     /// The scope the selector picked, remembered while there is an organization to show.
-    @Published var scopeChoice = UserDefaults.standard.string(forKey: ShellLines.scopeKey) ?? ShownScope.personal.rawValue {
+    @Published var scopeChoice = AppShellModel.rememberedScope() {
         didSet { UserDefaults.standard.set(scopeChoice, forKey: ShellLines.scopeKey) }
     }
     @Published var island: IslandModel?
+
+    /// The scope remembered, moving a choice the two choice selector kept to the three choice key once.
+    private static func rememberedScope() -> String {
+        let defaults = UserDefaults.standard
+        if let legacy = defaults.string(forKey: ShellLines.legacyScopeKey) {
+            if defaults.string(forKey: ShellLines.scopeKey) == nil, let migrated = ShellLines.migratedScope(legacy) {
+                defaults.set(migrated.rawValue, forKey: ShellLines.scopeKey)
+            }
+            defaults.removeObject(forKey: ShellLines.legacyScopeKey)
+        }
+        return defaults.string(forKey: ShellLines.scopeKey) ?? ShownScope.all.rawValue
+    }
     /// The MCP Hub for its tabs; nil until the app wires it, which keeps those tabs empty rather than broken.
     @Published var hub: McpHubScreen? {
         didSet { follow() }

@@ -2,7 +2,7 @@ import Foundation
 
 /// The top bar's two pickers, the workspace switcher and the scope selector, with the words both say. Neither decides
 /// anything: the switcher narrows what the window shows to one project, and the selector shows the organization's read
-/// only items beside the person's own once Memnox Cloud hands any down. Mirrors `shell-lines.ts`.
+/// only items beside the person's own, or either alone, once Memnox Cloud hands any down. Mirrors `shell-lines.ts`.
 public enum ShellLines {
     /// Where the chosen project is remembered between openings, by its id.
     public static let currentProjectKey = "memnox.project.current"
@@ -47,8 +47,10 @@ public enum ShellLines {
         return [FolderPick(path: current.path, name: current.name)] + folders.filter { $0.path != current.path }
     }
 
-    /// Where the chosen scope is remembered between openings.
-    public static let scopeKey = "memnox.scope.current"
+    /// Where the chosen scope is remembered between openings, under a new name since All joined the choices.
+    public static let scopeKey = "memnox.scope.shown"
+    /// Where the two choice selector remembered it, read once so an earlier choice of Organization is kept.
+    public static let legacyScopeKey = "memnox.scope.current"
     public static let scopeLabel = "Scope"
 
     /// The line over the organization's items, so read only is said before anybody tries an edit.
@@ -62,14 +64,22 @@ public enum ShellLines {
             || rules.contains { $0.source == RuleSource.workspace.rawValue }
     }
 
-    /// A remembered scope stands only while there is an organization to show; otherwise everything is personal.
+    /// A remembered scope stands only while there is an organization to show; anything else, or nothing remembered, is All.
     public static func shownScope(saved: String?, connected: Bool) -> ShownScope {
-        connected && saved == ShownScope.organization.rawValue ? .organization : .personal
+        guard connected, let saved, let scope = ShownScope(rawValue: saved) else { return .all }
+        return scope
     }
 
-    /// The items a list shows under the chosen scope, told apart by whether each is the organization's.
+    /// The scope the two choice selector remembered, as the three choices name it: Organization stays, and Personal
+    /// becomes All, since Personal was where everybody started and it hid the organization's items by mistake.
+    public static func migratedScope(_ legacy: String?) -> ShownScope? {
+        legacy == ShownScope.organization.rawValue ? .organization : nil
+    }
+
+    /// The items a list shows under the chosen scope: every one under All, else told apart by whether each is the organization's.
     public static func inScope<T>(_ items: [T], _ scope: ShownScope, organizations: (T) -> Bool) -> [T] {
-        items.filter { organizations($0) == (scope == .organization) }
+        if scope == .all { return items }
+        return items.filter { organizations($0) == (scope == .organization) }
     }
 
     /// What a destination's number key says in the palette: Command and the digit on the Mac, Ctrl and the digit elsewhere.
@@ -78,13 +88,16 @@ public enum ShellLines {
     }
 }
 
-/// Personal is what this computer keeps; Organization is what Memnox Cloud hands down, read only here.
+/// All shows both mixed, each with its chip; Personal is what this computer keeps; Organization is what Memnox Cloud
+/// hands down, read only here.
 public enum ShownScope: String, CaseIterable, Sendable {
+    case all
     case personal
     case organization
 
     public var title: String {
         switch self {
+        case .all: "All"
         case .personal: "Personal"
         case .organization: "Organization"
         }

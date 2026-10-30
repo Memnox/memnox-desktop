@@ -39,8 +39,8 @@ struct SkillsDestination: View {
     let tab: String?
     /// The project the top bar's switcher picked, nil for every project.
     var current: ProjectView?
-    /// Whose skills show: the person's, or the organization's once Memnox Cloud hands any down.
-    var scope: ShownScope = .personal
+    /// Whose skills show: both, the person's, or the organization's once Memnox Cloud hands any down.
+    var scope: ShownScope = .all
     let width: WidthClass
     /// The skill whose Assign sheet is open, by name.
     @State private var assigning: String?

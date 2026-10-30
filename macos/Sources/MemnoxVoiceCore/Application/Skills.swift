@@ -70,6 +70,11 @@ public final class SkillsHub: @unchecked Sendable {
         await change(name, named(.skillAccept, name), done: "\(name) is accepted as it is now.")
     }
 
+    /// Takes a personal skill out of the hub and every agent at once, its kept versions with it, since that only narrows.
+    public func remove(_ name: String) async -> SkillOutcome {
+        await change(name, named(.skillRemove, name), done: "\(name) was taken out of the hub and every agent, its kept versions with it.")
+    }
+
     public func rollback(_ name: String, to version: String) async -> SkillOutcome {
         var request = named(.skillRollback, name)
         request.skillVersion = version

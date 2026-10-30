@@ -295,10 +295,12 @@ public final class Agents: @unchecked Sendable {
     public static func launching(_ kind: String) -> String { "launch/\(kind)" }
 
     /// Opens the agent in a new terminal in the folder; the runtime types its launch line, and nothing is widened.
-    public func launch(_ kind: String, in folder: String) async -> StudioOutcome {
+    /// A profile named here is applied first, and what it raises waits on the island like any apply.
+    public func launch(_ kind: String, in folder: String, profile: String? = nil, keyTitle: String = "Touch ID") async -> StudioOutcome {
         var request = DaemonRequest(id: ids.next(), method: .agentLaunch)
         request.agentKind = kind
         request.workingDirectory = folder.trimmingCharacters(in: .whitespacesAndNewlines)
+        request.profileName = profile
         lock.withLock { working = Self.launching(kind) }
         changed?()
         let response = await ask(link, request)
@@ -306,6 +308,10 @@ public final class Agents: @unchecked Sendable {
         changed?()
         let name = agents?.first { $0.kind == kind }?.name ?? kind
         let done = response?.agentLaunched.map { LaunchLines.launched($0, name: name) } ?? "Opened \(name)."
+        // A launch with a profile is said whole in one line, rather than as the first of its proposals.
+        if profile != nil, response?.ok == true, let applied = response?.profileApplied {
+            return .done("\(done) \(ProfileLines.applied(applied, keyTitle: keyTitle))")
+        }
         return outcome(response, done: done)
     }
 

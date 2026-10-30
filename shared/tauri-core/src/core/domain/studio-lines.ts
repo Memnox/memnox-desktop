@@ -86,6 +86,18 @@ export function exportedCount(toml: string): number {
   return toml.split('\n').filter((line) => line.trim() === '[[policies]]').length;
 }
 
+export const NOTHING_TO_EXPORT = 'No rule set on this computer to export yet.';
+
+/** Said once a pack was written to the file the person picked. */
+export function packSavedLine(count: number): string {
+  return count === 1 ? 'Saved 1 rule as TOML, ready to share.' : `Saved ${count} rules as TOML, ready to share.`;
+}
+
+/** Said once a pack was copied, where no save dialog is to be had. */
+export function packCopiedLine(count: number): string {
+  return `Copied ${count} rules as TOML, ready to save or share.`;
+}
+
 /** What a rule being built will do, read back before it is proposed; the runtime words the one it keeps. */
 export function draftSentence(draft: { effect: string; action: string; agents?: readonly string[]; targets?: readonly string[]; branches?: readonly string[]; workingDirectories?: readonly string[] }, agentName: (kind: string) => string): string {
   const who = draft.agents === undefined || draft.agents.length === 0 ? 'any agent' : draft.agents.map(agentName).join(' or ');

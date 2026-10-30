@@ -2,7 +2,7 @@ import type { PolicyRulesView } from '@memnox/core/wire';
 import { describe, expect, it } from 'vitest';
 import { RequestIds } from '../src/core/application/request-ids';
 import { Activity, Agents, Studio } from '../src/core/application/studio';
-import { almostLine, countsByEffect, decisionFiles, exportedCount, sourceWords, weekLine } from '../src/core/domain/studio-lines';
+import { almostLine, countsByEffect, decisionFiles, exportedCount, packCopiedLine, packSavedLine, sourceWords, weekLine } from '../src/core/domain/studio-lines';
 import { ScriptedDaemon } from './doubles';
 
 const rules: PolicyRulesView = {
@@ -75,6 +75,9 @@ describe('the studio’s words', () => {
     );
     expect(almostLine({ action: 'git.push', approvals: 4, needed: 5 })).toBe('1 more yes to git.push and it is ready to let go');
     expect(exportedCount('[[policies]]\nname = "a"\n[[policies]]\n')).toBe(2);
+    expect(packSavedLine(1)).toBe('Saved 1 rule as TOML, ready to share.');
+    expect(packSavedLine(2)).toBe('Saved 2 rules as TOML, ready to share.');
+    expect(packCopiedLine(2)).toBe('Copied 2 rules as TOML, ready to save or share.');
   });
 });
 

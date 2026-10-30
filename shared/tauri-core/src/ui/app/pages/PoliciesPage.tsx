@@ -5,7 +5,7 @@ import type { RuleDraftInput, StudioOutcome } from '../../../core/application/st
 import type { WidthClass } from '../../../core/domain/destinations';
 import { canInstall, installWaitsLine, latestLine, publisherLine } from '../../../core/domain/index-lines';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
-import { ALWAYS_ASK, almostLine, autopilotLine, countsByEffect, draftSentence, EFFECT_WORDS, effectTone, exportedCount, sourceWords, switchOn, weekLine, type Effect } from '../../../core/domain/studio-lines';
+import { ALWAYS_ASK, almostLine, autopilotLine, countsByEffect, draftSentence, EFFECT_WORDS, effectTone, exportedCount, NOTHING_TO_EXPORT, packCopiedLine, packSavedLine, sourceWords, switchOn, weekLine, type Effect } from '../../../core/domain/studio-lines';
 import { KitButton, Switch } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { EmptyState, Inspector, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
@@ -383,25 +383,34 @@ function IndexPacks({ parts, said }: { parts: SettingsParts; said: (note: string
   );
 }
 
-/** A pack is a TOML file: exported to the clipboard, and imported one rule proposal at a time. */
+/** A pack is a TOML file: saved and opened through the system's own dialogs, and imported one rule proposal at a time. */
 function PackButtons({ parts, said }: { parts: SettingsParts; said: (outcome: StudioOutcome) => void }) {
   const { studio, host } = parts;
   const picker = useRef<HTMLInputElement>(null);
+  const exportPack = async () => {
+    const toml = await studio.exportToml();
+    if (toml === undefined || exportedCount(toml) === 0) return said({ kind: 'done', note: NOTHING_TO_EXPORT });
+    // A preview has no save dialog, so there the pack is copied instead.
+    if (host.saveRulePack === undefined) {
+      await host.copy(toml);
+      return said({ kind: 'done', note: packCopiedLine(exportedCount(toml)) });
+    }
+    const saved = await host.saveRulePack(toml).catch((why: unknown) => String(why));
+    if (typeof saved === 'string') return said({ kind: 'failed', why: saved });
+    if (saved) said({ kind: 'done', note: packSavedLine(exportedCount(toml)) });
+  };
+  const importPack = async () => {
+    if (host.pickRulePack === undefined) return picker.current?.click();
+    const toml = await host.pickRulePack().catch((why: unknown) => new Error(String(why)));
+    if (toml instanceof Error) return said({ kind: 'failed', why: toml.message });
+    if (toml !== undefined) said(await studio.importPack(toml));
+  };
   return (
     <>
-      <KitButton
-        icon={Download}
-        onClick={() =>
-          void studio.exportToml().then(async (toml) => {
-            if (toml === undefined || exportedCount(toml) === 0) return said({ kind: 'done', note: 'No rule set on this computer to export yet.' });
-            await host.copy(toml);
-            said({ kind: 'done', note: `Copied ${exportedCount(toml)} rules as TOML, ready to save or share.` });
-          })
-        }
-      >
+      <KitButton icon={Download} onClick={() => void exportPack()}>
         Export
       </KitButton>
-      <KitButton icon={Upload} onClick={() => picker.current?.click()}>
+      <KitButton icon={Upload} onClick={() => void importPack()}>
         Import
       </KitButton>
       <input

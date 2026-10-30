@@ -9,6 +9,13 @@ public enum HubTransport: String, Sendable {
     case http
 }
 
+/// Who set a server up, as the runtime's MCP_SCOPE names it.
+public enum McpScope: String, Sendable {
+    case personal
+    /// Given by the organization; never edited, removed or reassigned on this machine.
+    case organization
+}
+
 /// What the last test of a server found, as the runtime's MCP_HEALTH names it.
 public enum McpHealthState: String, Sendable {
     case unknown
@@ -61,6 +68,8 @@ public struct McpServerHealth: Decodable, Equatable, Sendable {
 
 public struct McpHubServerView: Decodable, Equatable, Identifiable, Sendable {
     public let name: String
+    /// personal or organization; absent from a runtime before organizations, which reads as personal.
+    public let scope: String?
     public let description: String?
     public let transport: String
     public let command: String?
@@ -80,6 +89,7 @@ public struct McpHubServerView: Decodable, Equatable, Identifiable, Sendable {
 
     public var id: String { name }
     public var hubTransport: HubTransport? { HubTransport(rawValue: transport) }
+    public var mcpScope: McpScope? { scope.flatMap(McpScope.init(rawValue:)) }
 }
 
 /// An agent with an MCP config on this machine, and where it lives.

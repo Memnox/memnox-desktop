@@ -389,10 +389,48 @@ public struct AgentStanding: Decodable, Equatable, Identifiable, Sendable {
     public let sessions: AgentSessions
     /// The hub's servers given to it, by name.
     public let mcpServers: [String]
+    /// The Skills Hub's skills given to it, by name, whether or not they are enabled; absent from a runtime before the hub.
+    public let skills: [String]?
     public let today: AgentToday
     /// The last five, newest first.
     public let recent: [AgentAction]
+    /// Whether agent-launch can open it, which only an agent with a known launch command can; absent reads as no.
+    public let launchable: Bool?
 
     public var id: String { kind }
     public var agentStatus: AgentStatus? { AgentStatus(rawValue: status) }
+    /// Launch is offered only where the runtime said it can open the agent.
+    public var canLaunch: Bool { launchable == true }
+}
+
+/// What agent-launch asked the Mac to type, in the folder it opens on.
+public struct AgentLaunched: Decodable, Equatable, Sendable {
+    public let agent: String
+    public let workingDirectory: String
+    /// The line typed into the new terminal.
+    public let line: String
+
+    public init(agent: String, workingDirectory: String, line: String) {
+        self.agent = agent
+        self.workingDirectory = workingDirectory
+        self.line = line
+    }
+}
+
+/// A pack Memnox ships, with its TOML to hand straight to rule-pack-import.
+public struct RulePackView: Decodable, Equatable, Identifiable, Sendable {
+    /// The file it ships as, without its extension, which stays the same between releases.
+    public let id: String
+    public let name: String
+    public let description: String
+    public let ruleCount: Int
+    public let toml: String
+
+    public init(id: String, name: String, description: String, ruleCount: Int, toml: String) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.ruleCount = ruleCount
+        self.toml = toml
+    }
 }

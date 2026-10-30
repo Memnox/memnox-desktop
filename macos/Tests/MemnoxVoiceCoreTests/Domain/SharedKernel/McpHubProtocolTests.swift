@@ -31,6 +31,13 @@ final class McpHubProtocolTests: XCTestCase {
         XCTAssertEqual(view.skipped.first?.reason, "Codex reads no remote servers.")
     }
 
+    func testReadsWhoSetAServerUpAndAnOlderRuntimeAsPersonal() throws {
+        let given = try line(#"{"id":6,"ok":true,"mcpHub":{"servers":[{"name":"sentry","scope":"organization","transport":"http","url":"https://mcp.sentry.dev","envNames":[],"governed":true,"toolCount":0,"health":{"state":"unknown"},"agents":["claude-code"],"secretsHeld":{},"callsThisWeek":0}],"agents":[],"found":[],"drifted":[],"skipped":[]}}"#)
+        XCTAssertEqual(given.mcpHub?.servers.first?.mcpScope, .organization)
+        let older = try XCTUnwrap(try line(hub).mcpHub?.servers.first)
+        XCTAssertNil(older.scope)
+    }
+
     func testReadsATestAndASync() throws {
         let tested = try line(#"{"id":4,"ok":true,"mcpHealth":{"state":"error","checkedAt":"2026-10-30T09:00:00.000Z","error":"spawn npx ENOENT"}}"#)
         XCTAssertEqual(tested.mcpHealth?.healthState, .error)

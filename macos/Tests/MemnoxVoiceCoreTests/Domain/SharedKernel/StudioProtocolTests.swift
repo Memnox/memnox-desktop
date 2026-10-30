@@ -110,6 +110,34 @@ final class StudioProtocolTests: XCTestCase {
         XCTAssertNil(paused["activityFilter"])
     }
 
+    func testReadsTheSkillsGivenToAnAgentAndWhetherItCanBeLaunched() throws {
+        let response = try line(#"{"id":15,"ok":true,"agentsView":[{"kind":"claude-code","name":"Claude Code","status":"protected","sessions":{"running":1,"idle":0,"finished":2},"mcpServers":[],"skills":["release-notes"],"today":{"actions":0,"asked":0,"refused":0},"recent":[],"launchable":true}]}"#)
+        let agent = try XCTUnwrap(response.agentsView?.first)
+        XCTAssertEqual(agent.skills, ["release-notes"])
+        XCTAssertTrue(agent.canLaunch)
+        // A runtime from before launching leaves both out, and nothing offers to launch it.
+        let older = try XCTUnwrap(try line(#"{"id":16,"ok":true,"agentsView":[{"kind":"x","name":"X","status":"protected","sessions":{"running":0,"idle":0,"finished":0},"mcpServers":[],"today":{"actions":0,"asked":0,"refused":0},"recent":[]}]}"#).agentsView?.first)
+        XCTAssertNil(older.skills)
+        XCTAssertFalse(older.canLaunch)
+    }
+
+    func testReadsTheRulePacksAndWhatALaunchTyped() throws {
+        let packs = try line(#"{"id":17,"ok":true,"rulePacks":[{"id":"careful","name":"Careful","description":"Asks before anything outward","ruleCount":6,"toml":"[[policies]]"}]}"#)
+        XCTAssertEqual(packs.rulePacks, [RulePackView(id: "careful", name: "Careful", description: "Asks before anything outward", ruleCount: 6, toml: "[[policies]]")])
+        let launched = try line(#"{"id":18,"ok":true,"agentLaunched":{"agent":"claude-code","workingDirectory":"/code/app","line":"claude"}}"#)
+        XCTAssertEqual(launched.agentLaunched, AgentLaunched(agent: "claude-code", workingDirectory: "/code/app", line: "claude"))
+    }
+
+    func testWritesTheFolderAnAgentIsLaunchedIn() throws {
+        var request = DaemonRequest(id: 19, method: .agentLaunch)
+        request.agentKind = "claude-code"
+        request.workingDirectory = "/code/app"
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: encodeLine(request)) as? [String: Any])
+        XCTAssertEqual(object["method"] as? String, "agent-launch")
+        XCTAssertEqual(object["workingDirectory"] as? String, "/code/app")
+        XCTAssertEqual(DaemonMethod.rulePacks.rawValue, "rule-packs")
+    }
+
     func testNamesEveryMethodAsTheRuntimeDoes() {
         let methods: [DaemonMethod] = [.rules, .rulePropose, .ruleRemove, .ruleTest, .rulesExport, .rulePackImport, .progress,
                                        .autopilotRevoke, .activity, .decision, .activityExport, .agents, .agentPause,

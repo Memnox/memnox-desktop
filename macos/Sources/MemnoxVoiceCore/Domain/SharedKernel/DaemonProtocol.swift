@@ -118,6 +118,8 @@ public enum DaemonMethod: String, Sendable {
     case rulesExport = "rules-export"
     /// A pack of rules as TOML, each turned into its own signed proposal.
     case rulePackImport = "rule-pack-import"
+    /// The packs Memnox ships, each offered whole and imported through rule-pack-import.
+    case rulePacks = "rule-packs"
     /// What could be handed over, what the autopilot holds, and where the machine stands.
     case progress
     /// Takes one autopilot grant back at once, since that only narrows.
@@ -136,6 +138,26 @@ public enum DaemonMethod: String, Sendable {
     case agentResume = "agent-resume"
     /// Holds one session before its next action, at once.
     case sessionStop = "session-stop"
+    /// Opens the agent in a new terminal in a folder, for an agent with a known launch command.
+    case agentLaunch = "agent-launch"
+    /// Skills, the agents that take them, and skills found on this machine to import.
+    case skillsHub = "skills-hub"
+    /// Takes a skill found in an agent's folder into the hub, its files with it.
+    case skillImport = "skill-import"
+    /// Adds a skill or a new version; one reaching further than the accepted version waits on a signature.
+    case skillPut = "skill-put"
+    /// Gives a skill to an agent, signed, or takes it away, unsigned.
+    case skillAssign = "skill-assign"
+    /// Takes a skill out of every agent at once, keeping its assignments for later.
+    case skillDisable = "skill-disable"
+    /// Hands a disabled skill back to the agents it was given to, as accepted.
+    case skillEnable = "skill-enable"
+    /// Writes what the hub says into every agent it can write.
+    case skillSync = "skill-sync"
+    /// Hands out an older accepted version again; signed where it reaches further than the current one.
+    case skillRollback = "skill-rollback"
+    /// Accepts a held skill's folder as it is now; signed where it reaches further.
+    case skillAccept = "skill-accept"
 }
 
 public enum EventKind: String, Sendable {
@@ -1201,6 +1223,24 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var decisionId: String?
     /// On agent-pause and agent-resume: the agent, by kind or by the name it goes by.
     public var agentKind: String?
+    /// On agent-launch: the folder it opens in, as an absolute path.
+    public var workingDirectory: String?
+    /// On every skill change but skill-import and skill-put: the skill, by name.
+    public var skillName: String?
+    /// On skill-assign: the agent, by kind.
+    public var skillAgent: String?
+    /// On skill-assign: the repository it is written into; on skill-put and skill-import, where a project skill lives.
+    public var skillProject: String?
+    /// On skill-assign: given when true, taken away when false.
+    public var skillOn: Bool?
+    /// On skill-rollback: the version to hand out again.
+    public var skillVersion: String?
+    /// On skill-import: the found skill, by id.
+    public var skillFoundId: String?
+    /// On skill-put and skill-import: personal or project.
+    public var skillScope: String?
+    /// On skill-put.
+    public var skillDraft: SkillDraft?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -1513,6 +1553,14 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let activityBundle: String?
     /// On agents, and after a pause or a stop.
     public let agentsView: [AgentStanding]?
+    /// On agent-launch: what was typed, in the folder it opened on.
+    public let agentLaunched: AgentLaunched?
+    /// On rule-packs.
+    public let rulePacks: [RulePackView]?
+    /// On skills-hub, and after every skill change, so a screen redraws from one answer.
+    public let skillsHub: SkillsHubView?
+    /// On skill-sync, and after a change that wrote agents' folders.
+    public let skillsSynced: SkillsSyncSummary?
 
     /// The outcome as a known case, or nil for one this app does not know yet.
     public var outcomeKind: Outcome? { outcome.flatMap(Outcome.init(rawValue:)) }

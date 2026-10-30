@@ -39,6 +39,11 @@ final class AppWindow {
         didSet { shell.agents = agents.map(AgentsScreen.init) }
     }
 
+    /// The Skills Hub as this Mac's runtime keeps it, read by My Skills and Assigned under Workspaces.
+    var skills: SkillsHub? {
+        didSet { shell.skills = skills.map(SkillsScreen.init) }
+    }
+
     let shell = AppShellModel()
     private var window: NSWindow?
 
@@ -115,6 +120,8 @@ final class AppShellModel: ObservableObject {
     @Published var studio: StudioScreen?
     @Published var activity: ActivityScreen?
     @Published var agents: AgentsScreen?
+    /// The Skills Hub for My Skills and Assigned, nil until the app wires it, which keeps those tabs empty rather than broken.
+    @Published var skills: SkillsScreen?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.
     @Published private(set) var answers = 0
     private var support: DaemonSupport?

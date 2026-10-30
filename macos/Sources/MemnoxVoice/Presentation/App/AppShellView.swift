@@ -199,7 +199,12 @@ private struct AppPage: View {
                     SessionsDestination(shell: shell, island: island, width: width)
                 }
             case .workspaces:
-                WorkspacesDestination(shell: shell, island: island, width: width)
+                // My Skills and Assigned read `skills-hub`; until this Mac's runtime answers it only the projects show.
+                if route.tab == "skills" || route.tab == "assigned" {
+                    if let skills = shell.skills { SkillsDestination(screen: skills, island: island, tab: route.tab, width: width) }
+                } else {
+                    WorkspacesDestination(shell: shell, island: island, width: width)
+                }
             case .mcp:
                 // Servers, Clients and Secrets read `mcp-hub`; until this Mac's runtime answers it only Your apps shows.
                 if route.tab == "apps" || route.tab == nil {

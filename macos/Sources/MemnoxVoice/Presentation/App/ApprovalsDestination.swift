@@ -10,6 +10,7 @@ struct ApprovalsDestination: View {
     var body: some View {
         let waiting = island.waiting.entries
         ShellScroll(width: width) {
+            NoticesSwitch(notifier: HeldNotifier.shared)
             if waiting.isEmpty {
                 EmptyState(symbol: "checkmark.shield", title: "Nothing is waiting on you",
                            detail: "When an agent asks before doing something your rules hold, it waits here and on the island.")
@@ -82,5 +83,30 @@ private struct HeldCallCard: View {
         if let why = card.why { facts.append(("Why it asks", why)) }
         facts.append(("Signed", HeldSigning.line(touchID: card.touchID, actionDigest: card.actionDigest)))
         return facts
+    }
+}
+
+/// Whether a held call the island is not showing is also said by the system; turning it on asks the system once.
+private struct NoticesSwitch: View {
+    @ObservedObject var notifier: HeldNotifier
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
+            Toggle(isOn: $notifier.on) {
+                VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
+                    Text(HeldNotices.title)
+                        .font(Memnox.sans(Memnox.TextSize.body, .medium))
+                        .foregroundStyle(Memnox.Palette.foreground)
+                    Text(HeldNotices.detail)
+                        .font(Memnox.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Palette.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .toggleStyle(.switch)
+            if notifier.on, notifier.refused {
+                StatusWord(.attention, HeldNotices.denied)
+            }
+        }
     }
 }

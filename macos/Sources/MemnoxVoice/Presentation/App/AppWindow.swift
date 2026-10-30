@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import MemnoxVoiceCore
 import SwiftUI
 
@@ -11,7 +12,11 @@ final class AppWindow {
 
     /// The island's model, which keeps the sessions fresh and holds every waiting call with the signed way to answer it.
     var island: IslandModel? {
-        didSet { shell.island = island }
+        didSet {
+            shell.island = island
+            // A held call the island is not showing is said through the system, once the person allows it.
+            HeldNotifier.shared.watch(island)
+        }
     }
 
     /// Which daemon methods this Mac's runtime answers, so a tab that needs one shows only once it does.
@@ -148,17 +153,33 @@ final class AppShellModel: ObservableObject {
     @Published var collapsed = UserDefaults.standard.bool(forKey: Keys.collapsed) {
         didSet { UserDefaults.standard.set(collapsed, forKey: Keys.collapsed) }
     }
+    /// The project the switcher picked, by id; empty for every project.
+    @Published var projectId = UserDefaults.standard.string(forKey: ShellLines.currentProjectKey) ?? "" {
+        didSet { UserDefaults.standard.set(projectId, forKey: ShellLines.currentProjectKey) }
+    }
+    /// The scope the selector picked, remembered while there is an organization to show.
+    @Published var scopeChoice = UserDefaults.standard.string(forKey: ShellLines.scopeKey) ?? ShownScope.personal.rawValue {
+        didSet { UserDefaults.standard.set(scopeChoice, forKey: ShellLines.scopeKey) }
+    }
     @Published var island: IslandModel?
     /// The MCP Hub for its tabs; nil until the app wires it, which keeps those tabs empty rather than broken.
-    @Published var hub: McpHubScreen?
+    @Published var hub: McpHubScreen? {
+        didSet { follow() }
+    }
     /// Policies, Activity and the agents list, each nil until the app wires it, which keeps its tab empty rather than broken.
-    @Published var studio: StudioScreen?
+    @Published var studio: StudioScreen? {
+        didSet { follow() }
+    }
     @Published var activity: ActivityScreen?
     @Published var agents: AgentsScreen?
     /// The Skills Hub for My Skills and Assigned, nil until the app wires it, which keeps those tabs empty rather than broken.
-    @Published var skills: SkillsScreen?
+    @Published var skills: SkillsScreen? {
+        didSet { follow() }
+    }
     /// The projects for the Workspaces tab, nil until the app wires it, which keeps the repositories the sessions met.
-    @Published var projects: ProjectsScreen?
+    @Published var projects: ProjectsScreen? {
+        didSet { follow() }
+    }
     /// Memory for its tab, Learn and Home, nil until the app wires it, which keeps those empty rather than broken.
     @Published var memory: MemoryScreen?
     /// The Backup page's use case, nil until the app wires it, which leaves that page empty rather than broken.
@@ -185,6 +206,32 @@ final class AppShellModel: ObservableObject {
             Task { @MainActor [weak self] in self?.answers += 1 }
         }
     }
+
+    /// The top bar's pickers read the hub, the skills, the rules and the projects, so the shell redraws when any of them changes.
+    private var following: Set<AnyCancellable> = []
+
+    private func follow() {
+        following = []
+        let screens: [ObservableObjectPublisher?] = [hub?.objectWillChange, skills?.objectWillChange, studio?.objectWillChange,
+                                                     projects?.objectWillChange]
+        for screen in screens.compactMap({ $0 }) {
+            screen.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &following)
+        }
+    }
+
+    /// The project the switcher picked, nil for every project or one that is gone.
+    var currentProject: ProjectView? {
+        ShellLines.currentProject(projects?.projects.projects, saved: projectId)
+    }
+
+    /// Whether the runtime handed down anything of an organization's, which shows the scope selector.
+    var hasOrganization: Bool {
+        ShellLines.hasOrganization(servers: hub?.hub.hub?.servers ?? [], skills: skills?.skills.hub?.skills ?? [],
+                                   rules: studio?.studio.rules?.rules ?? [])
+    }
+
+    /// The scope the hub, the skills and the policies show; personal whenever there is no organization.
+    var scope: ShownScope { ShellLines.shownScope(saved: scopeChoice, connected: hasOrganization) }
 
     /// Nothing wired reads as not supported, so no tab shows that could not be filled.
     func supports(_ method: String) -> Bool? {

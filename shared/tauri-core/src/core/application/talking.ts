@@ -25,6 +25,7 @@ import { readingCaption } from '../domain/caption-lines';
 import { SIGN_IN_NOTICE } from '../domain/sign-in-notice';
 import { ANOTHER_KEY_LINE, type KeyStatus } from '../domain/key-status';
 import { EarlierAnswer } from '../domain/earlier-answer';
+import { proposalPrompt, unaskedLine } from '../domain/proposal-lines';
 import { quietHere } from '../domain/quiet';
 import { SentenceSplitter } from '../domain/sentence-splitter';
 import { correctedWords } from '../domain/corrections';
@@ -418,7 +419,7 @@ export class Talking {
     let answer: ProposalAnswer = PROPOSAL_ANSWER.CONFIRMED;
     const request: DaemonRequest = { ...this.request(DAEMON_METHOD.CONFIRM), subject: event.subject };
     if (event.withinSession !== true || this.options.signsEveryYes?.(event.subject) === true) {
-      const signing = await this.signer.sign(event.subject, PROPOSAL_ANSWER.CONFIRMED, event.summary);
+      const signing = await this.signer.sign(event.subject, PROPOSAL_ANSWER.CONFIRMED, proposalPrompt(event));
       if (signing.kind === 'refused') return this.say(signing.why);
       if (signing.kind === 'signed') request.signature = signing.signature;
       else answer = PROPOSAL_ANSWER.DECLINED;
@@ -512,7 +513,7 @@ export class Talking {
   private async decline(event: DaemonEvent): Promise<void> {
     const request = { ...this.request(DAEMON_METHOD.CONFIRM), subject: event.subject, answer: PROPOSAL_ANSWER.DECLINED };
     await requestOnce(this.link, request).catch(() => undefined);
-    await this.say(LINES.unasked);
+    await this.say(unaskedLine(event));
   }
 
   /** Streams a turn into speech, sentence by sentence, and says how it ended. */

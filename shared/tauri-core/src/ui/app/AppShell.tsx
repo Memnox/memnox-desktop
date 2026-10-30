@@ -151,7 +151,7 @@ function Page({ parts, route, width, go }: { parts: SettingsParts; route: Route;
     case 'mcp':
       return <McpHubPage parts={parts} tab={route.tab} width={width} />;
     case 'governance':
-      return <GovernancePage parts={parts} tab={route.tab} />;
+      return <GovernancePage parts={parts} tab={route.tab} width={width} go={go} />;
     case 'settings': {
       const page = pageNamed(route.tab) ?? 'account';
       const info = pageInfo(page);

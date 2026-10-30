@@ -5,6 +5,7 @@ import { HomeLines } from '../../../core/domain/home-lines';
 import { ago, cardStatus, cardTitle, repositoryName } from '../../../core/domain/session-text';
 import { isActive, statusLabel } from '../../../core/domain/session-status';
 import { greeting } from '../../../core/domain/setup-steps';
+import { autopilotLine, weekLine } from '../../../core/domain/studio-lines';
 import { islandWindow } from '../../adapters/tauri-island-window';
 import { BrandLogo } from '../../kit/logos';
 import { KitButton } from '../../settings/kit';
@@ -20,11 +21,12 @@ const RECENT_SESSIONS = 5;
  * can carry on. No charts, and every number is a count the ledger can show.
  */
 export function HomePage({ parts, go }: { parts: SettingsParts; go: (route: Route) => void }) {
-  const { home, sessions, preferences, host } = parts;
-  useObserved(home, sessions);
+  const { home, sessions, preferences, host, studio, support } = parts;
+  useObserved(home, sessions, studio);
   usePreferences();
   useEffect(() => {
     void home.refresh();
+    if (support.supports('progress') !== false) void studio.refresh();
     sessions.start();
     return () => sessions.stop();
   }, []);
@@ -90,6 +92,12 @@ export function HomePage({ parts, go }: { parts: SettingsParts; go: (route: Rout
               />
             ))}
           </Panel>
+        </Section>
+      )}
+
+      {studio.progress !== undefined && (
+        <Section title="This week" trailing={<GoLink onClick={() => go({ destination: 'governance', tab: 'policies' })}>What could run on its own</GoLink>}>
+          <p className="text-body text-foreground">{`${weekLine(studio.progress)} ${autopilotLine(studio.progress.thisWeek.answeredByAutopilot)}`}</p>
         </Section>
       )}
 

@@ -7,15 +7,19 @@ import type { HeldAnswer } from '../../../core/domain/call-label';
 import { BrandLogo } from '../../kit/logos';
 import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
+import type { Route, WidthClass } from '../../../core/domain/destinations';
+import { ActivityPage } from './ActivityPage';
+import { PoliciesPage } from './PoliciesPage';
 import { EmptyState, StatusWord } from '../widgets';
 
 /** How long the window waits before opening the live feed again after the daemon went away. */
 const RECONNECT_MS = 2_000;
 
-export function GovernancePage({ parts, tab }: { parts: SettingsParts; tab: string | undefined }) {
-  // Policies, Activity and Learn arrive with the runtime methods they read; until then Approvals stands alone.
-  if (tab === 'approvals' || tab === undefined) return <Approvals parts={parts} />;
-  return null;
+export function GovernancePage({ parts, tab, width, go }: { parts: SettingsParts; tab: string | undefined; width: WidthClass; go: (route: Route) => void }) {
+  if (tab === 'policies') return <PoliciesPage parts={parts} width={width} />;
+  if (tab === 'activity') return <ActivityPage parts={parts} width={width} go={go} />;
+  // Learn arrives with the runtime's memory; until then Approvals and the two above stand.
+  return <Approvals parts={parts} />;
 }
 
 /**

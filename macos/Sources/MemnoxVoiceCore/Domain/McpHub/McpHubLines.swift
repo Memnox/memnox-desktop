@@ -149,6 +149,33 @@ public enum McpHubLines {
         agentNames[kind] ?? kind
     }
 
+    /// One repository an agent was given a server in: the folder name a chip shows, and the full path for its help.
+    public struct ProjectChip: Equatable, Sendable {
+        public let name: String
+        public let path: String
+    }
+
+    /// A repository's folder name from its absolute path, so a chip stays short.
+    public static func projectFolder(_ path: String) -> String {
+        path.split(separator: "/").last.map(String.init) ?? path
+    }
+
+    /// The repositories one agent was given a server in; none for an agent given it everywhere, or an older runtime.
+    public static func projects(_ server: McpHubServerView, agent: String) -> [ProjectChip] {
+        server.projects(of: agent).map { ProjectChip(name: projectFolder($0), path: $0) }
+    }
+
+    /// What a project chip's help says: whose assignment it is and the repository in full.
+    public static func projectHelp(agent: String, path: String) -> String {
+        "Given to \(agentLabel(agent)) in \(path) only"
+    }
+
+    /// Each agent a server is shown on once, in the hub's order, since one given in two repositories is listed twice.
+    public static func agentsOnce(_ server: McpHubServerView) -> [String] {
+        var seen = Set<String>()
+        return server.agents.filter { seen.insert($0).inserted }
+    }
+
     private static let agentNames: [String: String] = [
         "claude-code": "Claude Code",
         "claude-desktop": "Claude Desktop",

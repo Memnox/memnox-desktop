@@ -47,4 +47,24 @@ final class McpHubLinesTests: XCTestCase {
         XCTAssertFalse(McpHubLines.fromOrganization(scope: "personal"))
         XCTAssertFalse(McpHubLines.fromOrganization(scope: nil))
     }
+
+    private func server(_ extra: String) throws -> McpHubServerView {
+        let json = #"{"name":"github","transport":"stdio","envNames":[],"governed":true,"toolCount":0,"health":{"state":"unknown"},"agents":["claude-code","claude-code","cursor"],"secretsHeld":{},"callsThisWeek":0"# + extra + "}"
+        return try JSONDecoder().decode(McpHubServerView.self, from: Data(json.utf8))
+    }
+
+    func testNamesTheRepositoryAnAgentWasGivenAServerIn() throws {
+        let given = try server(#","projects":[{"agent":"claude-code","project":"/Users/bo/code/billing"}]"#)
+        XCTAssertEqual(McpHubLines.projects(given, agent: "claude-code"),
+                       [McpHubLines.ProjectChip(name: "billing", path: "/Users/bo/code/billing")])
+        XCTAssertEqual(McpHubLines.projects(given, agent: "cursor"), [])
+        XCTAssertEqual(McpHubLines.projectHelp(agent: "claude-code", path: "/Users/bo/code/billing"),
+                       "Given to Claude Code in /Users/bo/code/billing only")
+        XCTAssertEqual(McpHubLines.agentsOnce(given), ["claude-code", "cursor"])
+    }
+
+    func testNamesNoRepositoryFromARuntimeThatSendsNone() throws {
+        XCTAssertEqual(McpHubLines.projects(try server(""), agent: "claude-code"), [])
+        XCTAssertEqual(McpHubLines.projectFolder("/Users/bo/code/web/"), "web")
+    }
 }

@@ -203,7 +203,7 @@ private struct McpServerCard: View {
                             .foregroundStyle(Memnox.Palette.muted)
                     } else {
                         HStack(spacing: Self.overlap) {
-                            ForEach(server.agents, id: \.self) { agent in
+                            ForEach(McpHubLines.agentsOnce(server), id: \.self) { agent in
                                 BrandLogo(agent: agent, name: McpHubLines.agentLabel(agent), size: Self.logo)
                                     .overlay(RoundedRectangle(cornerRadius: Self.logo / 4, style: .continuous)
                                         .strokeBorder(Memnox.Palette.card, lineWidth: Self.ring))
@@ -216,6 +216,13 @@ private struct McpServerCard: View {
                         StatusWord(.good, "Governed")
                     } else {
                         StatusWord(.attention, "Not governed")
+                    }
+                }
+                if !(server.projects ?? []).isEmpty {
+                    HStack(spacing: Memnox.Spacing.small) {
+                        ForEach(McpHubLines.agentsOnce(server), id: \.self) { agent in
+                            McpProjectChips(server: server, agent: agent)
+                        }
                     }
                 }
             }
@@ -283,12 +290,12 @@ private struct McpServerDetail: View {
                     StatusWord(.quiet, McpHubLines.organizationWord)
                     if !server.agents.isEmpty {
                         ShellPanel {
-                            ForEach(Array(server.agents.enumerated()), id: \.element) { index, agent in
+                            ForEach(Array(McpHubLines.agentsOnce(server).enumerated()), id: \.element) { index, agent in
                                 if index > 0 { ShellDivider() }
                                 ShellRow(title: McpHubLines.agentLabel(agent), caption: "Has this server") {
                                     BrandLogo(agent: agent, name: McpHubLines.agentLabel(agent), size: Self.logo)
                                 } trailing: {
-                                    EmptyView()
+                                    McpProjectChips(server: server, agent: agent)
                                 }
                             }
                         }
@@ -362,6 +369,7 @@ private struct McpServerDetail: View {
         return ShellRow(title: label, caption: on ? "Has this server" : nil) {
             BrandLogo(agent: agent, name: label, size: Self.logo)
         } trailing: {
+            McpProjectChips(server: server, agent: agent)
             Button(on ? "Take away" : "Give") { screen.press { await $0.assign(server.name, agent: agent, on: !on) } }
                 .buttonStyle(KitButton(kind: .secondary))
                 .disabled(screen.hub.busy == McpHub.pair(server.name, agent))
@@ -504,12 +512,44 @@ private struct McpClients: View {
     private func cell(_ server: McpHubServerView, _ agent: String) -> some View {
         let on = server.agents.contains(agent)
         let given = Binding(get: { on }, set: { want in screen.press { await $0.assign(server.name, agent: agent, on: want) } })
-        return Toggle("", isOn: given)
-            .labelsHidden()
-            .toggleStyle(CheckboxStyle())
-            .disabled(McpHubLines.fromOrganization(server) || screen.hub.busy == McpHub.pair(server.name, agent))
-            .help(McpHubLines.fromOrganization(server) ? McpHubLines.organizationLine : "")
-            .accessibilityLabel("\(server.name) for \(McpHubLines.agentLabel(agent))")
+        return HStack(spacing: Memnox.Spacing.small) {
+            Toggle("", isOn: given)
+                .labelsHidden()
+                .toggleStyle(CheckboxStyle())
+                .disabled(McpHubLines.fromOrganization(server) || screen.hub.busy == McpHub.pair(server.name, agent))
+                .help(McpHubLines.fromOrganization(server) ? McpHubLines.organizationLine : "")
+                .accessibilityLabel("\(server.name) for \(McpHubLines.agentLabel(agent))")
+            McpProjectChips(server: server, agent: agent)
+        }
+    }
+}
+
+/// Every repository one agent was given a server in, each by folder name with the full path as its help, or nothing.
+private struct McpProjectChips: View {
+    let server: McpHubServerView
+    let agent: String
+
+    private static let icon: CGFloat = 9
+    private static let widest: CGFloat = 140
+
+    var body: some View {
+        ForEach(McpHubLines.projects(server, agent: agent), id: \.path) { project in
+            let help = McpHubLines.projectHelp(agent: agent, path: project.path)
+            HStack(spacing: Memnox.Spacing.xxSmall) {
+                Image(systemName: "folder").font(.system(size: Self.icon)).accessibilityHidden(true)
+                Text(project.name).lineLimit(1).truncationMode(.middle)
+            }
+            .font(Memnox.sans(Memnox.TextSize.micro))
+            .foregroundStyle(Memnox.Palette.muted)
+            .padding(.horizontal, Memnox.Spacing.small)
+            .padding(.vertical, Memnox.Spacing.xxSmall)
+            .frame(maxWidth: Self.widest)
+            .background(Memnox.Palette.hover, in: Capsule())
+            .overlay(Capsule().strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .help(help)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(help)
+        }
     }
 }
 

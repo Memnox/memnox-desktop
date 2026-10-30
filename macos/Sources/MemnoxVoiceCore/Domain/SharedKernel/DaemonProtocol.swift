@@ -222,6 +222,8 @@ public enum DaemonMethod: String, Sendable {
     case indexList = "index-list"
     /// Fetches one version, checks its digest, and holds the skill or proposes the pack's rules.
     case indexInstall = "index-install"
+    /// Where the index is read from: another index is a proposal signed on this Mac, the marketplace again is at once.
+    case indexSourceSet = "index-source-set"
 }
 
 public enum EventKind: String, Sendable {
@@ -1357,6 +1359,8 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var indexKind: String?
     /// On index-list: read again now rather than from what was last read.
     public var indexRefresh: Bool?
+    /// On index-source-set, from this machine only: an https address to an index.json, or marketplace; absent is marketplace.
+    public var indexSource: String?
     /// On index-install: the listing, by id or by name.
     public var indexName: String?
     /// On index-install: the version; absent is the newest not marked unsafe.

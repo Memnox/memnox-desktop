@@ -45,4 +45,20 @@ final class ProfilesIndexProtocolTests: XCTestCase {
         XCTAssertEqual(DaemonMethod.indexInstall.rawValue, "index-install")
         XCTAssertEqual(DaemonMethod.skillRemove.rawValue, "skill-remove")
     }
+
+    func testReadsNeedsWarningsAndWhetherTheSourceIsTheMarketplace() throws {
+        let entry = #"{"id":"lst_1","name":"scraper","kind":"skill","description":"d","publisher":{"kind":"member","name":"jdoe"},"agents":[],"yanked":[],"unsafe":false,"needs":{"filesystem":["~/.cache"],"network":["*"],"commands":["curl"],"mcpServers":[],"tools":["WebFetch"]},"warnings":["It reaches any host."]}"#
+        let response = try line(#"{"id":1,"ok":true,"proposed":"prp_1","communityIndex":{"source":"https://example.com/index.json","marketplace":false,"complete":true,"entries":["# + entry + "]}}")
+        let index = try XCTUnwrap(response.communityIndex)
+        XCTAssertFalse(index.marketplace)
+        XCTAssertEqual(index.entries.first?.needs?.network, ["*"])
+        XCTAssertEqual(index.entries.first?.warnings, ["It reaches any host."])
+        XCTAssertEqual(response.proposed, "prp_1")
+
+        var set = DaemonRequest(id: 2, method: .indexSourceSet)
+        set.indexSource = IndexSource.marketplace
+        let written = try XCTUnwrap(String(data: JSONEncoder().encode(set), encoding: .utf8))
+        XCTAssertTrue(written.contains(#""method":"index-source-set""#))
+        XCTAssertTrue(written.contains(#""indexSource":"marketplace""#))
+    }
 }

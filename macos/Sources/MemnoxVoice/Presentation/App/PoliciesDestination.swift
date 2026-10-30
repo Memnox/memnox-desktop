@@ -38,6 +38,7 @@ struct PoliciesDestination: View {
                     if let progress = studio.progress { LetGo(screen: screen, home: home, progress: progress) }
                     alwaysAsk(view)
                     rulesInForce(view)
+                    if shell.supports("index-list") == true, let index = shell.index { IndexPacks(screen: index) }
                     TryAction(screen: screen)
                 }
             } detail: {
@@ -178,6 +179,41 @@ struct PoliciesDestination: View {
             return
         }
         screen.press { await $0.importPack(toml) }
+    }
+}
+
+/// Rule packs from the community index, beside import and export; installing proposes each rule, signed on its own.
+private struct IndexPacks: View {
+    @ObservedObject var screen: IndexScreen
+
+    var body: some View {
+        let packs = screen.index.packs ?? []
+        Group {
+            if !packs.isEmpty {
+                ShellSection(title: "Rule packs from the community index") {
+                    NoteBanner(text: screen.note)
+                    ShellPanel {
+                        ForEach(Array(packs.enumerated()), id: \.element.id) { index, pack in
+                            if index > 0 { ShellDivider() }
+                            ShellRow(title: pack.name,
+                                     caption: "\(pack.description) · \(IndexLines.publisher(pack.publisher)) · \(IndexLines.latest(pack))") {
+                                EmptyView()
+                            } trailing: {
+                                if IndexLines.canInstall(pack) {
+                                    Button("Install", systemImage: "arrow.down.circle") { screen.install(pack.name, version: pack.latest?.version) }
+                                        .buttonStyle(KitButton(kind: .secondary))
+                                        .disabled(screen.index.busy == pack.name)
+                                } else {
+                                    StatusWord(.bad, "Marked unsafe")
+                                }
+                            }
+                        }
+                    }
+                    QuietLine(IndexLines.installWaits(kind: IndexKind.rulePack.rawValue, keyTitle: "Touch ID"))
+                }
+            }
+        }
+        .task { await screen.index.readPacks() }
     }
 }
 

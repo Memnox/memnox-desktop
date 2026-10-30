@@ -1,6 +1,8 @@
-import { X, type LucideIcon } from 'lucide-react';
+import { ExternalLink, X, type LucideIcon } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import type { TabInfo, WidthClass } from '../../core/domain/destinations';
+import { shellLayout, type TabInfo, type WidthClass } from '../../core/domain/destinations';
+import { useInspectorHost } from './inspector-host';
 import { scopeLabel, SCOPE_WORDS, type ScopeKind } from '../../core/domain/scope-lines';
 
 /** Green, amber, red and grey, each always beside a word, since colour alone says nothing to many people. */
@@ -164,6 +166,7 @@ const INSPECTOR_KEY = 'memnox.inspector.width';
 const INSPECTOR_MIN = 300;
 const INSPECTOR_MAX = 640;
 const INSPECTOR_DEFAULT = 380;
+const POP_OUT = 'Open in its own window';
 
 function savedWidth(): number {
   const saved = Number(localStorage.getItem(INSPECTOR_KEY));
@@ -174,17 +177,34 @@ function savedWidth(): number {
  * The selected item's details. Wide windows keep it beside the page at a width the person drags and the
  * window remembers; narrower ones float it over the page, and the narrowest give it the whole width.
  */
-export function Inspector({ title, width, close, expand, children }: { title: string; width: WidthClass; close: () => void; expand?: () => void; children: ReactNode }) {
+export function Inspector({
+  title,
+  width,
+  close,
+  expand,
+  item,
+  children,
+}: {
+  title: string;
+  width: WidthClass;
+  close: () => void;
+  expand?: () => void;
+  /** The item's id on its page, which lets the details pop out into a window of their own. */
+  item?: string;
+  children: ReactNode;
+}) {
   const [size, setSize] = useState(savedWidth);
   const dragging = useRef(false);
+  const host = useInspectorHost();
+  const shut = host.alone ? host.close : close;
 
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
+      if (event.key === 'Escape') shut();
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [close]);
+  }, [shut]);
 
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     dragging.current = true;
@@ -201,14 +221,16 @@ export function Inspector({ title, width, close, expand, children }: { title: st
     localStorage.setItem(INSPECTOR_KEY, String(Math.round(size)));
   };
 
-  const beside = width === 'wide';
+  const placed = host.alone ? 'full' : shellLayout(width, false).inspector;
+  const beside = placed === 'beside';
   const frame = beside
     ? 'relative flex shrink-0 flex-col border-l border-panel-edge bg-background'
-    : width === 'medium'
+    : placed === 'drawer'
       ? 'fixed inset-y-2 right-2 z-30 flex flex-col rounded-2xl border border-panel-edge bg-background shadow-2xl'
       : 'fixed inset-0 z-30 flex flex-col bg-background';
-  return (
-    <aside className={frame} style={width === 'wide' || width === 'medium' ? { width: size } : undefined} aria-label={title}>
+  const popOut = host.popOut;
+  const pane = (
+    <aside className={frame} style={placed === 'full' ? undefined : { width: size }} aria-label={title}>
       {beside && (
         <div
           role="separator"
@@ -222,18 +244,34 @@ export function Inspector({ title, width, close, expand, children }: { title: st
       )}
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-panel-edge px-4">
         <span className="flex-1 truncate text-headline font-semibold text-foreground">{title}</span>
-        {expand !== undefined && (
+        {expand !== undefined && !host.alone && (
           <button type="button" className="mx-focus cursor-pointer rounded-md px-2 py-1 text-footnote text-muted hover:bg-hover" onClick={expand}>
             Open full page
           </button>
         )}
-        <button type="button" className="mx-focus grid size-7 cursor-pointer place-items-center rounded-md text-muted hover:bg-hover" onClick={close} aria-label="Close the details">
+        {popOut !== undefined && item !== undefined && !host.alone && (
+          <button
+            type="button"
+            className="mx-focus grid size-7 cursor-pointer place-items-center rounded-md text-muted hover:bg-hover"
+            onClick={() => {
+              popOut(item, title);
+              close();
+            }}
+            aria-label={POP_OUT}
+            title={POP_OUT}
+          >
+            <ExternalLink size={14} />
+          </button>
+        )}
+        <button type="button" className="mx-focus grid size-7 cursor-pointer place-items-center rounded-md text-muted hover:bg-hover" onClick={shut} aria-label="Close the details">
           <X size={15} />
         </button>
       </header>
       <div className="flex-1 overflow-y-auto p-4">{children}</div>
     </aside>
   );
+  // Alone, the page under it is hidden, so the details are drawn over the whole window from outside it.
+  return host.alone ? createPortal(pane, document.body) : pane;
 }
 
 /** A section that folds, remembered per name so it opens as it was left. */

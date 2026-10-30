@@ -1,0 +1,86 @@
+import Foundation
+
+/// The top bar's two pickers, the workspace switcher and the scope selector, with the words both say. Neither decides
+/// anything: the switcher narrows what the window shows to one project, and the selector shows the organization's read
+/// only items beside the person's own once Memnox Cloud hands any down. Mirrors `shell-lines.ts`.
+public enum ShellLines {
+    /// Where the chosen project is remembered between openings, by its id.
+    public static let currentProjectKey = "memnox.project.current"
+    public static let allProjects = "All projects"
+    public static let switcherLabel = "Current project"
+
+    /// The project the person picked, or nil for every project, also when the one remembered is gone.
+    public static func currentProject(_ projects: [ProjectView]?, saved: String?) -> ProjectView? {
+        guard let saved, !saved.isEmpty, let projects else { return nil }
+        return projects.first { $0.id == saved }
+    }
+
+    /// Whether a folder sits inside the project, the project's own folder included.
+    public static func inside(_ folder: String, project path: String) -> Bool {
+        var root = path
+        while root.hasSuffix("/") || root.hasSuffix("\\") { root.removeLast() }
+        if folder == root { return true }
+        return folder.hasPrefix(root + "/") || folder.hasPrefix(root + "\\")
+    }
+
+    /// The projects shown under Workspaces: the one picked, or all of them.
+    public static func projectsShown(_ projects: [ProjectView], current: ProjectView?) -> [ProjectView] {
+        guard let current else { return projects }
+        return projects.filter { $0.id == current.id }
+    }
+
+    /// The skills shown for a project: the person's own everywhere, and those written into this project's folder.
+    public static func skillsShown(_ skills: [SkillView], current: ProjectView?) -> [SkillView] {
+        guard let current else { return skills }
+        return skills.filter { skill in skill.project.map { inside($0, project: current.path) } ?? true }
+    }
+
+    /// The folder a launch or open form starts on: the current project's when one is picked and offered, else the form's own first.
+    public static func preselectedFolder(_ offered: [String], current: ProjectView?, fallback: String) -> String {
+        guard let current else { return fallback }
+        return offered.first { $0 == current.path } ?? fallback
+    }
+
+    /// Where the chosen scope is remembered between openings.
+    public static let scopeKey = "memnox.scope.current"
+    public static let scopeLabel = "Scope"
+
+    /// The line over the organization's items, so read only is said before anybody tries an edit.
+    public static let organizationReadOnly = "Your organization set these up in Memnox Cloud, so they are read only here."
+    public static let noOrganizationItems = "Your organization has not handed down anything of this kind."
+
+    /// Whether the runtime handed down anything of an organization's, which only a Cloud connection does; the selector shows only then.
+    public static func hasOrganization(servers: [McpHubServerView] = [], skills: [SkillView] = [], rules: [PolicyRuleView] = []) -> Bool {
+        servers.contains { $0.scope == McpScope.organization.rawValue }
+            || skills.contains { $0.scope == ShownScope.organization.rawValue }
+            || rules.contains { $0.source == RuleSource.workspace.rawValue }
+    }
+
+    /// A remembered scope stands only while there is an organization to show; otherwise everything is personal.
+    public static func shownScope(saved: String?, connected: Bool) -> ShownScope {
+        connected && saved == ShownScope.organization.rawValue ? .organization : .personal
+    }
+
+    /// The items a list shows under the chosen scope, told apart by whether each is the organization's.
+    public static func inScope<T>(_ items: [T], _ scope: ShownScope, organizations: (T) -> Bool) -> [T] {
+        items.filter { organizations($0) == (scope == .organization) }
+    }
+
+    /// What a destination's number key says in the palette: Command and the digit on the Mac, Ctrl and the digit elsewhere.
+    public static func shortcutWords(_ key: String, mac: Bool) -> String {
+        mac ? "\u{2318}\(key)" : "Ctrl \(key)"
+    }
+}
+
+/// Personal is what this computer keeps; Organization is what Memnox Cloud hands down, read only here.
+public enum ShownScope: String, CaseIterable, Sendable {
+    case personal
+    case organization
+
+    public var title: String {
+        switch self {
+        case .personal: "Personal"
+        case .organization: "Organization"
+        }
+    }
+}

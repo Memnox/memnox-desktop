@@ -53,6 +53,15 @@ public struct PaletteCommand: Equatable, Identifiable, Sendable {
     public let title: String
     /// The destination it sits under, shown beside it in the palette; empty for a destination itself.
     public let under: String
+    /// The digit that opens it with Command, on a destination that has one.
+    public let key: String?
+
+    public init(route: WindowRoute, title: String, under: String, key: String? = nil) {
+        self.route = route
+        self.title = title
+        self.under = under
+        self.key = key
+    }
 
     public var id: WindowRoute { route }
 }
@@ -150,7 +159,7 @@ public enum Destinations {
     /// Every place the palette can go, in sidebar order.
     public static func commands(supports: Supports) -> [PaletteCommand] {
         all.flatMap { each -> [PaletteCommand] in
-            let top = PaletteCommand(route: WindowRoute(each.id), title: each.title, under: "")
+            let top = PaletteCommand(route: WindowRoute(each.id), title: each.title, under: "", key: each.key.map(String.init))
             let tabs = visibleTabs(each.id, supports: supports).map {
                 PaletteCommand(route: WindowRoute(each.id, tab: $0.id), title: $0.title, under: each.title)
             }
@@ -197,6 +206,33 @@ public enum WidthClass: Equatable, Sendable {
             self = .narrow
         } else {
             self = .compact
+        }
+    }
+}
+
+/// How the shell lays itself out at a width: the sidebar with labels, as icons or as a sheet, and the inspector beside
+/// the page, floating over it or over the whole window. Mirrors `shellLayout` in `destinations.ts`.
+public struct ShellLayout: Equatable, Sendable {
+    public enum Sidebar: Equatable, Sendable { case labels, rail, sheet }
+    public enum Inspector: Equatable, Sendable { case beside, drawer, full }
+
+    public let sidebar: Sidebar
+    public let inspector: Inspector
+    /// Whether the sidebar offers to fold, which it does only where labels fit.
+    public let canFold: Bool
+
+    public init(sidebar: Sidebar, inspector: Inspector, canFold: Bool) {
+        self.sidebar = sidebar
+        self.inspector = inspector
+        self.canFold = canFold
+    }
+
+    public init(_ width: WidthClass, collapsed: Bool) {
+        switch width {
+        case .wide: self.init(sidebar: collapsed ? .rail : .labels, inspector: .beside, canFold: true)
+        case .medium: self.init(sidebar: collapsed ? .rail : .labels, inspector: .drawer, canFold: true)
+        case .narrow: self.init(sidebar: .rail, inspector: .full, canFold: false)
+        case .compact: self.init(sidebar: .sheet, inspector: .full, canFold: false)
         }
     }
 }

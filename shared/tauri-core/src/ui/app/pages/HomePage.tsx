@@ -1,7 +1,8 @@
-import { ArrowRight, CircleAlert, Hand, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, CircleAlert, GraduationCap, Hand, ShieldCheck, Sparkles } from 'lucide-react';
 import { useEffect } from 'react';
 import type { Route } from '../../../core/domain/destinations';
 import { HomeLines } from '../../../core/domain/home-lines';
+import { learnWaitingLine } from '../../../core/domain/memory-lines';
 import { ago, cardStatus, cardTitle, repositoryName } from '../../../core/domain/session-text';
 import { isActive, statusLabel } from '../../../core/domain/session-status';
 import { greeting } from '../../../core/domain/setup-steps';
@@ -21,12 +22,13 @@ const RECENT_SESSIONS = 5;
  * can carry on. No charts, and every number is a count the ledger can show.
  */
 export function HomePage({ parts, go }: { parts: SettingsParts; go: (route: Route) => void }) {
-  const { home, sessions, preferences, host, studio, support } = parts;
-  useObserved(home, sessions, studio);
+  const { home, sessions, preferences, host, studio, support, memory } = parts;
+  useObserved(home, sessions, studio, memory);
   usePreferences();
   useEffect(() => {
     void home.refresh();
     if (support.supports('progress') !== false) void studio.refresh();
+    if (support.supports('memory-learn') !== false) void memory.refreshLearn();
     sessions.start();
     return () => sessions.stop();
   }, []);
@@ -108,11 +110,13 @@ export function HomePage({ parts, go }: { parts: SettingsParts; go: (route: Rout
 
 /** Everything that waits on the person, in one place to clear, and nothing when nothing waits. */
 function Attention({ parts, go }: { parts: SettingsParts; go: (route: Route) => void }) {
-  const { home, words } = parts;
+  const { home, words, memory } = parts;
   const view = home.home;
   if (view === undefined) return null;
   const needs = view.needsYou ?? [];
-  const nothing = view.waiting === 0 && needs.length === 0 && view.ready === undefined && view.notCovered.unprotected === 0;
+  const queue = memory.learn;
+  const toConfirm = queue === undefined ? 0 : queue.items.length + queue.more;
+  const nothing = view.waiting === 0 && needs.length === 0 && view.ready === undefined && view.notCovered.unprotected === 0 && toConfirm === 0;
   if (nothing) return null;
   return (
     <Section title="Needs your attention">
@@ -127,6 +131,14 @@ function Attention({ parts, go }: { parts: SettingsParts; go: (route: Route) => 
         {needs.map((line) => (
           <Row key={line} leading={<CircleAlert size={18} className="text-warm" />} title={line} />
         ))}
+        {toConfirm > 0 && (
+          <Row
+            leading={<GraduationCap size={18} className="text-warm" />}
+            title={learnWaitingLine(toConfirm)}
+            caption="What your agent read from your sources, and what agents suggested, counts only once you confirm it."
+            trailing={<KitButton onClick={() => go({ destination: 'governance', tab: 'learn' })}>Open Learn</KitButton>}
+          />
+        )}
         {view.ready !== undefined && (
           <Row
             leading={<ArrowRight size={18} className="text-primary" />}

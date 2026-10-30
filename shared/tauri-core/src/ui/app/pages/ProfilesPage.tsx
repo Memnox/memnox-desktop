@@ -6,7 +6,8 @@ import { agentLabel } from '../../../core/domain/mcp-hub-lines';
 import { applyWhereLine, choiceNames, packChangeLine, profileContents, profileDraftFrom, profileFormOf, type ProfileForm } from '../../../core/domain/profile-lines';
 import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { CardGrid, EmptyState, ReadFailed, StatusWord } from '../widgets';
+import { CardGrid, EmptyState, ReadFailed, ScopeChip, StatusWord } from '../widgets';
+import { PROFILE_SCOPE } from '../../../core/domain/scope-lines';
 import { Dialog, Labelled } from './SkillDialogs';
 
 /**
@@ -68,9 +69,12 @@ function ProfileCard({ parts, profile, said }: { parts: SettingsParts; profile: 
   const busy = profiles.busy === profile.id || profiles.busy === profile.name;
   return (
     <article className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-headline font-semibold text-foreground">{profile.name}</span>
-        <span className="truncate text-footnote text-muted">{profileContents(profile)}</span>
+      <div className="flex items-start gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-headline font-semibold text-foreground">{profile.name}</span>
+          <span className="truncate text-footnote text-muted">{profileContents(profile)}</span>
+        </div>
+        <ScopeChip scope={PROFILE_SCOPE} />
       </div>
       {profile.description !== undefined && <p className="line-clamp-2 text-footnote text-foreground">{profile.description}</p>}
       {profile.skills.length > 0 && <p className="truncate text-footnote text-muted">{`Skills: ${profile.skills.join(', ')}`}</p>}

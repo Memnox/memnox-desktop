@@ -10,7 +10,8 @@ import { KitButton, SearchField } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { YourAppsPage } from '../../settings/pages/YourAppsPage';
 import { AddServerDialog } from './AddServerDialog';
-import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
+import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
+import { serverScope } from '../../../core/domain/scope-lines';
 import { GoLink } from './HomePage';
 
 /**
@@ -126,7 +127,7 @@ function ServerCard({ server, chosen, pick }: { server: McpHubServerView; chosen
         {missing.length > 0 ? <StatusWord tone="bad">Needs a secret</StatusWord> : <StatusWord tone={health.tone}>{health.word}</StatusWord>}
         <span className="text-footnote text-muted">{server.transport === 'http' ? 'Remote' : 'Local'}</span>
         <span className="text-footnote text-muted">{toolsLine(server.toolCount)}</span>
-        {fromOrganization(server) && <StatusWord tone="quiet">{ORGANIZATION_WORD}</StatusWord>}
+        <ScopeChip scope={serverScope(server)} />
       </div>
       <div className="flex items-center justify-between gap-2">
         <span className="flex -space-x-1.5" aria-label={agentsLine(server.agents.length)}>

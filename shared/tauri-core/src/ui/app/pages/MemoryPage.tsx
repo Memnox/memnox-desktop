@@ -29,7 +29,8 @@ import { KitButton, SearchField } from '../../settings/kit';
 import { openOrCopy } from '../../settings/host';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AddMemorySourceDialog } from './MemorySourceDialog';
-import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
+import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
+import { memoryScope } from '../../../core/domain/scope-lines';
 
 const CHIP = 'mx-focus cursor-pointer rounded-full border px-3 py-1 text-footnote';
 const chip = (on: boolean) => `${CHIP} ${on ? 'border-primary bg-hover font-medium text-foreground' : 'border-panel-edge text-muted hover:bg-hover'}`;
@@ -114,9 +115,10 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
                   chosen={item.id === chosen}
                   onClick={() => choose(item.id)}
                   title={<span className="whitespace-pre-wrap">{item.statement}</span>}
-                  caption={`${kindWord(item.kind)} · ${item.scope === 'project' ? 'Project' : 'Personal'} · ${item.evidence.length === 1 ? '1 piece of evidence' : `${item.evidence.length} pieces of evidence`}`}
+                  caption={`${kindWord(item.kind)} · ${item.evidence.length === 1 ? '1 piece of evidence' : `${item.evidence.length} pieces of evidence`}`}
                   trailing={
                     <>
+                      <ScopeChip scope={memoryScope(item)} />
                       {item.tainted && <StatusWord tone="attention">Untrusted source</StatusWord>}
                       <StatusWord tone={statusWord(item.status).tone}>{statusWord(item.status).word}</StatusWord>
                     </>

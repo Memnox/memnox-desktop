@@ -1,6 +1,7 @@
 import { X, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { TabInfo, WidthClass } from '../../core/domain/destinations';
+import { scopeLabel, SCOPE_WORDS, type ScopeKind } from '../../core/domain/scope-lines';
 
 /** Green, amber, red and grey, each always beside a word, since colour alone says nothing to many people. */
 export type Tone = 'good' | 'attention' | 'bad' | 'quiet';
@@ -24,6 +25,15 @@ export function StatusWord({ tone, children }: { tone: Tone; children: ReactNode
     <span className={`inline-flex items-center gap-1.5 text-footnote font-medium ${TONE_TEXT[tone]}`}>
       <span aria-hidden className={`size-1.5 rounded-full ${TONE_DOT[tone]}`} />
       {children}
+    </span>
+  );
+}
+
+/** Whose an item is, grey and in a word, the same chip on every rule, server, skill, profile, project and memory item. */
+export function ScopeChip({ scope }: { scope: ScopeKind }) {
+  return (
+    <span aria-label={scopeLabel(scope)} title={scopeLabel(scope)} className="inline-flex shrink-0 items-center rounded-md border border-panel-edge px-1.5 py-px text-micro font-medium text-muted">
+      {SCOPE_WORDS[scope]}
     </span>
   );
 }

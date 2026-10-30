@@ -8,7 +8,8 @@ import { agentLabel } from '../../../core/domain/mcp-hub-lines';
 import { ALWAYS_ASK, almostLine, autopilotLine, countsByEffect, draftSentence, EFFECT_WORDS, effectTone, exportedCount, NOTHING_TO_EXPORT, packCopiedLine, packSavedLine, sourceWords, switchOn, weekLine, type Effect } from '../../../core/domain/studio-lines';
 import { KitButton, Switch } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { EmptyState, Inspector, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
+import { EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
+import { ruleScope } from '../../../core/domain/scope-lines';
 
 type Filter = 'all' | Effect;
 
@@ -114,7 +115,12 @@ export function PoliciesPage({ parts, width }: { parts: SettingsParts; width: Wi
                   chosen={rule.name === chosen}
                   title={rule.sentence}
                   caption={sourceWords(rule)}
-                  trailing={<StatusWord tone={effectTone(rule.effect)}>{EFFECT_WORDS[rule.effect as Effect].title}</StatusWord>}
+                  trailing={
+                    <>
+                      <ScopeChip scope={ruleScope(rule)} />
+                      <StatusWord tone={effectTone(rule.effect)}>{EFFECT_WORDS[rule.effect as Effect].title}</StatusWord>
+                    </>
+                  }
                   onClick={() => choose(rule.name)}
                 />
               ))}
@@ -154,7 +160,10 @@ function RuleDetail({ rule, remove, busy }: { rule: PolicyRuleView; remove: () =
   return (
     <div className="flex flex-col gap-5">
       <p className="text-headline font-semibold text-foreground">{rule.sentence}</p>
-      <StatusWord tone={effectTone(rule.effect)}>{EFFECT_WORDS[rule.effect as Effect].says}</StatusWord>
+      <span className="flex flex-wrap items-center gap-2">
+        <ScopeChip scope={ruleScope(rule)} />
+        <StatusWord tone={effectTone(rule.effect)}>{EFFECT_WORDS[rule.effect as Effect].says}</StatusWord>
+      </span>
       {rule.reason !== undefined && <p className="text-body text-foreground">{rule.reason}</p>}
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-footnote">
         {fields

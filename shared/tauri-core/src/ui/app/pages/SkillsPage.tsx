@@ -9,7 +9,8 @@ import { BrandLogo } from '../../kit/logos';
 import { KitButton, SearchField, Switch } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AssignSkillDialog, NewSkillDialog } from './SkillDialogs';
-import { CardGrid, EmptyState, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
+import { CardGrid, EmptyState, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
+import { skillScope } from '../../../core/domain/scope-lines';
 
 /**
  * The Skills Hub: skills kept once and written into each agent's own format. Giving a skill to an agent
@@ -101,6 +102,7 @@ function SkillCard({ parts, skill, said, view, manage }: { parts: SettingsParts;
           <span className="truncate text-headline font-semibold text-foreground">{skill.name}</span>
           <span className="truncate text-footnote text-muted">{categoryVersion(skill)}</span>
         </div>
+        <ScopeChip scope={skillScope(skill)} />
         <Switch
           on={skill.enabled}
           label={skill.enabled ? `Turn ${skill.name} off for every agent` : `Hand ${skill.name} back to its agents`}

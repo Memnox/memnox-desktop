@@ -16,7 +16,8 @@ import { MemoryPage } from './MemoryPage';
 import { ProfilesPage } from './ProfilesPage';
 import { OrganizationBadge, ProjectInspector, projectNote } from './ProjectInspector';
 import { SkillsPage } from './SkillsPage';
-import { CardGrid, EmptyState, Inspector, ReadFailed, Section, StatTile, StatusWord } from '../widgets';
+import { CardGrid, EmptyState, Inspector, ReadFailed, ScopeChip, Section, StatTile, StatusWord } from '../widgets';
+import { projectScope } from '../../../core/domain/scope-lines';
 
 /**
  * Projects as the runtime keeps them, with what each gives the agents opened in it. A runtime too old to
@@ -112,7 +113,10 @@ function ProjectCard({ project, chosen, pick }: { project: ProjectView; chosen: 
         <span className="min-w-0 flex-1 truncate text-body font-semibold text-foreground">{project.name}</span>
         {sharedBy(project) === undefined ? <StatusWord tone={standing.tone}>{standing.word}</StatusWord> : <OrganizationBadge />}
       </div>
-      <span className="truncate font-mono text-micro text-muted">{project.path}</span>
+      <span className="flex items-center gap-2">
+        <ScopeChip scope={projectScope(project)} />
+        <span className="min-w-0 truncate font-mono text-micro text-muted">{project.path}</span>
+      </span>
       <span className="text-footnote text-muted">{`${counted(project.skills.length, 'skill', 'skills')} · ${counted(project.servers.length, 'server', 'servers')} · ${counted(project.openMissions.length, 'open mission', 'open missions')}`}</span>
       <div className="flex items-center justify-between gap-2">
         <span className="flex -space-x-1.5">

@@ -20,8 +20,12 @@ const STATUS: Record<AgentView['status'], { word: string; tone: Tone }> = {
 
 /** Every agent on this computer as the runtime sees it, the ones needing a decision first. */
 export function AgentListTab({ parts }: { parts: SettingsParts }) {
-  const { agents, home, words, sessions } = parts;
-  useObserved(agents, home, sessions);
+  const { agents, home, words, sessions, support, profiles } = parts;
+  useObserved(agents, home, sessions, support, profiles);
+  const offersProfiles = support.supports('profiles') === true;
+  useEffect(() => {
+    if (offersProfiles) void profiles.refresh();
+  }, [offersProfiles]);
   useEffect(() => {
     void agents.refresh();
     // The workspaces the sessions ran in are the folders offered to launch in.
@@ -92,10 +96,11 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
             {launching === agent.kind && (
               <LaunchForm
                 folders={folders}
+                profiles={offersProfiles ? (profiles.profiles ?? []).map((each) => ({ id: each.id, name: each.name })) : []}
                 busy={agents.busy === `launch/${agent.kind}`}
                 cancel={() => setLaunching(undefined)}
-                launch={(folder) =>
-                  void agents.launch(agent.kind, folder).then((outcome) => {
+                launch={(folder, profile) =>
+                  void agents.launch(agent.kind, folder, profile === '' ? undefined : { name: profile, keyTitle: words.keyTitle }).then((outcome) => {
                     said(outcome);
                     if (outcome.kind !== 'failed') setLaunching(undefined);
                   })
@@ -109,14 +114,27 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
   );
 }
 
-/** The folder an agent opens in: typed whole, or one of the workspaces its sessions ran in. */
-function LaunchForm({ folders, busy, cancel, launch }: { folders: readonly { path: string; name: string }[]; busy: boolean; cancel: () => void; launch: (folder: string) => void }) {
+/** The folder an agent opens in, typed whole or one of the workspaces its sessions ran in, and a profile to apply first. */
+function LaunchForm({
+  folders,
+  profiles,
+  busy,
+  cancel,
+  launch,
+}: {
+  folders: readonly { path: string; name: string }[];
+  profiles: readonly { id: string; name: string }[];
+  busy: boolean;
+  cancel: () => void;
+  launch: (folder: string, profile: string) => void;
+}) {
   const [folder, setFolder] = useState(folders[0]?.path ?? '');
+  const [profile, setProfile] = useState('');
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const go = () => {
     const wrong = folderProblem(folder);
     setProblem(wrong);
-    if (wrong === undefined) launch(folder);
+    if (wrong === undefined) launch(folder, profile);
   };
   return (
     <div className="flex flex-col gap-2 border-t border-panel-edge pt-3">
@@ -146,6 +164,24 @@ function LaunchForm({ folders, busy, cancel, launch }: { folders: readonly { pat
             </button>
           ))}
         </div>
+      )}
+      {profiles.length > 0 && (
+        <label className="flex flex-col gap-1.5">
+          <span className="text-footnote font-medium text-muted">With a profile</span>
+          <select
+            className="h-9 w-full rounded-lg border border-field-edge bg-field px-3 text-footnote text-foreground outline-none focus:border-primary"
+            value={profile}
+            onChange={(event) => setProfile(event.target.value)}
+          >
+            <option value="">No profile</option>
+            {profiles.map((each) => (
+              <option key={each.id} value={each.id}>
+                {each.name}
+              </option>
+            ))}
+          </select>
+          {profile !== '' && <span className="text-footnote text-muted">What the profile gives waits for your signature on the island as the agent opens.</span>}
+        </label>
       )}
       {problem !== undefined && (
         <p role="alert" className="text-footnote text-destructive">

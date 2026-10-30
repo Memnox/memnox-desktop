@@ -170,6 +170,28 @@ public enum DaemonMethod: String, Sendable {
     case backupCreate = "backup-create"
     /// Opens an archive and proposes putting it back, which holds once the person signs it.
     case backupRestore = "backup-restore"
+    /// Every memory source with where it is, its trust, when it was last read and what it taught.
+    case memorySources = "memory-sources"
+    /// Adds a folder, a repository's instruction files, an export, Supermemory or a hub server.
+    case memorySourceAdd = "memory-source-add"
+    /// Takes a source away; what it taught goes outdated rather than vanishing.
+    case memorySourceRemove = "memory-source-remove"
+    /// Reads a source again now with the person's own agent CLI.
+    case memorySourceRead = "memory-source-read"
+    /// The Learn queue: candidates and conflicts waiting on a person.
+    case memoryLearn = "memory-learn"
+    /// A fact becomes verified; a rule candidate raises a signed rule proposal.
+    case memoryConfirm = "memory-confirm"
+    /// Rejected, and remembered so the same words are never proposed again.
+    case memoryReject = "memory-reject"
+    /// A candidate's words or its rule changed before it is confirmed.
+    case memoryEdit = "memory-edit"
+    /// Keyword search over what was learned.
+    case memorySearch = "memory-search"
+    /// What was learned, by status and scope; verified by default.
+    case memoryFacts = "memory-facts"
+    /// Deletes one item and its evidence.
+    case memoryForget = "memory-forget"
 }
 
 public enum EventKind: String, Sendable {
@@ -1267,6 +1289,20 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var backupArchive: String?
     /// On backup-create: carry the ledger too.
     public var backupLedger: Bool?
+    /// On memory-source-add.
+    public var memorySource: MemorySourceInput?
+    /// On memory-source-remove and memory-source-read.
+    public var memorySourceId: String?
+    /// On memory-confirm, memory-reject, memory-edit and memory-forget.
+    public var memoryItemId: String?
+    /// On memory-edit.
+    public var memoryEdit: MemoryEditInput?
+    /// On memory-search.
+    public var memoryQuery: String?
+    /// On memory-search, memory-facts and memory-learn: personal or project.
+    public var memoryScope: String?
+    /// On memory-facts.
+    public var memoryStatus: String?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -1597,6 +1633,16 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let backupArchive: String?
     /// On backup-create and backup-restore: what the archive holds.
     public let backupSummary: BackupSummary?
+    /// On every memory source method, so a screen redraws from one answer.
+    public let memorySources: [MemorySourceView]?
+    /// On memory-source-read, and on memory-source-add, which reads the source once.
+    public let memoryRead: MemoryReadSummary?
+    /// On memory-learn, and after memory-confirm, memory-reject and memory-edit.
+    public let memoryLearn: MemoryItemsView?
+    /// On memory-facts and memory-search.
+    public let memoryFacts: MemoryItemsView?
+    /// On memory-confirm and memory-edit: the item as it now stands.
+    public let memoryItem: MemoryItemView?
 
     /// The outcome as a known case, or nil for one this app does not know yet.
     public var outcomeKind: Outcome? { outcome.flatMap(Outcome.init(rawValue:)) }

@@ -47,8 +47,40 @@ describe('a press in the Memnox window', () => {
   it('says it ended with nothing raised when the daemon never answered', async () => {
     const told: Press[] = [];
     const link = new PressingLink(new ScriptedDaemon({}), (press) => told.push(press), () => 'tok');
-    await expect(requestOnce(link, { id: 1, method: 'mcp-secret-set' })).rejects.toThrow();
+    await expect(requestOnce(link, { id: 1, method: 'mcp-server-put' })).rejects.toThrow();
     expect(told).toEqual([{ token: 'tok' }, { token: 'tok', raised: [] }]);
+  });
+
+  it('is not a background read, which never makes a proposal wait', async () => {
+    const told: Press[] = [];
+    const window = new ScriptedDaemon({ 'mcp-hub': answering({}) });
+    const link = new PressingLink(window, (press) => told.push(press), () => 'tok');
+    await requestOnce(link, { id: 1, method: 'mcp-hub' });
+    expect(told).toEqual([]);
+  });
+
+  it('still notes a proposal any answer names, whatever the method', async () => {
+    const told: Press[] = [];
+    const window = new ScriptedDaemon({ 'mcp-secret-set': answering({ proposed: 'prp_secret' }) });
+    const link = new PressingLink(window, (press) => told.push(press), () => 'tok');
+    await requestOnce(link, { id: 1, method: 'mcp-secret-set' });
+    expect(told).toEqual([{ token: 'tok', raised: ['prp_secret'] }]);
+  });
+
+  it('lets a polled read leave an unasked proposal declined after the grace rather than the longest wait', async () => {
+    const { clock, presses, daemon, talking } = island();
+    // A read the daemon is slow to answer, as a poll behind a busy page is.
+    const window = {
+      async *stream(): AsyncIterable<DaemonResponse> {
+        await new Promise<void>(() => undefined);
+      },
+    };
+    const link = new PressingLink(window, (press) => presses.heard(press), () => 'tok');
+    void requestOnce(link, { id: 1, method: 'mcp-hub' }).catch(() => undefined);
+    const began = clock.at;
+    await talking.handle(proposal('prp_unasked'));
+    expect(declined(daemon)).toBe(true);
+    expect(clock.at - began).toBeLessThan(LONGEST_PRESS_MS);
   });
 
   it('has the island put the proposal it raised to the key', async () => {

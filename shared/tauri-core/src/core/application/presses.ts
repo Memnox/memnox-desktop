@@ -1,4 +1,4 @@
-import type { DaemonRequest, DaemonResponse } from '@memnox/core/wire';
+import { PROPOSING_METHODS, type DaemonRequest, type DaemonResponse } from '@memnox/core/wire';
 import type { DaemonLink } from './ports/daemon-link';
 
 /**
@@ -25,8 +25,9 @@ export function proposalIds(response: DaemonResponse): string[] {
 }
 
 /**
- * The daemon as the Memnox window reaches it, telling the island of every press and the proposals its answer made,
- * so one shared link covers every page rather than each use case remembering to. The island's own link stays plain.
+ * The daemon as the Memnox window reaches it, telling the island of every press of a method that can propose and of
+ * the proposals any answer made, so one shared link covers every page rather than each use case remembering to. The
+ * island's own link stays plain.
  */
 export class PressingLink implements DaemonLink {
   constructor(
@@ -38,24 +39,22 @@ export class PressingLink implements DaemonLink {
 
   async *stream(request: DaemonRequest): AsyncIterable<DaemonResponse> {
     const token = this.token();
-    this.told({ token });
-    let raised: string[] = [];
+    // Only a method that can raise a proposal is a press, so a background read never makes an unasked one wait.
+    const pressing = PROPOSING_METHODS.includes(request.method);
+    if (pressing) this.told({ token });
     let answered = false;
     try {
       for await (const response of this.link.stream(request)) {
         // Told before the page sees it, so the page and the island never disagree on what was pressed for.
+        const raised = proposalIds(response);
         if (!answered) {
-          raised = proposalIds(response);
           answered = true;
-          this.told({ token, raised });
-        } else {
-          const more = proposalIds(response);
-          if (more.length > 0) this.told({ token, raised: more });
-        }
+          if (pressing || raised.length > 0) this.told({ token, raised });
+        } else if (raised.length > 0) this.told({ token, raised });
         yield response;
       }
     } finally {
-      if (!answered) this.told({ token, raised });
+      if (!answered && pressing) this.told({ token, raised: [] });
     }
   }
 }

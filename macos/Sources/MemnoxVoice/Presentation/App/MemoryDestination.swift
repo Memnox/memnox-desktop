@@ -45,6 +45,10 @@ extension Tone {
 private enum MemoryLayout {
     static let cardWidth: CGFloat = 280
     static let searchWidth: CGFloat = 300
+    /// Whether memory is read as a list or drawn as a map, remembered for the next visit.
+    static let viewKey = "memnox.memory.view"
+    static let switchHeight: CGFloat = 28
+    static let switchPadding: CGFloat = 4
     /// How long typing rests before the search is asked, so each key is not a request.
     static let searchRest: Duration = .milliseconds(300)
 }
@@ -59,6 +63,9 @@ struct MemoryDestination: View {
     @State private var status = MemoryStatus.verified
     @State private var scope: MemoryScope?
     @State private var query = ""
+    @AppStorage(MemoryLayout.viewKey) private var view = MemoryView.list.rawValue
+    /// A document or a source picked on the map, which is not an item and so is not the picked id.
+    @State private var place: MemoryMapNode?
 
     private var filter: MemoryFilter {
         MemoryFilter(status: status, scope: scope, query: query.trimmingCharacters(in: .whitespaces).isEmpty ? nil : query)
@@ -68,7 +75,8 @@ struct MemoryDestination: View {
         let memory = screen.memory
         let listed = memory.facts
         let picked = listed?.items.first { $0.id == shell.inspecting }
-        InspectorLayout(width: width, title: picked.map { MemoryLines.kindWord($0.kind) }, close: { shell.inspecting = nil }) {
+        InspectorLayout(width: width, title: picked.map { MemoryLines.kindWord($0.kind) } ?? place.map(placeTitle),
+                        close: { shell.inspecting = nil; place = nil }) {
             ShellScroll(width: width) {
                 NoteBanner(text: screen.note)
                 ShellSection(title: "What your agents know") {
@@ -82,6 +90,8 @@ struct MemoryDestination: View {
         } detail: {
             if let picked {
                 FactInspector(screen: screen, item: picked) { shell.inspecting = nil }.id(picked.id)
+            } else if let place {
+                PlaceDetail(memory: memory, place: place, items: listed?.items ?? []) { id in pick(id) }.id(place.id)
             }
         }
         .task { await memory.refreshSources() }
@@ -96,10 +106,64 @@ struct MemoryDestination: View {
         .onChange(of: island.waiting.count) { Task { await memory.show(memory.filter) } }
     }
 
+    private func placeTitle(_ node: MemoryMapNode) -> String {
+        node.kind == .document ? "Document" : "Source"
+    }
+
+    /// A fact or a rule opens its fact in the details; a document or a source opens the facts that cite it.
+    private func pick(_ node: MemoryMapNode?) {
+        guard let node else {
+            place = nil
+            shell.inspecting = nil
+            return
+        }
+        if let item = node.item {
+            pick(item)
+        } else {
+            place = node
+            shell.inspecting = nil
+        }
+    }
+
+    private func pick(_ item: String) {
+        place = nil
+        shell.inspecting = item
+    }
+
+    /// List or Map, as the console's own segmented switch.
+    private var viewSwitch: some View {
+        HStack(spacing: Memnox.Spacing.xSmall) {
+            ForEach(MemoryView.allCases, id: \.self) { each in
+                let on = view == each.rawValue
+                Button { view = each.rawValue } label: {
+                    Label(each.title, systemImage: each.symbol)
+                        .labelStyle(KitLabel())
+                        .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, on ? .medium : .regular))
+                        .foregroundStyle(on ? Memnox.Console.foreground : Memnox.Console.muted)
+                        .padding(.horizontal, Memnox.Spacing.large)
+                        .frame(height: MemoryLayout.switchHeight)
+                        .background(on ? Memnox.Console.active : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pointingHand()
+                .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+            }
+        }
+        .padding(MemoryLayout.switchPadding)
+        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous)
+            .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Show memory as")
+    }
+
     private var filters: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             HStack(spacing: Memnox.Spacing.medium) {
                 SearchField(prompt: "Search memory", text: $query).frame(maxWidth: MemoryLayout.searchWidth)
+                viewSwitch
                 Spacer(minLength: Memnox.Spacing.medium)
                 HStack(spacing: Memnox.Spacing.small) {
                     MemoryChip(title: "Both", on: scope == nil) { scope = nil }
@@ -139,6 +203,8 @@ struct MemoryDestination: View {
                 EmptyState(symbol: "brain",
                            title: filter.query == nil ? "Nothing \(MemoryLines.statusWord(status.rawValue).word.lowercased()) here" : "Nothing learned says that",
                            detail: "Add a source below and Memnox reads it with your own agent. What it finds waits in Learn until you confirm it.")
+            } else if view == MemoryView.map.rawValue {
+                MemoryMapView(items: listed.items, sources: memory.sources ?? [], selected: place?.id ?? shell.inspecting) { pick($0) }
             } else {
                 ShellPanel {
                     ForEach(Array(listed.items.enumerated()), id: \.element.id) { index, item in
@@ -159,6 +225,85 @@ struct MemoryDestination: View {
             }
             if let more = MemoryLines.moreLine(listed.more) { MemoryQuiet(more) }
         }
+    }
+}
+
+/// How memory is read: as the list, or drawn as the map of what it was read out of.
+private enum MemoryView: String, CaseIterable {
+    case list
+    case map
+
+    var title: String {
+        switch self {
+        case .list: "List"
+        case .map: "Map"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .list: "list.bullet"
+        case .map: "point.3.connected.trianglepath.dotted"
+        }
+    }
+}
+
+/// A document or a source picked on the map: what it is, and the facts listed that cite it, each a press that opens
+/// the fact. A document opens where it lives, as the evidence under a fact does.
+private struct PlaceDetail: View {
+    let memory: Memory
+    let place: MemoryMapNode
+    let items: [MemoryItemView]
+    let open: (String) -> Void
+
+    var body: some View {
+        let document = place.kind == .document
+        let citing = items.filter { $0.evidence.contains(where: cites) }
+        let evidence = items.flatMap(\.evidence).filter(cites)
+        VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
+                Text(place.label)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.base, .medium))
+                    .foregroundStyle(Memnox.Console.foreground)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                if let detail = place.detail { MemoryQuiet(document ? "In \(detail)" : detail) }
+            }
+            if document, let first = evidence.first { MemoryEvidence(memory: memory, evidence: [first]) }
+            if !document, let source = source { FactList(facts: facts(source)) }
+            VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+                Text((document ? "Facts citing it" : "Facts read from it").uppercased())
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.label, .medium))
+                    .tracking(Memnox.Console.headingTracking * 0.8)
+                    .foregroundStyle(Memnox.Console.muted)
+                    .accessibilityAddTraits(.isHeader)
+                ShellPanel {
+                    ForEach(Array(citing.enumerated()), id: \.element.id) { index, item in
+                        if index > 0 { ShellDivider() }
+                        ShellRow(title: item.statement, caption: MemoryLines.statusWord(item.status).word, action: { open(item.id) }) {
+                            EmptyView()
+                        } trailing: {
+                            EmptyView()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func cites(_ each: MemoryEvidenceView) -> Bool {
+        place.kind == .document
+            ? MemoryMaps.documentId(source: each.source, document: each.document) == place.id
+            : MemoryMaps.sourceId(each.source) == place.id
+    }
+
+    private var source: MemorySourceView? {
+        (memory.sources ?? []).first { MemoryMaps.sourceId($0.name) == place.id || MemoryMaps.sourceId($0.id) == place.id }
+    }
+
+    private func facts(_ source: MemorySourceView) -> [(String, String)] {
+        [("Where", source.location), ("Trust", MemoryLines.trustWord(source.trust).word),
+         ("Taught", MemoryLines.sourceCountsLine(source.counts)), ("Read", MemoryLines.lastReadLine(source, now: Date()))]
     }
 }
 

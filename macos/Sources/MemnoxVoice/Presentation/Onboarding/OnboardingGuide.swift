@@ -10,7 +10,7 @@ struct OnboardingNarration: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onChange(of: flow.step, initial: true) { _, step in introduce(step) }
+            .onChange(of: flow.page, initial: true) { _, page in introduce(page) }
             .onChange(of: flow.highlight) { _, part in follow(part) }
             .onChange(of: setup.typing) { _, state in
                 if case .needs = state { setup.guide(GuideLines.typing(SettingsPane.typing.title)) }
@@ -22,22 +22,26 @@ struct OnboardingNarration: ViewModifier {
             .onChange(of: mute.on) { _, muted in if muted { setup.stopGuide() } }
     }
 
-    /// A step's own line, once in the first run; the welcome then names the part the notch is already playing.
-    private func introduce(_ step: OnboardingStep) {
-        guard flow.firstVisit(step) else { return }
-        switch step {
-        case .welcome:
+    /// A page's own line, once in the first run; the first step then names the part the notch is already playing.
+    private func introduce(_ page: Int) {
+        guard flow.firstVisit(page) else { return }
+        if flow.optional {
+            setup.guide(GuideLines.optional)
+            return
+        }
+        switch flow.step {
+        case .connect:
             setup.guide(GuideLines.welcome(name: setup.name))
+            setup.guide(GuideLines.setup, interrupting: false)
             if let part = flow.highlight { follow(part) }
-        case .setup: setup.guide(GuideLines.setup)
-        case .editors: setup.guide(GuideLines.editors)
-        case .ready: setup.guide(GuideLines.ready(name: setup.name))
+        case .workspace: setup.guide(GuideLines.workspace)
+        case .boundaries: setup.guide(GuideLines.boundaries)
         }
     }
 
-    /// The part the notch moved on to, said once and only while the welcome is the step on screen.
+    /// The part the notch moved on to, said once and only while the first step is the page on screen.
     private func follow(_ part: Highlight?) {
-        guard flow.step == .welcome, let part, flow.narrated.insert(part).inserted else { return }
+        guard flow.step == .connect, !flow.optional, let part, flow.narrated.insert(part).inserted else { return }
         setup.guide(part.spoken, interrupting: false)
     }
 }
@@ -48,13 +52,20 @@ enum GuideLines {
     static let askName = "Welcome to Memnox. I'm the voice over your agents. So, what should I call you?"
 
     static func welcome(name: String) -> String {
-        "Hi\(greeting(name)), I'm Memnox. I live in your notch and watch over your AI agents, so they can work on their own and stay inside the boundaries you set. Click any line to see it on the notch."
+        "Hi\(greeting(name)), I'm Memnox. I live in your notch and watch over your AI agents, so they can work on their own and stay inside the boundaries you set. No account needed."
     }
 
-    /// What Memnox puts on this Mac and why each permission is asked, said before any of it happens.
-    static let setup = "Here is what I will do on this Mac. I install the Memnox service in your home folder and keep it running and up to date. I connect it to the agents I find, like Claude Code, Codex and Cursor, so what they do passes your rules first. And I install my voice, which runs on this Mac. From you I need four permissions: the microphone to hear you, Accessibility to type into your agent's app, Screen Recording to read the window you ask about, and Touch ID so only you approve."
+    /// What Memnox puts on this Mac and the one thing it asks for now, said before any of it happens.
+    static let setup = "Here is what I will do on this Mac. I install the Memnox service in your home folder and keep it running and up to date, and I connect it to the agents I find, like Claude Code, Codex and Cursor, so what they do passes your rules first. From you I need one thing now: Touch ID so only you approve."
 
-    static let editors = "Now, where do you run your agents? Pick each app you use. In an editor I need my extension in and one go at opening Claude Code's chat, so it never stops to ask you mid task. In a terminal, macOS asks once whether I may find your tabs."
+    /// Said over the second step, before anything is brought in.
+    static let workspace = "Your agents already have servers and skills of their own. Bring them in with one tap, so each is set up once and given to the agents you choose."
+
+    /// Said over the third step: a pack is only proposed, and each rule waits for the person.
+    static let boundaries = "Last, choose your boundaries. Pick a pack of rules to start from, and confirm each rule with Touch ID on the island. You can change any of them later."
+
+    /// Said once the three steps are done, over what is left and optional.
+    static let optional = "That is everything your agents need. The rest is optional: the microphone so you can talk to me, a voice to answer, and your phone for when you are away."
 
     static func typing(_ pane: String) -> String {
         "System Settings is opening. Find Memnox under \(pane) and switch it on. If Memnox is not in the list, press the plus button and choose it from Applications."
@@ -65,10 +76,6 @@ enum GuideLines {
     }
 
     static let seeingStale = "macOS still says no, so the switch that shows on is an old one. Press Start over, and I will ask for it fresh."
-
-    static func ready(name: String) -> String {
-        "You're all set\(greeting(name)). Press Option and Space, say what you need, and let go. When an agent needs you, I will ask right here in the notch."
-    }
 
     private static func greeting(_ name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespaces)

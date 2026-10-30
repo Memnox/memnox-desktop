@@ -1,7 +1,8 @@
+import MemnoxVoiceCore
 import SwiftUI
 
 /// The first run's window: a progress bar across the top, the step on the left with the one button that moves on,
-/// the real notch playing what Memnox does to its right through every step, and Back at the foot.
+/// the real notch playing what Memnox does to its right through every step and what is optional, and Back at the foot.
 struct OnboardingCard: View {
     @ObservedObject var flow: OnboardingFlow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -30,7 +31,7 @@ struct OnboardingCard: View {
                             .padding(.vertical, Layout.top)
                     }
                     .frame(width: Layout.columnWidth)
-                    .id(flow.step)
+                    .id(flow.page)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
                                             removal: .move(edge: .leading).combined(with: .opacity)))
                     // Outside the step's identity, so the notch plays on rather than starting over at every step.
@@ -47,14 +48,14 @@ struct OnboardingCard: View {
             footer
         }
         .background(Memnox.Palette.background)
-        .animation(reduceMotion ? .easeInOut(duration: Memnox.Motion.standard) : .spring(response: 0.5, dampingFraction: 0.88), value: flow.step)
+        .animation(reduceMotion ? .easeInOut(duration: Memnox.Motion.standard) : .spring(response: 0.5, dampingFraction: 0.88), value: flow.page)
         .task(id: flow.setup.map(ObjectIdentifier.init)) { await flow.setup?.check() }
     }
 
     /// How far through the steps, in ink, so the one colour on the page is the picture.
     private var progress: some View {
         GeometryReader { space in
-            let share = CGFloat(flow.step.rawValue + 1) / CGFloat(OnboardingStep.allCases.count)
+            let share = CGFloat(FirstRunLines.progress(step: flow.step.rawValue, optional: flow.optional))
             ZStack(alignment: .leading) {
                 Capsule().fill(Memnox.ink(Memnox.Ink.fill))
                 Capsule()
@@ -64,21 +65,24 @@ struct OnboardingCard: View {
         }
         .frame(height: Layout.barHeight)
         .accessibilityElement()
-        .accessibilityLabel("Step \(flow.step.rawValue + 1) of \(OnboardingStep.allCases.count), \(flow.step.title)")
+        .accessibilityLabel(flow.optional ? "Three steps done, the rest is optional"
+            : "Step \(flow.step.rawValue + 1) of \(OnboardingStep.allCases.count), \(flow.step.title)")
     }
 
-    /// Every step by name, the current one in full ink and the ones done ticked, under the bar.
+    /// Every step by name, the current one in full ink and the ones done ticked, under the bar; all ticked once only
+    /// what is optional is left.
     private var stepNames: some View {
         HStack(spacing: Memnox.Spacing.xLarge) {
             ForEach(OnboardingStep.allCases) { step in
+                let current = step == flow.step && !flow.optional
                 HStack(spacing: Memnox.Spacing.xSmall) {
-                    if step.rawValue < flow.step.rawValue {
+                    if step.rawValue < flow.step.rawValue || flow.optional {
                         Image(systemName: "checkmark").font(.system(size: Memnox.TextSize.micro, weight: .bold))
                     }
                     Text(step.title)
                 }
-                .font(Memnox.sans(Memnox.TextSize.footnote, step == flow.step ? .semibold : .regular))
-                .foregroundStyle(Memnox.ink(step == flow.step ? Memnox.Ink.primary : Memnox.Ink.tertiary))
+                .font(Memnox.sans(Memnox.TextSize.footnote, current ? .semibold : .regular))
+                .foregroundStyle(Memnox.ink(current ? Memnox.Ink.primary : Memnox.Ink.tertiary))
             }
         }
         .accessibilityHidden(true)
@@ -86,7 +90,7 @@ struct OnboardingCard: View {
 
     private var footer: some View {
         HStack {
-            if flow.step != .welcome {
+            if flow.step != .connect || flow.optional {
                 Button("Back", systemImage: "chevron.left") { flow.back() }
                     .buttonStyle(KitButton(kind: .secondary))
                     .keyboardShortcut(.cancelAction)
@@ -115,11 +119,14 @@ private struct OnboardingStepView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
-            switch flow.step {
-            case .welcome: WelcomeStep(flow: flow)
-            case .setup: ThisMacStep(flow: flow, setup: setup)
-            case .editors: AgentHomesStep(flow: flow)
-            case .ready: ReadyStep(flow: flow, setup: setup)
+            if flow.optional {
+                OptionalStep(flow: flow, setup: setup)
+            } else {
+                switch flow.step {
+                case .connect: ConnectStep(flow: flow, setup: setup)
+                case .workspace: WorkspaceStep(flow: flow)
+                case .boundaries: BoundariesStep(flow: flow)
+                }
             }
         }
     }

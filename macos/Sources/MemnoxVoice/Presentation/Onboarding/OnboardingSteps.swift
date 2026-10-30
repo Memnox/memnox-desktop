@@ -1,111 +1,319 @@
 import AppKit
 import MemnoxVoiceCore
+import ServiceManagement
 import SwiftUI
 
-/// What Memnox does, as the first thing read, each part lit while the notch beside it plays that part.
-struct WelcomeStep: View {
-    @ObservedObject var flow: OnboardingFlow
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private enum Shade {
-        /// The parts not playing stay readable, only quieter.
-        static let resting = 0.55
-    }
-
-    var body: some View {
-        StepTitle(title: "Welcome to Memnox",
-                  detail: "Let AI agents work autonomously. Keep their actions within your boundaries.")
-        Next(title: "Set up this Mac", flow: flow)
-        KitCard {
-            ForEach(Highlight.allCases) { part in
-                if part != Highlight.allCases.first { KitDivider() }
-                // Each part is a button, so the person plays the one they care about on the notch and hears it.
-                Button { flow.pick(part) } label: {
-                    KitRow(symbol: part.symbol, title: part.title, detail: part.detail) {
-                        Image(systemName: part == flow.highlight ? "play.fill" : "play")
-                            .font(.system(size: Memnox.TextSize.footnote))
-                            .foregroundStyle(part == flow.highlight ? Memnox.Palette.primary : Memnox.ink(Memnox.Ink.tertiary))
-                            .accessibilityLabel(part == flow.highlight ? "playing now" : "play")
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .pointingHand()
-                .help("Play this on the notch")
-                .opacity(flow.highlight == nil || part == flow.highlight ? 1 : Shade.resting)
-            }
-        }
-        .animation(reduceMotion ? nil : .easeInOut(duration: Memnox.Motion.standard), value: flow.highlight)
-        // Said before setup starts, so nobody goes looking for a key: the thinking is the person's own agent's.
-        KitCard(symbol: "person.badge.key", title: "Works through your own agent",
-                detail: "Memnox has no model of its own. It answers through an agent you already use, such as Claude Code, Codex, Cursor or Hermes, signed in with that agent's own account. No API key to bring.") {
-            EmptyView()
-        }
-    }
-}
-
-/// Everything this Mac needs on one page: the four grants, and Memnox installed under the agents it found.
-struct ThisMacStep: View {
+/// Step one: the service, Touch ID, and the agents found here, each protected so it passes the boundaries first.
+struct ConnectStep: View {
     @ObservedObject var flow: OnboardingFlow
     @ObservedObject var setup: SetupModel
 
     var body: some View {
-        StepTitle(title: "Set up this Mac",
-                  detail: "Four permissions, asked once, and Memnox installs itself and its voice under your agents.")
-        Next(title: "Continue", flow: flow)
-        KitCard(symbol: "lock.shield", title: "Permissions", detail: "Used only when you talk or approve.") {
-            KitRow(symbol: "mic", title: "Hear you", detail: "Microphone and speech recognition.", hint: hint(setup.listening)) {
-                grant(setup.listening) { Task { await setup.allowListening() } }
-            }
-            KitDivider()
-            KitRow(symbol: "keyboard", title: "Type for you",
-                   detail: "Accessibility, so a follow up lands in the agent's own app.") {
-                grant(setup.typing, asking: setup.isAsking(.typing)) { setup.allowTyping() }
-            }
-            // Only once Allow was not enough do the steps appear, under the row and as wide as it.
-            if case .needs = setup.typing {
-                guide(.typing) {
-                    // Start over clears an earlier copy's switch, which shows on and does nothing.
-                    Button("Start over", systemImage: "arrow.counterclockwise") { Task { await setup.askAgain(.typing) } }
-                        .buttonStyle(KitButton(kind: .secondary))
-                        .disabled(setup.isAsking(.typing))
+        StepTitle(title: "Connect your agents",
+                  detail: "Memnox starts its service on this Mac and puts itself under the agents you already use. No account needed.")
+        KitCard(symbol: "desktopcomputer", title: "Memnox on this Mac", detail: "Installed under your agents and kept up to date for you.") {
+            KitRow(title: "Memnox service", detail: setup.runtime.doing.map { "\($0)…" } ?? "Installed, started and updated for you.",
+                   hint: hint(setup.daemon), leading: { MemnoxTile() }) {
+                if setup.daemon == .done {
+                    CheckBox(state: .done)
+                } else if setup.runtime.doing != nil {
+                    ProgressView().controlSize(.small)
+                } else {
+                    checkAgain
                 }
             }
             KitDivider()
-            KitRow(symbol: "rectangle.dashed.badge.record", title: "See your screen",
-                   detail: "Screen Recording, so it can read the window you ask about and check that words landed.") {
-                grant(setup.seeing, asking: setup.isAsking(.seeing)) { setup.allowSeeing() }
-            }
-            if case .needs = setup.seeing {
-                guide(.seeing) {
-                    // macOS hands the grant over only to the next start, so restarting is the last step; after a
-                    // restart that did not take, the switch is an earlier copy's and Start over clears it.
-                    if !setup.seeingStale {
-                        Button("Restart Memnox", systemImage: "arrow.clockwise") { setup.reopen() }
-                            .buttonStyle(KitButton(kind: .primary))
-                    }
-                    Button("Start over", systemImage: "arrow.counterclockwise") { Task { await setup.askAgain(.seeing) } }
-                        .buttonStyle(KitButton(kind: setup.seeingStale ? .primary : .secondary))
-                        .disabled(setup.isAsking(.seeing))
-                }
-            }
-            KitDivider()
-            KitRow(symbol: "touchid", title: "Approve with Touch ID", detail: "Your fingerprint approves what agents ask. The key never leaves this Mac.",
+            KitRow(symbol: "touchid", title: "Approve with Touch ID", detail: "Your approval signs what agents ask. The key never leaves this Mac.",
                    hint: hint(setup.key)) {
                 if setup.key == .done { CheckBox(state: .done) } else { checkAgain }
             }
         }
-        KitCard(symbol: "desktopcomputer", title: "Memnox on this Mac", detail: "Installed under your agents and kept up to date for you.") {
-            KitRow(title: "Memnox service", detail: setup.runtime.doing.map { "\($0)…" } ?? "Installed, started and updated for you.",
-                   hint: hint(setup.daemon), leading: { MemnoxTile() }) {
-                if setup.daemon == .done { CheckBox(state: .done) } else { checkAgain }
+        if let agents = AppWindow.shared.shell.agents {
+            FoundAgents(screen: agents, setup: setup, home: SettingsWindow.shared.home)
+        } else {
+            FoundAgentsFallback(setup: setup)
+        }
+        Next(title: "Continue", flow: flow)
+    }
+
+    private var checkAgain: some View {
+        Button("Check again", systemImage: "arrow.clockwise") { Task { await setup.check() } }.buttonStyle(KitButton(kind: .secondary))
+    }
+}
+
+/// The agents the runtime found here, each protected or one press from it.
+private struct FoundAgents: View {
+    @ObservedObject var screen: AgentsScreen
+    @ObservedObject var setup: SetupModel
+    let home: HomeModel?
+
+    private static let logo: CGFloat = 26
+
+    var body: some View {
+        let found = screen.agents.agents
+        KitCard(symbol: "person.crop.circle.badge.questionmark", title: "Agents on this Mac",
+                detail: found.map(FirstRunLines.agentsFound) ?? "Looking for the agents on this Mac.") {
+            if let found {
+                ForEach(Array(found.enumerated()), id: \.element.kind) { index, agent in
+                    if index > 0 { KitDivider() }
+                    KitRow(title: agent.name, detail: FirstRunLines.agentDetail(agent),
+                           leading: { BrandLogo(agent: agent.kind, name: agent.name, size: Self.logo) }) {
+                        if agent.agentStatus == .unprotected, let home {
+                            ProtectAgents(home: home) { Task { await screen.agents.refresh() } }
+                        } else {
+                            CheckBox(state: .done)
+                        }
+                    }
+                }
+                if found.isEmpty {
+                    KitRow(symbol: "person.crop.circle.badge.questionmark", title: "No agent found yet", detail: "Install one, then check again.") {
+                        Button("Check again") { Task { await screen.agents.refresh() } }.buttonStyle(KitButton(kind: .secondary))
+                    }
+                }
+            } else {
+                // Before the agents method answers, the agents the voice found stand in, so a fresh Mac still shows its agents.
+                InstalledAgents(setup: setup)
             }
+        }
+        .task { await screen.agents.refresh() }
+    }
+}
+
+/// The agents the voice found, when this Mac's runtime has no agents method to ask.
+private struct FoundAgentsFallback: View {
+    @ObservedObject var setup: SetupModel
+
+    var body: some View {
+        KitCard(symbol: "person.crop.circle.badge.questionmark", title: "Agents on this Mac", detail: "Looking for the agents on this Mac.") {
+            InstalledAgents(setup: setup)
+        }
+    }
+}
+
+private struct InstalledAgents: View {
+    @ObservedObject var setup: SetupModel
+
+    private static let logo: CGFloat = 26
+
+    var body: some View {
+        ForEach(Array(setup.agents.filter(\.installed).enumerated()), id: \.element.kind) { index, agent in
+            if index > 0 { KitDivider() }
+            KitRow(title: agent.label, detail: "Found on this Mac.", leading: { BrandLogo(agent: agent.kind, name: agent.label, size: Self.logo) }) {
+                EmptyView()
+            }
+        }
+    }
+}
+
+/// The home's own Protect press, which hooks every agent found on this Mac into Memnox the way setup does.
+private struct ProtectAgents: View {
+    @ObservedObject var home: HomeModel
+    let done: () -> Void
+
+    var body: some View {
+        Button(home.protecting ? "Protecting" : "Protect", action: home.protect)
+            .buttonStyle(KitButton(kind: .secondary))
+            .disabled(home.protecting)
+            .onChange(of: home.protecting) { _, protecting in if !protecting { done() } }
+    }
+}
+
+/// Step two: the servers and skills the agents already keep, brought into Memnox with one tap.
+struct WorkspaceStep: View {
+    @ObservedObject var flow: OnboardingFlow
+
+    var body: some View {
+        StepTitle(title: "Set up your workspace",
+                  detail: "Your agents already have servers and skills of their own. Bring them in once, and give each to the agents you choose.")
+        if let hub = AppWindow.shared.shell.hub, let skills = AppWindow.shared.shell.skills {
+            BringIn(flow: flow, hub: hub, skills: skills)
+        } else {
+            Next(title: "Continue", flow: flow)
+        }
+    }
+}
+
+private struct BringIn: View {
+    @ObservedObject var flow: OnboardingFlow
+    @ObservedObject var hub: McpHubScreen
+    @ObservedObject var skills: SkillsScreen
+    @State private var importing = false
+    @State private var said: String?
+
+    private static let logo: CGFloat = 26
+
+    var body: some View {
+        let read = hub.hub.hub != nil || skills.skills.hub != nil
+        let found = FirstRunLines.found(servers: hub.hub.hub?.found ?? [], skills: skills.skills.hub?.found ?? [])
+        KitCard(symbol: "square.stack.3d.up", title: read ? FirstRunLines.foundLine(found) : "Looking through your agents",
+                detail: "Brought in, a server runs behind Memnox so every call it makes is ruled on and recorded.") {
+            ForEach(Array(found.servers.enumerated()), id: \.offset) { index, server in
+                if index > 0 { KitDivider() }
+                KitRow(title: server.name, detail: "MCP server in \(McpHubLines.agentLabel(server.agent))",
+                       leading: { BrandLogo(agent: server.agent, name: McpHubLines.agentLabel(server.agent), size: Self.logo) }) { EmptyView() }
+            }
+            ForEach(Array(found.skills.enumerated()), id: \.element.id) { index, skill in
+                if index > 0 || !found.servers.isEmpty { KitDivider() }
+                KitRow(title: skill.name, detail: "Skill in \(McpHubLines.agentLabel(skill.agent))",
+                       leading: { BrandLogo(agent: skill.agent, name: McpHubLines.agentLabel(skill.agent), size: Self.logo) }) { EmptyView() }
+            }
+            if !read { ProgressView().controlSize(.small) }
+        }
+        .task {
+            async let servers: Void = hub.hub.refresh()
+            async let kept: Void = skills.skills.refresh()
+            _ = await (servers, kept)
+        }
+        if let said {
+            Text(said)
+                .font(Memnox.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if !found.isEmpty, said == nil {
+            Button { Task { await importAll(found) } } label: {
+                Label(importing ? "Bringing them in" : "Import all", systemImage: "square.and.arrow.down")
+            }
+            .buttonStyle(KitButton(kind: .primary, wide: true))
+            .keyboardShortcut(.defaultAction)
+            .disabled(importing)
+            Button("Not now") { flow.next() }
+                .buttonStyle(KitButton(kind: .secondary, wide: true))
+        } else {
+            Next(title: "Continue", flow: flow)
+        }
+    }
+
+    /// Each one is its own request, so one that fails leaves the rest brought in.
+    private func importAll(_ found: FoundToImport) async {
+        importing = true
+        var imported = 0
+        var failed: [String] = []
+        for server in found.servers {
+            if case .failed(let why) = await hub.hub.importServer(agent: server.agent, server: server.name) {
+                failed.append("\(server.name): \(why)")
+            } else {
+                imported += 1
+            }
+        }
+        for skill in found.skills {
+            if case .failed(let why) = await skills.skills.importFound(id: skill.id, name: skill.name) {
+                failed.append("\(skill.name): \(why)")
+            } else {
+                imported += 1
+            }
+        }
+        importing = false
+        said = FirstRunLines.importedLine(imported, failed: failed)
+    }
+}
+
+/// Step three: a pack of rules to start from, each rule proposed and signed on the island one by one.
+struct BoundariesStep: View {
+    @ObservedObject var flow: OnboardingFlow
+
+    var body: some View {
+        StepTitle(title: "Choose your boundaries",
+                  detail: "Pick the rules your agents start under. Nothing holds until you confirm each rule with Touch ID on the island.")
+        if let studio = AppWindow.shared.shell.studio {
+            RulePacks(flow: flow, screen: studio)
+        } else {
+            Next(title: "Finish", flow: flow)
+        }
+    }
+}
+
+private struct RulePacks: View {
+    @ObservedObject var flow: OnboardingFlow
+    @ObservedObject var screen: StudioScreen
+    @State private var chosen: String?
+    @State private var said: String?
+    @State private var sending = false
+
+    private static let radio: CGFloat = 16
+    private static let ring: CGFloat = 2
+
+    var body: some View {
+        let packs = screen.studio.packs
+        let pack = packs?.first { $0.id == chosen }
+        let imported = said != nil && !sending
+        KitCard(symbol: "checklist", title: "Rule packs", detail: "Each is a starting point. Change any rule later under Governance.") {
+            if let packs {
+                if packs.isEmpty {
+                    Text("This runtime ships no packs yet. The rules it starts with stay in force.")
+                        .font(Memnox.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(Array(packs.enumerated()), id: \.element.id) { index, each in
+                    if index > 0 { KitDivider() }
+                    Button { chosen = each.id } label: {
+                        KitRow(symbol: "checklist", title: FirstRunLines.packTitle(each), detail: each.description) {
+                            Circle()
+                                .strokeBorder(chosen == each.id ? Memnox.Palette.primary : Memnox.ink(Memnox.Ink.tertiary), lineWidth: Self.ring)
+                                .background(Circle().fill(chosen == each.id ? Memnox.Palette.primary : Color.clear))
+                                .frame(width: Self.radio, height: Self.radio)
+                                .accessibilityHidden(true)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHand()
+                    .disabled(imported)
+                    .accessibilityAddTraits(chosen == each.id ? [.isButton, .isSelected] : .isButton)
+                }
+            } else {
+                ProgressView().controlSize(.small)
+            }
+        }
+        .task { await screen.studio.readPacks() }
+        if let said {
+            Text(said)
+                .font(Memnox.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if let pack, !imported {
+            Button { Task { await use(pack) } } label: { Label("Use \(pack.name)", systemImage: "checkmark") }
+                .buttonStyle(KitButton(kind: .primary, wide: true))
+                .keyboardShortcut(.defaultAction)
+                .disabled(sending)
+        } else {
+            Next(title: "Finish", flow: flow)
+        }
+    }
+
+    private func use(_ pack: RulePackView) async {
+        sending = true
+        let outcome = await screen.studio.importPack(pack.toml)
+        sending = false
+        switch outcome {
+        case .failed(let why): said = why
+        case .proposed: said = "Waiting for you on the island."
+        case .done(let line): said = line
+        }
+    }
+}
+
+/// After the three steps, all optional: the permissions to talk, the voice, the apps the agents run in, starting at
+/// sign in, who answers, three keys to try, the workspace and the iPhone.
+struct OptionalStep: View {
+    @ObservedObject var flow: OnboardingFlow
+    @ObservedObject var setup: SetupModel
+
+    var body: some View {
+        StepTitle(title: greeting, detail: "Your agents work inside your boundaries now. Everything below is optional, and waits in Settings.")
+        KitCard(symbol: "lock.shield", title: "Talk to Memnox", detail: "Used only when you talk or approve.") {
+            TalkPermissions(setup: setup)
             KitDivider()
-            // The voice downloads here, during the first run, so Settings never shows it still installing after.
+            // The voice downloads here, so Settings never shows it still installing after.
             KitRow(symbol: "waveform", title: "Voice", detail: setup.voiceDetail, hint: hint(setup.voiceState)) {
                 voiceControl
             }
+            KitDivider()
+            StartAtSignInRow()
         }
+        AgentHomesSetup()
         // Its own card, so which agent answers reads apart from what Memnox installed.
         KitCard(symbol: "person.wave.2", title: "Who answers when you talk", detail: setup.agentsDetail) {
             AgentChecks(setup: setup)
@@ -119,10 +327,47 @@ struct ThisMacStep: View {
                 }
             }
         }
+        KitCard(symbol: "keyboard", title: "Three keys to try", detail: "Memnox answers in the notch.") {
+            KitRow(symbol: "mic", title: "Ask out loud", detail: "Press, talk, and let go.") {
+                HStack(spacing: Memnox.Spacing.medium) {
+                    Keys(["\u{2325}", "Space"])
+                    Button("Try it", systemImage: "play.fill") { flow.menu?.talk() }.buttonStyle(KitButton(kind: .secondary))
+                }
+            }
+            KitDivider()
+            KitRow(symbol: "text.badge.checkmark", title: "Say a rule", detail: "Hold, and say never deploy on Fridays.") {
+                HStack(spacing: Memnox.Spacing.medium) {
+                    Keys(["\u{2303}", "\u{2325}"])
+                    Button("Try it", systemImage: "play.fill") { flow.menu?.sayRule() }.buttonStyle(KitButton(kind: .secondary))
+                }
+            }
+            KitDivider()
+            KitRow(symbol: "keyboard", title: "Dictate anywhere", detail: "Hold, speak, and it types where your cursor is.") {
+                Keys(["Right \u{2325}"])
+            }
+        }
+        if let tools = flow.menu?.tools {
+            SuggestedApps(tools: tools)
+        }
+        KitCard(symbol: "building.2", title: "Your workspace and your phone", detail: "Sign in to your workspace or pair your iPhone. Both wait in Settings.") {
+            // First, since the rules, the workspace memory and a paired phone all come to this Mac through it.
+            if let account = flow.account {
+                if let daemon = account.daemon, let machine = account.machine {
+                    AccountSignIn(account: account, daemon: daemon, machine: machine)
+                }
+                KitDivider()
+            }
+            PhonePairing(setup: setup)
+        }
+        // The app delegate owns the Kokoro download and switches to it when it lands, so finishing never waits on it.
+        Button("Start using Memnox", systemImage: "sparkles") { setup.finish() }
+            .buttonStyle(KitButton(kind: .primary, wide: true))
+            .keyboardShortcut(.defaultAction)
     }
 
-    private var checkAgain: some View {
-        Button("Check again", systemImage: "arrow.clockwise") { Task { await setup.check() } }.buttonStyle(KitButton(kind: .secondary))
+    private var greeting: String {
+        let name = setup.name.trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? "You're set." : "You're set, \(name)."
     }
 
     /// The tick once Kokoro is in, a spinner while it downloads, and a way to try again when it could not.
@@ -134,6 +379,49 @@ struct ThisMacStep: View {
             ProgressView().controlSize(.small)
         case .failed:
             Button("Try again", systemImage: "arrow.clockwise") { Task { await setup.useKokoro?() } }.buttonStyle(KitButton(kind: .secondary))
+        }
+    }
+}
+
+/// The three grants talking needs, each with the steps to its switch once Allow was not enough.
+private struct TalkPermissions: View {
+    @ObservedObject var setup: SetupModel
+
+    var body: some View {
+        KitRow(symbol: "mic", title: "Hear you", detail: "Microphone and speech recognition.", hint: hint(setup.listening)) {
+            grant(setup.listening) { Task { await setup.allowListening() } }
+        }
+        KitDivider()
+        KitRow(symbol: "keyboard", title: "Type for you",
+               detail: "Accessibility, so a follow up lands in the agent's own app.") {
+            grant(setup.typing, asking: setup.isAsking(.typing)) { setup.allowTyping() }
+        }
+        // Only once Allow was not enough do the steps appear, under the row and as wide as it.
+        if case .needs = setup.typing {
+            guide(.typing) {
+                // Start over clears an earlier copy's switch, which shows on and does nothing.
+                Button("Start over", systemImage: "arrow.counterclockwise") { Task { await setup.askAgain(.typing) } }
+                    .buttonStyle(KitButton(kind: .secondary))
+                    .disabled(setup.isAsking(.typing))
+            }
+        }
+        KitDivider()
+        KitRow(symbol: "rectangle.dashed.badge.record", title: "See your screen",
+               detail: "Screen Recording, so it can read the window you ask about and check that words landed.") {
+            grant(setup.seeing, asking: setup.isAsking(.seeing)) { setup.allowSeeing() }
+        }
+        if case .needs = setup.seeing {
+            guide(.seeing) {
+                // macOS hands the grant over only to the next start, so restarting is the last step; after a
+                // restart that did not take, the switch is an earlier copy's and Start over clears it.
+                if !setup.seeingStale {
+                    Button("Restart Memnox", systemImage: "arrow.clockwise") { setup.reopen() }
+                        .buttonStyle(KitButton(kind: .primary))
+                }
+                Button("Start over", systemImage: "arrow.counterclockwise") { Task { await setup.askAgain(.seeing) } }
+                    .buttonStyle(KitButton(kind: setup.seeingStale ? .primary : .secondary))
+                    .disabled(setup.isAsking(.seeing))
+            }
         }
     }
 
@@ -170,55 +458,31 @@ struct ThisMacStep: View {
     }
 }
 
-/// The two keys to try, the iPhone and the sign in for whoever wants them now, and the button that starts Memnox.
-/// The voice, waking by name and speaking up keep their defaults and live in Settings, so nobody decides them here.
-struct ReadyStep: View {
-    @ObservedObject var flow: OnboardingFlow
-    @ObservedObject var setup: SetupModel
+/// Memnox opened at sign in, so a call that waits on the person is never missed because it was closed.
+private struct StartAtSignInRow: View {
+    @State private var on = SMAppService.mainApp.status == .enabled
+    @State private var failed: String?
 
     var body: some View {
-        StepTitle(title: greeting, detail: "Hand an agent the task and close your laptop. Everything inside your boundary runs on its own, and the one thing outside it finds you on your phone.")
-        // The app delegate owns the Kokoro download and switches to it when it lands, so finishing never waits on it.
-        Button("Start using Memnox", systemImage: "sparkles") { setup.finish() }
-            .buttonStyle(KitButton(kind: .primary, wide: true))
-            .keyboardShortcut(.defaultAction)
-        KitCard(symbol: "keyboard", title: "Three keys to try", detail: "Memnox answers in the notch.") {
-            KitRow(symbol: "mic", title: "Ask out loud", detail: "Press, talk, and let go.") {
-                HStack(spacing: Memnox.Spacing.medium) {
-                    Keys(["\u{2325}", "Space"])
-                    Button("Try it", systemImage: "play.fill") { flow.menu?.talk() }.buttonStyle(KitButton(kind: .secondary))
-                }
+        KitRow(symbol: "power", title: "Start when you sign in",
+               detail: "So a call that waits on you is never missed because Memnox was closed.", hint: failed) {
+            if on {
+                CheckBox(state: .done)
+            } else {
+                Button("Turn on") { turnOn() }.buttonStyle(KitButton(kind: .secondary))
             }
-            KitDivider()
-            KitRow(symbol: "text.badge.checkmark", title: "Say a rule", detail: "Hold, and say never deploy on Fridays.") {
-                HStack(spacing: Memnox.Spacing.medium) {
-                    Keys(["\u{2303}", "\u{2325}"])
-                    Button("Try it", systemImage: "play.fill") { flow.menu?.sayRule() }.buttonStyle(KitButton(kind: .secondary))
-                }
-            }
-            KitDivider()
-            KitRow(symbol: "keyboard", title: "Dictate anywhere", detail: "Hold, speak, and it types where your cursor is.") {
-                Keys(["Right \u{2325}"])
-            }
-        }
-        if let tools = flow.menu?.tools {
-            SuggestedApps(tools: tools)
-        }
-        KitCard(symbol: "building.2", title: "Optional", detail: "Your workspace and your iPhone. Both wait in Settings.") {
-            // First, since the rules, the workspace memory and a paired phone all come to this Mac through it.
-            if let account = flow.account {
-                if let daemon = account.daemon, let machine = account.machine {
-                    AccountSignIn(account: account, daemon: daemon, machine: machine)
-                }
-                KitDivider()
-            }
-            PhonePairing(setup: setup)
         }
     }
 
-    private var greeting: String {
-        let name = setup.name.trimmingCharacters(in: .whitespaces)
-        return name.isEmpty ? "You're set." : "You're set, \(name)."
+    private func turnOn() {
+        do {
+            try SMAppService.mainApp.register()
+            on = SMAppService.mainApp.status == .enabled
+            failed = nil
+        } catch {
+            // Said on the row rather than thrown, since macOS can refuse a copy of Memnox outside Applications.
+            failed = "macOS did not add Memnox to your login items: \(error.localizedDescription)"
+        }
     }
 }
 

@@ -1,67 +1,72 @@
 import AppKit
+import MemnoxVoiceCore
 import SwiftUI
 
-/// Where the first run stands: the opening over the whole screen, the name asked there, then the window that walks
-/// through each thing Memnox does and turns it on.
+/// Where the first run stands: the opening over the whole screen, the name asked there, the three steps every Mac
+/// needs, then what is optional after them.
 enum OnboardingStage: Equatable {
     case intro
     case name
     case steps
+    /// The voice, its permissions, the apps, the workspace and the phone, each optional, after the three steps.
+    case optional
 }
 
-/// The steps of the window in order, kept to four so setting up never feels like a chore; the notch plays beside all of them.
+/// The three steps a fresh Mac needs with no account, the same as Windows and Linux; the notch plays beside all of them.
 enum OnboardingStep: Int, CaseIterable, Identifiable {
-    /// What Memnox does, each part played on the real notch.
-    case welcome
-    /// The four grants and Memnox under the agents it found, on one page.
-    case setup
-    /// The editors and terminals the agents run in, each walked through what it needs before it is first used.
-    case editors
-    /// Two keys to try, the iPhone and the sign in if wanted, and the button that starts Memnox.
-    case ready
+    /// The service, Touch ID, and the agents found here, each protected so it passes the boundaries first.
+    case connect
+    /// The servers and skills the agents already keep, brought into Memnox with one tap.
+    case workspace
+    /// A pack of rules to start from, each rule proposed and signed on the island one by one.
+    case boundaries
 
     var id: Int { rawValue }
 
     /// The step's name under the progress bar, so a new person always knows where they are and what is left.
-    var title: String {
-        switch self {
-        case .welcome: return "What Memnox does"
-        case .setup: return "Set up this Mac"
-        case .editors: return "Your apps"
-        case .ready: return "Try it"
-        }
-    }
+    var title: String { FirstRunLines.steps[rawValue] }
 }
 
 /// The first run's state, shared by the opening and the window so the name typed in one is the name in the other.
 @MainActor
 final class OnboardingFlow: ObservableObject {
     @Published var stage: OnboardingStage = .intro
-    @Published var step: OnboardingStep = .welcome
-    /// The part of Memnox the notch beside the steps is playing, lit on the welcome step.
+    @Published var step: OnboardingStep = .connect
+    /// The part of Memnox the notch beside the steps is playing, said on the first step.
     @Published var highlight: Highlight?
     @Published var setup: SetupModel?
     @Published var menu: MenuModel?
     @Published var account: AccountModel?
     /// Told when the opening hands over to the window, so the controller swaps one window for the other.
     var opened: (() -> Void)?
-    /// A part of the welcome the person clicked, which the notch jumps to and plays from.
+    /// A part the notch is asked to jump to and play from.
     @Published private(set) var jump: HighlightJump?
     /// The parts the guide has already spoken, so the notch going round again stays quiet.
     var narrated: Set<Highlight> = []
 
     /// The step the window was on, kept so a reopen for Screen Recording comes back to the same page.
     private static let stepKey = "onboardingStep"
+    /// Whether the window was on what is optional, which is where Screen Recording is asked for.
+    private static let optionalKey = "onboardingOptional"
 
+    var optional: Bool { stage == .optional }
+
+    /// The next step, or what is optional once the three are done.
     func next() {
-        guard let following = OnboardingStep(rawValue: step.rawValue + 1) else { return }
-        step = following
+        if let following = OnboardingStep(rawValue: step.rawValue + 1) {
+            step = following
+        } else {
+            stage = .optional
+        }
         remember()
     }
 
     func back() {
-        guard let previous = OnboardingStep(rawValue: step.rawValue - 1) else { return }
-        step = previous
+        if stage == .optional {
+            stage = .steps
+        } else if let previous = OnboardingStep(rawValue: step.rawValue - 1) {
+            step = previous
+        }
         remember()
     }
 
@@ -77,26 +82,23 @@ final class OnboardingFlow: ObservableObject {
         guard stage == .intro, UserDefaults.standard.object(forKey: Self.stepKey) != nil,
               let kept = OnboardingStep(rawValue: UserDefaults.standard.integer(forKey: Self.stepKey)) else { return }
         step = kept
-        stage = .steps
+        stage = UserDefaults.standard.bool(forKey: Self.optionalKey) ? .optional : .steps
     }
 
     /// Forgets the step, once the first run is over.
     func forget() {
         UserDefaults.standard.removeObject(forKey: Self.stepKey)
+        UserDefaults.standard.removeObject(forKey: Self.optionalKey)
         UserDefaults.standard.removeObject(forKey: Self.guidedKey)
     }
 
-    /// Plays one part of the welcome on the notch now, and says what it is.
-    func pick(_ part: Highlight) {
-        narrated.insert(part)
-        jump = HighlightJump(part: part)
-        setup?.guide(part.spoken)
-    }
+    /// The page on screen, a step or what is optional, so each is introduced once.
+    var page: Int { optional ? OnboardingStep.allCases.count : step.rawValue }
 
-    /// True the first time a step opens in this first run, so a restart for Screen Recording does not hear it again.
-    func firstVisit(_ step: OnboardingStep) -> Bool {
+    /// True the first time a page opens in this first run, so a restart for Screen Recording does not hear it again.
+    func firstVisit(_ page: Int) -> Bool {
         var guided = Set(UserDefaults.standard.array(forKey: Self.guidedKey) as? [Int] ?? [])
-        guard guided.insert(step.rawValue).inserted else { return false }
+        guard guided.insert(page).inserted else { return false }
         UserDefaults.standard.set(Array(guided), forKey: Self.guidedKey)
         return true
     }
@@ -106,10 +108,11 @@ final class OnboardingFlow: ObservableObject {
 
     private func remember() {
         UserDefaults.standard.set(step.rawValue, forKey: Self.stepKey)
+        UserDefaults.standard.set(optional, forKey: Self.optionalKey)
     }
 }
 
-/// A click on one part of the welcome, new each time so clicking the same part twice still plays it again.
+/// A jump to one part of the notch's tour, new each time so the same part twice still plays it again.
 struct HighlightJump: Equatable {
     let part: Highlight
     let id = UUID()
@@ -142,7 +145,7 @@ final class OnboardingWindow {
         flow.menu = SettingsWindow.shared.menu
         flow.account = SettingsWindow.shared.account
         flow.recall()
-        if flow.stage == .steps { showSteps() } else { showVeil() }
+        if flow.stage == .steps || flow.optional { showSteps() } else { showVeil() }
         SetupAmbience.shared.start()
     }
 

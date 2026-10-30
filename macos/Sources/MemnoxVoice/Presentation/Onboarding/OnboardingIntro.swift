@@ -23,7 +23,7 @@ struct OnboardingIntro: View {
             Color.black.opacity(Layout.veilInk)
             switch flow.stage {
             case .intro: opening.transition(.opacity.combined(with: .scale(scale: 0.96)))
-            case .name, .steps: NameQuestion(flow: flow).transition(.opacity.combined(with: .move(edge: .bottom)))
+            case .name, .steps, .optional: NameQuestion(flow: flow).transition(.opacity.combined(with: .move(edge: .bottom)))
             }
             Button("Skip intro", systemImage: "forward.end") { flow.openSteps() }
                 .buttonStyle(.plain)

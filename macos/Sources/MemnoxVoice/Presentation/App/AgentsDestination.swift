@@ -70,8 +70,8 @@ private struct SessionFacts: View {
                 BrandLogo(agent: card.agent, name: card.agentName, size: Self.logo)
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
                     Text(card.title)
-                        .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.body, .semibold))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .lineLimit(2)
                     StatusWord(Tone(card.status), card.status.label)
                 }

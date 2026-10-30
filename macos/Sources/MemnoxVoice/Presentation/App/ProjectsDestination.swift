@@ -71,8 +71,8 @@ struct ProjectsDestination: View {
                 ShellScroll(width: width) {
                     HStack(spacing: Memnox.Spacing.large) {
                         Text("\(ProjectLines.counted(list.count, "project", "projects")), most recently active first.")
-                            .font(Memnox.sans(Memnox.TextSize.footnote))
-                            .foregroundStyle(Memnox.Palette.muted)
+                            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(Memnox.Console.muted)
                         Spacer(minLength: Memnox.Spacing.medium)
                         Button("Open a folder", systemImage: "folder.badge.plus") { opening.toggle() }
                             .buttonStyle(KitButton(kind: .secondary))
@@ -131,40 +131,40 @@ private struct ProjectCard: View {
         Button(action: pick) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
                 HStack(spacing: Memnox.Spacing.medium) {
-                    Image(systemName: "folder").foregroundStyle(Memnox.Palette.muted).accessibilityHidden(true)
+                    Image(systemName: "folder").foregroundStyle(Memnox.Console.muted).accessibilityHidden(true)
                     Text(project.name)
-                        .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.body, .semibold))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .lineLimit(1)
                     Spacer(minLength: Memnox.Spacing.small)
                     ScopeChip(ScopeLines.project(project))
                     if project.sharedBy != nil { OrganizationBadge() } else { StatusWord(Tone(standing.tone), standing.word) }
                 }
                 Text(project.path)
-                    .font(Memnox.mono(Memnox.TextSize.micro))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.micro))
+                    .foregroundStyle(Memnox.Console.muted)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Text([ProjectLines.counted(project.skills.count, "skill", "skills"),
                       ProjectLines.counted(project.servers.count, "server", "servers"),
                       ProjectLines.counted(project.openMissions.count, "open mission", "open missions")].joined(separator: SessionText.separator))
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
                     .lineLimit(1)
                 HStack {
                     AgentLogos(agents: project.agents)
                     Spacer(minLength: Memnox.Spacing.medium)
                     if let active = project.lastActive.flatMap({ SessionText.ago($0, now: Date()) }) {
                         Text("Active \(active)")
-                            .font(Memnox.sans(Memnox.TextSize.footnote))
-                            .foregroundStyle(Memnox.Palette.muted)
+                            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(Memnox.Console.muted)
                     }
                 }
             }
             .padding(Memnox.Spacing.xLarge)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Memnox.Palette.card, in: shape)
-            .overlay(shape.strokeBorder(chosen ? Memnox.Palette.primary : Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .background(Memnox.Console.card, in: shape)
+            .overlay(shape.strokeBorder(chosen ? Memnox.Console.primary : Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             .contentShape(shape)
         }
         .buttonStyle(.plain)
@@ -184,7 +184,7 @@ private struct AgentLogos: View {
             ForEach(agents, id: \.self) { kind in
                 BrandLogo(agent: kind, name: McpHubLines.agentLabel(kind), size: ProjectsLayout.logo)
                     .overlay(RoundedRectangle(cornerRadius: ProjectsLayout.logo / 4, style: .continuous)
-                        .strokeBorder(Memnox.Palette.card, lineWidth: ProjectsLayout.ring))
+                        .strokeBorder(Memnox.Console.card, lineWidth: ProjectsLayout.ring))
             }
         }
     }
@@ -204,12 +204,12 @@ private struct OpenFolderForm: View {
         let shape = RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             Text("The folder, from the top of the drive")
-                .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+                .foregroundStyle(Memnox.Console.muted)
             HStack(spacing: Memnox.Spacing.medium) {
                 TextField("/Users/you/code/project", text: $folder)
                     .kitField()
-                    .font(Memnox.mono(Memnox.TextSize.footnote))
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
                     .onSubmit(go)
                     .accessibilityLabel("The folder to open as a project")
                 Button("Choose", systemImage: "folder", action: choose)
@@ -233,13 +233,13 @@ private struct OpenFolderForm: View {
             }
             if let problem {
                 Text(problem)
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.destructive)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.destructive)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Text(ProjectLines.openLine)
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.muted)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: Memnox.Spacing.medium) {
                 Button(busy ? "Opening" : "Open", systemImage: "folder.badge.plus", action: go)
@@ -249,8 +249,8 @@ private struct OpenFolderForm: View {
             }
         }
         .padding(Memnox.Spacing.xLarge)
-        .background(Memnox.Palette.card, in: shape)
-        .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .background(Memnox.Console.card, in: shape)
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .onAppear { if folder.isEmpty, let first = folders.first { folder = first.path } }
     }
 
@@ -312,8 +312,8 @@ private struct Muted: View {
 
     var body: some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
             .fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -332,8 +332,8 @@ private struct Overview: View {
                 if project.sharedBy != nil { OrganizationBadge() } else { StatusWord(Tone(standing.tone), standing.word) }
                 Spacer(minLength: Memnox.Spacing.medium)
                 Text(project.path)
-                    .font(Memnox.mono(Memnox.TextSize.micro))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.micro))
+                    .foregroundStyle(Memnox.Console.muted)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help(project.path)
@@ -342,8 +342,8 @@ private struct Overview: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
                     ForEach(problems, id: \.self) { problem in
                         Text(problem)
-                            .font(Memnox.sans(Memnox.TextSize.footnote))
-                            .foregroundStyle(Memnox.Palette.destructive)
+                            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(Memnox.Console.destructive)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -351,7 +351,7 @@ private struct Overview: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: Memnox.Spacing.regular), GridItem(.flexible())],
                       spacing: Memnox.Spacing.regular) {
                 ForEach(Array(ProjectLines.tiles(project).enumerated()), id: \.offset) { index, tile in
-                    StatTile(value: tile.value, label: tile.label, symbol: Self.symbols[index % Self.symbols.count], tint: Memnox.Palette.faint)
+                    StatTile(value: tile.value, label: tile.label, symbol: Self.symbols[index % Self.symbols.count], tint: Memnox.Console.faint)
                 }
             }
             if let organization = project.sharedBy { OrganizationPanel(organization: organization) }
@@ -362,7 +362,7 @@ private struct Overview: View {
                     .padding(.horizontal, Memnox.Spacing.xLarge)
                     .padding(.vertical, Memnox.Spacing.large)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                    .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
             } else {
                 editControls(busy: busy)
             }
@@ -376,7 +376,7 @@ private struct Overview: View {
                             if index > 0 { ShellDivider() }
                             ShellRow(title: each.path,
                                      caption: "\(ProjectLines.instructionWord(each))\(SessionText.separator)\(ProjectLines.readersLine(each.agents))") {
-                                Image(systemName: "doc.text").foregroundStyle(Memnox.Palette.muted).accessibilityHidden(true)
+                                Image(systemName: "doc.text").foregroundStyle(Memnox.Console.muted).accessibilityHidden(true)
                             } trailing: {
                                 EmptyView()
                             }
@@ -431,11 +431,11 @@ private struct Overview: View {
 private struct OrganizationBadge: View {
     var body: some View {
         Label(ProjectLines.fromOrganization, systemImage: "building.2")
-            .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+            .foregroundStyle(Memnox.Console.muted)
             .padding(.horizontal, Memnox.Spacing.medium)
             .padding(.vertical, Memnox.Spacing.xSmall)
-            .overlay(Capsule().strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .overlay(Capsule().strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             .lineLimit(1)
     }
 }

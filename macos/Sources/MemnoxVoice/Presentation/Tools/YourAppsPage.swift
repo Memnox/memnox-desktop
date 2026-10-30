@@ -18,24 +18,24 @@ struct YourAppsPage: View {
             SettingsSection(title: "Yours") {
                 Button { tools.refresh() } label: { Label("Check again", systemImage: Self.refreshSymbol) }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Memnox.Console.muted)
             } content: {
                 VStack(alignment: .leading, spacing: SettingsMetrics.cardSpacing) {
                     yours
                     Text(YourApps.allowanceLine)
                         .font(.system(size: SettingsMetrics.captionSize))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                 }
             }
             if let why = tools.actionNote {
                 SettingsCard {
-                    SettingsRow(symbol: Self.noteSymbol, title: "That did not work", caption: why, tint: Memnox.Palette.warm)
+                    SettingsRow(symbol: Self.noteSymbol, title: "That did not work", caption: why, tint: Memnox.Console.warm)
                 }
             }
             SettingsSection(title: "Connect an app") {
                 Text(YourApps.countLine(tools.offered.count, query: tools.query))
                     .font(.system(size: SettingsMetrics.captionSize))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Memnox.Console.muted)
                     .contentTransition(.numericText())
             } content: {
                 VStack(alignment: .leading, spacing: SettingsMetrics.cardSpacing) {
@@ -43,7 +43,7 @@ struct YourAppsPage: View {
                     if let note = tools.searchNote {
                         Text(note)
                             .font(.system(size: SettingsMetrics.captionSize))
-                            .foregroundStyle(Memnox.Palette.warm)
+                            .foregroundStyle(Memnox.Console.warm)
                     }
                     grid(tools.offered)
                 }
@@ -113,7 +113,7 @@ private struct YourAppTile: View {
             VStack(alignment: .leading, spacing: SettingsMetrics.captionSpacing) {
                 Text(card.name)
                     .font(.system(size: SettingsMetrics.rowTextSize, weight: .medium))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(1)
                 Text(waiting ? Self.waitingLine : card.standing.line)
                     .font(.system(size: SettingsMetrics.captionSize))
@@ -126,7 +126,7 @@ private struct YourAppTile: View {
         }
         .padding(.horizontal, SettingsMetrics.cardPadding)
         .frame(height: Self.height)
-        .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: SettingsMetrics.cardRadius, style: .continuous))
+        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: SettingsMetrics.cardRadius, style: .continuous))
         .accessibilityElement(children: .contain)
     }
 
@@ -152,9 +152,9 @@ private struct YourAppTile: View {
 
     private var lineColor: Color {
         switch card.standing {
-        case .connected, .onThisMac: Memnox.Palette.success
-        case .signInAgain: Memnox.Palette.warm
-        case .available: Memnox.Palette.muted
+        case .connected, .onThisMac: Memnox.Console.success
+        case .signInAgain: Memnox.Console.warm
+        case .available: Memnox.Console.muted
         }
     }
 }

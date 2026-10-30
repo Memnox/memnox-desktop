@@ -51,6 +51,11 @@ mkdir -p "$APP/Contents/Resources/Sounds"
 cp Support/Sounds/*.wav "$APP/Contents/Resources/Sounds/"
 # The setup bed is AAC where the Mac that made it could encode one.
 cp Support/Sounds/*.m4a "$APP/Contents/Resources/Sounds/" 2>/dev/null || true
+# Inter and DM Mono under the OFL, shared with Windows and Linux, which the Memnox window registers to read in the console's type.
+FONTS=../shared/tauri-core/src/ui/fonts
+mkdir -p "$APP/Contents/Resources/Fonts"
+cp "$FONTS/inter-latin-opsz-normal.woff2" "$FONTS/dm-mono-latin-400-normal.woff2" "$FONTS/dm-mono-latin-500-normal.woff2" \
+  "$FONTS/OFL-Inter.txt" "$FONTS/OFL-DM-Mono.txt" "$APP/Contents/Resources/Fonts/"
 KOKORO="$APP/Contents/Resources/kokoro"
 # Every build carries the voice, built here the first time, since an app without it speaks in the Mac's voice for
 # the minutes Kokoro takes to download, which sounds broken. MEMNOX_NO_VOICE=1 skips it for a quick build.

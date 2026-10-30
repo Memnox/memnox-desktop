@@ -157,8 +157,8 @@ private struct ListingsSource: View {
         } content: {
             VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
                 Text(IndexLines.source(view))
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: Memnox.Spacing.regular) {
                     TextField("https://example.com/index.json", text: $address)
@@ -180,7 +180,7 @@ private struct ListingsSource: View {
             }
             .padding(ShellMetrics.rowPaddingH)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+            .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
         }
     }
 
@@ -210,16 +210,16 @@ private struct NeedsView: View {
                         VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                             HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.small) {
                                 Text(group.title)
-                                    .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-                                    .foregroundStyle(Memnox.Palette.foreground)
+                                    .font(Memnox.Console.sans(Memnox.TextSize.footnote, .semibold))
+                                    .foregroundStyle(Memnox.Console.foreground)
                                 Text(group.caption)
-                                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                                    .foregroundStyle(Memnox.Palette.muted)
+                                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                                    .foregroundStyle(Memnox.Console.muted)
                             }
                             ForEach(group.items, id: \.self) { item in
                                 Text(item)
-                                    .font(Memnox.mono(Memnox.TextSize.micro))
-                                    .foregroundStyle(Memnox.Palette.foreground)
+                                    .font(Memnox.Console.sans(Memnox.TextSize.micro))
+                                    .foregroundStyle(Memnox.Console.foreground)
                                     .textSelection(.enabled)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
@@ -236,8 +236,8 @@ private struct NeedsView: View {
 
     private var summary: some View {
         Text(IndexLines.needsSummary(needs))
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.foreground)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.foreground)
             .fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -252,8 +252,8 @@ private struct WarningsView: View {
                 StatusWord(.attention, count)
                 ForEach(warnings, id: \.self) { warning in
                     Text(warning)
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.warm)
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.warm)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -271,29 +271,29 @@ private struct ListingCard: View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                 Text(entry.name)
-                    .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(1)
                 Text("\(IndexLines.kindWord(entry.kind)) · \(IndexLines.publisher(entry.publisher))")
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
                     .lineLimit(1)
             }
             Text(entry.description)
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.foreground)
                 .lineLimit(2)
             HStack(spacing: Memnox.Spacing.large) {
                 if entry.unsafe { StatusWord(.bad, "Marked unsafe") } else { Text(IndexLines.latest(entry)) }
                 if let installed = IndexLines.installed(entry) { StatusWord(.good, installed) }
                 Text(IndexLines.supportedAgents(entry.agents))
             }
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
             .lineLimit(1)
             Text(IndexLines.needsSummary(entry.needs))
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.muted)
                 .lineLimit(1)
             if let warnings = IndexLines.warningsCount(entry.warnings) { StatusWord(.attention, warnings) }
             ShellDivider()
@@ -301,8 +301,8 @@ private struct ListingCard: View {
         }
         .padding(Memnox.Spacing.xLarge)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(Memnox.Palette.card, in: shape)
-        .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .background(Memnox.Console.card, in: shape)
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(entry.name)
     }
@@ -320,14 +320,14 @@ private struct ListingDetail: View {
             HStack(spacing: Memnox.Spacing.regular) {
                 Button("Discover", systemImage: "arrow.left", action: back).buttonStyle(KitButton(kind: .secondary))
                 Text(entry.name)
-                    .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(1)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: Memnox.Spacing.medium)
                 Text(IndexLines.kindWord(entry.kind))
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
             }
             if width == .wide || width == .medium {
                 SharedColumns(leftShare: DiscoverLayout.leftShare, gap: ShellMetrics.sectionSpacing) {
@@ -353,8 +353,8 @@ private struct ListingDetail: View {
         if let installed = IndexLines.installed(entry) { facts.append(("Here", installed)) }
         return VStack(alignment: .leading, spacing: ShellMetrics.sectionSpacing) {
             Text(entry.description)
-                .font(Memnox.sans(Memnox.TextSize.body))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.body))
+                .foregroundStyle(Memnox.Console.foreground)
                 .fixedSize(horizontal: false, vertical: true)
             FactList(facts: facts)
             ShellSection(title: "What it needs") {
@@ -403,16 +403,16 @@ private struct ListingDetail: View {
             }
             .padding(ShellMetrics.rowPaddingH)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+            .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
-                .strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             if let latest = entry.latest {
                 Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Memnox.Spacing.xLarge) {
                     GridRow {
-                        Text("Digest").font(Memnox.sans(Memnox.TextSize.footnote)).foregroundStyle(Memnox.Palette.muted)
+                        Text("Digest").font(Memnox.Console.sans(Memnox.TextSize.footnote)).foregroundStyle(Memnox.Console.muted)
                         Text(latest.digest)
-                            .font(Memnox.mono(Memnox.TextSize.micro))
-                            .foregroundStyle(Memnox.Palette.foreground)
+                            .font(Memnox.Console.code(Memnox.TextSize.micro))
+                            .foregroundStyle(Memnox.Console.foreground)
                             .fixedSize(horizontal: false, vertical: true)
                             .textSelection(.enabled)
                     }

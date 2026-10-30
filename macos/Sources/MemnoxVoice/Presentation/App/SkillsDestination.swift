@@ -67,7 +67,7 @@ struct SkillsDestination: View {
             }
             .sheet(isPresented: Binding(get: { assigning != nil }, set: { if !$0 { assigning = nil } })) {
                 if let skill = view.skills.first(where: { $0.name == assigning }) {
-                    AssignSkillSheet(screen: screen, view: view, skill: skill) { assigning = nil }
+                    AssignSkillSheet(screen: screen, view: view, skill: skill) { assigning = nil }.consoleLook()
                 }
             }
         } else if skills.unreadable {
@@ -135,7 +135,7 @@ private struct MySkills: View {
             }
         }
         .sheet(isPresented: $creating) {
-            NewSkillSheet(screen: screen) { creating = false }
+            NewSkillSheet(screen: screen) { creating = false }.consoleLook()
         }
     }
 
@@ -175,12 +175,12 @@ private struct SkillCard: View {
             HStack(alignment: .top, spacing: Memnox.Spacing.medium) {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(skill.name)
-                        .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .lineLimit(1)
                     Text(SkillsLines.categoryVersion(skill))
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.muted)
                         .lineLimit(1)
                 }
                 Spacer(minLength: Memnox.Spacing.medium)
@@ -194,8 +194,8 @@ private struct SkillCard: View {
                 .accessibilityLabel(skill.enabled ? "Turn \(skill.name) off for every agent" : "Hand \(skill.name) back to its agents")
             }
             Text(skill.description)
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.foreground)
                 .lineLimit(1)
             HStack(spacing: Memnox.Spacing.large) {
                 ScopeChip(ScopeLines.skill(skill))
@@ -204,8 +204,8 @@ private struct SkillCard: View {
                 Text(SkillsLines.assigned(skill.agents.count))
                 Text(SkillsLines.updated(skill.updatedAt, now: Date()))
             }
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
             .lineLimit(1)
             ShellDivider()
             HStack(spacing: Memnox.Spacing.medium) {
@@ -215,8 +215,8 @@ private struct SkillCard: View {
         }
         .padding(Memnox.Spacing.xLarge)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(Memnox.Palette.card, in: shape)
-        .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .background(Memnox.Console.card, in: shape)
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(skill.name)
     }
@@ -237,14 +237,14 @@ private struct SkillDetail: View {
             HStack(spacing: Memnox.Spacing.regular) {
                 Button("All skills", systemImage: "arrow.left", action: back).buttonStyle(KitButton(kind: .secondary))
                 Text(skill.name)
-                    .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(1)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: Memnox.Spacing.medium)
                 Text(SkillsLines.categoryVersion(skill))
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
             }
             if width == .wide || width == .medium {
                 SharedColumns(leftShare: SkillsLayout.leftShare, gap: ShellMetrics.sectionSpacing) {
@@ -264,23 +264,23 @@ private struct SkillDetail: View {
     private var what: some View {
         VStack(alignment: .leading, spacing: ShellMetrics.sectionSpacing) {
             Text(skill.description)
-                .font(Memnox.sans(Memnox.TextSize.body))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.body))
+                .foregroundStyle(Memnox.Console.foreground)
                 .fixedSize(horizontal: false, vertical: true)
             ShellSection(title: "Instructions") {
                 ScrollView {
                     Text(skill.instructions)
-                        .font(Memnox.mono(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.code(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                         .padding(ShellMetrics.rowPaddingH)
                 }
                 .frame(maxHeight: SkillsLayout.instructionsHeight)
                 .fixedSize(horizontal: false, vertical: true)
-                .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
-                    .strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                    .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             }
             FactList(facts: [
                 ("Version", skill.version),
@@ -323,8 +323,8 @@ private struct SkillDetail: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
                     StatusWord(.attention, "Held")
                     Text(SkillsLines.held(hold))
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Accept", systemImage: "checkmark") {
                         let name = skill.name
@@ -335,9 +335,9 @@ private struct SkillDetail: View {
                 }
                 .padding(ShellMetrics.rowPaddingH)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
-                    .strokeBorder(Memnox.Palette.warm.opacity(0.4), lineWidth: Memnox.Stroke.hairline))
+                    .strokeBorder(Memnox.Console.warm.opacity(0.4), lineWidth: Memnox.Stroke.hairline))
                 .accessibilityElement(children: .contain)
             }
             if let problems = skill.problems, !problems.isEmpty { listed("Why its folder would not read", problems) }
@@ -376,8 +376,8 @@ private struct SkillDetail: View {
                             HStack(spacing: Memnox.Spacing.regular) {
                                 BrandLogo(agent: each.agent, name: each.label, size: SkillsLayout.smallLogo)
                                 Text(each.label)
-                                    .font(Memnox.sans(Memnox.TextSize.body))
-                                    .foregroundStyle(Memnox.Palette.foreground)
+                                    .font(Memnox.Console.sans(Memnox.TextSize.body))
+                                    .foregroundStyle(Memnox.Console.foreground)
                                 Spacer(minLength: Memnox.Spacing.medium)
                                 StatusWord(!each.supported ? .bad : each.loses.isEmpty ? .good : .attention, SkillsLines.compatibility(each))
                             }
@@ -392,10 +392,10 @@ private struct SkillDetail: View {
             }
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Memnox.Spacing.xLarge) {
                 GridRow {
-                    Text("Digest").font(Memnox.sans(Memnox.TextSize.footnote)).foregroundStyle(Memnox.Palette.muted)
+                    Text("Digest").font(Memnox.Console.sans(Memnox.TextSize.footnote)).foregroundStyle(Memnox.Console.muted)
                     Text(skill.digest)
-                        .font(Memnox.mono(Memnox.TextSize.micro))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.code(Memnox.TextSize.micro))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                 }
@@ -546,11 +546,11 @@ private struct AssignedGrid: View {
                             GridRow {
                                 HStack(spacing: Memnox.Spacing.medium) {
                                     Text(skill.name)
-                                        .font(Memnox.sans(Memnox.TextSize.body, .medium))
-                                        .foregroundStyle(Memnox.Palette.foreground)
+                                        .font(Memnox.Console.sans(Memnox.TextSize.body, .medium))
+                                        .foregroundStyle(Memnox.Console.foreground)
                                         .lineLimit(1)
                                     if !skill.enabled {
-                                        Text("Off").font(Memnox.sans(Memnox.TextSize.footnote)).foregroundStyle(Memnox.Palette.muted)
+                                        Text("Off").font(Memnox.Console.sans(Memnox.TextSize.footnote)).foregroundStyle(Memnox.Console.muted)
                                     }
                                 }
                                 .padding(.horizontal, ShellMetrics.rowPaddingH)
@@ -572,8 +572,8 @@ private struct AssignedGrid: View {
 
     private func header(_ text: String) -> some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote, .semibold))
+            .foregroundStyle(Memnox.Console.muted)
             .lineLimit(1)
             .padding(.horizontal, ShellMetrics.rowPaddingH)
     }
@@ -582,7 +582,7 @@ private struct AssignedGrid: View {
         if skill.agents.contains(agent.agent) {
             Image(systemName: "checkmark")
                 .font(.system(size: Memnox.TextSize.footnote, weight: .semibold))
-                .foregroundStyle(Memnox.Palette.success)
+                .foregroundStyle(Memnox.Console.success)
                 .accessibilityLabel("\(skill.name) for \(agent.label)")
         } else {
             Color.clear.frame(width: 1, height: 1).accessibilityLabel("Not given to \(agent.label)")

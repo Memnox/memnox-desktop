@@ -436,6 +436,17 @@ enum VoiceChoice {
 /// A switch, Memnox blue when on with a white knob as a settings switch is, drawn here since the system one goes grey in a
 /// panel that is not key.
 struct MemnoxSwitch: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        SwitchFace(configuration: configuration)
+    }
+}
+
+/// The switch in the look of its window: the Mac's capsule, or in the Memnox window the console's squircle track, blue
+/// when on and grey when off, its knob a tint of the blue on the dark.
+private struct SwitchFace: View {
+    let configuration: ToggleStyleConfiguration
+    @Environment(\.look) private var look
+
     private enum Layout {
         static let trackWidth: CGFloat = 34
         static let trackHeight: CGFloat = 20
@@ -446,9 +457,39 @@ struct MemnoxSwitch: ToggleStyle {
         static let knobShadowRadius: CGFloat = 1
         static let knobShadowDrop: CGFloat = 1
         static let flip = Animation.spring(response: 0.25, dampingFraction: 0.75)
+        static let consoleWidth: CGFloat = 36
+        static let consoleTrackRadius: CGFloat = 5
+        static let consoleKnobRadius: CGFloat = 4
+        static let consoleOffTrack = 0.4
+        static let consoleKnobShadow = 0.2
+        static let consoleShadowRadius: CGFloat = 2
+        static let consoleFlip = Animation.easeOut(duration: 0.2)
     }
 
-    func makeBody(configuration: Configuration) -> some View {
+    var body: some View {
+        if look == .console { console } else { mac }
+    }
+
+    private var console: some View {
+        let on = configuration.isOn
+        return Button { configuration.isOn.toggle() } label: {
+            ZStack(alignment: on ? .trailing : .leading) {
+                RoundedRectangle(cornerRadius: Layout.consoleTrackRadius, style: .continuous)
+                    .fill(on ? Memnox.Console.primary : Memnox.Console.muted.opacity(Layout.consoleOffTrack))
+                    .frame(width: Layout.consoleWidth, height: Layout.trackHeight)
+                RoundedRectangle(cornerRadius: Layout.consoleKnobRadius, style: .continuous)
+                    .fill(on ? Memnox.Console.switchKnob : Color.white)
+                    .frame(width: Layout.knobSize, height: Layout.knobSize)
+                    .padding(Memnox.Spacing.xxSmall)
+                    .shadow(color: .black.opacity(Layout.consoleKnobShadow), radius: Layout.consoleShadowRadius, y: Layout.knobShadowDrop)
+            }
+            .animation(Layout.consoleFlip, value: on)
+        }
+        .buttonStyle(.plain)
+        .pointingHand()
+    }
+
+    private var mac: some View {
         Button { configuration.isOn.toggle() } label: {
             ZStack(alignment: configuration.isOn ? .trailing : .leading) {
                 Capsule()

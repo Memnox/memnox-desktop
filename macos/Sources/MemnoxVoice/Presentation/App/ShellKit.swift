@@ -11,14 +11,24 @@ enum Tone {
 
     var color: Color {
         switch self {
-        case .good: Memnox.Palette.success
-        case .attention: Memnox.Palette.warm
-        case .bad: Memnox.Palette.destructive
-        case .quiet: Memnox.Palette.muted
+        case .good: Memnox.Console.success
+        case .attention: Memnox.Console.warm
+        case .bad: Memnox.Console.destructive
+        case .quiet: Memnox.Console.muted
         }
     }
 
-    var dot: Color { self == .quiet ? Memnox.Palette.faint : color }
+    var dot: Color { self == .quiet ? Memnox.Console.faint : color }
+
+    /// The console's pill under the word: its own colour at 12 to 14 percent, grey words on the hover fill when quiet.
+    var pill: Color {
+        switch self {
+        case .good: Memnox.Console.success.opacity(ToneTint.soft)
+        case .attention: Memnox.Console.warm.opacity(ToneTint.warm)
+        case .bad: Memnox.Console.destructive.opacity(ToneTint.soft)
+        case .quiet: Memnox.Console.hover
+        }
+    }
 
     /// How a session's status reads: red paused, amber waiting on the person, green busy, grey otherwise.
     init(_ status: SessionStatus) {
@@ -31,18 +41,29 @@ enum Tone {
     }
 }
 
+/// How strongly a status colour washes its pill, as the console mixes them.
+private enum ToneTint {
+    static let soft = 0.12
+    static let warm = 0.14
+}
+
 /// The measures the window's own pieces share, apart from the Settings pages' column.
 enum ShellMetrics {
-    /// The widest a page's content grows, centred in a wider window.
-    static let pageWidth: CGFloat = 1180
+    /// The widest a page's content grows, centred in a wider window, as the console caps its own.
+    static let pageWidth: CGFloat = 1216
     static let pagePadding: CGFloat = 20
+    /// From the console's widest breakpoint the page breathes a little more at its sides.
+    static let widePadding: CGFloat = 28
     static let compactPadding: CGFloat = 14
-    static let sectionSpacing: CGFloat = 26
-    static let rowPaddingH: CGFloat = 14
-    static let rowPaddingV: CGFloat = 10
-    static let radius: CGFloat = 12
+    static let pageTop: CGFloat = 24
+    static let pageBottom: CGFloat = 40
+    static let sectionSpacing: CGFloat = 24
+    static let rowPaddingH: CGFloat = 16
+    static let rowPaddingV: CGFloat = 12
+    static let radius: CGFloat = Memnox.Console.cardRadius
     static let dot: CGFloat = 6
-    static let barHeight: CGFloat = 52
+    /// As tall as the sidebar's head, so the two rules meet at the corner as the console's do.
+    static let barHeight: CGFloat = 56
 }
 
 /// A status in its colour, with the dot beside the word rather than in place of it.
@@ -55,15 +76,20 @@ struct StatusWord: View {
         self.text = text
     }
 
+    private static let padH: CGFloat = 10
+    private static let padV: CGFloat = 2
+
     var body: some View {
-        HStack(spacing: Memnox.Spacing.small) {
-            Circle().fill(tone.dot).frame(width: ShellMetrics.dot, height: ShellMetrics.dot)
-            Text(text)
-                .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                .foregroundStyle(tone.color)
-                .lineLimit(1)
-        }
-        .accessibilityElement(children: .combine)
+        // A state worn as the console's pill, its colour always beside the word.
+        Text(text)
+            .font(Memnox.Console.sans(Memnox.Console.TextSize.meta, .medium))
+            .foregroundStyle(tone.color)
+            .lineLimit(1)
+            .padding(.horizontal, Self.padH)
+            .padding(.vertical, Self.padV)
+            .background(tone.pill, in: Capsule())
+            .fixedSize()
+            .accessibilityElement(children: .combine)
     }
 }
 
@@ -77,12 +103,12 @@ struct ScopeChip: View {
 
     var body: some View {
         Text(kind.word)
-            .font(Memnox.sans(Memnox.TextSize.caption, .medium))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.Console.TextSize.label, .medium))
+            .foregroundStyle(Memnox.Console.muted)
             .lineLimit(1)
-            .padding(.horizontal, Memnox.Spacing.small)
+            .padding(.horizontal, Memnox.Spacing.medium)
             .padding(.vertical, 1)
-            .overlay(Capsule().strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .overlay(Capsule().strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             .fixedSize()
             .accessibilityLabel(kind.label)
     }
@@ -95,9 +121,9 @@ struct ShellPanel<Content: View>: View {
     var body: some View {
         VStack(spacing: 0) { content }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+            .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
-                .strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             .clipShape(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
     }
 }
@@ -105,7 +131,7 @@ struct ShellPanel<Content: View>: View {
 /// The hairline between two rows of a panel.
 struct ShellDivider: View {
     var body: some View {
-        Rectangle().fill(Memnox.Palette.panelEdge).frame(height: Memnox.Stroke.hairline)
+        Rectangle().fill(Memnox.Console.panelEdge).frame(height: Memnox.Stroke.hairline)
     }
 }
 
@@ -135,13 +161,13 @@ struct ShellRow<Leading: View, Trailing: View>: View {
             leading
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                 Text(title)
-                    .font(Memnox.sans(Memnox.TextSize.body, .medium))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(1)
                 if let caption, !caption.isEmpty {
                     Text(caption)
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                        .foregroundStyle(Memnox.Console.muted)
                         .lineLimit(1)
                 }
             }
@@ -150,7 +176,7 @@ struct ShellRow<Leading: View, Trailing: View>: View {
         }
         .padding(.horizontal, ShellMetrics.rowPaddingH)
         .padding(.vertical, ShellMetrics.rowPaddingV)
-        .background(chosen ? Memnox.Palette.hover : Color.clear)
+        .background(chosen ? Memnox.Console.active : Color.clear)
     }
 }
 
@@ -164,8 +190,8 @@ struct ShellSection<Content: View, Trailing: View>: View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.base, .medium))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: Memnox.Spacing.large)
                 trailing
@@ -181,54 +207,82 @@ extension ShellSection where Trailing == EmptyView {
     }
 }
 
-/// What to do when there is nothing here yet, never only that nothing is here.
+/// What to do when there is nothing here yet, never only that nothing is here, in the console's bordered card.
 struct EmptyState: View {
     let symbol: String
     let title: String
     let detail: String
 
-    private static let dash: [CGFloat] = [4, 3]
-    private static let maxText: CGFloat = 420
+    private static let maxText: CGFloat = 448
+    private static let padding: CGFloat = 40
+    private static let symbolSize: CGFloat = 20
 
     var body: some View {
         VStack(spacing: Memnox.Spacing.medium) {
             Image(systemName: symbol)
-                .font(.system(size: Memnox.TextSize.title + 4))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(.system(size: Self.symbolSize))
+                .foregroundStyle(Memnox.Console.muted)
                 .accessibilityHidden(true)
             Text(title)
-                .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
+                .foregroundStyle(Memnox.Console.foreground)
             Text(detail)
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
+                .foregroundStyle(Memnox.Console.muted)
                 .multilineTextAlignment(.center)
+                .lineSpacing(Memnox.Spacing.xxSmall)
                 .frame(maxWidth: Self.maxText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, Memnox.Spacing.xxLarge * 2)
-        .padding(.horizontal, Memnox.Spacing.xxLarge)
+        .padding(Self.padding)
+        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
-            .strokeBorder(Memnox.Palette.panelEdge, style: StrokeStyle(lineWidth: Memnox.Stroke.hairline, dash: Self.dash)))
+            .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .accessibilityElement(children: .combine)
     }
 }
 
-/// A read that failed is said, never drawn as an empty page.
+/// A read that failed is said, never drawn as an empty page: the console's red tinted alert with a bordered Try again.
 struct ReadFailed: View {
     let what: String
     let retry: () -> Void
 
+    private static let edge = 0.3
+    private static let wash = 0.05
+    private static let padding: CGFloat = 16
+    private static let buttonPadding: CGFloat = 14
+
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
+        let button = RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous)
         HStack(spacing: Memnox.Spacing.large) {
-            StatusWord(.bad, "Memnox could not read \(what).")
-            Spacer(minLength: Memnox.Spacing.medium)
-            Button("Try again", action: retry).buttonStyle(KitButton(kind: .secondary))
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: Memnox.TextSize.callout))
+                .foregroundStyle(Memnox.Console.destructive)
+                .accessibilityHidden(true)
+            Text("Memnox could not read \(what).")
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
+                .foregroundStyle(Memnox.Console.foreground)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(action: retry) {
+                Label("Try again", systemImage: "arrow.clockwise")
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
+                    .foregroundStyle(Memnox.Console.foreground)
+                    .padding(.horizontal, Self.buttonPadding)
+                    .frame(height: Memnox.Console.fieldHeight)
+                    .background(Memnox.Console.background, in: button)
+                    .overlay(button.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                    .contentShape(button)
+            }
+            .buttonStyle(.plain)
+            .hoverLight(radius: Memnox.Console.controlRadius, inset: 0)
         }
-        .padding(.horizontal, Memnox.Spacing.xLarge)
-        .padding(.vertical, Memnox.Spacing.large)
-        .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+        .padding(Self.padding)
+        .background(Memnox.Console.destructive.opacity(Self.wash), in: shape)
+        .overlay(shape.strokeBorder(Memnox.Console.destructive.opacity(Self.edge), lineWidth: Memnox.Stroke.hairline))
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -248,8 +302,8 @@ struct GoLink: View {
                 Text(title)
                 Image(systemName: "arrow.right").font(.system(size: Memnox.TextSize.micro, weight: .semibold))
             }
-            .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-            .foregroundStyle(Memnox.Palette.primary)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+            .foregroundStyle(Memnox.Console.primary)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -265,13 +319,13 @@ struct FactList: View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Memnox.Spacing.xLarge, verticalSpacing: Memnox.Spacing.medium) {
             ForEach(facts, id: \.0) { name, value in
                 GridRow {
-                    Text(name).foregroundStyle(Memnox.Palette.muted)
+                    Text(name).foregroundStyle(Memnox.Console.muted)
                     Text(value)
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .foregroundStyle(Memnox.Console.foreground)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                 }
-                .font(Memnox.sans(Memnox.TextSize.footnote))
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
             }
         }
     }
@@ -292,13 +346,13 @@ struct ShellTabBar: View {
                     let on = tab.id == chosen
                     Button { choose(tab.id) } label: {
                         Text(tab.title)
-                            .font(Memnox.sans(Memnox.TextSize.body, on ? .medium : .regular))
-                            .foregroundStyle(on ? Memnox.Palette.foreground : Memnox.Palette.muted)
+                            .font(Memnox.Console.sans(Memnox.TextSize.body, on ? .medium : .regular))
+                            .foregroundStyle(on ? Memnox.Console.foreground : Memnox.Console.muted)
                             .padding(.horizontal, Memnox.Spacing.regular)
                             .padding(.vertical, Memnox.Spacing.regular)
                             .overlay(alignment: .bottom) {
                                 if on {
-                                    Capsule().fill(Memnox.Palette.primary).frame(height: Self.underline)
+                                    Capsule().fill(Memnox.Console.primary).frame(height: Self.underline)
                                         .padding(.horizontal, Memnox.Spacing.medium)
                                 }
                             }
@@ -327,10 +381,21 @@ struct ShellScroll<Content: View>: View {
             VStack(alignment: .leading, spacing: ShellMetrics.sectionSpacing) { content }
                 .frame(maxWidth: ShellMetrics.pageWidth, alignment: .leading)
                 .frame(maxWidth: .infinity)
-                .padding(width == .compact ? ShellMetrics.compactPadding : ShellMetrics.pagePadding)
+                .padding(.horizontal, ShellScroll.side(width))
+                .padding(.top, ShellMetrics.pageTop)
+                .padding(.bottom, ShellMetrics.pageBottom)
         }
         .scrollIndicators(.automatic)
         .clipped()
+    }
+
+    /// The page's sides at a width: tight on the narrowest windows, roomier from the console's widest breakpoint.
+    static func side(_ width: WidthClass) -> CGFloat {
+        switch width {
+        case .compact: ShellMetrics.compactPadding
+        case .wide: ShellMetrics.widePadding
+        case .medium, .narrow: ShellMetrics.pagePadding
+        }
     }
 }
 
@@ -360,11 +425,11 @@ struct InspectorLayout<Page: View, Detail: View>: View {
             ZStack(alignment: .trailing) {
                 page
                 if let title {
-                    let shape = RoundedRectangle(cornerRadius: SettingsMetrics.cardRadius, style: .continuous)
+                    let shape = RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous)
                     pane(title)
                         .clipShape(shape)
-                        .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
-                        .shadow(color: .black.opacity(InspectorSize.floatShadow), radius: InspectorSize.floatShadowRadius)
+                        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                        .shadow(color: .black.opacity(Memnox.Console.liftShadow), radius: Memnox.Console.liftRadius, y: Memnox.Console.liftDrop)
                         .frame(width: InspectorSize.clamped(size))
                         .padding(InspectorSize.floatInset)
                         .transition(.move(edge: .trailing))
@@ -382,8 +447,8 @@ struct InspectorLayout<Page: View, Detail: View>: View {
         VStack(spacing: 0) {
             HStack(spacing: Memnox.Spacing.medium) {
                 Text(title)
-                    .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(1)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 0)
@@ -394,23 +459,23 @@ struct InspectorLayout<Page: View, Detail: View>: View {
                 } label: {
                     Image(systemName: "arrow.up.forward.square")
                         .font(.system(size: Memnox.TextSize.footnote, weight: .semibold))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                         .frame(width: InspectorSize.closeSide, height: InspectorSize.closeSide)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .hoverLight(radius: Memnox.radius, inset: 0)
+                .hoverLight(radius: Memnox.Console.controlRadius, inset: 0)
                 .help("Open the details in their own window")
                 .accessibilityLabel("Open the details in their own window")
                 Button(action: close) {
                     Image(systemName: "xmark")
                         .font(.system(size: Memnox.TextSize.footnote, weight: .semibold))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                         .frame(width: InspectorSize.closeSide, height: InspectorSize.closeSide)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .hoverLight(radius: Memnox.radius, inset: 0)
+                .hoverLight(radius: Memnox.Console.controlRadius, inset: 0)
                 .help("Close the details")
                 .accessibilityLabel("Close the details")
             }
@@ -420,10 +485,10 @@ struct InspectorLayout<Page: View, Detail: View>: View {
             ScrollView {
                 detail
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(Memnox.Spacing.xLarge)
+                    .padding(Memnox.Spacing.xxLarge)
             }
         }
-        .background(Memnox.Palette.background)
+        .background(Memnox.Console.card)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
     }
@@ -439,9 +504,7 @@ enum InspectorSize {
     static let step: Double = 20
     /// Floating over a medium window: held off its edges, lifted just enough to read as above the page.
     static let floatInset: CGFloat = 8
-    static let floatShadow = 0.22
-    static let floatShadowRadius: CGFloat = 14
-    static let closeSide: CGFloat = 26
+    static let closeSide: CGFloat = 32
 
     static func clamped(_ size: Double) -> CGFloat {
         CGFloat(min(most, max(least, size)))
@@ -458,7 +521,7 @@ private struct InspectorHandle: View {
 
     var body: some View {
         Rectangle()
-            .fill(Memnox.Palette.panelEdge)
+            .fill(Memnox.Console.panelEdge)
             .frame(width: Memnox.Stroke.hairline)
             .frame(width: Self.hitWidth)
             .contentShape(Rectangle())

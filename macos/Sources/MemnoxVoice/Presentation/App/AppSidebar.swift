@@ -76,16 +76,16 @@ struct AppSidebar: View {
             LogoMark(size: Layout.logo)
             if !rail {
                 Text("Memnox")
-                    .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
                 Spacer(minLength: 0)
                 Text("Local")
-                    .font(Memnox.sans(Memnox.TextSize.micro, .medium))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.micro, .medium))
+                    .foregroundStyle(Memnox.Console.muted)
                     .padding(.horizontal, Memnox.Spacing.small)
                     .padding(.vertical, Memnox.Spacing.xxSmall)
                     .overlay(RoundedRectangle(cornerRadius: Memnox.radius, style: .continuous)
-                        .strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                        .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             }
         }
         .padding(.horizontal, rail ? 0 : Memnox.Spacing.small)
@@ -97,12 +97,12 @@ struct AppSidebar: View {
             HStack(spacing: Memnox.Spacing.regular) {
                 Image(systemName: symbol)
                     .font(.system(size: Layout.iconSize, weight: .medium))
-                    .foregroundStyle(chosen ? Memnox.Palette.primary : Memnox.Palette.muted)
+                    .foregroundStyle(chosen ? Memnox.Console.primary : Memnox.Console.muted)
                     .frame(width: Layout.iconWidth)
                 if !rail {
                     Text(title)
-                        .font(Memnox.sans(Memnox.TextSize.body, chosen ? .medium : .regular))
-                        .foregroundStyle(chosen ? Memnox.Palette.foreground : Memnox.Palette.muted)
+                        .font(Memnox.Console.sans(Memnox.TextSize.body, chosen ? .medium : .regular))
+                        .foregroundStyle(chosen ? Memnox.Console.foreground : Memnox.Console.muted)
                         .lineLimit(1)
                     Spacer(minLength: 0)
                 }
@@ -110,7 +110,7 @@ struct AppSidebar: View {
             .padding(.horizontal, rail ? 0 : Memnox.Spacing.regular)
             .frame(width: rail ? Layout.railRow : nil, height: Layout.rowHeight)
             .frame(maxWidth: rail ? nil : .infinity, alignment: .leading)
-            .background(chosen ? Memnox.Palette.hover : Color.clear,
+            .background(chosen ? Memnox.Console.hover : Color.clear,
                         in: RoundedRectangle(cornerRadius: Layout.rowRadius, style: .continuous))
             .hoverLight(radius: Layout.rowRadius, inset: 0)
             .contentShape(Rectangle())

@@ -44,11 +44,11 @@ struct CommandPalette: View {
         return VStack(spacing: 0) {
             HStack(spacing: Memnox.Spacing.regular) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Memnox.Console.muted)
                     .accessibilityHidden(true)
                 TextField("Go to a page, such as servers or approvals", text: $query)
                     .textFieldStyle(.plain)
-                    .font(Memnox.sans(Memnox.TextSize.callout))
+                    .font(Memnox.Console.sans(Memnox.TextSize.callout))
                     .focused($typing)
                     .accessibilityLabel("Go to")
                     .onSubmit { choose(found) }
@@ -70,8 +70,8 @@ struct CommandPalette: View {
                     VStack(spacing: Memnox.Spacing.xxSmall) {
                         if found.isEmpty {
                             Text("Nothing here by that name.")
-                                .font(Memnox.sans(Memnox.TextSize.footnote))
-                                .foregroundStyle(Memnox.Palette.muted)
+                                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                                .foregroundStyle(Memnox.Console.muted)
                                 .padding(.vertical, Memnox.Spacing.xxLarge)
                         }
                         ForEach(Array(found.enumerated()), id: \.element.id) { index, each in
@@ -87,8 +87,8 @@ struct CommandPalette: View {
             }
         }
         .frame(maxWidth: Layout.width)
-        .background(Memnox.Palette.background, in: shape)
-        .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .background(Memnox.Console.background, in: shape)
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .clipShape(shape)
         .shadow(color: .black.opacity(Layout.shadow), radius: Layout.shadowRadius)
         .accessibilityElement(children: .contain)
@@ -100,27 +100,27 @@ struct CommandPalette: View {
         Button { go(each.route) } label: {
             HStack(spacing: Memnox.Spacing.large) {
                 Text(each.title)
-                    .font(Memnox.sans(Memnox.TextSize.body))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.body))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(1)
                 Spacer(minLength: Memnox.Spacing.medium)
                 if !each.under.isEmpty {
                     Text(each.under)
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.muted)
                 }
                 if let key = each.key {
                     Keycap(label: ShellLines.shortcutWords(key, mac: true))
                 }
                 Image(systemName: "return")
                     .font(.system(size: Memnox.TextSize.caption))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Memnox.Console.muted)
                     .opacity(chosen ? 1 : 0)
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, Memnox.Spacing.large)
             .padding(.vertical, Memnox.Spacing.medium)
-            .background(chosen ? Memnox.Palette.hover : Color.clear,
+            .background(chosen ? Memnox.Console.hover : Color.clear,
                         in: RoundedRectangle(cornerRadius: SettingsMetrics.hoverRadius, style: .continuous))
             .contentShape(Rectangle())
         }

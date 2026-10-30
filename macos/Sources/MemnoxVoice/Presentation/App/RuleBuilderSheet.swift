@@ -28,8 +28,8 @@ struct RuleBuilderSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("New rule")
-                .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                .foregroundStyle(Memnox.Console.foreground)
                 .accessibilityAddTraits(.isHeader)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Memnox.Spacing.xxLarge)
@@ -40,32 +40,32 @@ struct RuleBuilderSheet: View {
                     when
                     then
                     Text(StudioLines.draftSentence(draft, agentName: McpHubLines.agentLabel))
-                        .font(Memnox.sans(Memnox.TextSize.body))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.body))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, ShellMetrics.rowPaddingH)
                         .padding(.vertical, Memnox.Spacing.large)
-                        .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
                         .accessibilityLabel("This rule would say: \(StudioLines.draftSentence(draft, agentName: McpHubLines.agentLabel))")
                     DisclosureGroup("Show the rule as written", isExpanded: $written) {
                         ScrollView {
                             Text(asWritten)
-                                .font(Memnox.mono(Memnox.TextSize.micro))
-                                .foregroundStyle(Memnox.Palette.foreground)
+                                .font(Memnox.Console.code(Memnox.TextSize.micro))
+                                .foregroundStyle(Memnox.Console.foreground)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(Memnox.Spacing.large)
                         }
                         .frame(maxHeight: Self.writtenHeight)
-                        .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
+                        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
                     }
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
                     if let problem {
                         Text(problem)
-                            .font(Memnox.sans(Memnox.TextSize.footnote))
-                            .foregroundStyle(Memnox.Palette.destructive)
+                            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(Memnox.Console.destructive)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -76,7 +76,7 @@ struct RuleBuilderSheet: View {
             footer
         }
         .frame(width: Self.width)
-        .background(Memnox.Palette.background)
+        .background(Memnox.Console.background)
         .buttonStyle(QuietButton())
         .onAppear { actionFocused = true }
     }
@@ -95,7 +95,7 @@ struct RuleBuilderSheet: View {
             HStack(spacing: Memnox.Spacing.small) {
                 TextField("git.push", text: $action)
                     .kitField()
-                    .font(Memnox.mono(Memnox.TextSize.body))
+                    .font(Memnox.Console.code(Memnox.TextSize.body))
                     .focused($actionFocused)
                     .accessibilityLabel("The action")
                 if !known.isEmpty {
@@ -150,8 +150,8 @@ struct RuleBuilderSheet: View {
 
     private func legend(_ text: String) -> some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote, .semibold))
+            .foregroundStyle(Memnox.Console.muted)
             .accessibilityAddTraits(.isHeader)
     }
 
@@ -163,15 +163,15 @@ struct RuleBuilderSheet: View {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
                 StatusWord(Tone(effect: each.rawValue), words.title)
                 Text(words.says)
-                    .font(Memnox.sans(Memnox.TextSize.micro))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.micro))
+                    .foregroundStyle(Memnox.Console.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Memnox.Spacing.large)
             .padding(.vertical, Memnox.Spacing.regular)
-            .background(on ? Memnox.Palette.hover : Color.clear, in: shape)
-            .overlay(shape.strokeBorder(on ? Memnox.Palette.primary : Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .background(on ? Memnox.Console.hover : Color.clear, in: shape)
+            .overlay(shape.strokeBorder(on ? Memnox.Console.primary : Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             .contentShape(shape)
         }
         .buttonStyle(.plain)

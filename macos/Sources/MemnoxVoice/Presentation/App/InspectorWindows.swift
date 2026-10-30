@@ -49,8 +49,8 @@ private struct InspectorWindowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(Memnox.Spacing.xLarge)
         }
-        .background(Memnox.Palette.background)
-        .tint(Memnox.Palette.primary)
+        .background(Memnox.Console.card)
+        .consoleLook()
     }
 }
 

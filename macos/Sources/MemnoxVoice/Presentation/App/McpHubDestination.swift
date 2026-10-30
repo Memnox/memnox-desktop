@@ -80,14 +80,14 @@ struct McpHubDestination: View {
     @ViewBuilder private var note: some View {
         if let line = screen.note {
             Text(line)
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.foreground)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, ShellMetrics.rowPaddingH)
                 .padding(.vertical, ShellMetrics.rowPaddingV)
-                .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
-                    .strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                    .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
                 .accessibilityAddTraits(.updatesFrequently)
         }
     }
@@ -141,7 +141,7 @@ private struct McpServers<Note: View>: View {
             }
         }
         .sheet(isPresented: $adding) {
-            AddServerSheet(screen: screen, agents: view.agents.map(\.agent)) { adding = false }
+            AddServerSheet(screen: screen, agents: view.agents.map(\.agent)) { adding = false }.consoleLook()
         }
     }
 
@@ -184,12 +184,12 @@ private struct McpServerCard: View {
             VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(server.name)
-                        .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .lineLimit(1)
                     Text(server.description ?? McpHubLines.launch(server))
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.muted)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -204,19 +204,19 @@ private struct McpServerCard: View {
                     Text(McpHubLines.tools(server.toolCount))
                     ScopeChip(ScopeLines.server(server))
                 }
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.muted)
                 HStack {
                     if server.agents.isEmpty {
                         Text(McpHubLines.agents(0))
-                            .font(Memnox.sans(Memnox.TextSize.footnote))
-                            .foregroundStyle(Memnox.Palette.muted)
+                            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(Memnox.Console.muted)
                     } else {
                         HStack(spacing: Self.overlap) {
                             ForEach(McpHubLines.agentsOnce(server), id: \.self) { agent in
                                 BrandLogo(agent: agent, name: McpHubLines.agentLabel(agent), size: Self.logo)
                                     .overlay(RoundedRectangle(cornerRadius: Self.logo / 4, style: .continuous)
-                                        .strokeBorder(Memnox.Palette.card, lineWidth: Self.ring))
+                                        .strokeBorder(Memnox.Console.card, lineWidth: Self.ring))
                             }
                         }
                         .accessibilityLabel(McpHubLines.agents(server.agents.count))
@@ -238,8 +238,8 @@ private struct McpServerCard: View {
             }
             .padding(Memnox.Spacing.xLarge)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Memnox.Palette.card, in: shape)
-            .overlay(shape.strokeBorder(chosen ? Memnox.Palette.primary : Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .background(Memnox.Console.card, in: shape)
+            .overlay(shape.strokeBorder(chosen ? Memnox.Console.primary : Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             .contentShape(shape)
         }
         .buttonStyle(.plain)
@@ -279,14 +279,14 @@ private struct McpServerDetail: View {
                 }
                 if let error = health.error {
                     Text(error)
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.destructive)
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.destructive)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                 }
                 Text(([McpHubLines.launch(server)] + (server.args ?? [])).joined(separator: " "))
-                    .font(Memnox.mono(Memnox.TextSize.micro))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.code(Memnox.TextSize.micro))
+                    .foregroundStyle(Memnox.Console.muted)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
                 quiet(McpHubLines.calls(server.callsThisWeek))
@@ -352,7 +352,7 @@ private struct McpServerDetail: View {
                             if index > 0 { ShellDivider() }
                             let held = server.secretsHeld[name] == true
                             ShellRow(title: name) {
-                                Image(systemName: "key").foregroundStyle(Memnox.Palette.muted).accessibilityHidden(true)
+                                Image(systemName: "key").foregroundStyle(Memnox.Console.muted).accessibilityHidden(true)
                             } trailing: {
                                 StatusWord(held ? .good : .bad, held ? "Kept by this computer" : "Not set")
                             }
@@ -414,8 +414,8 @@ private struct McpServerDetail: View {
 
     private func quiet(_ text: String) -> some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
             .fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -437,8 +437,8 @@ private struct McpFound: View {
                     }
                 }
                 Text("Bringing a server in puts it behind Memnox, so every call it makes is ruled on and recorded.")
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
             }
         }
     }
@@ -449,7 +449,7 @@ private struct McpFound: View {
             if let agent = entry.agent {
                 BrandLogo(agent: agent, name: McpHubLines.agentLabel(agent), size: Self.logo)
             } else {
-                Image(systemName: "powerplug").foregroundStyle(Memnox.Palette.muted).accessibilityHidden(true)
+                Image(systemName: "powerplug").foregroundStyle(Memnox.Console.muted).accessibilityHidden(true)
             }
         } trailing: {
             if let agent = entry.agent {
@@ -458,8 +458,8 @@ private struct McpFound: View {
                     .disabled(screen.hub.busy == entry.name)
             } else {
                 Text("A repository\u{2019}s own file")
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
             }
         }
     }
@@ -521,8 +521,8 @@ private struct McpClients: View {
                             ShellDivider().gridCellUnsizedAxes(.horizontal)
                             GridRow {
                                 Text(server.name)
-                                    .font(Memnox.sans(Memnox.TextSize.body, .medium))
-                                    .foregroundStyle(Memnox.Palette.foreground)
+                                    .font(Memnox.Console.sans(Memnox.TextSize.body, .medium))
+                                    .foregroundStyle(Memnox.Console.foreground)
                                     .lineLimit(1)
                                     .padding(.horizontal, ShellMetrics.rowPaddingH)
                                 ForEach(view.agents, id: \.agent) { each in
@@ -538,8 +538,8 @@ private struct McpClients: View {
             if view.servers.contains(where: { !($0.projects ?? []).isEmpty }) {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
                     Text(McpHubLines.projectOnlyLine)
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.muted)
                         .fixedSize(horizontal: false, vertical: true)
                     GoLink(McpHubLines.workspacesLink, action: workspaces)
                 }
@@ -549,8 +549,8 @@ private struct McpClients: View {
 
     private func header(_ text: String) -> some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote, .semibold))
+            .foregroundStyle(Memnox.Console.muted)
             .lineLimit(1)
             .padding(.horizontal, ShellMetrics.rowPaddingH)
     }
@@ -613,13 +613,13 @@ private struct McpProjectChips: View {
                 Image(systemName: "folder").font(.system(size: Self.icon)).accessibilityHidden(true)
                 Text(project.name).lineLimit(1).truncationMode(.middle)
             }
-            .font(Memnox.sans(Memnox.TextSize.micro))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.micro))
+            .foregroundStyle(Memnox.Console.muted)
             .padding(.horizontal, Memnox.Spacing.small)
             .padding(.vertical, Memnox.Spacing.xxSmall)
             .frame(maxWidth: Self.widest)
-            .background(Memnox.Palette.hover, in: Capsule())
-            .overlay(Capsule().strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .background(Memnox.Console.hover, in: Capsule())
+            .overlay(Capsule().strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             .help(help)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(help)
@@ -658,7 +658,7 @@ private struct McpSecretRow: View {
 
     var body: some View {
         ShellRow(title: secret.name, caption: "Used by \(secret.usedBy.joined(separator: ", "))") {
-            Image(systemName: "key").foregroundStyle(Memnox.Palette.muted).accessibilityHidden(true)
+            Image(systemName: "key").foregroundStyle(Memnox.Console.muted).accessibilityHidden(true)
         } trailing: {
             HStack(spacing: Memnox.Spacing.medium) {
                 if editing {

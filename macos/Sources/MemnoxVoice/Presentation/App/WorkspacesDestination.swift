@@ -62,15 +62,15 @@ private struct WorkspaceCard: View {
         Button(action: pick) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
                 HStack(spacing: Memnox.Spacing.medium) {
-                    Image(systemName: "folder").foregroundStyle(Memnox.Palette.muted).accessibilityHidden(true)
+                    Image(systemName: "folder").foregroundStyle(Memnox.Console.muted).accessibilityHidden(true)
                     Text(workspace.name)
-                        .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.body, .semibold))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .lineLimit(1)
                 }
                 Text(workspace.path)
-                    .font(Memnox.mono(Memnox.TextSize.micro))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.micro))
+                    .foregroundStyle(Memnox.Console.muted)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 HStack {
@@ -78,21 +78,21 @@ private struct WorkspaceCard: View {
                         ForEach(workspace.agents, id: \.kind) { agent in
                             BrandLogo(agent: agent.kind, name: agent.name, size: Self.logo)
                                 .overlay(RoundedRectangle(cornerRadius: Self.logo / 4, style: .continuous)
-                                    .strokeBorder(Memnox.Palette.card, lineWidth: Self.ring))
+                                    .strokeBorder(Memnox.Console.card, lineWidth: Self.ring))
                         }
                     }
                     Spacer(minLength: Memnox.Spacing.medium)
                     if let ago = workspace.lastActive {
                         Text("Active \(ago)")
-                            .font(Memnox.sans(Memnox.TextSize.footnote))
-                            .foregroundStyle(Memnox.Palette.muted)
+                            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(Memnox.Console.muted)
                     }
                 }
             }
             .padding(Memnox.Spacing.xLarge)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Memnox.Palette.card, in: shape)
-            .overlay(shape.strokeBorder(chosen ? Memnox.Palette.primary : Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .background(Memnox.Console.card, in: shape)
+            .overlay(shape.strokeBorder(chosen ? Memnox.Console.primary : Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             .contentShape(shape)
         }
         .buttonStyle(.plain)
@@ -113,9 +113,9 @@ private struct WorkspaceOverview: View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
             HStack(spacing: Memnox.Spacing.regular) {
                 StatTile(value: workspace.agents.count, label: workspace.agents.count == 1 ? "Agent" : "Agents",
-                         symbol: "cpu", tint: Memnox.Palette.faint)
+                         symbol: "cpu", tint: Memnox.Console.faint)
                 StatTile(value: workspace.sessions, label: workspace.sessions == 1 ? "Session" : "Sessions",
-                         symbol: "text.bubble", tint: Memnox.Palette.faint)
+                         symbol: "text.bubble", tint: Memnox.Console.faint)
             }
             ShellSection(title: "Agents that worked here") {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
@@ -123,16 +123,16 @@ private struct WorkspaceOverview: View {
                         HStack(spacing: Memnox.Spacing.regular) {
                             BrandLogo(agent: agent.kind, name: agent.name, size: Self.logo)
                             Text(agent.name)
-                                .font(Memnox.sans(Memnox.TextSize.body))
-                                .foregroundStyle(Memnox.Palette.foreground)
+                                .font(Memnox.Console.sans(Memnox.TextSize.body))
+                                .foregroundStyle(Memnox.Console.foreground)
                         }
                     }
                 }
             }
             GoLink("Its sessions", action: sessions)
             Text("Last active \(SessionText.ago(workspace.lastActiveAt, now: Date()) ?? "a while ago").")
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.muted)
         }
     }
 }

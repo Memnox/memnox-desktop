@@ -122,8 +122,8 @@ private struct RestoreBackupCard: View {
                 Button("Choose a file", systemImage: "doc.badge.arrow.up", action: choose)
                     .buttonStyle(KitButton(kind: .secondary))
                 Text(archive?.name ?? "No file chosen")
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -136,16 +136,16 @@ private struct RestoreBackupCard: View {
                 SettingsDivider(full: true)
                 VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
                     Text(BackupLines.restoreWaitsLine)
-                        .font(Memnox.sans(Memnox.TextSize.body))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.body))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .fixedSize(horizontal: false, vertical: true)
                     Muted("\(madeLine(proposed.createdAt)): \(BackupLines.summaryLine(proposed))")
                     ScrollView {
                         VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                             ForEach(proposed.files, id: \.self) { file in
                                 Text(file)
-                                    .font(Memnox.mono(Memnox.TextSize.micro))
-                                    .foregroundStyle(Memnox.Palette.muted)
+                                    .font(Memnox.Console.sans(Memnox.TextSize.micro))
+                                    .foregroundStyle(Memnox.Console.muted)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
                             }
@@ -209,8 +209,8 @@ private struct PassphraseField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
             Text(label)
-                .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+                .foregroundStyle(Memnox.Console.muted)
             SecureField("At least \(BackupLines.shortestPassphrase) characters", text: $value)
                 .kitField()
                 .onSubmit { submit?() }
@@ -228,8 +228,8 @@ private struct ProblemLine: View {
 
     var body: some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.destructive)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.destructive)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.updatesFrequently)
     }
@@ -244,8 +244,8 @@ private struct Muted: View {
 
     var body: some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

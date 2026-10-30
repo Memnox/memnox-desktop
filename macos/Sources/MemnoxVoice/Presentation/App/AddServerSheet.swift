@@ -62,8 +62,8 @@ struct AddServerSheet: View {
                     }
                     if let problem {
                         Text(problem)
-                            .font(Memnox.sans(Memnox.TextSize.footnote))
-                            .foregroundStyle(Memnox.Palette.destructive)
+                            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(Memnox.Console.destructive)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -75,20 +75,20 @@ struct AddServerSheet: View {
         }
         .frame(width: Self.width)
         .frame(minHeight: Self.minHeight)
-        .background(Memnox.Palette.background)
+        .background(Memnox.Console.background)
         .buttonStyle(QuietButton())
     }
 
     private var header: some View {
         HStack(spacing: Memnox.Spacing.large) {
             Text("Add a server")
-                .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                .foregroundStyle(Memnox.Console.foreground)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: Memnox.Spacing.medium)
             Text("\(Self.steps[step]) \u{00B7} step \(step + 1) of \(Self.steps.count)")
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.muted)
         }
         .padding(.horizontal, Memnox.Spacing.xxLarge)
         .frame(height: ShellMetrics.barHeight)
@@ -131,7 +131,7 @@ struct AddServerSheet: View {
             labelled("Command") {
                 TextField("npx -y @modelcontextprotocol/server-github", text: $launch)
                     .kitField()
-                    .font(Memnox.mono(Memnox.TextSize.body))
+                    .font(Memnox.Console.code(Memnox.TextSize.body))
             }
         }
     }
@@ -139,8 +139,8 @@ struct AddServerSheet: View {
     /// A remote server's headers, a credential kept as a secret from the moment its name is typed.
     @ViewBuilder private var headerRows: some View {
         Text("Headers, optional")
-            .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+            .foregroundStyle(Memnox.Console.muted)
         ForEach($headers) { $header in
             HStack(spacing: Memnox.Spacing.medium) {
                 TextField("Authorization", text: Binding(get: { header.row.name }, set: { typed in
@@ -149,7 +149,7 @@ struct AddServerSheet: View {
                     if HeaderLines.isCredential(typed) { header.row.secret = true }
                 }))
                 .kitField()
-                .font(Memnox.mono(Memnox.TextSize.body))
+                .font(Memnox.Console.code(Memnox.TextSize.body))
                 .frame(width: Self.variableName)
                 .accessibilityLabel("Header name")
                 Group {
@@ -171,7 +171,7 @@ struct AddServerSheet: View {
                     Image(systemName: "minus").frame(width: Self.removeSide, height: Self.removeSide).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Memnox.Palette.muted)
+                .foregroundStyle(Memnox.Console.muted)
                 .hoverLight(radius: Memnox.radius, inset: 0)
                 .help("Remove this header")
                 .accessibilityLabel("Remove this header")
@@ -187,7 +187,7 @@ struct AddServerSheet: View {
             HStack(spacing: Memnox.Spacing.medium) {
                 TextField("GITHUB_TOKEN", text: $variable.name)
                     .kitField()
-                    .font(Memnox.mono(Memnox.TextSize.body))
+                    .font(Memnox.Console.code(Memnox.TextSize.body))
                     .frame(width: Self.variableName)
                     .accessibilityLabel("Variable name")
                 Group {
@@ -206,7 +206,7 @@ struct AddServerSheet: View {
                     Image(systemName: "minus").frame(width: Self.removeSide, height: Self.removeSide).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Memnox.Palette.muted)
+                .foregroundStyle(Memnox.Console.muted)
                 .hoverLight(radius: Memnox.radius, inset: 0)
                 .help("Remove this variable")
                 .accessibilityLabel("Remove this variable")
@@ -220,8 +220,8 @@ struct AddServerSheet: View {
         quiet("Choose who gets it. Each one waits for your signature with Touch ID.")
         if agents.isEmpty {
             Text("No agent with an MCP config was found yet. The server is kept, and you can give it later.")
-                .font(Memnox.sans(Memnox.TextSize.body))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.body))
+                .foregroundStyle(Memnox.Console.muted)
                 .fixedSize(horizontal: false, vertical: true)
         } else {
             VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
@@ -243,21 +243,21 @@ struct AddServerSheet: View {
         }
         Button(advanced ? "Hide what will be written" : "Show what will be written") { advanced.toggle() }
             .buttonStyle(.plain)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
             .underline()
             .pointingHand()
         if advanced {
             ScrollView {
                 Text(previewText)
-                    .font(Memnox.mono(Memnox.TextSize.micro))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.code(Memnox.TextSize.micro))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
                     .padding(Memnox.Spacing.large)
             }
             .frame(maxHeight: Self.preview)
-            .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+            .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
         }
     }
 
@@ -350,8 +350,8 @@ struct AddServerSheet: View {
     private func labelled<Field: View>(_ label: String, @ViewBuilder field: () -> Field) -> some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
             Text(label)
-                .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+                .foregroundStyle(Memnox.Console.muted)
             field()
         }
     }
@@ -361,17 +361,17 @@ struct AddServerSheet: View {
         return Button(action: pick) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                 Text(title)
-                    .font(Memnox.sans(Memnox.TextSize.body, .medium))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.body, .medium))
+                    .foregroundStyle(Memnox.Console.foreground)
                 Text(body)
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, ShellMetrics.rowPaddingH)
             .padding(.vertical, Memnox.Spacing.large)
-            .background(on ? Memnox.Palette.hover : Color.clear, in: shape)
-            .overlay(shape.strokeBorder(on ? Memnox.Palette.primary : Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .background(on ? Memnox.Console.hover : Color.clear, in: shape)
+            .overlay(shape.strokeBorder(on ? Memnox.Console.primary : Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             .contentShape(shape)
         }
         .buttonStyle(.plain)
@@ -381,8 +381,8 @@ struct AddServerSheet: View {
 
     private func quiet(_ text: String) -> some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

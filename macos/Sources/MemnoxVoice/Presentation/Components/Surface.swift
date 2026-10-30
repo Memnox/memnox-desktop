@@ -8,10 +8,23 @@ struct Surface: ViewModifier {
     /// An edge in a colour of its own, for a card that must be found first, such as a call waiting.
     var accent: Color?
     @Environment(\.rimlessCards) private var rimless
+    @Environment(\.look) private var look
 
     func body(content: Content) -> some View {
+        if look == .console {
+            // The console's card: white or the dark card, radius 12, read by its border.
+            let shape = RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous)
+            content
+                .background(shape.fill(Memnox.Console.card))
+                .overlay(shape.strokeBorder(accent ?? Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        } else {
+            mac(content)
+        }
+    }
+
+    private func mac(_ content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: rimless ? SettingsMetrics.cardRadius : radius, style: .continuous)
-        content
+        return content
             .background(shape.fill(rimless ? Memnox.Palette.card : Memnox.Palette.surface))
             .overlay {
                 if let accent {

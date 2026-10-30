@@ -58,8 +58,8 @@ private struct HomeAtAGlance: View {
             if let studio = shell.studio { HomeThisWeek(shell: shell, screen: studio) }
             if let view {
                 Text(HomeLines.today(view.today))
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
             }
         }
         .task {
@@ -88,11 +88,11 @@ private struct HomeAtAGlance: View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
             Text(Self.greeting(name))
                 .font(.system(size: SettingsMetrics.pageTitleSize + 3, weight: .bold))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .foregroundStyle(Memnox.Console.foreground)
                 .accessibilityAddTraits(.isHeader)
             Text("Your agents at a glance.")
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.muted)
         }
     }
 
@@ -125,7 +125,7 @@ private struct HomeAtAGlance: View {
 
     @ViewBuilder
     private func tile(_ value: Int, _ label: String, symbol: String, tone: Tone, open: (() -> Void)?) -> some View {
-        let face = StatTile(value: value, label: label, symbol: symbol, tint: tone == .quiet ? Memnox.Palette.faint : tone.color)
+        let face = StatTile(value: value, label: label, symbol: symbol, tint: tone == .quiet ? Memnox.Console.faint : tone.color)
         if let open {
             Button(action: open) { face.contentShape(Rectangle()) }
                 .buttonStyle(.plain)
@@ -192,8 +192,8 @@ private struct HomeThisWeek: View {
                 GoLink("What could run on its own") { shell.go(WindowRoute(.governance, tab: "policies")) }
             } content: {
                 Text(StudioLines.thisWeek(progress))
-                    .font(Memnox.sans(Memnox.TextSize.body))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.body))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -231,7 +231,7 @@ private struct HomeAttention: View {
     @ViewBuilder private func rows(_ needs: [String]) -> some View {
         if view.waiting > 0 {
             ShellRow(title: HomeLines.waiting(view.waiting)) {
-                icon("hand.raised", Memnox.Palette.warm)
+                icon("hand.raised", Memnox.Console.warm)
             } trailing: {
                 Button("Answer", action: home.openWaiting)
                     .buttonStyle(KitButton(kind: .secondary))
@@ -240,13 +240,13 @@ private struct HomeAttention: View {
         }
         ForEach(Array(needs.enumerated()), id: \.offset) { index, line in
             if index > 0 || view.waiting > 0 { ShellDivider() }
-            ShellRow(title: line) { icon("exclamationmark.circle", Memnox.Palette.warm) } trailing: { EmptyView() }
+            ShellRow(title: line) { icon("exclamationmark.circle", Memnox.Console.warm) } trailing: { EmptyView() }
         }
         if toConfirm > 0 {
             if view.waiting > 0 || !needs.isEmpty { ShellDivider() }
             ShellRow(title: MemoryLines.learnWaitingLine(toConfirm),
                      caption: "What your agent read from your sources, and what agents suggested, counts only once you confirm it.") {
-                icon("graduationcap", Memnox.Palette.warm)
+                icon("graduationcap", Memnox.Console.warm)
             } trailing: {
                 Button("Open Learn") { shell.go(WindowRoute(.governance, tab: "learn")) }.buttonStyle(KitButton(kind: .secondary))
             }
@@ -254,7 +254,7 @@ private struct HomeAttention: View {
         if let ready = view.ready {
             if view.waiting > 0 || !needs.isEmpty || toConfirm > 0 { ShellDivider() }
             ShellRow(title: HomeLines.ready(ready), caption: ready.because) {
-                icon("arrow.right", Memnox.Palette.primary)
+                icon("arrow.right", Memnox.Console.primary)
             } trailing: {
                 Button(home.handingOver ? "Proposing" : "Let it run on its own") { home.handOver(ready) }
                     .buttonStyle(KitButton(kind: .primary))
@@ -266,7 +266,7 @@ private struct HomeAttention: View {
             if view.waiting > 0 || !needs.isEmpty || toConfirm > 0 || view.ready != nil { ShellDivider() }
             ShellRow(title: HomeLines.notCovered(view.notCovered).first ?? "",
                      caption: home.remote() ? "Run memnox setup on that server to put them under Memnox." : nil) {
-                icon("shield", Memnox.Palette.warm)
+                icon("shield", Memnox.Console.warm)
             } trailing: {
                 // The button runs this Mac's own memnox, which cannot reach a server's agents.
                 if !home.remote() {
@@ -289,8 +289,8 @@ private struct HomeAttention: View {
 
     private func quiet(_ text: String) -> some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

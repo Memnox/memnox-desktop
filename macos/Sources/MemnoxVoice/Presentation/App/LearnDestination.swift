@@ -67,30 +67,30 @@ private struct Suggestion: View {
             header
             if editing {
                 TextEditor(text: $draft)
-                    .font(Memnox.sans(Memnox.TextSize.body))
+                    .font(Memnox.Console.sans(Memnox.TextSize.body))
                     .scrollContentBackground(.hidden)
                     .padding(Memnox.Spacing.small)
                     .frame(minHeight: Self.editorHeight)
-                    .background(Memnox.Palette.field, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
+                    .background(Memnox.Console.field, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous)
-                        .strokeBorder(Memnox.Palette.fieldEdge, lineWidth: Memnox.Stroke.hairline))
+                        .strokeBorder(Memnox.Console.fieldEdge, lineWidth: Memnox.Stroke.hairline))
                     .accessibilityLabel("The statement")
             } else {
                 Text(item.statement)
-                    .font(Memnox.sans(Memnox.TextSize.body))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.body))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             }
             if let rule = item.rule {
                 Text("What it would govern: \(rule.sentence)")
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, Memnox.Spacing.regular)
                     .padding(.vertical, Memnox.Spacing.medium)
-                    .background(Memnox.Palette.hover, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
+                    .background(Memnox.Console.hover, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
             }
             if let duplicate = item.duplicateOf { MemoryQuiet(MemoryLines.duplicateLine(duplicate.statement)) }
             if let confidence = MemoryLines.confidenceLine(item.extractorConfidence) { MemoryQuiet(confidence) }
@@ -103,21 +103,21 @@ private struct Suggestion: View {
         }
         .padding(Memnox.Spacing.xLarge)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Memnox.Palette.card, in: shape)
-        .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .background(Memnox.Console.card, in: shape)
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
     }
 
     private var header: some View {
         HStack(spacing: Memnox.Spacing.medium) {
             Text(MemoryLines.kindWord(item.kind))
-                .font(Memnox.sans(Memnox.TextSize.micro, .medium))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.micro, .medium))
+                .foregroundStyle(Memnox.Console.muted)
                 .padding(.horizontal, Memnox.Spacing.medium)
                 .padding(.vertical, Memnox.Spacing.xxSmall)
-                .overlay(Capsule().strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                .overlay(Capsule().strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             Text(MemoryLines.originLine(item))
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.muted)
                 .lineLimit(1)
             Spacer(minLength: Memnox.Spacing.medium)
             if item.tainted { StatusWord(.attention, MemoryLines.taintedLine) }

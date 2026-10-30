@@ -208,22 +208,22 @@ private struct DecisionDetail: View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
                 Text(StudioLines.activityLine(operation: row.operation, target: row.target))
-                    .font(Memnox.mono(Memnox.TextSize.body))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.code(Memnox.TextSize.body))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
                 StatusWord(Tone(effect: row.effect), StudioLines.says(row.effect))
                 Text(row.reason)
-                    .font(Memnox.sans(Memnox.TextSize.body))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.body))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .fixedSize(horizontal: false, vertical: true)
                 if let instead = view.alternative { QuietLine("Instead: \(instead)") }
             }
             if let rule = view.rule {
                 ShellSection(title: "The rule") {
                     Text(rule.name)
-                        .font(Memnox.sans(Memnox.TextSize.body))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.body))
+                        .foregroundStyle(Memnox.Console.foreground)
                     let from = rule.source.map { StudioLines.sourceWords($0, decidedBy: rule.decidedBy, file: rule.file) }
                     let words = [from, rule.newerSince == true ? "It has changed since." : nil].compactMap { $0 }.joined(separator: " ")
                     if !words.isEmpty { QuietLine(words) }

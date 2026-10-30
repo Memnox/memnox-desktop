@@ -33,20 +33,31 @@ enum SettingsMetrics {
     static let hoverRadius: CGFloat = 8
     /// Where a row's words start, so a line under a row lines up with its title rather than its tile.
     static let rowTextInset: CGFloat = tileSide + rowSpacing
+    /// The console's setting card: padding 20, 16 between its heading and its rows.
+    static let consoleCardPadding: CGFloat = 20
+    static let consoleCardSpacing: CGFloat = 16
 }
 
 /// A symbol on a small rounded tile of its own tint, the mark at the start of every Settings row.
 struct IconTile: View {
     let symbol: String
-    var tint: Color = Memnox.Palette.primary
+    var tint: Color?
+    @Environment(\.look) private var look
+
+    /// The console's stat icon: radius 6, the tint at 14 percent, its symbol half the tile at the stroke of its words.
+    private static let consoleTint = 0.14
+    private static let consoleSymbolShare: CGFloat = 0.5
 
     var body: some View {
+        let console = look == .console
+        let ink = tint ?? look.tokens.primary
         Image(systemName: symbol)
-            .font(.system(size: SettingsMetrics.tileSymbol, weight: .semibold))
-            .foregroundStyle(tint)
+            .font(.system(size: console ? SettingsMetrics.tileSide * Self.consoleSymbolShare : SettingsMetrics.tileSymbol,
+                          weight: console ? .regular : .semibold))
+            .foregroundStyle(ink)
             .frame(width: SettingsMetrics.tileSide, height: SettingsMetrics.tileSide)
-            .background(tint.opacity(SettingsMetrics.tileTint),
-                        in: RoundedRectangle(cornerRadius: SettingsMetrics.tileRadius, style: .continuous))
+            .background(ink.opacity(console ? Self.consoleTint : SettingsMetrics.tileTint),
+                        in: RoundedRectangle(cornerRadius: console ? Memnox.Console.controlRadius : SettingsMetrics.tileRadius, style: .continuous))
             .accessibilityHidden(true)
     }
 }
@@ -55,20 +66,26 @@ struct IconTile: View {
 struct SettingsCard<Content: View>: View {
     var title: String?
     @ViewBuilder let content: Content
+    @Environment(\.look) private var look
 
     var body: some View {
-        VStack(alignment: .leading, spacing: SettingsMetrics.cardSpacing) {
+        let console = look == .console
+        let shape = RoundedRectangle(cornerRadius: console ? Memnox.Console.cardRadius : SettingsMetrics.cardRadius, style: .continuous)
+        VStack(alignment: .leading, spacing: console ? SettingsMetrics.consoleCardSpacing : SettingsMetrics.cardSpacing) {
             if let title {
                 Text(title)
-                    .font(.system(size: SettingsMetrics.sectionTitleSize, weight: .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(console ? Memnox.Console.sans(Memnox.Console.TextSize.base, .medium)
+                        : .system(size: SettingsMetrics.sectionTitleSize, weight: .semibold))
+                    .foregroundStyle(look.tokens.foreground)
                     .accessibilityAddTraits(.isHeader)
             }
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(SettingsMetrics.cardPadding)
-        .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: SettingsMetrics.cardRadius, style: .continuous))
+        .padding(console ? SettingsMetrics.consoleCardPadding : SettingsMetrics.cardPadding)
+        .background(look.tokens.card, in: shape)
+        // The console reads a card by its border rather than its fill.
+        .overlay(shape.strokeBorder(console ? Memnox.Console.panelEdge : Color.clear, lineWidth: Memnox.Stroke.hairline))
     }
 }
 
@@ -77,22 +94,23 @@ struct SettingsRow<Accessory: View>: View {
     let symbol: String
     let title: String
     var caption: String?
-    var tint: Color = Memnox.Palette.primary
+    var tint: Color?
     @ViewBuilder let accessory: Accessory
+    @Environment(\.look) private var look
 
     var body: some View {
         HStack(spacing: SettingsMetrics.rowSpacing) {
             IconTile(symbol: symbol, tint: tint)
             VStack(alignment: .leading, spacing: SettingsMetrics.captionSpacing) {
                 Text(title)
-                    .font(.system(size: SettingsMetrics.rowTextSize))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(look.sans(SettingsMetrics.rowTextSize, look == .console ? .medium : .regular))
+                    .foregroundStyle(look.tokens.foreground)
                     .fixedSize(horizontal: false, vertical: true)
                 if let caption {
                     // Wraps, since a caption cut off mid sentence hides what the row does.
                     Text(caption)
-                        .font(.system(size: SettingsMetrics.captionSize))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .font(look.sans(SettingsMetrics.captionSize))
+                        .foregroundStyle(look.tokens.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -104,7 +122,7 @@ struct SettingsRow<Accessory: View>: View {
 }
 
 extension SettingsRow where Accessory == EmptyView {
-    init(symbol: String, title: String, caption: String? = nil, tint: Color = Memnox.Palette.primary) {
+    init(symbol: String, title: String, caption: String? = nil, tint: Color? = nil) {
         self.init(symbol: symbol, title: title, caption: caption, tint: tint) { EmptyView() }
     }
 }
@@ -113,10 +131,11 @@ extension SettingsRow where Accessory == EmptyView {
 /// rows with no tile.
 struct SettingsDivider: View {
     var full = false
+    @Environment(\.look) private var look
 
     var body: some View {
         Rectangle()
-            .fill(Memnox.Palette.border)
+            .fill(look.tokens.border)
             .frame(height: Memnox.Stroke.hairline)
             .padding(.leading, full ? 0 : SettingsMetrics.rowTextInset)
     }
@@ -128,13 +147,15 @@ struct SettingsSection<Content: View, Trailing: View>: View {
     let title: String
     @ViewBuilder var trailing: Trailing
     @ViewBuilder let content: Content
+    @Environment(\.look) private var look
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsMetrics.sectionSpacing) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(.system(size: SettingsMetrics.sectionTitleSize, weight: .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(look == .console ? Memnox.Console.sans(Memnox.Console.TextSize.base, .medium)
+                        : .system(size: SettingsMetrics.sectionTitleSize, weight: .semibold))
+                    .foregroundStyle(look.tokens.foreground)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: SettingsMetrics.rowSpacing)
                 trailing
@@ -158,12 +179,14 @@ struct HoverLight: ViewModifier {
     var inset: CGFloat = SettingsMetrics.hoverInset
     @State private var hovering = false
     @Environment(\.isEnabled) private var enabled
+    @Environment(\.look) private var look
 
     func body(content: Content) -> some View {
         content
             .background(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(Memnox.Palette.hover.opacity(hovering && enabled ? 1 : 0))
+                // The console folds every control's corner to 6, so a lit row matches the buttons beside it.
+                RoundedRectangle(cornerRadius: look == .console ? min(radius, Memnox.Console.controlRadius) : radius, style: .continuous)
+                    .fill(look.tokens.hover.opacity(hovering && enabled ? 1 : 0))
                     .padding(.horizontal, -inset)
             )
             .animation(.easeOut(duration: Memnox.Motion.quick), value: hovering)
@@ -189,18 +212,7 @@ struct SettingsColumn<Content: View>: View {
         ScrollView {
             VStack(alignment: .leading, spacing: SettingsMetrics.pageSpacing) {
                 if let title {
-                    VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
-                        Text(title)
-                            .font(.system(size: SettingsMetrics.pageTitleSize, weight: .bold))
-                            .foregroundStyle(Memnox.Palette.foreground)
-                            .accessibilityAddTraits(.isHeader)
-                        if let subtitle {
-                            Text(subtitle)
-                                .font(.system(size: SettingsMetrics.rowTextSize))
-                                .foregroundStyle(Memnox.Palette.muted)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
+                    PageTitle(title: title, subtitle: subtitle)
                 }
                 content
             }
@@ -225,5 +237,40 @@ extension EnvironmentValues {
     var rimlessCards: Bool {
         get { self[RimlessCardsKey.self] }
         set { self[RimlessCardsKey.self] = newValue }
+    }
+}
+
+/// A page's heading, as the console's page header: an optional line above, a 24 semibold title, and its line 13 muted.
+struct PageTitle: View {
+    var eyebrow: String?
+    let title: String
+    var subtitle: String?
+    @Environment(\.look) private var look
+
+    private static let subtitleWidth: CGFloat = 672
+
+    var body: some View {
+        let console = look == .console
+        VStack(alignment: .leading, spacing: console ? Memnox.Spacing.small : Memnox.Spacing.xSmall) {
+            if let eyebrow {
+                Text(eyebrow)
+                    .font(look.sans(Memnox.Console.TextSize.meta))
+                    .foregroundStyle(look.tokens.muted)
+            }
+            Text(title)
+                .font(console ? Memnox.Console.sans(Memnox.Console.TextSize.title, .semibold)
+                    : .system(size: SettingsMetrics.pageTitleSize, weight: .bold))
+                .tracking(console ? Memnox.Console.titleTracking : 0)
+                .foregroundStyle(look.tokens.foreground)
+                .accessibilityAddTraits(.isHeader)
+            if let subtitle {
+                Text(subtitle)
+                    .font(look.sans(SettingsMetrics.rowTextSize))
+                    .foregroundStyle(look.tokens.muted)
+                    .lineSpacing(console ? Memnox.Spacing.xxSmall : 0)
+                    .frame(maxWidth: console ? Self.subtitleWidth : .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }

@@ -57,16 +57,16 @@ struct ToolRow<Mark: View, Accessory: View>: View {
         HStack(spacing: SettingsMetrics.rowSpacing) {
             mark
             VStack(alignment: .leading, spacing: SettingsMetrics.captionSpacing) {
-                Text(title).font(.body).foregroundStyle(Memnox.Palette.foreground)
+                Text(title).font(.body).foregroundStyle(Memnox.Console.foreground)
                 Text(caption)
                     .font(.caption)
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Memnox.Console.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: SettingsMetrics.rowSpacing)
             accessory
             Circle()
-                .fill(ok ? Memnox.Palette.success : Memnox.Palette.warm)
+                .fill(ok ? Memnox.Console.success : Memnox.Console.warm)
                 .frame(width: toolRowDotSide, height: toolRowDotSide)
                 .accessibilityLabel(ok ? "Working" : "Needs you")
         }

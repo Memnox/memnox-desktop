@@ -111,15 +111,15 @@ struct NoteBanner: View {
     var body: some View {
         if let text {
             Text(text)
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.foreground)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, ShellMetrics.rowPaddingH)
                 .padding(.vertical, ShellMetrics.rowPaddingV)
-                .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
-                    .strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                    .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
                 .accessibilityAddTraits(.updatesFrequently)
         }
     }
@@ -150,14 +150,14 @@ struct CodeRow<Leading: View, Trailing: View>: View {
             leading
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                 Text(title)
-                    .font(Memnox.mono(Memnox.TextSize.body))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.code(Memnox.TextSize.body))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 if let caption, !caption.isEmpty {
                     Text(caption)
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.muted)
                         .lineLimit(1)
                 }
             }
@@ -166,7 +166,7 @@ struct CodeRow<Leading: View, Trailing: View>: View {
         }
         .padding(.horizontal, ShellMetrics.rowPaddingH)
         .padding(.vertical, ShellMetrics.rowPaddingV)
-        .background(chosen ? Memnox.Palette.hover : Color.clear)
+        .background(chosen ? Memnox.Console.hover : Color.clear)
     }
 }
 
@@ -180,8 +180,8 @@ struct QuietLine: View {
 
     var body: some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

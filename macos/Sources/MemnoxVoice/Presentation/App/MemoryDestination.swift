@@ -171,12 +171,12 @@ struct MemoryChip: View {
     var body: some View {
         Button(action: choose) {
             Text(title)
-                .font(Memnox.sans(Memnox.TextSize.footnote, on ? .medium : .regular))
-                .foregroundStyle(on ? Memnox.Palette.foreground : Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote, on ? .medium : .regular))
+                .foregroundStyle(on ? Memnox.Console.foreground : Memnox.Console.muted)
                 .padding(.horizontal, Memnox.Spacing.regular)
                 .padding(.vertical, Memnox.Spacing.xSmall)
-                .background(on ? Memnox.Palette.hover : Color.clear, in: Capsule())
-                .overlay(Capsule().strokeBorder(on ? Memnox.Palette.primary : Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                .background(on ? Memnox.Console.hover : Color.clear, in: Capsule())
+                .overlay(Capsule().strokeBorder(on ? Memnox.Console.primary : Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -188,16 +188,16 @@ struct MemoryChip: View {
 /// A quiet line of memory's details.
 struct MemoryQuiet: View {
     let text: String
-    var tint = Memnox.Palette.muted
+    var tint = Memnox.Console.muted
 
-    init(_ text: String, tint: Color = Memnox.Palette.muted) {
+    init(_ text: String, tint: Color = Memnox.Console.muted) {
         self.text = text
         self.tint = tint
     }
 
     var body: some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
             .foregroundStyle(tint)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -214,15 +214,15 @@ private struct FactInspector: View {
         let word = MemoryLines.statusWord(item.status)
         VStack(alignment: .leading, spacing: Memnox.Spacing.xLarge) {
             Text(item.statement)
-                .font(Memnox.sans(Memnox.TextSize.body))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.body))
+                .foregroundStyle(Memnox.Console.foreground)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
             HStack(spacing: Memnox.Spacing.large) {
                 StatusWord(Tone(word.tone), word.word)
                 if item.tainted { StatusWord(.attention, MemoryLines.taintedLine) }
             }
-            if let rule = item.rule { MemoryQuiet("What it governs: \(rule.sentence)", tint: Memnox.Palette.foreground) }
+            if let rule = item.rule { MemoryQuiet("What it governs: \(rule.sentence)", tint: Memnox.Console.foreground) }
             FactList(facts: facts)
             MemoryEvidence(memory: screen.memory, evidence: item.evidence)
             ShellDivider()
@@ -272,8 +272,8 @@ struct MemoryEvidence: View {
         } else {
             VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
                 Text("Evidence")
-                    .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+                    .foregroundStyle(Memnox.Console.muted)
                 ForEach(Array(evidence.enumerated()), id: \.offset) { _, each in
                     row(each)
                 }
@@ -287,12 +287,12 @@ struct MemoryEvidence: View {
             HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.medium) {
                 Image(systemName: each.url == nil ? "doc.text" : "link")
                     .font(.system(size: Self.icon))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Memnox.Console.muted)
                     .accessibilityHidden(true)
                 Text(MemoryLines.evidenceLine(each))
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(each.stale ? Memnox.Palette.muted : Memnox.Palette.primary)
-                    .strikethrough(each.stale, color: Memnox.Palette.faint)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(each.stale ? Memnox.Console.muted : Memnox.Console.primary)
+                    .strikethrough(each.stale, color: Memnox.Console.faint)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if each.stale { StatusWord(.quiet, "Stale") }
@@ -363,7 +363,7 @@ private struct MemorySources: View {
             }
         }
         .sheet(isPresented: $adding) {
-            AddMemorySourceSheet(screen: screen, hub: hub) { adding = false }
+            AddMemorySourceSheet(screen: screen, hub: hub) { adding = false }.consoleLook()
         }
     }
 
@@ -384,31 +384,31 @@ private struct SourceCard: View {
         let busy = memory.busy == source.id
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             HStack(spacing: Memnox.Spacing.medium) {
-                Image(systemName: "book").foregroundStyle(Memnox.Palette.muted).accessibilityHidden(true)
+                Image(systemName: "book").foregroundStyle(Memnox.Console.muted).accessibilityHidden(true)
                 Text(source.name)
-                    .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.body, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(1)
                 Spacer(minLength: Memnox.Spacing.small)
                 MemoryQuiet(MemoryLines.sourceKindLabel(source.kind))
             }
             Text(source.location)
-                .font(Memnox.mono(Memnox.TextSize.micro))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.micro))
+                .foregroundStyle(Memnox.Console.muted)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .help(source.location)
             StatusWord(Tone(trust.tone), trust.word)
-            MemoryQuiet(MemoryLines.sourceCountsLine(source.counts), tint: Memnox.Palette.foreground)
+            MemoryQuiet(MemoryLines.sourceCountsLine(source.counts), tint: Memnox.Console.foreground)
             MemoryQuiet(MemoryLines.lastReadLine(source, now: Date()))
             if let key = MemoryLines.keyLine(source.keyHeld) {
-                MemoryQuiet(key, tint: source.keyHeld == true ? Memnox.Palette.muted : Memnox.Palette.warm)
+                MemoryQuiet(key, tint: source.keyHeld == true ? Memnox.Console.muted : Memnox.Console.warm)
             }
             if let error = source.lastError {
-                MemoryQuiet("The last read failed: \(error)", tint: Memnox.Palette.destructive)
+                MemoryQuiet("The last read failed: \(error)", tint: Memnox.Console.destructive)
             }
             if let read = memory.lastRead(source.id) {
-                MemoryQuiet(MemoryLines.readSummaryLine(read), tint: Memnox.Palette.foreground)
+                MemoryQuiet(MemoryLines.readSummaryLine(read), tint: Memnox.Console.foreground)
             }
             Spacer(minLength: 0)
             HStack(spacing: Memnox.Spacing.medium) {
@@ -428,8 +428,8 @@ private struct SourceCard: View {
         }
         .padding(Memnox.Spacing.xLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Memnox.Palette.card, in: shape)
-        .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .background(Memnox.Console.card, in: shape)
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
     }
 
     private func readNow() {

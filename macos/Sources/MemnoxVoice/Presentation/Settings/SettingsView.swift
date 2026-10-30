@@ -68,7 +68,7 @@ struct SettingsView: View {
         .ignoresSafeArea()
         // Only the sidebar is glass; the page is solid, as Vorssaint's is.
         .background(WindowGlass(material: .sidebar).ignoresSafeArea())
-        .tint(Memnox.Palette.primary)
+        .tint(Memnox.Console.primary)
         .background(escapeKey)
         .task(id: models.setup.map(ObjectIdentifier.init)) { await models.setup?.check() }
     }
@@ -81,7 +81,7 @@ struct SettingsView: View {
             )
             Text(navigation.page.title)
                 .font(.system(size: Layout.headerTitleSize, weight: .semibold))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .foregroundStyle(Memnox.Console.foreground)
                 .lineLimit(1)
             Spacer(minLength: 0)
         }
@@ -136,17 +136,17 @@ struct SettingsView: View {
             HStack(spacing: Layout.rowIconSpacing) {
                 Image(systemName: page.symbol)
                     .font(.system(size: Layout.rowIconSize))
-                    .foregroundStyle(chosen ? Color.white : Memnox.Palette.primary)
+                    .foregroundStyle(chosen ? Color.white : Memnox.Console.primary)
                     .frame(width: Layout.rowIconWidth)
                 Text(page.title)
                     .font(.system(size: Layout.rowTextSize, weight: chosen ? .medium : .regular))
-                    .foregroundStyle(chosen ? Color.white : Memnox.Palette.foreground)
+                    .foregroundStyle(chosen ? Color.white : Memnox.Console.foreground)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Layout.rowPadding)
             .frame(height: Layout.rowHeight)
-            .background(chosen ? Memnox.Palette.primary : Color.clear,
+            .background(chosen ? Memnox.Console.primary : Color.clear,
                         in: RoundedRectangle(cornerRadius: Layout.rowRadius, style: .continuous))
             // Under the blue of the chosen row, so only the others light.
             .hoverLight(radius: Layout.rowRadius, inset: 0)
@@ -169,7 +169,7 @@ struct SettingsView: View {
                 Text(title).font(.system(size: Layout.sectionTextSize, weight: .semibold))
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(Memnox.Palette.faint)
+            .foregroundStyle(Memnox.Console.faint)
             .padding(.horizontal, Layout.headerSpacing)
             .padding(.top, Layout.sectionTop)
             .padding(.bottom, Layout.sectionBottom)
@@ -338,7 +338,7 @@ struct HelpPage: View {
             SettingsDivider()
             SettingsRow(symbol: "trash", title: "Uninstall Memnox",
                         caption: "Removes the service, its hooks in your agents, your history here, its sign ins and the app.",
-                        tint: Memnox.Palette.warm) {
+                        tint: Memnox.Console.warm) {
                 Button("Uninstall", action: menu.uninstall)
             }
         }
@@ -353,8 +353,8 @@ private struct PagePanel: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
         content
-            .background(Memnox.Palette.background, in: shape)
+            .background(Memnox.Console.background, in: shape)
             .clipShape(shape)
-            .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
     }
 }

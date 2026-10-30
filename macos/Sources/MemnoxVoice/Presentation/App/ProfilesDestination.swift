@@ -49,7 +49,7 @@ struct ProfilesDestination: View {
                 await shell.projects?.projects.refresh()
             }
             .sheet(isPresented: $creating) {
-                ProfileSheet(shell: shell, screen: screen) { creating = false }
+                ProfileSheet(shell: shell, screen: screen) { creating = false }.consoleLook()
             }
     }
 
@@ -99,21 +99,21 @@ private struct ProfileCard: View {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                 HStack(spacing: Memnox.Spacing.medium) {
                     Text(profile.name)
-                        .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .lineLimit(1)
                     Spacer(minLength: Memnox.Spacing.small)
                     ScopeChip(ScopeLines.profile)
                 }
                 Text(ProfileLines.contents(profile))
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
                     .lineLimit(1)
             }
             if let description = profile.description {
                 Text(description)
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(2)
             }
             if !profile.skills.isEmpty { muted("Skills: \(profile.skills.joined(separator: ", "))") }
@@ -152,19 +152,19 @@ private struct ProfileCard: View {
         }
         .padding(Memnox.Spacing.xLarge)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(Memnox.Palette.card, in: shape)
-        .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .background(Memnox.Console.card, in: shape)
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(profile.name)
         .sheet(isPresented: $editing) {
-            ProfileSheet(shell: shell, screen: screen, editing: profile) { editing = false }
+            ProfileSheet(shell: shell, screen: screen, editing: profile) { editing = false }.consoleLook()
         }
     }
 
     private func muted(_ text: String) -> some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
             .lineLimit(1)
     }
 }
@@ -189,7 +189,7 @@ private struct ApplyForm: View {
             HStack(spacing: Memnox.Spacing.medium) {
                 TextField("Repository, optional", text: $project)
                     .kitField()
-                    .font(Memnox.mono(Memnox.TextSize.footnote))
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
                     .accessibilityLabel("The repository its skills are written into")
                 Button("Choose", systemImage: "folder", action: choose)
                     .buttonStyle(KitButton(kind: .secondary))
@@ -250,7 +250,7 @@ private struct ProfileSheet: View {
         let servers = ProfileLines.choiceNames(shell.hub?.hub.hub?.servers.map(\.name) ?? [], kept: Set(editing?.mcpServers ?? []))
         SkillSheetFrame(title: editing.map { "Edit \($0.name)" } ?? "New profile") {
             if let editing {
-                labelled("Name") { Text(editing.name).font(Memnox.sans(Memnox.TextSize.body)).foregroundStyle(Memnox.Palette.foreground) }
+                labelled("Name") { Text(editing.name).font(Memnox.Console.sans(Memnox.TextSize.body)).foregroundStyle(Memnox.Console.foreground) }
                 QuietLine("The name stays, since a new name would keep a second profile beside this one.")
             } else {
                 labelled("Name") { TextField("Backend Engineering", text: $form.name).kitField() }
@@ -274,8 +274,8 @@ private struct ProfileSheet: View {
             }
             if let problem {
                 Text(problem)
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.destructive)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.destructive)
                     .fixedSize(horizontal: false, vertical: true)
             }
         } footer: {
@@ -331,8 +331,8 @@ private struct ProfileSheet: View {
     private func labelled<Field: View>(_ label: String, @ViewBuilder field: () -> Field) -> some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
             Text(label)
-                .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+                .foregroundStyle(Memnox.Console.muted)
             field()
         }
     }

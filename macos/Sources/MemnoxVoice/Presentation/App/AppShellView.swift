@@ -22,8 +22,8 @@ struct AppShellView: View {
             frame(WidthClass(width: Double(geometry.size.width)))
         }
         .ignoresSafeArea()
-        .background(WindowGlass(material: .sidebar).ignoresSafeArea())
-        .tint(Memnox.Palette.primary)
+        .background(Memnox.Console.background.ignoresSafeArea())
+        .consoleLook()
         .task(id: models.setup.map(ObjectIdentifier.init)) { await models.setup?.check() }
     }
 
@@ -58,8 +58,8 @@ struct AppShellView: View {
             }
             if route.destination != .home, route.destination != .settings, tabs.count < 2 {
                 Text(info.subtitle)
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, ShellMetrics.pagePadding)
                     .padding(.top, Memnox.Spacing.large)
@@ -76,7 +76,7 @@ struct AppShellView: View {
                 Button { shell.sheet = true } label: {
                     Image(systemName: "line.3.horizontal")
                         .font(.system(size: Memnox.TextSize.callout, weight: .medium))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .foregroundStyle(Memnox.Console.foreground)
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                 }
@@ -87,8 +87,8 @@ struct AppShellView: View {
             }
             NavigationCapsule(canGoBack: shell.canGoBack, canGoForward: shell.canGoForward, back: shell.back, forward: shell.forward)
             Text(title(route))
-                .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                .foregroundStyle(Memnox.Console.foreground)
                 .lineLimit(1)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: Memnox.Spacing.medium)
@@ -101,13 +101,13 @@ struct AppShellView: View {
                     if width != .compact { Text("Go to") }
                     Keycap(label: "\u{2318}K")
                 }
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.muted)
                 .padding(.horizontal, Memnox.Spacing.regular)
                 .frame(height: 30)
-                .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
+                .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous)
-                    .strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                    .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -132,7 +132,7 @@ struct AppShellView: View {
     private func sheet(_ route: WindowRoute) -> some View {
         HStack(spacing: 0) {
             AppSidebar(shell: shell, route: route, rail: false, canFold: false, home: models.home)
-                .background(Memnox.Palette.surface)
+                .background(Memnox.Console.surface)
                 .accessibilityAddTraits(.isModal)
             Color.black.opacity(Layout.sheetScrim)
                 .contentShape(Rectangle())
@@ -177,9 +177,9 @@ private struct PagePanel: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: on ? Self.radius : 0, style: .continuous)
         content
-            .background(Memnox.Palette.background, in: shape)
+            .background(Memnox.Console.background, in: shape)
             .clipShape(shape)
-            .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: on ? Memnox.Stroke.hairline : 0))
+            .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: on ? Memnox.Stroke.hairline : 0))
     }
 }
 
@@ -306,12 +306,12 @@ private struct TopBarPickers: View {
             Text(text).lineLimit(1)
             Image(systemName: "chevron.down").font(.system(size: Memnox.TextSize.micro, weight: .semibold))
         }
-        .font(Memnox.sans(Memnox.TextSize.footnote))
-        .foregroundStyle(Memnox.Palette.foreground)
+        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+        .foregroundStyle(Memnox.Console.foreground)
         .padding(.horizontal, Memnox.Spacing.regular)
         .frame(height: 30)
-        .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
+        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous)
-            .strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
     }
 }

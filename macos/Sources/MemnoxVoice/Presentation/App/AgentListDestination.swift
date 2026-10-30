@@ -72,8 +72,8 @@ private struct AgentCard: View {
                 BrandLogo(agent: agent.kind, name: agent.name, size: Self.logo)
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(agent.name)
-                        .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .lineLimit(1)
                     StatusWord(Tone(standing.tone), standing.word)
                 }
@@ -82,14 +82,14 @@ private struct AgentCard: View {
             QuietLine(StudioLines.agentCounts(agent))
             if !agent.mcpServers.isEmpty {
                 Text("Servers: \(agent.mcpServers.joined(separator: ", "))")
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
                     .lineLimit(1)
             }
             if let skills = agent.skills, !skills.isEmpty {
                 Text("Skills: \(skills.joined(separator: ", "))")
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
                     .lineLimit(1)
             }
             if !agent.recent.isEmpty {
@@ -97,15 +97,15 @@ private struct AgentCard: View {
                     ForEach(agent.recent) { action in
                         HStack(spacing: Memnox.Spacing.medium) {
                             Text(StudioLines.activityLine(operation: action.operation, target: action.target))
-                                .font(Memnox.mono(Memnox.TextSize.footnote))
-                                .foregroundStyle(Memnox.Palette.foreground)
+                                .font(Memnox.Console.code(Memnox.TextSize.footnote))
+                                .foregroundStyle(Memnox.Console.foreground)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                             Spacer(minLength: Memnox.Spacing.small)
                             if let ago = SessionText.ago(action.at, now: Date()) {
                                 Text(ago)
-                                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                                    .foregroundStyle(Memnox.Palette.muted)
+                                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                                    .foregroundStyle(Memnox.Console.muted)
                             }
                             StatusWord(Tone(effect: action.effect), StudioLines.title(action.effect))
                         }
@@ -150,8 +150,8 @@ private struct AgentCard: View {
         }
         .padding(Memnox.Spacing.xLarge)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(Memnox.Palette.card, in: shape)
-        .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .background(Memnox.Console.card, in: shape)
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(agent.name)
     }
@@ -185,12 +185,12 @@ private struct LaunchForm: View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             ShellDivider()
             Text("Open it in")
-                .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+                .foregroundStyle(Memnox.Console.muted)
             HStack(spacing: Memnox.Spacing.medium) {
                 TextField("/Users/you/code/project", text: $folder)
                     .kitField()
-                    .font(Memnox.mono(Memnox.TextSize.footnote))
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
                     .onSubmit(go)
                     .accessibilityLabel("The folder it opens in")
                 Button("Choose", systemImage: "folder", action: choose)
@@ -221,8 +221,8 @@ private struct LaunchForm: View {
             }
             if let problem {
                 Text(problem)
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.destructive)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.destructive)
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: Memnox.Spacing.medium) {

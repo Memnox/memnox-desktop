@@ -16,8 +16,8 @@ struct ApprovalsDestination: View {
                            detail: "When an agent asks before doing something your rules hold, it waits here and on the island.")
             } else {
                 Text("\(waiting.count) waiting, oldest first.")
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
                 VStack(spacing: Memnox.Spacing.large) {
                     ForEach(waiting, id: \.subject) { entry in
                         HeldCallCard(card: entry.card, busy: island.answering || island.settledNote != nil) { answer in
@@ -50,15 +50,15 @@ private struct HeldCallCard: View {
             HStack(spacing: Memnox.Spacing.regular) {
                 BrandLogo(agent: card.agent, name: card.who, size: Self.logo)
                 Text(card.who)
-                    .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.body, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(1)
                 Spacer(minLength: Memnox.Spacing.medium)
                 StatusWord(.attention, "Asks first")
             }
             Text(card.what)
-                .font(Memnox.sans(Memnox.TextSize.body))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.body))
+                .foregroundStyle(Memnox.Console.foreground)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
             FactList(facts: facts)
@@ -72,8 +72,8 @@ private struct HeldCallCard: View {
             .disabled(busy)
         }
         .padding(Memnox.Spacing.xLarge)
-        .background(Memnox.Palette.card, in: shape)
-        .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .background(Memnox.Console.card, in: shape)
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(card.who) asks first")
     }
@@ -95,11 +95,11 @@ private struct NoticesSwitch: View {
             Toggle(isOn: $notifier.on) {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(HeldNotices.title)
-                        .font(Memnox.sans(Memnox.TextSize.body, .medium))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.body, .medium))
+                        .foregroundStyle(Memnox.Console.foreground)
                     Text(HeldNotices.detail)
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

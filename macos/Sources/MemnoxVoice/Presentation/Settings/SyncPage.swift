@@ -76,8 +76,8 @@ private struct SyncStateCard: View {
             VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
                 if !word.word.isEmpty { StatusWord(Tone(word.tone), word.word) }
                 Text(status.said)
-                    .font(Memnox.sans(Memnox.TextSize.body))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.body))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .fixedSize(horizontal: false, vertical: true)
                 if ready { SyncLine(PersonalSyncLines.lastSyncedLine(SessionText.ago(status.lastSyncedAt, now: Date()))) }
             }
@@ -90,8 +90,8 @@ private struct SyncStateCard: View {
             }
             if let note = screen.note {
                 Text(note.text)
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(note.alert ? Memnox.Palette.destructive : Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(note.alert ? Memnox.Console.destructive : Memnox.Console.foreground)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -112,7 +112,7 @@ private struct FingerprintDigits: View {
                         Text(groups[index])
                             .font(.system(size: SyncLayout.digitSize, weight: .semibold, design: .monospaced))
                             .tracking(SyncLayout.digitTracking)
-                            .foregroundStyle(Memnox.Palette.foreground)
+                            .foregroundStyle(Memnox.Console.foreground)
                     }
                 }
             }
@@ -183,7 +183,7 @@ private struct CountsCard: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: Memnox.Spacing.regular)], spacing: Memnox.Spacing.regular) {
                 ForEach(status.kinds, id: \.kind) { count in
                     let tile = PersonalSyncLines.kindTile(count)
-                    StatTile(value: tile.value, label: tile.label, symbol: Self.symbols[count.kind] ?? "square.stack", tint: Memnox.Palette.faint)
+                    StatTile(value: tile.value, label: tile.label, symbol: Self.symbols[count.kind] ?? "square.stack", tint: Memnox.Console.faint)
                 }
             }
             ForEach(status.skipped, id: \.self) { SyncLine($0) }
@@ -191,8 +191,8 @@ private struct CountsCard: View {
                 SyncLine(PersonalSyncLines.openedElsewhereLine(status.openedElsewhere.count))
                 ForEach(status.openedElsewhere, id: \.self) { repository in
                     Text(repository)
-                        .font(Memnox.mono(Memnox.TextSize.micro))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .font(Memnox.Console.sans(Memnox.TextSize.micro))
+                        .foregroundStyle(Memnox.Console.muted)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -231,8 +231,8 @@ private struct ConflictRow: View {
         let shape = RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             Text(conflict.name)
-                .font(Memnox.sans(Memnox.TextSize.body, .medium))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.body, .medium))
+                .foregroundStyle(Memnox.Console.foreground)
             SyncLine(PersonalSyncLines.conflictCaption(conflict, kept: SessionText.ago(conflict.keptAt, now: Date())))
             HStack(alignment: .top, spacing: Memnox.Spacing.regular) {
                 Side(title: "Theirs", text: conflict.theirs)
@@ -246,7 +246,7 @@ private struct ConflictRow: View {
             .disabled(busy)
         }
         .padding(Memnox.Spacing.large)
-        .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
     }
 
     private func keep(_ side: SyncKeep) {
@@ -263,12 +263,12 @@ private struct Side: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
             Text(title)
-                .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+                .foregroundStyle(Memnox.Console.muted)
             ScrollView {
                 Text(text)
-                    .font(Memnox.mono(Memnox.TextSize.micro))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.code(Memnox.TextSize.micro))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -288,8 +288,8 @@ private struct SyncLine: View {
 
     var body: some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

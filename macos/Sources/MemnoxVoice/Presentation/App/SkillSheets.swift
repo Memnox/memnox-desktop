@@ -22,14 +22,14 @@ struct SkillSheetFrame<Body: View, Footer: View>: View {
         VStack(spacing: 0) {
             HStack(spacing: Memnox.Spacing.large) {
                 Text(title)
-                    .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: Memnox.Spacing.medium)
                 if let step {
                     Text(step)
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.muted)
                         .lineLimit(1)
                 }
             }
@@ -48,7 +48,7 @@ struct SkillSheetFrame<Body: View, Footer: View>: View {
         }
         .frame(width: SheetLayout.width)
         .frame(minHeight: SheetLayout.minHeight)
-        .background(Memnox.Palette.background)
+        .background(Memnox.Console.background)
         .buttonStyle(QuietButton())
     }
 }
@@ -82,8 +82,8 @@ struct AssignSkillSheet: View {
                 ForEach(losses, id: \.label) { each in
                     VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
                         Text(each.label)
-                            .font(Memnox.sans(Memnox.TextSize.body, .medium))
-                            .foregroundStyle(Memnox.Palette.foreground)
+                            .font(Memnox.Console.sans(Memnox.TextSize.body, .medium))
+                            .foregroundStyle(Memnox.Console.foreground)
                         ForEach(each.loses, id: \.self) { loss in QuietLine("\u{2022} \(loss)") }
                     }
                 }
@@ -124,11 +124,11 @@ struct AssignSkillSheet: View {
                 BrandLogo(agent: agent.agent, name: agent.label, size: SheetLayout.logo)
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(agent.label)
-                        .font(Memnox.sans(Memnox.TextSize.body))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.body))
+                        .foregroundStyle(Memnox.Console.foreground)
                     Text(compatibility.map(SkillsLines.compatibility) ?? "Takes it as written")
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.muted)
                 }
             }
         }
@@ -170,25 +170,25 @@ struct NewSkillSheet: View {
             labelled("Category, optional") { TextField("Writing", text: $form.category).kitField() }
             labelled("Instructions") {
                 TextEditor(text: $form.instructions)
-                    .font(Memnox.mono(Memnox.TextSize.footnote))
+                    .font(Memnox.Console.code(Memnox.TextSize.footnote))
                     .scrollContentBackground(.hidden)
                     .padding(Memnox.Spacing.small)
                     .frame(height: SheetLayout.instructionsHeight)
-                    .background(Memnox.Palette.field, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
+                    .background(Memnox.Console.field, in: RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: Memnox.Spacing.medium, style: .continuous)
-                        .strokeBorder(Memnox.Palette.fieldEdge, lineWidth: Memnox.Stroke.hairline))
+                        .strokeBorder(Memnox.Console.fieldEdge, lineWidth: Memnox.Stroke.hairline))
                     .accessibilityLabel("Instructions")
             }
             labelled("Agent tools it needs, separated by commas") {
-                TextField("Read, Bash", text: $form.tools).kitField().font(Memnox.mono(Memnox.TextSize.footnote))
+                TextField("Read, Bash", text: $form.tools).kitField().font(Memnox.Console.code(Memnox.TextSize.footnote))
             }
             labelled("Commands it runs, separated by commas") {
-                TextField("gh, git", text: $form.commands).kitField().font(Memnox.mono(Memnox.TextSize.footnote))
+                TextField("gh, git", text: $form.commands).kitField().font(Memnox.Console.code(Memnox.TextSize.footnote))
             }
             if let problem {
                 Text(problem)
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.destructive)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.destructive)
                     .fixedSize(horizontal: false, vertical: true)
             }
         } footer: {
@@ -221,8 +221,8 @@ struct NewSkillSheet: View {
     private func labelled<Field: View>(_ label: String, @ViewBuilder field: () -> Field) -> some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
             Text(label)
-                .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                .foregroundStyle(Memnox.Palette.muted)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+                .foregroundStyle(Memnox.Console.muted)
             field()
         }
     }

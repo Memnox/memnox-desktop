@@ -97,7 +97,7 @@ private struct SetupProgressCard: View {
         SettingsSection(title: open == nil ? "Set up" : "Do this next") {
             Text("\(ready) of \(steps.count)")
                 .font(.system(size: SettingsMetrics.captionSize).monospacedDigit())
-                .foregroundStyle(Memnox.Palette.muted)
+                .foregroundStyle(Memnox.Console.muted)
         } content: {
             SettingsCard {
                 if let open {
@@ -106,7 +106,7 @@ private struct SetupProgressCard: View {
                     }
                 } else {
                     SettingsRow(symbol: "checkmark.circle", title: "Everything is ready",
-                                caption: "Press Option Space from anywhere and ask about your agents.", tint: Memnox.Palette.success)
+                                caption: "Press Option Space from anywhere and ask about your agents.", tint: Memnox.Console.success)
                 }
                 SettingsDivider(full: true)
                 VStack(alignment: .leading, spacing: 0) {
@@ -117,7 +117,7 @@ private struct SetupProgressCard: View {
                     HStack {
                         Text(setup.nameState == .done ? "Finish and hear Memnox say hello." : "Add your name first, then finish.")
                             .font(.system(size: SettingsMetrics.captionSize))
-                            .foregroundStyle(Memnox.Palette.muted)
+                            .foregroundStyle(Memnox.Console.muted)
                         Spacer()
                         // The card's one primary is the open step; Finish takes it over once nothing is left.
                         Button("Finish setup") { setup.finish() }
@@ -135,14 +135,14 @@ private struct SetupProgressCard: View {
                 SetupMark(state: step.state)
                 Text(step.title)
                     .font(.system(size: SettingsMetrics.rowTextSize))
-                    .foregroundStyle(step.state == .done ? Memnox.Palette.muted : Memnox.Palette.foreground)
+                    .foregroundStyle(step.state == .done ? Memnox.Console.muted : Memnox.Console.foreground)
                 Spacer(minLength: 0)
                 Text(step.page.title)
                     .font(.system(size: SettingsMetrics.captionSize))
-                    .foregroundStyle(Memnox.Palette.faint)
+                    .foregroundStyle(Memnox.Console.faint)
                 Image(systemName: Self.chevron)
                     .font(.system(size: Self.chevronSize, weight: .semibold))
-                    .foregroundStyle(Memnox.Palette.faint)
+                    .foregroundStyle(Memnox.Console.faint)
             }
             .frame(height: Self.checklistRowHeight)
             .contentShape(Rectangle())
@@ -220,11 +220,11 @@ private struct OverviewNumbers: View {
     private func number(_ label: String, _ value: Int, tint: Color?) -> some View {
         HStack(spacing: Memnox.Spacing.small) {
             Text(label)
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.ink(Memnox.Ink.secondary))
             Text("\(value)")
-                .font(Memnox.sans(Memnox.TextSize.callout, .semibold).monospacedDigit())
-                .foregroundStyle(tint ?? Memnox.Palette.ink)
+                .font(Memnox.Console.sans(Memnox.TextSize.callout, .semibold).monospacedDigit())
+                .foregroundStyle(tint ?? Memnox.Console.ink)
                 .contentTransition(.numericText(value: Double(value)))
         }
         .accessibilityElement(children: .combine)

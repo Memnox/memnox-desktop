@@ -54,6 +54,108 @@ enum Memnox {
         static let deep = Color(hex: 0x1E86EE)
     }
 
+    /// The Memnox window wears the Memnox Cloud console's palette, value for value from memnox-client's globals.css, so
+    /// the desktop and the console read as one product: a neutral ground under bordered cards, its blue the one hue, and
+    /// status kept in the desktop's words in the console's pill colours. The island, the menu and the floating cards keep
+    /// `Palette`, which is why this is a second set rather than new values for the first.
+    enum Console {
+        static let background = Color(light: 0xFBFBFB, dark: 0x030303)
+        /// The sidebar sits flat on the ground, read by its border rather than a fill.
+        static let surface = background
+        static let card = Color(light: 0xFFFFFF, dark: 0x0F0F0F)
+        static let secondary = card
+        static let field = card
+        static let raised = card
+        static let panel = card
+        static let capsule = card
+        static let border = Color(light: 0xE2E2E2, dark: 0x313131)
+        static let controlEdge = border
+        static let panelEdge = border
+        static let fieldEdge = border
+        static let capsuleEdge = border
+        static let foreground = Color(light: 0x0F0F0F, dark: 0xFDFDFD)
+        static let ink = foreground
+        static let muted = Color(light: 0x333333, dark: 0xADADAD)
+        static let faint = Color(light: 0x8A8A8A, dark: 0x6B6B6B)
+        static let hover = Color(light: 0xF2F2F2, dark: 0x191919)
+        /// The row that is chosen, a step past the hover so the two never read as one.
+        static let active = Color(light: 0xEAEAEA, dark: 0x1D1D1D)
+        static let keycap = hover
+        static let rim = card
+        static let primary = Color(hex: 0x1E86EE)
+        static let deep = primary
+        static let sky = Color(light: 0x1E86EE, dark: 0x3D97F3)
+        /// The soft ring a focused field or button wears outside its border.
+        static let ring = Color(nsColor: NSColor(name: nil) { appearance in
+            let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            return NSColor(Color(hex: 0x1E86EE)).withAlphaComponent(dark ? Ring.dark : Ring.light)
+        })
+        /// A switch's knob while on: white in the light, a tint of the blue in the dark.
+        static let switchKnob = Color(light: 0xFFFFFF, dark: 0x9CD1FD)
+        static let success = Color(hex: 0x37CD8F)
+        static let warm = Color(hex: 0xDD815D)
+        static let destructive = Color(hex: 0xE31957)
+        /// The console's sixth chart hue, which the memory map gives a restatement's line.
+        static let violet = Color(light: 0x7C5CF0, dark: 0xA78BFA)
+
+        private enum Ring {
+            static let light = 0.35
+            static let dark = 0.45
+        }
+
+        /// The console's ink at one of the `Ink` strengths, near black on the light ground and near white on the dark.
+        static func ink(_ strength: Double) -> Color {
+            Color(nsColor: NSColor(name: nil) { appearance in
+                let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                return NSColor(Color(hex: dark ? Hex.lightInk : Hex.darkInk)).withAlphaComponent(min(1, strength))
+            })
+        }
+
+        private enum Hex {
+            static let darkInk: UInt32 = 0x0F0F0F
+            static let lightInk: UInt32 = 0xFDFDFD
+        }
+
+        /// Two shapes, as the console folds them: 6 for controls and tiles, 12 for cards and panels.
+        static let controlRadius: CGFloat = 6
+        static let cardRadius: CGFloat = 12
+        /// A button, a select and a chip, as the console sizes them at their small size.
+        static let controlHeight: CGFloat = 32
+        /// A text field, a little taller than a button as the console's are.
+        static let fieldHeight: CGFloat = 36
+        /// The soft ring's width outside a focused field.
+        static let ringWidth: CGFloat = 3
+        /// A panel lifted over the page: a dialog, the palette, a floating inspector.
+        static let liftShadow = 0.18
+        static let liftRadius: CGFloat = 30
+        static let liftDrop: CGFloat = 12
+
+        /// The console's type steps: label 11, meta 12, body-sm 13, a section's heading 16 and a page's title 24.
+        enum TextSize {
+            static let label: CGFloat = 11
+            static let meta: CGFloat = 12
+            static let bodySmall: CGFloat = 13
+            static let base: CGFloat = 16
+            static let large: CGFloat = 18
+            static let title: CGFloat = 24
+        }
+
+        /// The console draws its titles one step tight, since Inter is drawn loose for the web.
+        static let titleTracking: CGFloat = -0.48
+        /// An uppercase heading is spaced out, as the console's group headings are.
+        static let headingTracking: CGFloat = 1.98
+
+        /// Inter, as the console sets everything; the system face where the bundled Inter could not be registered.
+        static func sans(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+            BundledFonts.inter ? .custom(BundledFonts.interFamily, size: size).weight(weight) : .system(size: size, weight: weight)
+        }
+
+        /// A real monospace, kept for code and raw TOML: DM Mono where it was registered, else the system's own.
+        static func code(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+            BundledFonts.dmMono ? .custom(BundledFonts.monoFamily, size: size).weight(weight) : .system(size: size, weight: weight, design: .monospaced)
+        }
+    }
+
     /// Ink at one of the `Ink` strengths. Dark text on white needs more than white on black to read as well, so the
     /// light side is stronger by a fixed share, which keeps secondary text above 4.5 to 1 on the page.
     static func ink(_ strength: Double) -> Color {
@@ -157,6 +259,121 @@ enum Memnox {
     private static func installed(_ family: String) -> Bool {
         NSFontManager.shared.availableFontFamilies.contains(family)
     }
+}
+
+/// Inter and DM Mono, bundled under the OFL and registered with this process the first time a font asks, so nothing has
+/// to be installed on the Mac. `scripts/bundle.sh` copies them into the app; a build run from the package has none, and
+/// the window falls back to the system face rather than failing.
+enum BundledFonts {
+    static let interFamily = "Inter"
+    static let monoFamily = "DM Mono"
+    private static let folder = "Fonts"
+    /// The Latin cut only: the extended one carries the same names and CoreText refuses the second registration.
+    private static let interFile = "inter-latin-opsz-normal"
+    private static let monoFiles = ["dm-mono-latin-400-normal", "dm-mono-latin-500-normal"]
+    private static let kind = "woff2"
+
+    static let inter: Bool = register([interFile]) || installed(interFamily)
+    static let dmMono: Bool = register(monoFiles) || installed(monoFamily)
+
+    private static func register(_ names: [String]) -> Bool {
+        let urls = names.compactMap { Bundle.main.url(forResource: $0, withExtension: kind, subdirectory: folder) }
+        guard urls.count == names.count else { return false }
+        var failed = false
+        for url in urls {
+            var error: Unmanaged<CFError>?
+            // Already registered by an earlier call counts as there, since the face is usable either way.
+            if !CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error), let error {
+                let code = CFErrorGetCode(error.takeRetainedValue())
+                if code != CTFontManagerError.alreadyRegistered.rawValue { failed = true }
+            }
+        }
+        return !failed
+    }
+
+    private static func installed(_ family: String) -> Bool {
+        NSFontManager.shared.availableFontFamilies.contains(family)
+    }
+}
+
+/// Which palette a surface wears: the Mac's own on the island, the menu and the floating cards, and the console's in
+/// the Memnox window. The shared controls read it, so one button is drawn in whichever window it sits in.
+enum Look: Sendable {
+    case mac
+    case console
+
+    var tokens: LookTokens { LookTokens.of(self) }
+
+    /// Text in the look's own face: Inter in the console's, the system's on the Mac's.
+    func sans(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        self == .console ? Memnox.Console.sans(size, weight) : .system(size: size, weight: weight)
+    }
+}
+
+private struct LookKey: EnvironmentKey {
+    static let defaultValue = Look.mac
+}
+
+extension EnvironmentValues {
+    var look: Look {
+        get { self[LookKey.self] }
+        set { self[LookKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Wears the console's palette and type from here down: the Memnox window, its popped out details and its sheets.
+    func consoleLook() -> some View {
+        environment(\.look, .console)
+            .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
+            .tint(Memnox.Console.primary)
+    }
+}
+
+/// The tokens the shared controls pick from, by the look they are drawn in.
+struct LookTokens {
+    let background: Color
+    let card: Color
+    let secondary: Color
+    let controlEdge: Color
+    let border: Color
+    let panelEdge: Color
+    let foreground: Color
+    let muted: Color
+    let faint: Color
+    let hover: Color
+    let active: Color
+    let field: Color
+    let fieldEdge: Color
+    let raised: Color
+    let keycap: Color
+    let rim: Color
+    let primary: Color
+
+    static func of(_ look: Look) -> LookTokens {
+        switch look {
+        case .mac: mac
+        case .console: console
+        }
+    }
+
+    private static let mac = LookTokens(
+        background: Memnox.Palette.background, card: Memnox.Palette.card, secondary: Memnox.Palette.secondary,
+        controlEdge: Memnox.Palette.controlEdge, border: Memnox.Palette.border, panelEdge: Memnox.Palette.panelEdge,
+        foreground: Memnox.Palette.foreground, muted: Memnox.Palette.muted, faint: Memnox.Palette.faint,
+        hover: Memnox.Palette.hover, active: Memnox.Palette.hover, field: Memnox.Palette.field,
+        fieldEdge: Memnox.Palette.fieldEdge, raised: Memnox.Palette.raised, keycap: Memnox.Palette.keycap,
+        rim: Memnox.Palette.rim, primary: Memnox.Palette.primary
+    )
+
+    private static let console = LookTokens(
+        background: Memnox.Console.background, card: Memnox.Console.card, secondary: Memnox.Console.secondary,
+        controlEdge: Memnox.Console.controlEdge, border: Memnox.Console.border, panelEdge: Memnox.Console.panelEdge,
+        foreground: Memnox.Console.foreground, muted: Memnox.Console.muted, faint: Memnox.Console.faint,
+        hover: Memnox.Console.hover, active: Memnox.Console.active, field: Memnox.Console.field,
+        fieldEdge: Memnox.Console.fieldEdge, raised: Memnox.Console.raised, keycap: Memnox.Console.keycap,
+        rim: Memnox.Console.border, primary: Memnox.Console.primary
+    )
 }
 
 extension Color {
@@ -298,20 +515,22 @@ struct QuietButton: ButtonStyle {
 /// A key as it is printed on the keyboard, as Vorssaint prints one inside a shortcut's field.
 struct Keycap: View {
     let label: String
+    @Environment(\.look) private var look
 
     private static let horizontalPadding: CGFloat = 6
     private static let minimumWidth: CGFloat = 18
     private static let height: CGFloat = 18
 
     var body: some View {
+        let tokens = look.tokens
+        let shape = RoundedRectangle(cornerRadius: look == .console ? Memnox.Console.controlRadius : Memnox.keycapRadius, style: .continuous)
         Text(label)
-            .font(.system(size: Memnox.TextSize.caption, weight: .medium))
-            .foregroundStyle(Memnox.Palette.foreground)
+            .font(look.sans(Memnox.TextSize.caption, .medium))
+            .foregroundStyle(look == .console ? tokens.muted : tokens.foreground)
             .padding(.horizontal, Self.horizontalPadding)
             .frame(minWidth: Self.minimumWidth, minHeight: Self.height)
-            .background(RoundedRectangle(cornerRadius: Memnox.keycapRadius, style: .continuous).fill(Memnox.Palette.keycap))
-            .overlay(RoundedRectangle(cornerRadius: Memnox.keycapRadius, style: .continuous)
-                .strokeBorder(Memnox.Palette.controlEdge, lineWidth: Memnox.Stroke.hairline))
+            .background(shape.fill(tokens.keycap))
+            .overlay(shape.strokeBorder(tokens.controlEdge, lineWidth: Memnox.Stroke.hairline))
     }
 }
 

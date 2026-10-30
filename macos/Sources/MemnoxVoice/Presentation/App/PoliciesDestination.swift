@@ -23,7 +23,7 @@ struct PoliciesDestination: View {
             // A signed or declined proposal leaves the island, and the rules are read again so they show what holds.
             .onChange(of: island.waiting.count) { Task { await screen.studio.refresh() } }
             .sheet(isPresented: $building) {
-                RuleBuilderSheet(screen: screen, agents: shell.hub?.hub.hub?.agents.map(\.agent) ?? []) { building = false }
+                RuleBuilderSheet(screen: screen, agents: shell.hub?.hub.hub?.agents.map(\.agent) ?? []) { building = false }.consoleLook()
             }
     }
 
@@ -64,9 +64,9 @@ struct PoliciesDestination: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, ShellMetrics.rowPaddingH)
                 .padding(.vertical, ShellMetrics.rowPaddingV)
-                .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
-                    .strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                    .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
                 .accessibilityElement(children: .combine)
             }
         }
@@ -125,15 +125,15 @@ struct PoliciesDestination: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
                     ForEach(view.problems, id: \.file) { problem in
                         Text("\(problem.file): \(problem.issues.joined(separator: " "))")
-                            .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                            .foregroundStyle(Memnox.Palette.destructive)
+                            .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+                            .foregroundStyle(Memnox.Console.destructive)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, ShellMetrics.rowPaddingH)
                 .padding(.vertical, ShellMetrics.rowPaddingV)
-                .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
                 .accessibilityElement(children: .combine)
             }
             if shell.scope == .organization {
@@ -242,8 +242,8 @@ private struct LetGo: View {
         ShellSection(title: "Let go") {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
                 Text(progress.ladder.says)
-                    .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.body, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
                 if let needs = progress.ladder.needs { QuietLine(needs) }
                 QuietLine(StudioLines.thisWeek(progress))
                 ladder.padding(.top, Memnox.Spacing.small)
@@ -251,9 +251,9 @@ private struct LetGo: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Memnox.Spacing.xLarge)
             .padding(.vertical, Memnox.Spacing.large)
-            .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+            .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
-                .strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
             if !progress.ready.isEmpty || !progress.almost.isEmpty || !progress.grants.isEmpty {
                 ShellPanel {
                     ForEach(Array(progress.ready.enumerated()), id: \.offset) { index, ready in
@@ -298,11 +298,11 @@ private struct LetGo: View {
             ForEach(progress.ladder.rungs, id: \.self) { rung in
                 let here = rung == progress.ladder.level
                 Text(rung)
-                    .font(Memnox.sans(Memnox.TextSize.micro, here ? .semibold : .regular))
-                    .foregroundStyle(here ? Memnox.Palette.foreground : Memnox.Palette.muted)
+                    .font(Memnox.Console.sans(Memnox.TextSize.micro, here ? .semibold : .regular))
+                    .foregroundStyle(here ? Memnox.Console.foreground : Memnox.Console.muted)
                     .padding(.horizontal, Memnox.Spacing.regular)
                     .padding(.vertical, Memnox.Spacing.xxSmall)
-                    .overlay(Capsule().strokeBorder(here ? Memnox.Palette.primary : Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+                    .overlay(Capsule().strokeBorder(here ? Memnox.Console.primary : Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
                     .accessibilityAddTraits(here ? .isSelected : [])
             }
         }
@@ -346,14 +346,14 @@ private struct RuleDetail: View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
                 Text(rule.sentence)
-                    .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
                     .fixedSize(horizontal: false, vertical: true)
                 StatusWord(Tone(effect: rule.effect), StudioLines.says(rule.effect))
                 if let reason = rule.reason {
                     Text(reason)
-                        .font(Memnox.sans(Memnox.TextSize.body))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.body))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -414,7 +414,7 @@ private struct TryAction: View {
             HStack(spacing: Memnox.Spacing.medium) {
                 TextField("git.push", text: $action)
                     .kitField()
-                    .font(Memnox.mono(Memnox.TextSize.body))
+                    .font(Memnox.Console.code(Memnox.TextSize.body))
                     .frame(minWidth: Self.fieldWidth)
                     .onSubmit(run)
                     .accessibilityLabel("Action to try")
@@ -434,8 +434,8 @@ private struct TryAction: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
                     StatusWord(Tone(effect: verdict.effect), StudioLines.says(verdict.effect))
                     Text(verdict.reason)
-                        .font(Memnox.sans(Memnox.TextSize.body))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.body))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .fixedSize(horizontal: false, vertical: true)
                     if let rule = verdict.rule { QuietLine("Rule: \(rule)") }
                     if let instead = verdict.instead { QuietLine("Instead: \(instead)") }
@@ -443,7 +443,7 @@ private struct TryAction: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Memnox.Spacing.xLarge)
                 .padding(.vertical, Memnox.Spacing.large)
-                .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
+                .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous))
                 .accessibilityElement(children: .combine)
             case nil:
                 EmptyView()

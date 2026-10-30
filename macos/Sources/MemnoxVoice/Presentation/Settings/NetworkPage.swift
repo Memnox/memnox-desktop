@@ -38,8 +38,8 @@ struct NetworkPage: View {
                     .disabled(network.busy)
                 if let note {
                     Text(note.text)
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(note.alert ? Memnox.Palette.destructive : Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(note.alert ? Memnox.Console.destructive : Memnox.Console.foreground)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 SettingsDivider(full: true)
@@ -88,8 +88,8 @@ private struct NetworkLine: View {
 
     var body: some View {
         Text(text)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

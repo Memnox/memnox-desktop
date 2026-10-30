@@ -21,8 +21,8 @@ struct AddMemorySourceSheet: View {
         let adding = screen.memory.busy == Memory.adding
         VStack(spacing: 0) {
             Text("Add a memory source")
-                .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                .foregroundStyle(Memnox.Console.foreground)
                 .accessibilityAddTraits(.isHeader)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Memnox.Spacing.xxLarge)
@@ -38,7 +38,7 @@ struct AddMemorySourceSheet: View {
                             SupermemoryKey(hub: hub, secret: $form.secret)
                         } else {
                             labelled("The name of the secret that holds the key") {
-                                TextField("", text: $form.secret).kitField().font(Memnox.mono(Memnox.TextSize.footnote))
+                                TextField("", text: $form.secret).kitField().font(Memnox.Console.code(Memnox.TextSize.footnote))
                             }
                         }
                     case .server:
@@ -54,7 +54,7 @@ struct AddMemorySourceSheet: View {
                         }
                         .labelsHidden()
                     }
-                    if let problem { MemoryQuiet(problem, tint: Memnox.Palette.destructive) }
+                    if let problem { MemoryQuiet(problem, tint: Memnox.Console.destructive) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(Memnox.Spacing.xxLarge)
@@ -74,7 +74,7 @@ struct AddMemorySourceSheet: View {
         }
         .frame(width: SourceSheetLayout.width)
         .frame(minHeight: SourceSheetLayout.minHeight)
-        .background(Memnox.Palette.background)
+        .background(Memnox.Console.background)
         .buttonStyle(QuietButton())
         .task(id: place) {
             if place == .server, let hub, hub.hub.hub == nil { await hub.hub.refresh() }
@@ -119,8 +119,8 @@ struct AddMemorySourceSheet: View {
 private func labelled<Content: View>(_ label: String, @ViewBuilder _ content: () -> Content) -> some View {
     VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
         Text(label)
-            .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-            .foregroundStyle(Memnox.Palette.muted)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+            .foregroundStyle(Memnox.Console.muted)
         content()
     }
 }
@@ -135,7 +135,7 @@ private struct FolderField: View {
             HStack(spacing: Memnox.Spacing.medium) {
                 TextField(place == .repository ? "/Users/you/code/project" : "/Users/you/notes", text: $form.location)
                     .kitField()
-                    .font(Memnox.mono(Memnox.TextSize.footnote))
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
                 Button("Choose", systemImage: "folder", action: choose)
                     .buttonStyle(KitButton(kind: .secondary))
                     .help("Pick the folder in Finder")
@@ -168,7 +168,7 @@ private struct SupermemoryKey: View {
 
     var body: some View {
         labelled("The name of the secret that holds the key") {
-            TextField("", text: $secret).kitField().font(Memnox.mono(Memnox.TextSize.footnote))
+            TextField("", text: $secret).kitField().font(Memnox.Console.code(Memnox.TextSize.footnote))
         }
         labelled("Set the key") {
             HStack(spacing: Memnox.Spacing.medium) {
@@ -228,7 +228,7 @@ private struct HubServerPick: View {
             if server != nil {
                 labelled("The tool that reads its memory") {
                     if tools.isEmpty {
-                        TextField("search_memory", text: $form.tool).kitField().font(Memnox.mono(Memnox.TextSize.footnote))
+                        TextField("search_memory", text: $form.tool).kitField().font(Memnox.Console.code(Memnox.TextSize.footnote))
                     } else {
                         Picker("The tool that reads its memory", selection: $form.tool) {
                             Text("Choose a tool").tag("")

@@ -158,6 +158,14 @@ public enum DaemonMethod: String, Sendable {
     case skillRollback = "skill-rollback"
     /// Accepts a held skill's folder as it is now; signed where it reaches further.
     case skillAccept = "skill-accept"
+    /// Every project on this machine, opened or found, most recently active first.
+    case projects
+    /// Takes a folder in as a project and applies it; what widens an agent waits on a signature.
+    case projectOpen = "project-open"
+    /// Writes a project's `.memnox/project.toml` from a form, applying nothing until asked.
+    case projectPut = "project-put"
+    /// Hands the project's instructions to its agents at once, and proposes its servers, skills and rules.
+    case projectApply = "project-apply"
 }
 
 public enum EventKind: String, Sendable {
@@ -1243,6 +1251,12 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var skillScope: String?
     /// On skill-put.
     public var skillDraft: SkillDraft?
+    /// On project-open: the folder, absolute; on project-put, the repository the manifest is written into.
+    public var projectPath: String?
+    /// On project-apply.
+    public var projectId: String?
+    /// On project-put.
+    public var projectDraft: ProjectDraft?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -1565,6 +1579,10 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let skillsHub: SkillsHubView?
     /// On skill-sync, and after a change that wrote agents' folders.
     public let skillsSynced: SkillsSyncSummary?
+    /// On projects, and after every project change, so a screen redraws from one answer.
+    public let projects: ProjectsView?
+    /// On project-open and project-apply: what was done at once.
+    public let projectApplied: ProjectApplySummary?
 
     /// The outcome as a known case, or nil for one this app does not know yet.
     public var outcomeKind: Outcome? { outcome.flatMap(Outcome.init(rawValue:)) }

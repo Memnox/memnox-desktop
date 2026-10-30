@@ -1,11 +1,12 @@
 import { HOLD_ANSWER } from '@memnox/core/wire';
-import { ShieldCheck } from 'lucide-react';
+import { Bell, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { HeldOutcome } from '../../../core/application/held-calls';
 import type { HeldCard } from '../../../core/domain/held-card';
 import type { HeldAnswer } from '../../../core/domain/call-label';
 import { BrandLogo } from '../../kit/logos';
-import { KitButton } from '../../settings/kit';
+import { KitButton, SwitchRow } from '../../settings/kit';
+import { NOTICES_ASKED_KEY, NOTICES_DENIED, NOTICES_DETAIL, NOTICES_KEY, NOTICES_TITLE } from '../../../core/domain/held-notices';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
 import { ActivityPage } from './ActivityPage';
@@ -53,15 +54,19 @@ function Approvals({ parts }: { parts: SettingsParts }) {
 
   if (waiting.length === 0) {
     return (
-      <EmptyState
-        icon={ShieldCheck}
-        title="Nothing is waiting on you"
-        body={calls.state.connected ? 'When an agent asks before doing something your rules hold, it waits here and on the island.' : 'Memnox is reaching the runtime. Anything held will show here as soon as it answers.'}
-      />
+      <div className="flex flex-col gap-3">
+        <NoticesSwitch parts={parts} />
+        <EmptyState
+          icon={ShieldCheck}
+          title="Nothing is waiting on you"
+          body={calls.state.connected ? 'When an agent asks before doing something your rules hold, it waits here and on the island.' : 'Memnox is reaching the runtime. Anything held will show here as soon as it answers.'}
+        />
+      </div>
     );
   }
   return (
     <div className="flex flex-col gap-3">
+      <NoticesSwitch parts={parts} />
       <p className="text-footnote text-muted">{`${waiting.length} waiting, oldest first.`}</p>
       {waiting.map(({ card, subject }) => (
         <article key={subject} className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
@@ -93,6 +98,32 @@ function Approvals({ parts }: { parts: SettingsParts }) {
           {notes[subject] !== undefined && <p className="text-footnote text-muted">{notes[subject]}</p>}
         </article>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Whether a held call is said by the system as well, on unless turned off. Turning it on is where the system is
+ * asked, so the question comes from the person's own press rather than at launch.
+ */
+function NoticesSwitch({ parts }: { parts: SettingsParts }) {
+  const { host } = parts;
+  const [on, setOn] = useState(() => localStorage.getItem(NOTICES_KEY) !== 'false');
+  const [denied, setDenied] = useState(false);
+  useEffect(() => {
+    if (on && host.notices !== undefined) void host.notices(false).then((granted) => setDenied(!granted && localStorage.getItem(NOTICES_ASKED_KEY) === 'true'));
+  }, [on]);
+  const change = (next: boolean) => {
+    localStorage.setItem(NOTICES_KEY, String(next));
+    setOn(next);
+    if (!next || host.notices === undefined) return;
+    localStorage.setItem(NOTICES_ASKED_KEY, 'true');
+    void host.notices(true).then((granted) => setDenied(!granted));
+  };
+  return (
+    <div className="flex flex-col gap-1.5 rounded-xl border border-panel-edge bg-card px-4 py-3">
+      <SwitchRow icon={Bell} title={NOTICES_TITLE} caption={NOTICES_DETAIL} on={on} onChange={change} />
+      {on && denied && <StatusWord tone="attention">{NOTICES_DENIED}</StatusWord>}
     </div>
   );
 }

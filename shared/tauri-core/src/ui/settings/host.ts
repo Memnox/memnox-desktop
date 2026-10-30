@@ -1,5 +1,6 @@
 import { invoke, Channel } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
+import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
 import type { Look } from '../../core/domain/appearance';
 import type { PermissionFacts, PrivacyPane } from '../../core/domain/permission-steps';
@@ -48,6 +49,14 @@ export interface SettingsHost {
   copyWhatHappened?(more: string): Promise<void>;
   /** Told when the island or the tray asks this window for one page. */
   onShowPage(listener: (page: string) => void): () => void;
+  /** Pops an item's details out into a window of their own, on the link the page names for that item. */
+  popOut?(search: string, title: string): void;
+  /** A rule pack's text from a file the person picks in the system's open dialog; undefined when they cancelled. */
+  pickRulePack?(): Promise<string | undefined>;
+  /** Saves a rule pack where the person picks in the system's save dialog; false when they cancelled. */
+  saveRulePack?(toml: string): Promise<boolean>;
+  /** Whether the system shows Memnox's notifications, asking it first when `ask` is set. */
+  notices?(ask: boolean): Promise<boolean>;
   readonly voices: {
     choice(): Promise<{ voices: string[]; chosen: string | null; speed?: number }>;
     /** How fast the voice speaks, held between half speed and normal. */
@@ -97,6 +106,14 @@ export const tauriHost: SettingsHost = {
   onShowPage: (listener) => {
     const stop = listen<string>('settings-page', (event) => listener(event.payload));
     return () => void stop.then((unlisten) => unlisten(), () => undefined);
+  },
+  popOut: (search, title) => void invoke('open_inspector', { search, title }).catch(() => undefined),
+  // `rule_pack.rs` shows the dialog and reads or writes the file, so this window names no path itself.
+  pickRulePack: () => invoke<string | null>('pick_rule_pack').then((toml) => toml ?? undefined),
+  saveRulePack: (toml) => invoke<boolean>('save_rule_pack', { toml }),
+  notices: async (ask) => {
+    if (await isPermissionGranted()) return true;
+    return ask ? (await requestPermission()) === 'granted' : false;
   },
   voices: {
     choice: () => invoke<{ voices: string[]; chosen: string | null; speed?: number }>('voice_choice'),

@@ -28,6 +28,8 @@ import { firstName } from '../core/domain/setup-steps';
 import { displayCaption, keyCaption } from '../core/domain/caption-lines';
 import { platformOf } from '../core/domain/platform';
 import { DAEMON_EVENT } from '@memnox/core/wire';
+import { HeldCallNotices } from '../core/application/held-call-notices';
+import { tauriNotices } from './adapters/tauri-notices';
 import type { ConfirmKey } from '../core';
 import './styles.css';
 
@@ -131,6 +133,9 @@ calls.observeEvents((event) => {
   if (doing !== undefined) caption(doing);
   void displays.handle(event).finally(() => doing !== undefined && caption(undefined));
 });
+// A held call the island is not already showing is said by the system too, unless the person turned that off.
+const heldNotices = new HeldCallNotices(tauriNotices, localPreferences, () => document.visibilityState === 'visible');
+calls.observe(() => void heldNotices.changed(heldCalls.state));
 const history = new HistoryKeeper(localHistory, () => crypto.randomUUID());
 history.follow(talking);
 // The tray panel's rows, the pills under the island, the chimes for answers by hand and the diary.

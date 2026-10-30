@@ -1,5 +1,5 @@
 import type { SkillView, SkillsHubView } from '@memnox/core/wire';
-import { ArrowLeft, Check, Plus, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowLeft, Check, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { SkillOutcome } from '../../../core/application/skills';
 import type { WidthClass } from '../../../core/domain/destinations';
@@ -246,9 +246,40 @@ function SkillDetail({
             </Panel>
           </Section>
           <Facts facts={[['Digest', skill.digest]]} mono />
+          {skill.scope === 'personal' && <RemoveSkill parts={parts} skill={skill} back={back} said={said} />}
         </div>
       </div>
     </div>
+  );
+}
+
+/** Removing only narrows, so it is done at once; a second press confirms, since its kept versions go with it. */
+function RemoveSkill({ parts, skill, back, said }: { parts: SettingsParts; skill: SkillView; back: () => void; said: (outcome: SkillOutcome) => void }) {
+  const { skills } = parts;
+  const [confirming, setConfirming] = useState(false);
+  const remove = () =>
+    void skills.remove(skill.name).then((outcome) => {
+      said(outcome);
+      if (outcome.kind !== 'failed') back();
+    });
+  return (
+    <Section title="Remove">
+      <p className="text-footnote text-muted">{`Takes ${skill.name} out of the hub and out of every agent it was given to, with every version kept of it.`}</p>
+      <div className="flex gap-2">
+        {confirming ? (
+          <>
+            <KitButton kind="primary" icon={Trash2} disabled={skills.busy === skill.name} onClick={remove}>
+              {`Remove ${skill.name}`}
+            </KitButton>
+            <KitButton onClick={() => setConfirming(false)}>Cancel</KitButton>
+          </>
+        ) : (
+          <KitButton icon={Trash2} onClick={() => setConfirming(true)}>
+            Remove skill
+          </KitButton>
+        )}
+      </div>
+    </Section>
   );
 }
 
@@ -256,7 +287,7 @@ function labelOf(view: SkillsHubView, agent: string): string {
   return view.agents.find((each) => each.agent === agent)?.label ?? agentLabel(agent);
 }
 
-function Facts({ facts, mono = false }: { facts: readonly (readonly [string, string])[]; mono?: boolean }) {
+export function Facts({ facts, mono = false }: { facts: readonly (readonly [string, string])[]; mono?: boolean }) {
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-footnote">
       {facts.map(([name, value]) => (

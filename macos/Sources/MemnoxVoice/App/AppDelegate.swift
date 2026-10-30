@@ -362,6 +362,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppWindow.shared.backup = Backup(link: link, ids: ids)
         AppWindow.shared.memory = Memory(link: link, ids: ids)
         AppWindow.shared.network = LocalNetwork(link: link, ids: ids)
+        AppWindow.shared.sync = PersonalSync(link: link, ids: ids)
         let chosen = UserDefaults.standard.string(forKey: Self.voiceChoiceKey) ?? VoiceChoice.kokoro
         Task {
             await chooseVoice(chosen, announce: false)

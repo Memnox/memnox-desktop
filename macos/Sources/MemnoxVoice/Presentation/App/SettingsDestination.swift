@@ -12,11 +12,14 @@ struct SettingsDestination: View {
     let backup: Backup?
     /// Whether paired phones reach this Mac over the local network, nil until the app wires it.
     let network: NetworkScreen?
+    /// The person's own setup carried between their machines, nil until the app wires it.
+    let sync: SyncScreen?
 
     /// The Backup page is the window's own, so it has no page in the Settings window to borrow.
     static let backupTab = "backup"
-    /// So is Local network.
+    /// So are Local network and Personal sync.
     static let networkTab = "network"
+    static let syncTab = "sync"
 
     var body: some View {
         if tab == Self.backupTab {
@@ -28,6 +31,11 @@ struct SettingsDestination: View {
             SettingsPageColumn(title: "Local network",
                                subtitle: "Reach this Mac over the network you share, rather than through the relay.") {
                 if let network { NetworkPage(screen: network) }
+            }
+        } else if tab == Self.syncTab {
+            SettingsPageColumn(title: "Personal sync",
+                               subtitle: "Your own setup carried between your machines, sealed under a key only they hold.") {
+                if let sync { SyncPage(screen: sync) }
             }
         } else {
             page

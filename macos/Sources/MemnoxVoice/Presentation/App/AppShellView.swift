@@ -229,7 +229,7 @@ private struct AppPage: View {
                 }
             case .settings:
                 SettingsDestination(models: models, menu: menu, setup: setup, tab: route.tab, backup: shell.backup,
-                                    network: shell.network)
+                                    network: shell.network, sync: shell.sync)
             }
         } else {
             ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)

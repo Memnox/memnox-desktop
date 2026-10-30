@@ -64,6 +64,11 @@ final class AppWindow {
         didSet { shell.network = network.map(NetworkScreen.init) }
     }
 
+    /// The person's own setup carried between their machines, read by Personal sync under Settings.
+    var sync: PersonalSync? {
+        didSet { shell.sync = sync.map(SyncScreen.init) }
+    }
+
     let shell = AppShellModel()
     private var window: NSWindow?
 
@@ -150,6 +155,8 @@ final class AppShellModel: ObservableObject {
     @Published var backup: Backup?
     /// The local network, nil until the app wires it, which leaves its page empty and Phones without its line.
     @Published var network: NetworkScreen?
+    /// Personal sync, nil until the app wires it, which leaves its page empty rather than broken.
+    @Published var sync: SyncScreen?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.
     @Published private(set) var answers = 0
     private var support: DaemonSupport?

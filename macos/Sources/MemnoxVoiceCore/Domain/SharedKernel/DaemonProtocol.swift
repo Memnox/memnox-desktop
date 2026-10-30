@@ -106,6 +106,36 @@ public enum DaemonMethod: String, Sendable {
     /// Keeps a credential in the OS store, typed on this Mac and refused from afar.
     case mcpSecretSet = "mcp-secret-set"
     case mcpSecretRemove = "mcp-secret-remove"
+    /// Every rule in force here, with where it came from and what would not load.
+    case rules
+    /// A rule filled in on a form; it holds only once the person signs the proposal it raises.
+    case rulePropose = "rule-propose"
+    /// Removing a person's rule: an allow goes at once, a deny or an ask waits on a signature.
+    case ruleRemove = "rule-remove"
+    /// One action ruled on against the rules in force, recording and changing nothing.
+    case ruleTest = "rule-test"
+    /// The rules a person added here, as TOML text.
+    case rulesExport = "rules-export"
+    /// A pack of rules as TOML, each turned into its own signed proposal.
+    case rulePackImport = "rule-pack-import"
+    /// What could be handed over, what the autopilot holds, and where the machine stands.
+    case progress
+    /// Takes one autopilot grant back at once, since that only narrows.
+    case autopilotRevoke = "autopilot-revoke"
+    /// One page of the ledger, newest first, filtered and bounded.
+    case activity
+    /// One decision whole: its rule, who handed the work down, what led up to it, and the trace.
+    case decision
+    /// The rows a filter selects, as a signed bundle an auditor can check.
+    case activityExport = "activity-export"
+    /// Every agent found here, one card each.
+    case agents
+    /// Holds one agent at once, since that only narrows.
+    case agentPause = "agent-pause"
+    /// Lets a paused agent carry on, which waits on the person's signature.
+    case agentResume = "agent-resume"
+    /// Holds one session before its next action, at once.
+    case sessionStop = "session-stop"
 }
 
 public enum EventKind: String, Sendable {
@@ -1151,6 +1181,26 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var mcpSecret: String?
     /// On mcp-secret-set: the value, which goes straight to the OS store and is never written anywhere else.
     public var mcpSecretValue: String?
+    /// On rule-propose: the rule as the form filled it.
+    public var ruleDraft: RuleDraftInput?
+    /// On rule-remove: the rule, by name.
+    public var ruleName: String?
+    /// On rule-test: the action to rule on.
+    public var ruleTest: RuleTestInput?
+    /// On rule-pack-import: the pack as TOML text.
+    public var rulePack: String?
+    /// On autopilot-revoke: the grant, by id.
+    public var grantId: String?
+    /// On activity and activity-export: which rows.
+    public var activityFilter: ActivityFilter?
+    /// On activity: where the last page ended.
+    public var activityCursor: String?
+    /// On activity: rows wanted, capped by the daemon.
+    public var activityLimit: Int?
+    /// On decision: the row, by id.
+    public var decisionId: String?
+    /// On agent-pause and agent-resume: the agent, by kind or by the name it goes by.
+    public var agentKind: String?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -1445,6 +1495,24 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let mcpHealth: McpServerHealth?
     /// On mcp-sync, and after a change that wrote configs.
     public let mcpSynced: McpSyncSummary?
+    /// On rules, and after every rule change, so a screen redraws from one answer.
+    public let policyRules: PolicyRulesView?
+    /// On rule-test.
+    public let ruleVerdict: RuleVerdictView?
+    /// On rules-export.
+    public let rulesToml: String?
+    /// On rule-pack-import: one proposal per rule, each confirmed on its own.
+    public let packProposed: [String]?
+    /// On progress and autopilot-revoke.
+    public let progress: AutonomyProgress?
+    /// On activity.
+    public let activity: ActivityPage?
+    /// On decision.
+    public let decision: DecisionView?
+    /// On activity-export: the signed header as one JSON line, then one event per line.
+    public let activityBundle: String?
+    /// On agents, and after a pause or a stop.
+    public let agentsView: [AgentStanding]?
 
     /// The outcome as a known case, or nil for one this app does not know yet.
     public var outcomeKind: Outcome? { outcome.flatMap(Outcome.init(rawValue:)) }

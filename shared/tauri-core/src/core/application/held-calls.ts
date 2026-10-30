@@ -49,6 +49,8 @@ export interface HeldCallsOptions {
   readonly answers?: DaemonLink;
   /** Whether an event of this computer's own feed reaches the island, and the place to remember it by. */
   readonly accept?: (event: DaemonEvent) => boolean;
+  /** Asks the daemon for live activity rows too, which only the feed that hands them to the windows wants. */
+  readonly liveActivity?: boolean;
   /** Teammates' calls the workspace routed here, answered through it and never through a daemon. */
   readonly team?: {
     owns(subject: string): boolean;
@@ -112,7 +114,7 @@ export class HeldCalls {
   async watch(): Promise<void> {
     try {
       await this.catchUp();
-      for await (const response of this.link.stream(this.request(DAEMON_METHOD.SUBSCRIBE))) {
+      for await (const response of this.link.stream(this.subscription())) {
         this.update({ connected: true });
         if (response.event === undefined) continue;
         if (this.options.accept?.(response.event) === false) continue;
@@ -252,6 +254,12 @@ export class HeldCalls {
 
   private request(method: DaemonRequest['method']): DaemonRequest {
     return { id: this.ids.next(), method };
+  }
+
+  /** A daemon sends activity only when asked, since an app built before it would say every row aloud. */
+  private subscription(): DaemonRequest {
+    const request = this.request(DAEMON_METHOD.SUBSCRIBE);
+    return this.options.liveActivity === true ? { ...request, subscribeActivity: true } : request;
   }
 
   private update(change: Partial<HeldState>): void {

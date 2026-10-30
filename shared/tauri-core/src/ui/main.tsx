@@ -66,7 +66,8 @@ const key: ConfirmKey = {
 const signer = new Signer(link, key, ids, (status) => calls?.keyChanged(status));
 // Paired servers and the team's inbox: `target` sends each request to the machine it belongs to.
 const relay = islandRelay({ local: link, ids, key, timer, store: localPreferences });
-calls = new HeldCalls(link, signer, ids, { timer, ...relay.heldOptions });
+// The island's feed is the one that hands live activity rows to the windows, so it alone asks for them.
+calls = new HeldCalls(link, signer, ids, { timer, ...relay.heldOptions, liveActivity: true });
 const heldCalls: HeldCalls = calls;
 // The voice: Kokoro behind a mouth that remembers what it said and honours the mute, the ear, the keys and the typist.
 const voicePreferences = new VoicePreferences(localPreferences);

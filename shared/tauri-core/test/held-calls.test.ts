@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { HeldCalls } from '../src/core/application/held-calls';
+import { HeldCalls } from '../src/core/application/held-calls';
+import { RequestIds } from '../src/core/application/request-ids';
+import { Signer } from '../src/core/application/signer';
 import { NO_KEY_LINE } from '../src/core/application/signer';
 import { ANOTHER_KEY_LINE } from '../src/core/domain/key-status';
 import { HandTimer, held, heldCallsOver, PersonKey, registered, ScriptedDaemon } from './doubles';
@@ -36,6 +38,17 @@ describe('what the island shows', () => {
     await calls.watch();
     expect(key.signed).toEqual([]);
     expect(daemon.sent('confirm')).toEqual([]);
+  });
+
+  it('asks for live activity only when told to, so an older daemon or a plain window is never sent it', async () => {
+    const plain = new ScriptedDaemon(nothingWaits);
+    await heldCallsOver(plain, new PersonKey()).watch();
+    expect(plain.sent('subscribe')[0]?.subscribeActivity).toBeUndefined();
+
+    const island = new ScriptedDaemon(nothingWaits);
+    const ids = new RequestIds();
+    await new HeldCalls(island, new Signer(island, new PersonKey(), ids, () => undefined), ids, { liveActivity: true }).watch();
+    expect(island.sent('subscribe')[0]?.subscribeActivity).toBe(true);
   });
 
   it('says the feed is closed when the daemon is down', async () => {

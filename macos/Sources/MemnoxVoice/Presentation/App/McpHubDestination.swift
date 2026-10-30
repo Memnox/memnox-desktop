@@ -326,6 +326,25 @@ private struct McpServerDetail: View {
                 }
             }
 
+            let headers = HeaderLines.lines(server)
+            if !headers.isEmpty {
+                ShellSection(title: "Headers") {
+                    ShellPanel {
+                        ForEach(Array(headers.enumerated()), id: \.element.name) { index, header in
+                            if index > 0 { ShellDivider() }
+                            ShellRow(title: header.name) {
+                                EmptyView()
+                            } trailing: {
+                                if let held = header.held {
+                                    StatusWord(held ? .good : .bad, held ? "Secret kept by this Mac" : "Secret not set")
+                                }
+                            }
+                        }
+                    }
+                    quiet("Sent with every call to the server. Only the names are shown here, never the values.")
+                }
+            }
+
             if !server.secretsHeld.isEmpty {
                 ShellSection(title: "Credentials") {
                     ShellPanel {

@@ -3,11 +3,17 @@ import MemnoxVoiceCore
 import SwiftUI
 
 /// Adding a server in three short steps, with no JSON unless asked for. A variable marked secret goes to this
-/// computer's own store and the server is written with only its name, so no agent's config holds it.
+/// computer's own store and the server is written with only its name, so no agent's config holds it. A remote server's
+/// header kept as a secret goes the same way, sent as `memnox-secret:<name>` for the proxy to fill in.
 struct AddServerSheet: View {
     @ObservedObject var screen: McpHubScreen
     let agents: [String]
     let close: () -> Void
+
+    private struct Header: Identifiable {
+        let id = UUID()
+        var row = HeaderRow()
+    }
 
     private struct Variable: Identifiable {
         let id = UUID()
@@ -37,6 +43,7 @@ struct AddServerSheet: View {
     @State private var launch = ""
     @State private var url = ""
     @State private var variables: [Variable] = []
+    @State private var headers: [Header] = []
     @State private var given: Set<String> = []
     @State private var advanced = false
     @State private var problem: String?
@@ -118,7 +125,8 @@ struct AddServerSheet: View {
         .accessibilityLabel("How it runs")
         if remote {
             labelled("Address") { TextField("https://mcp.example.com/mcp", text: $url).kitField() }
-            quiet("Remote servers are written for the agents that read them, and are not yet ruled on call by call.")
+            headerRows
+            quiet("Memnox stands in front of a remote server, so every call to it is ruled on and recorded. Plain http is only for one on this Mac.")
         } else {
             labelled("Command") {
                 TextField("npx -y @modelcontextprotocol/server-github", text: $launch)
@@ -126,6 +134,51 @@ struct AddServerSheet: View {
                     .font(Memnox.mono(Memnox.TextSize.body))
             }
         }
+    }
+
+    /// A remote server's headers, a credential kept as a secret from the moment its name is typed.
+    @ViewBuilder private var headerRows: some View {
+        Text("Headers, optional")
+            .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
+            .foregroundStyle(Memnox.Palette.muted)
+        ForEach($headers) { $header in
+            HStack(spacing: Memnox.Spacing.medium) {
+                TextField("Authorization", text: Binding(get: { header.row.name }, set: { typed in
+                    header.row.name = typed
+                    // A credential header starts kept, and is kept while its name says it is one.
+                    if HeaderLines.isCredential(typed) { header.row.secret = true }
+                }))
+                .kitField()
+                .font(Memnox.mono(Memnox.TextSize.body))
+                .frame(width: Self.variableName)
+                .accessibilityLabel("Header name")
+                Group {
+                    if header.row.secret {
+                        SecureField("Bearer your token", text: $header.row.value)
+                    } else {
+                        TextField("", text: $header.row.value)
+                    }
+                }
+                .kitField()
+                .accessibilityLabel("Header value")
+                Toggle("Keep as secret", isOn: $header.row.secret)
+                    .toggleStyle(CheckboxStyle())
+                    .disabled(HeaderLines.isCredential(header.row.name))
+                    .help(HeaderLines.isCredential(header.row.name) ? "This header carries a credential, so it is always kept as a secret." : "")
+                Button {
+                    headers.removeAll { $0.id == header.id }
+                } label: {
+                    Image(systemName: "minus").frame(width: Self.removeSide, height: Self.removeSide).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Memnox.Palette.muted)
+                .hoverLight(radius: Memnox.radius, inset: 0)
+                .help("Remove this header")
+                .accessibilityLabel("Remove this header")
+            }
+        }
+        Button { headers.append(Header()) } label: { Label("Add a header", systemImage: "plus") }
+            .buttonStyle(KitButton(kind: .secondary))
     }
 
     @ViewBuilder private var variablesStep: some View {
@@ -239,7 +292,11 @@ struct AddServerSheet: View {
         if remote {
             let address = url.trimmingCharacters(in: .whitespaces)
             if address.isEmpty { return .problem("Give the address the server answers on.") }
-            return .server(HubServer(name: named, description: description, transport: .http, url: address, env: env, secrets: secrets))
+            let rows = headers.map(\.row)
+            if let why = HeaderLines.addressProblem(address) ?? HeaderLines.problem(rows) { return .problem(why) }
+            let sent = HeaderLines.headers(server: named, rows: rows).headers
+            return .server(HubServer(name: named, description: description, transport: .http, url: address,
+                                     headers: sent.isEmpty ? nil : sent, env: env, secrets: secrets))
         }
         guard let split = McpHubLines.splitCommand(launch) else { return .problem("Give the command that starts the server.") }
         return .server(HubServer(name: named, description: description, transport: .stdio, command: split.command,
@@ -264,6 +321,13 @@ struct AddServerSheet: View {
         defer { working = false }
         let hub = screen.hub
         // Secrets first, so the server never starts without its credential.
+        let headerSecrets = remote ? HeaderLines.headers(server: server.name, rows: headers.map(\.row)).secrets : [:]
+        for (secret, value) in headerSecrets.sorted(by: { $0.key < $1.key }) {
+            if case .failed(let why) = await hub.setSecret(secret, value: value) {
+                problem = why
+                return
+            }
+        }
         for each in variables where each.secret && !each.value.isEmpty {
             let variable = each.name.trimmingCharacters(in: .whitespaces)
             guard let secret = server.secrets[variable] else { continue }

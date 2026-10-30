@@ -165,6 +165,7 @@
       "rule-test",
       "rules-export",
       "rule-pack-import",
+      "rule-packs",
       "progress",
       "autopilot-revoke",
       "activity",
@@ -173,7 +174,17 @@
       "agents",
       "agent-pause",
       "agent-resume",
-      "session-stop"
+      "session-stop",
+      "agent-launch",
+      "skills-hub",
+      "skill-import",
+      "skill-put",
+      "skill-assign",
+      "skill-disable",
+      "skill-enable",
+      "skill-sync",
+      "skill-rollback",
+      "skill-accept"
     ],
     "events": [
       "held",

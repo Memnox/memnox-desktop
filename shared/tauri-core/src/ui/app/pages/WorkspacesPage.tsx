@@ -11,6 +11,7 @@ import { BrandLogo } from '../../kit/logos';
 import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { GoLink } from './HomePage';
+import { MemoryPage } from './MemoryPage';
 import { ProjectInspector, projectNote } from './ProjectInspector';
 import { SkillsPage } from './SkillsPage';
 import { CardGrid, EmptyState, Inspector, ReadFailed, Section, StatTile, StatusWord } from '../widgets';
@@ -23,6 +24,7 @@ export function WorkspacesPage({ parts, tab, width, go }: { parts: SettingsParts
   const { support } = parts;
   useObserved(support);
   if (tab === 'skills' || tab === 'assigned') return <SkillsPage parts={parts} tab={tab} width={width} />;
+  if (tab === 'memory') return <MemoryPage parts={parts} width={width} />;
   if (support.supports('projects') === true) return <ProjectsTab parts={parts} width={width} />;
   return <SeenTab parts={parts} width={width} go={go} />;
 }

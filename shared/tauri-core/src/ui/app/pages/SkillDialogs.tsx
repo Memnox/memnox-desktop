@@ -8,7 +8,7 @@ import { KitButton } from '../../settings/kit';
 import type { SettingsParts } from '../../settings/parts';
 
 /** A dialog over the page, closed by its X, Escape, or a press outside it. */
-function Dialog({ title, step, close, footer, children }: { title: string; step?: string; close: () => void; footer: ReactNode; children: ReactNode }) {
+export function Dialog({ title, step, close, footer, children }: { title: string; step?: string; close: () => void; footer: ReactNode; children: ReactNode }) {
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') close();

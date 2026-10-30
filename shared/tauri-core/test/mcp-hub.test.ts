@@ -2,7 +2,7 @@ import type { DaemonRequest, McpHubView } from '@memnox/core/wire';
 import { describe, expect, it } from 'vitest';
 import { McpHub, syncedLine } from '../src/core/application/mcp-hub';
 import { RequestIds } from '../src/core/application/request-ids';
-import { fromOrganization, missingSecrets, projectFolder, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, serverNameFrom, splitCommand } from '../src/core/domain/mcp-hub-lines';
+import { fromOrganization, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, missingSecrets, projectFolder, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, serverNameFrom, splitCommand } from '../src/core/domain/mcp-hub-lines';
 import { ScriptedDaemon } from './doubles';
 
 const view: McpHubView = {
@@ -148,5 +148,11 @@ describe('how far an agent has a server', () => {
 
   it('sends a project only assignment to Workspaces, where it is given', () => {
     expect(projectOnlyHelp(server, 'cursor')).toBe("Cursor has this server only in /Users/bo/code/web, given in that project's settings in Workspaces.");
+    expect(PROJECT_ONLY_LINE).toBe("A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Workspaces, and giving it here gives it in every project.");
+  });
+
+  it('offers a project only agent the server in every project, never a take away', () => {
+    expect(GIVE_EVERYWHERE).toBe('Give in every project');
+    expect(reachOf(server, 'cursor')).not.toBe('everywhere');
   });
 });

@@ -3,7 +3,7 @@ import { Folder, KeyRound, MoreVertical, Plug, Plus, RefreshCw } from 'lucide-re
 import { useEffect, useState, type ReactNode } from 'react';
 import type { HubOutcome } from '../../../core/application/mcp-hub';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
-import { agentLabel, agentsLine, callsLine, fromOrganization, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, PROJECT_ONLY_LINE, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
+import { agentLabel, agentsLine, callsLine, fromOrganization, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
 import { ago } from '../../../core/domain/session-text';
 import { BrandLogo } from '../../kit/logos';
 import { KitButton, SearchField } from '../../settings/kit';
@@ -179,7 +179,7 @@ function ServerDetail({ parts, view, server, said, removed, workspaces }: { part
           <Panel>
             {view.agents.map(({ agent }) => {
               const reach = reachOf(server, agent);
-              // Taking away removes only the everywhere assignment, so a project only one has no button here.
+              // Taking away removes only the everywhere assignment, so a project only one is offered Give alone.
               const on = reach === 'everywhere';
               return (
                 <Row
@@ -190,13 +190,10 @@ function ServerDetail({ parts, view, server, said, removed, workspaces }: { part
                   trailing={
                     <>
                       <ProjectChips server={server} agent={agent} />
-                      {reach === 'projects' ? (
-                        <GoLink onClick={workspaces}>{WORKSPACES_LINK}</GoLink>
-                      ) : (
-                        <KitButton disabled={hub.busy === `${server.name}/${agent}`} onClick={() => void hub.assign(server.name, agent, !on).then(said)}>
-                          {on ? 'Take away' : 'Give'}
-                        </KitButton>
-                      )}
+                      {reach === 'projects' && <GoLink onClick={workspaces}>{WORKSPACES_LINK}</GoLink>}
+                      <KitButton disabled={hub.busy === `${server.name}/${agent}`} onClick={() => void hub.assign(server.name, agent, !on).then(said)}>
+                        {on ? 'Take away' : reach === 'projects' ? GIVE_EVERYWHERE : 'Give'}
+                      </KitButton>
                     </>
                   }
                 />
@@ -334,12 +331,23 @@ function Clients({ parts, view, said, workspaces }: { parts: SettingsParts; view
                   const on = reach === 'everywhere';
                   if (reach === 'projects') {
                     const help = projectOnlyHelp(server, agent);
-                    // No switch: unticking would remove only an everywhere assignment, and this agent has none.
+                    // Unticked, since ticking gives it everywhere; the project assignment is changed in Workspaces.
                     return (
                       <td key={agent} className="px-3 py-2.5 text-center">
-                        <button type="button" title={help} aria-label={help} className="mx-focus inline-flex cursor-pointer items-center gap-1.5" onClick={workspaces}>
-                          <ProjectChips server={server} agent={agent} />
-                        </button>
+                        <span className="inline-flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={false}
+                            disabled={fromOrganization(server) || hub.busy === `${server.name}/${agent}`}
+                            title={fromOrganization(server) ? ORGANIZATION_LINE : GIVE_EVERYWHERE}
+                            aria-label={`${GIVE_EVERYWHERE}: ${server.name} for ${agentLabel(agent)}`}
+                            className="size-4 cursor-pointer accent-[var(--color-primary)]"
+                            onChange={() => void hub.assign(server.name, agent, true).then(said)}
+                          />
+                          <button type="button" title={help} aria-label={help} className="mx-focus inline-flex cursor-pointer items-center gap-1.5" onClick={workspaces}>
+                            <ProjectChips server={server} agent={agent} />
+                          </button>
+                        </span>
                       </td>
                     );
                   }

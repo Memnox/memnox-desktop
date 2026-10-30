@@ -2,7 +2,7 @@ import type { DaemonRequest, McpHubView } from '@memnox/core/wire';
 import { describe, expect, it } from 'vitest';
 import { McpHub, syncedLine } from '../src/core/application/mcp-hub';
 import { RequestIds } from '../src/core/application/request-ids';
-import { fromOrganization, missingSecrets, projectFolder, projectHelp, projectsFor, secretsAcross, serverNameFrom, splitCommand } from '../src/core/domain/mcp-hub-lines';
+import { fromOrganization, missingSecrets, projectFolder, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, serverNameFrom, splitCommand } from '../src/core/domain/mcp-hub-lines';
 import { ScriptedDaemon } from './doubles';
 
 const view: McpHubView = {
@@ -118,5 +118,35 @@ describe('an assignment held to one repository', () => {
   it('names nothing for an agent given it everywhere, or a runtime that sends no projects', () => {
     expect(projectsFor(server, 'codex-cli')).toEqual([]);
     expect(projectsFor({}, 'claude-code')).toEqual([]);
+  });
+});
+
+describe('how far an agent has a server', () => {
+  // The runtime lists an agent once per assignment, so Claude Code here has it everywhere and in billing too.
+  const server = {
+    agents: ['claude-code', 'claude-code', 'cursor'],
+    projects: [
+      { agent: 'claude-code', project: '/Users/bo/code/billing' },
+      { agent: 'cursor', project: '/Users/bo/code/web' },
+    ],
+  };
+
+  it('tells everywhere from a project only assignment and from none', () => {
+    expect(reachOf(server, 'claude-code')).toBe('everywhere');
+    expect(reachOf(server, 'cursor')).toBe('projects');
+    expect(reachOf(server, 'codex-cli')).toBe('none');
+    expect(reachOf({ agents: ['codex-cli'] }, 'codex-cli')).toBe('everywhere');
+  });
+
+  it('says each reach under the agent, naming the project when there is one', () => {
+    expect(reachCaption(server, 'claude-code')).toBe('Has this server in every project');
+    expect(reachCaption(server, 'cursor')).toBe('Has this server only in web');
+    expect(reachCaption(server, 'codex-cli')).toBeUndefined();
+    const twice = { agents: ['cursor', 'cursor'], projects: [{ agent: 'cursor', project: '/a/web' }, { agent: 'cursor', project: '/a/api' }] };
+    expect(reachCaption(twice, 'cursor')).toBe('Has this server only in 2 projects');
+  });
+
+  it('sends a project only assignment to Workspaces, where it is given', () => {
+    expect(projectOnlyHelp(server, 'cursor')).toBe("Cursor has this server only in /Users/bo/code/web, given in that project's settings in Workspaces.");
   });
 });

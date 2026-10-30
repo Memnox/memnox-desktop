@@ -2,8 +2,8 @@ import type { McpHubServerView, McpHubView } from '@memnox/core/wire';
 import { Folder, KeyRound, MoreVertical, Plug, Plus, RefreshCw } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { HubOutcome } from '../../../core/application/mcp-hub';
-import type { WidthClass } from '../../../core/domain/destinations';
-import { agentLabel, agentsLine, callsLine, fromOrganization, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, projectHelp, projectsFor, secretsAcross, toolsLine } from '../../../core/domain/mcp-hub-lines';
+import type { Route, WidthClass } from '../../../core/domain/destinations';
+import { agentLabel, agentsLine, callsLine, fromOrganization, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, PROJECT_ONLY_LINE, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
 import { ago } from '../../../core/domain/session-text';
 import { BrandLogo } from '../../kit/logos';
 import { KitButton, SearchField } from '../../settings/kit';
@@ -11,13 +11,14 @@ import { useObserved, type SettingsParts } from '../../settings/parts';
 import { YourAppsPage } from '../../settings/pages/YourAppsPage';
 import { AddServerDialog } from './AddServerDialog';
 import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
+import { GoLink } from './HomePage';
 
 /**
  * The MCP Hub: servers set up once and given to the agents the person chooses. Every config is written
  * by the runtime, a change that gives an agent more waits for a signature on the island, and a secret
  * is kept by this computer and never shown again.
  */
-export function McpHubPage({ parts, tab, width }: { parts: SettingsParts; tab: string | undefined; width: WidthClass }) {
+export function McpHubPage({ parts, tab, width, go }: { parts: SettingsParts; tab: string | undefined; width: WidthClass; go: (route: Route) => void }) {
   const { hub } = parts;
   useObserved(hub);
   useEffect(() => {
@@ -27,6 +28,8 @@ export function McpHubPage({ parts, tab, width }: { parts: SettingsParts; tab: s
   useEffect(() => parts.host.onHomeStale?.(() => void hub.refresh()), []);
   const [note, setNote] = useState<string | undefined>(undefined);
   const said = (outcome: HubOutcome) => setNote(noteOf(outcome, parts.words.keyTitle));
+  // A server given in one project only is changed in that project's settings, which Workspaces shows.
+  const workspaces = () => go({ destination: 'workspaces', tab: 'projects' });
 
   if (tab === 'apps') return <YourAppsPage parts={parts} />;
   const view = hub.hub;
@@ -38,9 +41,9 @@ export function McpHubPage({ parts, tab, width }: { parts: SettingsParts; tab: s
           {note}
         </p>
       )}
-      {tab === 'clients' && <Clients parts={parts} view={view} said={said} />}
+      {tab === 'clients' && <Clients parts={parts} view={view} said={said} workspaces={workspaces} />}
       {tab === 'secrets' && <Secrets parts={parts} view={view} said={said} />}
-      {(tab === 'servers' || tab === undefined) && <Servers parts={parts} view={view} width={width} said={said} />}
+      {(tab === 'servers' || tab === undefined) && <Servers parts={parts} view={view} width={width} said={said} workspaces={workspaces} />}
     </>
   );
 }
@@ -51,7 +54,7 @@ function noteOf(outcome: HubOutcome, keyTitle: string): string {
   return outcome.note;
 }
 
-function Servers({ parts, view, width, said }: { parts: SettingsParts; view: McpHubView; width: WidthClass; said: (outcome: HubOutcome) => void }) {
+function Servers({ parts, view, width, said, workspaces }: { parts: SettingsParts; view: McpHubView; width: WidthClass; said: (outcome: HubOutcome) => void; workspaces: () => void }) {
   const { hub } = parts;
   const [query, setQuery] = useState('');
   const [chosen, choose] = useState<string | undefined>(undefined);
@@ -93,7 +96,7 @@ function Servers({ parts, view, width, said }: { parts: SettingsParts; view: Mcp
       </div>
       {picked !== undefined && (
         <Inspector title={picked.name} width={width} close={() => choose(undefined)}>
-          <ServerDetail parts={parts} view={view} server={picked} said={said} removed={() => choose(undefined)} />
+          <ServerDetail parts={parts} view={view} server={picked} said={said} removed={() => choose(undefined)} workspaces={workspaces} />
         </Inspector>
       )}
       {adding && <AddServerDialog parts={parts} agents={view.agents.map((each) => each.agent)} close={() => setAdding(false)} said={said} />}
@@ -140,7 +143,7 @@ function ServerCard({ server, chosen, pick }: { server: McpHubServerView; chosen
   );
 }
 
-function ServerDetail({ parts, view, server, said, removed }: { parts: SettingsParts; view: McpHubView; server: McpHubServerView; said: (outcome: HubOutcome) => void; removed: () => void }) {
+function ServerDetail({ parts, view, server, said, removed, workspaces }: { parts: SettingsParts; view: McpHubView; server: McpHubServerView; said: (outcome: HubOutcome) => void; removed: () => void; workspaces: () => void }) {
   const { hub } = parts;
   const health = hub.testOf(server.name) ?? server.health;
   const words = healthWords(health);
@@ -165,7 +168,7 @@ function ServerDetail({ parts, view, server, said, removed }: { parts: SettingsP
           {server.agents.length > 0 && (
             <Panel>
               {[...new Set(server.agents)].map((agent) => (
-                <Row key={agent} leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />} title={agentLabel(agent)} caption="Has this server" trailing={<ProjectChips server={server} agent={agent} />} />
+                <Row key={agent} leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />} title={agentLabel(agent)} caption={reachCaption(server, agent)} trailing={<ProjectChips server={server} agent={agent} />} />
               ))}
             </Panel>
           )}
@@ -175,19 +178,25 @@ function ServerDetail({ parts, view, server, said, removed }: { parts: SettingsP
         <Section title="Agents">
           <Panel>
             {view.agents.map(({ agent }) => {
-              const on = server.agents.includes(agent);
+              const reach = reachOf(server, agent);
+              // Taking away removes only the everywhere assignment, so a project only one has no button here.
+              const on = reach === 'everywhere';
               return (
                 <Row
                   key={agent}
                   leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />}
                   title={agentLabel(agent)}
-                  caption={on ? 'Has this server' : undefined}
+                  caption={reachCaption(server, agent)}
                   trailing={
                     <>
                       <ProjectChips server={server} agent={agent} />
-                      <KitButton disabled={hub.busy === `${server.name}/${agent}`} onClick={() => void hub.assign(server.name, agent, !on).then(said)}>
-                        {on ? 'Take away' : 'Give'}
-                      </KitButton>
+                      {reach === 'projects' ? (
+                        <GoLink onClick={workspaces}>{WORKSPACES_LINK}</GoLink>
+                      ) : (
+                        <KitButton disabled={hub.busy === `${server.name}/${agent}`} onClick={() => void hub.assign(server.name, agent, !on).then(said)}>
+                          {on ? 'Take away' : 'Give'}
+                        </KitButton>
+                      )}
                     </>
                   }
                 />
@@ -195,6 +204,7 @@ function ServerDetail({ parts, view, server, said, removed }: { parts: SettingsP
             })}
           </Panel>
           <p className="text-footnote text-muted">{`Giving a server to an agent waits for your signature with ${parts.words.keyTitle}. Taking it away happens at once.`}</p>
+          {(server.projects ?? []).length > 0 && <p className="text-footnote text-muted">{PROJECT_ONLY_LINE}</p>}
         </Section>
       )}
 
@@ -292,55 +302,76 @@ function Drift({ view }: { view: McpHubView }) {
 }
 
 /** Agents across, servers down: one place to see and change who has what. */
-function Clients({ parts, view, said }: { parts: SettingsParts; view: McpHubView; said: (outcome: HubOutcome) => void }) {
+function Clients({ parts, view, said, workspaces }: { parts: SettingsParts; view: McpHubView; said: (outcome: HubOutcome) => void; workspaces: () => void }) {
   const { hub } = parts;
   if (view.servers.length === 0 || view.agents.length === 0) {
     return <EmptyState icon={Plug} title="Nothing to give yet" body="Once the hub holds a server and an agent with an MCP config is found, who has what is set here." />;
   }
+  const inProjects = view.servers.some((server) => (server.projects ?? []).length > 0);
   return (
-    <div className="overflow-x-auto rounded-xl border border-panel-edge">
-      <table className="w-full border-collapse text-body">
-        <thead>
-          <tr className="bg-card">
-            <th scope="col" className="px-3.5 py-2.5 text-left text-footnote font-semibold text-muted">Server</th>
-            {view.agents.map(({ agent }) => (
-              <th key={agent} scope="col" className="px-3 py-2.5 text-footnote font-semibold whitespace-nowrap text-muted">
-                <span className="inline-flex items-center gap-1.5">
-                  <BrandLogo agent={agent} name={agentLabel(agent)} size={18} />
-                  {agentLabel(agent)}
-                </span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {view.servers.map((server) => (
-            <tr key={server.name} className="border-t border-panel-edge">
-              <th scope="row" className="px-3.5 py-2.5 text-left font-medium whitespace-nowrap text-foreground">{server.name}</th>
-              {view.agents.map(({ agent }) => {
-                const on = server.agents.includes(agent);
-                return (
-                  <td key={agent} className="px-3 py-2.5 text-center">
-                    <span className="inline-flex items-center gap-1.5">
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        disabled={fromOrganization(server) || hub.busy === `${server.name}/${agent}`}
-                        title={fromOrganization(server) ? ORGANIZATION_LINE : undefined}
-                        aria-label={`${server.name} for ${agentLabel(agent)}`}
-                        className="size-4 cursor-pointer accent-[var(--color-primary)]"
-                        onChange={() => void hub.assign(server.name, agent, !on).then(said)}
-                      />
-                      <ProjectChips server={server} agent={agent} />
-                    </span>
-                  </td>
-                );
-              })}
+    <>
+      <div className="overflow-x-auto rounded-xl border border-panel-edge">
+        <table className="w-full border-collapse text-body">
+          <thead>
+            <tr className="bg-card">
+              <th scope="col" className="px-3.5 py-2.5 text-left text-footnote font-semibold text-muted">Server</th>
+              {view.agents.map(({ agent }) => (
+                <th key={agent} scope="col" className="px-3 py-2.5 text-footnote font-semibold whitespace-nowrap text-muted">
+                  <span className="inline-flex items-center gap-1.5">
+                    <BrandLogo agent={agent} name={agentLabel(agent)} size={18} />
+                    {agentLabel(agent)}
+                  </span>
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {view.servers.map((server) => (
+              <tr key={server.name} className="border-t border-panel-edge">
+                <th scope="row" className="px-3.5 py-2.5 text-left font-medium whitespace-nowrap text-foreground">{server.name}</th>
+                {view.agents.map(({ agent }) => {
+                  const reach = reachOf(server, agent);
+                  const on = reach === 'everywhere';
+                  if (reach === 'projects') {
+                    const help = projectOnlyHelp(server, agent);
+                    // No switch: unticking would remove only an everywhere assignment, and this agent has none.
+                    return (
+                      <td key={agent} className="px-3 py-2.5 text-center">
+                        <button type="button" title={help} aria-label={help} className="mx-focus inline-flex cursor-pointer items-center gap-1.5" onClick={workspaces}>
+                          <ProjectChips server={server} agent={agent} />
+                        </button>
+                      </td>
+                    );
+                  }
+                  return (
+                    <td key={agent} className="px-3 py-2.5 text-center">
+                      <span className="inline-flex items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          disabled={fromOrganization(server) || hub.busy === `${server.name}/${agent}`}
+                          title={fromOrganization(server) ? ORGANIZATION_LINE : undefined}
+                          aria-label={`${server.name} for ${agentLabel(agent)}`}
+                          className="size-4 cursor-pointer accent-[var(--color-primary)]"
+                          onChange={() => void hub.assign(server.name, agent, !on).then(said)}
+                        />
+                        <ProjectChips server={server} agent={agent} />
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {inProjects && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-footnote text-muted">{PROJECT_ONLY_LINE}</p>
+          <GoLink onClick={workspaces}>{WORKSPACES_LINK}</GoLink>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -110,3 +110,37 @@ export function projectsFor(server: Pick<McpHubServerView, 'projects'>, agent: s
 export function projectHelp(agent: string, path: string): string {
   return `Given to ${agentLabel(agent)} in ${path} only`;
 }
+
+/** How far one agent has a server: in every project, only in the repositories named, or not at all. */
+export type AgentReach = 'everywhere' | 'projects' | 'none';
+
+/**
+ * The runtime lists an agent in `agents` once per assignment, a repository's included, so an agent counted
+ * there more often than in `projects` also has it everywhere.
+ */
+export function reachOf(server: Pick<McpHubServerView, 'agents' | 'projects'>, agent: string): AgentReach {
+  const given = server.agents.filter((each) => each === agent).length;
+  const inProjects = (server.projects ?? []).filter((each) => each.agent === agent).length;
+  if (given > inProjects) return 'everywhere';
+  return inProjects > 0 ? 'projects' : 'none';
+}
+
+/** What an agent's row says under its name, for each reach, so a project only assignment never reads as everywhere. */
+export function reachCaption(server: Pick<McpHubServerView, 'agents' | 'projects'>, agent: string): string | undefined {
+  const reach = reachOf(server, agent);
+  if (reach === 'everywhere') return 'Has this server in every project';
+  if (reach === 'none') return undefined;
+  const projects = projectsFor(server, agent);
+  const [only] = projects;
+  return projects.length === 1 && only !== undefined ? `Has this server only in ${only.name}` : `Has this server only in ${projects.length} projects`;
+}
+
+/** Why a project only assignment has no switch here: taking it away here would remove nothing. */
+export const PROJECT_ONLY_LINE = "A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Workspaces rather than here.";
+export const WORKSPACES_LINK = 'Open Workspaces';
+
+/** The help on a project only cell: who has it, where, and where it is changed. */
+export function projectOnlyHelp(server: Pick<McpHubServerView, 'projects'>, agent: string): string {
+  const paths = projectsFor(server, agent).map((each) => each.path);
+  return `${agentLabel(agent)} has this server only in ${paths.join(', ')}, given in that project's settings in Workspaces.`;
+}

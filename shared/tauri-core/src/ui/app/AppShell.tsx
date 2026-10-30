@@ -149,7 +149,7 @@ function Page({ parts, route, width, go }: { parts: SettingsParts; route: Route;
     case 'workspaces':
       return <WorkspacesPage parts={parts} tab={route.tab} width={width} go={go} />;
     case 'mcp':
-      return <McpHubPage parts={parts} tab={route.tab} width={width} />;
+      return <McpHubPage parts={parts} tab={route.tab} width={width} go={go} />;
     case 'governance':
       return <GovernancePage parts={parts} tab={route.tab} width={width} go={go} />;
     case 'settings': {

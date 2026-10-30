@@ -387,6 +387,7 @@ private struct SkillDetail: View {
                         .textSelection(.enabled)
                 }
             }
+            if skill.skillScope == .personal { RemoveSkill(screen: screen, skill: skill, back: back) }
         }
     }
 
@@ -406,8 +407,42 @@ private struct SkillDetail: View {
     }
 }
 
+/// Removing only narrows, so it is done at once; a second press confirms, since its kept versions go with it.
+private struct RemoveSkill: View {
+    @ObservedObject var screen: SkillsScreen
+    let skill: SkillView
+    let back: () -> Void
+    @State private var confirming = false
+
+    var body: some View {
+        ShellSection(title: "Remove") {
+            QuietLine("Takes \(skill.name) out of the hub and out of every agent it was given to, with every version kept of it.")
+            HStack(spacing: Memnox.Spacing.medium) {
+                if confirming {
+                    Button("Remove \(skill.name)", systemImage: "trash", action: remove)
+                        .buttonStyle(KitButton(kind: .primary))
+                        .disabled(screen.skills.busy == skill.name)
+                    Button("Cancel") { confirming = false }.buttonStyle(KitButton(kind: .secondary))
+                } else {
+                    Button("Remove skill", systemImage: "trash") { confirming = true }.buttonStyle(KitButton(kind: .secondary))
+                }
+            }
+        }
+    }
+
+    private func remove() {
+        let name = skill.name
+        Task {
+            let outcome = await screen.skills.remove(name)
+            screen.said(outcome)
+            if case .failed = outcome { return }
+            back()
+        }
+    }
+}
+
 /// Two columns side by side, the first taking `leftShare` times the second's width, as tall as the taller of them.
-private struct SharedColumns: Layout {
+struct SharedColumns: Layout {
     let leftShare: CGFloat
     let gap: CGFloat
 

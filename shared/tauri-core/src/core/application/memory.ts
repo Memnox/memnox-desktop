@@ -1,4 +1,4 @@
-import { MEMORY_METHOD, type DaemonRequest, type DaemonResponse, type MemoryItemsView, type MemoryReadSummary, type MemorySourceInput, type MemorySourceView } from '@memnox/core/wire';
+import { MEMORY_METHOD, type DaemonRequest, type DaemonResponse, type MemoryItemsView, type MemoryReadSummary, type MemorySearchMode, type MemorySourceInput, type MemorySourceView } from '@memnox/core/wire';
 import { confirmedLine, readSummaryLine, type MemoryScopeName, type MemoryStatusName } from '../domain/memory-lines';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
@@ -6,6 +6,9 @@ import type { RequestIds } from './request-ids';
 
 /** How one press on memory ended: done at once, a rule waiting for its signature on the island, or refused. */
 export type MemoryOutcome = { kind: 'done'; note: string } | { kind: 'proposed'; id: string; note: string } | { kind: 'failed'; why: string };
+
+/** Every status an item can be in, the chips' order first, so a reopened item is found wherever it went. */
+const EVERY_STATUS: readonly MemoryStatusName[] = ['verified', 'candidate', 'conflicting', 'outdated', 'rejected', 'superseded'];
 
 /** What the list shows: one status, one scope or both, or what a search found. */
 export interface FactsFilter {
@@ -25,6 +28,7 @@ export class Memory extends Observed {
   private queue: MemoryItemsView | undefined;
   private listed: MemoryItemsView | undefined;
   private shown: FactsFilter = { status: 'verified' };
+  private searched: { readonly mode: MemorySearchMode; readonly note?: string } | undefined;
   private readonly reads = new Map<string, MemoryReadSummary>();
   private failed = { sources: false, learn: false, facts: false };
   private busyWith: string | undefined;
@@ -50,6 +54,11 @@ export class Memory extends Observed {
 
   get filter(): FactsFilter {
     return this.shown;
+  }
+
+  /** How the last search was answered, by keyword or by meaning, and why it fell back; undefined when the list is no search. */
+  get search(): { readonly mode: MemorySearchMode; readonly note?: string } | undefined {
+    return this.searched;
   }
 
   /** Which read failed, so each part of the page says its own. */
@@ -93,7 +102,28 @@ export class Memory extends Observed {
     if (this.shown !== filter) return;
     this.failed = { ...this.failed, facts: response === undefined || !response.ok };
     this.listed = response?.memoryFacts ?? (response?.ok === true ? { items: [], more: 0 } : this.listed);
+    this.searched = searchOf(query, response);
     this.changed();
+  }
+
+  /**
+   * Finds which status holds an item, list by list, since the runtime reads none by id: a popped out item
+   * reopens whatever became of it. Leaves that list shown and says its status, or undefined when no list holds it.
+   */
+  async reveal(id: string): Promise<MemoryStatusName | undefined> {
+    if (this.listed !== undefined && this.listed.items.some((item) => item.id === id)) return this.shown.status;
+    for (const status of EVERY_STATUS) {
+      const filter: FactsFilter = { status };
+      const response = await this.ask({ method: MEMORY_METHOD.MEMORY_FACTS, memoryStatus: status });
+      const found = response?.memoryFacts;
+      if (found === undefined || !found.items.some((item) => item.id === id)) continue;
+      this.shown = filter;
+      this.listed = found;
+      this.searched = undefined;
+      this.changed();
+      return status;
+    }
+    return undefined;
   }
 
   /** Kept at once; the runtime reads it in the background, so what it taught arrives on the next look. */
@@ -166,4 +196,11 @@ export class Memory extends Observed {
       return undefined;
     }
   }
+}
+
+/** How a search was answered, as the runtime says it; an older runtime that names no mode searched by keyword. */
+function searchOf(query: string, response: DaemonResponse | undefined): { mode: MemorySearchMode; note?: string } | undefined {
+  if (query === '' || response === undefined || !response.ok) return undefined;
+  const mode = response.memorySearchMode ?? 'keyword';
+  return response.memorySearchNote === undefined ? { mode } : { mode, note: response.memorySearchNote };
 }

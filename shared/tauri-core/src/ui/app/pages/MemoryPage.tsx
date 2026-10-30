@@ -17,6 +17,7 @@ import {
   moreLine,
   originLine,
   readSummaryLine,
+  searchModeLine,
   sourceCountsLine,
   sourceKindLabel,
   statusWord,
@@ -31,7 +32,7 @@ import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AddMemorySourceDialog } from './MemorySourceDialog';
 import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
 import { memoryScope } from '../../../core/domain/scope-lines';
-import { usePicked } from '../inspector-host';
+import { useInspectorHost, usePicked } from '../inspector-host';
 
 const CHIP = 'mx-focus cursor-pointer rounded-full border px-3 py-1 text-footnote';
 const chip = (on: boolean) => `${CHIP} ${on ? 'border-primary bg-hover font-medium text-foreground' : 'border-panel-edge text-muted hover:bg-hover'}`;
@@ -55,9 +56,15 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
   const [scope, setScope] = useState<MemoryScopeName | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [chosen, choose] = usePicked();
+  const linked = useInspectorHost().item;
   const [note, setNote] = useState<string | undefined>(undefined);
   useEffect(() => {
     void memory.refreshSources();
+    // An item a link names reopens whatever its status became, on the list that now holds it.
+    if (linked !== undefined)
+      void memory.reveal(linked).then((found) => {
+        if (found !== undefined && MEMORY_FILTERS.some((each) => each.status === found)) setStatus(found);
+      });
   }, []);
   // A signature on the island settles a rule, so the list is read again.
   useEffect(() => parts.host.onHomeStale?.(() => void memory.show(memory.filter)), []);
@@ -102,7 +109,10 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
               ))}
             </div>
           ) : (
-            <p className="text-footnote text-muted">Searching every status for these words.</p>
+            <p className="text-footnote text-muted">
+              {memory.search === undefined ? 'Searching every status for these words.' : `${searchModeLine(memory.search.mode)}, over every status.`}
+              {memory.search?.note !== undefined && <span className="block">{memory.search.note}</span>}
+            </p>
           )}
           {memory.unreadable.facts && <ReadFailed what="what was learned" retry={() => void memory.show(memory.filter)} />}
           {listed !== undefined && listed.items.length === 0 && (

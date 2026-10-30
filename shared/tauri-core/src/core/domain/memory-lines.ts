@@ -1,4 +1,4 @@
-import type { MemoryEvidenceView, MemoryItemView, MemoryReadSummary, MemorySourceCounts, MemorySourceInput, MemorySourceView } from '@memnox/core/wire';
+import type { MemoryEvidenceView, MemoryItemView, MemoryReadSummary, MemorySearchMode, MemorySourceCounts, MemorySourceInput, MemorySourceView } from '@memnox/core/wire';
 import { isAbsoluteFolder } from './launch-lines';
 import { agentLabel } from './mcp-hub-lines';
 import { counted } from './project-lines';
@@ -187,6 +187,18 @@ export function learnWaitingLine(count: number): string {
 export function moreLine(more: number): string | undefined {
   return more > 0 ? `${more} more not shown` : undefined;
 }
+
+/** How a search was answered, said under the box so keyword alone never passes for both. */
+export function searchModeLine(mode: MemorySearchMode): string {
+  return mode === 'semantic' ? 'Searched by meaning, and by keyword' : 'Searched by keyword';
+}
+
+/** The command that turns search by meaning on, a CLI setting rather than one this window keeps. */
+export const EMBEDDING_COMMAND = 'memnox config set embeddingModel <model>';
+export const MEANING_SEARCH_TITLE = 'Search memory by meaning';
+/** What Settings says about it, the command shown after these words. */
+export const MEANING_SEARCH_LINE =
+  'Memory is searched by keyword. To search it by meaning as well, with an embedding model running on this computer such as nomic-embed-text in Ollama, run this in a terminal:';
 
 /** What a confirm did: a fact is verified at once, a rule waits for its signature on the island. */
 export function confirmedLine(kind: MemoryItemView['kind'], proposed: boolean, keyTitle: string): string {

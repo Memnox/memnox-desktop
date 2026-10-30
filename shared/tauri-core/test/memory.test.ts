@@ -19,6 +19,7 @@ import {
   oldestFirst,
   originLine,
   readSummaryLine,
+  searchModeLine,
   sourceCountsLine,
   sourceFormProblem,
   sourceInputOf,
@@ -152,6 +153,38 @@ describe('the memory use case', () => {
     expect(memory.facts?.items).toEqual([]);
   });
 
+  it('keeps how a search was answered, and an older runtime reads as keyword', async () => {
+    const meaning = new ScriptedDaemon({
+      'memory-search': (request) => [{ id: request.id, ok: true, memoryFacts: { items: [], more: 0 }, memorySearchMode: 'semantic' }],
+      'memory-facts': (request) => [{ id: request.id, ok: true, memoryFacts: { items: [], more: 0 } }],
+    });
+    const memory = new Memory(meaning, new RequestIds());
+    await memory.show({ status: 'verified', query: 'release days' });
+    expect(memory.search).toEqual({ mode: 'semantic' });
+    await memory.show({ status: 'verified' });
+    expect(memory.search).toBeUndefined();
+    const fellBack = new ScriptedDaemon({
+      'memory-search': (request) => [{ id: request.id, ok: true, memoryFacts: { items: [], more: 0 }, memorySearchMode: 'keyword', memorySearchNote: 'The embedding model did not answer.' }],
+    });
+    const back = new Memory(fellBack, new RequestIds());
+    await back.show({ status: 'verified', query: 'release' });
+    expect(back.search).toEqual({ mode: 'keyword', note: 'The embedding model did not answer.' });
+    const older = new Memory(new ScriptedDaemon({ 'memory-search': (request) => [{ id: request.id, ok: true, memoryFacts: { items: [], more: 0 } }] }), new RequestIds());
+    await older.show({ status: 'verified', query: 'release' });
+    expect(older.search).toEqual({ mode: 'keyword' });
+  });
+
+  it('finds the list that holds a reopened item, whatever its status became', async () => {
+    const daemon = new ScriptedDaemon({
+      'memory-facts': (request) => [{ id: request.id, ok: true, memoryFacts: { items: request.memoryStatus === 'rejected' ? [item('r', { status: 'rejected' })] : [], more: 0 } }],
+    });
+    const memory = new Memory(daemon, new RequestIds());
+    expect(await memory.reveal('r')).toBe('rejected');
+    expect(memory.filter.status).toBe('rejected');
+    expect(memory.facts?.items.map((each) => each.id)).toEqual(['r']);
+    expect(await memory.reveal('gone')).toBeUndefined();
+  });
+
   it('reads a source now and keeps the summary under its card', async () => {
     const daemon = new ScriptedDaemon({ 'memory-source-read': (request) => [{ id: request.id, ok: true, memorySources: [source], memoryRead: { ...summary, extractor: 'unavailable' } }] });
     const memory = new Memory(daemon, new RequestIds());
@@ -202,6 +235,11 @@ describe('a press on evidence', () => {
     expect(evidenceTarget({ document: 'releases.md', source: 'Notes' }, sources)).toEqual({ kind: 'file', path: 'C:\\Users\\sam\\notes\\releases.md' });
     expect(evidenceTarget({ document: '/srv/whole.md', source: 'Vault' }, sources)).toEqual({ kind: 'file', path: '/srv/whole.md' });
     expect(evidenceTarget({ document: 'loose.md', source: 'Gone' }, sources)).toEqual({ kind: 'file', path: 'loose.md' });
+  });
+
+  it('says how a search was answered', () => {
+    expect(searchModeLine('keyword')).toBe('Searched by keyword');
+    expect(searchModeLine('semantic')).toBe('Searched by meaning, and by keyword');
   });
 
   it('says whether the file opened or its path was copied', () => {

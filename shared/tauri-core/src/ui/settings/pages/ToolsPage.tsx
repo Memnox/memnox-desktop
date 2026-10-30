@@ -1,8 +1,9 @@
-import { ChevronRight, CircleAlert, Link, Plus, RotateCw, Terminal, UserRoundX } from 'lucide-react';
+import { Brain, ChevronRight, CircleAlert, Copy, Link, Plus, RotateCw, Terminal, UserRoundX } from 'lucide-react';
 import { Fragment, useEffect, useState } from 'react';
 import type { ToolConnection } from '@memnox/core/wire';
 import type { AppConnections } from '../../../core/application/app-connections';
 import { agentStatusWord, connectionStatusWord } from '../../../core/application/tools';
+import { EMBEDDING_COMMAND, MEANING_SEARCH_LINE, MEANING_SEARCH_TITLE } from '../../../core/domain/memory-lines';
 import { toolkitName } from '../../../core/domain/tool-brand';
 import { AgentMark, ToolMark } from '../../kit/logos';
 import { HOVER_LIGHT, KitButton, SearchField, SettingsCard, SettingsDivider, SettingsRow, Spinner } from '../kit';
@@ -71,6 +72,21 @@ export function ToolsPage({ parts }: { parts: SettingsParts }) {
           </>
         )}
         {note !== undefined && <SettingsRow icon={CircleAlert} tint="var(--mx-warm)" title="That did not work" caption={note} />}
+      </SettingsCard>
+      <SettingsCard title="Memory">
+        <SettingsRow
+          icon={Brain}
+          title={MEANING_SEARCH_TITLE}
+          caption={
+            <>
+              {MEANING_SEARCH_LINE} <code className="font-mono text-foreground">{EMBEDDING_COMMAND}</code>
+            </>
+          }
+        >
+          <KitButton icon={Copy} onClick={() => void parts.host.copy(EMBEDDING_COMMAND)}>
+            Copy
+          </KitButton>
+        </SettingsRow>
       </SettingsCard>
       <div className="flex justify-end">
         <KitButton icon={RotateCw} onClick={() => void tools.refresh()}>

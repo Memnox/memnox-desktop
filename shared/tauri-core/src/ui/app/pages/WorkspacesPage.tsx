@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
 import { folderProblem } from '../../../core/domain/launch-lines';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
-import { counted, foldersToOpen, projectStanding } from '../../../core/domain/project-lines';
+import { counted, foldersToOpen, projectStanding, sharedBy } from '../../../core/domain/project-lines';
 import { workspacesFrom, type SeenWorkspace } from '../../../core/domain/workspaces';
 import { ago } from '../../../core/domain/session-text';
 import { BrandLogo } from '../../kit/logos';
@@ -12,7 +12,7 @@ import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { GoLink } from './HomePage';
 import { MemoryPage } from './MemoryPage';
-import { ProjectInspector, projectNote } from './ProjectInspector';
+import { OrganizationBadge, ProjectInspector, projectNote } from './ProjectInspector';
 import { SkillsPage } from './SkillsPage';
 import { CardGrid, EmptyState, Inspector, ReadFailed, Section, StatTile, StatusWord } from '../widgets';
 
@@ -106,7 +106,7 @@ function ProjectCard({ project, chosen, pick }: { project: ProjectView; chosen: 
       <div className="flex items-center gap-2">
         <FolderGit2 size={16} className="text-muted" aria-hidden />
         <span className="min-w-0 flex-1 truncate text-body font-semibold text-foreground">{project.name}</span>
-        <StatusWord tone={standing.tone}>{standing.word}</StatusWord>
+        {sharedBy(project) === undefined ? <StatusWord tone={standing.tone}>{standing.word}</StatusWord> : <OrganizationBadge />}
       </div>
       <span className="truncate font-mono text-micro text-muted">{project.path}</span>
       <span className="text-footnote text-muted">{`${counted(project.skills.length, 'skill', 'skills')} · ${counted(project.servers.length, 'server', 'servers')} · ${counted(project.openMissions.length, 'open mission', 'open missions')}`}</span>

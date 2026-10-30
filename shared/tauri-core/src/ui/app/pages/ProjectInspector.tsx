@@ -1,9 +1,23 @@
-import type { ProjectGrantView, ProjectView } from '@memnox/core/wire';
-import { FileText, Play, Save } from 'lucide-react';
+import type { ProjectGrantView, ProjectOrganizationView, ProjectView } from '@memnox/core/wire';
+import { Building2, FileText, Play, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ProjectOutcome } from '../../../core/application/projects';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
-import { draftOf, grantLine, instructionWord, projectRules, projectStanding, projectTiles, questionsLine, readersLine, rulesLine } from '../../../core/domain/project-lines';
+import {
+  draftOf,
+  FROM_ORGANIZATION,
+  grantLine,
+  instructionWord,
+  organizationMemoryLine,
+  organizationRulesLine,
+  projectRules,
+  projectStanding,
+  projectTiles,
+  questionsLine,
+  readersLine,
+  rulesLine,
+  sharedBy,
+} from '../../../core/domain/project-lines';
 import { ago } from '../../../core/domain/session-text';
 import { EFFECT_WORDS, effectTone, isEffect } from '../../../core/domain/studio-lines';
 import { BrandLogo } from '../../kit/logos';
@@ -58,14 +72,15 @@ export function ProjectInspector({ parts, project, said }: { parts: SettingsPart
 }
 
 function Overview({ parts, project, said }: { parts: SettingsParts; project: ProjectView; said: (note: string) => void }) {
-  const { projects, words } = parts;
+  const { projects } = parts;
   useObserved(projects);
   const standing = projectStanding(project);
   const busy = projects.busy === project.id || projects.busy === project.path;
+  const organization = sharedBy(project);
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-2">
-        <StatusWord tone={standing.tone}>{standing.word}</StatusWord>
+        {organization === undefined ? <StatusWord tone={standing.tone}>{standing.word}</StatusWord> : <OrganizationBadge />}
         <span className="truncate font-mono text-micro text-muted" title={project.path}>
           {project.path}
         </span>
@@ -82,23 +97,13 @@ function Overview({ parts, project, said }: { parts: SettingsParts; project: Pro
           <StatTile key={tile.label} value={tile.value} label={tile.label} />
         ))}
       </div>
+      {organization !== undefined && <OrganizationPanel organization={organization} />}
       <p className="text-footnote text-muted">{rulesLine(project.rules)}</p>
-      <div className="flex flex-wrap gap-2">
-        {project.declared ? (
-          <KitButton kind="primary" icon={Play} disabled={busy} onClick={() => void projects.apply(project.id).then((outcome) => said(projectNote(outcome, words.keyTitle)))}>
-            {busy ? 'Applying' : 'Apply'}
-          </KitButton>
-        ) : (
-          <KitButton kind="primary" icon={Save} disabled={busy} onClick={() => void projects.put(project.path, draftOf(project)).then((outcome) => said(projectNote(outcome, words.keyTitle)))}>
-            {busy ? 'Saving' : 'Save as project'}
-          </KitButton>
-        )}
-      </div>
-      <p className="text-footnote text-muted">
-        {project.declared
-          ? 'Apply hands its instructions to its agents at once. Servers, skills and rules that widen an agent wait for your signature.'
-          : 'Found from the sessions here. Save as project writes .memnox/project.toml with what it shows now, applying nothing until you ask.'}
-      </p>
+      {organization !== undefined ? (
+        <p className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-muted">{organization.editedIn}</p>
+      ) : (
+        <EditControls parts={parts} project={project} busy={busy} said={said} />
+      )}
       <Section title="Instructions">
         {project.instructions.length === 0 ? (
           <p className="text-footnote text-muted">No instruction file, so its agents get none from this project.</p>
@@ -127,6 +132,65 @@ function Overview({ parts, project, said }: { parts: SettingsParts; project: Pro
         {project.appliedAt === undefined ? ' Never applied on this computer.' : ` Applied ${ago(project.appliedAt, Date.now()) ?? 'a while ago'}.`}
       </p>
     </div>
+  );
+}
+
+/** Apply or Save as project, on the person's own project only; the organization's is changed in Memnox Cloud. */
+function EditControls({ parts, project, busy, said }: { parts: SettingsParts; project: ProjectView; busy: boolean; said: (note: string) => void }) {
+  const { projects, words } = parts;
+  return (
+    <>
+      <div className="flex flex-wrap gap-2">
+        {project.declared ? (
+          <KitButton kind="primary" icon={Play} disabled={busy} onClick={() => void projects.apply(project.id).then((outcome) => said(projectNote(outcome, words.keyTitle)))}>
+            {busy ? 'Applying' : 'Apply'}
+          </KitButton>
+        ) : (
+          <KitButton kind="primary" icon={Save} disabled={busy} onClick={() => void projects.put(project.path, draftOf(project)).then((outcome) => said(projectNote(outcome, words.keyTitle)))}>
+            {busy ? 'Saving' : 'Save as project'}
+          </KitButton>
+        )}
+      </div>
+      <p className="text-footnote text-muted">
+        {project.declared
+          ? 'Apply hands its instructions to its agents at once. Servers, skills and rules that widen an agent wait for your signature.'
+          : 'Found from the sessions here. Save as project writes .memnox/project.toml with what it shows now, applying nothing until you ask.'}
+      </p>
+    </>
+  );
+}
+
+/** The badge a project the organization shares carries in place of its standing. */
+export function OrganizationBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-panel-edge px-2 py-0.5 text-footnote font-medium text-muted">
+      <Building2 size={12} aria-hidden />
+      {FROM_ORGANIZATION}
+    </span>
+  );
+}
+
+/** What the organization hands this project, read only: servers, skills, its rule pack, memory, and what was left out. */
+function OrganizationPanel({ organization }: { organization: ProjectOrganizationView }) {
+  const names = (list: readonly string[]) => (list.length === 0 ? 'None' : list.join(', '));
+  return (
+    <Section title="From your organization">
+      {organization.description !== undefined && <p className="text-footnote text-muted">{organization.description}</p>}
+      <Panel>
+        <Row title="Repository" caption={<span className="font-mono">{organization.repository}</span>} />
+        <Row title="MCP servers" caption={names(organization.servers)} />
+        <Row title="Skills" caption={names(organization.skills)} />
+        <Row title="Rule pack" caption={organizationRulesLine(organization)} />
+        <Row title="Memory" caption={organizationMemoryLine(organization.memory)} />
+      </Panel>
+      {organization.skipped.length > 0 && (
+        <ul className="flex flex-col gap-1 text-footnote text-muted">
+          {organization.skipped.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+    </Section>
   );
 }
 

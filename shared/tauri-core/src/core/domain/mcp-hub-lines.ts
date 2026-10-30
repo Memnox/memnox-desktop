@@ -215,17 +215,17 @@ export function headersOf(server: string, rows: readonly HeaderRow[]): { headers
   return { headers, secrets };
 }
 
+/** An address's scheme and host, read without the browser's URL, which the core is built without. */
+const ADDRESS = /^([a-z][a-z0-9+.-]*):\/\/(\[[^\]/]*\]|[^/:?#@\s]+)(?::\d+)?(?:[/?#]\S*)?$/i;
+
 /** Why a remote server cannot be reached at this address, in the runtime's terms, or undefined when it can. */
 export function remoteAddressProblem(url: string): string | undefined {
-  let parsed: URL;
-  try {
-    parsed = new URL(url.trim());
-  } catch {
-    // A half typed address is the person's to finish, so it is said rather than thrown.
-    return `${url.trim()} is not an address.`;
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return 'A remote server is reached over http or https.';
-  if (parsed.protocol === 'http:' && !LOOPBACK_HOSTS.includes(parsed.hostname)) return 'Plain http is only for a server on this computer, at localhost or 127.0.0.1. Use https for one anywhere else.';
+  const parsed = ADDRESS.exec(url.trim());
+  if (parsed === null) return `${url.trim()} is not an address.`;
+  const scheme = (parsed[1] ?? '').toLowerCase();
+  const host = (parsed[2] ?? '').toLowerCase();
+  if (scheme !== 'http' && scheme !== 'https') return 'A remote server is reached over http or https.';
+  if (scheme === 'http' && !LOOPBACK_HOSTS.includes(host)) return 'Plain http is only for a server on this computer, at localhost or 127.0.0.1. Use https for one anywhere else.';
   return undefined;
 }
 

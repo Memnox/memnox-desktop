@@ -78,7 +78,7 @@ function Suggestion({ parts, item, note, said }: { parts: SettingsParts; item: M
       </header>
       {editing ? (
         <textarea
-          className="min-h-20 w-full rounded-lg border border-field-edge bg-field px-3 py-2 text-body text-foreground outline-none focus:border-primary"
+          className="min-h-20 w-full mx-field rounded-lg border border-field-edge bg-field px-3 py-2 text-body text-foreground outline-none focus:border-primary"
           value={draft}
           aria-label="The statement"
           onChange={(event) => setDraft(event.target.value)}

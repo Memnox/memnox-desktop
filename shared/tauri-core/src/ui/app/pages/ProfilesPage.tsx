@@ -132,7 +132,7 @@ function ApplyForm({ parts, busy, cancel, apply }: { parts: SettingsParts; busy:
   const [agent, setAgent] = useState(agents[0]?.agent ?? '');
   const [project, setProject] = useState('');
   const folders = projects.projects ?? [];
-  const field = 'h-9 w-full rounded-lg border border-field-edge bg-field px-3 text-footnote text-foreground outline-none placeholder:text-faint focus:border-primary';
+  const field = 'h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-footnote text-foreground outline-none placeholder:text-faint focus:border-primary';
   return (
     <div className="flex flex-col gap-2.5 border-t border-panel-edge pt-3">
       <Labelled label="Agent">
@@ -208,7 +208,7 @@ function ProfileDialog({ parts, editing, close, said }: { parts: SettingsParts; 
     said(outcome);
     close();
   };
-  const field = 'h-9 w-full rounded-lg border border-field-edge bg-field px-3 text-body text-foreground outline-none placeholder:text-faint focus:border-primary';
+  const field = 'h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-body text-foreground outline-none placeholder:text-faint focus:border-primary';
   const skillNames = choiceNames((skills.hub?.skills ?? []).map((skill) => skill.name), editing === undefined ? new Set() : new Set(editing.skills));
   const serverNames = choiceNames((hub.hub?.servers ?? []).map((server) => server.name), editing === undefined ? new Set() : new Set(editing.mcpServers));
   const packChange = editing === undefined ? undefined : packChangeLine(editing.rulePack, form, packs);

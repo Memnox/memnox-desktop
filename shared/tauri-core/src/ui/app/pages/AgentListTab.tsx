@@ -148,7 +148,7 @@ function LaunchForm({
       <label className="flex flex-col gap-1.5">
         <span className="text-footnote font-medium text-muted">Open it in</span>
         <input
-          className="h-9 w-full rounded-lg border border-field-edge bg-field px-3 font-mono text-footnote text-foreground outline-none placeholder:text-faint focus:border-primary"
+          className="h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 font-mono text-footnote text-foreground outline-none placeholder:text-faint focus:border-primary"
           value={folder}
           placeholder="/home/you/code/project"
           onChange={(event) => setFolder(event.target.value)}
@@ -176,7 +176,7 @@ function LaunchForm({
         <label className="flex flex-col gap-1.5">
           <span className="text-footnote font-medium text-muted">With a profile</span>
           <select
-            className="h-9 w-full rounded-lg border border-field-edge bg-field px-3 text-footnote text-foreground outline-none focus:border-primary"
+            className="h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-footnote text-foreground outline-none focus:border-primary"
             value={profile}
             onChange={(event) => setProfile(event.target.value)}
           >

@@ -466,7 +466,7 @@ function SecretRow({ name, held, usedBy, parts, said }: { name: string; held: bo
         onChange={(event) => setValue(event.target.value)}
         onKeyDown={(event) => event.key === 'Enter' && value !== '' && save()}
         aria-label={`The value of ${name}`}
-        className="h-8 w-48 rounded-lg border border-field-edge bg-field px-2.5 text-body text-foreground outline-none focus:border-primary"
+        className="h-8 w-48 mx-field rounded-lg border border-field-edge bg-field px-2.5 text-body text-foreground outline-none focus:border-primary"
       />
       <KitButton kind="primary" disabled={value === '' || hub.busy === name} onClick={save}>
         Keep

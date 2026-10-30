@@ -89,6 +89,23 @@ public enum DaemonMethod: String, Sendable {
     case toolkitsSearch = "toolkits-search"
     /// One spoken sentence drafted into a rule and read back; with nothing left open it is proposed for Touch ID.
     case rule
+    /// The MCP Hub: servers, agents, and what each agent's config holds that the hub did not write.
+    case mcpHub = "mcp-hub"
+    /// Adds or replaces a server; widening, so it comes back as a proposal the person signs.
+    case mcpServerPut = "mcp-server-put"
+    /// Takes a server away from the hub and from every agent it was given to.
+    case mcpServerRemove = "mcp-server-remove"
+    /// Gives a server to an agent, signed, or takes it away, unsigned.
+    case mcpAssign = "mcp-assign"
+    /// Takes a server the person configured themselves into the hub, for that same agent.
+    case mcpImport = "mcp-import"
+    /// Writes what the hub says into every agent's config it can write.
+    case mcpSync = "mcp-sync"
+    /// Asks one server for its tools, on request and never on a timer.
+    case mcpTest = "mcp-test"
+    /// Keeps a credential in the OS store, typed on this Mac and refused from afar.
+    case mcpSecretSet = "mcp-secret-set"
+    case mcpSecretRemove = "mcp-secret-remove"
 }
 
 public enum EventKind: String, Sendable {
@@ -1122,6 +1139,18 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var again: Bool?
     /// On toolkits-search: the words to match; left out lists the catalogue's first page.
     public var query: String?
+    /// On mcp-server-put: the server as the form filled it, secrets as names only.
+    public var mcpServer: HubServer?
+    /// On mcp-server-remove, mcp-assign, mcp-import and mcp-test: the server, by name.
+    public var mcpServerName: String?
+    /// On mcp-assign and mcp-import: the agent, by its kind.
+    public var mcpAgent: String?
+    /// On mcp-assign: given when true, taken away when false.
+    public var mcpOn: Bool?
+    /// On mcp-secret-set and mcp-secret-remove: the secret, by name.
+    public var mcpSecret: String?
+    /// On mcp-secret-set: the value, which goes straight to the OS store and is never written anywhere else.
+    public var mcpSecretValue: String?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -1410,6 +1439,12 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let machine: MachineStanding?
     /// On polish: the dictation as it should be typed.
     public let polished: String?
+    /// On mcp-hub, and after every hub change, so a screen redraws from one answer.
+    public let mcpHub: McpHubView?
+    /// On mcp-test: what the server answered.
+    public let mcpHealth: McpServerHealth?
+    /// On mcp-sync, and after a change that wrote configs.
+    public let mcpSynced: McpSyncSummary?
 
     /// The outcome as a known case, or nil for one this app does not know yet.
     public var outcomeKind: Outcome? { outcome.flatMap(Outcome.init(rawValue:)) }

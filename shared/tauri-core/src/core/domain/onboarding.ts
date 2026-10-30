@@ -1,16 +1,18 @@
 import type { Platform } from './platform';
 
 /**
- * The first run as the Mac's `OnboardingWindow` runs it: a veil with the wordmark, the name asked for, then
- * three steps in their own window. The words here are the Mac's, said for a computer rather than a Mac.
+ * The first run on a fresh computer, with no account: a veil with the wordmark, the name asked for, then
+ * three steps that connect the agents, bring in what they already have, and choose the boundaries. The
+ * voice, the permissions it needs and the phone come after, each optional.
  */
-export type OnboardingStage = 'intro' | 'name' | 'steps';
+export type OnboardingStage = 'intro' | 'name' | 'steps' | 'optional';
 
-export const ONBOARDING_STEPS = ['What Memnox does', 'Set up this computer', 'Try it'] as const;
+export const ONBOARDING_STEPS = ['Connect your agents', 'Set up your workspace', 'Choose your boundaries'] as const;
 export type OnboardingStep = 0 | 1 | 2;
 
-/** How far the progress bar is filled at a step: a third, two thirds, then whole. */
-export function progressOf(step: OnboardingStep): number {
+/** How far the progress bar is filled: a third, two thirds, then whole, and whole again for what is optional. */
+export function progressOf(step: OnboardingStep, stage: OnboardingStage = 'steps'): number {
+  if (stage === 'optional') return 1;
   return (step + 1) / ONBOARDING_STEPS.length;
 }
 
@@ -50,18 +52,20 @@ export const GuideLines = {
   /** Said over the opening, with the same words it shows. */
   name: 'Welcome to Memnox. I’m the voice over your agents. So, what should I call you?',
   welcome(name: string | undefined): string {
-    return `Hi${greeting(name)}, I’m Memnox. I live in the island at the top of your screen and watch over your AI agents, so they can work on their own and stay inside the boundaries you set. Click any line to see it on the island.`;
+    return `Hi${greeting(name)}, I’m Memnox. I live in the island at the top of your screen and watch over your AI agents, so they can work on their own and stay inside the boundaries you set. No account needed.`;
   },
-  /** What Memnox puts on this computer and why each grant is asked, said before any of it happens. */
+  /** What Memnox puts on this computer and the one thing it asks for now, said before any of it happens. */
   setup(platform: Platform): string {
-    const asks =
-      platform === 'windows'
-        ? 'From you I need two things: the microphone to hear you, and Windows Hello so only you approve.'
-        : platform === 'linux'
-          ? 'From you I need two things: a microphone to hear you, and your password so only you approve.'
-          : 'From you I need four permissions: the microphone to hear you, Accessibility to type into your agent’s app, Screen Recording to read the window you ask about, and Touch ID so only you approve.';
-    return `Here is what I will do on this computer. I install the Memnox service in your home folder and keep it running and up to date. I connect it to the agents I find, like Claude Code, Codex and Cursor, so what they do passes your rules first. And I install my voice, which runs on this computer. ${asks}`;
+    return `Here is what I will do on this computer. I install the Memnox service in your home folder and keep it running and up to date, and I connect it to the agents I find, like Claude Code, Codex and Cursor, so what they do passes your rules first. From you I need one thing now: ${KEY_SAID[platform]} so only you approve.`;
   },
+  /** Said over the second step, before anything is brought in. */
+  workspace: 'Your agents already have servers and skills of their own. Bring them in with one tap, so each is set up once and given to the agents you choose.',
+  /** Said over the third step: a pack is only proposed, and each rule waits for the person. */
+  boundaries(platform: Platform): string {
+    return `Last, choose your boundaries. Pick a pack of rules to start from, and confirm each rule with ${KEY_SAID[platform]} on the island. You can change any of them later.`;
+  },
+  /** Said once the three steps are done, over what is left and optional. */
+  optional: 'That is everything your agents need. The rest is optional: the microphone so you can talk to me, a voice to answer, and your phone for when you are away.',
   /** Said when hearing waits on a switch the person has to turn on. */
   microphone(platform: Platform): string {
     return platform === 'windows'

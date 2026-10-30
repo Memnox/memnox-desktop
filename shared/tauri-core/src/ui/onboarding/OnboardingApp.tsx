@@ -8,10 +8,9 @@ import {
   ChevronLeft,
   ChevronUp,
   Copy,
+  Download,
   Fingerprint,
-  Hand,
   Keyboard,
-  KeyRound,
   Layers,
   ListChecks,
   Lock,
@@ -23,7 +22,6 @@ import {
   Quote,
   RotateCw,
   ScreenShare,
-  Send,
   SkipForward,
   Smartphone,
   Sparkles,
@@ -38,31 +36,24 @@ import {
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { groupedDigits } from '../../core/domain/account-whole';
 import { AgentCheckText } from '../../core/domain/agent-check-text';
-import { GuideLines, GuideMemory, ONBOARDING_STEPS, rowSpoken, progressOf, setTitle, WELCOME_ROWS, type OnboardingStage, type OnboardingStep, type WelcomeRow } from '../../core/domain/onboarding';
+import { GuideLines, GuideMemory, ONBOARDING_STEPS, rowSpoken, progressOf, setTitle, type OnboardingStage, type OnboardingStep, type WelcomeRow } from '../../core/domain/onboarding';
 import type { PermissionStep } from '../../core/domain/permission-steps';
-import { firstName, voiceDetail, voiceStep } from '../../core/domain/setup-steps';
+import { agentsFoundLine, firstName, foundLine, foundToImport, importedLine, packTitle, voiceDetail, voiceStep } from '../../core/domain/setup-steps';
 import type { StepState } from '../../core/domain/step-state';
 import { BrandLogo, MEMNOX_MARK } from '../kit/logos';
 import { CloudRow } from '../settings/pages/AccountPage';
 import { Digits, IconTile, KitButton, Keycaps, MemnoxTile, NeedsHint, QuietLine, Spinner, StatusMark, useCopied } from '../settings/kit';
+import { agentLabel } from '../../core/domain/mcp-hub-lines';
 import { useLook, useObserved, usePreferences, type SettingsParts } from '../settings/parts';
 import { PermissionGuide, QrCode } from '../settings/steps';
 import { IslandDemo, useDemoTour } from './IslandDemo';
 
-/** The icons of the welcome rows, the lucide stand ins for the Mac's symbols. */
-const WELCOME_ICONS: Record<WelcomeRow['id'], LucideIcon> = {
-  glance: Layers,
-  answer: Hand,
-  rule: ListChecks,
-  tools: Send,
-  'catch-up': AudioLines,
-};
-
 const PERMISSION_ICONS: Record<PermissionStep['id'], LucideIcon> = { hear: Mic, type: Keyboard, see: ScreenShare };
 
 /**
- * The first run, as the Mac's `OnboardingWindow`: the wordmark and Get Started, the name asked for, then
- * three steps with a progress bar, a scrolling column beside a picture, and Back and Mute at the foot.
+ * The first run on a fresh computer, with no account: the wordmark and Get Started, the name asked for, then
+ * three steps with a progress bar (connect the agents, bring in what they have, choose the boundaries) and
+ * what is optional after them, a scrolling column beside the island, and Back and Mute at the foot.
  * The veil lies over the whole screen as the Mac's does, dark over a blue wash, since nothing blurs the desktop here.
  */
 export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstStep = 0 }: { parts: SettingsParts; stage?: OnboardingStage; step?: OnboardingStep }) {
@@ -72,7 +63,7 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
   const guide = useGuide(parts);
   // The real island plays each part beside the steps, round and round; a row pressed plays its part at once.
   // A preview can start on one part with ?part=, so each part can be looked at.
-  const [part, play] = useDemoTour((new URLSearchParams(location.search).get('part') ?? undefined) as WelcomeRow['id'] | undefined);
+  const [part] = useDemoTour((new URLSearchParams(location.search).get('part') ?? undefined) as WelcomeRow['id'] | undefined);
   // The part the island moved on to is said once, and only while the welcome is the step on screen, as the Mac's `follow`.
   useEffect(() => {
     if (stage === 'steps' && step === 0 && guideMemory.first(`part-${part}`)) guide(rowSpoken(part, parts.host.platform), false);
@@ -83,56 +74,65 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
     const at = stage === 'steps' ? `step-${step}` : stage;
     if (!guideMemory.first(at)) return;
     if (stage === 'name') guide(GuideLines.name);
-    if (stage === 'steps' && step === 0) guide(GuideLines.welcome(firstName(parts.preferences.name)));
-    if (stage === 'steps' && step === 1) guide(GuideLines.setup(parts.host.platform));
-    if (stage === 'steps' && step === 2) guide(GuideLines.ready(firstName(parts.preferences.name), parts.words.talkKeysSaid));
+    if (stage === 'steps' && step === 0) {
+      guide(GuideLines.welcome(firstName(parts.preferences.name)));
+      guide(GuideLines.setup(parts.host.platform), false);
+    }
+    if (stage === 'steps' && step === 1) guide(GuideLines.workspace);
+    if (stage === 'steps' && step === 2) guide(GuideLines.boundaries(parts.host.platform));
+    if (stage === 'optional') guide(GuideLines.optional);
   }, [stage, step]);
 
   // The opening and the name lie over the whole screen, as the Mac's veil; the steps take the ordinary window.
-  const veiled = stage !== 'steps';
+  const veiled = stage === 'intro' || stage === 'name';
   useEffect(() => parts.host.onboardingVeil?.(veiled), [veiled]);
 
   useEffect(() => {
     const keys = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && stage === 'steps' && step > 0) setStep((step - 1) as OnboardingStep);
+      if (event.key !== 'Escape') return;
+      if (stage === 'optional') setStage('steps');
+      else if (stage === 'steps' && step > 0) setStep((step - 1) as OnboardingStep);
     };
     window.addEventListener('keydown', keys);
     return () => window.removeEventListener('keydown', keys);
   }, [stage, step]);
 
-  if (stage !== 'steps') {
+  if (veiled) {
     return <Veil parts={parts} stage={stage} next={() => setStage(stage === 'intro' ? 'name' : 'steps')} skip={() => setStage('steps')} />;
   }
   const finish = () => {
     parts.preferences.finishSetup();
     parts.host.close();
   };
+  const optional = stage === 'optional';
+  const back = () => (optional ? setStage('steps') : setStep((step - 1) as OnboardingStep));
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
       <div className="flex flex-col gap-2 px-7 pt-[18px]">
         <div className="h-1 overflow-hidden rounded-full bg-ink-fill">
-          <div className="h-full rounded-full bg-ink-primary transition-[width] duration-500 ease-out" style={{ width: `${progressOf(step) * 100}%` }} />
+          <div className="h-full rounded-full bg-ink-primary transition-[width] duration-500 ease-out" style={{ width: `${progressOf(step, stage) * 100}%` }} />
         </div>
         <div className="flex gap-4">
           {ONBOARDING_STEPS.map((name, index) => (
-            <span key={name} className={`flex items-center gap-1 text-footnote ${index === step ? 'font-semibold text-ink-primary' : 'text-ink-tertiary'}`}>
-              {index < step && <Check size={10} strokeWidth={3.4} />}
+            <span key={name} className={`flex items-center gap-1 text-footnote ${index === step && !optional ? 'font-semibold text-ink-primary' : 'text-ink-tertiary'}`}>
+              {(index < step || optional) && <Check size={10} strokeWidth={3.4} />}
               {name}
             </span>
           ))}
         </div>
       </div>
       <div className="flex min-h-0 flex-1 justify-center gap-12 px-14">
-        <ScrollColumn key={step}>
-          {step === 0 && <WelcomeStep parts={parts} next={() => setStep(1)} playing={part} play={play} />}
-          {step === 1 && <SetupStepPage parts={parts} next={() => setStep(2)} />}
-          {step === 2 && <TryStep parts={parts} finish={finish} />}
+        <ScrollColumn key={optional ? 'optional' : step}>
+          {optional && <OptionalStep parts={parts} finish={finish} />}
+          {!optional && step === 0 && <ConnectStep parts={parts} next={() => setStep(1)} />}
+          {!optional && step === 1 && <WorkspaceStep parts={parts} next={() => setStep(2)} />}
+          {!optional && step === 2 && <BoundariesStep parts={parts} next={() => setStage('optional')} />}
         </ScrollColumn>
         <IslandDemo part={part} />
       </div>
       <footer className="flex h-11 shrink-0 items-center gap-3 px-7 pb-3">
-        {step > 0 && (
-          <KitButton icon={ChevronLeft} onClick={() => setStep((step - 1) as OnboardingStep)}>
+        {(step > 0 || optional) && (
+          <KitButton icon={ChevronLeft} onClick={back}>
             Back
           </KitButton>
         )}
@@ -334,76 +334,247 @@ function DoneOr({ state, children }: { state: StepState; children: ReactNode }) 
   return state.kind === 'done' ? <StatusMark state={state} /> : <>{children}</>;
 }
 
-/** Step 1: what Memnox does, five rows each said aloud on a press, and how it thinks. */
-function WelcomeStep({ parts, next, playing, play }: { parts: SettingsParts; next: () => void; playing: WelcomeRow['id']; play: (part: WelcomeRow['id']) => void }) {
-  const guide = useGuide(parts);
+/** Step 1: the service, the confirm key, and the agents found here, each protected so it passes the boundaries first. */
+function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }) {
+  const { steps, words, agents, home } = parts;
+  useObserved(steps, agents, home);
+  useEffect(() => {
+    void steps.refresh().then(() => steps.recheckOnce());
+    void agents.refresh();
+    // The voice is optional, but it is fetched now so it has arrived by the time anybody asks for it.
+    if (steps.voiceInstall.kind === 'idle') void steps.installVoice();
+  }, []);
+  const service = steps.service;
+  const key = steps.keyState;
+  const found = agents.agents;
+  // Before the agents method answers, the agents the voice found stand in, so a fresh computer still shows its agents.
+  const fallback = steps.agents.filter((agent) => agent.installed);
   return (
     <>
-      <StepTitle title="Welcome to Memnox" detail="Let AI agents work autonomously. Keep their actions within your boundaries." />
-      <KitCard>
-        {WELCOME_ROWS.map((row, index) => {
-          const Icon = WELCOME_ICONS[row.id];
-          const on = playing === row.id;
-          return (
-            <Fragment key={row.id}>
-              {index > 0 && <KitDivider />}
-              <button
-                type="button"
-                className={`cursor-pointer text-left transition-opacity duration-300 ${!on ? 'opacity-55' : ''}`}
-                title="See it on the island"
-                onClick={() => {
-                  play(row.id);
-                  guideMemory.first(`part-${row.id}`);
-                  guide(rowSpoken(row.id, parts.host.platform));
-                }}
-              >
-                <KitRow tile={<IconTile icon={Icon} />} title={row.title} detail={row.detail} trailing={<Play size={12} fill={on ? 'currentColor' : 'none'} className={on ? 'text-primary' : 'text-ink-tertiary'} />} />
-              </button>
-            </Fragment>
-          );
-        })}
+      <StepTitle title="Connect your agents" detail="Memnox starts its service on this computer and puts itself under the agents you already use. No account needed." />
+      <KitCard icon={Monitor} title="Memnox on this computer" detail="Installed under your agents and kept up to date for you.">
+        <KitRow
+          tile={<MemnoxTile />}
+          title="Memnox service"
+          detail={service.detail}
+          hint={service.state.kind === 'needs' ? service.state.why : undefined}
+          trailing={
+            <DoneOr state={service.state}>
+              {parts.setup.state.doing !== undefined ? (
+                <Spinner />
+              ) : (
+                <KitButton icon={RotateCw} onClick={() => void steps.checkService()}>
+                  Check again
+                </KitButton>
+              )}
+            </DoneOr>
+          }
+        />
+        <KitDivider />
+        <KitRow
+          tile={<IconTile icon={Fingerprint} />}
+          title={words.approveTitle}
+          detail="Your approval signs what agents ask. The key never leaves this computer."
+          hint={key.kind === 'needs' ? key.why : undefined}
+          trailing={
+            <DoneOr state={key}>
+              <KitButton icon={RotateCw} onClick={() => void steps.checkKey()}>
+                Check again
+              </KitButton>
+            </DoneOr>
+          }
+        />
       </KitCard>
-      <KitCard
-        icon={KeyRound}
-        title="Works through your own agent"
-        detail="Memnox has no model of its own. It answers through an agent you already use, such as Claude Code, Codex, Cursor or Hermes, signed in with that agent's own account. No API key to bring."
-      >
-        {null}
+      <KitCard icon={UserRoundSearch} title="Agents on this computer" detail={found === undefined ? 'Looking for the agents on this computer.' : agentsFoundLine(found)}>
+        {found !== undefined
+          ? found.map((agent, index) => (
+              <Fragment key={agent.kind}>
+                {index > 0 && <KitDivider />}
+                <KitRow
+                  tile={<BrandLogo agent={agent.kind} name={agent.name} size={26} />}
+                  title={agent.name}
+                  detail={agent.status === 'unprotected' ? 'Runs outside Memnox until you protect it.' : agent.status === 'paused' ? 'Paused. Nothing it asks for runs.' : 'Every action passes your boundaries first.'}
+                  trailing={
+                    agent.status === 'unprotected' ? (
+                      <KitButton disabled={home.protecting} onClick={() => void home.protect().then(() => agents.refresh())}>
+                        Protect
+                      </KitButton>
+                    ) : (
+                      <StatusMark state={{ kind: 'done' }} />
+                    )
+                  }
+                />
+              </Fragment>
+            ))
+          : fallback.map((agent, index) => (
+              <Fragment key={agent.kind}>
+                {index > 0 && <KitDivider />}
+                <KitRow tile={<BrandLogo agent={agent.kind} name={agent.label} size={26} />} title={agent.label} detail="Found on this computer." />
+              </Fragment>
+            ))}
+        {found !== undefined && found.length === 0 && (
+          <KitRow tile={<IconTile icon={UserRoundSearch} />} title="No agent found yet" detail="Install one, then check again." trailing={<KitButton onClick={() => void agents.refresh()}>Check again</KitButton>} />
+        )}
       </KitCard>
       <KitButton kind="primary" wide trailing={ArrowRight} onClick={next}>
-        Set up this computer
+        Continue
       </KitButton>
     </>
   );
 }
 
-/** Step 2: the permissions this system needs, Memnox installing itself and its voice, and who answers. */
-function SetupStepPage({ parts, next }: { parts: SettingsParts; next: () => void }) {
-  const { steps, words, host } = parts;
+/** Step 2: the servers and skills the agents already keep, brought into Memnox with one tap. */
+function WorkspaceStep({ parts, next }: { parts: SettingsParts; next: () => void }) {
+  const { hub, skills } = parts;
+  useObserved(hub, skills);
+  const [importing, setImporting] = useState(false);
+  const [said, say] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    void hub.refresh();
+    void skills.refresh();
+  }, []);
+  const read = hub.hub !== undefined || skills.hub !== undefined;
+  const found = foundToImport(hub.hub?.found ?? [], skills.hub?.found ?? []);
+  const nothing = found.servers.length === 0 && found.skills.length === 0;
+  // Each one is its own request, so one that fails leaves the rest brought in.
+  const importAll = async () => {
+    setImporting(true);
+    let imported = 0;
+    const failed: string[] = [];
+    for (const server of found.servers) {
+      const outcome = await hub.importServer(server.agent, server.name);
+      if (outcome.kind === 'failed') failed.push(`${server.name}: ${outcome.why}`);
+      else imported += 1;
+    }
+    for (const skill of found.skills) {
+      const outcome = await skills.importFound(skill.id, skill.name);
+      if (outcome.kind === 'failed') failed.push(`${skill.name}: ${outcome.why}`);
+      else imported += 1;
+    }
+    setImporting(false);
+    say(importedLine(imported, failed));
+  };
+  return (
+    <>
+      <StepTitle title="Set up your workspace" detail="Your agents already have servers and skills of their own. Bring them in once, and give each to the agents you choose." />
+      <KitCard icon={Layers} title={read ? foundLine(found) : 'Looking through your agents'} detail="Brought in, a server runs behind Memnox so every call it makes is ruled on and recorded.">
+        {found.servers.map((server, index) => (
+          <Fragment key={`server/${server.agent}/${server.name}`}>
+            {index > 0 && <KitDivider />}
+            <KitRow tile={<BrandLogo agent={server.agent} name={agentLabel(server.agent)} size={26} />} title={server.name} detail={`MCP server in ${agentLabel(server.agent)}`} />
+          </Fragment>
+        ))}
+        {found.skills.map((skill, index) => (
+          <Fragment key={`skill/${skill.id}`}>
+            {(index > 0 || found.servers.length > 0) && <KitDivider />}
+            <KitRow tile={<BrandLogo agent={skill.agent} name={agentLabel(skill.agent)} size={26} />} title={skill.name} detail={`Skill in ${agentLabel(skill.agent)}`} />
+          </Fragment>
+        ))}
+        {!read && <Spinner />}
+      </KitCard>
+      {said !== undefined && <QuietLine size={13}>{said}</QuietLine>}
+      {!nothing && said === undefined ? (
+        <KitButton kind="primary" wide icon={importing ? undefined : Download} disabled={importing} onClick={() => void importAll()}>
+          {importing ? 'Bringing them in' : 'Import all'}
+        </KitButton>
+      ) : (
+        <KitButton kind="primary" wide trailing={ArrowRight} onClick={next}>
+          Continue
+        </KitButton>
+      )}
+      {!nothing && said === undefined && (
+        <KitButton wide onClick={next}>
+          Not now
+        </KitButton>
+      )}
+    </>
+  );
+}
+
+/** Step 3: a pack of rules to start from, each rule proposed and signed on the island one by one. */
+function BoundariesStep({ parts, next }: { parts: SettingsParts; next: () => void }) {
+  const { studio, words } = parts;
+  useObserved(studio);
+  const [chosen, choose] = useState<string | undefined>(undefined);
+  const [said, say] = useState<string | undefined>(undefined);
+  const [sending, setSending] = useState(false);
+  useEffect(() => {
+    void studio.readPacks();
+  }, []);
+  const packs = studio.packs;
+  const pack = packs?.find((each) => each.id === chosen);
+  const importPack = async () => {
+    if (pack === undefined) return;
+    setSending(true);
+    const outcome = await studio.importPack(pack.toml);
+    setSending(false);
+    say(outcome.kind === 'failed' ? outcome.why : outcome.kind === 'proposed' ? 'Waiting for you on the island.' : outcome.note);
+  };
+  const imported = said !== undefined && !sending;
+  return (
+    <>
+      <StepTitle title="Choose your boundaries" detail={`Pick the rules your agents start under. Nothing holds until you confirm each rule with ${words.keyTitle} on the island.`} />
+      <KitCard icon={ListChecks} title="Rule packs" detail="Each is a starting point. Change any rule later under Governance.">
+        {packs === undefined && <Spinner />}
+        {packs !== undefined && packs.length === 0 && <QuietLine size={13}>This runtime ships no packs yet. The rules it starts with stay in force.</QuietLine>}
+        {packs !== undefined && (
+          <div role="radiogroup" aria-label="Rule packs" className="flex flex-col">
+            {packs.map((each, index) => (
+              <Fragment key={each.id}>
+                {index > 0 && <KitDivider />}
+                <button type="button" role="radio" aria-checked={chosen === each.id} disabled={imported} onClick={() => choose(each.id)} className="cursor-pointer text-left disabled:cursor-default">
+                  <KitRow
+                    tile={<IconTile icon={ListChecks} />}
+                    title={packTitle(each)}
+                    detail={each.description}
+                    trailing={<span aria-hidden className={`size-4 rounded-full border-2 ${chosen === each.id ? 'border-primary bg-primary' : 'border-ink-edge'}`} />}
+                  />
+                </button>
+              </Fragment>
+            ))}
+          </div>
+        )}
+      </KitCard>
+      {said !== undefined && <QuietLine size={13}>{said}</QuietLine>}
+      {pack !== undefined && !imported ? (
+        <KitButton kind="primary" wide icon={Check} disabled={sending} onClick={() => void importPack()}>
+          {`Use ${pack.name}`}
+        </KitButton>
+      ) : (
+        <KitButton kind="primary" wide trailing={ArrowRight} onClick={next}>
+          Finish
+        </KitButton>
+      )}
+    </>
+  );
+}
+
+/** After the three steps, all optional: the permissions to talk, the voice and who answers, two keys to try, and the phone. */
+function OptionalStep({ parts, finish }: { parts: SettingsParts; finish: () => void }) {
+  const { steps, words, host, preferences } = parts;
   useObserved(steps);
+  usePreferences();
   const guide = useGuide(parts);
   // A grant that waits on the person is said once, with what to do, as the Mac's guide follows its typing and seeing.
   const waitingOn = steps.permissions.filter((step) => step.state.kind === 'needs').map((step) => step.id);
   useEffect(() => {
     for (const step of steps.permissions) {
       if (step.state.kind !== 'needs' || !guideMemory.first(`needs-${step.id}`)) continue;
-      if (step.id === 'hear') guide(GuideLines.microphone(host.platform));
-      if (step.id === 'type') guide(GuideLines.typing);
-      if (step.id === 'see') guide(GuideLines.seeing(step.guide.some((line) => line.includes('portal')) ? 'portal' : 'accessibility'));
+      if (step.id === 'hear') guide(GuideLines.microphone(host.platform), false);
+      if (step.id === 'type') guide(GuideLines.typing, false);
+      if (step.id === 'see') guide(GuideLines.seeing(step.guide.some((line) => line.includes('portal')) ? 'portal' : 'accessibility'), false);
     }
   }, [waitingOn.join()]);
   useEffect(() => {
-    void steps.refresh().then(() => steps.recheckOnce());
+    void steps.readPermissions();
     if (steps.voiceInstall.kind === 'idle') void steps.installVoice();
   }, []);
-  const service = steps.service;
-  const key = steps.keyState;
   const install = steps.voiceInstall;
   const starts = steps.startsAtSignIn === true;
   return (
     <>
-      <StepTitle title="Set up this computer" detail="A few permissions, asked once, and Memnox installs itself and its voice under your agents." />
-      <KitCard icon={Lock} title="Permissions" detail="Used only when you talk or approve.">
+      <StepTitle title={setTitle(firstName(preferences.name))} detail="Your agents work inside your boundaries now. Everything below is optional, and waits in Settings." />
+      <KitCard icon={Lock} title="Talk to Memnox" detail="Used only when you talk or approve.">
         {steps.permissions.map((step, index) => {
           const pane = step.pane;
           return (
@@ -443,39 +614,6 @@ function SetupStepPage({ parts, next }: { parts: SettingsParts; next: () => void
         })}
         <KitDivider />
         <KitRow
-          tile={<IconTile icon={Fingerprint} />}
-          title={words.approveTitle}
-          detail="Your approval signs what agents ask. The key never leaves this computer."
-          hint={key.kind === 'needs' ? key.why : undefined}
-          trailing={
-            <DoneOr state={key}>
-              <KitButton icon={RotateCw} onClick={() => void steps.checkKey()}>
-                Check again
-              </KitButton>
-            </DoneOr>
-          }
-        />
-      </KitCard>
-      <KitCard icon={Monitor} title="Memnox on this computer" detail="Installed under your agents and kept up to date for you.">
-        <KitRow
-          tile={<MemnoxTile />}
-          title="Memnox service"
-          detail={service.detail}
-          hint={service.state.kind === 'needs' ? service.state.why : undefined}
-          trailing={
-            <DoneOr state={service.state}>
-              {parts.setup.state.doing !== undefined ? (
-                <Spinner />
-              ) : (
-                <KitButton icon={RotateCw} onClick={() => void steps.checkService()}>
-                  Check again
-                </KitButton>
-              )}
-            </DoneOr>
-          }
-        />
-        <KitDivider />
-        <KitRow
           tile={<IconTile icon={AudioLines} />}
           title="Voice"
           detail={install.kind === 'installing' && install.percent !== undefined ? `${voiceDetail(install)} ${install.percent}%.` : voiceDetail(install)}
@@ -506,20 +644,50 @@ function SetupStepPage({ parts, next }: { parts: SettingsParts; next: () => void
           tile={<IconTile icon={Power} />}
           title="Start when you sign in"
           detail="So a call that waits on you is never missed because Memnox was closed."
-          trailing={
-            starts ? (
-              <StatusMark state={{ kind: 'done' }} />
-            ) : (
-              <KitButton onClick={() => void steps.setStartsAtSignIn(true)}>Turn on</KitButton>
-            )
-          }
+          trailing={starts ? <StatusMark state={{ kind: 'done' }} /> : <KitButton onClick={() => void steps.setStartsAtSignIn(true)}>Turn on</KitButton>}
         />
       </KitCard>
       <KitCard icon={Speech} title="Who answers when you talk" detail={steps.agentsDetail}>
         <AgentChecks parts={parts} />
       </KitCard>
-      <KitButton kind="primary" wide trailing={ArrowRight} onClick={next}>
-        Continue
+      <KitCard icon={Keyboard} title="Two keys to try" detail="Memnox answers in the island.">
+        <KitRow
+          tile={<IconTile icon={Mic} />}
+          title="Ask out loud"
+          detail="Press, talk, and Memnox listens until you stop."
+          trailing={
+            <>
+              <Keycaps keys={words.talkKeys} gap={2} />
+              <KitButton icon={Play} onClick={() => host.talk()}>
+                Try it
+              </KitButton>
+            </>
+          }
+        />
+        <KitDivider />
+        <KitRow
+          tile={<IconTile icon={ListChecks} />}
+          title="Say a rule"
+          detail="Hold, and say never deploy on Fridays."
+          trailing={
+            <>
+              <Keycaps keys={['Ctrl', 'Alt']} gap={2} />
+              <KitButton icon={Play} onClick={() => host.talk('rule')}>
+                Try it
+              </KitButton>
+            </>
+          }
+        />
+      </KitCard>
+      <KitCard icon={Building2} title="Your workspace and your phone" detail="Sign in to your workspace or pair your iPhone. Both wait in Settings.">
+        <div className="-mx-4">
+          <CloudRow parts={parts} compact />
+        </div>
+        <KitDivider />
+        <PhoneRow parts={parts} />
+      </KitCard>
+      <KitButton kind="primary" wide icon={Sparkles} onClick={finish}>
+        Start using Memnox
       </KitButton>
     </>
   );
@@ -618,59 +786,6 @@ function AgentChecks({ parts }: { parts: SettingsParts }) {
           )}
         </>
       )}
-    </>
-  );
-}
-
-/** Step 3: the two keys to try, then the workspace and the phone, both optional, and Start using Memnox. */
-function TryStep({ parts, finish }: { parts: SettingsParts; finish: () => void }) {
-  const { words, host, preferences } = parts;
-  usePreferences();
-  return (
-    <>
-      <StepTitle
-        title={setTitle(firstName(preferences.name))}
-        detail="Hand an agent the task and close your laptop. Everything inside your boundary runs on its own, and the one thing outside it finds you on your phone."
-      />
-      <KitCard icon={Keyboard} title="Two keys to try" detail="Memnox answers in the island.">
-        <KitRow
-          tile={<IconTile icon={Mic} />}
-          title="Ask out loud"
-          detail="Press, talk, and Memnox listens until you stop."
-          trailing={
-            <>
-              <Keycaps keys={words.talkKeys} gap={2} />
-              <KitButton icon={Play} onClick={() => host.talk()}>
-                Try it
-              </KitButton>
-            </>
-          }
-        />
-        <KitDivider />
-        <KitRow
-          tile={<IconTile icon={ListChecks} />}
-          title="Say a rule"
-          detail="Hold, and say never deploy on Fridays."
-          trailing={
-            <>
-              <Keycaps keys={['Ctrl', 'Alt']} gap={2} />
-              <KitButton icon={Play} onClick={() => host.talk('rule')}>
-                Try it
-              </KitButton>
-            </>
-          }
-        />
-      </KitCard>
-      <KitCard icon={Building2} title="Optional" detail="Your workspace and your iPhone. Both wait in Settings.">
-        <div className="-mx-4">
-          <CloudRow parts={parts} compact />
-        </div>
-        <KitDivider />
-        <PhoneRow parts={parts} />
-      </KitCard>
-      <KitButton kind="primary" wide icon={Sparkles} onClick={finish}>
-        Start using Memnox
-      </KitButton>
     </>
   );
 }

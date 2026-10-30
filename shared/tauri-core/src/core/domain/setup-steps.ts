@@ -1,4 +1,4 @@
-import type { VoiceAgentStatus } from '@memnox/core/wire';
+import type { AgentView, FoundSkillView, McpHubEntryView, RulePackView, VoiceAgentStatus } from '@memnox/core/wire';
 import type { SettingsPage } from './settings-pages';
 import { DONE, needs, WAITING, type StepState } from './step-state';
 
@@ -150,4 +150,52 @@ export function editorRow(editors: { readonly present: boolean; readonly withExt
       ? 'The Memnox terminals extension is in, so your voice reaches the session’s own tab. Restart the editor if it was open.'
       : 'The Memnox terminals extension goes into VS Code, Cursor and Windsurf by itself, so your voice reaches the session’s own tab.',
   };
+}
+
+/** What a fresh computer already has that Memnox can bring in: servers and skills each agent keeps on its own. */
+export interface FoundToImport {
+  /** Servers named in one agent's config; a repository's own file is shared by several and stays where it is. */
+  readonly servers: readonly { readonly agent: string; readonly name: string }[];
+  readonly skills: readonly { readonly id: string; readonly agent: string; readonly name: string }[];
+  /** The agents that hold any of them, counted once each. */
+  readonly agents: number;
+}
+
+export function foundToImport(servers: readonly McpHubEntryView[], skills: readonly FoundSkillView[]): FoundToImport {
+  const importableServers = servers.flatMap((entry) => (entry.agent === undefined ? [] : [{ agent: entry.agent, name: entry.name }]));
+  const importableSkills = skills.filter((skill) => !skill.imported).map((skill) => ({ id: skill.id, agent: skill.agent, name: skill.name }));
+  const agents = new Set([...importableServers.map((each) => each.agent), ...importableSkills.map((each) => each.agent)]);
+  return { servers: importableServers, skills: importableSkills, agents: agents.size };
+}
+
+function counted(count: number, one: string, many: string): string {
+  return count === 1 ? `1 ${one}` : `${count} ${many}`;
+}
+
+/** "We found 3 MCP servers and 2 skills across 2 agents." Counts, never a score. */
+export function foundLine(found: FoundToImport): string {
+  if (found.servers.length === 0 && found.skills.length === 0) return 'Nothing to bring in: no agent here keeps MCP servers or skills of its own yet.';
+  const servers = counted(found.servers.length, 'MCP server', 'MCP servers');
+  const skills = counted(found.skills.length, 'skill', 'skills');
+  return `We found ${servers} and ${skills} across ${counted(found.agents, 'agent', 'agents')}.`;
+}
+
+/** What one tap of Import brought in, and what it could not. */
+export function importedLine(imported: number, failed: readonly string[]): string {
+  const brought = imported === 1 ? 'Brought in 1, now set up once in Memnox.' : `Brought in ${imported}, now set up once in Memnox.`;
+  if (failed.length === 0) return brought;
+  return `${brought} ${failed.length} could not be, and stay where they are: ${failed[0] ?? ''}`;
+}
+
+/** "Careful · 6 rules", as a pack is listed to choose from. */
+export function packTitle(pack: Pick<RulePackView, 'name' | 'ruleCount'>): string {
+  return `${pack.name} · ${counted(pack.ruleCount, 'rule', 'rules')}`;
+}
+
+/** The agents found on this computer, in a line, the unprotected ones said so. */
+export function agentsFoundLine(agents: readonly Pick<AgentView, 'name' | 'status'>[]): string {
+  if (agents.length === 0) return 'No agent found yet. Install Claude Code, Codex, Cursor or another agent, then check again.';
+  const open = agents.filter((agent) => agent.status === 'unprotected').length;
+  const found = `Found ${counted(agents.length, 'agent', 'agents')}.`;
+  return open === 0 ? `${found} Every one passes your boundaries first.` : `${found} ${counted(open, 'still runs', 'still run')} outside Memnox until you protect it.`;
 }

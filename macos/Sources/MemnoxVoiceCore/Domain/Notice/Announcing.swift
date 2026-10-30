@@ -27,9 +27,9 @@ extension DaemonEvent {
         return speakUp || (noticeKind?.isAlwaysSaid ?? false)
     }
 
-    /// A drive grant, a phone's turn or the voice moving to a phone: put on the island at once and never said.
+    /// A drive grant, a phone's turn, the voice moving to a phone, or live activity for the screens: never said.
     public var isShownOnly: Bool {
-        drivenBy != nil || phoneTurn != nil || voiceOn != nil
+        eventKind == .activity || drivenBy != nil || phoneTurn != nil || voiceOn != nil
     }
 
     /// Whether the conversation stays open once this is said, because it waits on the person rather than only telling them.

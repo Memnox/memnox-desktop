@@ -33,18 +33,22 @@ public struct HubServer: Encodable, Equatable, Sendable {
     public let args: [String]?
     /// On http: where the server answers.
     public let url: String?
+    /// On http: sent with every request; a credential is written as `memnox-secret:<name>` and resolved by the proxy.
+    public let headers: [String: String]?
     public let env: [String: String]
     /// Variable name to secret name: only a reference reaches an agent's config, the value stays in the OS store.
     public let secrets: [String: String]
 
     public init(name: String, description: String? = nil, transport: HubTransport, command: String? = nil,
-                args: [String]? = nil, url: String? = nil, env: [String: String] = [:], secrets: [String: String] = [:]) {
+                args: [String]? = nil, url: String? = nil, headers: [String: String]? = nil,
+                env: [String: String] = [:], secrets: [String: String] = [:]) {
         self.name = name
         self.description = description
         self.transport = transport.rawValue
         self.command = command
         self.args = args
         self.url = url
+        self.headers = headers
         self.env = env
         self.secrets = secrets
     }
@@ -77,6 +81,8 @@ public struct McpHubServerView: Decodable, Equatable, Identifiable, Sendable {
     public let url: String?
     /// Plain variables by name only, so a value pasted where a secret belonged is never read back.
     public let envNames: [String]
+    /// On http: the headers sent, by name only, for the same reason.
+    public let headerNames: [String]?
     /// Behind the proxy, so every call is ruled on and recorded.
     public let governed: Bool
     public let toolCount: Int

@@ -12,7 +12,8 @@ public enum MachineEvents {
         case .held, .settled: return true
         // This Mac's own agents ask and tell here whatever the voice talks to.
         case .proposal, .notice: return thisMac || event.awaitsAnswer
-        case .paused, .show, nil: return false
+        // Live activity is the chosen machine's, whose ledger the window pages through.
+        case .paused, .show, .activity, nil: return false
         }
     }
 }

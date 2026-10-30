@@ -314,3 +314,9 @@ public struct MemoryEditInput: Encodable, Equatable, Sendable {
         self.rule = rule
     }
 }
+
+/// How a search was answered, so a screen says keyword only rather than letting it pass as both.
+public enum MemorySearchMode: String, Sendable {
+    case keyword
+    case semantic
+}

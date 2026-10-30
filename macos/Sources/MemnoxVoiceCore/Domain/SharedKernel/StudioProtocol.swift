@@ -281,6 +281,29 @@ public struct ActivityRow: Decodable, Equatable, Identifiable, Sendable {
     public var answered: AnsweredHow? { answeredHow.flatMap(AnsweredHow.init(rawValue:)) }
 }
 
+/// One row as it is written, for a live timeline: names only, never arguments, output or contents.
+public struct LiveActivityRow: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let at: String
+    /// The agent's kind, such as claude-code.
+    public let agent: String
+    public let operation: String
+    public let effect: String
+    /// The target by name: a path, a host, a server; never what was sent to it.
+    public let target: String?
+
+    public init(id: String, at: String, agent: String, operation: String, effect: String, target: String? = nil) {
+        self.id = id
+        self.at = at
+        self.agent = agent
+        self.operation = operation
+        self.effect = effect
+        self.target = target
+    }
+
+    public var ruleEffect: RuleEffect? { RuleEffect(rawValue: effect) }
+}
+
 public struct ActivityPage: Decodable, Equatable, Sendable {
     public let rows: [ActivityRow]
     /// Handed back as `activityCursor` for the next page; absent on the last.

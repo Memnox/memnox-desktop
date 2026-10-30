@@ -235,6 +235,8 @@ public enum EventKind: String, Sendable {
     case show
     /// Worth saying unasked: a session finished, committed or pushed.
     case notice
+    /// Rows the ledger gained that a screen's activity view shows, names only, a burst at most once a second.
+    case activity
 }
 
 /// How a show event wants to be shown.
@@ -1460,6 +1462,10 @@ public struct DaemonEvent: Decodable, Equatable, Sendable {
     public let questions: [AgentQuestionItem]?
     /// On a question notice, what is already picked by question text, so only what is left is asked.
     public let answers: [String: String]?
+    /// On activity: the rows written since the last one, oldest first.
+    public let activityRows: [LiveActivityRow]?
+    /// On activity: rows of the same burst this event does not carry, at least this many.
+    public let activityMissed: Int?
 
     public var eventKind: EventKind? { EventKind(rawValue: kind) }
     public var noticeKind: NoticeKind? { notice.flatMap(NoticeKind.init(rawValue:)) }
@@ -1705,6 +1711,10 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let memoryLearn: MemoryItemsView?
     /// On memory-facts and memory-search.
     public let memoryFacts: MemoryItemsView?
+    /// On memory-search: keyword alone, or keyword fused with a local embedding model the person turned on.
+    public let memorySearchMode: String?
+    /// On memory-search: why it was keyword only although search by meaning is on, such as the model not answering.
+    public let memorySearchNote: String?
     /// On memory-confirm and memory-edit: the item as it now stands.
     public let memoryItem: MemoryItemView?
     /// On lan-status and lan-set.

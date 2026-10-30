@@ -633,7 +633,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         // Shown as taps while the voice reads it, so either a hand or a word answers it.
         case .notice where event.noticeKind == .question: panel.question(event)
-        case .notice, .proposal, .show, nil: break
+        case .notice, .proposal, .show, .activity, nil: break
         }
         // Seen as well as said, and only from the daemon's facts, so a pass the ledger never saw is never celebrated.
         if let gesture = reaction(to: event) { panel.react(gesture, session: event.sessionId) }

@@ -66,6 +66,11 @@ export class SkillsHub extends Observed {
     return this.change(name, { method: SKILLS_METHOD.SKILL_ROLLBACK, skillName: name, skillVersion: version }, `${name} is back on ${version}.`);
   }
 
+  /** Takes a personal skill out of the hub and every agent at once, its kept versions with it, since that only narrows. */
+  remove(name: string): Promise<SkillOutcome> {
+    return this.change(name, { method: SKILLS_METHOD.SKILL_REMOVE, skillName: name }, `${name} was taken out of the hub and every agent, its kept versions with it.`);
+  }
+
   assign(name: string, agent: string, on: boolean): Promise<SkillOutcome> {
     const note = on ? `${name} is now given to ${agent}.` : `${agent} no longer has ${name}.`;
     return this.change(name, { method: SKILLS_METHOD.SKILL_ASSIGN, skillName: name, skillAgent: agent, skillOn: on }, note);

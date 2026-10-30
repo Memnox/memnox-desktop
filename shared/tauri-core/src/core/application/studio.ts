@@ -14,6 +14,7 @@ import {
   type RuleVerdictView,
 } from '@memnox/core/wire';
 import { launchedLine } from '../domain/launch-lines';
+import { profileAppliedLine } from '../domain/profile-lines';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
@@ -280,16 +281,22 @@ export class Agents extends Observed {
     return this.change(sessionId, { method: AGENTS_METHOD.SESSION_STOP, sessionId }, 'Stopped. The session waits until you let it carry on.');
   }
 
-  /** Opens the agent in a new terminal in the folder; the runtime types its launch line, and nothing is widened. */
-  async launch(kind: string, folder: string): Promise<StudioOutcome> {
+  /**
+   * Opens the agent in a new terminal in the folder; the runtime types its launch line, and nothing is widened.
+   * A profile named here is applied first, and what it raises waits on the island like any apply.
+   */
+  async launch(kind: string, folder: string, profile?: { name: string; keyTitle: string }): Promise<StudioOutcome> {
     this.working = `launch/${kind}`;
     this.changed();
-    const response = await ask(this.link, this.ids, { method: AGENTS_METHOD.AGENT_LAUNCH, agentKind: kind, workingDirectory: folder.trim() });
+    const response = await ask(this.link, this.ids, { method: AGENTS_METHOD.AGENT_LAUNCH, agentKind: kind, workingDirectory: folder.trim(), ...(profile === undefined ? {} : { profileName: profile.name }) });
     this.working = undefined;
     this.changed();
     const launched = response?.agentLaunched;
     const name = this.view?.find((agent) => agent.kind === kind)?.name ?? kind;
-    return outcomeOf(response, launched === undefined ? `Opened ${name}.` : launchedLine(launched, name));
+    const opened = launched === undefined ? `Opened ${name}.` : launchedLine(launched, name);
+    // A launch with a profile is said whole in one line, rather than as the first of its proposals.
+    if (response?.ok === true && response.profileApplied !== undefined && profile !== undefined) return { kind: 'done', note: `${opened} ${profileAppliedLine(response.profileApplied, profile.keyTitle)}` };
+    return outcomeOf(response, opened);
   }
 
   private async change(subject: string, fields: Omit<DaemonRequest, 'id'>, done: string): Promise<StudioOutcome> {

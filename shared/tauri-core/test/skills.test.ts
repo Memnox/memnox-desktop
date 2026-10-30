@@ -139,4 +139,12 @@ describe('the Skills Hub', () => {
     expect(await hub.sync()).toEqual({ kind: 'done', note: 'Wrote 2.' });
     expect(await hub.accept('release-notes')).toEqual({ kind: 'failed', why: 'The runtime is not answering.' });
   });
+
+  it('removes a personal skill from every agent at once', async () => {
+    const daemon = new ScriptedDaemon({ 'skill-remove': (request) => [{ id: request.id, ok: true, skillsHub: { skills: [], found: [], agents: [] } }] });
+    const hub = new SkillsHub(daemon, new RequestIds());
+    expect(await hub.remove('release-notes')).toEqual({ kind: 'done', note: 'release-notes was taken out of the hub and every agent, its kept versions with it.' });
+    expect(daemon.sent('skill-remove')[0]?.skillName).toBe('release-notes');
+    expect(hub.hub?.skills).toEqual([]);
+  });
 });

@@ -192,6 +192,22 @@ public enum DaemonMethod: String, Sendable {
     case memoryFacts = "memory-facts"
     /// Deletes one item and its evidence.
     case memoryForget = "memory-forget"
+    /// Whether the local network is on, where it listens, whether it is advertised, and which phones reach it.
+    case lanStatus = "lan-status"
+    /// Turns it off at once, or proposes turning it on, which holds once the person signs it here.
+    case lanSet = "lan-set"
+    /// Where personal sync stands here: the key, the last run, what was left out, and any machine waiting.
+    case personalSyncStatus = "personal-sync-status"
+    /// Pulls what the person's other machines sent, then sends what changed here.
+    case personalSyncNow = "personal-sync-now"
+    /// The copies a sync replaced without having seen them, opened for the person to choose from.
+    case personalSyncConflicts = "personal-sync-conflicts"
+    /// Keeps one side of a conflict: the copy taken back here, or this Mac's own.
+    case personalSyncResolve = "personal-sync-resolve"
+    /// On a Mac holding the key: proposes sealing it to a waiting machine whose fingerprint the person compared.
+    case personalSyncKeyOffer = "personal-sync-key-offer"
+    /// On a new Mac: proposes taking the key sealed to it, once the person compared the same fingerprint.
+    case personalSyncKeyAccept = "personal-sync-key-accept"
 }
 
 public enum EventKind: String, Sendable {
@@ -1303,6 +1319,16 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var memoryScope: String?
     /// On memory-facts.
     public var memoryStatus: String?
+    /// On lan-set: true proposes turning it on, false turns it off now.
+    public var lanOn: Bool?
+    /// On personal-sync-resolve.
+    public var syncConflictId: String?
+    /// On personal-sync-resolve: theirs or mine.
+    public var syncKeep: String?
+    /// On personal-sync-key-offer: the waiting machine to seal the key to.
+    public var syncMachineId: String?
+    /// On personal-sync-key-offer and personal-sync-key-accept: the fingerprint the person compared.
+    public var syncFingerprint: String?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -1643,6 +1669,12 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let memoryFacts: MemoryItemsView?
     /// On memory-confirm and memory-edit: the item as it now stands.
     public let memoryItem: MemoryItemView?
+    /// On lan-status and lan-set.
+    public let lan: LanStatus?
+    /// On every personal sync method, so a screen redraws from one answer.
+    public let personalSync: PersonalSyncStatus?
+    /// On personal-sync-conflicts.
+    public let syncConflicts: [PersonalSyncConflict]?
 
     /// The outcome as a known case, or nil for one this app does not know yet.
     public var outcomeKind: Outcome? { outcome.flatMap(Outcome.init(rawValue:)) }

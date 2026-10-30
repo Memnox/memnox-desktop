@@ -77,8 +77,54 @@ public struct ProjectSessionsView: Decodable, Equatable, Sendable {
     }
 }
 
+/// Where a project's setup comes from; absent is this machine's own.
+public enum ProjectScope: String, Sendable {
+    /// Shared by the organization in Memnox Cloud and laid over the clone, read only here.
+    case organization
+}
+
+/// What the organization hands a shared project, its names looked up in the same bundle.
+public struct ProjectOrganizationView: Decodable, Equatable, Sendable {
+    /// The cloud's id, which the project's memory is kept under.
+    public let id: String
+    public let name: String
+    /// `host/owner/name`, which this clone's `origin` reduces to.
+    public let repository: String
+    public let description: String?
+    public let servers: [String]
+    public let skills: [String]
+    public let rulePack: String?
+    /// Rules the organization publishes under the rule pack.
+    public let rules: Int
+    public let memory: String
+    /// Each name the bundle did not carry, said in a sentence, and left out.
+    public let skipped: [String]
+    /// The line a local edit is refused with, for a screen to show before anybody tries.
+    public let editedIn: String
+
+    public init(id: String, name: String, repository: String, description: String? = nil, servers: [String] = [],
+                skills: [String] = [], rulePack: String? = nil, rules: Int = 0, memory: String, skipped: [String] = [],
+                editedIn: String) {
+        self.id = id
+        self.name = name
+        self.repository = repository
+        self.description = description
+        self.servers = servers
+        self.skills = skills
+        self.rulePack = rulePack
+        self.rules = rules
+        self.memory = memory
+        self.skipped = skipped
+        self.editedIn = editedIn
+    }
+}
+
 public struct ProjectView: Decodable, Equatable, Identifiable, Sendable {
     public let id: String
+    /// `organization` where Memnox Cloud shares this repository with the person; nil is their own.
+    public let scope: String?
+    /// On an organization project: what it hands, read only.
+    public let organization: ProjectOrganizationView?
     public let name: String
     public let path: String
     /// Has a committed `.memnox/project.toml`; otherwise what is shown is found rather than declared.
@@ -106,8 +152,11 @@ public struct ProjectView: Decodable, Equatable, Identifiable, Sendable {
                 agents: [String], agentsSeen: [String], sessions: ProjectSessionsView, servers: [ProjectGrantView],
                 skills: [ProjectGrantView], rules: ProjectRulesView, instructions: [ProjectInstructionView],
                 memoryScope: String, openMissions: [ProjectMissionView], openQuestions: Int,
-                lastActive: String? = nil, appliedAt: String? = nil) {
+                lastActive: String? = nil, appliedAt: String? = nil, scope: ProjectScope? = nil,
+                organization: ProjectOrganizationView? = nil) {
         self.id = id
+        self.scope = scope?.rawValue
+        self.organization = organization
         self.name = name
         self.path = path
         self.declared = declared
@@ -125,6 +174,11 @@ public struct ProjectView: Decodable, Equatable, Identifiable, Sendable {
         self.openQuestions = openQuestions
         self.lastActive = lastActive
         self.appliedAt = appliedAt
+    }
+
+    /// What the organization hands it, or nil for the person's own, which is the only kind edited here.
+    public var sharedBy: ProjectOrganizationView? {
+        scope == ProjectScope.organization.rawValue ? organization : nil
     }
 }
 

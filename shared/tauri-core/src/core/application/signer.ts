@@ -1,4 +1,5 @@
 import { confirmationMessage, DAEMON_METHOD } from '@memnox/core/wire';
+import { heldConfirmation } from '../domain/held-confirmation';
 import { ANOTHER_KEY_LINE, keyStatusOf, type KeyStatus } from '../domain/key-status';
 import type { ConfirmKey } from './ports/confirm-key';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
@@ -17,7 +18,8 @@ export type Signing =
 /**
  * The one place a yes is signed, for a button on the island and a spoken answer alike: the key is
  * registered first, since a signature from a key the daemon does not trust is refused only after the
- * prompt, and then exactly `confirmationMessage(subject, answer, edited)` is signed.
+ * prompt, and then exactly `confirmationMessage(subject, answer, edited)` is signed, or the v4 words
+ * bound to the call when a held call carries its digest.
  */
 export class Signer {
   constructor(
@@ -42,11 +44,20 @@ export class Signer {
   }
 
   /** `edited` is the words the person rewrote on a draft and `editedTo` a mail's retyped addresses, which the signature covers whole. */
-  async sign(subject: string, answer: string, reason: string, edited?: string, editedTo?: string): Promise<Signing> {
+  sign(subject: string, answer: string, reason: string, edited?: string, editedTo?: string): Promise<Signing> {
+    return this.signWords(confirmationMessage(subject, answer, edited, editedTo), reason);
+  }
+
+  /** A yes to a held call, bound to the exact call shown when the daemon gave its digest, so a call changed since is refused. */
+  signHeld(subject: string, answer: string, reason: string, actionDigest: string | undefined): Promise<Signing> {
+    return this.signWords(heldConfirmation(subject, answer, actionDigest), reason);
+  }
+
+  private async signWords(message: string, reason: string): Promise<Signing> {
     const status = await this.registerKey();
     if (status.kind === 'another-key') return { kind: 'refused', why: ANOTHER_KEY_LINE };
     if (status.kind === 'no-key') return { kind: 'refused', why: NO_KEY_LINE };
-    const signature = await this.key.sign(confirmationMessage(subject, answer, edited, editedTo), reason).catch(() => undefined);
+    const signature = await this.key.sign(message, reason).catch(() => undefined);
     return signature === undefined ? { kind: 'cancelled' } : { kind: 'signed', signature };
   }
 }

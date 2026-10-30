@@ -203,10 +203,13 @@ export class HeldCalls {
       return team.answer(subject, said, consentReason(card?.label ?? 'this call', card?.what, said));
     }
     const request: DaemonRequest = { ...this.request(DAEMON_METHOD.CONFIRM), subject, answer };
+    // The digest of the call as shown goes with every answer, so the daemon refuses by name one that changed since.
+    const actionDigest = card?.actionDigest;
+    if (actionDigest !== undefined) request.actionDigest = actionDigest;
     // A card that is gone is signed for, since only the daemon's word that it stays inside its session waives the key.
     if (answer !== HOLD_ANSWER.DENY && card?.withinSession !== true) {
       const reason = consentReason(card?.label ?? 'this call', card?.what, answer);
-      const signing = await this.signer.sign(subject, answer, reason);
+      const signing = await this.signer.signHeld(subject, answer, reason, actionDigest);
       if (signing.kind === 'cancelled') return { kind: 'cancelled' };
       if (signing.kind === 'refused') return { kind: 'failed', why: signing.why };
       request.signature = signing.signature;

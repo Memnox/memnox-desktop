@@ -74,7 +74,7 @@ function Approvals({ parts }: { parts: SettingsParts }) {
             {card.why !== undefined && <Fact name="Why it asks" value={card.why} />}
             {card.task !== undefined && <Fact name="Task" value={card.task} />}
             {card.place !== undefined && <Fact name="Where" value={card.place} />}
-            <Fact name="Signed" value={card.touchID ? `A yes is signed with ${words.keyTitle}` : 'Inside its own repository, so a yes needs no signature'} />
+            <Fact name="Signed" value={signedFact(card, words.keyTitle)} />
           </dl>
           <div className="flex flex-wrap items-center gap-2">
             <KitButton kind="primary" disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.ONCE)}>
@@ -103,6 +103,13 @@ function Fact({ name, value }: { name: string; value: string }) {
       <dd className="min-w-0 break-words text-foreground">{value}</dd>
     </>
   );
+}
+
+/** How a yes to this call is signed, and whether the signature covers exactly the call shown. */
+function signedFact(card: HeldCard, keyTitle: string): string {
+  if (!card.touchID) return 'Inside its own repository, so a yes needs no signature';
+  if (card.actionDigest === undefined) return `A yes is signed with ${keyTitle}`;
+  return `A yes is signed with ${keyTitle} over exactly this call, so one changed since is refused`;
 }
 
 function outcomeNote(outcome: HeldOutcome): string {

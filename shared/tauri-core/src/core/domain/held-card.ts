@@ -24,6 +24,8 @@ export interface HeldCard {
   readonly expiresAt: string | undefined;
   /** The session that is waiting, so its logo beside the notch hops until somebody answers. */
   readonly sessionId: string | undefined;
+  /** The digest of exactly this call, which a yes signs and sends so a call changed since it was shown is refused. */
+  readonly actionDigest: string | undefined;
 }
 
 /**
@@ -47,6 +49,7 @@ export function heldCard(event: DaemonEvent, place: CallPlace = ON_THIS_COMPUTER
     touchID: !within,
     expiresAt: event.expiresAt,
     sessionId: event.sessionId,
+    actionDigest: event.actionDigest,
   };
 }
 
@@ -65,6 +68,7 @@ export function teamHeldCard(call: WorkspaceHeldCall): HeldCard {
     touchID: true,
     expiresAt: call.expiresAt === '' ? undefined : call.expiresAt,
     sessionId: undefined,
+    actionDigest: undefined,
   };
 }
 

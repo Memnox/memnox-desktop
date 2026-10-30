@@ -2,6 +2,7 @@ import { Check, Copy, Fingerprint, MousePointerClick, RotateCw, Smartphone, Squa
 import { Fragment, useEffect } from 'react';
 import { groupedDigits } from '../../../core/domain/account-whole';
 import { ISLAND_STAYS_DARK, LOOK_NAMES, LOOKS, type Look } from '../../../core/domain/appearance';
+import { LAN_PAIRS_WITHOUT_ACCOUNT } from '../../../core/domain/local-network-lines';
 import { deviceCaption, drives, PairingLines } from '../../../core/domain/pairing-lines';
 import type { PermissionStep } from '../../../core/domain/permission-steps';
 import { DONE, WAITING } from '../../../core/domain/step-state';
@@ -151,14 +152,19 @@ export function KeyRow({ parts }: { parts: SettingsParts }) {
 
 /** The Phones page: pair a phone with a QR and matching digits, then each phone paired with Revoke and driving. */
 export function PhonesPage({ parts }: { parts: SettingsParts }) {
-  const { pairing } = parts;
-  useObserved(pairing);
-  useEffect(() => void pairing.loadDevices(), []);
+  const { pairing, network } = parts;
+  useObserved(pairing, network);
+  useEffect(() => {
+    void pairing.loadDevices();
+    // Only to say pairing needs no account while the local network is on; a runtime without it says nothing.
+    void network.refresh();
+  }, []);
   return (
     <>
       <Surface>
         <PairRow parts={parts} />
       </Surface>
+      {network.status !== undefined && network.status.on && <p className="px-1 text-footnote text-muted">{LAN_PAIRS_WITHOUT_ACCOUNT}</p>}
       {pairing.devices.length > 0 && (
         <SettingsCard title="Paired phones">
           {pairing.devices.map((device, index) => (

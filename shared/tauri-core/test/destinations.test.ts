@@ -28,6 +28,11 @@ describe('the window’s destinations', () => {
     expect(visibleTabs('workspaces', everything).map((tab) => tab.id)).toEqual(['projects', 'memory', 'skills', 'assigned']);
   });
 
+  it('shows the local network under Settings only where the runtime answers it', () => {
+    expect(visibleTabs('settings', nothingNew).map((tab) => tab.id)).not.toContain('network');
+    expect(visibleTabs('settings', everything).map((tab) => tab.id).slice(3, 7)).toEqual(['phones', 'network', 'appearance', 'backup']);
+  });
+
   it('lands on the first tab shown when the one asked for is hidden', () => {
     expect(settled({ destination: 'mcp', tab: 'servers' }, nothingNew)).toEqual({ destination: 'mcp', tab: 'apps' });
     expect(settled({ destination: 'home' }, everything)).toEqual({ destination: 'home' });

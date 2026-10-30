@@ -1,10 +1,11 @@
-import { Archive, Blocks, ChevronDown, ChevronRight, CircleHelp, CirclePower, CircleUserRound, Contrast, Ear, House, Keyboard, LayoutGrid, ShieldCheck, Smartphone, Speech, type LucideIcon } from 'lucide-react';
+import { Archive, Blocks, ChevronDown, ChevronRight, CircleHelp, CirclePower, CircleUserRound, Contrast, Ear, House, Keyboard, LayoutGrid, ShieldCheck, Smartphone, Speech, Wifi, type LucideIcon } from 'lucide-react';
 import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
 import { matchingPages, PageHistory, pageInfo, pageNamed, SETTINGS_GROUPS, type SettingsPage } from '../../core/domain/settings-pages';
 import { NavigationCapsule, PageTitle, SearchField } from './kit';
 import { AccountPage } from './pages/AccountPage';
 import { BackupPage } from './pages/BackupPage';
 import { HelpPage } from './pages/HelpPage';
+import { NetworkPage } from './pages/NetworkPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { AppearancePage, ConnectionPage, PermissionsPage, PhonesPage } from './pages/ComputerPages';
 import { ToolsPage } from './pages/ToolsPage';
@@ -19,6 +20,7 @@ const ICONS: Record<SettingsPage, LucideIcon> = {
   permissions: ShieldCheck,
   connection: CirclePower,
   phones: Smartphone,
+  network: Wifi,
   appearance: Contrast,
   backup: Archive,
   tools: LayoutGrid,
@@ -138,6 +140,8 @@ export function PageBody({ page, parts, go }: { page: SettingsPage; parts: Setti
       return <ConnectionPage parts={parts} />;
     case 'phones':
       return <PhonesPage parts={parts} />;
+    case 'network':
+      return <NetworkPage parts={parts} />;
     case 'appearance':
       return <AppearancePage parts={parts} />;
     case 'backup':

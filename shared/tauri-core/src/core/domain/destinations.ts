@@ -36,6 +36,7 @@ export const SETTINGS_TABS: readonly SettingsPage[] = [
   'permissions',
   'connection',
   'phones',
+  'network',
   'appearance',
   'backup',
   'voice',
@@ -43,6 +44,11 @@ export const SETTINGS_TABS: readonly SettingsPage[] = [
   'dictation',
   'help',
 ];
+
+/** Settings pages that read a daemon method, hidden until the runtime answers it. */
+const SETTINGS_NEEDS: Partial<Record<SettingsPage, string>> = {
+  network: 'lan-status',
+};
 
 export const DESTINATIONS: readonly DestinationInfo[] = [
   { id: 'home', title: 'Home', subtitle: 'What is running, what needs you, and where to carry on.', key: '1', tabs: [] },
@@ -97,7 +103,10 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
     id: 'settings',
     title: 'Settings',
     subtitle: 'This computer, your account, and the voice.',
-    tabs: SETTINGS_TABS.map((page) => ({ id: page, title: pageInfo(page).title })),
+    tabs: SETTINGS_TABS.map((page) => {
+      const needs = SETTINGS_NEEDS[page];
+      return { id: page, title: pageInfo(page).title, ...(needs === undefined ? {} : { needs }) };
+    }),
   },
 ];
 

@@ -1,4 +1,4 @@
-import type { ActivityRow, AgentView, DaemonRequest, DaemonResponse, DeviceWire, HomeView, McpHubView, PolicyRulesView, ProgressView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
+import type { ActivityRow, AgentView, BackupSummary, DaemonRequest, DaemonResponse, DeviceWire, HomeView, McpHubView, PolicyRulesView, ProgressView, ProjectView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
@@ -77,6 +77,7 @@ const previewRules: PolicyRulesView = {
     { name: 'shell-ask', effect: 'ask', match: { actions: ['filesystem.delete'] }, sentence: 'Ask before deleting files', source: 'file', file: 'memnox.policies.toml', editable: false },
     { name: 'push-main', effect: 'ask', match: { actions: ['git.push'], branches: ['main'] }, sentence: 'Ask before pushing to main', source: 'person', decidedBy: 'Sam', editable: true },
     { name: 'read-docs', effect: 'allow', match: { actions: ['mcp.search_docs'], agents: ['claude-code'] }, sentence: 'Let Claude Code search the docs without asking', source: 'autopilot', editable: false },
+    { name: 'desktop-release', effect: 'ask', match: { actions: ['npm.publish'], workingDirectories: ['/code/memnox-desktop'] }, sentence: 'Ask before publishing the desktop packages', source: 'file', file: '/code/memnox-desktop/.memnox/policies.toml', editable: false },
   ],
   problems: [],
   missing: [],
@@ -195,6 +196,55 @@ const previewSkills: SkillsHubView = {
   ],
 };
 
+/** One project saved and opened with its rules in force, and one only found, so Save as project shows. */
+const previewProjects: ProjectView[] = [
+  {
+    id: 'prj_desktop',
+    name: 'memnox-desktop',
+    path: '/code/memnox-desktop',
+    declared: true,
+    opened: true,
+    agents: ['claude-code', 'codex-cli'],
+    agentsSeen: ['claude-code', 'cursor'],
+    sessions: { total: 9, ended: 7 },
+    servers: [
+      { name: 'github', inHub: true, agents: ['claude-code', 'codex-cli'] },
+      { name: 'figma', inHub: false, agents: [] },
+    ],
+    skills: [{ name: 'review-checklist', inHub: true, agents: ['claude-code', 'codex-cli'] }],
+    rules: { file: '.memnox/policies.toml', count: 1, inForce: true },
+    instructions: [
+      { path: 'CLAUDE.md', source: true, present: true, agents: ['claude-code'], written: true },
+      { path: 'AGENTS.md', source: false, present: true, agents: ['codex-cli'], written: true },
+    ],
+    memoryScope: 'project',
+    openMissions: [{ id: 'msn_1', statement: 'Bring the Windows and Linux screens level with the Mac', startedAt: '2026-10-28T09:00:00Z' }],
+    openQuestions: 2,
+    lastActive: '2026-10-30T11:58:00Z',
+    appliedAt: '2026-10-29T08:00:00Z',
+  },
+  {
+    id: 'prj_runtime',
+    name: 'memnox-runtime',
+    path: '/code/memnox-runtime',
+    declared: false,
+    opened: false,
+    agents: ['codex-cli'],
+    agentsSeen: ['codex-cli'],
+    sessions: { total: 3, ended: 2 },
+    servers: [{ name: 'playwright', inHub: false, agents: [] }],
+    skills: [],
+    rules: { count: 0, inForce: false },
+    instructions: [{ path: 'AGENTS.md', source: true, present: true, agents: ['codex-cli'], written: false }],
+    memoryScope: 'project',
+    openMissions: [],
+    openQuestions: 0,
+    lastActive: '2026-10-30T11:40:00Z',
+  },
+];
+
+const previewBackup: BackupSummary = { createdAt: '2026-10-30T12:00:00.000Z', files: ['policies.toml', 'mcp-hub.json', 'skills/release-notes/SKILL.md', 'projects.json'], ledger: false };
+
 /** The packs Memnox ships, as the boundaries step lists them. */
 const previewPacks: RulePackView[] = [
   { id: 'careful', name: 'Careful', description: 'Asks before anything leaves this computer or rewrites history.', ruleCount: 6, toml: '[[policies]]' },
@@ -225,6 +275,9 @@ function answer(request: DaemonRequest): DaemonResponse[] {
     return row === undefined ? [ok] : [{ ...ok, decision: { row, ...(row.rule === undefined ? {} : { rule: { name: row.rule, source: 'person', decidedBy: 'Sam' } }), chain: 'Claude Code for Sam', context: [], before: [], trace: { mode: 'shell', exitCode: 0 } } }];
   }
   if (request.method === 'skills-hub' || request.method.startsWith('skill-')) return [{ ...ok, ...skillAnswer(request) }];
+  if (request.method === 'projects' || request.method.startsWith('project-')) return [{ ...ok, ...projectAnswer(request) }];
+  if (request.method === 'backup-create') return [{ ...ok, backupArchive: 'memnox-backup:v1:preview-sealed-archive', backupSummary: { ...previewBackup, ledger: request.backupLedger === true } }];
+  if (request.method === 'backup-restore') return [{ ...ok, proposed: 'prp_preview', backupSummary: previewBackup }];
   if (request.method === 'rule-packs') return [{ ...ok, rulePacks: previewPacks }];
   if (request.method === 'rule-pack-import') return [{ ...ok, packProposed: ['prp_preview_1', 'prp_preview_2'] }];
   if (request.method === 'agent-launch') return [{ ...ok, agentLaunched: { agent: request.agentKind ?? '', workingDirectory: request.workingDirectory ?? '', line: request.agentKind === 'codex-cli' ? 'codex' : 'claude' } }];
@@ -273,6 +326,15 @@ function skillAnswer(request: DaemonRequest): Partial<DaemonResponse> {
   const signed = (request.method === 'skill-assign' && request.skillOn === true) || request.method === 'skill-accept';
   if (request.method === 'skill-sync') return { skillsHub: previewSkills, skillsSynced: { written: 3, removed: 1, files: ['~/.claude/skills/release-notes/SKILL.md'], skipped: [] } };
   return { skillsHub: previewSkills, ...(signed ? { proposed: 'prp_preview' } : {}) };
+}
+
+/** The projects after any press: opening or applying writes instructions at once and proposes what widens. */
+function projectAnswer(request: DaemonRequest): Partial<DaemonResponse> {
+  const view = { projects: previewProjects };
+  if (request.method === 'project-open' || request.method === 'project-apply') {
+    return { projects: view, projectApplied: { written: ['CLAUDE.md', 'AGENTS.md'], removed: [], kept: [], governed: [], missing: ['figma'] }, proposed: 'prp_preview' };
+  }
+  return { projects: view };
 }
 
 export const previewLink: DaemonLink = {

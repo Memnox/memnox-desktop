@@ -1,6 +1,7 @@
 import { useEffect, useReducer } from 'react';
 import { Account } from '../../core/application/account';
 import { AppConnections } from '../../core/application/app-connections';
+import { Backup } from '../../core/application/backup';
 import { DaemonAccount, DaemonSignIn } from '../../core/application/daemon-sign-in';
 import { DaemonSupport } from '../../core/application/daemon-support';
 import { HeldCalls } from '../../core/application/held-calls';
@@ -10,6 +11,7 @@ import { Activity, Agents, Studio } from '../../core/application/studio';
 import { Sessions } from '../../core/application/sessions';
 import { SkillsHub } from '../../core/application/skills';
 import { PhonePairing } from '../../core/application/pairing';
+import { Projects } from '../../core/application/projects';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
@@ -72,6 +74,10 @@ export interface SettingsParts {
   readonly agents: Agents;
   /** Skills kept once and written into each agent's own format. */
   readonly skills: SkillsHub;
+  /** The projects on this computer and what each gives the agents opened in it. */
+  readonly projects: Projects;
+  /** The setup sealed under a passphrase, and put back once signed on the island. */
+  readonly backup: Backup;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -116,6 +122,8 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     activity: new Activity(link, ids),
     agents: new Agents(link, ids),
     skills: new SkillsHub(link, ids),
+    projects: new Projects(link, ids),
+    backup: new Backup(link, ids),
     host,
     words: platformWords(host.platform),
     setup,

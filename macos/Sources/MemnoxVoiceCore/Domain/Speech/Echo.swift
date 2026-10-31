@@ -50,7 +50,8 @@ private let fuzzyEchoLength = 4
 /// A spelling one edit in this many letters away is still its own word misheard.
 private let misspellingShare = 3
 
-private func editDistance(_ a: String, _ b: String) -> Int {
+/// Letters to change, add or drop to turn one word into the other, shared by the echo check and the polish guard.
+func editDistance(_ a: String, _ b: String) -> Int {
     let a = Array(a), b = Array(b)
     var row = Array(0...b.count)
     for i in 1...max(a.count, 1) where !a.isEmpty {

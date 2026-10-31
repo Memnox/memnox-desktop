@@ -257,6 +257,18 @@ public final class Conversation {
         return .refused(response.reason ?? response.error ?? "This Memnox is older than the app")
     }
 
+    /// The person pressed Turn on stopping on Home: the daemon moves this machine to enforce, unsigned since that only
+    /// narrows. Nothing here can move it back to observe, which widens and stays at the terminal.
+    public func enforceMode() async -> EnforceOutcome {
+        guard let response = try? await link.request(newRequest(.modeEnforce)) else { return .unreachable }
+        if response.ok, let set = response.modeSet {
+            diary.note("mode \(set.was) to \(set.now)")
+            return .enforcing(set)
+        }
+        // A runtime from before the method answers it with a bare ok and nothing else.
+        return .refused(response.reason ?? response.error ?? "This Memnox is older than the app, so run memnox protect --enforce in a terminal")
+    }
+
     /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
     public func voiceAgents(recheck: Bool = false) async -> VoiceAgentsAnswer {
         var request = newRequest(.voiceAgents)
@@ -693,8 +705,10 @@ public final class Conversation {
                 // A rule waits on the card for where it holds; the sheet comes up only once a place is picked.
                 face.rule(subject: event.subject, rule)
                 if let phone = phoneFor(event) { await leaveForPhone(event, phone) }
-            } else if let work = event.work, asked {
-                // What goes out in their name waits on its card, read whole; the sheet comes up on Send.
+            } else if let work = event.work, asked || event.agentAsked == true {
+                // What goes out in their name waits on its card, read whole; the sheet comes up on Send. A working agent's
+                // ask waits there too although nobody spoke, since nothing goes before their own press and Touch ID.
+                if !asked { diary.note("\(event.subject) asked by \(event.agent), waiting on its card") }
                 face.work(subject: event.subject, work)
                 if let phone = phoneFor(event) { await leaveForPhone(event, phone) }
             } else if asked {
@@ -1011,6 +1025,14 @@ public final class Conversation {
             await presenter.dismissAll()
         case .look:
             await look(event)
+        case .point:
+            // A ring over the screen that goes on the next click or key, so nothing waits on it and the brain says what it is.
+            guard let spot = event.point, await presenter.point(at: spot, label: event.title ?? "") else {
+                diary.note("could not point for \(event.subject)")
+                await shown(event, Typed(.failed, "that spot is on no display of this Mac"))
+                return
+            }
+            await shown(event, Typed(.typed))
         case .folder:
             let opener = event.title.flatMap(FolderOpener.init(rawValue:)) ?? .finder
             guard let path = event.host?.cwd, await presenter.openFolder(path, in: opener) else {
@@ -1051,9 +1073,10 @@ public final class Conversation {
         guard let presenter else { return }
         face.react(.glance)
         let app = event.title.flatMap { $0.isEmpty ? nil : $0 }
-        // A session's own tab is read by its terminal first, so its question is seen without Screen Recording.
-        var sight = await event.host.asyncMap { await presenter.readTab(of: $0) } ?? nil
-        if sight == nil { sight = await presenter.look(app: app) }
+        // A session's own tab is read by its terminal first, so its question is seen without Screen Recording, unless every display is wanted to point on.
+        let picture = event.lookPicture
+        var sight = picture == .screens ? nil : await event.host.asyncMap { await presenter.readTab(of: $0) } ?? nil
+        if sight == nil { sight = await presenter.look(app: app, picture: picture) }
         diary.note("looked at \(sight?.app ?? app ?? "the screen")\(sight?.image == nil ? " with no capture" : "")")
         var request = newRequest(.seen)
         request.subject = event.subject

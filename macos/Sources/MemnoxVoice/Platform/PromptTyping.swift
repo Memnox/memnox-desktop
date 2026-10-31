@@ -2,9 +2,9 @@ import AppKit
 import ApplicationServices
 import MemnoxVoiceCore
 
-/// Types a confirmed instruction into an agent's prompt the way a person would, a key at a time,
-/// so the person watches the words go in and can take the keyboard back mid sentence. It types
-/// only into the app it was given while that app stays in front, so it can never land elsewhere.
+/// Puts a confirmed instruction into an agent's prompt: a known message box takes it whole and is read back, and a
+/// terminal takes it a key at a time, so the person watches it go in. It types only into the app it was given while
+/// that app stays in front, so it can never land elsewhere.
 @MainActor
 enum PromptTyping {
     private static let returnKey: CGKeyCode = 36
@@ -24,6 +24,12 @@ enum PromptTyping {
         static let boxLooks = 20
         /// How many more times the box is read after Return for it to empty, about two seconds.
         static let sentLooks = 20
+        /// How often, and for how long, a message put in whole is read back, and a sent one watched for a sign it went.
+        static let landPoll: TimeInterval = 0.05
+        static let landWatch: TimeInterval = 0.45
+        static let sentWatch: TimeInterval = 1
+        /// How many polls apart the window's text is read after Return, since that walk costs far more than reading the box.
+        static let shownEvery = 4
         /// Long enough for a desktop app a link just launched to open its window and draw its box.
         static let launchLooks = 60
         /// Longer for the box itself, since a page such as a new Claude Code chat draws well after its window.
@@ -91,27 +97,39 @@ enum PromptTyping {
     static func type(
         _ text: String, into app: NSRunningApplication, box: AXUIElement? = nil, sent: ((String) -> Void)? = nil
     ) async -> Typed {
-        let words = Array(oneLine(text))
-        let pause = keyPause(for: words.count)
-        for (index, character) in words.enumerated() {
-            // Checked every few keys rather than every key: a click away takes longer than that to matter.
-            if index % Timing.frontCheckInterval == 0, !(await stillInFront(app, box: box)) {
+        let line = oneLine(text)
+        // A terminal has no box to read and the person watches it type, so only a known box takes the words whole.
+        let whole = await insertWhole(line, into: box, of: app)
+        switch whole {
+        case .lostFront:
+            leaveOnClipboard(text)
+            return Typed(.clipboard, "\(frontName()) came to the front while it was typing")
+        case .garbled:
+            leaveOnClipboard(text)
+            return Typed(.clipboard, "the words did not show in the box it typed into, so nothing was sent")
+        case .landed:
+            break
+        case .unreadable, .missed:
+            guard await typeKeys(line, into: app, box: box) else {
                 leaveOnClipboard(text)
                 return Typed(.clipboard, "\(frontName()) came to the front while it was typing")
             }
-            press(character)
-            try? await Task.sleep(nanoseconds: pause(character))
         }
         try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.beforeReturn))
         // Read before Return: a box that never took the words, such as an editor's hidden input, reads empty after it too.
-        let held = box.flatMap { string($0, kAXValueAttribute) }
-        if let held, !TypedCheck.holds(held, oneLine(text)) {
+        let held = box.flatMap { shown($0) }
+        if let held, !TypedCheck.holds(held, line) {
             leaveOnClipboard(text)
             return Typed(.clipboard, "the words did not show in the box it typed into, so nothing was sent")
         }
-        if let box, let typed = string(box, kAXValueAttribute) {
-            try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.editGrace))
-            if let now = string(box, kAXValueAttribute), now != typed {
+        var before = SentLook(window: nil, lines: [])
+        if let box, let typed = held {
+            let graceEnds = Date().addingTimeInterval(Timing.editGrace)
+            // Read inside the grace the person already gets, so seeing the window before Return costs no extra time.
+            before = await look(at: app)
+            let left = graceEnds.timeIntervalSinceNow
+            if left > 0 { try? await Task.sleep(nanoseconds: Timing.nanoseconds(left)) }
+            if let now = shown(box), now != typed {
                 Task { await watchEdit(box, from: now, sent: sent) }
                 return .landed
             }
@@ -120,31 +138,185 @@ enum PromptTyping {
             leaveOnClipboard(text)
             return Typed(.clipboard, "\(frontName()) came to the front before it was sent")
         }
-        press(returnKey)
+        press(returnKey, to: app)
         // A box whose words could not be read is typed into but never called confirmed.
         guard let box, let held else { return .landed }
-        return Typed.landed.verified(await emptied(box, holding: held))
+        return Typed.landed.verified(await sentSign(of: line, from: box, holding: held, of: app, before: before))
     }
 
-    /// The box read until it empties, which is the app taking the words it was seen to hold; nil when it never did.
-    private static func emptied(_ box: AXUIElement, holding words: String) async -> Proof? {
-        for _ in 0..<Timing.sentLooks {
-            try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.boxPoll))
-            let now = string(box, kAXValueAttribute)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if now?.isEmpty == true { return Proof(checked: "its message box holding the words, then taking them and emptying", seen: words) }
+    /// The words a key at a time, checking before every key that the app is still in front; false when it is not.
+    private static func typeKeys(_ line: String, into app: NSRunningApplication, box: AXUIElement?) async -> Bool {
+        let words = Array(line)
+        let pause = keyPause(for: words.count)
+        for (index, character) in words.enumerated() {
+            if index % Timing.frontCheckInterval == 0, !(await stillInFront(app, box: box)) { return false }
+            press(character, to: app)
+            try? await Task.sleep(nanoseconds: pause(character))
         }
-        return nil
+        return true
+    }
+
+    /// How putting the words in whole went.
+    private enum Insertion {
+        case landed
+        /// The box said nothing it could be checked by, so it is typed into a key at a time as before.
+        case unreadable
+        /// The box never moved, so nothing went in and keys can follow safely.
+        case missed
+        /// The box moved without showing the words, so trying again could put them in twice.
+        case garbled
+        case lostFront
+    }
+
+    /// The words into the box in one step and read back: native text takes them as an accessibility write, which is
+    /// exact and instant, and web content takes a paste, since a write there can show words its page never hears.
+    private static func insertWhole(_ line: String, into box: AXUIElement?, of app: NSRunningApplication) async -> Insertion {
+        guard let box else { return .unreadable }
+        // Nothing to read back means nothing to tell a miss from a landing by, and a guess could type the words twice.
+        guard shown(box) != nil || caret(of: box) != nil else { return .unreadable }
+        if !isWebContent(box), canWriteSelection(box) {
+            guard await stillInFront(app, box: box) else { return .lostFront }
+            let start = readBack(box)
+            AXUIElementSetAttributeValue(box, kAXSelectedTextAttribute as CFString, line as CFString)
+            switch await landing(line, in: box, from: start) {
+            case .landed: return .landed
+            case .changed: return .garbled
+            case .unchanged: break
+            }
+        }
+        guard await stillInFront(app, box: box) else { return .lostFront }
+        let start = readBack(box)
+        let board = NSPasteboard.general
+        let earlier = ClipboardSnapshot(of: board)
+        board.clearContents()
+        board.setString(line, forType: .string)
+        // Marked passing, so clipboard history apps leave the instruction out of what they keep.
+        board.setData(Data(), forType: transientType)
+        let ours = board.changeCount
+        pressCommand(vKey, to: app)
+        let result = await landing(line, in: box, from: start)
+        // Only while the words are still what is there, so a copy made meanwhile is never undone.
+        if board.changeCount == ours { earlier.restore(to: board) }
+        switch result {
+        case .landed: return .landed
+        case .changed: return .garbled
+        case .unchanged: return .missed
+        }
+    }
+
+    /// The pasteboard type clipboard managers read as something not to keep, from nspasteboard.org.
+    private static let transientType = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
+
+    /// What a box shows and where its caret sits, read just before words go in so their landing can be told apart.
+    private static func readBack(_ box: AXUIElement) -> (value: String?, caret: Int?) {
+        (shown(box), caret(of: box))
+    }
+
+    /// The box read until it shows the words or the watch runs out, checked at once since a native write lands at once.
+    private static func landing(_ line: String, in box: AXUIElement, from start: (value: String?, caret: Int?)) async -> InsertCheck.Landing {
+        let ends = Date().addingTimeInterval(Timing.landWatch)
+        while true {
+            let now = readBack(box)
+            let result = InsertCheck.landing(line, valueBefore: start.value, valueNow: now.value, caretBefore: start.caret, caretNow: now.caret)
+            if result == .landed || Date() >= ends { return result }
+            try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.landPoll))
+        }
+    }
+
+    /// Where the caret sits in the box, or nil when the box will not say.
+    private static func caret(of box: AXUIElement) -> Int? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(box, kAXSelectedTextRangeAttribute as CFString, &value) == .success,
+              let value, CFGetTypeID(value) == AXValueGetTypeID()
+        else { return nil }
+        var range = CFRange()
+        // Checked to be an AXValue just above, which is the only type a text range comes back as.
+        guard AXValueGetValue(value as! AXValue, .cfRange, &range) else { return nil }
+        return range.location + range.length
+    }
+
+    /// What a box shows: its value, or for a web composer drawn as a group, whose value stays empty however much it
+    /// holds, the text of what is inside it, since reading only the value called words that went in missing.
+    private static func shown(_ box: AXUIElement) -> String? {
+        let value = string(box, kAXValueAttribute)
+        guard value?.isEmpty != false, string(box, kAXRoleAttribute) == kAXGroupRole else { return value }
+        var visited = 0
+        let inside = textInside(box, depth: 0, visited: &visited)
+        return inside.isEmpty ? value : inside.joined(separator: "\n")
+    }
+
+    /// Deep and wide enough for a rich text composer's paragraphs and runs, small enough to read on every poll.
+    private static let shownDepth = 6
+    private static let shownElements = 200
+
+    private static func textInside(_ element: AXUIElement, depth: Int, visited: inout Int) -> [String] {
+        guard depth < shownDepth else { return [] }
+        var found: [String] = []
+        for child in elements(element, kAXChildrenAttribute) ?? [] {
+            visited += 1
+            guard visited <= shownElements else { break }
+            if string(child, kAXRoleAttribute) == kAXStaticTextRole, let text = string(child, kAXValueAttribute), !text.isEmpty {
+                found.append(text)
+            } else {
+                found += textInside(child, depth: depth + 1, visited: &visited)
+            }
+        }
+        return found
+    }
+
+    private static func canWriteSelection(_ box: AXUIElement) -> Bool {
+        var settable = DarwinBoolean(false)
+        return AXUIElementIsAttributeSettable(box, kAXSelectedTextAttribute as CFString, &settable) == .success && settable.boolValue
+    }
+
+    /// A composer drawn by a web page, a contenteditable group or anything inside a web area, whose page listens for input events.
+    private static func isWebContent(_ box: AXUIElement) -> Bool {
+        string(box, kAXRoleAttribute) == kAXGroupRole || webAreasAbove(box) > 0
+    }
+
+    /// The window an app has in front and the lines it shows, kept from before Return to compare against after it.
+    private struct SentLook {
+        let window: AXUIElement?
+        let lines: [String]
+    }
+
+    private static func look(at app: NSRunningApplication) async -> SentLook {
+        let lines = await WindowText.lines(inFrontWindowOf: app.processIdentifier)
+        return SentLook(window: frontWindow(of: app), lines: lines)
+    }
+
+    private static func frontWindow(of app: NSRunningApplication) -> AXUIElement? {
+        element(AXUIElementCreateApplication(app.processIdentifier), kAXFocusedWindowAttribute)
+    }
+
+    /// Watched after Return for any sign the app took the message: the box letting the words go, the words arriving
+    /// as a new line in the window, or the window changing; nil when none showed in time.
+    private static func sentSign(
+        of line: String, from box: AXUIElement, holding words: String, of app: NSRunningApplication, before: SentLook
+    ) async -> Proof? {
+        let ends = Date().addingTimeInterval(Timing.sentWatch)
+        var poll = 0
+        while true {
+            try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.landPoll))
+            poll += 1
+            var moved = false
+            if let earlier = before.window, let now = frontWindow(of: app) { moved = !CFEqual(earlier, now) }
+            let lines = poll % Timing.shownEvery == 0 ? await WindowText.lines(inFrontWindowOf: app.processIdentifier) : []
+            let sign = SendCheck.sign(
+                sent: line, boxNow: shown(box), textBefore: before.lines, textNow: lines, windowChanged: moved
+            )
+            if let sign { return Proof(checked: sign.checked, seen: words) }
+            if Date() >= ends { return nil }
+        }
     }
 
     /// Brings the conversation's message box into focus in the editor in front, then types into it.
     static func typeIntoEditor(_ text: String, inAppAt path: String?, sent: ((String) -> Void)? = nil) async -> Typed {
         guard allowed() else { return Typed(.notAllowed, "Memnox is not allowed to type yet") }
         guard let app = running(path) else { return Typed(.clipboard, "the editor is not running") }
-        app.activate()
+        guard await bringForward(app) else { return Typed(.clipboard, "the editor did not come to the front") }
         let element = AXUIElementCreateApplication(app.processIdentifier)
-        // Electron only builds its web content's accessibility tree when something asks for it.
-        AXUIElementSetAttributeValue(element, manualAccessibilityAttribute as CFString, kCFBooleanTrue)
-        try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.editorSettle))
+        await buildTree(of: app, element)
         var found = messageBox(in: element)
         for _ in 0..<Timing.boxLooks where found == nil {
             try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.boxPoll))
@@ -155,9 +327,8 @@ enum PromptTyping {
             return Typed(.clipboard, "Claude's message box could not be found in the editor", hint: .clickMessageBox(app: app.localizedName ?? "the editor"))
         }
         learn(input)
-        AXUIElementSetAttributeValue(input, kAXFocusedAttribute as CFString, kCFBooleanTrue)
-        try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.focusSettle))
-        guard isMessageBox(focused(in: element)) else {
+        guard await takeFocus(input, of: app, in: element, holds: { isMessageBox(focused(in: element)) }) else {
+            diary.note("\(app.localizedName ?? "the editor")'s message box would not take focus even from a click")
             return Typed(.clipboard, "the message box would not take focus")
         }
         return await type(text, into: app, box: input, sent: sent)
@@ -170,7 +341,7 @@ enum PromptTyping {
         let polls = Int(Timing.editWatch / Timing.editPoll)
         for _ in 0..<polls {
             try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.editPoll))
-            let now = string(box, kAXValueAttribute)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let now = shown(box)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if now.isEmpty {
                 sent?(last)
                 return
@@ -274,15 +445,25 @@ enum PromptTyping {
     }
 
     /// One character as its own key press, with no modifier the person may be holding carried onto it.
-    private static func press(_ character: Character) {
+    private static func press(_ character: Character, to app: NSRunningApplication? = nil) {
         let units = Array(String(character).utf16)
-        let source = CGEventSource(stateID: .hidSystemState)
+        let source = eventSource(for: app)
         for down in [true, false] {
             let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: down)
             event?.flags = []
             event?.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
-            event?.post(tap: .cghidEventTap)
+            post(event, to: app)
         }
+    }
+
+    /// A key meant for one app goes to that app alone, from a source of its own so keys the person holds never ride
+    /// along; one for whatever is in front goes through the system's stream as a keyboard's would.
+    private static func eventSource(for app: NSRunningApplication?) -> CGEventSource? {
+        CGEventSource(stateID: app == nil ? .hidSystemState : .privateState)
+    }
+
+    private static func post(_ event: CGEvent?, to app: NSRunningApplication?) {
+        if let app { event?.postToPid(app.processIdentifier) } else { event?.post(tap: .cghidEventTap) }
     }
 
     /// One window, one tab: the count at which whatever is in front can only be the session's.
@@ -341,12 +522,12 @@ enum PromptTyping {
     }
 
     /// A shortcut with Command held, such as Command W to close or Command N for a new chat, into the app in front.
-    static func pressCommand(_ key: CGKeyCode, shift: Bool = false) {
-        let source = CGEventSource(stateID: .hidSystemState)
+    static func pressCommand(_ key: CGKeyCode, shift: Bool = false, to app: NSRunningApplication? = nil) {
+        let source = eventSource(for: app)
         for down in [true, false] {
             let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: down)
             event?.flags = shift ? [.maskCommand, .maskShift] : .maskCommand
-            event?.post(tap: .cghidEventTap)
+            post(event, to: app)
         }
     }
 
@@ -428,12 +609,12 @@ enum PromptTyping {
     /// kVK_Escape, written out so Carbon need not be imported for one key.
     private static let escapeKey: CGKeyCode = 53
 
-    private static func press(_ key: CGKeyCode) {
-        let source = CGEventSource(stateID: .hidSystemState)
+    private static func press(_ key: CGKeyCode, to app: NSRunningApplication? = nil) {
+        let source = eventSource(for: app)
         for down in [true, false] {
             let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: down)
             event?.flags = []
-            event?.post(tap: .cghidEventTap)
+            post(event, to: app)
         }
     }
 
@@ -457,11 +638,7 @@ enum PromptTyping {
         guard let app = found else { return Typed(.clipboard, "the app did not start") }
         guard await bringForward(app) else { return Typed(.clipboard, "the app did not come to the front") }
         let element = AXUIElementCreateApplication(app.processIdentifier)
-        // Electron only builds its web content's accessibility tree when something asks for it, and
-        // Chromium waits for the switch assistive apps set as well.
-        AXUIElementSetAttributeValue(element, manualAccessibilityAttribute as CFString, kCFBooleanTrue)
-        AXUIElementSetAttributeValue(element, enhancedInterfaceAttribute as CFString, kCFBooleanTrue)
-        try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.editorSettle))
+        await buildTree(of: app, element)
         // Polled, since a window just opened, such as Codex's, draws its composer well after a button takes focus.
         var box = textArea(in: element)
         for _ in 0..<(settled ? Timing.openAppBoxLooks : Timing.appBoxLooks) where box == nil {
@@ -475,13 +652,11 @@ enum PromptTyping {
             return Typed(.clipboard, "no message box was found in the app")
         }
         let hadFocus = holdsFocus(input, in: element)
-        AXUIElementSetAttributeValue(input, kAXFocusedAttribute as CFString, kCFBooleanTrue)
-        try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.focusSettle))
         // A box found in the window rather than in focus is typed into only once it holds the focus, since a key on a button presses it.
         if !hadFocus {
             let role = string(input, kAXRoleAttribute) ?? "a control"
-            guard holdsFocus(input, in: element) else {
-                diary.note("\(app.localizedName ?? "the app") showed its message box as \(role), which would not take focus")
+            guard await takeFocus(input, of: app, in: element, holds: { holdsFocus(input, in: element) }) else {
+                diary.note("\(app.localizedName ?? "the app") showed its message box as \(role), which would not take focus even from a click")
                 return Typed(.clipboard, "the message box would not take focus")
             }
             diary.note("found \(app.localizedName ?? "the app")'s message box as \(role) in its window and put the keyboard there")
@@ -489,13 +664,108 @@ enum PromptTyping {
         return await type(text, into: app, box: input)
     }
 
+    /// Apps whose accessibility tree was switched on in this launch, so a follow up skips the wait for it to build.
+    private static var treeBuilt = Set<pid_t>()
+
+    /// Electron only builds its web content's accessibility tree when something asks for it, and Chromium waits for the
+    /// switch assistive apps set as well; asked with only one, the first message in an app's life found no box and the
+    /// second found the one the first had built.
+    private static func buildTree(of app: NSRunningApplication, _ element: AXUIElement) async {
+        AXUIElementSetAttributeValue(element, manualAccessibilityAttribute as CFString, kCFBooleanTrue)
+        AXUIElementSetAttributeValue(element, enhancedInterfaceAttribute as CFString, kCFBooleanTrue)
+        // Only the first time in this app's life, since a tree built for an earlier message is still there for a follow up.
+        if treeBuilt.insert(app.processIdentifier).inserted {
+            try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.editorSettle))
+        }
+    }
+
+    /// How often, and how many times, focus is read once asked for, so a box that takes it at once is typed into at once.
+    private static let focusPoll: TimeInterval = 0.03
+    private static let focusLooks = 8
+
+    /// The box given the keyboard as accessibility asks, and else by a click on it as the person would, since
+    /// Chromium's editable web content, such as Codex's composer, ignores the ask and only a click moves its caret.
+    private static func takeFocus(
+        _ box: AXUIElement, of app: NSRunningApplication, in element: AXUIElement, holds: () -> Bool
+    ) async -> Bool {
+        AXUIElementSetAttributeValue(box, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        if await focusTaken(holds) { return true }
+        guard click(box, of: app, in: element) else { return false }
+        guard await focusTaken(holds) else { return false }
+        // The caret to the end, so words already in the box are added to rather than split by where the click fell.
+        pressCommand(downArrowKey, to: app)
+        return true
+    }
+
+    private static func focusTaken(_ holds: () -> Bool) async -> Bool {
+        for _ in 0..<focusLooks {
+            if holds() { return true }
+            try? await Task.sleep(nanoseconds: Timing.nanoseconds(focusPoll))
+        }
+        return holds()
+    }
+
+    /// kVK_DownArrow, which with Command puts the caret at the end of a text box.
+    private static let downArrowKey: CGKeyCode = 125
+    /// How far in from the box's leading edge the click lands, clear of its border and of any button at its trailing end.
+    private static let clickInset: CGFloat = 24
+
+    /// A click inside the box, only with its app in front and only where the app itself says the box is under the
+    /// pointer, so it can never press a button drawn over it. The pointer goes back to where the person left it.
+    private static func click(_ box: AXUIElement, of app: NSRunningApplication, in element: AXUIElement) -> Bool {
+        guard inFront(app), let frame = frame(of: box), frame.width > 0, frame.height > 0 else { return false }
+        let point = CGPoint(x: frame.minX + min(clickInset, frame.width / 2), y: frame.midY)
+        var hit: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(element, Float(point.x), Float(point.y), &hit) == .success,
+              let hit, isWithin(hit, box)
+        else { return false }
+        let pointer = CGEvent(source: nil)?.location
+        let source = CGEventSource(stateID: .hidSystemState)
+        for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+            let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left)
+            event?.flags = []
+            event?.post(tap: .cghidEventTap)
+        }
+        if let pointer { CGWarpMouseCursorPosition(pointer) }
+        return true
+    }
+
+    /// Whether this element is the box or sits inside it.
+    private static func isWithin(_ element: AXUIElement, _ box: AXUIElement) -> Bool {
+        var current: AXUIElement? = element
+        for _ in 0..<deepestAncestry {
+            guard let node = current else { return false }
+            if CFEqual(node, box) { return true }
+            current = AXTree.element(node, kAXParentAttribute)
+        }
+        return false
+    }
+
+    /// Where an element sits on screen, top left origin as accessibility and mouse events both count it.
+    private static func frame(of element: AXUIElement) -> CGRect? {
+        var position: CFTypeRef?
+        var size: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &position) == .success,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &size) == .success,
+              let position, let size,
+              CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID()
+        else { return nil }
+        var origin = CGPoint.zero
+        var extent = CGSize.zero
+        // Both checked to be an AXValue just above, which is the only type a position or size comes back as.
+        AXValueGetValue(position as! AXValue, .cgPoint, &origin)
+        AXValueGetValue(size as! AXValue, .cgSize, &extent)
+        return CGRect(origin: origin, size: extent)
+    }
+
     /// Sends what an app's own prompt link left in its chat: only with the app already in front, its chat input in focus
     /// and holding exactly those words, then Return. Nil when anything does not check out, so the words wait for the person.
     static func sendPrefilled(_ words: String, inAppAt path: String) async -> Typed? {
         guard AXIsProcessTrusted(), let app = running(at: path) else { return nil }
+        // Read only with the app in front, and since macOS 14 a link alone does not always bring it there.
+        guard await bringForward(app) else { return nil }
         let element = AXUIElementCreateApplication(app.processIdentifier)
-        // Electron only builds its web content's accessibility tree when something asks for it.
-        AXUIElementSetAttributeValue(element, manualAccessibilityAttribute as CFString, kCFBooleanTrue)
+        await buildTree(of: app, element)
         let wanted = spaced(words)
         var box: AXUIElement?
         for _ in 0..<Timing.prefillLooks where box == nil {
@@ -509,7 +779,7 @@ enum PromptTyping {
         try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.beforeReturn))
         // Read once more right before Return, so a word the person changed meanwhile is never sent for them.
         guard prefilledBox(holding: wanted, in: element, of: app) != nil else { return nil }
-        press(returnKey)
+        press(returnKey, to: app)
         diary.note("sent what \(app.localizedName ?? "the app")'s prompt link left in its chat")
         return Typed.landed.verified(await cleared(box, in: element, after: wanted))
     }
@@ -517,7 +787,7 @@ enum PromptTyping {
     /// The chat input in focus when the app is in front and the input holds exactly these words.
     private static func prefilledBox(holding words: String, in app: AXUIElement, of running: NSRunningApplication) -> AXUIElement? {
         guard inFront(running), let box = focusedComposer(in: app),
-              let value = string(box, kAXValueAttribute), spaced(value) == words
+              let value = shown(box), spaced(value) == words
         else { return nil }
         return box
     }
@@ -538,7 +808,7 @@ enum PromptTyping {
         for _ in 0..<Timing.sentLooks {
             try? await Task.sleep(nanoseconds: Timing.nanoseconds(Timing.boxPoll))
             // A chat that draws a fresh input once it sends is read through the focus instead.
-            let now = string(box, kAXValueAttribute) ?? focusedComposer(in: app).flatMap { string($0, kAXValueAttribute) }
+            let now = shown(box) ?? focusedComposer(in: app).flatMap { shown($0) }
             if let now, spaced(now).isEmpty { return Proof(checked: "its chat input holding the words, then emptying after Return", seen: words) }
         }
         return nil

@@ -7,6 +7,7 @@ import SwiftUI
 final class MenuModel: ObservableObject {
     @Published var wakeOn: Bool
     @Published var speakUpOn: Bool
+    @Published var sayFinishedOn: Bool
     @Published var talkOverOn: Bool
     @Published var chimesOn: Bool
     @Published var liveWordsOn: Bool
@@ -25,6 +26,7 @@ final class MenuModel: ObservableObject {
     let talk: () -> Void
     let setWake: (Bool) -> Void
     let setSpeakUp: (Bool) -> Void
+    let setSayFinished: (Bool) -> Void
     let setTalkOver: (Bool) -> Void
     let setChimes: (Bool) -> Void
     /// Plays one cue at the volume just chosen, so the slider is heard rather than guessed at.
@@ -51,6 +53,8 @@ final class MenuModel: ObservableObject {
         setWake: @escaping (Bool) -> Void,
         speakUpOn: Bool,
         setSpeakUp: @escaping (Bool) -> Void,
+        sayFinishedOn: Bool = true,
+        setSayFinished: @escaping (Bool) -> Void = { _ in },
         talkOverOn: Bool,
         setTalkOver: @escaping (Bool) -> Void,
         chimesOn: Bool,
@@ -78,6 +82,8 @@ final class MenuModel: ObservableObject {
         self.setWake = setWake
         self.speakUpOn = speakUpOn
         self.setSpeakUp = setSpeakUp
+        self.sayFinishedOn = sayFinishedOn
+        self.setSayFinished = setSayFinished
         self.talkOverOn = talkOverOn
         self.setTalkOver = setTalkOver
         self.chimesOn = chimesOn
@@ -216,6 +222,7 @@ final class MenuBarPanel: NSObject {
 struct MenuView: View {
     @ObservedObject var model: MenuModel
     @ObservedObject private var mute = VoiceMute.shared
+    @ObservedObject private var hiding = IslandHiding.shared
     let close: () -> Void
     let openSettings: () -> Void
     static let width: CGFloat = 300
@@ -257,6 +264,11 @@ struct MenuView: View {
                 MenuRow(symbol: mute.on ? MenuSymbol.unmute : MenuSymbol.mute, title: mute.on ? "Unmute voice" : "Mute voice") {
                     mute.toggle()
                 }
+                // Keeps the panel open too, so the row is seen to change.
+                MenuRow(symbol: hiding.on ? MenuSymbol.showNotch : MenuSymbol.hideNotch, title: hiding.on ? "Let the notch open" : "Keep the notch closed") {
+                    hiding.toggle()
+                }
+                .help(hiding.on ? "News opens the notch again" : "News is said from the orb in the notch. Calling Memnox still opens it, and so does an agent waiting on you")
                 // What Memnox does above the line, the app itself below it, as a Mac menu groups them.
                 MenuDivider()
                     .padding(.vertical, Memnox.Spacing.xxSmall)
@@ -695,7 +707,9 @@ enum MenuSymbol {
     static let talk = "waveform"
     static let wake = "ear"
     static let speakUp = "bell"
+    static let sayFinished = "checkmark.bubble"
     static let talkOver = "waveform.badge.mic"
+    static let echo = "speaker.wave.2.bubble"
     static let sounds = "speaker.wave.1"
     static let volume = "speaker.wave.3"
     static let liveWords = "text.bubble"
@@ -711,6 +725,8 @@ enum MenuSymbol {
     static let copy = "doc.on.clipboard"
     static let mute = "speaker.slash"
     static let unmute = "speaker.wave.2"
+    static let hideNotch = "eye.slash"
+    static let showNotch = "eye"
     static let quit = "power"
     static let settings = "gearshape"
     static let more = "chevron.right"

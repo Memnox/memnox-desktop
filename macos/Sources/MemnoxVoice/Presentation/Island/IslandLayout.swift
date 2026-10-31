@@ -58,7 +58,8 @@ enum Island {
         static let held: CGFloat = 206
         /// Who asks, the question, and up to four choices with two lines each under them.
         static let question: CGFloat = 372
-        static let finished: CGFloat = 170
+        /// Who finished and where, what they asked it, and two lines of what it said it did, over its buttons.
+        static let finished: CGFloat = 190
         /// The header and two rows of Vorssaint's tiles.
         static let launcher: CGFloat = 230
         /// The orb and up to three lines of what is being said under it.

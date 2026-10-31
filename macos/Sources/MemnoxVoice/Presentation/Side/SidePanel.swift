@@ -88,6 +88,7 @@ final class SidePanel: NSPanel {
             model.sideOpen = true
         }
         watchForDismissal()
+        poll?.now()
     }
 
     func close(animated: Bool) {

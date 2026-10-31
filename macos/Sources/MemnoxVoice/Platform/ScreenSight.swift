@@ -22,6 +22,10 @@ enum ScreenSight {
     private static let keptFor: TimeInterval = 24 * 60 * 60
     /// Wide enough for every label to be read, small enough to send to the brain quickly.
     private static let widest: CGFloat = 1600
+    /// A picture the brain is handed, in pixels: what the runtime tells it a screen picture is at most, so a point lands.
+    private static let pictureWidest: CGFloat = 1280
+    /// Small enough to send quickly with every label still legible.
+    private static let pictureQuality = 0.7
     /// The layer ordinary app windows sit on; menus and the dock sit above it.
     private static let normalLayer = 0
     /// The most of a window's words handed on as evidence, from its end, where a chat or a terminal says what just happened.
@@ -67,38 +71,83 @@ enum ScreenSight {
         return NSWorkspace.shared.frontmostApplication.flatMap { $0.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : $0 }
     }
 
-    /// The app's front window as a capture and an outline; when Memnox may not record, the words come from the
-    /// window's accessibility tree instead, so a chat app's answer is still read without Screen Recording.
-    static func look(at app: NSRunningApplication) async -> Sight {
+    /// The app's front window as its words and an outline, read through Accessibility first since that takes a
+    /// fraction of a capture and reading it; a picture is taken only when asked for, or when the window had no words.
+    static func look(at app: NSRunningApplication, picture: LookPicture? = nil) async -> Sight {
+        let started = ContinuousClock.now
         let window = AXTree.frontWindow(of: app)
         let title = window.flatMap { AXTree.string($0, kAXTitleAttribute) }
         let outline = window.map(AXTree.outline(of:))
-        let image = await image(of: app, title: title)
-        let path = image.flatMap { write($0, into: Folder.sight, named: UUID().uuidString) }
-        var text: String?
-        if let image {
-            text = await read(image, level: .accurate)
-        } else if let window {
-            text = await accessibleText(of: window)
-        }
-        let how = image != nil ? "" : text == nil ? ", outline only" : ", words read through Accessibility"
-        diary.note("looked at \(app.localizedName ?? "an app")\(how)")
-        return Sight(app: app.localizedName ?? "", window: title, image: path, outline: outline, text: text)
+        var text = window == nil ? nil : await accessibleText(of: app.processIdentifier)
+        let screens = picture == .screens ? await screenPictures(around: app) : nil
+        let image = picture == .window || (picture == nil && text == nil)
+            ? await image(of: app, title: title, mostPixels: pictureWidest) : nil
+        let path = image.flatMap { write($0, into: Folder.sight, named: UUID().uuidString, as: .jpeg) }
+        let readOff = text == nil && image != nil
+        // Only a window with no words is read off its picture, which is the slow part a words first look skips.
+        if readOff, let image { text = await read(image, level: .accurate) }
+        let how = text == nil ? "outline only" : readOff ? "words read off the picture" : "words through Accessibility"
+        let took = (ContinuousClock.now - started).formatted(.units(allowed: [.milliseconds]))
+        diary.note("looked at \(app.localizedName ?? "an app"): \(how)\(path == nil ? "" : ", with a picture")\(screens.map { ", \($0.count) screens" } ?? "") in \(took)")
+        return Sight(app: app.localizedName ?? "", window: title, image: path, outline: outline, text: text, screens: screens)
     }
 
-    /// The most of a window's accessible words handed on, from its end, where a chat's latest answer is.
-    private static let mostAccessibleCharacters = 6_000
     /// Electron builds its web content's tree only once asked, so an empty first read waits this long and reads again.
     private static let treeBuildWait: Duration = .milliseconds(400)
 
-    /// The window's words read through Accessibility, or nil when it shows none, such as before Accessibility is granted.
-    private static func accessibleText(of window: AXUIElement) async -> String? {
-        var words = AXTree.text(of: window).trimmingCharacters(in: .whitespacesAndNewlines)
+    /// The window's words read through Accessibility away from the main thread, or nil when it shows none, such as
+    /// before Accessibility is granted.
+    private static func accessibleText(of pid: pid_t) async -> String? {
+        let read = { await Task.detached(priority: .userInitiated) { AXTree.text(ofFrontWindowOf: pid) }.value }
+        var words = await read().trimmingCharacters(in: .whitespacesAndNewlines)
         if words.isEmpty {
             try? await Task.sleep(for: treeBuildWait)
-            words = AXTree.text(of: window).trimmingCharacters(in: .whitespacesAndNewlines)
+            words = await read().trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        return words.isEmpty ? nil : String(words.suffix(mostAccessibleCharacters))
+        return words.isEmpty ? nil : words
+    }
+
+    /// Every display as a picture, captured side by side and in `NSScreen.screens` order, which a point names by index;
+    /// Memnox's own windows and every password manager are left out of them.
+    private static func screenPictures(around app: NSRunningApplication) async -> [ScreenPicture]? {
+        guard mayCapture(app) else { return nil }
+        guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) else { return nil }
+        let own = ProcessInfo.processInfo.processIdentifier
+        let hidden = content.applications.filter { $0.processID == own || neverCaptured.contains($0.bundleIdentifier) }
+        let batch = UUID().uuidString
+        let screens = NSScreen.screens
+        return await withTaskGroup(of: (Int, ScreenPicture?).self) { group in
+            for (index, screen) in screens.enumerated() {
+                guard let display = content.displays.first(where: { $0.displayID == screen.displayID }) else { continue }
+                let filter = SCContentFilter(display: display, excludingApplications: hidden, exceptingWindows: [])
+                let pixels = min(pictureWidest, screen.frame.width * screen.backingScaleFactor)
+                let size = (width: Int(pixels.rounded()), height: Int((screen.frame.height * pixels / screen.frame.width).rounded()))
+                let name = screen.localizedName
+                group.addTask { @MainActor in
+                    (index, await capture(filter, size: size, named: "\(batch)-screen-\(index)", called: name))
+                }
+            }
+            var pictures: [(Int, ScreenPicture?)] = []
+            for await each in group { pictures.append(each) }
+            return pictures.sorted { $0.0 < $1.0 }.compactMap(\.1)
+        }
+    }
+
+    /// One display captured at the size its picture is said to be, and written where the brain's pictures go.
+    private static func capture(_ filter: SCContentFilter, size: (width: Int, height: Int), named name: String,
+                                called displayName: String) async -> ScreenPicture? {
+        let configuration = SCStreamConfiguration()
+        configuration.width = size.width
+        configuration.height = size.height
+        configuration.showsCursor = false
+        do {
+            let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+            guard let path = write(image, into: Folder.sight, named: name, as: .jpeg) else { return nil }
+            return ScreenPicture(image: path, width: image.width, height: image.height, name: displayName)
+        } catch {
+            diary.note("could not capture a screen: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     /// The target window right after an action, kept under the request's name as its evidence.
@@ -132,8 +181,9 @@ enum ScreenSight {
         return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
     }
 
-    /// The window of the app that best matches, captured whether or not it is in front.
-    private static func image(of app: NSRunningApplication, title: String?) async -> CGImage? {
+    /// The window of the app that best matches, captured whether or not it is in front; `mostPixels` caps its width in
+    /// pixels for a picture the brain is handed, and evidence keeps its sharper size for reading.
+    private static func image(of app: NSRunningApplication, title: String?, mostPixels: CGFloat? = nil) async -> CGImage? {
         guard mayCapture(app) else { return nil }
         do {
             // Every window, covered or on another Space, since an action often happens behind the person.
@@ -145,7 +195,8 @@ enum ScreenSight {
                 ?? windows.max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
             guard let chosen else { return nil }
             let configuration = SCStreamConfiguration()
-            let scale = min(1, widest / chosen.frame.width) * (NSScreen.main?.backingScaleFactor ?? 1)
+            let backing = NSScreen.main?.backingScaleFactor ?? 1
+            let scale = mostPixels.map { min(backing, $0 / chosen.frame.width) } ?? min(1, widest / chosen.frame.width) * backing
             configuration.width = Int(chosen.frame.width * scale)
             configuration.height = Int(chosen.frame.height * scale)
             configuration.showsCursor = false
@@ -158,13 +209,15 @@ enum ScreenSight {
         }
     }
 
-    private static func write(_ image: CGImage, into folder: String, named name: String) -> String? {
+    /// PNG keeps evidence exact; a JPEG at `pictureQuality` is what the brain is sent, a fraction of the bytes.
+    private static func write(_ image: CGImage, into folder: String, named name: String, as type: UTType = .png) -> String? {
         let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(folder, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         forgetOld(in: directory)
-        let file = directory.appendingPathComponent(name).appendingPathExtension(UTType.png.preferredFilenameExtension ?? "png")
-        guard let destination = CGImageDestinationCreateWithURL(file as CFURL, UTType.png.identifier as CFString, 1, nil) else { return nil }
-        CGImageDestinationAddImage(destination, image, nil)
+        let file = directory.appendingPathComponent(name).appendingPathExtension(type.preferredFilenameExtension ?? "png")
+        guard let destination = CGImageDestinationCreateWithURL(file as CFURL, type.identifier as CFString, 1, nil) else { return nil }
+        let options = type == .jpeg ? [kCGImageDestinationLossyCompressionQuality: pictureQuality] as CFDictionary : nil
+        CGImageDestinationAddImage(destination, image, options)
         return CGImageDestinationFinalize(destination) ? file.path : nil
     }
 
@@ -176,5 +229,12 @@ enum ScreenSight {
             let changed = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
             if let changed, changed < cutoff { try? FileManager.default.removeItem(at: file) }
         }
+    }
+}
+
+extension NSScreen {
+    /// The display's id, which is how ScreenCaptureKit names the same screen.
+    var displayID: CGDirectDisplayID? {
+        deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
     }
 }

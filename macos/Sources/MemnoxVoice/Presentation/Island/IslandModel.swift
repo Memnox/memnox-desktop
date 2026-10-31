@@ -54,6 +54,10 @@ struct HeldCard: Equatable, Sendable {
     let machine: String
     /// The digest of exactly this call, which a yes signs and sends so a call changed since it was shown is refused.
     let actionDigest: String?
+    /// When it started waiting, as the runtime wrote it, which Today orders the oldest first by.
+    let at: String?
+    /// Whether the workspace routed it from a teammate, whose call takes no rule from this Mac.
+    let team: Bool
 
     /// `server` names the server that raised it, so the person sees where the call waits; nil for this Mac.
     init(_ event: DaemonEvent, server: String? = nil) {
@@ -68,6 +72,8 @@ struct HeldCard: Equatable, Sendable {
         touchID = event.needsTouchID
         machine = place.machine
         actionDigest = event.actionDigest
+        at = event.at
+        team = false
     }
 
     /// A teammate's call the workspace routed here: named with its machine and team, and every allow asks for Touch ID.
@@ -82,6 +88,8 @@ struct HeldCard: Equatable, Sendable {
         touchID = true
         machine = call.place.machine
         actionDigest = nil
+        at = call.askedAt
+        team = true
     }
 
     /// What the Touch ID sheet says this answer is for, naming the call by its one label.
@@ -161,6 +169,11 @@ struct FinishedCard: Equatable, Sendable {
     let agent: String
     let who: String
     let summary: String
+    /// Which session it was: the folder it worked in and what the person last asked it, so two of one agent differ.
+    let place: String?
+    let asked: String?
+    /// What the agent said it did, in its own closing words, which reads better than the minutes it ran.
+    let brief: String?
     let sessionId: String?
     let host: DisplayHost?
 
@@ -168,6 +181,9 @@ struct FinishedCard: Equatable, Sendable {
         agent = event.agent
         who = event.agentName ?? event.agent
         summary = event.summary
+        brief = event.brief.flatMap { $0.isEmpty ? nil : $0 }
+        place = event.place ?? event.host?.cwd.map { ($0 as NSString).lastPathComponent }
+        asked = (event.lastAsk ?? event.task).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : $0 }
         sessionId = event.sessionId
         host = event.host
     }
@@ -222,6 +238,9 @@ final class IslandModel: ObservableObject {
     @Published var hovering = false
     /// Every recent session, working ones first, and the one the open island is about.
     @Published var cards: [SessionCard] = []
+    /// When the sessions were last read, for the window's coverage line; not published, since the island redraws
+    /// nothing for it and the window reads it on its own clock.
+    var cardsReadAt: Date?
     @Published var focusId: String?
     @Published var focused: SessionView?
     /// Whether the open island shows one session up close rather than all of them.
@@ -292,6 +311,8 @@ final class IslandModel: ObservableObject {
     var talkingSince: Date?
 
     var active = false
+    /// This talk kept to the orb in the notch, by the eye beside it or by news while the notch is kept closed.
+    @Published var folded = false
     var opened = false
     var answer: (HeldCard, HoldAnswer) -> Void = { _, _ in }
     var answerQuestion: (AgentQuestionCard, Int, String) -> Void = { _, _, _ in }
@@ -358,6 +379,9 @@ final class IslandModel: ObservableObject {
     /// The round buttons beside the island go with its header, so they never crowd the words while talking.
     var showsSatellites: Bool { showsHeader && mode != .voice }
 
+    /// While Memnox talks or listens, a smaller set beside it: mute, and the eye that folds it into the notch.
+    var showsTalkSatellites: Bool { active && [.voice, .hearing, .conversation].contains(mode) }
+
     /// The page's name at the start of the header, as Vorssaint titles each page of its notch.
     var title: String {
         switch mode {
@@ -393,8 +417,12 @@ final class IslandModel: ObservableObject {
             next = .draft
         } else if rule != nil {
             next = .rule
-        } else if finished != nil {
+        } else if finished != nil, !IslandHiding.shared.on {
+            // A finished session needs nobody, so a hidden notch stays shut for it.
             next = .finished
+        } else if active, folded {
+            // Still talking and listening, only from the notch, so the work under it stays in view.
+            next = working.isEmpty ? .peek : .compact
         } else if active {
             // What Memnox says is heard rather than read, so a turn keeps the orb up instead of printing the answer;
             // the answer stays in the history at the side. A rule is always shown as it is said, since the person signs it.

@@ -12,6 +12,7 @@ final class SessionPresenter: Presenter {
     private let flight = FlightPanel()
     private let switcher = SwitcherPanel()
     private let scanPanel = ScanPanel()
+    private let pointer = PointerRing()
     /// The sessions lately, for the switcher to turn through; set by the app once the conversation exists.
     var sessions: (() async -> [SessionCard])?
     /// Where the orb is on screen, which is where a sent instruction flies from.
@@ -110,8 +111,11 @@ final class SessionPresenter: Presenter {
         static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
         /// Long enough for an editor's restarted extensions to come back before the link is sent to them.
         static let extensionsRestart: TimeInterval = 1.5
-        /// How long each other editor window is given to answer, past the extension's own wait for a claim.
-        static let windowAttempts = 40
+        /// How long each other editor window is given to answer, past the extension's own three second wait for a claim.
+        static let windowAttempts = 50
+        /// Every try at a follow up in an editor's terminal, inside the runtime's own 25 second wait, so the voice never
+        /// says it is going in after the Mac has already said it could not type it.
+        static let editorDeliveryBudget: TimeInterval = 20
     }
 
     /// How far above the bottom of the screen the comet starts when the orb's frame is not known.
@@ -161,6 +165,7 @@ final class SessionPresenter: Presenter {
         wall.dismiss()
         livePanel.dismiss()
         scanPanel.dismiss()
+        pointer.dismiss()
     }
 
     /// Turns through the sessions to this one, then opens a live window on it.
@@ -919,11 +924,12 @@ final class SessionPresenter: Presenter {
         await launch(toward: host.app ?? app)
         _ = await open(host)
         try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.editorSettle))
+        let deadline = Date().addingTimeInterval(Timing.editorDeliveryBudget)
         guard NSWorkspace.shared.open(link) else { return Typed(.failed, "the editor would not take the Memnox link") }
-        let delivered = await Self.extensionDelivery(of: request, resending: link)
+        let delivered = await Self.extensionDelivery(of: request, resending: link, until: deadline)
         // No window answered at all, which is a window still running the copy from before this memnox.
         if delivered.reason == Self.extensionSilent,
-           let again = await retypeAfterRestart(request: request, tty: tty, host: host, app: app) {
+           let again = await retypeAfterRestart(request: request, tty: tty, host: host, app: app, until: deadline) {
             return again.wentIn ? again : Self.unansweredAfterRestart(text, app: host.app ?? Self.anEditor, answered: again)
         }
         // An editor started from a shell hands that shell's terminal to its agent panel too, so a
@@ -935,10 +941,10 @@ final class SessionPresenter: Presenter {
         // would open a new conversation instead of following up, so the words wait on the clipboard.
         if TerminalFront.agentInFront(Self.foreground(tty)) {
             diary.note("the \(host.app ?? Self.anEditor) window in front does not hold \(tty), though the agent runs there, so each other window is asked")
-            if let found = await inOtherWindows(request: request, tty: tty, host: host, app: app, path: Link.typePath) {
+            if let found = await inOtherWindows(request: request, tty: tty, host: host, app: app, path: Link.typePath, until: deadline) {
                 return found
             }
-            if let again = await retypeAfterRestart(request: request, tty: tty, host: host, app: app) {
+            if let again = await retypeAfterRestart(request: request, tty: tty, host: host, app: app, until: deadline) {
                 return again.wentIn ? again : Self.unansweredAfterRestart(text, app: host.app ?? Self.anEditor, answered: again)
             }
             PromptTyping.leaveOnClipboard(text)
@@ -957,16 +963,18 @@ final class SessionPresenter: Presenter {
     /// Each other window of the editor brought forward in turn with the request sent again under an id of its own,
     /// since a link reaches only the window in front and one still on an older extension never looks for requests.
     /// Nil when the editor has no other window or none of them holds the terminal.
-    private func inOtherWindows(request: String, tty: String, host: DisplayHost, app: String, path: String) async -> Typed? {
+    private func inOtherWindows(request: String, tty: String, host: DisplayHost, app: String, path: String,
+                                until deadline: Date = .distantFuture) async -> Typed? {
         guard let editor = Self.running(host) else { return nil }
         for (index, window) in EditorWindows.others(of: editor).enumerated() {
+            guard Date() < deadline else { return nil }
             guard EditorWindows.raise(window, of: editor),
                   let again = Self.copyOfRequest(request, seenIn: host.app ?? Self.anEditor, attempt: index + 1),
                   let link = Self.extensionLink(app: app, path: path, query: [QueryKey.request: again, QueryKey.tty: tty])
             else { continue }
             try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.editorSettle))
             guard NSWorkspace.shared.open(link) else { continue }
-            let answered = await Self.extensionDelivery(of: again, attempts: Timing.windowAttempts)
+            let answered = await Self.extensionDelivery(of: again, attempts: Timing.windowAttempts, until: deadline)
             if answered.reason == Self.noEditorTerminal || answered.reason == Self.extensionSilent { continue }
             diary.note("another \(host.app ?? Self.anEditor) window holds \(tty), and it answered \(again)")
             return answered
@@ -978,7 +986,11 @@ final class SessionPresenter: Presenter {
     /// a copy put in since the window opened is the one answering, and the words go once more under a request of
     /// their own, since the extension answers each request once. Nil when the editor could not be restarted.
     private func retypeAfterRestart(request: String, tty: String, host: DisplayHost, app: String,
-                                    path: String = Link.typePath) async -> Typed? {
+                                    path: String = Link.typePath, until deadline: Date = .distantFuture) async -> Typed? {
+        // Restarted only with time left for the window to answer, since a request answered after the runtime stopped
+        // waiting reaches nobody, and a restart for nothing costs the person every other extension's state.
+        let needed = Timing.extensionsRestart + Double(Timing.windowAttempts) * Timing.deliveryPoll
+        guard deadline.timeIntervalSinceNow > needed else { return nil }
         guard let editor = Self.running(host), await PromptTyping.restartExtensionHost(in: editor),
               let again = Self.copyOfRequest(request, seenIn: host.app ?? Self.anEditor),
               let link = Self.extensionLink(app: app, path: path, query: [QueryKey.request: again, QueryKey.tty: tty])
@@ -986,7 +998,7 @@ final class SessionPresenter: Presenter {
         diary.note("restarted the extensions in \(host.app ?? Self.anEditor) and sent the words again as \(again)")
         try? await Task.sleep(nanoseconds: Self.nanoseconds(Timing.extensionsRestart))
         guard NSWorkspace.shared.open(link) else { return nil }
-        return await Self.extensionDelivery(of: again, resending: link)
+        return await Self.extensionDelivery(of: again, resending: link, until: deadline)
     }
 
     /// The words left on the clipboard once the editor's extensions were restarted and still nothing answered, with
@@ -1063,10 +1075,11 @@ final class SessionPresenter: Presenter {
 
     /// What the extension wrote on the request once it typed it, read from the runtime's own folder.
     private static func extensionDelivery(of request: String, resending link: URL? = nil,
-                                          attempts: Int = Timing.deliveryAttempts) async -> Typed {
+                                          attempts: Int = Timing.deliveryAttempts,
+                                          until deadline: Date = .distantFuture) async -> Typed {
         let file = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("\(Folder.displays)/\(request).\(Folder.recordExtension)")
-        for attempt in 0..<attempts {
+        for attempt in 0..<attempts where Date() < deadline {
             // The extension ignores a request it already answered, so sending the link again is safe.
             if let link, attempt > 0, attempt % Timing.linkResendEvery == 0 { NSWorkspace.shared.open(link) }
             let record = (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode(DeliveryRecord.self, from: $0) }
@@ -1442,8 +1455,18 @@ final class SessionPresenter: Presenter {
 
     /// The window the brain asked to see, captured with its controls.
     func look(app name: String?) async -> Sight? {
+        await look(app: name, picture: nil)
+    }
+
+    /// The window's words first, with the picture the brain asked for beside them.
+    func look(app name: String?, picture: LookPicture?) async -> Sight? {
         guard let app = ScreenSight.app(named: name, otherwise: frontApp()) else { return nil }
-        return await ScreenSight.look(at: app)
+        return await ScreenSight.look(at: app, picture: picture)
+    }
+
+    /// A ring where the brain found something on a screen picture, over everything and taking nothing.
+    func point(at spot: ScreenSpot, label: String) async -> Bool {
+        pointer.show(spot, label: label)
     }
 
     /// The words in the session's iTerm or Terminal tab, read by the terminal itself, so a question an agent

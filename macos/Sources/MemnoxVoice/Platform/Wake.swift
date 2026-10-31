@@ -27,6 +27,14 @@ final class WakeEars {
     private static let noSpeechCode = 1110
     /// How often the latest words are looked at.
     private static let pollSeconds: TimeInterval = 0.15
+    /// How often the room's loudness is read while nobody speaks, which is all waiting costs.
+    private static let quietPollSeconds: TimeInterval = 0.1
+    /// Loud enough to be somebody speaking near the Mac, below the level the orb treats as talking to it.
+    private static let speakingLevel: Float = AudioIO.voiceLevel * 0.4
+    /// The sound kept from just before the room got loud, about a second, so the start of the name is never cut off.
+    private static let preRollBuffers = 48
+    /// A round that has heard no new words this long goes back to waiting for the room to get loud, cheaply.
+    private static let quietRoundSeconds: TimeInterval = 4
     private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
     /// Called with whatever followed the name, empty when it was said alone.
@@ -58,8 +66,10 @@ final class WakeEars {
             var rest = WakeRest()
             while true {
                 guard let self, self.generation == mine else { return }
+                // The recognizer runs only while somebody speaks, since running it on a quiet room was most of the app's idle CPU.
+                guard let before = await self.untilSomeoneSpeaks(through: audio, generation: mine) else { return }
                 let failed: Bool
-                switch await self.round(through: audio, generation: mine) {
+                switch await self.round(through: audio, generation: mine, before: before) {
                 case .heard(let after):
                     guard self.generation == mine else { return }
                     diary.note("heard my name\(after.isEmpty ? "" : ", then: \(after)")")
@@ -97,13 +107,25 @@ final class WakeEars {
         case failed
     }
 
+    /// Waits, reading only the microphone's level, until the room gets loud; the sound from just before, or nil once stopped.
+    private func untilSomeoneSpeaks(through audio: AudioIO, generation mine: Int) async -> [AVAudioPCMBuffer]? {
+        let kept = PreRoll(keeping: Self.preRollBuffers)
+        audio.onMicrophone = { kept.add($0) }
+        while generation == mine {
+            if audio.micLevel >= Self.speakingLevel { return kept.taken() }
+            try? await Task.sleep(nanoseconds: UInt64(Self.quietPollSeconds * Self.nanosecondsPerSecond))
+        }
+        return nil
+    }
+
     /// One recognizer request: the words after the name once they pause, or how it ended without them.
-    private func round(through audio: AudioIO, generation mine: Int) async -> Round {
+    private func round(through audio: AudioIO, generation mine: Int, before: [AVAudioPCMBuffer]) async -> Round {
         guard let recognizer, recognizer.isAvailable else { return .failed }
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.requiresOnDeviceRecognition = true
         request.contextualStrings = [Self.name]
+        for buffer in before { request.append(buffer) }
         audio.onMicrophone = { request.append($0) }
         let latest = Latest()
         let broke = Broke()
@@ -132,8 +154,40 @@ final class WakeEars {
             }
             if final { return broke.happened ? .failed : .ranOut }
             if Date().timeIntervalSince(began) > Self.roundSeconds { return .ranOut }
+            if Date().timeIntervalSince(max(began, changed)) > Self.quietRoundSeconds, audio.micLevel < Self.speakingLevel { return .ranOut }
         }
         return .ranOut
+    }
+}
+
+/// The last few microphone buffers, filled on the audio thread and taken on the main actor once the room gets loud.
+private final class PreRoll: @unchecked Sendable {
+    private let lock = NSLock()
+    private var buffers: [AVAudioPCMBuffer] = []
+    private let keeping: Int
+
+    init(keeping: Int) { self.keeping = keeping }
+
+    func add(_ buffer: AVAudioPCMBuffer) {
+        // Copied, since a buffer the tap hands over may be filled again with the next twenty milliseconds.
+        guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: buffer.frameLength) else { return }
+        copy.frameLength = buffer.frameLength
+        let source = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: buffer.audioBufferList))
+        let target = UnsafeMutableAudioBufferListPointer(copy.mutableAudioBufferList)
+        for (from, to) in zip(source, target) where from.mData != nil && to.mData != nil {
+            // Both checked to hold data just above, and the copy was made the same size in the same format.
+            to.mData!.copyMemory(from: from.mData!, byteCount: Int(min(from.mDataByteSize, to.mDataByteSize)))
+        }
+        lock.lock()
+        buffers.append(copy)
+        if buffers.count > keeping { buffers.removeFirst(buffers.count - keeping) }
+        lock.unlock()
+    }
+
+    func taken() -> [AVAudioPCMBuffer] {
+        lock.lock()
+        defer { lock.unlock() }
+        return buffers
     }
 }
 

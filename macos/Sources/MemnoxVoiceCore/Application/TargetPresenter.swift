@@ -106,6 +106,15 @@ public final class TargetPresenter: Presenter {
         remote() ? nil : await inner.look(app: app)
     }
 
+    public func look(app: String?, picture: LookPicture?) async -> Sight? {
+        remote() ? nil : await inner.look(app: app, picture: picture)
+    }
+
+    /// A spot on this Mac's own screen pictures, which a server's look never took.
+    public func point(at spot: ScreenSpot, label: String) async -> Bool {
+        remote() ? false : await inner.point(at: spot, label: label)
+    }
+
     /// A tab on this Mac, which says nothing about a server's session.
     public func readTab(of host: DisplayHost) async -> Sight? {
         remote() ? nil : await inner.readTab(of: host)

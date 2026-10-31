@@ -153,9 +153,20 @@ struct IslandFinished: View {
                 HStack(spacing: Memnox.Spacing.medium) {
                     Image(systemName: Self.doneSymbol).foregroundStyle(IslandPalette.green)
                     Text(card.who).font(Memnox.sans(Memnox.TextSize.callout, .semibold)).foregroundStyle(Color.white)
-                    Text("finished").font(Memnox.sans(Memnox.TextSize.body)).foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                        .layoutPriority(1)
+                    Text(card.place.map { "finished in \($0)" } ?? "finished")
+                        .font(Memnox.sans(Memnox.TextSize.body)).foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                        .lineLimit(1).truncationMode(.middle)
                 }
-                Text(card.summary)
+                // What it was asked names the session better than any id, so it leads and the summary follows it.
+                if let asked = card.asked {
+                    Text("\u{201C}\(asked)\u{201D}")
+                        .font(Memnox.sans(Memnox.TextSize.body))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1).truncationMode(.tail)
+                }
+                // Its own account of the turn when it gave one, and the daemon's count of what ran when it did not.
+                Text(card.brief ?? card.summary)
                     .font(Memnox.sans(Memnox.TextSize.body))
                     .foregroundStyle(IslandPalette.soft)
                     .lineLimit(Self.summaryLines)

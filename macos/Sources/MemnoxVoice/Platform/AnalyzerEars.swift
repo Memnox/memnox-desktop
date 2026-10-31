@@ -50,10 +50,11 @@ final class AnalyzerEars {
 
     /// The next thing said, nothing when the wait ran out, or unavailable when it could not start.
     /// With `holding`, it listens for exactly as long as that says the keys are down, and `tail` after, and no pause ends it.
-    /// `hints` are words this listen in particular may hear, put ahead of the machine's own.
+    /// `hints` are words this listen in particular may hear, put ahead of the machine's own. `dictating` trades the
+    /// quickest words for the most accurate ones, since dictation is typed whole while a question waits to be answered.
     func listen(
         through audio: AudioIO, waiting: TimeInterval, holding: (() -> Bool)? = nil, cut: Flag? = nil,
-        tail: TimeInterval = 0, hints: [String] = []
+        tail: TimeInterval = 0, hints: [String] = [], dictating: Bool = false
     ) async -> Listened {
         // Heard from the first buffer, before the analyzer has loaded, so the first word is never lost to a cold start.
         let recording = Recording()
@@ -65,7 +66,7 @@ final class AnalyzerEars {
             recording.keep(buffer)
             early.take(buffer)
         }
-        let transcriber = await Self.transcriber()
+        let transcriber = await Self.transcriber(dictating: dictating)
         let kind = String(describing: type(of: transcriber.module))
         let ready = Self.modelsReady.contains(kind) ? true : await Self.installed([transcriber.module])
         guard ready,
@@ -164,8 +165,7 @@ final class AnalyzerEars {
             let granted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized ? "granted" : "not granted"
             diary.note("microphone silent: access \(granted) (\(AVCaptureDevice.authorizationStatus(for: .audio).rawValue)), route \(AudioRoute.current().described)")
         }
-        try? await analyzer.finalizeAndFinishThroughEndOfInput()
-        await reading.value
+        await Self.finish(analyzer, reading: reading)
         let words = heard.read().0.trimmingCharacters(in: .whitespacesAndNewlines)
         diary.note("SpeechAnalyzer heard \(words.isEmpty ? "nothing" : words)")
         let loudest = meter.loudest
@@ -185,15 +185,42 @@ final class AnalyzerEars {
         return words.isEmpty ? .silence : .heard(words)
     }
 
+    /// Long enough for the last words to be made final, short enough that nobody is left waiting on a recognizer
+    /// that never answers; past it the words heard so far, volatile ones too, are what was said.
+    private static let finalizePatience: TimeInterval = 2
+    private static let finalizeLook: TimeInterval = 0.05
+
+    /// Asks for the last words to be made final, and gives up on it after `finalizePatience`, since a finalize that
+    /// never returns otherwise holds the dictation and the next turn forever.
+    private static func finish(_ analyzer: SpeechAnalyzer, reading: Task<Void, Never>) async {
+        let done = Flag()
+        Task {
+            try? await analyzer.finalizeAndFinishThroughEndOfInput()
+            await reading.value
+            done.set(true)
+        }
+        let giveUpAt = Date().addingTimeInterval(finalizePatience)
+        while !done.isSet, Date() < giveUpAt {
+            try? await Task.sleep(nanoseconds: UInt64(finalizeLook * nanosecondsPerSecond))
+        }
+        guard !done.isSet else { return }
+        diary.note("SpeechAnalyzer did not finish within \(finalizePatience) seconds, so the words heard so far stand")
+        await analyzer.cancelAndFinishNow()
+        reading.cancel()
+    }
+
     /// The dictation model taught the agents' names once that model is built, since only dictation takes
-    /// a trained model; the general transcriber until then, which only has the hints to go on.
-    private static func transcriber() async -> Transcriber {
+    /// a trained model; the general transcriber until then, which only has the hints to go on. Dictating, both
+    /// drop the options that hurry the recognizer, since it is less accurate for them and live typing only needs
+    /// volatile results, which it still gets, rather than final ones.
+    private static func transcriber(dictating: Bool) async -> Transcriber {
         if let trained = Vocabulary.trained {
             let dictation = DictationTranscriber(
                 locale: Vocabulary.locale,
                 contentHints: [.shortForm, .customizedLanguage(modelConfiguration: trained)],
                 transcriptionOptions: [.punctuation],
-                reportingOptions: [.volatileResults, .frequentFinalization],
+                // Frequent finals leave little to finalize when a question ends, so its answer comes quick; dictation waits for the better words.
+                reportingOptions: dictating ? [.volatileResults] : [.volatileResults, .frequentFinalization],
                 attributeOptions: []
             )
             let results = AsyncThrowingStream<(String, Bool), Error> { continuation in
@@ -213,7 +240,7 @@ final class AnalyzerEars {
         let general = SpeechTranscriber(
             locale: await locale(),
             transcriptionOptions: [],
-            reportingOptions: [.volatileResults, .fastResults],
+            reportingOptions: dictating ? [.volatileResults] : [.volatileResults, .fastResults],
             attributeOptions: []
         )
         let results = AsyncThrowingStream<(String, Bool), Error> { continuation in

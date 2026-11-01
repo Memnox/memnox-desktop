@@ -1,5 +1,8 @@
 import { MEMORY_METHOD, type DaemonRequest, type DaemonResponse, type MemoryItemsView, type MemoryReadSummary, type MemorySearchMode, type MemorySourceInput, type MemorySourceView } from '@memnox/core/wire';
 import { confirmedLine, readSummaryLine, type MemoryScopeName, type MemoryStatusName } from '../domain/memory-lines';
+import { writtenLine, type MemoryLayersPlan, type MemoryLayersView, type SessionCostView } from '../domain/memory-layers-lines';
+import type { WorkspaceGraphView } from '../domain/memory-arms/arms-local';
+import type { MemoryItemView } from '@memnox/core/wire';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
@@ -32,6 +35,12 @@ export class Memory extends Observed {
   private readonly reads = new Map<string, MemoryReadSummary>();
   private failed = { sources: false, learn: false, facts: false };
   private busyWith: string | undefined;
+  private layersRead: MemoryLayersView | undefined;
+  private layersFailed = false;
+  private planShown: { readonly plan: MemoryLayersPlan; readonly project: string; readonly agent?: string; readonly keep: readonly string[] } | undefined;
+  private costRead: SessionCostView | undefined;
+  private graphRead: WorkspaceGraphView | undefined;
+  private everyRead: readonly MemoryItemView[] | undefined;
 
   constructor(
     private readonly link: DaemonLink,
@@ -69,6 +78,36 @@ export class Memory extends Observed {
   /** The source or item a press is still working on, so its controls can say so. */
   get busy(): string | undefined {
     return this.busyWith;
+  }
+
+  /** Each project's three layers as they stand, and what memory measured about itself. */
+  get layers(): MemoryLayersView | undefined {
+    return this.layersRead;
+  }
+
+  /** The last layers read failed, or came from a runtime too old to answer it. */
+  get layersUnreadable(): boolean {
+    return this.layersFailed;
+  }
+
+  /** The map the runtime would write, shown until it is confirmed or put away. */
+  get plan(): MemoryLayersPlan | undefined {
+    return this.planShown?.plan;
+  }
+
+  /** How often a cold cache was loaded again lately, counted from the chats alone. */
+  get sessionCost(): SessionCostView | undefined {
+    return this.costRead;
+  }
+
+  /** What the workspace settled and what its tools said, live or as this computer last saved it. */
+  get workspaceGraph(): WorkspaceGraphView | undefined {
+    return this.graphRead;
+  }
+
+  /** Every item memory holds whatever its status, for the brain, which keeps history faintly on the picture. */
+  get everything(): readonly MemoryItemView[] | undefined {
+    return this.everyRead;
   }
 
   /** The last read of a source made here, said under its card. */
@@ -166,6 +205,89 @@ export class Memory extends Observed {
       this.changed();
     }
     return outcome;
+  }
+
+  /** Reads the layers and the cold cache count; a runtime that answers neither leaves the view saying so. */
+  async refreshLayers(): Promise<void> {
+    const [layers, cost] = await Promise.all([this.ask({ method: MEMORY_METHOD.MEMORY_LAYERS }), this.ask({ method: MEMORY_METHOD.SESSION_COST })]);
+    this.layersFailed = layers?.ok !== true || layers.memoryLayers === undefined;
+    if (layers?.memoryLayers !== undefined) this.layersRead = layers.memoryLayers;
+    if (cost?.sessionCost !== undefined) this.costRead = cost.sessionCost;
+    this.changed();
+  }
+
+  /** Asks the runtime for the map it would write; nothing is written by this. Undefined when the plan is shown. */
+  async previewLayers(project: string, keep: readonly string[], agent?: string): Promise<string | undefined> {
+    const response = await this.working(project, () =>
+      this.ask({ method: MEMORY_METHOD.MEMORY_LAYERS_PLAN, memoryLayersProject: project, memoryKeep: [...keep], ...(agent === undefined ? {} : { memoryLayersAgent: agent }) }),
+    );
+    if (response === undefined) return 'The runtime is not answering.';
+    if (!response.ok || response.memoryLayersPlan === undefined) return response.error ?? 'The runtime could not plan the layers.';
+    this.planShown = { plan: response.memoryLayersPlan, project, keep, ...(agent === undefined ? {} : { agent }) };
+    this.changed();
+    return undefined;
+  }
+
+  /** Writes the plan the person confirmed, with its digest, so a plan whose files changed since is refused. */
+  async confirmLayers(): Promise<MemoryOutcome> {
+    const shown = this.planShown;
+    if (shown === undefined) return { kind: 'failed', why: 'There is no plan to confirm.' };
+    const response = await this.working(shown.project, () =>
+      this.ask({
+        method: MEMORY_METHOD.MEMORY_LAYERS_APPLY,
+        memoryLayersProject: shown.project,
+        memoryKeep: [...shown.keep],
+        memoryLayersDigest: shown.plan.digest,
+        ...(shown.agent === undefined ? {} : { memoryLayersAgent: shown.agent }),
+      }),
+    );
+    this.planShown = undefined;
+    if (response === undefined) {
+      this.changed();
+      return { kind: 'failed', why: 'The runtime is not answering.' };
+    }
+    if (!response.ok) {
+      this.changed();
+      return { kind: 'failed', why: response.error ?? 'The runtime refused this.' };
+    }
+    const updated = response.memoryLayers;
+    if (updated !== undefined) {
+      // One project read again after apply, laid over the rest.
+      const fresh = new Map(updated.projects.map((project) => [project.path, project]));
+      this.layersRead = this.layersRead === undefined ? updated : { projects: this.layersRead.projects.map((project) => fresh.get(project.path) ?? project), value: updated.value };
+    }
+    this.changed();
+    return { kind: 'done', note: writtenLine(response.memoryLayersApplied?.written ?? []) };
+  }
+
+  /** The sheet closed without confirming, so the plan is forgotten. */
+  dismissPlan(): void {
+    this.planShown = undefined;
+    this.changed();
+  }
+
+  /** The workspace's graph, read again from the cloud when `fresh`; always answered, saved where the cloud did not. */
+  async refreshWorkspaceGraph(fresh = false): Promise<void> {
+    const response = await this.ask({ method: MEMORY_METHOD.WORKSPACE_GRAPH, ...(fresh ? { workspaceGraphFresh: true } : {}) });
+    if (response?.workspaceGraph !== undefined) this.graphRead = response.workspaceGraph;
+    this.changed();
+  }
+
+  /** Every status read at once, so the brain holds the whole record rather than the list's one filter. */
+  async refreshEverything(): Promise<void> {
+    const reads = await Promise.all(EVERY_STATUS.map((status) => this.ask({ method: MEMORY_METHOD.MEMORY_FACTS, memoryStatus: status })));
+    if (reads.every((response) => response?.memoryFacts === undefined)) return;
+    this.everyRead = reads.flatMap((response) => response?.memoryFacts?.items ?? []);
+    this.changed();
+  }
+
+  private async working<T>(subject: string, body: () => Promise<T>): Promise<T> {
+    this.busyWith = subject;
+    this.changed();
+    const result = await body();
+    this.busyWith = undefined;
+    this.changed();
+    return result;
   }
 
   private take(response: DaemonResponse | undefined): void {

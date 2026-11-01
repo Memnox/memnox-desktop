@@ -1,8 +1,9 @@
 import type { MemoryEvidenceView, MemoryItemView, MemorySourceView } from '@memnox/core/wire';
-import { BookOpen, Brain, FileText, Link2, List, Network, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { BookOpen, Brain, FileText, Layers, Link2, List, Network, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { MemoryOutcome } from '../../../core/application/memory';
-import type { WidthClass } from '../../../core/domain/destinations';
+import type { Route, WidthClass } from '../../../core/domain/destinations';
+import { LOCAL_ARMS_IDS } from '../../../core/domain/memory-arms/arms-local';
 import {
   MEMORY_FILTERS,
   MEMORY_SCOPES,
@@ -30,8 +31,8 @@ import { KitButton, SearchField } from '../../settings/kit';
 import { openOrCopy } from '../../settings/host';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AddMemorySourceDialog } from './MemorySourceDialog';
-import { MemoryMapView } from './MemoryMap';
-import { memoryMapIds, MEMORY_MAP_NODE, type MemoryMapNode } from '../../../core/domain/memory-map';
+import { MemoryBrain } from './MemoryBrain';
+import { MemoryLayersView } from './MemoryLayers';
 import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
 import { memoryScope } from '../../../core/domain/scope-lines';
 import { useInspectorHost, usePicked } from '../inspector-host';
@@ -39,13 +40,22 @@ import { useInspectorHost, usePicked } from '../inspector-host';
 const CHIP = 'mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm';
 const chip = (on: boolean) => `${CHIP} ${on ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`;
 
-/** Whether memory is read as a list or drawn as a map, remembered for the next visit. */
-type MemoryView = 'list' | 'map';
-const VIEW_KEY = 'memnox.memory.view';
-const VIEWS: readonly { view: MemoryView; label: string; icon: typeof List }[] = [
+/**
+ * How memory is shown, as the Mac shows it: drawn as the brain, read as the list, or as the three layers any agent
+ * reads. Remembered for the next visit; the brain is where a first visit lands.
+ */
+type MemoryView = 'graph' | 'list' | 'layers';
+const VIEW_KEY = 'memnox.memory.shown';
+const VIEWS: readonly { view: MemoryView; label: string; icon: typeof List; needs?: string }[] = [
+  { view: 'graph', label: 'Graph', icon: Network },
   { view: 'list', label: 'List', icon: List },
-  { view: 'map', label: 'Map', icon: Network },
+  { view: 'layers', label: 'Layers', icon: Layers, needs: 'memory-layers' },
 ];
+
+function savedView(): MemoryView {
+  const saved = localStorage.getItem(VIEW_KEY);
+  return saved === 'list' || saved === 'layers' ? saved : 'graph';
+}
 
 /** How long typing rests before the search is asked, so each key is not a request. */
 const SEARCH_REST_MS = 300;
@@ -59,26 +69,40 @@ export function memoryNote(outcome: MemoryOutcome): string {
  * What this computer learned, read three ways from one record: the list by status and scope, one fact with
  * the evidence it was read from, and the sources it came out of. A statement is shown whole, as written.
  */
-export function MemoryPage({ parts, width }: { parts: SettingsParts; width: WidthClass }) {
-  const { memory } = parts;
-  useObserved(memory);
+export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: WidthClass; go?: (route: Route) => void }) {
+  const { memory, support } = parts;
+  useObserved(memory, support);
   const [status, setStatus] = useState<MemoryStatusName>('verified');
   const [scope, setScope] = useState<MemoryScopeName | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [chosen, choose] = usePicked();
   const linked = useInspectorHost().item;
   const [note, setNote] = useState<string | undefined>(undefined);
-  const [view, setView] = useState<MemoryView>(() => (localStorage.getItem(VIEW_KEY) === 'map' ? 'map' : 'list'));
-  // A document or a source picked on the map, which is not an item and so is not the picked id.
-  const [place, setPlace] = useState<MemoryMapNode | undefined>(undefined);
+  const [saved, setView] = useState<MemoryView>(savedView);
+  const views = VIEWS.filter((each) => each.needs === undefined || support.supports(each.needs) === true);
+  // A view whose method this runtime does not answer falls back to the brain, so nothing on screen is a promise.
+  // A popped out item opens on the list, where its details are drawn.
+  const view: MemoryView = linked !== undefined ? 'list' : views.some((each) => each.view === saved) ? saved : 'graph';
   const show = (next: MemoryView) => {
     localStorage.setItem(VIEW_KEY, next);
     setView(next);
   };
-  const pickNode = (node: MemoryMapNode | undefined) => {
-    setPlace(node === undefined || node.item !== undefined ? undefined : node);
-    choose(node === undefined ? undefined : node.item);
-  };
+  const switcher = (
+    <div className="inline-flex items-center gap-1 rounded-lg border border-panel-edge bg-card p-1" role="group" aria-label="Show memory as">
+      {views.map((each) => (
+        <button
+          key={each.view}
+          type="button"
+          aria-pressed={view === each.view}
+          onClick={() => show(each.view)}
+          className={`mx-focus inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-3 text-body-sm transition-colors ${view === each.view ? 'bg-active font-medium text-foreground' : 'text-muted hover:text-foreground'}`}
+        >
+          <each.icon size={14} aria-hidden />
+          {each.label}
+        </button>
+      ))}
+    </div>
+  );
   useEffect(() => {
     void memory.refreshSources();
     // An item a link names reopens whatever its status became, on the list that now holds it.
@@ -96,6 +120,33 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
 
   const listed = memory.facts;
   const picked = listed?.items.find((item) => item.id === chosen);
+  const forget = (id: string, after: () => void) =>
+    void memory.forget(id).then((outcome) => {
+      setNote(memoryNote(outcome));
+      if (outcome.kind !== 'failed') after();
+    });
+
+  if (view === 'graph' || view === 'layers') {
+    return (
+      <div className="flex flex-col gap-4">
+        {note !== undefined && (
+          <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
+            {note}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-2">{switcher}</div>
+        {view === 'graph' ? (
+          <MemoryBrain
+            parts={parts}
+            {...(go === undefined ? {} : { go })}
+            nodeCard={(id, close) => <BrainNode parts={parts} id={id} forget={(item) => forget(item, close)} />}
+          />
+        ) : (
+          <MemoryLayersView parts={parts} />
+        )}
+      </div>
+    );
+  }
   return (
     <div className="flex min-h-0">
       <div className="flex min-w-0 flex-1 flex-col gap-7">
@@ -110,20 +161,7 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
               <SearchField value={query} placeholder="Search memory" onChange={setQuery} />
             </div>
             <span className="flex-1" />
-            <div className="inline-flex items-center gap-1 rounded-lg border border-panel-edge bg-card p-1" role="group" aria-label="Show memory as">
-              {VIEWS.map((each) => (
-                <button
-                  key={each.view}
-                  type="button"
-                  aria-pressed={view === each.view}
-                  onClick={() => show(each.view)}
-                  className={`mx-focus inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-3 text-body-sm transition-colors ${view === each.view ? 'bg-active font-medium text-foreground' : 'text-muted hover:text-foreground'}`}
-                >
-                  <each.icon size={14} aria-hidden />
-                  {each.label}
-                </button>
-              ))}
-            </div>
+            {switcher}
             <div className="flex gap-1.5" role="group" aria-label="Scope">
               <button type="button" className={chip(scope === undefined)} aria-pressed={scope === undefined} onClick={() => setScope(undefined)}>
                 Both
@@ -153,10 +191,7 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
           {listed !== undefined && listed.items.length === 0 && (
             <EmptyState icon={Brain} title={query.trim() === '' ? `Nothing ${statusWord(status).word.toLowerCase()} here` : 'Nothing learned says that'} body="Add a source below and Memnox reads it with your own agent. What it finds waits in Learn until you confirm it." />
           )}
-          {listed !== undefined && listed.items.length > 0 && view === 'map' && (
-            <MemoryMapView items={listed.items} sources={memory.sources ?? []} selected={place?.id ?? chosen} select={pickNode} />
-          )}
-          {listed !== undefined && listed.items.length > 0 && view === 'list' && (
+          {listed !== undefined && listed.items.length > 0 && (
             <Panel>
               {listed.items.map((item) => (
                 <Row
@@ -178,25 +213,10 @@ export function MemoryPage({ parts, width }: { parts: SettingsParts; width: Widt
           )}
           {listed !== undefined && moreLine(listed.more) !== undefined && <p className="text-footnote text-muted">{moreLine(listed.more)}</p>}
         </Section>
-        <MemorySources parts={parts} said={setNote} />
       </div>
-      {place !== undefined && (
-        <Inspector title={place.kind === MEMORY_MAP_NODE.DOCUMENT ? 'Document' : 'Source'} width={width} close={() => setPlace(undefined)}>
-          <PlaceDetail parts={parts} place={place} items={listed?.items ?? []} open={(id) => pickNode({ ...place, item: id })} />
-        </Inspector>
-      )}
       {picked !== undefined && (
         <Inspector title={kindWord(picked.kind)} width={width} close={() => choose(undefined)} item={picked.id}>
-          <FactDetail
-            parts={parts}
-            item={picked}
-            forget={() =>
-              void memory.forget(picked.id).then((outcome) => {
-                setNote(memoryNote(outcome));
-                if (outcome.kind !== 'failed') choose(undefined);
-              })
-            }
-          />
+          <FactDetail parts={parts} item={picked} forget={() => forget(picked.id, () => choose(undefined))} />
         </Inspector>
       )}
     </div>
@@ -296,42 +316,68 @@ export function Evidence({ parts, evidence }: { parts: SettingsParts; evidence: 
 }
 
 /**
- * A document or a source picked on the map: what it is, and the facts listed above that cite it, each a
- * press that opens the fact. A document opens where it lives, as the evidence under a fact does.
+ * What the brain's card holds for a node this page knows: a fact whole with its evidence, or a document with the
+ * facts that cite it, each fact a press that opens it in its place. A workspace node says what the cloud handed down.
  */
-function PlaceDetail({ parts, place, items, open }: { parts: SettingsParts; place: MemoryMapNode; items: readonly MemoryItemView[]; open: (id: string) => void }) {
-  const document = place.kind === MEMORY_MAP_NODE.DOCUMENT;
-  const cites = (each: MemoryEvidenceView) => (document ? memoryMapIds.document(each.source, each.document) === place.id : memoryMapIds.source(each.source) === place.id);
+function BrainNode({ parts, id, forget }: { parts: SettingsParts; id: string; forget: (item: string) => void }) {
+  const { memory } = parts;
+  const [open, setOpen] = useState<string | undefined>(undefined);
+  const items = memory.everything ?? [];
+  const shown = open ?? id;
+  const fact = items.find((item) => LOCAL_ARMS_IDS.fact(item.id) === shown);
+  if (fact !== undefined) return <FactDetail parts={parts} item={fact} forget={() => forget(fact.id)} />;
+  const cites = (each: MemoryEvidenceView) => LOCAL_ARMS_IDS.document(each.source, each.document) === shown;
   const citing = items.filter((item) => item.evidence.some(cites));
-  const evidence = items.flatMap((item) => item.evidence).filter(cites);
-  const source = document ? undefined : (parts.memory.sources ?? []).find((each) => memoryMapIds.source(each.name) === place.id || memoryMapIds.source(each.id) === place.id);
+  const evidence = items.flatMap((item) => item.evidence).find(cites);
+  if (evidence !== undefined) {
+    return (
+      <div className="flex flex-col gap-4">
+        <p className="text-meta text-muted">{`In ${evidence.source}`}</p>
+        <Evidence parts={parts} evidence={[evidence]} />
+        <div className="flex flex-col gap-1.5">
+          <span className="text-label font-medium tracking-[0.14em] text-muted uppercase">Facts citing it</span>
+          <Panel>
+            {citing.map((item) => (
+              <Row key={item.id} title={item.statement} caption={statusWord(item.status).word} onClick={() => setOpen(LOCAL_ARMS_IDS.fact(item.id))} />
+            ))}
+          </Panel>
+        </div>
+      </div>
+    );
+  }
+  const node = memory.workspaceGraph?.nodes.find((each) => LOCAL_ARMS_IDS.workspace(each.id) === shown);
+  if (node === undefined) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      {node.statement !== undefined && <p className="whitespace-pre-wrap text-body-sm text-foreground">{node.statement}</p>}
+      {node.excerpt !== undefined && <p className="whitespace-pre-wrap text-body-sm text-muted">{node.excerpt}</p>}
+      {node.saidBy !== undefined && <p className="text-meta text-muted">{`Said by ${node.saidBy}`}</p>}
+      {node.status === 'candidate' && <StatusWord tone="attention">Not confirmed by anybody yet</StatusWord>}
+      {node.untrusted === true && <StatusWord tone="attention">{TAINTED_LINE}</StatusWord>}
+      {node.href !== undefined && (
+        <button type="button" className="mx-focus w-fit cursor-pointer text-body-sm font-medium text-primary hover:underline" onClick={() => parts.host.openPage(node.href as string)}>
+          Open where it lives
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The Sources tab under Inputs, as the Mac places it: where memory is read from, apart from what was read, with the
+ * line a press leaves above it.
+ */
+export function MemorySourcesPage({ parts }: { parts: SettingsParts }) {
+  const [note, setNote] = useState<string | undefined>(undefined);
+  useEffect(() => void parts.memory.refreshSources(), []);
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <p className="text-base font-medium break-words text-foreground">{place.label}</p>
-        {place.detail !== undefined && <p className="text-meta text-muted">{document ? `In ${place.detail}` : place.detail}</p>}
-      </div>
-      {document && evidence[0] !== undefined && <Evidence parts={parts} evidence={[evidence[0]]} />}
-      {source !== undefined && (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-meta">
-          <dt className="text-muted">Where</dt>
-          <dd className="min-w-0 break-words text-foreground">{source.location}</dd>
-          <dt className="text-muted">Trust</dt>
-          <dd className="text-foreground">{trustWord(source.trust).word}</dd>
-          <dt className="text-muted">Taught</dt>
-          <dd className="text-foreground">{sourceCountsLine(source.counts)}</dd>
-          <dt className="text-muted">Read</dt>
-          <dd className="text-foreground">{lastReadLine(source, Date.now())}</dd>
-        </dl>
+      {note !== undefined && (
+        <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
+          {note}
+        </p>
       )}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-label font-medium tracking-[0.14em] text-muted uppercase">{document ? 'Facts citing it' : 'Facts read from it'}</span>
-        <Panel>
-          {citing.map((item) => (
-            <Row key={item.id} title={item.statement} caption={statusWord(item.status).word} onClick={() => open(item.id)} />
-          ))}
-        </Panel>
-      </div>
+      <MemorySources parts={parts} said={setNote} />
     </div>
   );
 }

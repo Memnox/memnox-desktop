@@ -236,3 +236,42 @@ export function headerLines(server: Pick<McpHubServerView, 'name' | 'headerNames
     return held === undefined ? { name } : { name, held };
   });
 }
+
+/** "Remote" or "Local", the pill beside a server's name. */
+export function transportWord(server: Pick<McpHubServerView, 'transport'>): string {
+  return server.transport === 'http' ? 'Remote' : 'Local';
+}
+
+/** Each agent a server is given to, once, in the order the hub lists them. */
+export function agentsOnce(server: Pick<McpHubServerView, 'agents'>): string[] {
+  return [...new Set(server.agents)];
+}
+
+/** Which agents use a server, by name: "Claude Code and Cursor", or that none was given it yet. */
+export function usedBy(server: Pick<McpHubServerView, 'agents'>): string {
+  const names = agentsOnce(server).map(agentLabel);
+  const last = names[names.length - 1];
+  if (last === undefined) return agentsLine(0);
+  if (names.length === 1) return last;
+  return `${names.slice(0, -1).join(', ')} and ${last}`;
+}
+
+/** What a row waiting on the island says before the runtime's own words about it. */
+export function waitingForKey(keyTitle: string): string {
+  return `Waiting for ${keyTitle} on the island`;
+}
+
+/** The line one row says about its last press, and its tone; nothing while the runtime still works on it. */
+export function pressLine(press: { kind: 'working' } | { kind: 'waiting'; note: string | undefined } | { kind: 'done'; line: string } | { kind: 'failed'; why: string } | undefined, keyTitle: string): { text: string; tone: 'good' | 'bad' | 'quiet' } | undefined {
+  if (press === undefined) return undefined;
+  switch (press.kind) {
+    case 'working':
+      return undefined;
+    case 'waiting':
+      return { text: [waitingForKey(keyTitle), press.note].filter((part): part is string => part !== undefined && part !== '').join('. '), tone: 'quiet' };
+    case 'done':
+      return { text: press.line, tone: 'good' };
+    case 'failed':
+      return { text: press.why, tone: 'bad' };
+  }
+}

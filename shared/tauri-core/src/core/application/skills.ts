@@ -1,4 +1,5 @@
-import { SKILLS_METHOD, type DaemonRequest, type DaemonResponse, type SkillDraft, type SkillsHubView } from '@memnox/core/wire';
+import { SKILLS_METHOD, type DaemonRequest, type DaemonResponse, type FoundSkillView, type SkillDraft, type SkillsHubView } from '@memnox/core/wire';
+import type { ImportResults } from '../domain/skill-search';
 import { assignmentChanges, skillsSyncedLine } from '../domain/skills-lines';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
@@ -92,6 +93,21 @@ export class SkillsHub extends Observed {
 
   importFound(id: string, name: string): Promise<SkillOutcome> {
     return this.change(name, { method: SKILLS_METHOD.SKILL_IMPORT, skillFoundId: id }, `${name} is in the hub now.`);
+  }
+
+  /** Imports every skill given, one request each, telling `progress` after each, and counts what it came to. */
+  async importAll(found: readonly FoundSkillView[], progress: (done: number) => void = () => undefined): Promise<ImportResults> {
+    const results = { done: 0, proposed: 0, failed: [] as string[] };
+    let answered = 0;
+    for (const each of found) {
+      const outcome = await this.importFound(each.id, each.name);
+      if (outcome.kind === 'proposed') results.proposed += 1;
+      else if (outcome.kind === 'done') results.done += 1;
+      else results.failed.push(outcome.why);
+      answered += 1;
+      progress(answered);
+    }
+    return results;
   }
 
   put(draft: SkillDraft): Promise<SkillOutcome> {

@@ -2,7 +2,7 @@ import type { DaemonRequest, McpHubView } from '@memnox/core/wire';
 import { describe, expect, it } from 'vitest';
 import { McpHub, syncedLine } from '../src/core/application/mcp-hub';
 import { RequestIds } from '../src/core/application/request-ids';
-import { fromOrganization, GIVE_EVERYWHERE, headerLines, headerProblem, headerReference, headersOf, headerSecretName, isCredentialHeader, remoteAddressProblem, PROJECT_ONLY_LINE, missingSecrets, projectFolder, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, serverNameFrom, splitCommand } from '../src/core/domain/mcp-hub-lines';
+import { fromOrganization, GIVE_EVERYWHERE, headerLines, headerProblem, headerReference, headersOf, headerSecretName, isCredentialHeader, remoteAddressProblem, PROJECT_ONLY_LINE, missingSecrets, projectFolder, projectHelp, projectOnlyHelp, pressLine, projectsFor, reachCaption, reachOf, secretsAcross, serverNameFrom, splitCommand, transportWord, usedBy } from '../src/core/domain/mcp-hub-lines';
 import { ScriptedDaemon } from './doubles';
 
 const view: McpHubView = {
@@ -195,5 +195,30 @@ describe('a remote server’s headers', () => {
   it('lists headers by name, with whether the secret the dialog named is held', () => {
     expect(headerLines({ name: 'docs', headerNames: ['Authorization', 'X-Team'], secretsHeld: { 'docs-authorization': false } })).toEqual([{ name: 'Authorization', held: false }, { name: 'X-Team' }]);
     expect(headerLines({ name: 'docs', secretsHeld: {} })).toEqual([]);
+  });
+});
+
+describe('what each row of the hub says', () => {
+  it('names the agents a server is given to once each', () => {
+    expect(usedBy({ agents: ['claude-code', 'cursor', 'claude-code', 'codex-cli'] })).toBe('Claude Code, Cursor and Codex');
+    expect(usedBy({ agents: [] })).toBe('Given to no agent yet');
+    expect(transportWord({ transport: 'http' })).toBe('Remote');
+  });
+
+  it('keeps each press on its own row, waiting until a newer hub shows it written', async () => {
+    const server = { name: 'github', agents: [] as string[] };
+    const daemon = new ScriptedDaemon({
+      'mcp-assign': (request) => [{ id: request.id, ok: true, proposed: 'prp_1', outcome: 'It gives Codex your repositories' }],
+      'mcp-hub': (request) => [{ id: request.id, ok: true, mcpHub: { servers: [{ ...server, agents: ['codex-cli'] }] } as never }],
+    });
+    const hub = new McpHub(daemon, new RequestIds());
+    await hub.assign('github', 'codex-cli', true);
+    const pair = McpHub.pair('github', 'codex-cli');
+    expect(hub.press(pair)?.kind).toBe('waiting');
+    expect(pressLine(hub.press(pair), 'Windows Hello')?.text).toBe('Waiting for Windows Hello on the island. It gives Codex your repositories');
+    await hub.refresh();
+    expect(hub.press(pair)).toEqual({ kind: 'done', line: 'Codex has github now.' });
+    hub.clear(pair);
+    expect(hub.press(pair)).toBeUndefined();
   });
 });

@@ -1,9 +1,9 @@
 import type { McpHubServerView, McpHubView } from '@memnox/core/wire';
-import { Folder, KeyRound, MoreVertical, Plug, Plus, RefreshCw } from 'lucide-react';
+import { CircleCheck, Clock, Fingerprint, Folder, KeyRound, Plug, Plus, RefreshCw, TriangleAlert } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
-import type { HubOutcome } from '../../../core/application/mcp-hub';
+import { McpHub, type HubOutcome, type McpPress } from '../../../core/application/mcp-hub';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
-import { agentLabel, agentsLine, callsLine, fromOrganization, headerLines, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
+import { agentLabel, agentsOnce, pressLine, transportWord, usedBy, agentsLine, callsLine, fromOrganization, headerLines, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
 import { ago } from '../../../core/domain/session-text';
 import { BrandLogo } from '../../kit/logos';
 import { KitButton, SearchField } from '../../settings/kit';
@@ -96,7 +96,7 @@ function Servers({ parts, view, width, said, workspaces }: { parts: SettingsPart
         ) : (
           <CardGrid>
             {shown.map((server) => (
-              <ServerCard key={server.name} server={server} chosen={server.name === chosen} pick={() => choose(server.name)} />
+              <ServerCard key={server.name} parts={parts} server={server} chosen={server.name === chosen} pick={() => choose(server.name)} said={said} />
             ))}
           </CardGrid>
         )}
@@ -113,42 +113,108 @@ function Servers({ parts, view, width, said, workspaces }: { parts: SettingsPart
   );
 }
 
-function ServerCard({ server, chosen, pick }: { server: McpHubServerView; chosen: boolean; pick: () => void }) {
-  const health = healthWords(server.health);
+/** Most logos a card stacks before the names beside them carry the rest. */
+const LOGOS_SHOWN = 4;
+
+/**
+ * One server as the Mac's card draws it: the name with its transport pill and how it is reached in mono beneath,
+ * how it stands with its tools and Test, then who has it by logo and name, Governed, and whose it is.
+ */
+function ServerCard({ parts, server, chosen, pick, said }: { parts: SettingsParts; server: McpHubServerView; chosen: boolean; pick: () => void; said: (outcome: HubOutcome) => void }) {
+  const { hub } = parts;
+  const health = hub.testOf(server.name) ?? server.health;
+  const words = healthWords(health);
   const missing = missingSecrets(server);
+  const agents = agentsOnce(server);
+  const testing = hub.press(server.name)?.kind === 'working';
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={pick}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          pick();
+        }
+      }}
       aria-pressed={chosen}
       className={`mx-focus flex cursor-pointer flex-col gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:bg-hover ${chosen ? 'border-primary' : 'border-panel-edge'}`}
     >
-      <div className="flex items-start gap-2">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="truncate text-headline font-semibold text-foreground">{server.name}</span>
-          <span className="truncate text-footnote text-muted">{server.description ?? launchLine(server)}</span>
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex items-baseline gap-2">
+          <span className="min-w-0 flex-1 truncate text-headline font-semibold text-foreground">{server.name}</span>
+          <StatusWord tone="quiet">{transportWord(server)}</StatusWord>
         </div>
-        <MoreVertical size={15} className="mt-1 shrink-0 text-muted" aria-hidden />
+        <MiddleCutLine text={launchLine(server)} title={[launchLine(server), ...(server.args ?? [])].join(' ')} />
+        {server.description !== undefined && <span className="line-clamp-2 text-footnote text-muted">{server.description}</span>}
       </div>
       <div className="border-t border-panel-edge" />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        {missing.length > 0 ? <StatusWord tone="bad">Needs a secret</StatusWord> : <StatusWord tone={health.tone}>{health.word}</StatusWord>}
-        <span className="text-footnote text-muted">{server.transport === 'http' ? 'Remote' : 'Local'}</span>
-        <span className="text-footnote text-muted">{toolsLine(server.toolCount)}</span>
-        <ScopeChip scope={serverScope(server)} />
+        {missing.length > 0 ? <StatusWord tone="bad">Needs a secret</StatusWord> : <StatusWord tone={words.tone}>{words.word}</StatusWord>}
+        <span className="text-footnote text-muted">{toolsLine(health.tools?.length ?? server.toolCount)}</span>
+        <span className="flex-1" />
+        <button
+          type="button"
+          disabled={testing}
+          title="Starts the server once and asks what it offers"
+          onClick={(event) => {
+            event.stopPropagation();
+            void hub.test(server.name).then(said);
+          }}
+          className="mx-focus cursor-pointer text-footnote font-medium text-primary hover:underline disabled:cursor-default disabled:text-muted disabled:no-underline"
+        >
+          {testing ? 'Testing' : 'Test'}
+        </button>
       </div>
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex -space-x-1.5" aria-label={agentsLine(server.agents.length)}>
-          {server.agents.length === 0 ? <span className="text-footnote text-muted">{agentsLine(0)}</span> : server.agents.map((agent) => <BrandLogo key={agent} agent={agent} name={agentLabel(agent)} size={20} className="ring-2 ring-card" />)}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          {agents.length > 0 && (
+            <span className="flex shrink-0 -space-x-1.5" aria-hidden>
+              {agents.slice(0, LOGOS_SHOWN).map((agent) => (
+                <BrandLogo key={agent} agent={agent} name={agentLabel(agent)} size={18} className="ring-2 ring-card" />
+              ))}
+            </span>
+          )}
+          <span className="truncate text-footnote text-muted" title={usedBy(server)}>
+            {usedBy(server)}
+          </span>
         </span>
         {server.governed ? <StatusWord tone="good">Governed</StatusWord> : <StatusWord tone="attention">Not governed</StatusWord>}
+        <ScopeChip scope={serverScope(server)} />
       </div>
       {(server.projects ?? []).length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {[...new Set(server.agents)].flatMap((agent) => projectsFor(server, agent).map((project) => <ProjectChip key={`${agent}/${project.path}`} agent={agent} {...project} />))}
+          {agents.flatMap((agent) => projectsFor(server, agent).map((project) => <ProjectChip key={`${agent}/${project.path}`} agent={agent} {...project} />))}
         </div>
       )}
-    </button>
+    </div>
+  );
+}
+
+/** A line in mono cut in its middle, so both ends of a long command or address read. */
+function MiddleCutLine({ text, title }: { text: string; title: string }) {
+  const half = Math.ceil(text.length / 2);
+  return (
+    <span title={title} className="flex min-w-0 font-code text-micro text-muted">
+      <span className="truncate">{text.slice(0, half)}</span>
+      <span className="shrink-0 whitespace-pre">{text.slice(half)}</span>
+    </span>
+  );
+}
+
+/** Where the last press on one row stands, in that row: asking the runtime, the island it waits on, or what it came to. */
+function PressLine({ press, keyTitle }: { press: McpPress | undefined; keyTitle: string }) {
+  if (press?.kind === 'working') return <span className="text-footnote text-muted">Asking the runtime</span>;
+  const line = pressLine(press, keyTitle);
+  if (line === undefined) return null;
+  const Icon = press?.kind === 'waiting' ? Fingerprint : line.tone === 'good' ? CircleCheck : line.tone === 'bad' ? TriangleAlert : Clock;
+  const ink = line.tone === 'good' ? 'text-success' : line.tone === 'bad' ? 'text-destructive' : 'text-muted';
+  return (
+    <span role="status" className={`flex items-start gap-1.5 text-footnote select-text ${ink}`}>
+      <Icon size={13} className="mt-0.5 shrink-0" aria-hidden />
+      <span className="min-w-0 break-words">{line.text}</span>
+    </span>
   );
 }
 
@@ -190,22 +256,36 @@ function ServerDetail({ parts, view, server, said, removed, workspaces }: { part
               const reach = reachOf(server, agent);
               // Taking away removes only the everywhere assignment, so a project only one is offered Give alone.
               const on = reach === 'everywhere';
+              const pair = McpHub.pair(server.name, agent);
+              const press = hub.press(pair);
               return (
-                <Row
-                  key={agent}
-                  leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />}
-                  title={agentLabel(agent)}
-                  caption={reachCaption(server, agent)}
-                  trailing={
-                    <>
-                      <ProjectChips server={server} agent={agent} />
-                      {reach === 'projects' && <GoLink onClick={workspaces}>{WORKSPACES_LINK}</GoLink>}
-                      <KitButton disabled={hub.busy === `${server.name}/${agent}`} onClick={() => void hub.assign(server.name, agent, !on).then(said)}>
-                        {on ? 'Take away' : reach === 'projects' ? GIVE_EVERYWHERE : 'Give'}
-                      </KitButton>
-                    </>
-                  }
-                />
+                <div key={agent}>
+                  <Row
+                    leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />}
+                    title={agentLabel(agent)}
+                    caption={reachCaption(server, agent)}
+                    trailing={
+                      <>
+                        <ProjectChips server={server} agent={agent} />
+                        {reach === 'projects' && <GoLink onClick={workspaces}>{WORKSPACES_LINK}</GoLink>}
+                        <KitButton
+                          disabled={press?.kind === 'working'}
+                          onClick={() => {
+                            hub.clear(pair);
+                            void hub.assign(server.name, agent, !on).then(said);
+                          }}
+                        >
+                          {on ? 'Take away' : reach === 'projects' ? GIVE_EVERYWHERE : 'Give'}
+                        </KitButton>
+                      </>
+                    }
+                  />
+                  {press !== undefined && press.kind !== 'working' && (
+                    <div className="px-4 pb-3">
+                      <PressLine press={press} keyTitle={parts.words.keyTitle} />
+                    </div>
+                  )}
+                </div>
               );
             })}
           </Panel>
@@ -280,8 +360,8 @@ function Found({ parts, view, said }: { parts: SettingsParts; view: McpHubView; 
     <Section title={`Found on this computer · ${view.found.length}`}>
       <Panel>
         {view.found.map((entry) => (
+          <div key={`${entry.path}/${entry.name}`}>
           <Row
-            key={`${entry.path}/${entry.name}`}
             leading={entry.agent === undefined ? <Plug size={18} className="text-muted" /> : <BrandLogo agent={entry.agent} name={agentLabel(entry.agent)} size={22} />}
             title={entry.name}
             caption={`${entry.agent === undefined ? 'Shared by several agents' : agentLabel(entry.agent)} · ${entry.path}`}
@@ -289,12 +369,18 @@ function Found({ parts, view, said }: { parts: SettingsParts; view: McpHubView; 
               entry.agent === undefined ? (
                 <span className="text-footnote text-muted">A repository’s own file</span>
               ) : (
-                <KitButton disabled={hub.busy === entry.name} onClick={() => entry.agent !== undefined && void hub.importServer(entry.agent, entry.name).then(said)}>
+                <KitButton disabled={hub.press(McpHub.found(entry.name, entry.agent))?.kind === 'working'} onClick={() => entry.agent !== undefined && void hub.importServer(entry.agent, entry.name).then(said)}>
                   Bring into the hub
                 </KitButton>
               )
             }
           />
+          {entry.agent !== undefined && hub.press(McpHub.found(entry.name, entry.agent))?.kind !== 'working' && hub.press(McpHub.found(entry.name, entry.agent)) !== undefined && (
+            <div className="px-4 pb-3">
+              <PressLine press={hub.press(McpHub.found(entry.name, entry.agent))} keyTitle={parts.words.keyTitle} />
+            </div>
+          )}
+          </div>
         ))}
       </Panel>
       <p className="text-footnote text-muted">Bringing a server in puts it behind Memnox, so every call it makes is ruled on and recorded.</p>

@@ -1,5 +1,5 @@
 import type { SkillView, SkillsHubView } from '@memnox/core/wire';
-import { ArrowLeft, Check, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Download, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { SkillOutcome } from '../../../core/application/skills';
 import type { WidthClass } from '../../../core/domain/destinations';
@@ -13,6 +13,9 @@ import { CardGrid, EmptyState, Panel, ReadFailed, Row, ScopeChip, Section, Statu
 import { skillScope } from '../../../core/domain/scope-lines';
 import { useShellChoices } from '../shell-choices';
 import { inScope, NO_ORGANIZATION_ITEMS, ORGANIZATION_READ_ONLY, skillsShown } from '../../../core/domain/shell-lines';
+import { MarkdownText } from '../../cards/MarkdownText';
+import { SkillCareSection } from './SkillCareSection';
+import { COLLAPSED_ROWS, countedLine, foundMatching, foundReach, groupedFound, homeOf, hubMatching, importAllTitle, importedLine, importingLine, instructionsFile, noMatchDetail, noMatchTitle, queryWords, shortPath } from '../../../core/domain/skill-search';
 
 /**
  * The Skills Hub: skills kept once and written into each agent's own format. Giving a skill to an agent
@@ -60,9 +63,10 @@ function MySkills({ parts, view, width, said, manage }: { parts: SettingsParts; 
   const { project, scope, connected } = useShellChoices();
   const picked = view.skills.find((skill) => skill.name === opened);
   if (picked !== undefined) return <SkillDetail parts={parts} view={view} skill={picked} width={width} back={() => open(undefined)} said={said} manage={() => manage(picked.name)} />;
-  const words = query.trim().toLowerCase();
   const scoped = inScope(skillsShown(view.skills, project), scope, (skill) => skill.scope === 'organization');
-  const shown = scoped.filter((skill) => words === '' || `${skill.name} ${skill.description} ${skill.category ?? ''}`.toLowerCase().includes(words));
+  const label = (agent: string) => labelOf(view, agent);
+  const shown = hubMatching(scoped, query, label);
+  const searching = queryWords(query) !== undefined;
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-2.5">
@@ -86,13 +90,17 @@ function MySkills({ parts, view, width, said, manage }: { parts: SettingsParts; 
           action={<KitButton kind="primary" icon={Plus} onClick={() => setCreating(true)}>New skill</KitButton>}
         />
       ) : (
+        searching && shown.length === 0 ? (
+          <EmptyState icon={Sparkles} title={noMatchTitle(query)} body={noMatchDetail(foundMatching(view.found, query, label).length)} />
+        ) : (
         <CardGrid>
           {shown.map((skill) => (
             <SkillCard key={`${skill.scope}/${skill.project ?? ''}/${skill.name}`} parts={parts} skill={skill} said={said} view={() => open(skill.name)} manage={() => manage(skill.name)} />
           ))}
         </CardGrid>
+        )
       )}
-      <Found parts={parts} view={view} said={said} />
+      <Found parts={parts} view={view} query={query} said={said} />
       {creating && <NewSkillDialog parts={parts} close={() => setCreating(false)} said={said} />}
     </div>
   );
@@ -164,8 +172,12 @@ function SkillDetail({
         <div className="flex min-w-0 flex-col gap-6">
           <p className="text-body text-foreground">{skill.description}</p>
           <Section title="Instructions">
-            <pre className="max-h-[420px] overflow-auto rounded-xl border border-panel-edge bg-card p-3.5 font-mono text-footnote whitespace-pre-wrap text-foreground">{skill.instructions}</pre>
+            {/* Drawn the way its agent reads it, headings, lists and code, as the Mac's SkillMarkdown draws a SKILL.md. */}
+            <div className="max-h-[420px] overflow-auto rounded-xl border border-panel-edge bg-card p-3.5">
+              <MarkdownText source={skill.instructions} tone="window" onLink={(href) => parts.host.openPage(href)} />
+            </div>
           </Section>
+          <SkillCareSection parts={parts} skill={skill} said={said} />
           <Facts
             facts={[
               ['Version', skill.version],
@@ -319,28 +331,93 @@ function ListSection({ title, items, mono = false }: { title: string; items: rea
   );
 }
 
-/** Skills an agent already had in its own folder, offered to bring in and never touched until then. */
-function Found({ parts, view, said }: { parts: SettingsParts; view: SkillsHubView; said: (outcome: SkillOutcome) => void }) {
-  const { skills } = parts;
-  const waiting = view.found.filter((each) => !each.imported);
-  if (waiting.length === 0) return null;
+/**
+ * Skills an agent already had in its own folder, grouped by agent and narrowed by the same search as the hub, offered
+ * to bring in one at a time or all at once, and never touched until then. View opens its SKILL.md where it lives.
+ */
+function Found({ parts, view, query, said }: { parts: SettingsParts; view: SkillsHubView; query: string; said: (outcome: SkillOutcome) => void }) {
+  const { skills, host } = parts;
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [importing, setImporting] = useState<{ done: number; total: number } | undefined>(undefined);
+  const label = (agent: string) => labelOf(view, agent);
+  const total = view.found.filter((each) => !each.imported).length;
+  if (total === 0) return null;
+  const searching = queryWords(query) !== undefined;
+  const found = foundMatching(view.found, query, label);
+  const importAll = async () => {
+    if (importing !== undefined || found.length === 0) return;
+    setImporting({ done: 0, total: found.length });
+    const results = await skills.importAll(found, (done) => setImporting({ done, total: found.length }));
+    setImporting(undefined);
+    said({ kind: 'done', note: importedLine(results) });
+  };
+  const toggle = (agent: string, open: boolean) =>
+    setExpanded((now) => {
+      const next = new Set(now);
+      if (open) next.add(agent);
+      else next.delete(agent);
+      return next;
+    });
   return (
-    <Section title={`Found on this computer · ${waiting.length}`}>
-      <Panel>
-        {waiting.map((found) => (
-          <Row
-            key={found.id}
-            leading={<BrandLogo agent={found.agent} name={labelOf(view, found.agent)} size={22} />}
-            title={found.name}
-            caption={`${labelOf(view, found.agent)} · ${found.grant} · ${found.path}`}
-            trailing={
-              <KitButton disabled={skills.busy === found.name} onClick={() => void skills.importFound(found.id, found.name).then(said)}>
-                Import
-              </KitButton>
-            }
-          />
-        ))}
-      </Panel>
+    <Section
+      title={`Found on this computer · ${countedLine(found.length, total, searching)}`}
+      trailing={
+        importing !== undefined ? (
+          <span className="flex items-center gap-2 text-meta text-muted">
+            <progress className="w-[120px] accent-primary" value={importing.done} max={Math.max(importing.total, 1)} />
+            {importingLine(importing.done, importing.total)}
+          </span>
+        ) : found.length > 0 ? (
+          <KitButton kind="primary" icon={Download} disabled={skills.busy !== undefined} onClick={() => void importAll()} title="Imports each one in turn; any that reaches further than reading its folder waits for your signature on the island">
+            {importAllTitle(found.length, searching)}
+          </KitButton>
+        ) : undefined
+      }
+    >
+      {found.length === 0 ? (
+        <p className="text-footnote text-muted">Nothing an agent already has matches that search.</p>
+      ) : (
+        groupedFound(found, label).map((group) => {
+          const open = searching || expanded.has(group.agent);
+          const rows = open ? group.skills : group.skills.slice(0, COLLAPSED_ROWS);
+          const hidden = group.skills.length - rows.length;
+          return (
+            <div key={group.agent} className="flex flex-col gap-2">
+              <div className="flex items-center gap-2.5">
+                <BrandLogo agent={group.agent} name={group.label} size={20} />
+                <span className="text-body-sm font-medium text-foreground">{group.label}</span>
+                <span className="text-meta text-muted tabular-nums">{group.skills.length}</span>
+              </div>
+              <Panel>
+                {rows.map((each) => {
+                  const where = shortPath(each.path, homeOf(each.path));
+                  const reach = foundReach(each);
+                  return (
+                    <Row
+                      key={each.id}
+                      title={each.name}
+                      caption={<span title={each.path}>{reach === undefined ? where : `${where} · ${reach}`}</span>}
+                      trailing={
+                        <>
+                          {host.openFile !== undefined && <KitButton onClick={() => void host.openFile?.(instructionsFile(each))}>View</KitButton>}
+                          <KitButton disabled={skills.busy !== undefined || importing !== undefined} onClick={() => void skills.importFound(each.id, each.name).then(said)}>
+                            Import
+                          </KitButton>
+                        </>
+                      }
+                    />
+                  );
+                })}
+                {(hidden > 0 || (expanded.has(group.agent) && !searching && group.skills.length > COLLAPSED_ROWS)) && (
+                  <button type="button" className="mx-focus w-full cursor-pointer px-4 py-2.5 text-left text-meta font-medium text-primary hover:bg-hover" onClick={() => toggle(group.agent, hidden > 0)}>
+                    {hidden > 0 ? `Show all ${group.skills.length}` : 'Show fewer'}
+                  </button>
+                )}
+              </Panel>
+            </div>
+          );
+        })
+      )}
       <p className="text-footnote text-muted">Importing a skill keeps it once in the hub, with its files, so it can be given to any agent in that agent’s own format.</p>
     </Section>
   );

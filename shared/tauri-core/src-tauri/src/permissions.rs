@@ -151,7 +151,27 @@ fn typing() -> bool {
     if cfg!(windows) || session() == "x11" {
         return true;
     }
-    uinput_writable()
+    uinput_writable() || remote_desktop_portal() || on_path("wtype")
+}
+
+/// The RemoteDesktop portal types on GNOME and KDE with no uinput access, asking the person once.
+fn remote_desktop_portal() -> bool {
+    bus_answer(&[
+        "--user",
+        "get-property",
+        "org.freedesktop.portal.Desktop",
+        "/org/freedesktop/portal/desktop",
+        "org.freedesktop.portal.RemoteDesktop",
+        "version",
+    ])
+    .is_some()
+}
+
+/// Whether a program is on PATH, since wtype types through the compositor's own virtual keyboard.
+fn on_path(program: &str) -> bool {
+    std::env::var_os("PATH").is_some_and(|path| {
+        std::env::split_paths(&path).any(|folder| folder.join(program).is_file())
+    })
 }
 
 #[cfg(unix)]

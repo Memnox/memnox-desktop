@@ -54,12 +54,14 @@
     "linux": {
       "deb": {
         "files": {
-          "/usr/share/polkit-1/actions/org.memnox.desktop.policy": "../../../linux/packaging/org.memnox.desktop.policy"
+          "/usr/share/polkit-1/actions/org.memnox.desktop.policy": "../../../linux/packaging/org.memnox.desktop.policy",
+          "/usr/lib/udev/rules.d/60-memnox.rules": "../../../linux/packaging/60-memnox.rules"
         }
       },
       "rpm": {
         "files": {
-          "/usr/share/polkit-1/actions/org.memnox.desktop.policy": "../../../linux/packaging/org.memnox.desktop.policy"
+          "/usr/share/polkit-1/actions/org.memnox.desktop.policy": "../../../linux/packaging/org.memnox.desktop.policy",
+          "/usr/lib/udev/rules.d/60-memnox.rules": "../../../linux/packaging/60-memnox.rules"
         }
       }
     }

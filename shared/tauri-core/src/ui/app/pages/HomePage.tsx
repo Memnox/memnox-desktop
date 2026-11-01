@@ -13,6 +13,8 @@ import { KitButton } from '../../settings/kit';
 import { useObserved, usePreferences, type SettingsParts } from '../../settings/parts';
 import { OverviewPage } from '../../settings/pages/OverviewPage';
 import { routeForPage } from '../../../core/domain/destinations';
+import { homeMode, modeBadge } from '../../../core/domain/home-steps';
+import { HomeStart } from './HomeStart';
 import { EmptyState, Panel, ReadFailed, Row, Section, StatTile, StatusWord } from '../widgets';
 
 const RECENT_SESSIONS = 5;
@@ -51,10 +53,13 @@ export function HomePage({ parts, go }: { parts: SettingsParts; go: (route: Rout
           <h1 className="text-title font-bold text-foreground">{greeting(preferences.name)}</h1>
           <p className="text-footnote text-muted">Your agents at a glance.</p>
         </div>
-        {view !== undefined ? <StatusWord tone="good">Runtime protecting this computer</StatusWord> : home.unavailable ? <StatusWord tone="bad">The runtime is not answering</StatusWord> : null}
+        <Standing mode={homeMode(view?.mode)} read={view !== undefined} away={home.unavailable} />
       </header>
 
       {home.unavailable && view === undefined && <ReadFailed what="the runtime" retry={() => void home.refresh()} />}
+
+      {/* The getting started steps, as the cloud console's home lists them, above the counts until every one is done. */}
+      <HomeStart parts={parts} go={go} actions={view?.today.actions ?? 0} mode={homeMode(view?.mode)} />
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
         <StatTile value={running.length} label={running.length === 1 ? 'Agent working' : 'Agents working'} tone={running.length > 0 ? 'good' : 'quiet'} onClick={() => go({ destination: 'agents', tab: 'sessions' })} />
@@ -108,6 +113,14 @@ export function HomePage({ parts, go }: { parts: SettingsParts; go: (route: Rout
       {view !== undefined && <p className="text-footnote text-muted">{HomeLines.today(view.today)}</p>}
     </div>
   );
+}
+
+/** The mode the runtime reported, as the Mac's badge beside the greeting says it, or whether the runtime answers at all. */
+function Standing({ mode, read, away }: { mode: ReturnType<typeof homeMode>; read: boolean; away: boolean }) {
+  if (mode !== undefined) return <StatusWord tone={mode === 'enforce' ? 'good' : 'attention'}>{modeBadge(mode)}</StatusWord>;
+  if (read) return <StatusWord tone="good">Runtime protecting this computer</StatusWord>;
+  if (away) return <StatusWord tone="bad">The runtime is not answering</StatusWord>;
+  return null;
 }
 
 /** Everything that waits on the person, in one place to clear, and nothing when nothing waits. */

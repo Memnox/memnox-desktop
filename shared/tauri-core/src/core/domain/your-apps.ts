@@ -27,6 +27,9 @@ export const STANDING_LINE: Record<AppStanding, string> = {
 /** What a catalogue card says under a tool nobody has connected yet. */
 export const CONNECT_LINE = 'Sign in with your own account';
 
+/** What may be done in those apps a month, said before anybody meets the limit; the cloud enforces the numbers, and nothing runs before a sign in. */
+export const ALLOWANCE_LINE = 'Free includes 500 actions a month in your apps once you sign in to Memnox Cloud. Paid plans have no limit.';
+
 /** The catalogue answers at most this many tools to one search. */
 export const CATALOGUE_PAGE = 30;
 

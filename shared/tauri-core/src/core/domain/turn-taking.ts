@@ -8,6 +8,8 @@
 const TRAILING_WORDS = new Set([
   'uh', 'um', 'er', 'erm', 'hmm', 'so', 'and', 'but', 'or', 'like', 'the', 'a', 'an', 'to', 'of', 'with', 'because',
   'i', 'my', 'your', 'our', 'was', 'is', 'are', 'that', 'if', 'when', 'about', 'for', 'in', 'on', 'at', 'then', 'which', 'we', "it's", 'its',
+  // Words that only lead into what follows, so "start a new session within" is half a request, never all of it.
+  'within', 'into', 'onto', 'from', 'via', 'than', 'whether', 'until', 'unless', 'their',
 ]);
 
 /** The openings of a request, which said alone are somebody gathering the rest of it. */
@@ -31,10 +33,11 @@ const ASKING_WORDS = new Set([
 export const SPEECH_PAUSE = {
   stillThinking: 3_000,
   shortReply: 800,
-  finished: 1_400,
-  finishedLong: 2_000,
-  unmarked: 2_200,
-  unmarkedLong: 2_600,
+  /** Over a second, since the recognizer marks nearly every pause as a full stop, and the guess starts the answer well before it ends. */
+  finished: 1_100,
+  finishedLong: 1_700,
+  unmarked: 1_800,
+  unmarkedLong: 2_200,
 } as const;
 
 const TRAILING_MARKS = [',', '...', '…'];

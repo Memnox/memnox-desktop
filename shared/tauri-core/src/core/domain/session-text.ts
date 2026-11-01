@@ -187,8 +187,8 @@ export function viewStatus(view: SessionView): SessionStatus {
 }
 
 /** What a session is on, which is what tells two sessions of the same agent apart, with terminal glyphs taken out. */
-export function cardTitle(card: Pick<SessionCard, 'task' | 'repository' | 'agentName'>): string {
-  return readable(card.task) ?? repositoryName(card.repository) ?? card.agentName;
+export function cardTitle(card: Pick<SessionCard, 'focus' | 'task' | 'repository' | 'agentName'>): string {
+  return readable(card.focus) ?? readable(card.task) ?? repositoryName(card.repository) ?? card.agentName;
 }
 
 /** The agent, where it is if the title did not say, and how lately it did anything. */

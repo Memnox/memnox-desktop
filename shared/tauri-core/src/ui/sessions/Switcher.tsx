@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SessionCard } from '@memnox/core/wire';
-import { cardStatus, statusLabel, statusTint } from '../../core';
+import { cardStatus, cardTitle, statusLabel, statusTint } from '../../core';
 import { shelfPlace, shelfStart, SWITCHER_TIMING, turnMs } from '../../core/domain/switcher';
 import { BrandLogo } from '../kit';
 import { tinted } from './parts';
@@ -99,7 +99,7 @@ function SessionTile({ card, front }: { card: SessionCard; front: boolean }) {
           <span className="truncate text-caption text-muted">{card.runningIn ?? 'Somewhere unknown'}</span>
         </div>
       </div>
-      <p className="m-0 line-clamp-4 text-body text-foreground/90">{card.task ?? 'No task recorded'}</p>
+      <p className="m-0 line-clamp-4 text-body text-foreground/90">{cardTitle(card)}</p>
       <span className="flex-1" />
       <div className="flex min-w-0 items-center gap-1.5">
         <span className="size-[7px] shrink-0 rounded-full" style={{ backgroundColor: colour }} />

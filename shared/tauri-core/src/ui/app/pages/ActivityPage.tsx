@@ -208,7 +208,7 @@ function DecisionDetail({ view, host, change }: { view: DecisionView; host: Sett
         <Section title="What led up to it">
           <Panel>
             {view.before.map((step) => (
-              <Row key={`${step.at}${step.operation}`} title={<span className="font-mono">{activityLine(step)}</span>} caption={ago(step.at, Date.now())} trailing={<StatusWord tone={effectTone(step.effect)}>{isEffect(step.effect) ? EFFECT_WORDS[step.effect].title : step.effect}</StatusWord>} />
+              <Row key={`${step.at}${step.operation}`} title={<span className="font-mono">{activityLine(step)}</span>} caption={ago(step.at, Date.now())} trailing={<StatusWord tone={effectTone(step.effect)}>{isEffect(step.effect) ? EFFECT_WORDS[step.effect].verdict : step.effect}</StatusWord>} />
             ))}
           </Panel>
         </Section>

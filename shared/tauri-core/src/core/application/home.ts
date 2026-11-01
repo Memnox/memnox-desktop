@@ -1,4 +1,5 @@
 import { DAEMON_METHOD, type DaemonRequest, type DaemonResponse, type HomeReady, type HomeView, type SessionCard } from '@memnox/core/wire';
+import { HomeEnforce, type EnforceOutcome } from '../domain/home-steps';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
@@ -40,6 +41,8 @@ export class Home extends Observed {
   private handNote: string | undefined;
   private protectingNow = false;
   private protectWhy: string | undefined;
+  private enforcingNow = false;
+  private enforceSaid: string | undefined;
   /** Set while a read is due after a burst, so more events in the burst ask for nothing more. */
   private soon = false;
 
@@ -84,6 +87,38 @@ export class Home extends Observed {
 
   get protectFailed(): string | undefined {
     return this.protectWhy;
+  }
+
+  get enforcing(): boolean {
+    return this.enforcingNow;
+  }
+
+  /** What turning on stopping came to, until the next press. */
+  get enforceNote(): string | undefined {
+    return this.enforceSaid;
+  }
+
+  /**
+   * Turns this computer from watching to stopping. Unsigned, because it only narrows what agents may do; going back
+   * widens and stays at the terminal, so no press here offers it.
+   */
+  async enforce(): Promise<EnforceOutcome> {
+    if (this.enforcingNow) return { kind: 'refused', why: 'Already asking.' };
+    this.enforcingNow = true;
+    this.enforceSaid = undefined;
+    this.changed();
+    const response = await this.ask({ id: this.ids.next(), method: DAEMON_METHOD.MODE_ENFORCE });
+    const outcome: EnforceOutcome =
+      response === undefined
+        ? { kind: 'unreachable' }
+        : response.ok && response.modeSet !== undefined
+          ? { kind: 'enforcing', set: response.modeSet }
+          : // A runtime from before the method answers it with a bare ok and nothing else.
+            { kind: 'refused', why: response.reason ?? response.error ?? HomeEnforce.older };
+    this.enforcingNow = false;
+    this.enforceSaid = HomeEnforce.line(outcome);
+    await this.refresh();
+    return outcome;
   }
 
   async refresh(): Promise<void> {

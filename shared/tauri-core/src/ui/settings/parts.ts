@@ -15,6 +15,7 @@ import { Profiles } from '../../core/application/profiles';
 import { Activity, Agents, Studio } from '../../core/application/studio';
 import { Sessions } from '../../core/application/sessions';
 import { SkillsHub } from '../../core/application/skills';
+import { SkillCare } from '../../core/application/skill-care';
 import { PhonePairing } from '../../core/application/pairing';
 import { Projects } from '../../core/application/projects';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
@@ -79,6 +80,8 @@ export interface SettingsParts {
   readonly agents: Agents;
   /** Skills kept once and written into each agent's own format. */
   readonly skills: SkillsHub;
+  /** Each skill's use and its fixes, a suggested fix accepted through skill-put like any new version. */
+  readonly skillCare: SkillCare;
   /** The projects on this computer and what each gives the agents opened in it. */
   readonly projects: Projects;
   /** The setup sealed under a passphrase, and put back once signed on the island. */
@@ -137,6 +140,7 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     activity: new Activity(link, ids),
     agents: new Agents(link, ids),
     skills: new SkillsHub(link, ids),
+    skillCare: new SkillCare(link, ids),
     projects: new Projects(link, ids),
     backup: new Backup(link, ids),
     memory: new Memory(link, ids),

@@ -23,7 +23,8 @@ function trimmed(text: string | undefined): string | undefined {
 function greetings(to: string | undefined, hour: number): string[] {
   const part = hour < AFTERNOON_FROM ? 'Good morning' : hour < EVENING_FROM ? 'Good afternoon' : 'Good evening';
   const named = to === undefined ? `${part}.` : `${part}, ${to}.`;
-  return [`${named} Systems online. Memnox is ready.`, `${named} Let's see what your agents are up to.`, `${named} Your agents, your rules.`];
+  // Said the way a person would pick up the phone, never a system announcing itself.
+  return [`${named} What can I do for you?`, `${named} What are we working on?`, `${named} I'm here whenever you need me.`];
 }
 
 /** Never "Yes", since being called is not a question it was asked, and a "Yes" sounds like it agreed to something. */

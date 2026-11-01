@@ -7,9 +7,9 @@ import { quietHere } from './quiet';
  */
 
 /** Said whatever the Speak up setting, because the person asked for it or somebody waits on them. */
-const ALWAYS_SAID = new Set(['watched', 'question', 'asking', 'collision', 'gone', 'signed-in', 'sign-in-stalled']);
+const ALWAYS_SAID = new Set(['watched', 'question', 'asking', 'collision', 'message', 'gone', 'signed-in', 'sign-in-stalled']);
 /** Keeps the microphone open once said, because only the person can answer it. */
-const AWAITS_ANSWER = new Set(['question', 'asking', 'collision']);
+const AWAITS_ANSWER = new Set(['question', 'asking', 'collision', 'message']);
 
 /** A drive grant, a phone's turn, the voice moving to a phone, or live activity for the screens: never said. */
 export function isShownOnly(event: DaemonEvent): boolean {

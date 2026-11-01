@@ -3,6 +3,10 @@ import { DaemonSupport } from '../src/core/application/daemon-support';
 import { RequestIds } from '../src/core/application/request-ids';
 import {
   matchCommands,
+  pageSymbol,
+  paneHeading,
+  shownPages,
+  SIDEBAR_TREE,
   RouteHistory,
   routeForPage,
   routeFrom,
@@ -27,7 +31,7 @@ describe('the window’s destinations', () => {
 
   it('shows memory, the Skills Hub, the community index and profiles only where the runtime keeps them', () => {
     expect(visibleTabs('workspaces', nothingNew).map((tab) => tab.id)).toEqual(['projects']);
-    expect(visibleTabs('workspaces', everything).map((tab) => tab.id)).toEqual(['projects', 'memory', 'skills', 'assigned', 'discover', 'profiles']);
+    expect(visibleTabs('workspaces', everything).map((tab) => tab.id)).toEqual(['projects', 'memory', 'sources', 'skills', 'assigned', 'discover', 'profiles']);
   });
 
   it('shows the local network and personal sync under Settings only where the runtime answers them', () => {
@@ -68,7 +72,7 @@ describe('the window’s destinations', () => {
     expect(routeFrom('?page=phones')).toEqual({ destination: 'settings', tab: 'phones' });
     expect(routeFrom('?page=tools')).toEqual({ destination: 'agents', tab: 'computer' });
     expect(routeFrom('?page=apps')).toEqual({ destination: 'mcp', tab: 'apps' });
-    expect(routeFrom('')).toEqual({ destination: 'home' });
+    expect(routeFrom('')).toEqual({ destination: 'today' });
     expect(routeForPage('voice')).toEqual({ destination: 'settings', tab: 'voice' });
     expect(routeForPage('governance')).toEqual({ destination: 'governance' });
   });
@@ -85,7 +89,7 @@ describe('the window’s destinations', () => {
   it('finds a place by any word of it, titles that start with it first', () => {
     const found = matchCommands('app', nothingNew).map((each) => each.title);
     expect(found[0]).toBe('Approvals');
-    expect(found).toContain('Your apps');
+    expect(matchCommands('conn', nothingNew).map((each) => each.title)).toContain('Connectors');
     expect(matchCommands('servers', nothingNew)).toEqual([]);
   });
 
@@ -112,5 +116,34 @@ describe('what the daemon answers', () => {
     expect(support.supports('mcp-hub')).toBe(true);
     expect(support.supports('rules')).toBe(false);
     expect(daemon.sent('mcp-hub')).toHaveLength(1);
+  });
+
+  it('lays the sidebar out as the Mac does: the same headings, pages and order', () => {
+    const tree = SIDEBAR_TREE.map((branch) => [branch.title, shownPages(branch, everything).map((page) => page.tab.title)]);
+    expect(tree).toEqual([
+      ['Agents', ['Agents', 'Sessions', 'On this computer']],
+      ['Workspaces', ['Workspaces', 'Memory', 'My Skills']],
+      ['Govern', ['Rules', 'Activity']],
+      ['MCP Hub', ['Servers']],
+      ['Inputs', ['Connectors', 'Sources']],
+    ]);
+  });
+
+  it('keeps a page off the sidebar until the runtime answers what it reads', () => {
+    const shown = SIDEBAR_TREE.map((branch) => shownPages(branch, nothingNew).map((page) => page.tab.id));
+    expect(shown).toEqual([['sessions', 'computer'], ['projects'], [], [], ['apps']]);
+  });
+
+  it('gives each page the Mac’s icon, falling back to its destination’s', () => {
+    expect(pageSymbol({ destination: 'workspaces', tab: 'memory' })).toBe('brain');
+    expect(pageSymbol({ destination: 'governance', tab: 'approvals' })).toBe('checkmark.shield');
+    expect(pageSymbol({ destination: 'today' })).toBe('sun.max');
+  });
+
+  it('heads a page with its own title, Settings with its tree, and Home and Today with nothing', () => {
+    expect(paneHeading({ destination: 'workspaces', tab: 'memory' }, everything)).toEqual({ kind: 'page', title: 'Memory', subtitle: expect.stringContaining('What your agents know') });
+    expect(paneHeading({ destination: 'settings', tab: 'voice' }, everything)).toEqual({ kind: 'sub-nav', title: 'Settings' });
+    expect(paneHeading({ destination: 'today' }, everything)).toEqual({ kind: 'none' });
+    expect(paneHeading({ destination: 'home' }, everything)).toEqual({ kind: 'none' });
   });
 });

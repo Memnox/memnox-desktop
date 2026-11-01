@@ -1,7 +1,7 @@
 import { CircleAlert, Link, RotateCw, UserRoundX } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { AppConnections } from '../../../core/application/app-connections';
-import { catalogueCards, connectedCards, connectedSummary, resultCountLine, type CatalogueCard, type ConnectedCard, type YourConnection } from '../../../core/domain/your-apps';
+import { ALLOWANCE_LINE, catalogueCards, connectedCards, connectedSummary, resultCountLine, type CatalogueCard, type ConnectedCard, type YourConnection } from '../../../core/domain/your-apps';
 import { ToolMark } from '../../kit/logos';
 import { KitButton, SearchField, SettingsCard, SettingsRow, SettingsSection, Spinner } from '../kit';
 import { useObserved, type SettingsParts } from '../parts';
@@ -47,6 +47,7 @@ export function YourAppsPage({ parts }: { parts: SettingsParts }) {
             ))}
           </div>
         )}
+        <p className="m-0 text-footnote text-muted">{ALLOWANCE_LINE}</p>
       </SettingsSection>
       {note !== undefined && (
         <SettingsCard>

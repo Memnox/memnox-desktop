@@ -18,6 +18,7 @@ export function reactionTo(event: DaemonEvent): Reaction | undefined {
     // Seen as it comes and goes, so a session appearing or closing is never only in a list.
     case 'started':
     case 'closed':
+    case 'together':
       return 'settle';
     case 'collision':
     case 'gone':

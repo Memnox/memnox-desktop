@@ -12,7 +12,7 @@ import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { GoLink } from './HomePage';
 import { DiscoverPage } from './DiscoverPage';
-import { MemoryPage } from './MemoryPage';
+import { MemoryPage, MemorySourcesPage } from './MemoryPage';
 import { ProfilesPage } from './ProfilesPage';
 import { OrganizationBadge, ProjectInspector, projectNote } from './ProjectInspector';
 import { SkillsPage } from './SkillsPage';
@@ -30,7 +30,9 @@ export function WorkspacesPage({ parts, tab, width, go }: { parts: SettingsParts
   const { support } = parts;
   useObserved(support);
   if (tab === 'skills' || tab === 'assigned') return <SkillsPage parts={parts} tab={tab} width={width} />;
-  if (tab === 'memory') return <MemoryPage parts={parts} width={width} />;
+  if (tab === 'memory') return <MemoryPage parts={parts} width={width} go={go} />;
+  // Where memory is read from, under Inputs beside the connectors, as Memnox Cloud places its sources.
+  if (tab === 'sources') return <MemorySourcesPage parts={parts} />;
   if (tab === 'discover') return <DiscoverPage parts={parts} width={width} />;
   if (tab === 'profiles') return <ProfilesPage parts={parts} />;
   if (support.supports('projects') === true) return <ProjectsTab parts={parts} width={width} />;

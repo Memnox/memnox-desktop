@@ -109,11 +109,27 @@ The Mac app has its own pictures in [`macos/README.md`](macos/README.md).
 
 ## Build and test
 
-Each app expects a [memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout beside this repo,
-named `memnox-runtime`, or one named by `MEMNOX_RUNTIME`.
+Each app builds against a [memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout beside
+this repo, in a folder named exactly `memnox-runtime`, or one named by `MEMNOX_RUNTIME`. The runtime's
+repository is called `memnox`, so name the folder when you clone it:
+
+```sh
+git clone https://github.com/Memnox/memnox.git memnox-runtime
+git clone https://github.com/Memnox/memnox-desktop.git
+```
+
+Every platform also needs Node 22 (`.nvmrc`) with `corepack enable`, which gives each repository the
+pnpm it pins: 9.15.4 here and 11 in the runtime. Node 25 and later need `npm install -g corepack` first.
+Rust comes from [rustup](https://rustup.rs), which installs the version `rust-toolchain.toml` pins the
+first time `cargo` runs here, so every machine and CI lint with the same compiler.
 
 <details>
-<summary><b>macOS</b>: Xcode 26 or later on macOS 14 or later</summary>
+<summary><b>macOS</b>: an Apple silicon Mac on macOS 14 or later, Xcode 26, Node 22, and Rust</summary>
+
+Run `xcode-select --install` once on a fresh Mac. Rust comes from [rustup](https://rustup.rs) and is
+needed the first time, when `vendor-noise.sh` builds the Noise framework in the runtime checkout. That
+framework has no Intel slice, so an Intel Mac cannot build the app. `signing-setup.sh` asks for your
+login keychain password once, to trust the local signing identity it makes.
 
 ```sh
 cd macos
@@ -130,10 +146,13 @@ is put together.
 </details>
 
 <details>
-<summary><b>Windows and Linux</b>: Node 22, pnpm 9.15.4 and stable Rust</summary>
+<summary><b>Windows and Linux</b>: Node 22, rustup, and the system libraries below</summary>
 
-On Linux, first install the libraries [`linux/README.md`](linux/README.md#build-from-source) lists.
-On Windows, run the `pnpm wire` step from Git Bash, since it is a shell script.
+On Linux, first install the libraries [`linux/README.md`](linux/README.md#build-from-source) lists for
+Ubuntu, Fedora or Arch, and the polkit policy it names, which Allow once needs.
+On Windows, install Rust's MSVC toolchain with Visual Studio's C++ build tools and
+[Git for Windows](https://gitforwindows.org), as [`windows/README.md`](windows/README.md#build-from-source)
+says, and run every step below from Git Bash, since `pnpm wire` is a shell script.
 
 ```sh
 cd shared/tauri-core
@@ -237,7 +256,7 @@ gives.
 | **Confirm key** | Secure Enclave, Touch ID for each signature | P-256 in the TPM, after Windows Hello | P-256 in the Secret Service, after polkit (fingerprint or password) |
 | **Island** | grows out of the notch, or hangs from the top centre | a top centre window that never takes focus | layer shell on KDE, Sway, Hyprland and COSMIC; kept on top on GNOME |
 | **Talk key** | Option Space | Ctrl Alt Space | Ctrl Alt Space, through the shortcut portal on Wayland, which asks once |
-| **Dictation key** | right Option | right Alt or right Ctrl | right Alt or right Ctrl |
+| **Dictation key** | right Option | right Alt or right Ctrl | right Alt or right Ctrl, or Ctrl Alt D through the shortcut portal on Wayland outside the input group |
 | **Typing for you** | Accessibility | `SendInput`, with UI Automation reading the field | `xdotool` on X11, `wtype` or `ydotool` on Wayland, the RemoteDesktop portal on GNOME |
 | **Glass** | system materials | acrylic on Windows 11, solid on Windows 10 | KWin blur on KDE, solid on GNOME |
 | **Fonts** | SF Pro and SF Mono | Inter and DM Mono | Inter and DM Mono |

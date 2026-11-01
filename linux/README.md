@@ -108,17 +108,38 @@ it, that path is never taken, and it only looks.
 
 ## Build from source
 
-On Ubuntu or Debian:
+On Ubuntu or Debian, which CI builds on:
 
 ```sh
-sudo apt install -y build-essential curl git libwebkit2gtk-4.1-dev libgtk-3-dev \
+sudo apt install -y build-essential curl git pkg-config libdbus-1-dev libwebkit2gtk-4.1-dev libgtk-3-dev \
   libayatana-appindicator3-dev librsvg2-dev libgtk-layer-shell-dev libasound2-dev
+```
+
+On Fedora:
+
+```sh
+sudo dnf group install -y c-development
+sudo dnf install -y curl git pkgconf-pkg-config dbus-devel webkit2gtk4.1-devel gtk3-devel \
+  libappindicator-gtk3-devel librsvg2-devel gtk-layer-shell-devel alsa-lib-devel
+```
+
+On Arch:
+
+```sh
+sudo pacman -S --needed base-devel curl git dbus webkit2gtk-4.1 gtk3 libappindicator-gtk3 \
+  librsvg gtk-layer-shell alsa-lib
+```
+
+CI checks only the Ubuntu list, so if a Fedora or Arch build names a missing library, add it here.
+Then, on any of them, install the polkit policy that Allow once asks through:
+
+```sh
 sudo install -m 644 linux/packaging/org.memnox.desktop.policy /usr/share/polkit-1/actions/
 ```
 
-Then, with Node 22, pnpm 9.15.4, stable Rust, and a
-[memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout beside this repo or named by
-`MEMNOX_RUNTIME`:
+Then, with Node 22 and `corepack enable`, rustup, and a
+[memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout beside this repo, cloned with
+`git clone https://github.com/Memnox/memnox.git memnox-runtime`, or named by `MEMNOX_RUNTIME`:
 
 ```sh
 cd shared/tauri-core

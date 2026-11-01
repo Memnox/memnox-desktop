@@ -10,6 +10,8 @@ private let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let audio = AudioIO()
+    /// The microphone that waits for the name on its own, plain, so waiting costs a level reading rather than an echo canceller.
+    private let wakeAudio = AudioIO(cancellingEcho: false)
     private let ears = Ears()
     private let wake = WakeEars()
     private let barge = BargeEars()
@@ -21,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var polish = DictationPolish(link: link)
     /// Off unless the person turns it on: news that needs nobody stays quiet until they call Memnox.
     private static let speakUpKey = "speakUp"
+    /// Says which session finished, on its own, apart from the rest of the news speak up covers.
+    private static let sayFinishedKey = "sayFinished"
     /// On unless turned off: cutting in by speaking over the voice.
     private static let bargeKey = "talkOver"
     /// Kokoro or the Mac's own voice, as picked in the menu bar panel.
@@ -268,7 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dictationKey.start()
         if !HoldKeys.canWatch { diary.note("Accessibility is off, so holding Control and Option for a rule is not seen yet") }
         watchAccessibility()
-        UserDefaults.standard.register(defaults: [DictationKey.enabledKey: true, DictationStore.polishKey: true, DictationStore.liveKey: true, Self.speakUpKey: false, Self.bargeKey: true, CueChimes.key: true, CueChimes.volumeKey: CueChimes.defaultVolume, Self.liveWordsKey: true, Self.stayPutKey: true])
+        UserDefaults.standard.register(defaults: [DictationKey.enabledKey: true, DictationStore.polishKey: true, DictationStore.liveKey: true, Self.speakUpKey: false, Self.sayFinishedKey: true, Self.bargeKey: true, CueChimes.key: true, CueChimes.volumeKey: CueChimes.defaultVolume, Self.liveWordsKey: true, Self.stayPutKey: true])
         panel.showLiveWords(UserDefaults.standard.bool(forKey: Self.liveWordsKey))
         wake.spoken = { [weak self] in
             self?.voice.spoken(since: Date().addingTimeInterval(-Self.echoLingers)) ?? ""
@@ -287,7 +291,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             signOut: { await apps.signOut($0) },
             watch: { await apps.watch(from: $0) },
             open: { NSWorkspace.shared.open($0) },
-            chooseAgent: { [weak self] kind in await self?.conversation?.chooseVoiceAgent(kind) ?? .unreachable }
+            chooseAgent: { [weak self] kind in await self?.conversation?.chooseVoiceAgent(kind) ?? .unreachable },
+            // Connecting an app needs Memnox Cloud, so Connect starts the Account page's own sign in rather than a new one.
+            signInFirst: { [weak self] in await self?.account?.signInAndWait() ?? false }
         )
         panel.useTools(tools)
         let menu = MenuModel(
@@ -296,6 +302,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             setWake: { [weak self] in self?.setWake($0) },
             speakUpOn: UserDefaults.standard.bool(forKey: Self.speakUpKey),
             setSpeakUp: { UserDefaults.standard.set($0, forKey: Self.speakUpKey) },
+            sayFinishedOn: UserDefaults.standard.bool(forKey: Self.sayFinishedKey),
+            setSayFinished: { UserDefaults.standard.set($0, forKey: Self.sayFinishedKey) },
             talkOverOn: UserDefaults.standard.bool(forKey: Self.bargeKey),
             setTalkOver: { UserDefaults.standard.set($0, forKey: Self.bargeKey) },
             chimesOn: UserDefaults.standard.bool(forKey: CueChimes.key),
@@ -343,7 +351,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let home = HomeModel(
             load: { [weak self] in await self?.conversation.home() },
             handOver: { [weak self] action in await self?.conversation.handOver(action) ?? .unreachable },
+            enforce: { [weak self] in await self?.conversation.enforceMode() ?? .unreachable },
             protectAgents: { [runtime] in await runtime.protectAgents() },
+            restartService: { [weak self] in
+                guard let self, let conversation = self.conversation else { return "Memnox is still starting up. Try again in a moment." }
+                return await self.runtime.updateNow(conversation)
+            },
             remote: { [target] in target.isRemote },
             openWaiting: { [weak self] in self?.panel.openIsland() },
             openSession: { [weak self] session in self?.watchLive(session) }
@@ -358,11 +371,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppWindow.shared.hub = McpHub(link: pressing, ids: ids)
         AppWindow.shared.studio = Studio(link: pressing, ids: ids)
         AppWindow.shared.activity = Activity(link: pressing, ids: ids)
+        AppWindow.shared.todayActivity = Activity(link: pressing, ids: ids)
         AppWindow.shared.agents = Agents(link: pressing, ids: ids)
         AppWindow.shared.skills = SkillsHub(link: pressing, ids: ids)
         AppWindow.shared.projects = Projects(link: pressing, ids: ids)
         AppWindow.shared.backup = Backup(link: pressing, ids: ids)
         AppWindow.shared.memory = Memory(link: pressing, ids: ids)
+        AppWindow.shared.skillCare = SkillCare(link: pressing, ids: ids)
+        AppWindow.shared.memoryLayers = MemoryLayers(link: pressing, ids: ids)
         AppWindow.shared.network = LocalNetwork(link: pressing, ids: ids)
         AppWindow.shared.sync = PersonalSync(link: pressing, ids: ids)
         AppWindow.shared.index = CommunityIndex(link: pressing, ids: ids)
@@ -451,7 +467,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let root = NSMenuItem(title: "Memnox", action: nil, keyEquivalent: "")
         root.submenu = app
         bar.addItem(root)
+        bar.addItem(editMenu())
         NSApp.mainMenu = bar
+    }
+
+    /// The Edit menu every text field needs, since Command C, V, X, A and Z only reach a field through these items.
+    private func editMenu() -> NSMenuItem {
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        let root = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+        root.submenu = edit
+        return root
     }
 
     @objc private func openOverview() {
@@ -473,9 +506,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard await Ears.mayHear() else {
             // Said, since a silent orb that cannot hear looks exactly like one that is not listening.
             panel.show(.speaking, caption: "I need permission to hear you")
-            do { try audio.start() } catch {}
             await voice.speak("I cannot hear you yet. Allow Memnox under Microphone and Speech Recognition in System Settings, Privacy and Security.")
-            audio.stop()
             panel.dismiss()
             talking = false
             return
@@ -559,6 +590,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Anything spoken, with an ear open the whole time: the moment the person talks over it the
     /// voice stops and the brain stops, and their whole sentence is returned once they pause.
+    /// The microphone opened under something said unasked only while the person lets Memnox be talked over, since
+    /// nothing else listens then and an open microphone is one more thing holding the Mac's audio.
+    private func openForTalkOver() {
+        guard UserDefaults.standard.bool(forKey: Self.bargeKey) else { return }
+        do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
+    }
+
     private func overVoice(_ speaking: @escaping @MainActor () async -> Void) async -> String? {
         guard UserDefaults.standard.bool(forKey: Self.bargeKey) else {
             await speaking()
@@ -600,6 +638,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let rows = event.activityRows ?? []
         let missed = event.activityMissed ?? 0
         AppWindow.shared.activity?.heard(rows, missed: missed)
+        AppWindow.shared.todayActivity?.heard(rows, missed: missed)
         home?.heard(rows.count + missed)
     }
 
@@ -636,6 +675,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // The daemon does not say who answered or whether it ran out, so the card claims neither.
             panel.release(event.subject, note: SettledLine.unknown)
             waitingCalls.remove(event.subject)
+            // A hub proposal signed or declined on the island is read back, so its row and the grid show what was written.
+            if let hub = AppWindow.shared.hub { Task { await hub.settled(event.subject) } }
         case .paused: panel.shake()
         case .notice where event.noticeKind == .finished:
             panel.finished(event)
@@ -663,14 +704,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { [conversation] in await conversation?.handle(event) }
             return
         }
-        guard event.isSaid(speakUp: UserDefaults.standard.bool(forKey: Self.speakUpKey)) else { return }
+        let defaults = UserDefaults.standard
+        guard event.isSaid(speakUp: defaults.bool(forKey: Self.speakUpKey), sayFinished: defaults.bool(forKey: Self.sayFinishedKey)) else { return }
         enqueue { [self] in
             if event.eventKind == .settled {
                 await conversation.handle(event)
                 return
             }
-            panel.present()
-            do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
+            // Nobody called it, so with the notch kept closed this is said with the orb in the notch.
+            panel.present(onItsOwn: true)
+            openForTalkOver()
             let cutIn = await overVoice { [conversation] in await conversation?.handle(event) }
             // Only something waiting on their answer keeps the microphone open; news is said and the orb goes back to sleep.
             // A held call answered or run out before its turn came is not waited on.
@@ -751,8 +794,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         enqueue { [self] in
             // Answered or gone before its turn came, so it is not asked about.
             guard waitingCalls.contains(call.id) else { return }
-            panel.present()
-            do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
+            // Nobody called it, so with the notch kept closed this is said with the orb in the notch.
+            panel.present(onItsOwn: true)
+            openForTalkOver()
             let cutIn = await overVoice { [conversation] in await conversation?.announceTeam(call) }
             // Answered by hand or elsewhere while it was said, so nothing is left to listen for.
             if cutIn != nil || conversation.stillAsking(call.id) {
@@ -869,8 +913,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.dictating(copyOnly ? "No text field has the cursor, so it is copied for you"
                         : focus.selection == nil ? "Speak, and it types where your cursor is" : "Say what to do with the selection")
         let live = dictations.typesLive && !copyOnly ? LiveTyping(app: app, focus: focus) : nil
+        let family = DictationFamily(bundleID: app?.bundleIdentifier, windowTitle: focus.windowTitle)
+        let early = focus.selection == nil && dictations.polishes ? earlyPolish(family: family, focus: focus) : nil
         let began = Date()
-        let said = await listenForDictation(focus: focus, live: live)
+        let said = await listenForDictation(focus: focus, live: live, early: early)
         // How long they spoke, for the words a minute the overview shows.
         let spoke = Date().timeIntervalSince(began)
         dictationKey.stop()
@@ -884,8 +930,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         panel.show(.thinking, caption: "")
-        let family = DictationFamily(bundleID: app?.bundleIdentifier, windowTitle: focus.windowTitle)
-        let written = await dictationText(said, family: family, focus: focus)
+        let written = await dictationText(said, family: family, focus: focus, early: early)
         panel.dismiss()
         guard let written else {
             // Editing a selection needs the model, and without its answer the selection is left untouched.
@@ -917,15 +962,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Everything said while the key is held, plus a moment after it comes up so the last word is not cut off, heard
     /// with the person's own words and the names around the cursor as hints, and typed into the field as it comes
-    /// when typing live. The typing runs on its own loop, so the recognizer never waits on a key press.
-    private func listenForDictation(focus: FocusedText, live: LiveTyping?) async -> String? {
+    /// when typing live. The typing runs on its own loop, so the recognizer never waits on a key press, and `early`
+    /// looks for a pause on another, so the polish can start before the key comes up.
+    private func listenForDictation(focus: FocusedText, live: LiveTyping?, early: EarlyDictationPolish?) async -> String? {
         let dictionary = dictations.dictionary
         let hints = dictionary.spellings + cursorHints(before: focus.before, after: focus.after)
         let words = DictatedSoFar()
         var typing: Task<Void, Never>?
+        var pausing: Task<Void, Never>?
+        if live != nil || early != nil {
+            ears.revising = { heard in
+                words.set(heard)
+                early?.hear(heard)
+            }
+        }
+        if let early {
+            pausing = Task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: UInt64(Self.pauseLook * 1_000_000_000))
+                    early.look()
+                }
+            }
+        }
         if let live {
             live.begin()
-            ears.revising = { words.set($0) }
             let names = dictionary.spellings + recognizerHints.filter { $0.contains(where: \.isUppercase) }
             typing = Task { @MainActor in
                 while !Task.isCancelled {
@@ -937,8 +997,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         let down = dictationKey.down
-        let said = await ears.listen(through: audio, waiting: 0, holding: { down.isSet }, tail: Self.releaseTail, hints: hints)
+        let said = await ears.listen(through: audio, waiting: 0, holding: { down.isSet }, tail: Self.releaseTail, hints: hints,
+                                     dictating: true)
         ears.revising = nil
+        pausing?.cancel()
         typing?.cancel()
         await typing?.value
         return said
@@ -983,22 +1045,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let releaseTail: TimeInterval = 0.4
     /// How often the words heard are typed live, quick enough to follow speech and slow enough to type each change once.
     private static let liveLook: TimeInterval = 0.12
+    /// How often a pause in the dictation is looked for, well inside the pause that starts an early polish.
+    private static let pauseLook: TimeInterval = 0.1
+
+    /// The polish of a dictation started at its pauses, with the text before the cursor for the names written there.
+    private func earlyPolish(family: DictationFamily, focus: FocusedText) -> EarlyDictationPolish {
+        EarlyDictationPolish(polish: polish, family: family, vocabulary: polishVocabulary,
+                             textBefore: focus.written(before: DictationPolish.mostTextBefore))
+    }
+
+    /// Their own spellings first, then the names Memnox knows on this Mac, proper names only.
+    private var polishVocabulary: [String] {
+        dictations.dictionary.spellings + recognizerHints.filter { $0.contains(where: \.isUppercase) }
+    }
 
     /// What goes in: for a selection, the model's edit of it or nothing; otherwise the Mac's cleanup, replaced by the
-    /// model's polish when that is on and answers in time, then the person's replacements, then fitted to the cursor.
-    private func dictationText(_ said: String, family: DictationFamily, focus: FocusedText) async -> String? {
+    /// model's polish when that is on, answers in time and still says what was said, then the person's replacements,
+    /// then fitted to the cursor. The polish started at a pause is used when the words did not change after it.
+    private func dictationText(
+        _ said: String, family: DictationFamily, focus: FocusedText, early: EarlyDictationPolish?
+    ) async -> String? {
         let dictionary = dictations.dictionary
-        // Their own spellings first, then the names Memnox knows on this Mac, proper names only.
-        let names = dictionary.spellings + recognizerHints.filter { $0.contains(where: \.isUppercase) }
+        let names = polishVocabulary
+        let before = focus.written(before: DictationPolish.mostTextBefore)
         if let selection = focus.selection {
             guard dictations.polishes else { return nil }
+            // Editing a selection is asked to change the words, so no guard holds it to what was said.
             return await polish.polish(said, family: family, vocabulary: names, selection: selection,
-                                       patience: DictationPolish.editPatience)
+                                       textBefore: before, patience: DictationPolish.editPatience)
         }
         let local = cleanedDictation(said, dictionary: names, replacements: dictionary.replacements, style: family.style)
         var text = local
-        if dictations.polishes, let polished = await polish.polish(said, family: family, vocabulary: names) {
-            text = replaced(polished, by: dictionary.replacements)
+        if dictations.polishes {
+            let polished: String?
+            if let early {
+                polished = await early.answer(for: said)
+            } else {
+                polished = await polish.polish(said, family: family, vocabulary: names, textBefore: before)
+            }
+            if let polished {
+                if polishKeepsWhatWasSaid(polished, said: said, vocabulary: names) {
+                    text = replaced(polished, by: dictionary.replacements)
+                } else {
+                    diary.note("the polish strayed from what was said, so the Mac's own cleanup is typed: \(polished)")
+                }
+            }
         }
         return fitted(text, after: focus.before, before: focus.after)
     }
@@ -1156,7 +1247,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Listens for "Memnox" while the orb is idle, when the person has turned it on.
     private func listenForName() {
         guard turns == 0, !phoneHoldsVoice, UserDefaults.standard.bool(forKey: Self.wakeKey) else { return }
-        wake.start(through: audio)
+        wake.start(through: wakeAudio)
     }
 
     /// Puts the chosen voice in place and says it once so the person hears the change; Kokoro when
@@ -1337,7 +1428,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               UserDefaults.standard.bool(forKey: SetupModel.catchUpKey) else { return }
         enqueue { [self] in
             panel.present()
-            do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
+            openForTalkOver()
             caughtUp = false
             let cutIn = await overVoice { [weak self] in
                 self?.caughtUp = await self?.conversation?.welcomeBack(since: since) ?? false
@@ -1464,15 +1555,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupFinished() {
         setup.close()
         enqueue { [self] in
+            // Only said, so the microphone stays shut and the scan's narration queued behind it plays undisturbed.
             panel.present()
-            do { try audio.start() } catch { NSLog("Memnox: no audio: \(error)") }
             let name = owner.name.map { ", \($0)" } ?? ""
             let hello = UserDefaults.standard.bool(forKey: Self.wakeKey)
                 ? "Online and ready\(name). Say Memnox whenever you need me."
                 : "Online and ready\(name). Press Option Space whenever you need me."
             panel.show(.speaking, caption: caption(hello))
             await voice.speak(hello)
-            audio.stop()
             panel.dismiss()
         }
     }

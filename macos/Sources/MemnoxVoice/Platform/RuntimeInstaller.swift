@@ -55,12 +55,18 @@ final class RuntimeInstaller: ObservableObject {
 
     /// Updates and restarts the daemon whatever it answered, for a method the app needs that its version predates,
     /// which the version alone does not show while the runtime is built from a checkout.
-    func updateNow(_ conversation: Conversation) async {
-        guard doing == nil, let memnox = await memnoxCommand() else { return }
+    /// Nil once the service answers again, else why not, in words the person can act on.
+    @discardableResult
+    func updateNow(_ conversation: Conversation) async -> String? {
+        guard doing == nil else { return "Memnox is busy with another step. Try again in a moment." }
+        guard let memnox = await memnoxCommand() else { return failed ?? Self.notRestarted }
         let state = await update(memnox, conversation)
         failed = why(state)
         doing = nil
+        return failed
     }
+
+    private static let notRestarted = "The Memnox service would not restart. In a terminal: memnox daemon --install"
 
     /// Puts the agents found here under Memnox with the same `memnox setup --yes` the first run uses: it asks nothing,
     /// takes nothing on its line but fixed words, and hooks every agent installed. Nil when it went through, else why.
@@ -92,7 +98,12 @@ final class RuntimeInstaller: ObservableObject {
     /// just made; a release updates from npm. Neither ever swaps a local checkout for the published one.
     private func update(_ memnox: String, _ conversation: Conversation) async -> DaemonVoice {
         doing = "Updating Memnox"
-        if case .local = source {
+        if case .local(let checkout) = source {
+            // A checkout edited since the app was built has source newer than its build, which the daemon runs, so it is
+            // built first; a build that fails still restarts the service on the code that was there.
+            doing = "Building the local Memnox runtime"
+            _ = await Self.shell("cd \(Self.quoted(checkout)) && pnpm build")
+            doing = "Restarting the Memnox service"
             _ = await Self.shell("\(memnox) daemon --install")
             return await settle(conversation)
         }
@@ -216,6 +227,14 @@ final class RuntimeInstaller: ObservableObject {
     }
 
     /// The full path of a command as the person's login shell finds it, which knows nvm, Homebrew and npm's own folder.
+    /// Where npm keeps global packages as the person's own shell sees it, for an uninstall with no memnox left to ask.
+    static func npmPrefix() async -> String? {
+        let (ok, output) = await run("npm prefix -g")
+        let path = output.split(whereSeparator: \.isNewline).last.map(String.init)?.trimmingCharacters(in: .whitespaces)
+        guard ok, let path, path.hasPrefix("/") else { return nil }
+        return path
+    }
+
     private static func found(_ command: String) async -> String? {
         let (ok, output) = await run("command -v \(command)")
         let path = output.split(whereSeparator: \.isNewline).last.map(String.init)?.trimmingCharacters(in: .whitespaces)

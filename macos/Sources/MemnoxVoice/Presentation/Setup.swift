@@ -96,6 +96,8 @@ final class SetupModel: ObservableObject {
     var signInFirst: (() async -> Bool)?
     /// Told the Kokoro voice picked, so the daemon can hand it to a paired phone.
     var voicePicked: ((String) -> Void)?
+    /// Whether a sample may sound now; false while a conversation listens, since it would hear the sample as the person.
+    var mayPreview: () -> Bool = { true }
     private let pairing: Pairing
     /// The pairing open now; cleared once it ends so a late update from it is ignored.
     private var pairingId: String?
@@ -391,11 +393,17 @@ final class SetupModel: ObservableObject {
     func pickVoice(_ id: String) async {
         kokoroVoiceId = id
         await usePicked()
-        // Only Kokoro ready and nothing mid sentence, so a sample never talks over the voice or comes from another engine.
-        guard case .done = kokoro.state, speaksWithKokoro, !sampling, voice.level == 0 else { return }
+        // Only Kokoro ready, so a sample never comes from another engine.
+        guard case .done = kokoro.state, speaksWithKokoro else { return }
+        await sample(Self.voiceSample)
+    }
+
+    /// Says one sample at a time and none while a conversation listens, so pressing quickly never queues a string of them.
+    private func sample(_ line: String) async {
+        guard !sampling, voice.level == 0, mayPreview() else { return }
         sampling = true
         defer { sampling = false }
-        await voice.preview(Self.voiceSample)
+        await voice.preview(line)
     }
 
     /// Short enough to hear the voice without waiting on it.
@@ -656,7 +664,7 @@ final class SetupModel: ObservableObject {
     func hear() async {
         await usePicked()
         let first = name.trimmingCharacters(in: .whitespaces)
-        await voice.preview("Hi \(first.isEmpty ? "there" : first), I am Memnox. Press Option Space whenever you want me.")
+        await sample("Hi \(first.isEmpty ? "there" : first), I am Memnox. Press Option Space whenever you want me.")
     }
 
     /// Whether the Mac voice standing in for Kokoro is Premium or Enhanced, which sound like a person.
@@ -1365,14 +1373,18 @@ private struct VoicePicker: View {
         menu.chooseVoice(VoiceChoice.mac)
     }
 
-    /// Kokoro saved first, so the voice chosen is the one that speaks once the menu switches to it.
+    /// Kokoro saved first, so the voice chosen is the one that speaks once the menu switches to it; the menu then says
+    /// the new voice once, so setup adds no sample of its own and the two never speak over each other.
     private func pickKokoro(_ id: String) {
-        if let menu {
-            menu.kokoroVoice = id
-            menu.voiceChoice = VoiceChoice.kokoro
-            menu.chooseVoice(VoiceChoice.kokoro)
+        guard let menu else {
+            Task { await model.pickVoice(id) }
+            return
         }
-        Task { await model.pickVoice(id) }
+        KokoroVoice.choose(id)
+        model.kokoroVoiceId = id
+        menu.kokoroVoice = id
+        menu.voiceChoice = VoiceChoice.kokoro
+        menu.chooseVoice(VoiceChoice.kokoro)
     }
 
     /// The Mac's voice while it speaks; else the Kokoro voice, a voice saved before this list existed still showing its id.

@@ -112,6 +112,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var turns = 0
     /// A phone holds the voice, so the Mac does not answer to its name and the phone hears it alone.
     private var phoneHoldsVoice = false
+    /// Counts voice changes, so a burst of picks says only the last one rather than every one queued behind a turn.
+    private var voiceChanges = 0
 
     /// How long the microphone stays open for a follow up after an answer: long enough to start one, and short enough
     /// that a person who has finished sees the notch close on its own rather than wait on it.
@@ -1269,7 +1271,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         await setupModel?.voiceChanged()
         diary.note("speaking with \(inUse)")
         guard announce else { return }
+        voiceChanges += 1
+        let change = voiceChanges
         enqueue { [self] in
+            // A newer pick already has its own line waiting, so this one is not said at all.
+            guard change == voiceChanges else { return }
             panel.present()
             panel.show(.speaking, caption: inUse == choice ? "New voice" : "The voice is not running")
             await voice.speak(inUse == choice
@@ -1504,6 +1510,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.machineConnected = { [weak self] in await self?.account?.machine?.connected() }
         model.signInFirst = { [weak self] in await self?.account?.signInAndWait() ?? false }
         model.voicePicked = { [weak self] voice in self?.tellVoice(voice) }
+        // A sample said during a conversation is heard by its microphone and sent to ask as if the person said it.
+        model.mayPreview = { [weak self] in self?.turns == 0 }
         model.useKokoro = { [weak self] in
             guard let self else { return }
             if await self.kokoroInstaller.install() { await self.chooseVoice(VoiceChoice.kokoro, announce: false) }

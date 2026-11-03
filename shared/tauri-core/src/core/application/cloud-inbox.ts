@@ -41,7 +41,7 @@ export class CloudInbox implements WorkspaceInbox {
   }
 
   async held(workspace: string, token: string): Promise<readonly WorkspaceHeldCall[]> {
-    const listed = await this.call<unknown>('GET', `v1/workspaces/${segment(workspace)}/me/held?${RECENT}`, undefined, token);
+    const listed = await this.call<unknown>('GET', `v1/workspaces/${segment(workspace)}/me/held-calls?${RECENT}`, undefined, token);
     // One item that cannot be read never hides every other from the island.
     return Array.isArray(listed) ? listed.map(readHeldCall).filter((call): call is WorkspaceHeldCall => call !== undefined) : [];
   }
@@ -49,7 +49,7 @@ export class CloudInbox implements WorkspaceInbox {
   answer(call: string, workspace: string, answer: HoldAnswer, deviceId: string, signature: string | undefined, token: string): Promise<InboxAnswerReply> {
     const body: Record<string, string> = { answer, deviceId };
     if (signature !== undefined) body['signature'] = signature;
-    return this.call<InboxAnswerReply>('POST', `v1/workspaces/${segment(workspace)}/me/held/${segment(call)}`, body, token);
+    return this.call<InboxAnswerReply>('POST', `v1/workspaces/${segment(workspace)}/me/held-calls/${segment(call)}/answer`, body, token);
   }
 
   private async call<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: Record<string, string>, token?: string): Promise<T> {

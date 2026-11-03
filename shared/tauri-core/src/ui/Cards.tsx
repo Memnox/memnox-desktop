@@ -263,7 +263,7 @@ function placeWords(scope: RuleScope): string {
   return 'on this computer';
 }
 
-/** The signing button's words: a team rule is proposed rather than enforced, since a second admin decides. */
+/** The signing button's words: a team rule is proposed rather than enforced, since an admin decides. */
 function enforceWords(scope: RuleScope): string {
   return scope.kind === RULE_SCOPE.TEAM ? 'Propose for the team' : `Enforce ${placeWords(scope)}`;
 }

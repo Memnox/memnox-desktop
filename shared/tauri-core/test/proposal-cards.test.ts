@@ -82,8 +82,8 @@ describe('a rule on its card', () => {
     expect(cards.cards).toHaveLength(1);
   });
 
-  it('says the team needs a second admin', () => {
-    expect(afterRule({ id: 't', kind: 'team', label: 'Team' })).toContain('second admin');
+  it('says a team rule holds once an admin approves it', () => {
+    expect(afterRule({ id: 't', kind: 'team', label: 'Team' })).toContain('an admin approves');
   });
 });
 

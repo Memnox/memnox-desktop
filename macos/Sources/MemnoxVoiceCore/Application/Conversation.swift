@@ -1432,7 +1432,7 @@ public final class Conversation {
         switch scope.scopeKind {
         case .machine: return "Very well. That rule is in force on this Mac."
         case .repository: return "Very well. That rule is in force in \(scope.label)."
-        case .team: return "Very well. I have offered that rule to the team. It holds everywhere once a second admin approves it."
+        case .team: return "Very well. I have offered that rule to the team. It holds everywhere once an admin approves it."
         case nil: return "Very well. That rule is in force."
         }
     }

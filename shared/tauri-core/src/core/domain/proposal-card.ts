@@ -38,7 +38,7 @@ export function afterRule(scope: RuleScope | undefined): string {
   if (scope === undefined) return 'Very well. I have left that rule out.';
   if (scope.kind === RULE_SCOPE.MACHINE) return 'Very well. That rule is in force on this computer.';
   if (scope.kind === RULE_SCOPE.REPOSITORY) return `Very well. That rule is in force in ${scope.label}.`;
-  if (scope.kind === RULE_SCOPE.TEAM) return 'Very well. I have offered that rule to the team. It holds everywhere once a second admin approves it.';
+  if (scope.kind === RULE_SCOPE.TEAM) return 'Very well. I have offered that rule to the team. It holds everywhere once an admin approves it.';
   return 'Very well. That rule is in force.';
 }
 

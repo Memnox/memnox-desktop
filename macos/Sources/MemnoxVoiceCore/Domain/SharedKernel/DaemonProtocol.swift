@@ -332,7 +332,7 @@ public enum AskIntent: String, Sendable {
 public enum RuleScopeKind: String, CaseIterable, Sendable {
     case machine
     case repository
-    /// Offered to the workspace: a second admin approves it, then every agent it runs follows it, the ones in the cloud too.
+    /// Offered to the workspace: an admin approves it, then every agent it runs follows it, the ones in the cloud too.
     case team
 }
 

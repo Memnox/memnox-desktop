@@ -166,9 +166,9 @@ public enum ProjectLines {
         return "\(counted(project.sessions.total, "session", "sessions")), \(project.sessions.ended) ended.\(applied)"
     }
 
-    /// "3 rules of this computer hold here too."
+    /// "3 rules of this computer hold here too, as in every project.", which says why they hold here although none names it.
     public static func everywhereLine(_ count: Int) -> String {
-        count == 1 ? "1 rule of this computer holds here too." : "\(count) rules of this computer hold here too."
+        count == 1 ? "1 rule of this computer holds here too, as in every project." : "\(count) rules of this computer hold here too, as in every project."
     }
 
     /// The rules that hold in this project: those reaching into its folder, and those its own rule file brings. A rule

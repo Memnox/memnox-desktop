@@ -5,6 +5,7 @@ import { RequestIds } from '../src/core/application/request-ids';
 import {
   appliedLine,
   draftOf,
+  everywhereLine,
   foldersToOpen,
   grantLine,
   instructionWord,
@@ -171,5 +172,12 @@ describe('a project the organization shares', () => {
     expect(organizationRulesLine({ rules: 0 })).toBe('No rule pack from the organization.');
     expect(organizationMemoryLine('none')).toBe('Its agents keep no memory from this project.');
     expect(organizationMemoryLine('project')).toBe('What its agents learn is kept under the organization’s project rather than this folder.');
+  });
+});
+
+describe('the rules every project shares', () => {
+  it('says how many hold here too in the Mac’s words, pinned in ProjectLinesTests.swift as well', () => {
+    expect(everywhereLine(1)).toBe('1 rule of this computer holds here too, as in every project.');
+    expect(everywhereLine(3)).toBe('3 rules of this computer hold here too, as in every project.');
   });
 });

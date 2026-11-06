@@ -10,6 +10,7 @@ import {
   instructionWord,
   organizationMemoryLine,
   organizationRulesLine,
+  everywhereLine,
   projectRules,
   projectStanding,
   projectTiles,
@@ -275,7 +276,7 @@ function PoliciesHere({ parts, project }: { parts: SettingsParts; project: Proje
           ))}
         </Panel>
       )}
-      <p className="text-footnote text-muted">{everywhere === 1 ? '1 rule of this computer holds here too.' : `${everywhere} rules of this computer hold here too.`}</p>
+      <p className="text-footnote text-muted">{everywhereLine(everywhere)}</p>
     </div>
   );
 }

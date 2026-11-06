@@ -18,8 +18,8 @@ import {
   type ItemReach,
   type SharedRow,
 } from '../../../core/domain/project-context';
-import { statusWord } from '../../../core/domain/memory-lines';
-import { counted, draftOf, projectRules, sharedBy } from '../../../core/domain/project-lines';
+import { rowCaption, statusWord } from '../../../core/domain/memory-lines';
+import { counted, draftOf, everywhereLine, projectRules, sharedBy } from '../../../core/domain/project-lines';
 import { ALL_CATEGORIES, settledCategory } from '../../../core/domain/catalog';
 import {
   CAN_USE_NOTE,
@@ -219,7 +219,7 @@ function Overview({ parts, project, go }: { parts: SettingsParts; project: Proje
         ) : (
           <Panel>
             {learned.items.slice(0, LEARNED_SHOWN).map((item) => (
-              <Row key={item.id} title={<span className="whitespace-pre-wrap">{item.statement}</span>} caption={ago(item.createdAt, Date.now()) ?? ''} trailing={<StatusWord tone={statusWord(item.status).tone}>{statusWord(item.status).word}</StatusWord>} />
+              <Row key={item.id} title={<span className="whitespace-pre-wrap">{item.statement}</span>} caption={rowCaption(item)} />
             ))}
           </Panel>
         )}
@@ -522,7 +522,7 @@ function Facts({ items, reach, open }: { items: readonly MemoryItemView[]; reach
         <Row
           key={item.id}
           title={<span className="whitespace-pre-wrap">{item.statement}</span>}
-          caption={[statusWord(item.status).word, ago(item.createdAt, Date.now())].filter((each) => each !== undefined).join(' · ')}
+          caption={rowCaption(item)}
           trailing={<ReachBadge reach={reach} open={open} />}
         />
       ))}
@@ -606,7 +606,7 @@ function Autonomy({ parts, project, go, said }: { parts: SettingsParts; project:
       )}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-panel-edge bg-card px-4 py-3">
         <ReachBadge reach="every-project" open={() => go({ destination: 'governance', tab: 'policies' })} />
-        <p className="min-w-0 flex-1 text-footnote text-muted">{everywhere === 1 ? '1 rule of this computer holds here too, as in every project.' : `${everywhere} rules of this computer hold here too, as in every project.`}</p>
+        <p className="min-w-0 flex-1 text-footnote text-muted">{everywhereLine(everywhere)}</p>
         <GoLink onClick={() => go({ destination: 'governance', tab: 'policies' })}>Protection settings</GoLink>
       </div>
     </div>

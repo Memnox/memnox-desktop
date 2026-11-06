@@ -125,7 +125,9 @@ final class ProjectLinesTests: XCTestCase {
         XCTAssertEqual(ProjectLines.note(.proposed(id: "prp_1", note: "Applied.")),
                        "Applied. Its servers, skills and rules wait for you on the island: confirm them with Touch ID.")
         XCTAssertEqual(ProjectLines.note(.failed("No project prj_9.")), "No project prj_9.")
-        XCTAssertEqual(ProjectLines.everywhereLine(1), "1 rule of this computer holds here too.")
+        // The same words as the Windows and Linux app's everywhereLine, pinned in test/projects.test.ts.
+        XCTAssertEqual(ProjectLines.everywhereLine(1), "1 rule of this computer holds here too, as in every project.")
+        XCTAssertEqual(ProjectLines.everywhereLine(3), "3 rules of this computer hold here too, as in every project.")
     }
 
     func testSaysWhatAnOrganizationHandsASharedProject() {

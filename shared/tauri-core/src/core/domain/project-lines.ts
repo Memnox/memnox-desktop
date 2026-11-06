@@ -79,6 +79,11 @@ export function appliedLine(applied: ProjectApplySummary): string {
   return `${done} The hub here lacks ${listed(applied.missing)}, so no agent is given ${applied.missing.length === 1 ? 'it' : 'them'}.`;
 }
 
+/** "3 rules of this computer hold here too, as in every project.", as the Mac's `ProjectLines.everywhereLine` says it. */
+export function everywhereLine(count: number): string {
+  return count === 1 ? '1 rule of this computer holds here too, as in every project.' : `${count} rules of this computer hold here too, as in every project.`;
+}
+
 /**
  * The rules that hold in this project: those reaching into its folder, and those its own rule file brings.
  * A rule naming no folder holds everywhere and is counted apart, so the list says what this project adds.

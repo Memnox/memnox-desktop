@@ -41,6 +41,7 @@ import { openOrCopy } from '../../settings/host';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AddMemorySourceDialog } from './MemorySourceDialog';
 import { MemoryBrain } from './MemoryBrain';
+import { homeFilterOf, MEMORY_HOME_FILTERS, MEMORY_HOME_KEY, type MemoryHomeFilter } from '../../../core/domain/memory-brain-lines';
 import { MemoryLayersView } from './MemoryLayers';
 import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
 import { memoryScope } from '../../../core/domain/scope-lines';
@@ -92,6 +93,12 @@ export function MemoryPage({ parts, tab, width, go }: { parts: SettingsParts; /*
   const [status, setStatus] = useState<MemoryStatusName>('verified');
   const [scope, setScope] = useState<MemoryScopeName | undefined>(undefined);
   const [query, setQuery] = useState('');
+  // Whose memory the brain draws, remembered for the next visit under the Mac's own key.
+  const [home, setHome] = useState<MemoryHomeFilter>(() => homeFilterOf(localStorage.getItem(MEMORY_HOME_KEY)));
+  const chooseHome = (filter: MemoryHomeFilter) => {
+    localStorage.setItem(MEMORY_HOME_KEY, filter);
+    setHome(filter);
+  };
   const [chosen, choose] = usePicked();
   const linked = useInspectorHost().item;
   const [note, setNote] = useState<string | undefined>(undefined);
@@ -122,26 +129,89 @@ export function MemoryPage({ parts, tab, width, go }: { parts: SettingsParts; /*
       if (outcome.kind !== 'failed') after();
     });
 
-  if (view === 'graph' || view === 'layers') {
+  const noteLine =
+    note === undefined ? null : (
+      <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
+        {note}
+      </p>
+    );
+  const searching = query.trim() !== '';
+  const statusRow = !searching ? (
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Status">
+      {MEMORY_FILTERS.map((each) => (
+        <button key={each.status} type="button" className={chip(status === each.status)} aria-pressed={status === each.status} onClick={() => setStatus(each.status)}>
+          {each.label}
+        </button>
+      ))}
+    </div>
+  ) : (
+    <p className="text-footnote text-muted">
+      {memory.search === undefined ? 'Searching every status for these words.' : `${searchModeLine(memory.search.mode)}, over every status.`}
+      {memory.search?.note !== undefined && <span className="block">{memory.search.note}</span>}
+    </p>
+  );
+  // Whose a fact is matters only once there is an organization beside the person.
+  const scopeRow = connected && (
+    <div className="flex gap-1.5" role="group" aria-label="Scope">
+      <button type="button" className={chip(scope === undefined)} aria-pressed={scope === undefined} onClick={() => setScope(undefined)}>
+        Both
+      </button>
+      {MEMORY_SCOPES.map((each) => (
+        <button key={each.scope} type="button" className={chip(scope === each.scope)} aria-pressed={scope === each.scope} onClick={() => setScope(each.scope)}>
+          {each.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (view === 'graph') {
+    // Only the brain draws the workspace, so only the brain has the chips for whose memory it draws.
+    const homeRow = (
+      <div className="flex gap-1.5" role="group" aria-label="Whose memory">
+        {MEMORY_HOME_FILTERS.map((each) => (
+          <button key={each.filter} type="button" className={chip(home === each.filter)} aria-pressed={home === each.filter} onClick={() => chooseHome(each.filter)}>
+            {each.label}
+          </button>
+        ))}
+      </div>
+    );
+    const more = listed === undefined ? undefined : moreLine(listed.more);
+    return (
+      <MemoryBrain
+        parts={parts}
+        shown={brainShown}
+        {...(listed === undefined ? {} : { facts: listed.items })}
+        home={home}
+        {...(searching ? {} : { status })}
+        {...(go === undefined ? {} : { go })}
+        nodeCard={(id, close) => <BrainNode parts={parts} id={id} forget={(item) => forget(item, close)} />}
+        bar={
+          <>
+            {/* The project, the status, then whose memory and the scope, in the Mac's order, wrapping where they do not fit. */}
+            <div className="flex flex-wrap items-center gap-2">
+              {projectFilter}
+              {statusRow}
+              {homeRow}
+              {scopeRow}
+            </div>
+            {noteLine}
+            {memory.unreadable.facts && <ReadFailed what="what was learned" retry={() => void memory.show(memory.filter)} />}
+          </>
+        }
+        foot={
+          <>
+            {more !== undefined && <p className="text-footnote text-muted">{more}</p>}
+            {go !== undefined && <SourcesLink go={go} />}
+          </>
+        }
+      />
+    );
+  }
+  if (view === 'layers') {
     return (
       <div className="flex flex-col gap-4">
-        {note !== undefined && (
-          <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
-            {note}
-          </p>
-        )}
-        {view === 'graph' && projectFilter !== null && <div className="flex flex-wrap items-center gap-2">{projectFilter}</div>}
-        {view === 'graph' ? (
-          <MemoryBrain
-            parts={parts}
-            shown={brainShown}
-            {...(go === undefined ? {} : { go })}
-            nodeCard={(id, close) => <BrainNode parts={parts} id={id} forget={(item) => forget(item, close)} />}
-          />
-        ) : (
-          <MemoryLayersView parts={parts} {...(chosenProject === undefined ? {} : { project: chosenProject.path })} />
-        )}
-        {view === 'graph' && go !== undefined && <SourcesLink go={go} />}
+        {noteLine}
+        <MemoryLayersView parts={parts} {...(chosenProject === undefined ? {} : { project: chosenProject.path })} />
       </div>
     );
   }
@@ -431,7 +501,7 @@ function MemorySources({ parts, said }: { parts: SettingsParts; said: (note: str
         />
       )}
       {list !== undefined && list.length > 0 && (
-        <CardGrid>
+        <CardGrid min={SOURCE_CARD_MIN}>
           {list.map((source) => (
             <SourceCard key={source.id} parts={parts} source={source} said={said} />
           ))}
@@ -442,6 +512,9 @@ function MemorySources({ parts, said }: { parts: SettingsParts; said: (note: str
   );
 }
 
+/** A source card is never narrower than this, so its buttons keep their whole labels, as the Mac's `cardWidth`. */
+const SOURCE_CARD_MIN = 280;
+
 function SourceCard({ parts, source, said }: { parts: SettingsParts; source: MemorySourceView; said: (note: string) => void }) {
   const { memory } = parts;
   const [sure, setSure] = useState(false);
@@ -450,13 +523,13 @@ function SourceCard({ parts, source, said }: { parts: SettingsParts; source: Mem
   const read = memory.lastRead(source.id);
   const busy = memory.busy === source.id;
   return (
-    <article className="flex flex-col gap-2.5 rounded-xl border border-panel-edge bg-card p-4">
+    <article className="flex flex-col gap-2 rounded-xl border border-panel-edge bg-card p-4">
       <header className="flex items-center gap-2">
         <BookOpen size={16} className="text-muted" aria-hidden />
         <span className="min-w-0 flex-1 truncate text-body font-semibold text-foreground">{source.name}</span>
         <span className="text-footnote text-muted">{sourceKindLabel(source.kind)}</span>
       </header>
-      <span className="truncate font-mono text-micro text-muted" title={source.location}>
+      <span className="truncate text-micro text-muted" title={source.location}>
         {source.location}
       </span>
       <StatusWord tone={trust.tone}>{trust.word}</StatusWord>
@@ -477,7 +550,7 @@ function SourceCard({ parts, source, said }: { parts: SettingsParts; source: Mem
         {sure ? (
           <>
             <KitButton onClick={() => setSure(false)}>Keep</KitButton>
-            <KitButton icon={Trash2} disabled={busy} onClick={() => void memory.removeSource(source.id).then((outcome) => said(memoryNote(outcome)))}>
+            <KitButton kind="primary" icon={Trash2} disabled={busy} onClick={() => void memory.removeSource(source.id).then((outcome) => said(memoryNote(outcome)))}>
               Remove
             </KitButton>
           </>

@@ -47,6 +47,37 @@ fn openable(path: &str) -> Result<PathBuf, String> {
     Ok(real)
 }
 
+/// The largest SKILL.md read into the window, far past any real one, so a stray huge file is never pulled whole.
+const MOST_SKILL_BYTES: u64 = 1024 * 1024;
+
+/// Reads a skill an agent already keeps, its SKILL.md or its agent file, so the Memnox window draws it formatted as the
+/// Mac's preview does. Only a markdown document is read, from the Memnox window only, and nothing here writes to it.
+#[tauri::command]
+pub fn read_skill_file(window: WebviewWindow, path: String) -> Result<String, String> {
+    if !crate::settings_windows::is_memnox_window(window.label()) {
+        return Err("only the Memnox window reads a skill".to_owned());
+    }
+    let file = readable_skill(&path)?;
+    std::fs::read_to_string(&file).map_err(|_| format!("{path} could not be read as text"))
+}
+
+/// The file itself, once `openable` has passed it, it is markdown, and it is small enough to read whole.
+fn readable_skill(path: &str) -> Result<PathBuf, String> {
+    let file = openable(path)?;
+    let markdown = file
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|kind| kind.eq_ignore_ascii_case("md") || kind.eq_ignore_ascii_case("markdown"));
+    if !markdown {
+        return Err(format!("{path} is not a skill's markdown"));
+    }
+    let size = std::fs::metadata(&file).map_err(|error| error.to_string())?.len();
+    if size > MOST_SKILL_BYTES {
+        return Err(format!("{path} is too large to read here"));
+    }
+    Ok(file)
+}
+
 #[cfg(unix)]
 fn runnable(facts: &std::fs::Metadata) -> bool {
     use std::os::unix::fs::PermissionsExt;
@@ -166,5 +197,16 @@ mod tests {
             r"\\server\share\a.md"
         );
         assert_eq!(plain(Path::new("/home/sam/a.md")), "/home/sam/a.md");
+    }
+
+    #[test]
+    fn reads_only_a_skills_markdown() {
+        let dir = folder("skill");
+        let skill = dir.join("SKILL.md");
+        std::fs::write(&skill, "---\nname: notes\n---\nWrite notes.").expect("a skill");
+        assert_eq!(readable_skill(skill.to_str().unwrap()), Ok(std::fs::canonicalize(&skill).unwrap()));
+        let other = dir.join("notes.txt");
+        std::fs::write(&other, "plain").expect("a note");
+        assert!(readable_skill(other.to_str().unwrap()).is_err());
     }
 }

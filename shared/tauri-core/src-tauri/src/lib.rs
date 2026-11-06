@@ -12,6 +12,7 @@ mod island;
 mod key;
 mod keys;
 mod local_file;
+mod memory_source;
 mod notices;
 mod panels;
 mod permissions;
@@ -183,6 +184,11 @@ pub fn run() {
             rule_pack::save_rule_pack,
             project_folder::pick_project_folder,
             local_file::open_file,
+            local_file::read_skill_file,
+            memory_source::memory_source_home,
+            memory_source::pick_memory_source,
+            memory_source::look_memory_paths,
+            memory_source::unzip_memory_export,
             presses::presses_listen,
             presses::window_press,
             permissions::permission_facts,

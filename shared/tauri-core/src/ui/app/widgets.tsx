@@ -106,9 +106,20 @@ export function Row({
   );
 }
 
-/** Cards that flow into as many columns as the width holds, each at least 260 wide. */
-export function CardGrid({ children }: { children: ReactNode }) {
-  return <div className="mx-card-grid">{children}</div>;
+/**
+ * Cards that flow into as many columns as the width holds. `min` is the narrowest a card may be, 260 unless
+ * the page passes the Mac's own minimum for it, and `gap` is the space between cards, 12 unless passed.
+ */
+export function CardGrid({ children, min, gap }: { children: ReactNode; min?: number; gap?: number }) {
+  const style = {
+    ...(min === undefined ? {} : { gridTemplateColumns: `repeat(auto-fill, minmax(${min}px, 1fr))` }),
+    ...(gap === undefined ? {} : { gap: `${gap}px` }),
+  };
+  return (
+    <div className="mx-card-grid" style={style}>
+      {children}
+    </div>
+  );
 }
 
 /** What to do when there is nothing here yet, never only that nothing is here. */

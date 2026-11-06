@@ -628,6 +628,8 @@ private struct McpFound: View {
 private struct McpLeftAlone: View {
     let view: McpHubView
 
+    private static let logo: CGFloat = 22
+
     var body: some View {
         let entries = view.drifted + view.skipped
         if !entries.isEmpty {
@@ -637,7 +639,7 @@ private struct McpLeftAlone: View {
                         if index > 0 { ShellDivider() }
                         ShellRow(title: entry.name,
                                  caption: (entry.agent.map { "\(McpHubLines.agentLabel($0)) \u{00B7} " } ?? "") + McpHubLines.leftAlone(entry)) {
-                            EmptyView()
+                            if let agent = entry.agent { BrandLogo(agent: agent, name: McpHubLines.agentLabel(agent), size: Self.logo) }
                         } trailing: {
                             StatusWord(.attention, "Yours now")
                         }

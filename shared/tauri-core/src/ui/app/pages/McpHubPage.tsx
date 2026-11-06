@@ -441,7 +441,7 @@ function Clients({ parts, view, said, workspaces }: { parts: SettingsParts; view
                   const on = reach === 'everywhere';
                   if (reach === 'projects') {
                     const help = projectOnlyHelp(server, agent);
-                    // Unticked, since ticking gives it everywhere; the project assignment is changed in Workspaces.
+                    // Unticked, since ticking gives it everywhere; the project assignment is changed in Projects.
                     return (
                       <td key={agent} className="px-3 py-2.5 text-center">
                         <span className="inline-flex items-center gap-1.5">

@@ -146,9 +146,9 @@ describe('how far an agent has a server', () => {
     expect(reachCaption(twice, 'cursor')).toBe('Has this server only in 2 projects');
   });
 
-  it('sends a project only assignment to Workspaces, where it is given', () => {
-    expect(projectOnlyHelp(server, 'cursor')).toBe("Cursor has this server only in /Users/bo/code/web, given in that project's settings in Workspaces.");
-    expect(PROJECT_ONLY_LINE).toBe("A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Workspaces, and giving it here gives it in every project.");
+  it('sends a project only assignment to Projects, where it is given', () => {
+    expect(projectOnlyHelp(server, 'cursor')).toBe("Cursor has this server only in /Users/bo/code/web, given in that project's settings in Projects.");
+    expect(PROJECT_ONLY_LINE).toBe("A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Projects, and giving it here gives it in every project.");
   });
 
   it('offers a project only agent the server in every project, never a take away', () => {

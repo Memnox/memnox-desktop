@@ -30,6 +30,18 @@ export interface MenuRow {
   readonly dividerAbove?: boolean;
 }
 
+/** The panel's own words outside its rows, as the Mac's `MenuView` and `MenuTools` print them. */
+export const MENU_WORDS = {
+  title: 'Memnox',
+  connected: 'Connected',
+  manage: 'Manage',
+} as const;
+
+/** What a screen reader hears for a chip, as the Mac labels it: its name, or its name and what it needs. */
+export function chipLabel(chip: ToolChip): string {
+  return chip.ready ? chip.name : `${chip.name}, needs you`;
+}
+
 /** The rows in the Mac's order, with the talk key as this computer spells it. */
 export function menuRows(muted: boolean, talkKeys: readonly string[], demo = false): MenuRow[] {
   return [

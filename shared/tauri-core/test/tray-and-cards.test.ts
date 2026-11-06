@@ -9,7 +9,7 @@ import { cueForAnswer, cueForEvent, cueForProposal, type Cue } from '../src/core
 import { driveGrant, driveLabel, phoneVoice, phoneVoiceLabel } from '../src/core/domain/driving';
 import { extensionBadge, openWords, pagePosition, pageSeconds, traceBar, traceSubtitle, traceTone } from '../src/core/domain/floating-cards';
 import { inlineMarks, isOpenableLink, markdownBlocks } from '../src/core/domain/markdown';
-import { chipTooltip, isMenuAction, listeningBadge, menuPanelPlace, menuRows, stripNote } from '../src/core/domain/menu-panel';
+import { chipLabel, chipTooltip, isMenuAction, listeningBadge, MENU_WORDS, menuPanelPlace, menuRows, stripNote } from '../src/core/domain/menu-panel';
 import { agentStatus, connectionLines, reachLine, ringPoint, scanCapabilities, scanCountLabel, scanRing, scanTotals } from '../src/core/domain/scan';
 import { RequestIds } from '../src/core/application/request-ids';
 import { ScriptedDaemon } from './doubles';
@@ -174,6 +174,18 @@ describe('menu panel', () => {
     expect(menuPanelPlace({ x: 1800, y: 1050, width: 24, height: 24 }, { ...screen, height: 1080 }, { width: 300, height: 400 })).toEqual({ x: 1612, y: 644 });
     expect(menuPanelPlace({ x: 900, y: 4, width: 24, height: 24 }, screen, { width: 300, height: 400 })).toEqual({ x: 762, y: 34 });
     expect(menuPanelPlace({ x: 2, y: 4, width: 24, height: 24 }, screen, { width: 300, height: 400 }).x).toBe(8);
+  });
+
+  it('prints the Mac panel words, its symbols and the demo tooltips', () => {
+    expect(MENU_WORDS).toEqual({ title: 'Memnox', connected: 'Connected', manage: 'Manage' });
+    const rows = menuRows(false, ['Ctrl', 'Alt', 'Space']);
+    expect(rows.map((row) => row.symbol)).toEqual(['waveform', 'shield.lefthalf.filled', 'doc.on.clipboard', 'speaker.slash', 'play.circle', 'gearshape', 'power']);
+    expect(rows[0]?.tooltip).toBe('Talk to Memnox with Ctrl Alt Space');
+    expect(rows[4]?.tooltip).toBe('Reopens Memnox with made up data, so every page shows what it can do');
+    expect(menuRows(false, [], true)[4]?.tooltip).toBe("Reopens Memnox on this computer's own agents");
+    expect(menuRows(true, [])[3]?.symbol).toBe('speaker.wave.2');
+    expect(listeningBadge(true, [])).toMatchObject({ text: 'Say \u201CMemnox\u201D', tooltip: 'Memnox wakes when you say its name' });
+    expect(chipLabel({ id: 'a', kind: 'app', key: 'slack', name: 'Slack', ready: false })).toBe('Slack, needs you');
   });
 
   it('knows its actions', () => {

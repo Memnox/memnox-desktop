@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { chipTooltip, listeningBadge, MENU_PANEL, MENU_SETTLE, menuRows, stripNote, type MenuAction, type MenuRow, type ToolChip } from '../../core/domain/menu-panel';
+import { chipLabel, chipTooltip, listeningBadge, MENU_PANEL, MENU_WORDS, MENU_SETTLE, menuRows, stripNote, type MenuAction, type MenuRow, type ToolChip } from '../../core/domain/menu-panel';
 import { demoOn } from '../adapters/demo';
 import { AgentMark, LogoMark, SFSymbol, ToolMark, type SFSymbolName } from '../kit';
 
@@ -40,9 +40,9 @@ export function TrayPanel({ state, opened, onAction, online = true }: { state: T
     >
       <header className="flex items-center gap-[11px] px-1 pt-1">
         <LogoMark size={24} className="text-ink" />
-        <span className="font-display text-[21px] font-semibold leading-none text-ink">Memnox</span>
+        <span className="font-display text-[21px] font-semibold leading-none text-ink">{MENU_WORDS.title}</span>
         <span className="flex-1" />
-        <span className="flex min-w-0 items-center gap-1.5 rounded-full bg-[var(--mx-ink-07)] px-[9px] py-[5px]" title={badge.tooltip}>
+        <span className="flex min-w-0 items-center gap-1.5 rounded-full bg-[var(--mx-ink-07)] px-[9px] py-[5px]" title={badge.tooltip} role="status" aria-label={badge.tooltip}>
           <span className={`size-1.5 rounded-full ${badge.lit ? 'bg-[#30d158]' : 'bg-[var(--mx-ink-30)]'}`} />
           <span className="truncate text-caption font-medium text-[var(--mx-ink-60)]">{badge.text}</span>
         </span>
@@ -50,15 +50,19 @@ export function TrayPanel({ state, opened, onAction, online = true }: { state: T
 
       <section className="flex flex-col gap-1.5" style={settle(0, opened)}>
         <div className="flex items-center px-1">
-          <span className="p-1 text-micro font-semibold uppercase tracking-[0.5px] text-[var(--mx-ink-60)]">Connected</span>
+          <span role="heading" aria-level={2} className="px-1 text-micro font-semibold uppercase tracking-[0.5px] text-[var(--mx-ink-60)]">
+            {MENU_WORDS.connected}
+          </span>
           <span className="flex-1" />
-          <button type="button" className="cursor-pointer p-1 text-micro font-semibold text-primary" onClick={() => onAction('tools')}>
-            Manage
+          <button type="button" className="cursor-pointer text-micro font-semibold text-primary" onClick={() => onAction('tools')}>
+            {MENU_WORDS.manage}
           </button>
         </div>
         <MenuCard className="h-[52px]">
           {note !== undefined ? (
-            <p className="m-0 line-clamp-2 p-2.5 text-micro leading-[13px] text-[var(--mx-ink-60)]">{note}</p>
+            <div className="flex h-full items-center px-2.5">
+              <p className="m-0 line-clamp-2 text-micro leading-[13px] text-[var(--mx-ink-60)]">{note}</p>
+            </div>
           ) : (
             <div className="flex h-full items-center overflow-x-auto px-1 [scrollbar-width:none]">
               {state.chips.map((chip) => (
@@ -92,13 +96,13 @@ function MenuCard({ className, children }: { className?: string; children: React
   );
 }
 
-/** One agent or app: a 26 mark with its status dot, and its name 10 medium under it, 58 wide. */
+/** One agent or app: a 26 mark with its status dot in its corner, and its name 10 medium 4 under it, 58 wide. */
 function Chip({ chip, online, onPress }: { chip: ToolChip; online: boolean; onPress: () => void }) {
   return (
-    <button type="button" className="flex w-[58px] shrink-0 cursor-pointer flex-col items-center gap-1 p-1 transition-[scale] duration-[220ms] active:scale-[0.97]" onClick={onPress} title={chipTooltip(chip)}>
+    <button type="button" className="flex w-[58px] shrink-0 cursor-pointer flex-col items-center gap-1 transition-[scale] duration-[220ms] active:scale-[0.97]" onClick={onPress} title={chipTooltip(chip)} aria-label={chipLabel(chip)}>
       <span className="relative">
         {chip.kind === 'agent' ? <AgentMark agent={chip.key} name={chip.name} size={26} /> : <ToolMark toolkit={chip.key} size={26} online={online} />}
-        <span className={`absolute -bottom-px -right-px size-1.5 rounded-full ${chip.ready ? 'bg-success' : 'bg-warm'}`} style={{ boxShadow: '0 0 0 0.5px rgb(0 0 0 / 0.4)' }} />
+        <span className={`absolute right-0 bottom-0 size-1.5 rounded-full ${chip.ready ? 'bg-success' : 'bg-warm'}`} style={{ boxShadow: 'inset 0 0 0 0.5px rgb(0 0 0 / 0.4)' }} />
       </span>
       <span className="w-full truncate text-center text-micro font-medium text-ink">{chip.name}</span>
     </button>

@@ -20,8 +20,6 @@ const RAW = [/<input\b/, /<select\b/, /<textarea\b/, /<button\b/, /role="dialog"
 const ALLOWED: Record<string, string> = {
   // The scan is a full screen takeover the whole of which closes it, not a sheet with a head and a foot.
   'scan/ScanScreen.tsx': 'role="dialog"',
-  // Nothing renders it any more; it waits on the person's word to be deleted rather than being migrated.
-  'app/pages/ProjectInspector.tsx': '<button',
 };
 
 /**

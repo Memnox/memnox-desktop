@@ -2,6 +2,7 @@ import { useState, useSyncExternalStore } from 'react';
 import { HOLD_ANSWER } from '@memnox/core/wire';
 import type { HeldCalls, HeldCard, HeldOutcome } from '../../core';
 import { ANSWERING_ROW, BrandLogo, SFSymbol } from '../kit';
+import { HeldImpactLines } from './HeldImpact';
 import { SYSTEM_MONO } from './MarkdownText';
 
 /**
@@ -33,6 +34,7 @@ export function HeldStrip({ calls, card, onAnswered }: { calls: HeldCalls; card:
       <p className={`m-0 line-clamp-2 w-full rounded-lg bg-ink-faint-fill p-2 ${SYSTEM_MONO} text-footnote text-ink [overflow-wrap:anywhere]`} title={card.what}>
         {card.what}
       </p>
+      {card.impact !== undefined && <HeldImpactLines impact={card.impact} />}
       <div className={`flex items-center gap-2 ${answering ? ANSWERING_ROW : ''}`}>
         <button type="button" className="inline-flex cursor-pointer items-center rounded-full bg-[var(--mx-ink-fill-09,rgb(255_255_255/0.09))] px-3.5 py-[7px] text-button font-medium text-ink active:scale-[0.94]" disabled={answering} onClick={() => void press(HOLD_ANSWER.DENY)}>
           Deny

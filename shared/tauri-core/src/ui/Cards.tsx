@@ -4,6 +4,7 @@ import { agentColour, FROM_NOW_ON, suggestedScope, type FinishedCard, type HeldA
 import { ANSWERING_ROW, GlyphButton, IslandButton, IslandCard, MiddleCut, PRESSABLE, PulseDot, SFSymbol, VEIL, veilOf, type SFSymbolName } from './kit';
 import { ConversationStack } from './cards/QuestionBubble';
 import { WorkCard } from './cards/WorkCard';
+import { SessionLogo } from './sessions/parts';
 import { note } from './ui';
 
 /**
@@ -81,6 +82,7 @@ export function HeldCall({
         {state.waiting.header !== undefined && <QueueRow waiting={state.waiting} header={state.waiting.header} disabled={busy} step={(by) => calls.step(by)} />}
         <div className="flex min-w-0 items-center gap-2">
           <PulseDot colour={agentColour(card.agent)} />
+          <SessionLogo agent={card.agent} name={card.who} size={18} />
           <span className="shrink-0 truncate text-callout font-semibold text-white">{card.who}</span>
           {settled !== undefined ? (
             <span className="flex min-w-0 items-center gap-1.5 text-body text-green">
@@ -186,6 +188,7 @@ export function Finished({ card, onOpen, onDone }: { card: FinishedCard; onOpen?
           <span className="grid text-green">
             <SFSymbol name="checkmark.circle.fill" size={13} />
           </span>
+          <SessionLogo agent={card.agent} name={card.who} size={18} />
           <span className="truncate text-callout font-semibold text-white">{card.who}</span>
           <span className="text-body text-white/[0.62]">finished</span>
         </div>

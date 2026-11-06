@@ -1,6 +1,7 @@
 import type { DaemonEvent } from '@memnox/core/wire';
 import { agentKind } from './agent-colour';
 import { callLabel, ON_THIS_COMPUTER, placeMachine, type CallPlace } from './call-label';
+import type { HeldImpact } from './held-impact';
 import { callPlace, callWhat, callWhy, callWho, type WorkspaceHeldCall } from './workspace-wire';
 
 /** A held call as the island draws it: whose it is, what it wants, why it was held. */
@@ -26,6 +27,8 @@ export interface HeldCard {
   readonly sessionId: string | undefined;
   /** The digest of exactly this call, which a yes signs and sends so a call changed since it was shown is refused. */
   readonly actionDigest: string | undefined;
+  /** What it could affect, whether it can be undone and what was verified, where the cloud sent it. */
+  readonly impact?: HeldImpact;
 }
 
 /**
@@ -69,6 +72,7 @@ export function teamHeldCard(call: WorkspaceHeldCall): HeldCard {
     expiresAt: call.expiresAt === '' ? undefined : call.expiresAt,
     sessionId: undefined,
     actionDigest: undefined,
+    ...(call.impact === undefined ? {} : { impact: call.impact }),
   };
 }
 

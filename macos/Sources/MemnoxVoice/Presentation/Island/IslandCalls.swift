@@ -16,6 +16,8 @@ struct IslandHeldCall: View {
 
     private enum Layout {
         static let dotSide: CGFloat = 8
+        /// The agent's logo beside its name, a little taller than the name's line.
+        static let logoSide: CGFloat = 18
         static let commandRadius: CGFloat = 10
     }
 
@@ -37,6 +39,7 @@ struct IslandHeldCall: View {
                 if let header = model.waiting.header { queueRow(header) }
                 HStack(spacing: Memnox.Spacing.medium) {
                     Circle().fill(IslandPalette.color(card.agent)).frame(width: Layout.dotSide, height: Layout.dotSide).modifier(PulseEffect())
+                    AgentDisc(agent: card.agent, name: card.who, size: Layout.logoSide)
                     Text(card.who)
                         .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
                         .foregroundStyle(Color.white)
@@ -146,12 +149,15 @@ struct IslandFinished: View {
     private static let veilOpacity = 0.5
     private static let summaryLines = 2
     private static let doneSymbol = "checkmark.circle.fill"
+    /// The agent's logo beside its name, the size the waiting card draws it.
+    private static let logoSide: CGFloat = 18
 
     var body: some View {
         IslandCard(veil: IslandPalette.green.opacity(Self.veilOpacity)) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
                 HStack(spacing: Memnox.Spacing.medium) {
                     Image(systemName: Self.doneSymbol).foregroundStyle(IslandPalette.green)
+                    AgentDisc(agent: card.agent, name: card.who, size: Self.logoSide)
                     Text(card.who).font(Memnox.sans(Memnox.TextSize.callout, .semibold)).foregroundStyle(Color.white)
                         .layoutPriority(1)
                     Text(card.place.map { "finished in \($0)" } ?? "finished")

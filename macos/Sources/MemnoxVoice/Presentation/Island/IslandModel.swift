@@ -58,6 +58,10 @@ struct HeldCard: Equatable, Sendable {
     let at: String?
     /// Whether the workspace routed it from a teammate, whose call takes no rule from this Mac.
     let team: Bool
+    /// What it could affect, whether it can be undone and what was verified, where the workspace sent it.
+    let impact: HeldImpact?
+    /// The folder it waits in, by name, which names the project it happens in.
+    let place: String?
 
     /// `server` names the server that raised it, so the person sees where the call waits; nil for this Mac.
     init(_ event: DaemonEvent, server: String? = nil) {
@@ -74,6 +78,8 @@ struct HeldCard: Equatable, Sendable {
         actionDigest = event.actionDigest
         at = event.at
         team = false
+        impact = nil
+        self.place = event.place
     }
 
     /// A teammate's call the workspace routed here: named with its machine and team, and every allow asks for Touch ID.
@@ -90,6 +96,8 @@ struct HeldCard: Equatable, Sendable {
         actionDigest = nil
         at = call.askedAt
         team = true
+        impact = call.impact
+        place = nil
     }
 
     /// What the Touch ID sheet says this answer is for, naming the call by its one label.

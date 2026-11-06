@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emitTo, listen } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { TAURI_COMMAND } from './tauri-commands';
 
 /** Told to the island by the side panel when an exchange is picked there, to open it tall. */
 const PICKED_EVENT = 'side-exchange';
@@ -27,12 +28,12 @@ const inTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNA
 export const islandWindow = {
   /** Where clicks are taken; everywhere else they pass through. */
   setHitAreas(areas: readonly HitArea[], resting?: boolean): void {
-    if (inTauri()) void invoke('island_hit_areas', { areas, resting }).catch(() => undefined);
+    if (inTauri()) void invoke(TAURI_COMMAND.islandHitAreas, { areas, resting }).catch(() => undefined);
   },
 
   /** Takes the keyboard for this window, or gives it back to where the person was typing. */
   keyboard(on: boolean): void {
-    if (inTauri()) void invoke('island_keyboard', { on }).catch(() => undefined);
+    if (inTauri()) void invoke(TAURI_COMMAND.islandKeyboard, { on }).catch(() => undefined);
   },
 
   /**
@@ -64,11 +65,11 @@ export const islandWindow = {
 
   /** The displays the island can hang from and the one chosen, for the Appearance page. */
   screens(): Promise<{ chosen: string; displays: { id: string; name: string }[] }> {
-    return inTauri() ? invoke('island_screens') : Promise.resolve({ chosen: 'notch', displays: [] });
+    return inTauri() ? invoke(TAURI_COMMAND.islandScreens) : Promise.resolve({ chosen: 'notch', displays: [] });
   },
 
   chooseScreen(stored: string): Promise<void> {
-    return inTauri() ? invoke('island_screen_choose', { stored }) : Promise.resolve();
+    return inTauri() ? invoke(TAURI_COMMAND.islandScreenChoose, { stored }) : Promise.resolve();
   },
 
   /** Settings asks the island to open, for the home's Answer. */

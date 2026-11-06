@@ -12,10 +12,10 @@ import { DictationPolish, Mouth, VoicePreferences, VoiceTurns } from '../core';
 import { VoiceIsland } from './voice/VoiceIsland';
 import { voiceModels } from './voice/models';
 import { hintNames, localPreferences, TauriChimes, TauriEar, TauriTypist } from './voice/tauri-voice';
+import { VOICE_KEY_PREFIX } from '../core/application/voice-preferences';
 import { DictationWords } from '../core/application/voice-settings';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { AgentQuestions, Displays, HistoryKeeper, Sessions } from '../core';
 import { localHistory } from './sessions/history-store';
 import { ASK_AGAIN_EVENT, TauriPresenter } from './sessions/tauri-presenter';
@@ -30,6 +30,7 @@ import { HeldCallNotices } from '../core/application/held-call-notices';
 import { tauriNotices } from './adapters/tauri-notices';
 import type { ConfirmKey } from '../core';
 import './styles.css';
+import { TAURI_COMMAND } from './adapters/tauri-commands';
 
 /** How long after the daemon closes the feed before it is opened again, long enough for a restart to finish. */
 const RECONNECT_MS = 2_000;
@@ -71,7 +72,7 @@ const heldCalls: HeldCalls = calls;
 const voicePreferences = new VoicePreferences(localPreferences);
 // Settings writes the switches in its own window, so a change there reaches this copy of them.
 window.addEventListener('storage', (event) => {
-  const key = event.key?.startsWith('memnox.voice.') === true ? (event.key.slice('memnox.voice.'.length) as keyof VoiceChoices) : undefined;
+  const key = event.key?.startsWith(VOICE_KEY_PREFIX) === true ? (event.key.slice(VOICE_KEY_PREFIX.length) as keyof VoiceChoices) : undefined;
   if (key !== undefined && key in voicePreferences.choices && (event.newValue === 'true' || event.newValue === 'false')) voicePreferences.set(key, event.newValue === 'true');
 });
 // The person's own choices, kept by Settings and the first run: their name, and whether the first run is done.
@@ -114,7 +115,7 @@ const voiceTurns = new VoiceTurns({
   corrected: (corrections) => corrections.forEach(({ heard, meant }) => dictationWords.addWord(heard, meant)),
   hints: hintNames,
   // The privacy switch read before each listen, since a denied one hands the app silence and not an error.
-  microphone: () => invoke<{ microphone: 'allowed' | 'denied' | 'none' | 'unknown' }>('permission_facts').then((facts) => facts.microphone),
+  microphone: () => invoke<{ microphone: 'allowed' | 'denied' | 'none' | 'unknown' }>(TAURI_COMMAND.permissionFacts).then((facts) => facts.microphone),
 });
 const wakefulness = new Wakefulness(link, new TauriPower(), ids);
 const setup = new Setup(link, runtime(), ids, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
@@ -149,10 +150,10 @@ const extras = islandExtras({
 });
 sessions.start();
 void listen<string>(ASK_AGAIN_EVENT, (event) => void talking.heard(event.payload, true));
-const openLive = (sessionId: string) => void invoke('open_live_session', { sessionId }).catch(() => undefined);
+const openLive = (sessionId: string) => void invoke(TAURI_COMMAND.openLiveSession, { sessionId }).catch(() => undefined);
 /** "Open in {app}": the session's own tab or editor first, by where the runtime noted it runs, and its live window when that fails. */
 const openOwnApp = (sessionId: string) => void openSession(sessionId, sessions.state.cards.find((card) => card.sessionId === sessionId)?.host);
-const openSettings = (page: string | null) => void invoke('open_settings', { page }).catch(() => undefined);
+const openSettings = (page: string | null) => void invoke(TAURI_COMMAND.openSettings, { page }).catch(() => undefined);
 
 /** Whether the side panel is up, which lights the history satellite and tile; it learns of a close however the panel went. */
 const side = (() => {
@@ -176,7 +177,7 @@ const side = (() => {
     /** Opens or closes the panel, as the Mac's `toggleSide`. */
     toggle() {
       const opening = !open;
-      void invoke('open_side', { open: opening }).catch(() => undefined);
+      void invoke(TAURI_COMMAND.openSide, { open: opening }).catch(() => undefined);
     },
   };
 })();
@@ -194,7 +195,7 @@ async function keepWatching(held: HeldCalls): Promise<never> {
 
 void keepWatching(calls);
 // A first launch opens the first run in its own window; after it, Settings is one press on the island away.
-if (!personal.setupDone) void invoke('open_onboarding').catch(() => undefined);
+if (!personal.setupDone) void invoke(TAURI_COMMAND.openOnboarding).catch(() => undefined);
 void wakefulness.check();
 setInterval(() => void wakefulness.check(), AWAKE_CHECK_MS);
 

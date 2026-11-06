@@ -9,6 +9,7 @@ import type { PermissionFacts, PrivacyPane } from '../../core/domain/permission-
 import type { PathLook } from '../../core/domain/memory-import';
 import { platformOf, type Platform } from '../../core/domain/platform';
 import { SAY_EVENT } from '../voice/tauri-voice';
+import { TALK_EVENT, TAURI_COMMAND } from '../adapters/tauri-commands';
 
 /** One step of the natural voice installing, as Rust reports it. */
 export interface InstallProgress {
@@ -107,20 +108,20 @@ export const tauriHost: SettingsHost = {
   openPrivacy: (pane) => invoke<boolean>('open_privacy', { pane }),
   startsAtSignIn: () => invoke<boolean>('start_at_sign_in'),
   setStartsAtSignIn: (on) => invoke<boolean>('set_start_at_sign_in', { on }),
-  restart: () => void invoke('restart_memnox'),
-  openPage: (url) => void invoke('open_page', { url }).catch(() => undefined),
+  restart: () => void invoke(TAURI_COMMAND.restartMemnox),
+  openPage: (url) => void invoke(TAURI_COMMAND.openPage, { url }).catch(() => undefined),
   // `local_file.rs` refuses a folder, a link and anything runnable, and the refusal is the copy fallback.
   readSkillFile: (path) => invoke<string>('read_skill_file', { path }).then(
     (text) => text,
     () => undefined,
   ),
-  openFile: (path) => invoke('open_file', { path }).then(
+  openFile: (path) => invoke(TAURI_COMMAND.openFile, { path }).then(
     () => true,
     () => false,
   ),
-  openSettings: (page) => void invoke('open_settings', { page: page ?? null }),
-  openOnboarding: () => void invoke('open_onboarding'),
-  openLive: (sessionId) => void invoke('open_live_session', { sessionId }).catch(() => undefined),
+  openSettings: (page) => void invoke(TAURI_COMMAND.openSettings, { page: page ?? null }),
+  openOnboarding: () => void invoke(TAURI_COMMAND.openOnboarding),
+  openLive: (sessionId) => void invoke(TAURI_COMMAND.openLiveSession, { sessionId }).catch(() => undefined),
   onHomeStale: (listener) => {
     // The name matches `HOME_STALE_EVENT`, which the island sends.
     const stop = listen('home-stale', () => listener());
@@ -131,10 +132,10 @@ export const tauriHost: SettingsHost = {
     const stop = listen<{ rows: LiveActivityRow[]; missed: number }>('live-activity', (event) => listener(event.payload.rows, event.payload.missed));
     return () => void stop.then((unlisten) => unlisten(), () => undefined);
   },
-  onboardingVeil: (on) => void invoke('onboarding_veil', { on }).catch(() => undefined),
-  close: () => void invoke('close_window'),
-  applyLook: (look) => void invoke('apply_appearance', { look }).catch(() => undefined),
-  talk: (intent) => void emit('talk', intent === undefined ? null : { intent }),
+  onboardingVeil: (on) => void invoke(TAURI_COMMAND.onboardingVeil, { on }).catch(() => undefined),
+  close: () => void invoke(TAURI_COMMAND.closeWindow),
+  applyLook: (look) => void invoke(TAURI_COMMAND.applyAppearance, { look }).catch(() => undefined),
+  talk: (intent) => void emit(TALK_EVENT, intent === undefined ? null : { intent }),
   copy: (text) => navigator.clipboard.writeText(text),
   // The island keeps the diary, so it is the one that copies; the name matches `COPY_WHAT_HAPPENED_EVENT`.
   copyWhatHappened: (more) => emit('copy-what-happened', more),
@@ -142,7 +143,7 @@ export const tauriHost: SettingsHost = {
     const stop = listen<string>('settings-page', (event) => listener(event.payload));
     return () => void stop.then((unlisten) => unlisten(), () => undefined);
   },
-  popOut: (search, title) => void invoke('open_inspector', { search, title }).catch(() => undefined),
+  popOut: (search, title) => void invoke(TAURI_COMMAND.openInspector, { search, title }).catch(() => undefined),
   // `rule_pack.rs` shows the dialog and reads or writes the file, so this window names no path itself.
   pickRulePack: () => invoke<string | null>('pick_rule_pack').then((toml) => toml ?? undefined),
   saveRulePack: (toml) => invoke<boolean>('save_rule_pack', { toml }),
@@ -178,7 +179,7 @@ export const tauriHost: SettingsHost = {
     install: (onStep) => {
       const steps = new Channel<InstallProgress>();
       steps.onmessage = onStep;
-      return invoke('voice_install', { steps });
+      return invoke(TAURI_COMMAND.voiceInstall, { steps });
     },
     say: (sentence) => emit(SAY_EVENT, { line: sentence }),
     test: () => emit(SAY_EVENT, { line: null }),

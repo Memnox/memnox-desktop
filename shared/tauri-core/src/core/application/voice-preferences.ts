@@ -44,7 +44,8 @@ export const VOICE_DEFAULTS: VoiceChoices = {
   echoCancel: true,
 };
 
-const PREFIX = 'memnox.voice.';
+/** Every voice choice is stored under this, so the UI and the core read the same keys. */
+export const VOICE_KEY_PREFIX = 'memnox.voice.';
 /** The key picked to dictate with, apart from the switches since it is a name and not a yes or no. */
 export const DICTATION_KEY = 'memnox.dictation.key';
 /** Whether the keyboard's layout has AltGr, as the island last read it, so Settings shows the same default. */
@@ -58,7 +59,7 @@ export class VoicePreferences {
   constructor(private readonly store: PreferenceStore) {
     const loaded: Partial<Record<keyof VoiceChoices, boolean>> = {};
     for (const key of Object.keys(VOICE_DEFAULTS) as (keyof VoiceChoices)[]) {
-      const kept = safely(() => store.load(PREFIX + key));
+      const kept = safely(() => store.load(VOICE_KEY_PREFIX + key));
       if (kept === 'true' || kept === 'false') loaded[key] = kept === 'true';
     }
     this.current = { ...VOICE_DEFAULTS, ...loaded };
@@ -76,7 +77,7 @@ export class VoicePreferences {
   set(key: keyof VoiceChoices, on: boolean): void {
     if (this.current[key] === on) return;
     this.current = { ...this.current, [key]: on };
-    safely(() => this.store.save(PREFIX + key, String(on)));
+    safely(() => this.store.save(VOICE_KEY_PREFIX + key, String(on)));
     for (const listener of this.listeners) listener();
   }
 

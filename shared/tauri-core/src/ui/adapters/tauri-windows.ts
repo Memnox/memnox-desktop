@@ -1,8 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emitTo, listen } from '@tauri-apps/api/event';
-import type { AgentNode, DisplayHost, TraceCard } from '@memnox/core/wire';
+import type { AgentNode, DisplayHost } from '@memnox/core/wire';
 import type { FloatingCard } from '../../core/domain/floating-cards';
 import type { MenuAction } from '../../core/domain/menu-panel';
+import { TAURI_COMMAND } from './tauri-commands';
 
 /**
  * The windows beside the island, reached from the island's own window: the floating cards, the scan
@@ -39,25 +40,12 @@ export interface IslandStatus {
 
 /** A card on screen in the top left, over whatever was there. */
 export async function showCard(card: FloatingCard): Promise<void> {
-  await invoke('cards_show');
+  await invoke(TAURI_COMMAND.cardsShow);
   await emitTo('cards', WINDOW_EVENTS.card, card);
 }
 
 export function showSummary(card: Omit<Extract<FloatingCard, { kind: 'summary' }>, 'kind'>): Promise<void> {
   return showCard({ kind: 'summary', ...card });
-}
-
-export function showWalk(card: Omit<Extract<FloatingCard, { kind: 'walk' }>, 'kind'>): Promise<void> {
-  return showCard({ kind: 'walk', ...card });
-}
-
-export function showTrace(trace: TraceCard, title: string): Promise<void> {
-  return showCard({ kind: 'trace', title, trace });
-}
-
-/** Every floating card off the screen, faded rather than cut. */
-export async function dismissCards(): Promise<void> {
-  await emitTo('cards', WINDOW_EVENTS.cardsDismiss, null).catch(() => undefined);
 }
 
 /** Whenever the island's presenter asks for a floating card, the window is made and handed it. */
@@ -68,7 +56,7 @@ export function forwardCards(): () => void {
 
 /** The whole screen scan of every agent here, with what each reaches. */
 export async function showScan(agents: readonly AgentNode[], title: string): Promise<void> {
-  await invoke('scan_show');
+  await invoke(TAURI_COMMAND.scanShow);
   await emitTo('scan', WINDOW_EVENTS.scan, { agents, title });
 }
 
@@ -90,7 +78,3 @@ export function answerMenuOpened(status: () => IslandStatus): () => void {
   return () => void stop.then((unlisten) => unlisten());
 }
 
-/** A line in the diary Rust keeps for Copy what happened: names and outcomes only, never words or arguments. */
-export function noteInDiary(line: string): void {
-  void invoke('diary_note', { line }).catch(() => undefined);
-}

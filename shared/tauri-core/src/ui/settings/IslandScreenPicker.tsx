@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ISLAND_SCREEN_LINES, islandScreenOptions, shownIslandScreen } from '../../core/domain/island-screen';
-import { SelectMenu, SettingsRow } from './kit';
+import { SettingsRow } from './kit';
 import { islandWindow } from '../adapters/tauri-island-window';
+import { Select } from '../kit';
 
 type Listed = { chosen: string; displays: { id: string; name: string }[] };
 
@@ -20,7 +21,7 @@ export function IslandScreenPicker() {
   };
   return (
     <SettingsRow title={ISLAND_SCREEN_LINES.title} caption={ISLAND_SCREEN_LINES.caption}>
-      <SelectMenu value={shownIslandScreen(listed.chosen, listed.displays)} options={islandScreenOptions(listed.displays)} onChange={pick} label={ISLAND_SCREEN_LINES.title} />
+      <Select value={shownIslandScreen(listed.chosen, listed.displays)} options={islandScreenOptions(listed.displays)} onChange={pick} label={ISLAND_SCREEN_LINES.title} />
     </SettingsRow>
   );
 }

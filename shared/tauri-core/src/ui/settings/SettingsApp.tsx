@@ -1,7 +1,7 @@
 import { Archive, Blocks, ChevronDown, ChevronRight, CircleHelp, CirclePower, CircleUserRound, Contrast, Ear, House, Keyboard, LayoutGrid, ShieldCheck, FolderSync, Smartphone, Speech, Wifi, type LucideIcon } from 'lucide-react';
 import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
-import { matchingPages, PageHistory, pageInfo, pageNamed, SETTINGS_GROUPS, type SettingsPage } from '../../core/domain/settings-pages';
-import { NavigationCapsule, PageTitle, SearchField } from './kit';
+import { matchingPages, PageHistory, pageInfo, pageNamed, SETTINGS_GROUPS, SettingsWindowLines, type SettingsPage } from '../../core/domain/settings-pages';
+import { NavigationCapsule, PageTitle } from './kit';
 import { AccountPage } from './pages/AccountPage';
 import { BackupPage } from './pages/BackupPage';
 import { HelpPage } from './pages/HelpPage';
@@ -13,6 +13,7 @@ import { ToolsPage } from './pages/ToolsPage';
 import { YourAppsPage } from './pages/YourAppsPage';
 import { DictationPage, ListeningPage, VoicePage } from './pages/VoicePages';
 import { useLook, type SettingsParts } from './parts';
+import { Pressable, SearchInput } from '../kit';
 
 /** Each page's symbol, the lucide stand in for the Mac's SF Symbol. */
 const ICONS: Record<SettingsPage, LucideIcon> = {
@@ -79,7 +80,7 @@ export function SettingsApp({ parts, first }: { parts: SettingsParts; first?: Se
     <div className="flex h-full bg-surface text-foreground">
       <aside className="flex w-[243px] shrink-0 flex-col">
         <div className="px-[9px] pt-3 pb-[9px]">
-          <SearchField value={query} placeholder="Search settings" onChange={setQuery} />
+          <SearchInput value={query} placeholder={SettingsWindowLines.search} onChange={setQuery} />
         </div>
         <nav className="flex-1 overflow-y-auto px-[9px] pb-[9px] [scrollbar-width:none]">
           {query.trim() !== ''
@@ -165,23 +166,28 @@ export function PageBody({ page, parts, go }: { page: SettingsPage; parts: Setti
   }
 }
 
+/** A row's glyph, 14 at a light stroke, and a group's fold chevron, 10 bold. */
+const ROW_GLYPH = 14;
+const ROW_GLYPH_STROKE = 1.9;
+const FOLD_GLYPH = 10;
+const FOLD_GLYPH_STROKE = 3;
+
 /** A sidebar row: 30 tall, the icon in an 18 column, 9 to the label; chosen is white on the blue. */
 function SidebarRow({ page, chosen, go }: { page: SettingsPage; chosen: boolean; go: (page: SettingsPage) => void }) {
   const Icon = ICONS[page];
   const info = pageInfo(page);
   return (
-    <button
-      type="button"
-      className={`flex h-[30px] w-full cursor-pointer items-center gap-[9px] rounded-lg px-2.5 text-left text-body transition-colors duration-200 ${chosen ? 'bg-primary font-medium text-white' : 'text-foreground hover:bg-hover'}`}
+    <Pressable
+      className={`flex h-[30px] w-full cursor-pointer items-center gap-[9px] rounded-control px-2.5 text-left text-body transition-colors duration-200 ${chosen ? 'bg-primary font-medium text-white' : 'text-foreground hover:bg-hover'}`}
       onClick={() => go(page)}
       title={info.subtitle}
       aria-current={chosen ? 'page' : undefined}
     >
       <span className={`grid w-[18px] shrink-0 place-items-center ${chosen ? 'text-white' : 'text-primary'}`}>
-        <Icon size={14} strokeWidth={1.9} />
+        <Icon size={ROW_GLYPH} strokeWidth={ROW_GLYPH_STROKE} />
       </span>
       <span className="truncate">{info.title}</span>
-    </button>
+    </Pressable>
   );
 }
 
@@ -189,11 +195,11 @@ function SidebarRow({ page, chosen, go }: { page: SettingsPage; chosen: boolean;
 function GroupHeader({ title, open, toggle }: { title: string; open: boolean; toggle: () => void }) {
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
-    <button type="button" className="flex w-full cursor-pointer items-center gap-1.5 px-1.5 pt-3.5 pb-1 text-footnote font-semibold text-faint" onClick={toggle} aria-expanded={open}>
+    <Pressable className="flex w-full cursor-pointer items-center gap-1.5 px-1.5 pt-3.5 pb-1 text-footnote font-semibold text-faint" onClick={toggle} aria-expanded={open}>
       <span className="grid w-3 place-items-center">
-        <Chevron size={10} strokeWidth={3} />
+        <Chevron size={FOLD_GLYPH} strokeWidth={FOLD_GLYPH_STROKE} />
       </span>
       {title}
-    </button>
+    </Pressable>
   );
 }

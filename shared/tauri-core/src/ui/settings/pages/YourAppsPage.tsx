@@ -1,6 +1,5 @@
-import { CircleAlert, LayoutGrid, Plug, RotateCw, UserRoundPlus, X } from 'lucide-react';
+import { LayoutGrid, Plug, RotateCw, UserRoundPlus } from 'lucide-react';
 import { useEffect, useState, type CSSProperties } from 'react';
-import type { YourAppNote } from '../../../core/domain/your-apps';
 import {
   agentsLine,
   categoriesOf,
@@ -13,7 +12,6 @@ import {
   orderChip,
   reachLine,
   recommended,
-  showingLine,
   statusLine,
   statusTone,
   supportPill,
@@ -23,22 +21,21 @@ import {
   YourAppDisconnect,
   YourAppsLayout,
   YourAppsLines,
+  YourAppsNamed,
   yours,
   type YourAppCard,
+  type YourAppNote,
   type YourAppsTab,
 } from '../../../core/domain/your-apps';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
-import { BrandLogo, ToolMark } from '../../kit/logos';
-import { EmptyState } from '../../app/widgets';
-import { ConfirmDialog } from '../../app/pages/SkillDialogs';
-import { KitButton, SearchField, SettingsCard, SettingsRow, Spinner } from '../kit';
+import { SettingsCard, SettingsRow } from '../kit';
 import { useObserved, type SettingsParts } from '../parts';
+import { Banner, BrandLogo, Button, ConfirmDialog, EmptyState, Pill, Pressable, SearchInput, Spinner, Tabs, ToolMark } from '../../kit';
 
 const TONE_TEXT = { good: 'text-success', attention: 'text-warm', quiet: 'text-muted' } as const;
 const TONE_DOT = { good: 'bg-success', attention: 'bg-warm', quiet: 'bg-faint' } as const;
-/** The console's blue pill, as its Fully supported badge: the blue at 10 percent under a 40 percent edge. */
-const BLUE_PILL = 'border-primary/40 bg-primary/10 text-primary';
-const PLAIN_PILL = 'border-border text-muted';
+/** The refresh glyph beside Check again, a point under the words. */
+const REFRESH_GLYPH = 13;
 /** The agents' logos are a line of small text tall, so they sit level with the words that name them. */
 const AGENT_LOGO = 16;
 
@@ -88,22 +85,22 @@ export function YourAppsPage({ parts }: { parts: SettingsParts }) {
             setCategory(undefined);
           }}
         />
-        <button type="button" onClick={() => void tools.refresh()} className="mx-focus inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-body-sm text-muted hover:text-foreground">
-          <RotateCw size={13} aria-hidden />
+        <Pressable onClick={() => void tools.refresh()} className="mx-focus inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-body-sm text-muted hover:text-foreground">
+          <RotateCw size={REFRESH_GLYPH} aria-hidden />
           {YourAppsLines.checkAgain}
-        </button>
+        </Pressable>
       </div>
       {signInNeeded && (
         <SettingsCard>
           <SettingsRow icon={UserRoundPlus} tint="var(--color-primary)" title={YourAppsLines.signInTitle} caption={YourAppsLines.signInDetail}>
             {signingIn && <Spinner />}
-            <KitButton kind="primary" disabled={signingIn} aria-label={YourAppsLines.signInTitle} onClick={() => void apps.signInForApps()}>
+            <Button kind="primary" disabled={signingIn} aria-label={YourAppsLines.signInTitle} onClick={() => void apps.signInForApps()}>
               {YourAppsLines.signIn}
-            </KitButton>
+            </Button>
           </SettingsRow>
         </SettingsCard>
       )}
-      {pageNote !== undefined && <NoteView note={pageNote} dismiss={() => apps.dismissNote()} />}
+      {pageNote !== undefined && <Banner title={pageNote.title} words={pageNote.words} dismiss={() => apps.dismissNote()} dismissLabel={YourAppsLines.close} />}
       <div className="flex items-start" style={{ gap: YourAppsLayout.railSpacing }}>
         {categories.length > 0 && (
           <Rail
@@ -114,14 +111,7 @@ export function YourAppsPage({ parts }: { parts: SettingsParts }) {
           />
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-5">
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <SearchField value={query} placeholder={tab === 'all' ? YourAppsLines.searchAll : YourAppsLines.searchThese} onChange={search} />
-            </div>
-            <span className="shrink-0 font-mono text-meta tabular-nums text-muted" aria-live="polite">
-              {showingLine(shown.length, pool.length)}
-            </span>
-          </div>
+          <SearchInput value={query} placeholder={tab === 'all' ? YourAppsLines.searchAll : YourAppsLines.searchThese} onChange={search} count={{ shown: shown.length, total: pool.length }} />
           {tab === 'all' && found.some((each) => each.source !== undefined) && <p className="m-0 text-meta text-faint">{ORDER_LEGEND}</p>}
           {tab === 'all' && searchNote !== undefined && <p className="m-0 text-meta text-warm">{searchNote}</p>}
           {shown.length === 0 ? (
@@ -159,7 +149,8 @@ export function YourAppsPage({ parts }: { parts: SettingsParts }) {
         <ConfirmDialog
           icon={Plug}
           title={YourAppDisconnect.title(leaving.name)}
-          message={`${YourAppDisconnect.message(leaving.name)} ${YourAppDisconnect.detail(leaving.name)}`}
+          message={YourAppDisconnect.message(leaving.name)}
+          detail={YourAppDisconnect.detail(leaving.name)}
           confirm={YourAppDisconnect.confirm}
           cancel={() => setLeaving(undefined)}
           act={() => {
@@ -173,59 +164,27 @@ export function YourAppsPage({ parts }: { parts: SettingsParts }) {
   );
 }
 
-/** The tabs as the Mac's `InspectorTabs`: 13 medium, an underline in blue under the chosen one, a hairline under all. */
-function Tabs({ tabs, chosen, choose }: { tabs: readonly { id: YourAppsTab; title: string }[]; chosen: YourAppsTab; choose: (id: YourAppsTab) => void }) {
-  return (
-    <div role="tablist" className="flex min-w-0 flex-1 overflow-x-auto border-b border-panel-edge">
-      {tabs.map((each) => {
-        const on = each.id === chosen;
-        return (
-          <button
-            key={each.id}
-            type="button"
-            role="tab"
-            aria-selected={on}
-            onClick={() => choose(each.id)}
-            className={`mx-focus -mb-px shrink-0 cursor-pointer border-b-2 px-3 py-2.5 text-body-sm font-medium whitespace-nowrap ${on ? 'border-primary text-foreground' : 'border-transparent text-muted hover:text-foreground'}`}
-          >
-            {each.title}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** The categories down the side with their counts, commonest first, as the console's rail. */
+/** `CategoryRail`: the categories down the side with their counts, commonest first, the chosen one on the active fill. */
 function Rail({ total, categories, chosen, choose }: { total: number; categories: readonly { id: string; label: string; count: number }[]; chosen: string | undefined; choose: (id: string | undefined) => void }) {
   const rows = [{ id: undefined, label: YourAppsLines.allToolkits, count: total }, ...categories];
   return (
     <nav aria-label={YourAppsLines.categories} className="flex shrink-0 flex-col gap-0.5" style={{ width: YourAppsLayout.railWidth }}>
-      <p className="m-0 px-2.5 pb-1.5 font-mono text-meta tracking-[0.165em] text-muted uppercase">{YourAppsLines.categories}</p>
+      <p className="m-0 px-2.5 pb-1.5 font-code text-meta tracking-[1.98px] text-muted uppercase">{YourAppsLines.categories}</p>
       {rows.map((row) => {
         const on = row.id === chosen;
         return (
-          <button
+          <Pressable
             key={row.id ?? ''}
-            type="button"
             onClick={() => choose(row.id)}
             aria-current={on ? 'true' : undefined}
-            className={`mx-focus flex w-full cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-body-sm ${on ? 'bg-active font-medium text-foreground' : 'text-muted hover:text-foreground'}`}
+            className={`mx-focus flex w-full cursor-pointer items-center gap-1.5 rounded-control px-2.5 py-1.5 text-left text-body-sm ${on ? 'bg-active font-medium text-foreground' : 'text-muted'}`}
           >
             <span className="min-w-0 flex-1 truncate">{row.label}</span>
-            <span className="shrink-0 font-mono text-meta tabular-nums text-faint">{row.count}</span>
-          </button>
+            <span className="shrink-0 font-code text-meta tabular-nums text-faint">{row.count}</span>
+          </Pressable>
         );
       })}
     </nav>
-  );
-}
-
-function Pill({ words, blue, label }: { words: string; blue: boolean; label?: string }) {
-  return (
-    <span aria-label={label} className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-label font-medium whitespace-nowrap ${blue ? BLUE_PILL : PLAIN_PILL}`}>
-      {words}
-    </span>
   );
 }
 
@@ -265,16 +224,16 @@ function AppTile({
   const agents = agentsLine(card, agentLabel);
   const pad: CSSProperties = { padding: YourAppsLayout.cardPadding };
   return (
-    <article className="flex min-w-0 flex-col gap-3 rounded-xl border border-panel-edge bg-card" style={pad}>
+    <article className="flex min-w-0 flex-col gap-3 rounded-card border border-panel-edge bg-card" style={pad}>
       <div className="flex min-w-0 items-start gap-3">
         <ToolMark toolkit={card.slug} size={YourAppsLayout.markSide} />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="line-clamp-2 text-body-sm font-semibold text-foreground">{card.name}</span>
           {(support !== undefined || isRecommended || order !== undefined) && (
             <span className="flex flex-wrap gap-0.5">
-              {support !== undefined && <Pill words={support} blue={card.support === 'full'} />}
-              {isRecommended && <Pill words={YourAppsLines.recommended} blue />}
-              {order !== undefined && <Pill words={order} blue={false} label={`Source ${order}`} />}
+              {support !== undefined && <Pill tint={card.support === 'full' ? 'blue' : 'plain'}>{support}</Pill>}
+              {isRecommended && <Pill tint="blue">{YourAppsLines.recommended}</Pill>}
+              {order !== undefined && <Pill label={YourAppsNamed.source(order)}>{order}</Pill>}
             </span>
           )}
           <span className="text-meta text-muted">{reachLine(card)}</span>
@@ -298,33 +257,33 @@ function AppTile({
         </span>
       )}
       <span className="flex-1" />
-      {note !== undefined && <NoteView note={note} dismiss={dismissNote} />}
+      {note !== undefined && <Banner title={note.title} words={note.words} dismiss={dismissNote} dismissLabel={YourAppsLines.close} />}
       <div className="flex items-center gap-2">
         {card.standing === 'on-this-computer' && <span className="flex min-h-8 items-center text-meta text-faint">{YourAppsLines.onThisComputerFoot}</span>}
         {card.standing === 'connected' && (
           <>
-            <KitButton disabled={disabled} aria-label={`Disconnect ${card.name}`} onClick={disconnect}>
+            <Button disabled={disabled} aria-label={YourAppsNamed.disconnect(card.name)} onClick={disconnect}>
               {YourAppsLines.disconnect}
-            </KitButton>
-            <button type="button" disabled={disabled} aria-label={`Sign in to ${card.name} with another account`} onClick={anotherAccount} className="mx-focus cursor-pointer text-meta text-muted hover:text-foreground disabled:cursor-default disabled:opacity-45">
+            </Button>
+            <Pressable disabled={disabled} aria-label={YourAppsNamed.anotherAccount(card.name)} onClick={anotherAccount} className="mx-focus cursor-pointer text-meta text-muted hover:text-foreground disabled:cursor-default disabled:opacity-45">
               {YourAppsLines.anotherAccount}
-            </button>
+            </Pressable>
           </>
         )}
         {card.standing === 'sign-in-again' && (
           <>
-            <KitButton kind="primary" wide disabled={disabled} aria-label={`Sign in to ${card.name} again`} onClick={connect}>
+            <Button kind="primary" wide disabled={disabled} aria-label={YourAppsNamed.signInAgain(card.name)} onClick={connect}>
               {YourAppsLines.signInAgain}
-            </KitButton>
-            <KitButton disabled={disabled} aria-label={`Disconnect ${card.name}`} onClick={disconnect}>
+            </Button>
+            <Button disabled={disabled} aria-label={YourAppsNamed.disconnect(card.name)} onClick={disconnect}>
               {YourAppsLines.disconnect}
-            </KitButton>
+            </Button>
           </>
         )}
         {card.standing === 'available' && (
-          <KitButton kind="primary" wide disabled={disabled} aria-label={signInFirst ? `${YourAppsLines.signInTitle} ${card.name}` : `Connect ${card.name}`} onClick={connect}>
+          <Button kind="primary" wide disabled={disabled} aria-label={signInFirst ? `${YourAppsLines.signInTitle} ${card.name}` : YourAppsNamed.connect(card.name)} onClick={connect}>
             {signInFirst ? YourAppsLines.signInButton : YourAppsLines.connect}
-          </KitButton>
+          </Button>
         )}
         {busy && <Spinner />}
       </div>
@@ -332,18 +291,3 @@ function AppTile({
   );
 }
 
-/** A note that something did not work, inline where it happened, with a close button so it never stands over the page. */
-function NoteView({ note, dismiss }: { note: YourAppNote; dismiss: () => void }) {
-  return (
-    <div role="status" className="flex items-start gap-2 rounded-md border border-warm/35 bg-warm/[0.08] p-3">
-      <CircleAlert size={14} className="mt-0.5 shrink-0 text-warm" aria-hidden />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-meta font-semibold text-foreground">{note.title}</span>
-        <span className="text-meta break-words text-muted select-text">{note.words}</span>
-      </div>
-      <button type="button" aria-label={YourAppsLines.close} onClick={dismiss} className="mx-focus cursor-pointer text-muted hover:text-foreground">
-        <X size={11} strokeWidth={2.5} />
-      </button>
-    </div>
-  );
-}

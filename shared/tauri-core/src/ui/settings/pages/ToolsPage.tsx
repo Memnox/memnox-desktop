@@ -3,12 +3,14 @@ import { Fragment, useEffect } from 'react';
 import { agentStatusWord } from '../../../core/application/tools';
 import { EMBEDDING_COMMAND, MEANING_SEARCH_LINE, MEANING_SEARCH_TITLE } from '../../../core/domain/memory-lines';
 import { AgentMark } from '../../kit/logos';
-import { KitButton, SettingsCard, SettingsDivider, SettingsRow, SettingsSection } from '../kit';
+import { SettingsCard, SettingsDivider, SettingsRow, SettingsSection } from '../kit';
 import { useObserved, type SettingsParts } from '../parts';
+import { Button } from '../../kit';
+import { ToolsPageLines } from '../../../core/domain/tools-page-lines';
 
 /** A 7 dot after a tool: ready in the success colour, needing the person in the warm one. */
 function StatusDot({ ready }: { ready: boolean }) {
-  return <span className={`size-[7px] shrink-0 rounded-full ${ready ? 'bg-success' : 'bg-warm'}`} aria-label={ready ? 'Ready' : 'Needs you'} />;
+  return <span className={`size-[7px] shrink-0 rounded-full ${ready ? 'bg-success' : 'bg-warm'}`} aria-label={ready ? ToolsPageLines.ready : ToolsPageLines.needsYou} />;
 }
 
 /**
@@ -26,9 +28,9 @@ export function ToolsPage({ parts }: { parts: SettingsParts }) {
   const editor = steps.editor;
   return (
     <>
-      <SettingsCard title="Agents">
+      <SettingsCard title={ToolsPageLines.agents}>
         {agents.length === 0 ? (
-          <SettingsRow icon={Terminal} title={reading ? 'Looking for agents' : 'No agents found'} caption="Install Claude Code, Codex or Cursor and Memnox finds it." />
+          <SettingsRow icon={Terminal} title={reading ? ToolsPageLines.looking : ToolsPageLines.noAgents} caption={ToolsPageLines.installHint} />
         ) : (
           agents.map((agent, index) => (
             <Fragment key={agent.kind}>
@@ -41,19 +43,19 @@ export function ToolsPage({ parts }: { parts: SettingsParts }) {
         )}
       </SettingsCard>
       {/* The same check as the first run, for an editor installed since; Windows and Linux find a session's tab without asking. */}
-      <SettingsSection title="Where your agents run">
+      <SettingsSection title={ToolsPageLines.whereRun}>
         <SettingsCard>
           {editor.shown ? (
-            <SettingsRow icon={SquareTerminal} title="Memnox in your editor" caption={editor.detail}>
-              {editor.state.kind !== 'done' && <KitButton onClick={() => void steps.readPermissions()}>Check again</KitButton>}
+            <SettingsRow icon={SquareTerminal} title={ToolsPageLines.editor} caption={editor.detail}>
+              {editor.state.kind !== 'done' && <Button onClick={() => void steps.readPermissions()}>{ToolsPageLines.checkAgain}</Button>}
               <StatusDot ready={editor.state.kind === 'done'} />
             </SettingsRow>
           ) : (
-            <SettingsRow icon={SquareTerminal} title="No editor found" caption="Memnox works with VS Code, Cursor and Windsurf, and finds the terminal each session runs in on its own." />
+            <SettingsRow icon={SquareTerminal} title={ToolsPageLines.noEditor} caption={ToolsPageLines.editorHint} />
           )}
         </SettingsCard>
       </SettingsSection>
-      <SettingsCard title="Memory">
+      <SettingsCard title={ToolsPageLines.memory}>
         <SettingsRow
           icon={Brain}
           title={MEANING_SEARCH_TITLE}
@@ -63,15 +65,15 @@ export function ToolsPage({ parts }: { parts: SettingsParts }) {
             </>
           }
         >
-          <KitButton icon={Copy} onClick={() => void parts.host.copy(EMBEDDING_COMMAND)}>
-            Copy
-          </KitButton>
+          <Button icon={Copy} onClick={() => void parts.host.copy(EMBEDDING_COMMAND)}>
+            {ToolsPageLines.copy}
+          </Button>
         </SettingsRow>
       </SettingsCard>
       <div className="flex justify-end">
-        <KitButton icon={RotateCw} onClick={() => void tools.refresh()}>
-          Check again
-        </KitButton>
+        <Button icon={RotateCw} onClick={() => void tools.refresh()}>
+          {ToolsPageLines.checkAgain}
+        </Button>
       </div>
     </>
   );

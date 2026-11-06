@@ -2,9 +2,14 @@ import { BellDot, Monitor, Speech } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { accountDetail, accountState, accountTitle } from '../../../core/domain/account-whole';
 import { nameStep } from '../../../core/domain/setup-steps';
-import { Digits, KitButton, KitField, NeedsHint, QuietLine, SettingsCard, SettingsDivider, SettingsRow, SettingsSection, Spinner, StatusMark, Surface } from '../kit';
+import { Digits, NeedsHint, QuietLine, SettingsCard, SettingsDivider, SettingsRow, SettingsSection, StatusMark, Surface } from '../kit';
 import { useObserved, usePreferences, type SettingsParts } from '../parts';
 import { SetupStep } from '../steps';
+import { Button, Input, Spinner } from '../../kit';
+import { AccountPageLines } from '../../../core/domain/account-page-lines';
+
+/** The name field, as wide as the Mac's beside its row. */
+const NAME_FIELD_WIDTH = 220;
 
 /**
  * The Account page, as the Mac's `AccountPage`: the person's name, the one sign in that gives this computer
@@ -17,23 +22,23 @@ export function AccountPage({ parts }: { parts: SettingsParts }) {
   useEffect(() => void account.refresh(), []);
   return (
     <>
-      <SettingsSection title="You">
+      <SettingsSection title={AccountPageLines.you}>
         <Surface>
           <NameRow parts={parts} />
         </Surface>
       </SettingsSection>
-      <SettingsSection title="Memnox Cloud">
+      <SettingsSection title={AccountPageLines.cloud}>
         <Surface>
           <CloudRow parts={parts} />
         </Surface>
       </SettingsSection>
-      <SettingsSection title="What signing in turns on">
+      <SettingsSection title={AccountPageLines.turnsOn}>
         <SettingsCard>
-          <SettingsRow icon={BellDot} title={`Calls your workspace routes to you show in the island, and every yes asks for ${words.keyTitle}.`} />
+          <SettingsRow icon={BellDot} title={AccountPageLines.callsRouted(words.keyTitle)} />
           <SettingsDivider />
-          <SettingsRow icon={Speech} title="Apps you already connected on this computer move into your account with you." />
+          <SettingsRow icon={Speech} title={AccountPageLines.appsMove} />
           <SettingsDivider />
-          <SettingsRow icon={Monitor} title="Your rules, workspace memory and phone pairing reach this computer." />
+          <SettingsRow icon={Monitor} title={AccountPageLines.rulesReach} />
         </SettingsCard>
       </SettingsSection>
     </>
@@ -47,14 +52,14 @@ export function NameRow({ parts }: { parts: SettingsParts }) {
   return (
     <SetupStep
       state={nameStep(name)}
-      title="Your name"
-      detail="What Memnox calls you."
+      title={AccountPageLines.yourName}
+      detail={AccountPageLines.nameDetail}
       trailing={
-        <KitField
+        <Input
           value={name}
-          placeholder="Your name"
-          width={220}
-          onChange={(typed) => {
+          placeholder={AccountPageLines.yourName}
+          width={NAME_FIELD_WIDTH}
+          onValue={(typed) => {
             setName(typed);
             preferences.name = typed;
           }}
@@ -104,32 +109,32 @@ function CloudControl({ parts }: { parts: SettingsParts }) {
     case 'signed-out':
     case 'failed':
       return (
-        <KitButton kind="primary" onClick={() => void account.start()}>
-          Sign in
-        </KitButton>
+        <Button kind="primary" onClick={() => void account.start()}>
+          {AccountPageLines.signIn}
+        </Button>
       );
     case 'working':
       return <Spinner />;
     case 'showing-code':
-      return <KitButton onClick={() => account.cancel()}>Cancel</KitButton>;
+      return <Button onClick={() => account.cancel()}>{AccountPageLines.cancel}</Button>;
     case 'incomplete':
       return (
         <>
-          <KitButton onClick={() => void account.signOut()}>Sign out</KitButton>
-          <KitButton kind="primary" onClick={() => void account.finish()}>
-            Finish
-          </KitButton>
+          <Button onClick={() => void account.signOut()}>{AccountPageLines.signOut}</Button>
+          <Button kind="primary" onClick={() => void account.finish()}>
+            {AccountPageLines.finish}
+          </Button>
         </>
       );
     case 'too-old':
       return account.updating ? (
         <Spinner />
       ) : (
-        <KitButton kind="primary" onClick={() => void account.bringUpToDate()}>
-          Update
-        </KitButton>
+        <Button kind="primary" onClick={() => void account.bringUpToDate()}>
+          {AccountPageLines.update}
+        </Button>
       );
     case 'signed-in':
-      return <KitButton onClick={() => void account.signOut()}>Sign out</KitButton>;
+      return <Button onClick={() => void account.signOut()}>{AccountPageLines.signOut}</Button>;
   }
 }

@@ -6,11 +6,13 @@ import { LAN_PAIRS_WITHOUT_ACCOUNT } from '../../../core/domain/local-network-li
 import { deviceCaption, drives, PairingLines } from '../../../core/domain/pairing-lines';
 import type { PermissionStep } from '../../../core/domain/permission-steps';
 import { DONE, WAITING } from '../../../core/domain/step-state';
-import { Digits, IconTile, KitButton, MemnoxTile, QuietLine, SettingsCard, SettingsDivider, SettingsRow, Spinner, Surface, SwitchRow, useCopied } from '../kit';
+import { Digits, IconTile, MemnoxTile, QuietLine, SettingsCard, SettingsDivider, SettingsRow, Surface, SwitchRow, useCopied } from '../kit';
 import { IslandScreenPicker } from '../IslandScreenPicker';
 import { useObserved, usePreferences, type SettingsParts } from '../parts';
 import { PermissionGuide, QrCode, SetupDivider, SetupStep } from '../steps';
 import { ServerCard, TeamRow } from './RelayCards';
+import { Button, Spinner, Pressable } from '../../kit';
+import { ComputerLines } from '../../../core/domain/computer-lines';
 
 /**
  * The Permissions page: what this computer lets Memnox hear, type and see, as the Mac's
@@ -45,17 +47,17 @@ export function PermissionRow({ parts, step }: { parts: SettingsParts; step: Per
       detail={step.detail}
       trailing={
         step.state.kind === 'waiting' ? (
-          <KitButton kind="primary" onClick={() => void steps.readPermissions()}>
-            Allow
-          </KitButton>
+          <Button kind="primary" onClick={() => void steps.readPermissions()}>
+            {ComputerLines.allow}
+          </Button>
         ) : undefined
       }
       extra={
         step.state.kind === 'needs' && step.guide.length > 0 ? (
           <PermissionGuide steps={step.guide} pane={pane === 'microphone' ? 'Microphone' : undefined} switchName={step.switchName} settingsApp={words.settingsApp} open={open}>
-            <KitButton icon={RotateCw} onClick={() => void steps.readPermissions()}>
-              Check again
-            </KitButton>
+            <Button icon={RotateCw} onClick={() => void steps.readPermissions()}>
+              {ComputerLines.checkAgain}
+            </Button>
           </PermissionGuide>
         ) : undefined
       }
@@ -70,15 +72,15 @@ function StartAtSignInRow({ parts }: { parts: SettingsParts }) {
   return (
     <SetupStep
       state={on ? DONE : WAITING}
-      title="Start when you sign in"
-      detail="So a call that waits on you is never missed because Memnox was closed."
+      title={ComputerLines.startAtSignIn}
+      detail={ComputerLines.startAtSignInDetail}
       trailing={
         on ? (
-          <KitButton onClick={() => void steps.setStartsAtSignIn(false)}>Turn off</KitButton>
+          <Button onClick={() => void steps.setStartsAtSignIn(false)}>{ComputerLines.turnOff}</Button>
         ) : (
-          <KitButton kind="primary" onClick={() => void steps.setStartsAtSignIn(true)}>
-            Turn on
-          </KitButton>
+          <Button kind="primary" onClick={() => void steps.setStartsAtSignIn(true)}>
+            {ComputerLines.turnOn}
+          </Button>
         )
       }
     />
@@ -113,10 +115,10 @@ export function EditorRow({ parts }: { parts: SettingsParts }) {
   return (
     <SetupStep
       state={editor.state}
-      title="Memnox in your editor"
+      title={ComputerLines.editor}
       detail={editor.detail}
       tile={<IconTile icon={SquareTerminal} />}
-      trailing={editor.state.kind === 'done' ? undefined : <KitButton onClick={() => void parts.steps.readPermissions()}>Check again</KitButton>}
+      trailing={editor.state.kind === 'done' ? undefined : <Button onClick={() => void parts.steps.readPermissions()}>{ComputerLines.checkAgain}</Button>}
     />
   );
 }
@@ -128,10 +130,10 @@ export function ServiceRow({ parts }: { parts: SettingsParts }) {
   return (
     <SetupStep
       state={service.state}
-      title="Memnox service"
+      title={ComputerLines.service}
       detail={service.detail}
       tile={<MemnoxTile />}
-      trailing={service.state.kind === 'done' ? undefined : working ? <Spinner /> : <KitButton onClick={() => void steps.checkService()}>Check again</KitButton>}
+      trailing={service.state.kind === 'done' ? undefined : working ? <Spinner /> : <Button onClick={() => void steps.checkService()}>{ComputerLines.checkAgain}</Button>}
     />
   );
 }
@@ -145,7 +147,7 @@ export function KeyRow({ parts }: { parts: SettingsParts }) {
       title={words.keyTitle}
       detail={words.keyDetail}
       tile={<IconTile icon={Fingerprint} />}
-      trailing={state.kind === 'done' ? undefined : <KitButton onClick={() => void steps.checkKey()}>Check again</KitButton>}
+      trailing={state.kind === 'done' ? undefined : <Button onClick={() => void steps.checkKey()}>{ComputerLines.checkAgain}</Button>}
     />
   );
 }
@@ -166,17 +168,17 @@ export function PhonesPage({ parts }: { parts: SettingsParts }) {
       </Surface>
       {network.status !== undefined && network.status.on && <p className="px-1 text-footnote text-muted">{LAN_PAIRS_WITHOUT_ACCOUNT}</p>}
       {pairing.devices.length > 0 && (
-        <SettingsCard title="Paired phones">
+        <SettingsCard title={ComputerLines.pairedPhones}>
           {pairing.devices.map((device, index) => (
             <Fragment key={device.id}>
               {index > 0 && <SettingsDivider full />}
               <SettingsRow icon={Smartphone} title={device.name} caption={deviceCaption(device)}>
-                <KitButton onClick={() => void pairing.revoke(device)}>Revoke</KitButton>
+                <Button onClick={() => void pairing.revoke(device)}>Revoke</Button>
               </SettingsRow>
               <SwitchRow
                 icon={MousePointerClick}
-                title="Let it drive this computer"
-                caption={drives(device) ? 'Turn off to stop it' : `${parts.words.keyTitle} to turn on`}
+                title={ComputerLines.drive}
+                caption={drives(device) ? ComputerLines.stopDriving : ComputerLines.keyTurnsOn(parts.words.keyTitle)}
                 on={drives(device)}
                 onChange={(on) => void pairing.letDrive(device, on)}
               />
@@ -197,11 +199,11 @@ function PairRow({ parts }: { parts: SettingsParts }) {
   const state = step.kind === 'paired' ? DONE : step.kind === 'failed' ? { kind: 'needs' as const, why: step.why } : WAITING;
   const trailing =
     step.kind === 'idle' || step.kind === 'paired' ? (
-      <KitButton onClick={() => void pairing.pair()}>Pair</KitButton>
+      <Button onClick={() => void pairing.pair()}>Pair</Button>
     ) : step.kind === 'failed' ? (
-      <KitButton onClick={() => void pairing.pair()}>Try again</KitButton>
+      <Button onClick={() => void pairing.pair()}>{ComputerLines.tryAgain}</Button>
     ) : step.kind === 'showing' ? (
-      <KitButton onClick={() => void pairing.decline()}>Cancel</KitButton>
+      <Button onClick={() => void pairing.decline()}>Cancel</Button>
     ) : undefined;
   let extra = null;
   switch (step.kind) {
@@ -211,12 +213,12 @@ function PairRow({ parts }: { parts: SettingsParts }) {
     case 'showing':
       extra = (
         <div className="flex items-center gap-4">
-          <QrCode text={step.qr} size={148} quiet={10} radius={10} />
+          <QrCode text={step.qr} size={PAIRING_QR.side} quiet={PAIRING_QR.quiet} radius={PAIRING_QR.radius} />
           <div className="flex flex-col items-start gap-2">
-            <QuietLine>Scan this with the Memnox app on your iPhone.</QuietLine>
-            <KitButton icon={copied ? Check : Copy} onClick={() => copy(step.qr)}>
-              {copied ? 'Copied' : 'Copy link'}
-            </KitButton>
+            <QuietLine>{ComputerLines.scan}</QuietLine>
+            <Button icon={copied ? Check : Copy} onClick={() => copy(step.qr)}>
+              {copied ? ComputerLines.copied : ComputerLines.copyLink}
+            </Button>
           </div>
         </div>
       );
@@ -227,14 +229,14 @@ function PairRow({ parts }: { parts: SettingsParts }) {
         <div className="flex flex-col items-start gap-1.5">
           <span className="text-footnote font-semibold text-foreground">{step.phone.name}</span>
           <Digits code={groupedDigits(step.phone.code)} />
-          <QuietLine>Approve if your iPhone shows the same digits.</QuietLine>
+          <QuietLine>{ComputerLines.sameDigits}</QuietLine>
           <div className="flex items-center gap-2 pt-1">
-            <KitButton kind="primary" disabled={step.kind === 'approving'} onClick={() => void pairing.approve()}>
-              Approve
-            </KitButton>
-            <KitButton disabled={step.kind === 'approving'} onClick={() => void pairing.decline()}>
-              Decline
-            </KitButton>
+            <Button kind="primary" disabled={step.kind === 'approving'} onClick={() => void pairing.approve()}>
+              {ComputerLines.approve}
+            </Button>
+            <Button disabled={step.kind === 'approving'} onClick={() => void pairing.decline()}>
+              {ComputerLines.decline}
+            </Button>
             {step.kind === 'approving' && <Spinner />}
           </div>
         </div>
@@ -249,13 +251,16 @@ function PairRow({ parts }: { parts: SettingsParts }) {
   return (
     <SetupStep
       state={state}
-      title="Pair a phone"
-      detail="Optional. Answer your agents and talk to Memnox from your iPhone."
+      title={ComputerLines.pairPhone}
+      detail={ComputerLines.pairPhoneDetail}
       trailing={trailing}
       extra={extra ?? undefined}
     />
   );
 }
+
+/** The pairing code as the Mac draws it: 148 square, 10 of quiet zone and a 10 corner. */
+const PAIRING_QR = { side: 148, quiet: 10, radius: 10 } as const;
 
 /** The Appearance page: Light, Dark or System as three pictures, and why the island stays dark. */
 export function AppearancePage({ parts }: { parts: SettingsParts }) {
@@ -270,7 +275,7 @@ export function AppearancePage({ parts }: { parts: SettingsParts }) {
     <div className="flex flex-col gap-2">
       <div className="flex gap-4 rounded-xl border border-panel-edge bg-card p-5">
         {LOOKS.map((look) => (
-          <button key={look} type="button" className="flex cursor-pointer flex-col items-center gap-2 transition-transform duration-200 ease-press active:scale-[0.94]" onClick={() => pick(look)} aria-pressed={look === chosen}>
+          <Pressable key={look} className="flex cursor-pointer flex-col items-center gap-2 transition-transform duration-200 ease-press active:scale-[0.94]" onClick={() => pick(look)} aria-pressed={look === chosen}>
             <span
               className="block rounded-xl"
               style={{ boxShadow: look === chosen ? '0 0 0 2px var(--color-primary)' : '0 0 0 1px var(--mx-ink-edge)' }}
@@ -278,7 +283,7 @@ export function AppearancePage({ parts }: { parts: SettingsParts }) {
               <LookThumbnail look={look} />
             </span>
             <span className={`text-body ${look === chosen ? 'font-semibold text-sky' : 'text-ink-primary'}`}>{LOOK_NAMES[look]}</span>
-          </button>
+          </Pressable>
         ))}
       </div>
       <p className="px-1 text-caption text-ink-secondary">{ISLAND_STAYS_DARK}</p>

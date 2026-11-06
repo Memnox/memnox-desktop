@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { AT_REST, fitted, zoomedAt, type Camera } from '../../../core/domain/surface-camera';
 import { FORCES } from '../../../core/domain/surface-forces';
 import { between, NODE_SIZE, scaleOf, ZOOM, type Placed } from '../../../core/domain/surface-geometry';
+import { SurfaceLines } from '../../../core/domain/surface-lines';
+import { IconButton, Pressable } from '../../kit';
 import { PANEL_WIDTH, useFollowFit, useForces, useStageSize, useSurfaceGestures } from './surface-hooks';
 
 /**
@@ -32,6 +34,11 @@ const WHEEL_IN = 1.08;
 const PRESS_ZOOM = 1.2;
 /** One press of the size buttons, a tenth either way. */
 const SIZE_STEP = 0.1;
+/** The size is kept in tenths, so a press never leaves a float's long tail behind. */
+const TENTHS = 10;
+/** The toolbar's glyphs, a button's 14. */
+const CONTROL_GLYPH = 14;
+const CONTROL_GLYPH_STROKE = 2;
 /** Past this far out a name is a smear, so it is not drawn at all. */
 const NAMES_BELOW = 0.45;
 /** A line to something else while one thing is followed keeps this share of its ink. */
@@ -174,9 +181,8 @@ export function SurfaceCanvas<N extends Placed, E extends SurfaceEdge>({
           const picked = selected === node.id;
           const faded = focus !== undefined && focus !== node.id && !edges.some((edge) => (edge.from === focus && edge.to === node.id) || (edge.to === focus && edge.from === node.id));
           return (
-            <button
+            <Pressable
               key={node.id}
-              type="button"
               data-node={node.id}
               aria-pressed={picked}
               aria-label={node.label}
@@ -208,16 +214,16 @@ export function SurfaceCanvas<N extends Placed, E extends SurfaceEdge>({
               {node.captioned !== false && camera.k >= NAMES_BELOW && (
                 <span className={`absolute top-full left-1/2 mt-1 line-clamp-2 w-28 -translate-x-1/2 text-center text-[10px] leading-snug font-medium ${picked ? 'text-foreground' : 'text-muted'}`}>{node.label}</span>
               )}
-            </button>
+            </Pressable>
           );
         })}
       </div>
 
       <div className="absolute top-3 left-3 flex flex-col gap-2" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center gap-0.5 rounded-lg border border-panel-edge bg-card p-1 shadow-[0_8px_24px_rgb(0_0_0/0.1)]">
-          <Control label="Fit the map" icon={Maximize2} onClick={fit} />
+          <Control label={SurfaceLines.fit} icon={Maximize2} onClick={fit} />
           <Control
-            label="Arrange again"
+            label={SurfaceLines.arrange}
             icon={RotateCcw}
             onClick={() => {
               gestures.own.current = false;
@@ -225,14 +231,14 @@ export function SurfaceCanvas<N extends Placed, E extends SurfaceEdge>({
             }}
           />
           <span aria-hidden className="mx-0.5 h-5 w-px bg-border" />
-          <Control label="Zoom out" icon={Minus} disabled={camera.k <= ZOOM.min} onClick={() => zoomBy(1 / PRESS_ZOOM, middle)} />
-          <span className="w-10 text-center text-meta text-muted tabular-nums" aria-label="Zoom">{`${Math.round(camera.k * 100)}%`}</span>
-          <Control label="Zoom in" icon={Plus} disabled={camera.k >= ZOOM.max} onClick={() => zoomBy(PRESS_ZOOM, middle)} />
+          <Control label={SurfaceLines.zoomOut} icon={Minus} disabled={camera.k <= ZOOM.min} onClick={() => zoomBy(1 / PRESS_ZOOM, middle)} />
+          <span className="w-10 text-center text-meta text-muted tabular-nums" aria-label={SurfaceLines.zoom}>{SurfaceLines.percent(camera.k)}</span>
+          <Control label={SurfaceLines.zoomIn} icon={Plus} disabled={camera.k >= ZOOM.max} onClick={() => zoomBy(PRESS_ZOOM, middle)} />
         </div>
         <div className="flex items-center gap-0.5 rounded-lg border border-panel-edge bg-card p-1 shadow-[0_8px_24px_rgb(0_0_0/0.1)]">
-          <span className="px-1.5 text-meta text-muted">Size</span>
-          <Control label="Smaller marks" icon={Minus} disabled={nodeSize <= NODE_SIZE.min} onClick={() => setNodeSize(Math.max(NODE_SIZE.min, Math.round((nodeSize - SIZE_STEP) * 10) / 10))} />
-          <Control label="Larger marks" icon={Plus} disabled={nodeSize >= NODE_SIZE.max} onClick={() => setNodeSize(Math.min(NODE_SIZE.max, Math.round((nodeSize + SIZE_STEP) * 10) / 10))} />
+          <span className="px-1.5 text-meta text-muted">{SurfaceLines.size}</span>
+          <Control label={SurfaceLines.smaller} icon={Minus} disabled={nodeSize <= NODE_SIZE.min} onClick={() => setNodeSize(Math.max(NODE_SIZE.min, Math.round((nodeSize - SIZE_STEP) * TENTHS) / TENTHS))} />
+          <Control label={SurfaceLines.larger} icon={Plus} disabled={nodeSize >= NODE_SIZE.max} onClick={() => setNodeSize(Math.min(NODE_SIZE.max, Math.round((nodeSize + SIZE_STEP) * TENTHS) / TENTHS))} />
         </div>
       </div>
       <div className="absolute bottom-3 left-3 max-w-[260px]" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
@@ -242,17 +248,7 @@ export function SurfaceCanvas<N extends Placed, E extends SurfaceEdge>({
   );
 }
 
-function Control({ label, icon: Icon, onClick, disabled = false }: { label: string; icon: typeof Plus; onClick: () => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      disabled={disabled}
-      onClick={onClick}
-      className="mx-focus grid size-7 cursor-pointer place-items-center rounded-md text-muted hover:bg-hover hover:text-foreground disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent"
-    >
-      <Icon size={14} aria-hidden />
-    </button>
-  );
+/** A toolbar press: the kit's 28 square glyph press. */
+function Control({ label, icon, onClick, disabled = false }: { label: string; icon: typeof Plus; onClick: () => void; disabled?: boolean }) {
+  return <IconButton icon={icon} label={label} size="sm" iconSize={CONTROL_GLYPH} strokeWidth={CONTROL_GLYPH_STROKE} disabled={disabled} onClick={onClick} />;
 }

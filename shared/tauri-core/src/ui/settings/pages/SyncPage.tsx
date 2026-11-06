@@ -17,9 +17,10 @@ import {
   syncStateWord,
 } from '../../../core/domain/personal-sync-lines';
 import { ago } from '../../../core/domain/session-text';
-import { ReadFailed, StatTile, StatusWord } from '../../app/widgets';
-import { KitButton, SettingsCard, SettingsDivider, SettingsRow } from '../kit';
+import { SettingsCard, SettingsDivider, SettingsRow } from '../kit';
 import { useObserved, type SettingsParts } from '../parts';
+import { Button, ReadFailed, StatTile, StatusWord } from '../../kit';
+import { SyncPageLines } from '../../../core/domain/sync-page-lines';
 
 type Note = { text: string; alert: boolean } | undefined;
 
@@ -58,7 +59,7 @@ function StateCard({ parts, status, note, said }: { parts: SettingsParts; status
   const word = syncStateWord(status.state);
   const busy = sync.busy === 'now';
   return (
-    <SettingsCard title="Personal sync">
+    <SettingsCard title={SyncPageLines.title}>
       {status.state !== 'not-on-plan' && <p className="text-footnote text-muted">{SYNC_WHAT}</p>}
       <div className="flex flex-col gap-1.5">
         <StatusWord tone={word.tone}>{word.word}</StatusWord>
@@ -67,9 +68,9 @@ function StateCard({ parts, status, note, said }: { parts: SettingsParts; status
       </div>
       {status.state === 'ready' && (
         <div className="flex gap-2">
-          <KitButton kind="primary" icon={RefreshCw} disabled={busy} onClick={() => void sync.syncNow().then((outcome) => said(noteOf(outcome, '')))}>
-            {busy ? 'Syncing' : 'Sync now'}
-          </KitButton>
+          <Button kind="primary" icon={RefreshCw} disabled={busy} onClick={() => void sync.syncNow().then((outcome) => said(noteOf(outcome, '')))}>
+            {busy ? SyncPageLines.syncing : SyncPageLines.syncNow}
+          </Button>
         </div>
       )}
       {note !== undefined && (
@@ -97,13 +98,13 @@ function ArrivedCard({ parts, fingerprint, said }: { parts: SettingsParts; finge
   const { sync, words } = parts;
   const busy = sync.busy === 'accept';
   return (
-    <SettingsCard title="A sync key arrived">
+    <SettingsCard title={SyncPageLines.keyArrived}>
       <FingerprintDigits fingerprint={fingerprint} />
       <p className="text-footnote text-muted">{COMPARE_TO_ACCEPT}</p>
       <div className="flex gap-2">
-        <KitButton kind="primary" icon={KeyRound} disabled={busy} onClick={() => void sync.accept(fingerprint).then((outcome) => said(noteOf(outcome, keyWaitsLine(words.keyTitle, false))))}>
-          {busy ? 'Asking' : 'Accept'}
-        </KitButton>
+        <Button kind="primary" icon={KeyRound} disabled={busy} onClick={() => void sync.accept(fingerprint).then((outcome) => said(noteOf(outcome, keyWaitsLine(words.keyTitle, false))))}>
+          {busy ? SyncPageLines.asking : SyncPageLines.accept}
+        </Button>
       </div>
     </SettingsCard>
   );
@@ -113,19 +114,19 @@ function ArrivedCard({ parts, fingerprint, said }: { parts: SettingsParts; finge
 function WaitingCard({ parts, waiting, said }: { parts: SettingsParts; waiting: readonly PersonalSyncMachine[]; said: (note: Note) => void }) {
   const { sync, words } = parts;
   return (
-    <SettingsCard title="Waiting for your key">
+    <SettingsCard title={SyncPageLines.waitingKey}>
       {waiting.map((machine, index) => (
         <div key={machine.machineId} className="flex flex-col gap-3">
           {index > 0 && <SettingsDivider full />}
-          <SettingsRow icon={Laptop} title={machine.machineId} caption="Another of your machines, asking for the sync key">
-            <KitButton
+          <SettingsRow icon={Laptop} title={machine.machineId} caption={SyncPageLines.anotherMachine}>
+            <Button
               kind="primary"
               icon={KeyRound}
               disabled={sync.busy === machine.machineId}
               onClick={() => void sync.offer(machine.machineId, machine.fingerprint).then((outcome) => said(noteOf(outcome, keyWaitsLine(words.keyTitle, true))))}
             >
-              {sync.busy === machine.machineId ? 'Asking' : 'Offer'}
-            </KitButton>
+              {sync.busy === machine.machineId ? SyncPageLines.asking : SyncPageLines.offer}
+            </Button>
           </SettingsRow>
           <FingerprintDigits fingerprint={machine.fingerprint} />
         </div>
@@ -138,7 +139,7 @@ function WaitingCard({ parts, waiting, said }: { parts: SettingsParts; waiting: 
 /** What this machine carries, counted by kind, with what the last run left out and what was opened elsewhere. */
 function CountsCard({ status }: { status: PersonalSyncStatus }) {
   return (
-    <SettingsCard title="On this machine">
+    <SettingsCard title={SyncPageLines.thisMachine}>
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
         {status.kinds.map((count) => {
           // The count's own words, the number large and what it counts under it.
@@ -175,13 +176,13 @@ function ConflictsCard({ parts, count, said }: { parts: SettingsParts; count: nu
   const { sync } = parts;
   const opened = sync.conflicts;
   return (
-    <SettingsCard title="Conflicts">
+    <SettingsCard title={SyncPageLines.conflicts}>
       <p className="text-footnote text-muted">{conflictsLine(count)}</p>
       {opened === undefined ? (
         <div className="flex gap-2">
-          <KitButton disabled={sync.busy === 'conflicts'} onClick={() => void sync.loadConflicts().then((outcome) => said(noteOf(outcome, '')))}>
-            {sync.busy === 'conflicts' ? 'Opening' : 'Open them'}
-          </KitButton>
+          <Button disabled={sync.busy === 'conflicts'} onClick={() => void sync.loadConflicts().then((outcome) => said(noteOf(outcome, '')))}>
+            {sync.busy === 'conflicts' ? SyncPageLines.opening : SyncPageLines.openThem}
+          </Button>
         </div>
       ) : (
         <>
@@ -206,16 +207,16 @@ function ConflictRow({ parts, conflict, said }: { parts: SettingsParts; conflict
         <span className="text-footnote text-muted">{conflictCaption(conflict, ago(conflict.keptAt, Date.now()))}</span>
       </div>
       <div className="grid grid-cols-2 gap-2.5">
-        <Side title="Theirs" text={conflict.theirs} />
-        <Side title="Mine" text={conflict.mine ?? 'Nothing by this name on this machine.'} />
+        <Side title={SyncPageLines.theirs} text={conflict.theirs} />
+        <Side title={SyncPageLines.mine} text={conflict.mine ?? SyncPageLines.nothingHere} />
       </div>
       <div className="flex gap-2">
-        <KitButton disabled={busy} onClick={() => keep('theirs')}>
-          Keep theirs
-        </KitButton>
-        <KitButton disabled={busy} onClick={() => keep('mine')}>
-          Keep mine
-        </KitButton>
+        <Button disabled={busy} onClick={() => keep('theirs')}>
+          {SyncPageLines.keepTheirs}
+        </Button>
+        <Button disabled={busy} onClick={() => keep('mine')}>
+          {SyncPageLines.keepMine}
+        </Button>
       </div>
     </div>
   );

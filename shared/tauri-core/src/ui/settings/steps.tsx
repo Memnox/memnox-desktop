@@ -2,7 +2,9 @@ import { MousePointer2, Settings as Gear } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import { qrModules, qrPath } from '../../core/domain/qr';
 import type { StepState } from '../../core/domain/step-state';
-import { KitButton, NeedsHint, StatusMark } from './kit';
+import { NeedsHint, StatusMark } from './kit';
+import { Button } from '../kit';
+import { SettingsKitLines } from '../../core/domain/settings-kit-lines';
 
 /**
  * `SetupStep` from `Setup.swift`: the mark at the left, the title 13 over its detail 10 muted, the control at
@@ -93,9 +95,9 @@ export function PermissionGuide({
       {switchName !== undefined && pane !== undefined && <SwitchPicture pane={pane} switchName={switchName} />}
       <div className="flex flex-wrap gap-2">
         {open !== undefined && (
-          <KitButton icon={Gear} onClick={open}>
+          <Button icon={Gear} onClick={open}>
             Open {settingsApp}
-          </KitButton>
+          </Button>
         )}
         {children}
       </div>
@@ -135,7 +137,7 @@ export function QrCode({ text, size, quiet, radius }: { text: string; size: numb
   const path = useMemo(() => qrPath(modules), [modules]);
   return (
     <span className="inline-block shrink-0 bg-white" style={{ padding: quiet, borderRadius: radius }}>
-      <svg width={size} height={size} viewBox={`0 0 ${modules.length} ${modules.length}`} shapeRendering="crispEdges" role="img" aria-label="Pairing code">
+      <svg width={size} height={size} viewBox={`0 0 ${modules.length} ${modules.length}`} shapeRendering="crispEdges" role="img" aria-label={SettingsKitLines.pairingCode}>
         <path d={path} fill="#000" />
       </svg>
     </span>

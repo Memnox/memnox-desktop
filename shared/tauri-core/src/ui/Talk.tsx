@@ -7,6 +7,8 @@ import { IslandButton, UnderPill } from './kit';
 import { IslandHearing } from './voice/Hearing';
 import { voiceModels } from './voice/models';
 import { keyboardHasAltGr, keysWatching, onKeys, onPresence, onSay, onVoiceLevel } from './voice/tauri-voice';
+import { TalkLines } from '../core/domain/island-settings-lines';
+import { TALK_EVENT } from './adapters/tauri-commands';
 
 /** Where the microphone stands: not looked at yet, not installed, installing, ready, or open. */
 export type Mic = 'unknown' | 'missing' | 'installing' | 'ready' | 'listening';
@@ -81,7 +83,7 @@ export function useConversation(talking: Talking, { probe = true, voice }: { pro
     if (!probe || voice === undefined) return;
     voice.onLevel = (level) => loudness.set(level);
     // Settings' Say a rule asks for rule mode, which teaches the keys as the tray's does.
-    const stopTalk = listen<{ intent?: string } | null>('talk', (event) => (event.payload?.intent === 'rule' ? voice.sayRule(keysSeen.current) : voice.talk()));
+    const stopTalk = listen<{ intent?: string } | null>(TALK_EVENT, (event) => (event.payload?.intent === 'rule' ? voice.sayRule(keysSeen.current) : voice.talk()));
     // A line from Settings or the first run is said here, in its turn, so the mute and the echo memory hold.
     const stopSay = onSay((line) => (line === undefined ? voice.saySomething() : voice.sayInTurn(line)));
     const stopPresence = onPresence((now) => (now === 'locked' ? voice.locked() : voice.unlocked()));
@@ -162,16 +164,16 @@ export function VoicePills({ conversation }: { conversation: Conversation }) {
         <UnderPill symbol="waveform" tone="neutral">
           {mic === 'installing' && step !== undefined ? (
             <span className="tabular text-white/[0.62]">
-              Installing the voice, {step.part}: {megabytes(step.done)}
-              {step.total !== null && ` of ${megabytes(step.total)}`}
+              {TalkLines.installingStep(step.part, megabytes(step.done))}
+              {step.total !== null && TalkLines.ofTotal(megabytes(step.total))}
             </span>
           ) : mic === 'installing' ? (
-            <span className="text-white/[0.62]">Installing the voice</span>
+            <span className="text-white/[0.62]">{TalkLines.installing}</span>
           ) : (
             <>
-              <span>The voice is not installed yet</span>
+              <span>{TalkLines.notInstalled}</span>
               <IslandButton className="!px-2.5 !py-[3px] !text-caption" onClick={() => void install()}>
-                Try again
+                {TalkLines.tryAgain}
               </IslandButton>
             </>
           )}

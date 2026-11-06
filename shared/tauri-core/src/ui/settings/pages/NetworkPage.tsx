@@ -1,9 +1,10 @@
 import { Smartphone, Wifi } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { LAN_BOUNDS, LAN_WHAT, lanPhonesLine, lanStatusLine, lanSwitchCaption, lanWaitsLine } from '../../../core/domain/local-network-lines';
-import { ReadFailed } from '../../app/widgets';
 import { SettingsCard, SettingsDivider, SettingsRow, SwitchRow } from '../kit';
 import { useObserved, type SettingsParts } from '../parts';
+import { ReadFailed } from '../../kit';
+import { NetworkPageLines } from '../../../core/domain/network-page-lines';
 
 /**
  * Whether paired phones reach this computer over the network it shares with them. The runtime decides:
@@ -24,18 +25,18 @@ export function NetworkPage({ parts }: { parts: SettingsParts }) {
   };
 
   return (
-    <SettingsCard title="Local network">
+    <SettingsCard title={NetworkPageLines.title}>
       <p className="text-footnote text-muted">{LAN_WHAT}</p>
       <p className="text-footnote text-muted">{LAN_BOUNDS}</p>
-      <SwitchRow icon={Wifi} title="Reach this computer on the local network" caption={lanSwitchCaption(lan.on, words.keyTitle)} on={lan.on} disabled={network.busy} onChange={(on) => void flip(on)} />
+      <SwitchRow icon={Wifi} title={NetworkPageLines.reach} caption={lanSwitchCaption(lan.on, words.keyTitle)} on={lan.on} disabled={network.busy} onChange={(on) => void flip(on)} />
       {note !== undefined && (
         <p role={note.alert ? 'alert' : 'status'} className={`text-footnote ${note.alert ? 'text-destructive' : 'text-foreground'}`}>
           {note.text}
         </p>
       )}
       <SettingsDivider full />
-      <SettingsRow icon={Wifi} title="Status" caption={lanStatusLine(lan)} />
-      <SettingsRow icon={Smartphone} title="Phones on it" caption={lanPhonesLine(lan)} />
+      <SettingsRow icon={Wifi} title={NetworkPageLines.status} caption={lanStatusLine(lan)} />
+      <SettingsRow icon={Smartphone} title={NetworkPageLines.phones} caption={lanPhonesLine(lan)} />
     </SettingsCard>
   );
 }

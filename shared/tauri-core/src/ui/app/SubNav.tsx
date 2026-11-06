@@ -16,6 +16,10 @@ import {
 } from 'lucide-react';
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { tabOf, type Route, type TabGroup, type TabGroupId } from '../../core/domain/destinations';
+import { Pressable } from '../kit';
+
+/** A group heading's glyph, callout sized as the Mac's `SubNav` draws it. */
+const GROUP_GLYPH = 14;
 
 const GROUP_ICONS: Record<TabGroupId, LucideIcon> = {
   agents: Bot,
@@ -93,15 +97,14 @@ function SubNav({ title, groups, chosen, choose }: { title: string; groups: read
           return (
             <div key={group.id} className="flex flex-col gap-1">
               <p className="mb-1 flex items-center gap-2 px-3 text-label font-medium tracking-[0.18em] text-muted uppercase">
-                <Icon size={14} className="shrink-0" aria-hidden />
+                <Icon size={GROUP_GLYPH} className="shrink-0" aria-hidden />
                 {group.title}
               </p>
               {group.tabs.map((tab) => {
                 const on = tab.id === chosen;
                 return (
-                  <button
+                  <Pressable
                     key={tab.id}
-                    type="button"
                     data-tab={tab.id}
                     aria-current={on ? 'page' : undefined}
                     title={tab.summary}
@@ -111,7 +114,7 @@ function SubNav({ title, groups, chosen, choose }: { title: string; groups: read
                     }`}
                   >
                     {tab.title}
-                  </button>
+                  </Pressable>
                 );
               })}
             </div>

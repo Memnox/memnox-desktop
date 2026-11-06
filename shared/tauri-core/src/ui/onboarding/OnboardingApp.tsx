@@ -46,10 +46,12 @@ import type { PermissionStep } from '../../core/domain/permission-steps';
 import { agentsFoundLine, firstName, packTitle } from '../../core/domain/setup-steps';
 import type { StepState } from '../../core/domain/step-state';
 import { BrandLogo, MEMNOX_MARK } from '../kit/logos';
-import { IconTile, KitButton, MemnoxTile, NeedsHint, QuietLine, Spinner, StatusMark } from '../settings/kit';
+import { IconTile, MemnoxTile, NeedsHint, QuietLine, StatusMark } from '../settings/kit';
 import { useLook, useObserved, usePreferences, type SettingsParts } from '../settings/parts';
 import { PermissionGuide } from '../settings/steps';
 import { IslandDemo, useDemoTour } from './IslandDemo';
+import { Button, Pressable, Spinner } from '../kit';
+import { OnboardingLines } from '../../core/domain/onboarding-lines';
 
 const PERMISSION_ICONS: Record<PermissionStep['id'], LucideIcon> = { hear: Mic, type: Keyboard, see: ScreenShare };
 const END_ICONS: Record<EndLink['id'], LucideIcon> = { name: UserRound, voice: AudioLines, workspace: Building2, phone: Smartphone };
@@ -143,13 +145,13 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
       </div>
       <footer className="flex h-11 shrink-0 items-center gap-3 px-7 pb-3">
         {(step > 0 || done) && (
-          <KitButton icon={ChevronLeft} onClick={back}>
-            Back
-          </KitButton>
+          <Button icon={ChevronLeft} onClick={back}>
+            {OnboardingLines.back}
+          </Button>
         )}
         <span className="flex-1" />
         <MuteButton parts={parts} />
-        <span className="text-footnote text-ink-tertiary">You can change all of this later in Settings.</span>
+        <span className="text-footnote text-ink-tertiary">{OnboardingLines.changeLater}</span>
       </footer>
     </div>
   );
@@ -177,7 +179,7 @@ function MuteButton({ parts }: { parts: SettingsParts }) {
   usePreferences();
   const muted = parts.preferences.guideMuted;
   return (
-    <KitButton
+    <Button
       icon={muted ? VolumeX : Volume2}
       onClick={() => {
         parts.preferences.guideMuted = !muted;
@@ -186,7 +188,7 @@ function MuteButton({ parts }: { parts: SettingsParts }) {
       }}
     >
       {muted ? 'Unmute' : 'Mute'}
-    </KitButton>
+    </Button>
   );
 }
 
@@ -200,11 +202,11 @@ function Veil({ next }: { next: () => void }) {
       <div className="flex animate-[card-in_600ms_cubic-bezier(.2,.8,.2,1)_both] flex-col items-center gap-11">
         <div className="flex items-center gap-4" style={{ filter: 'drop-shadow(0 0 6px rgb(255 255 255 / .6)) drop-shadow(0 0 28px rgb(255 255 255 / .55))' }}>
           <img src={MEMNOX_MARK} alt="" className="h-[72px] w-auto" draggable={false} />
-          <span className="font-display text-[72px] leading-none font-semibold tracking-tight">Memnox</span>
+          <span className="font-display text-[72px] leading-none font-semibold tracking-tight">{OnboardingLines.brand}</span>
         </div>
-        <KitButton kind="glass" trailing={ArrowRight} onClick={next} autoFocus>
-          Get Started
-        </KitButton>
+        <Button kind="glass" trailing={ArrowRight} onClick={next} autoFocus>
+          {OnboardingLines.getStarted}
+        </Button>
       </div>
     </div>
   );
@@ -236,9 +238,9 @@ function ScrollColumn({ children }: { children: ReactNode }) {
       </div>
       {more && (
         <span className="absolute bottom-2 left-1/2 -translate-x-1/2 shadow-[0_4px_10px_rgba(0,0,0,.25)] [border-radius:999px]">
-          <KitButton icon={ChevronDown} onClick={() => scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })}>
-            More below
-          </KitButton>
+          <Button icon={ChevronDown} onClick={() => scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })}>
+            {OnboardingLines.moreBelow}
+          </Button>
         </span>
       )}
     </div>
@@ -328,10 +330,10 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
   return (
     <>
       <StepTitle counter={stepCounter(0)} title={heading.title} detail={heading.detail} />
-      <KitCard icon={Monitor} title="Memnox on this computer" detail="Installed under your agents and kept up to date for you.">
+      <KitCard icon={Monitor} title={OnboardingLines.onComputer} detail={OnboardingLines.onComputerDetail}>
         <KitRow
           tile={<MemnoxTile />}
-          title="Memnox service"
+          title={OnboardingLines.service}
           detail={service.detail}
           hint={service.state.kind === 'needs' ? service.state.why : undefined}
           trailing={
@@ -339,9 +341,9 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
               {parts.setup.state.doing !== undefined ? (
                 <Spinner />
               ) : (
-                <KitButton icon={RotateCw} onClick={() => void steps.checkService()}>
-                  Check again
-                </KitButton>
+                <Button icon={RotateCw} onClick={() => void steps.checkService()}>
+                  {OnboardingLines.checkAgain}
+                </Button>
               )}
             </DoneOr>
           }
@@ -350,18 +352,18 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
         <KitRow
           tile={<IconTile icon={Fingerprint} />}
           title={words.approveTitle}
-          detail="Your approval signs what agents ask. The key never leaves this computer."
+          detail={OnboardingLines.keyDetail}
           hint={key.kind === 'needs' ? key.why : undefined}
           trailing={
             <DoneOr state={key}>
-              <KitButton icon={RotateCw} onClick={() => void steps.checkKey()}>
-                Check again
-              </KitButton>
+              <Button icon={RotateCw} onClick={() => void steps.checkKey()}>
+                {OnboardingLines.checkAgain}
+              </Button>
             </DoneOr>
           }
         />
       </KitCard>
-      <KitCard icon={UserRoundSearch} title="Agents on this computer" detail={found === undefined ? 'Looking for the agents on this computer.' : agentsFoundLine(found)}>
+      <KitCard icon={UserRoundSearch} title={OnboardingLines.agentsHere} detail={found === undefined ? OnboardingLines.looking : agentsFoundLine(found)}>
         {found !== undefined
           ? found.map((agent, index) => (
               <Fragment key={agent.kind}>
@@ -369,12 +371,12 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
                 <KitRow
                   tile={<BrandLogo agent={agent.kind} name={agent.name} size={26} />}
                   title={agent.name}
-                  detail={agent.status === 'unprotected' ? 'Runs outside Memnox until you protect it.' : agent.status === 'paused' ? 'Paused. Nothing it asks for runs.' : 'Every action passes your boundaries first.'}
+                  detail={agent.status === 'unprotected' ? OnboardingLines.unprotected : agent.status === 'paused' ? OnboardingLines.paused : OnboardingLines.protected}
                   trailing={
                     agent.status === 'unprotected' ? (
-                      <KitButton disabled={home.protecting} onClick={() => void home.protect().then(() => agents.refresh())}>
-                        Protect
-                      </KitButton>
+                      <Button disabled={home.protecting} onClick={() => void home.protect().then(() => agents.refresh())}>
+                        {OnboardingLines.protect}
+                      </Button>
                     ) : (
                       <StatusMark state={{ kind: 'done' }} />
                     )
@@ -385,16 +387,16 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
           : fallback.map((agent, index) => (
               <Fragment key={agent.kind}>
                 {index > 0 && <KitDivider />}
-                <KitRow tile={<BrandLogo agent={agent.kind} name={agent.label} size={26} />} title={agent.label} detail="Found on this computer." />
+                <KitRow tile={<BrandLogo agent={agent.kind} name={agent.label} size={26} />} title={agent.label} detail={OnboardingLines.foundHere} />
               </Fragment>
             ))}
         {found !== undefined && found.length === 0 && (
-          <KitRow tile={<IconTile icon={UserRoundSearch} />} title="No agent found yet" detail="Install one, then check again." trailing={<KitButton onClick={() => void agents.refresh()}>Check again</KitButton>} />
+          <KitRow tile={<IconTile icon={UserRoundSearch} />} title={OnboardingLines.noAgent} detail={OnboardingLines.noAgentDetail} trailing={<Button onClick={() => void agents.refresh()}>{OnboardingLines.checkAgain}</Button>} />
         )}
       </KitCard>
-      <KitButton kind="primary" wide trailing={ArrowRight} onClick={next}>
-        Continue
-      </KitButton>
+      <Button kind="primary" wide trailing={ArrowRight} onClick={next}>
+        {OnboardingLines.continue}
+      </Button>
     </>
   );
 }
@@ -422,7 +424,7 @@ function PermissionsStep({ parts, next }: { parts: SettingsParts; next: () => vo
   return (
     <>
       <StepTitle counter={stepCounter(1)} title={heading.title} detail={heading.detail} />
-      <KitCard icon={Lock} title="What this computer asks for" detail={permissionsLine(asked)}>
+      <KitCard icon={Lock} title={OnboardingLines.asksFor} detail={permissionsLine(asked)}>
         {asked.map((step, index) => {
           const pane = step.pane;
           return (
@@ -437,13 +439,13 @@ function PermissionsStep({ parts, next }: { parts: SettingsParts; next: () => vo
                     {step.state.kind === 'waiting' ? (
                       <Spinner size={12} />
                     ) : pane !== undefined && step.switchName !== undefined ? (
-                      <KitButton icon={SettingsIcon} onClick={() => void host.openPrivacy(pane).then(() => steps.readPermissions())}>
-                        Allow
-                      </KitButton>
+                      <Button icon={SettingsIcon} onClick={() => void host.openPrivacy(pane).then(() => steps.readPermissions())}>
+                        {OnboardingLines.allow}
+                      </Button>
                     ) : (
-                      <KitButton icon={RotateCw} onClick={() => void steps.readPermissions()}>
-                        Check again
-                      </KitButton>
+                      <Button icon={RotateCw} onClick={() => void steps.readPermissions()}>
+                        {OnboardingLines.checkAgain}
+                      </Button>
                     )}
                   </DoneOr>
                 }
@@ -463,9 +465,9 @@ function PermissionsStep({ parts, next }: { parts: SettingsParts; next: () => vo
           );
         })}
       </KitCard>
-      <KitButton kind="primary" wide trailing={ArrowRight} onClick={next}>
-        Continue
-      </KitButton>
+      <Button kind="primary" wide trailing={ArrowRight} onClick={next}>
+        {OnboardingLines.continue}
+      </Button>
     </>
   );
 }
@@ -491,46 +493,46 @@ function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: str
     const outcome = await studio.importPack(pack.toml);
     setSending(false);
     if (outcome.kind === 'failed') return fail(outcome.why);
-    next(outcome.kind === 'proposed' ? 'Your starting rules wait for you on the island.' : outcome.note);
+    next(outcome.kind === 'proposed' ? OnboardingLines.rulesWait : outcome.note);
   };
   const row = (each: NonNullable<typeof packs>[number], index: number, recommended: boolean) => (
     <Fragment key={each.id}>
       {index > 0 && <KitDivider />}
-      <button type="button" role="radio" aria-checked={chosen === each.id} disabled={sending} onClick={() => pick(each.id)} className="cursor-pointer text-left disabled:cursor-default">
+      <Pressable role="radio" aria-checked={chosen === each.id} disabled={sending} onClick={() => pick(each.id)} className="cursor-pointer text-left disabled:cursor-default">
         <KitRow
           tile={<IconTile icon={ListChecks} />}
-          title={recommended ? `${packTitle(each)} · Recommended` : packTitle(each)}
+          title={recommended ? OnboardingLines.recommendedPack(packTitle(each)) : packTitle(each)}
           detail={each.description}
           trailing={<span aria-hidden className={`size-4 rounded-full border-2 ${chosen === each.id ? 'border-primary bg-primary' : 'border-ink-edge'}`} />}
         />
-      </button>
+      </Pressable>
     </Fragment>
   );
   const heading = stepHeading(2, words.keyTitle);
   return (
     <>
       <StepTitle counter={stepCounter(2)} title={heading.title} detail={heading.detail} />
-      <KitCard icon={ListChecks} title="Rule packs" detail="A starting point. Change any rule later under Protection settings.">
+      <KitCard icon={ListChecks} title={OnboardingLines.rulePacks} detail={OnboardingLines.rulePacksDetail}>
         {packs === undefined && <Spinner />}
-        {packs !== undefined && packs.length === 0 && <QuietLine size={13}>Memnox has no rule sets to pick from yet. The rules it starts with stay on.</QuietLine>}
+        {packs !== undefined && packs.length === 0 && <QuietLine size={13}>{OnboardingLines.noPacks}</QuietLine>}
         {starting.recommended !== undefined && (
-          <div role="radiogroup" aria-label="Rule packs" className="flex flex-col">
+          <div role="radiogroup" aria-label={OnboardingLines.rulePacks} className="flex flex-col">
             {row(starting.recommended, 0, true)}
             {others && starting.others.map((each, index) => row(each, index + 1, false))}
           </div>
         )}
         {starting.others.length > 0 && (
           <div className="pt-2">
-            <KitButton icon={others ? ChevronUp : ChevronDown} onClick={() => showOthers(!others)}>
-              {others ? 'Hide other packs' : 'See other packs'}
-            </KitButton>
+            <Button icon={others ? ChevronUp : ChevronDown} onClick={() => showOthers(!others)}>
+              {others ? OnboardingLines.hideOthers : OnboardingLines.seeOthers}
+            </Button>
           </div>
         )}
       </KitCard>
       {failed !== undefined && <NeedsHint why={failed} size={12} />}
-      <KitButton kind="primary" wide trailing={ArrowRight} disabled={sending || packs === undefined} onClick={() => void finish()}>
-        {sending ? 'Proposing your rules' : 'Finish'}
-      </KitButton>
+      <Button kind="primary" wide trailing={ArrowRight} disabled={sending || packs === undefined} onClick={() => void finish()}>
+        {sending ? OnboardingLines.proposing : OnboardingLines.finish}
+      </Button>
     </>
   );
 }
@@ -549,14 +551,14 @@ function EndScreen({ parts, proposed, finish }: { parts: SettingsParts; proposed
     <>
       <StepTitle title={setTitle(name)} detail={GuideLines.ready(name, words.talkKeysSaid)} />
       {proposed !== undefined && <QuietLine size={13}>{proposed}</QuietLine>}
-      <KitButton kind="primary" wide icon={Sparkles} onClick={finish}>
-        Start using Memnox
-      </KitButton>
-      <KitCard icon={SettingsIcon} title="Optional" detail="Each waits in Settings whenever you want it.">
+      <Button kind="primary" wide icon={Sparkles} onClick={finish}>
+        {OnboardingLines.start}
+      </Button>
+      <KitCard icon={SettingsIcon} title={OnboardingLines.optional} detail={OnboardingLines.optionalDetail}>
         {endLinks(name).map((link, index) => (
           <Fragment key={link.id}>
             {index > 0 && <KitDivider />}
-            <KitRow tile={<IconTile icon={END_ICONS[link.id]} />} title={link.title} detail={link.detail} trailing={<KitButton onClick={() => open(link.page)}>Open</KitButton>} />
+            <KitRow tile={<IconTile icon={END_ICONS[link.id]} />} title={link.title} detail={link.detail} trailing={<Button onClick={() => open(link.page)}>{OnboardingLines.open}</Button>} />
           </Fragment>
         ))}
       </KitCard>

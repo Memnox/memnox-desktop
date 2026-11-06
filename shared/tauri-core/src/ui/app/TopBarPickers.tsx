@@ -1,7 +1,7 @@
 import { ALL_PROJECTS, SCOPE_CHOICES, SCOPE_LABEL, SWITCHER_LABEL, type ShownScope } from '../../core/domain/shell-lines';
 import type { WidthClass } from '../../core/domain/destinations';
-import { SelectMenu } from '../settings/kit';
 import { useShellChoices } from './shell-choices';
+import { Pressable, Select } from '../kit';
 
 /** The value the switcher keeps for every project, which no project id can be. */
 const EVERY_PROJECT = '';
@@ -27,7 +27,7 @@ export function TopBarPickers({ width, inProject = false }: { width: WidthClass;
       )}
       {/* Inside a project its sidebar's own switcher moves between projects, so the bar holds no second one. */}
       {!inProject && projects !== undefined && projects.length > 0 && (
-        <SelectMenu
+        <Select
           value={choices.project?.id ?? EVERY_PROJECT}
           label={SWITCHER_LABEL}
           width={width === 'compact' ? SWITCHER_WIDTH_COMPACT : SWITCHER_WIDTH}
@@ -41,14 +41,13 @@ export function TopBarPickers({ width, inProject = false }: { width: WidthClass;
 
 function ScopeButton({ scope, title, on, choose }: { scope: ShownScope; title: string; on: boolean; choose: (scope: ShownScope) => void }) {
   return (
-    <button
-      type="button"
+    <Pressable
       role="radio"
       aria-checked={on}
       onClick={() => choose(scope)}
       className={`mx-focus h-6 cursor-pointer rounded-full px-2.5 text-footnote ${on ? 'bg-background font-medium text-foreground' : 'text-muted hover:text-foreground'}`}
     >
       {title}
-    </button>
+    </Pressable>
   );
 }

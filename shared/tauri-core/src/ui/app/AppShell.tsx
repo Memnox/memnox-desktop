@@ -55,14 +55,13 @@ import {
   settled,
   shellLayout,
   tabGroups,
-  visibleTabs,
   type Route,
   type WidthClass,
   PROJECTS_ROUTE,
   projectRoute,
 } from '../../core/domain/destinations';
 import { pageNamed } from '../../core/domain/settings-pages';
-import { BACK_TO_PROJECTS, projectCrumbs, projectSidebar, type ProjectSidebar } from '../../core/domain/project-sidebar';
+import { projectCrumbs, projectSidebar, type ProjectSidebar } from '../../core/domain/project-sidebar';
 import { projectRules } from '../../core/domain/project-lines';
 import {
   ALL_PROJECTS_TITLE,
@@ -80,10 +79,9 @@ import {
 } from '../../core/domain/project-context';
 import type { ProjectView } from '@memnox/core/wire';
 import { ProjectGone, ProjectPages } from './pages/ProjectPages';
-import { KitButton, MemnoxTile, PageTitle } from '../settings/kit';
+import { MemnoxTile, PageTitle } from '../settings/kit';
 import { PageBody } from '../settings/SettingsApp';
 import { useLook, useObserved, type SettingsParts } from '../settings/parts';
-import { PageTabs } from './catalog';
 import { CommandPalette } from './CommandPalette';
 import { AgentsPage } from './pages/AgentsPage';
 import { GovernancePage } from './pages/GovernancePage';
@@ -96,8 +94,9 @@ import { TopBarPickers } from './TopBarPickers';
 import { demoOn } from '../adapters/demo';
 import { useWidthClass } from './use-width';
 import { SubNavFrame } from './SubNav';
-import { EmptyState, ReadFailed, StatusWord } from './widgets';
 import './shell.css';
+import { IconButton, Input, Pressable, ReadFailed, StatusWord, Tabs, TruncatedText } from '../kit';
+import { ShellLines } from '../../core/domain/shell-lines';
 
 /** The Mac's SF Symbols as lucide draws the nearest of each, so the two sidebars wear the same icons. */
 const ICONS: Record<SidebarSymbol, LucideIcon> = {
@@ -123,7 +122,26 @@ const ICONS: Record<SidebarSymbol, LucideIcon> = {
   gearshape: Settings,
 };
 
+/** Where the folded sidebar is remembered between openings. */
 const COLLAPSED_KEY = 'memnox.sidebar.collapsed';
+
+/** `AppShellView.Layout`: the top bar's 36 square presses with their 13 medium glyphs, as the Mac sizes them. */
+const BAR_GLYPH = 13;
+const BAR_GLYPH_STROKE = 2;
+
+/** The sidebar's glyphs: 14 for a row, 12 for its search and 10 for a heading's fold chevron. */
+const NAV_GLYPH = 14;
+const NAV_GLYPH_STROKE = 1.9;
+const SEARCH_GLYPH = 12;
+const SEARCH_GLYPH_STROKE = 2.2;
+const FOLD_GLYPH = 10;
+const FOLD_GLYPH_STROKE = 2.6;
+
+/** The project switcher's own glyphs, a point under the rows' since they sit beside words of 13. */
+const SWITCHER_GLYPH = 13;
+
+/** The Memnox mark at the sidebar's head. */
+const BRAND_TILE = 24;
 
 /**
  * The Memnox window, as the Mac's `AppShellView` draws it: the sidebar on the ground with Home, Projects, what waits on you
@@ -233,29 +251,29 @@ function Shell({ parts, first }: { parts: SettingsParts; first: Route }) {
       {width !== 'compact' && sidebar}
       {/* The panel stands 8 from the window's edges and the sidebar, so its border reads all the way round. */}
       <main className={`my-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-panel-edge bg-card ${width === 'compact' ? 'ml-2' : ''}`}>
-        <header className="flex h-12 shrink-0 items-center gap-1 px-3 min-[640px]:pr-5">
-          {width === 'compact' && <IconButton icon={Menu} label="Open the menu" onClick={() => setSheet(true)} />}
-          <IconButton icon={ChevronLeft} label="Back" disabled={!history.canGoBack} onClick={() => step(true)} />
-          <IconButton icon={ChevronRight} label="Forward" disabled={!history.canGoForward} onClick={() => step(false)} />
+        <header className="flex h-12 shrink-0 items-center gap-1 px-3 narrow:pr-5">
+          {width === 'compact' && <BarButton icon={Menu} label={ShellLines.openMenu} onClick={() => setSheet(true)} />}
+          <BarButton icon={ChevronLeft} label={ShellLines.back} disabled={!history.canGoBack} onClick={() => step(true)} />
+          <BarButton icon={ChevronRight} label={ShellLines.forward} disabled={!history.canGoForward} onClick={() => step(false)} />
           {project !== undefined && place !== undefined ? <Crumbs parts={projectCrumbs(project, place.page)} /> : <Breadcrumb route={route} supports={supports} />}
           {demoOn && <DemoBadge />}
           {width !== 'compact' ? (
             <TopBarPickers width={width} inProject={place !== undefined} />
           ) : (
             // The sidebar holds the search; with no sidebar, Go to stays in the bar.
-            <button
-              type="button"
+            <Pressable
               onClick={() => setPalette(true)}
-              className="mx-focus ml-1 flex h-9 cursor-pointer items-center gap-2 rounded-md border border-panel-edge bg-card px-3 text-body-sm text-muted hover:bg-hover hover:text-foreground"
-              aria-label="Go to anything"
+              className="mx-focus ml-1 flex h-field cursor-pointer items-center gap-2 rounded-control border border-panel-edge bg-card px-3 text-body-sm text-muted hover:bg-hover"
+              aria-label={ShellLines.goTo}
+              title={ShellLines.goTo}
             >
-              <Search size={14} />
-              <kbd className="rounded-md border border-panel-edge bg-hover px-1.5 text-label font-medium">Ctrl K</kbd>
-            </button>
+              <Search size={NAV_GLYPH} aria-hidden />
+              <kbd className="rounded-control border border-panel-edge bg-hover px-1.5 text-label font-medium text-muted">{ShellLines.paletteKeys}</kbd>
+            </Pressable>
           )}
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div key={`${route.destination}/${route.tab ?? ''}/${place?.id ?? ''}/${place?.page ?? ''}`} className="mx-auto flex max-w-[1216px] flex-col gap-5 px-5 pt-4 pb-10 min-[1200px]:px-7 max-[639px]:px-3.5">
+          <div key={`${route.destination}/${route.tab ?? ''}/${place?.id ?? ''}/${place?.page ?? ''}`} className="mx-auto flex max-w-[1216px] flex-col gap-5 px-5 pt-4 pb-10 wide:px-7 max-narrow:px-3.5">
             <InspectorWindow.Provider value={inspectors}>
               {place !== undefined ? (
                 <OpenProject parts={parts} project={project} page={place.page} go={go} />
@@ -275,9 +293,10 @@ function Shell({ parts, first }: { parts: SettingsParts; first: Route }) {
         </div>
       </main>
       {width === 'compact' && sheet && (
-        <div className="fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label="Menu">
+        // A sheet from the side rather than a sheet from the top, which the kit's Modal does not draw.
+        <div className="fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label={ShellLines.menu}>
           <div className="h-full bg-background shadow-2xl">{sidebar}</div>
-          <button type="button" className="flex-1 cursor-default bg-black/40" aria-label="Close the menu" onClick={() => setSheet(false)} />
+          <Pressable className="flex-1 cursor-default bg-black/40" aria-label={ShellLines.closeMenu} onClick={() => setSheet(false)} />
         </div>
       )}
       {palette && <CommandPalette supports={supports} go={go} close={() => setPalette(false)} />}
@@ -302,7 +321,7 @@ function Crumbs({ parts }: { parts: readonly string[] }) {
         <span key={`${index}:${part}`} className="flex min-w-0 items-center gap-1.5">
           {index > 0 && (
             <span aria-hidden className="text-faint">
-              /
+              {ShellLines.crumbGap}
             </span>
           )}
           <span className={`truncate ${index === parts.length - 1 ? 'font-medium text-foreground' : 'text-muted'}`}>{part}</span>
@@ -312,20 +331,20 @@ function Crumbs({ parts }: { parts: readonly string[] }) {
   );
 }
 
-/** Where the window is, as the console's top bar says it: the sidebar row, then its tab once the row has tabs. */
 /** Says the window shows made up data, so a demo is never taken for the person's own. */
 function DemoBadge() {
   return (
     <span
       className="mr-2 shrink-0 rounded-full border border-warm bg-warm/[0.14] px-2 py-[3px] text-body-sm font-medium text-warm"
-      title="Everything in this window comes from the demo fixture, and nothing reaches Memnox or your accounts."
-      aria-label="Demo data: nothing here is real"
+      title={ShellLines.demoHint}
+      aria-label={ShellLines.demoLabel}
     >
-      Demo data
+      {ShellLines.demoBadge}
     </span>
   );
 }
 
+/** Where the window is, as the console's top bar says it: the sidebar row, then its tab once the row has tabs. */
 function Breadcrumb({ route, supports }: { route: Route; supports: Supports }) {
   const row = rowOf(route);
   const tabs = rowTabs(route, supports);
@@ -338,7 +357,7 @@ function Breadcrumb({ route, supports }: { route: Route; supports: Supports }) {
       {under !== undefined && (
         <>
           <span aria-hidden className="text-faint">
-            /
+            {ShellLines.crumbGap}
           </span>
           <span className="truncate font-medium text-foreground">{under.title}</span>
         </>
@@ -353,8 +372,8 @@ function RowTabs({ route, supports, go }: { route: Route; supports: Supports; go
   if (tabs.length === 0) return null;
   const key = (each: Route) => `${each.destination}/${each.tab ?? ''}`;
   return (
-    <PageTabs
-      label={rowOf(route)?.title ?? 'Pages'}
+    <Tabs
+      label={rowOf(route)?.title ?? ShellLines.pages}
       tabs={tabs.map((each) => ({ id: key(each.route), title: each.title }))}
       chosen={key(route)}
       choose={(id) => {
@@ -391,6 +410,7 @@ function Page({ parts, route, width, go }: { parts: SettingsParts; route: Route;
   }
 }
 
+/** Where the folded sidebar headings are remembered, by title. */
 const FOLDED_KEY = 'memnox.sidebar.folded';
 
 function savedFolds(): ReadonlySet<string> {
@@ -442,24 +462,23 @@ function Sidebar({
   const settings = destinationInfo('settings');
   const here = rowOf(route);
   return (
-    <nav aria-label="Memnox" className={`flex h-full shrink-0 flex-col bg-background ${rail ? 'w-16 items-center' : 'w-[240px]'}`}>
+    <nav aria-label={ShellLines.navigation} className={`flex h-full shrink-0 flex-col bg-background ${rail ? 'w-16 items-center' : 'w-[240px]'}`}>
       <div className={`flex h-14 w-full shrink-0 items-center gap-2.5 ${rail ? 'justify-center' : 'px-4'}`}>
-        <MemnoxTile size={24} />
-        {!rail && <span className="flex-1 text-[15px] font-semibold tracking-[-0.02em]">Memnox</span>}
+        <MemnoxTile size={BRAND_TILE} />
+        {!rail && <span className="flex-1 text-headline font-semibold tracking-[-0.02em]">{ShellLines.brand}</span>}
       </div>
       {!rail && (
         <div className="px-3 pb-2">
-          <button
-            type="button"
+          <Pressable
             onClick={search}
-            title="Search everything, Ctrl K"
-            aria-label="Search everything"
-            className="mx-focus flex h-[30px] w-full cursor-pointer items-center gap-1.5 rounded-md border border-panel-edge bg-card px-2.5 text-body-sm text-muted hover:bg-hover"
+            title={ShellLines.searchHint}
+            aria-label={ShellLines.searchEverything}
+            className="mx-focus flex h-[30px] w-full cursor-pointer items-center gap-1.5 rounded-control border border-panel-edge bg-card px-2.5 text-body-sm text-muted hover:bg-hover"
           >
-            <Search size={12} strokeWidth={2.2} aria-hidden />
-            <span className="flex-1 text-left">Search</span>
-            <span className="text-label font-medium text-faint">Ctrl K</span>
-          </button>
+            <Search size={SEARCH_GLYPH} strokeWidth={SEARCH_GLYPH_STROKE} aria-hidden />
+            <span className="flex-1 text-left">{ShellLines.search}</span>
+            <span className="text-label font-medium text-faint">{ShellLines.paletteKeys}</span>
+          </Pressable>
         </div>
       )}
       <div className={`flex flex-1 flex-col gap-0.5 overflow-y-auto pb-2 ${rail ? 'items-center px-2' : 'px-3'}`}>
@@ -479,7 +498,7 @@ function Sidebar({
       <div className={`flex w-full flex-col gap-0.5 py-2 ${rail ? 'items-center px-2' : 'px-3'}`}>
         {runtime}
         <NavItem icon={ICONS[destinationSymbol('settings')]} title={settings.title} hint={settings.subtitle} rail={rail} chosen={route.destination === 'settings'} onClick={() => go({ destination: 'settings' })} />
-        {toggle !== undefined && <NavItem icon={PanelLeft} title={collapsed ? 'Show labels' : 'Hide labels'} hint="Fold the sidebar to its icons" rail={rail} chosen={false} onClick={toggle} />}
+        {toggle !== undefined && <NavItem icon={PanelLeft} title={collapsed ? ShellLines.showLabels : ShellLines.hideLabels} hint={ShellLines.foldHint} rail={rail} chosen={false} onClick={toggle} />}
       </div>
     </nav>
   );
@@ -592,59 +611,56 @@ function ProjectSwitcher({ parts, project, route, rail, go }: { parts: SettingsP
   };
   return (
     <div className="relative">
-      <button
-        type="button"
+      <Pressable
         onClick={() => setOpen(!open)}
         aria-haspopup="listbox"
         aria-expanded={open}
         title={rail ? project.name : SWITCHER_HINT}
         aria-label={`${project.name}, ${SWITCHER_HINT}`}
-        className={`mx-focus flex cursor-pointer items-center gap-2 rounded-md text-left hover:bg-hover ${rail ? 'h-10 w-10 justify-center' : 'mb-1 h-9 w-full px-1.5'}`}
+        className={`mx-focus flex cursor-pointer items-center gap-2 rounded-control text-left hover:bg-hover ${rail ? 'size-10 justify-center' : 'mb-1 h-field w-full px-1.5'}`}
       >
-        <Folder size={14} strokeWidth={1.9} className="w-[18px] shrink-0 text-primary" aria-hidden />
+        <Folder size={NAV_GLYPH} strokeWidth={NAV_GLYPH_STROKE} className="w-[18px] shrink-0 text-primary" aria-hidden />
         {!rail && <span className="min-w-0 flex-1 truncate text-body-sm font-semibold text-foreground">{project.name}</span>}
-        {!rail && <ChevronsUpDown size={13} className="shrink-0 text-muted" aria-hidden />}
-      </button>
+        {!rail && <ChevronsUpDown size={SWITCHER_GLYPH} className="shrink-0 text-muted" aria-hidden />}
+      </Pressable>
       {open && (
         <>
-          <button type="button" aria-label="Close the project list" className="fixed inset-0 z-30 cursor-default" onClick={close} />
+          <Pressable aria-label={ShellLines.closeProjects} className="fixed inset-0 z-30 cursor-default" onClick={close} />
+          {/* A popover under its press rather than a sheet over the page, which the kit's Modal does not draw. */}
           <div
             role="dialog"
             aria-label={SWITCHER_HINT}
-            className={`absolute top-10 z-40 flex w-72 flex-col gap-1 rounded-lg border border-panel-edge bg-card p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.16)] ${rail ? 'left-0' : 'left-0'}`}
+            className="absolute top-10 left-0 z-40 flex w-72 flex-col gap-1 rounded-control border border-panel-edge bg-card p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.16)]"
             onKeyDown={(event) => event.key === 'Escape' && close()}
           >
-            <label className="flex items-center gap-2 rounded-md border border-field-edge bg-field px-2.5">
-              <Search size={13} className="text-muted" aria-hidden />
-              <input autoFocus className="h-8 min-w-0 flex-1 bg-transparent text-body-sm text-foreground outline-none placeholder:text-faint" value={query} placeholder={SWITCHER_PROMPT} aria-label={SWITCHER_PROMPT} onChange={(event) => setQuery(event.target.value)} />
+            <label className="mx-field-within flex items-center gap-2 rounded-control border border-field-edge bg-field px-2.5">
+              <Search size={SWITCHER_GLYPH} className="text-muted" aria-hidden />
+              <Input look="bare" autoFocus className="h-control flex-1 text-body-sm text-foreground placeholder:text-faint" value={query} placeholder={SWITCHER_PROMPT} onValue={setQuery} />
             </label>
-            <ul role="listbox" aria-label="Projects" className="flex max-h-80 flex-col gap-0.5 overflow-y-auto">
+            <ul role="listbox" aria-label={ShellLines.projects} className="flex max-h-80 flex-col gap-0.5 overflow-y-auto">
               {rows.map((row) => (
                 <li key={row.id}>
-                  <button
-                    type="button"
+                  <Pressable
                     role="option"
                     aria-selected={row.current}
                     onClick={() => pick(row.id)}
-                    className={`mx-focus flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-hover ${row.current ? 'bg-hover' : ''}`}
+                    className={`mx-focus flex w-full cursor-pointer items-center gap-2.5 rounded-control px-2 py-1.5 text-left hover:bg-hover ${row.current ? 'bg-hover' : ''}`}
                   >
-                    <span className={`size-2 shrink-0 rounded-full ${row.live ? 'bg-success' : 'bg-transparent'}`} title={row.live ? 'An agent is working here now' : undefined} aria-label={row.live ? 'An agent is working here now' : undefined} />
+                    <span className={`size-2 shrink-0 rounded-full ${row.live ? 'bg-success' : 'bg-transparent'}`} title={row.live ? ShellLines.agentWorking : undefined} aria-label={row.live ? ShellLines.agentWorking : undefined} />
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate text-body-sm font-medium text-foreground">{row.name}</span>
-                      <span className="truncate font-mono text-micro text-muted" title={row.folder}>
-                        {row.folder}
-                      </span>
+                      <TruncatedText text={row.folder} middle className="font-code text-micro text-muted" />
                     </span>
-                    {row.current && <Check size={13} className="shrink-0 text-primary" aria-hidden />}
-                  </button>
+                    {row.current && <Check size={SWITCHER_GLYPH} className="shrink-0 text-primary" aria-hidden />}
+                  </Pressable>
                 </li>
               ))}
-              {rows.length === 0 && <li className="px-2 py-1.5 text-footnote text-muted">No project matches that.</li>}
+              {rows.length === 0 && <li className="px-2 py-1.5 text-footnote text-muted">{ShellLines.noProjectMatches}</li>}
             </ul>
-            <button type="button" onClick={all} className="mx-focus flex cursor-pointer items-center gap-2 rounded-md border-t border-panel-edge px-2 py-2 text-left text-body-sm text-foreground hover:bg-hover">
-              <ChevronLeft size={13} className="text-muted" aria-hidden />
+            <Pressable onClick={all} className="mx-focus flex cursor-pointer items-center gap-2 rounded-control border-t border-panel-edge px-2 py-2 text-left text-body-sm text-foreground hover:bg-hover">
+              <ChevronLeft size={SWITCHER_GLYPH} className="text-muted" aria-hidden />
               {ALL_PROJECTS_TITLE}
-            </button>
+            </Pressable>
           </div>
         </>
       )}
@@ -689,15 +705,10 @@ function Heading({
   if (rail) return <div className="flex flex-col items-center gap-0.5 border-t border-panel-edge pt-1.5 mt-1.5">{items}</div>;
   return (
     <div className="flex flex-col gap-0.5 pt-2.5">
-      <button
-        type="button"
-        onClick={() => fold(open)}
-        aria-expanded={open}
-        className="mx-focus flex h-[26px] cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-meta font-medium text-faint"
-      >
-        <ChevronRight size={10} strokeWidth={2.6} className={`w-[18px] transition-transform duration-200 ${open ? 'rotate-90' : ''}`} aria-hidden />
+      <Pressable onClick={() => fold(open)} aria-expanded={open} className="mx-focus flex h-[26px] cursor-pointer items-center gap-1.5 rounded-control px-1.5 text-meta font-medium text-faint">
+        <ChevronRight size={FOLD_GLYPH} strokeWidth={FOLD_GLYPH_STROKE} className={`w-[18px] transition-transform duration-200 ${open ? 'rotate-90' : ''}`} aria-hidden />
         <span className="truncate">{section.title}</span>
-      </button>
+      </Pressable>
       {open && items}
     </div>
   );
@@ -706,20 +717,19 @@ function Heading({
 /** One row: its icon and words, filled in the Memnox blue with white words when chosen, lit softly under the pointer. */
 function NavItem({ icon: Icon, title, hint, rail, chosen, onClick, count }: { icon: LucideIcon; title: string; hint: string; rail: boolean; chosen: boolean; onClick: () => void; count?: number | undefined }) {
   return (
-    <button
-      type="button"
+    <Pressable
       onClick={onClick}
       title={rail ? title : hint}
       aria-label={rail ? title : undefined}
       aria-current={chosen ? 'page' : undefined}
-      className={`mx-focus flex cursor-pointer items-center gap-2.5 rounded-md text-body-sm transition-colors ${rail ? 'h-10 w-10 justify-center' : 'h-[30px] w-full px-1.5'} ${
+      className={`mx-focus flex cursor-pointer items-center gap-2.5 rounded-control text-body-sm transition-colors ${rail ? 'size-10 justify-center' : 'h-[30px] w-full px-1.5'} ${
         chosen ? 'bg-primary font-medium text-white' : 'text-foreground hover:bg-hover'
       }`}
     >
-      <Icon size={14} strokeWidth={1.9} className={`w-[18px] shrink-0 ${chosen ? 'text-white' : 'text-primary'}`} aria-hidden />
+      <Icon size={NAV_GLYPH} strokeWidth={NAV_GLYPH_STROKE} className={`w-[18px] shrink-0 ${chosen ? 'text-white' : 'text-primary'}`} aria-hidden />
       {!rail && <span className="flex-1 truncate text-left">{title}</span>}
       {!rail && count !== undefined && <span className={`shrink-0 tabular-nums text-meta ${chosen ? 'text-white' : 'text-muted'}`}>{count}</span>}
-    </button>
+    </Pressable>
   );
 }
 
@@ -728,7 +738,7 @@ function RuntimeStatus({ parts, rail }: { parts: SettingsParts; rail: boolean })
   const { home } = parts;
   useObserved(home);
   const up = home.home !== undefined;
-  const words = up ? 'Runtime running' : home.unavailable ? 'Runtime not answering' : 'Reaching the runtime';
+  const words = up ? ShellLines.runtimeUp : home.unavailable ? ShellLines.runtimeDown : ShellLines.runtimeReaching;
   if (rail) {
     return (
       <span title={words} className="grid h-9 w-10 place-items-center">
@@ -743,19 +753,9 @@ function RuntimeStatus({ parts, rail }: { parts: SettingsParts; rail: boolean })
   );
 }
 
-function IconButton({ icon: Icon, label, onClick, disabled = false }: { icon: LucideIcon; label: string; onClick: () => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      disabled={disabled}
-      onClick={onClick}
-      className="mx-focus grid size-9 cursor-pointer place-items-center rounded-lg text-muted hover:bg-hover hover:text-foreground disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent"
-    >
-      <Icon size={16} />
-    </button>
-  );
+/** `AppShellView.iconButton`: a 36 square in muted ink, its 13 medium glyph, lit under the pointer. */
+function BarButton({ icon, label, onClick, disabled = false }: { icon: LucideIcon; label: string; onClick: () => void; disabled?: boolean }) {
+  return <IconButton icon={icon} label={label} size="lg" iconSize={BAR_GLYPH} strokeWidth={BAR_GLYPH_STROKE} disabled={disabled} onClick={onClick} />;
 }
 
 interface ShortcutActions {

@@ -2,51 +2,48 @@ import Foundation
 import MemnoxVoiceCore
 import SwiftUI
 
-/// What a press on a card or a pack's heading opens: the rules it adds, each effect still to choose.
+/// What Review and save opens: the changes the cards gathered, each still its own proposal.
 struct RuleAdding: Identifiable {
-    let title: String
-    let rules: [ReadyRule]
+    let changes: [ReadyRuleChange]
 
-    var id: String { rules.map(\.id).joined(separator: "\n") }
+    var id: String { changes.map { "\($0.rule.id)=\($0.to.rawValue)" }.joined(separator: "\n") }
 }
 
-/// Adding ready-made rules, one from its card or a pack's at once. Every effect can be changed before anything is
-/// proposed, and each rule still waits on the island for its own Touch ID signature.
+/// Review and save, as the console's choices save: each rule with what it goes from and to, and the rules as the runtime
+/// reads them. Saving proposes them, a changed rule as its old one taken out and its new one added, and each still
+/// waits on the island for its own Touch ID signature.
 struct RuleAddSheet: View {
     @ObservedObject var screen: StudioScreen
     let adding: RuleAdding
     let close: () -> Void
+    /// Called once the runtime took every proposal, so the page clears its picks.
+    let saved: () -> Void
 
-    @State private var effects: [String: RuleEffect] = [:]
     @State private var problem: String?
+    @State private var sending = false
 
     private enum Layout {
-        static let rowEffectWidth: CGFloat = 120
         static let rowMark: CGFloat = 28
     }
 
+    /// The Mac signs with the Secure Enclave behind Touch ID.
+    private static let keyTitle = "Touch ID"
+
     var body: some View {
-        RuleDialog(title: adding.title, proposing: sending, canPropose: screen.studio.busy == nil,
-                   close: close, propose: propose) {
-            if let single = adding.rules.first, adding.rules.count == 1 {
-                VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
-                    RuleMarks(marks: single.marks, actions: single.actions)
-                        .padding(.bottom, Memnox.Spacing.small)
-                    Text(single.title)
-                        .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
-                        .foregroundStyle(Memnox.Console.foreground)
-                    QuietLine(single.says)
-                }
-                RuleEffectChoice(effects: ReadyRules.effects, chosen: binding(single), recommended: single.effect)
-            } else {
-                ShellPanel {
-                    ForEach(Array(adding.rules.enumerated()), id: \.element.id) { index, rule in
-                        if index > 0 { ShellDivider() }
-                        row(rule)
-                    }
+        RuleDialog(title: ProtectionLines.review, description: ProtectionLines.reviewDescription(keyTitle: Self.keyTitle),
+                   confirm: (idle: ProtectionLines.save, busy: ProtectionLines.saving), proposing: sending,
+                   canPropose: screen.studio.busy == nil && !adding.changes.isEmpty, close: close, propose: propose) {
+            QuietLine("\(ReadyRuleChanges.countLine(adding.changes.count)). \(ProtectionLines.previewed)")
+            ShellPanel {
+                ForEach(Array(adding.changes.enumerated()), id: \.element.id) { index, change in
+                    if index > 0 { ShellDivider() }
+                    row(change)
                 }
             }
-            RulePreview(code: preview)
+            if !ReadyRuleChanges.removals(adding.changes).isEmpty {
+                QuietLine("A rule already in force is changed by taking it out and adding it again, so each waits for your signature on the island.")
+            }
+            RulePreview(code: ReadyRuleChanges.toml(adding.changes) ?? "")
             if let problem {
                 Text(problem)
                     .font(Memnox.Console.sans(Memnox.TextSize.footnote))
@@ -56,51 +53,45 @@ struct RuleAddSheet: View {
         }
     }
 
-    private var sending: Bool {
-        screen.studio.busy == Studio.proposing || screen.studio.busy == Studio.importing
-    }
-
-    private func row(_ rule: ReadyRule) -> some View {
+    private func row(_ change: ReadyRuleChange) -> some View {
         HStack(spacing: Memnox.Spacing.large) {
-            RuleMarks(marks: Array(rule.marks.prefix(1)), actions: Array(rule.actions.prefix(1)), size: Layout.rowMark)
+            RuleMarks(marks: Array(change.rule.marks.prefix(1)), actions: Array(change.rule.actions.prefix(1)), size: Layout.rowMark)
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
-                Text(rule.title)
+                Text(change.rule.title)
                     .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
                     .foregroundStyle(Memnox.Console.foreground)
                     .fixedSize(horizontal: false, vertical: true)
-                QuietLine(rule.says)
+                QuietLine(ReadyRuleChanges.changeLine(change))
             }
             Spacer(minLength: Memnox.Spacing.medium)
-            ConsoleSelect(label: "When an agent tries \(rule.title)", selection: binding(rule),
-                          options: ReadyRules.effects.map { SelectOption(value: $0, title: StudioLines.words($0).title) })
-                .frame(width: Layout.rowEffectWidth)
+            StatusWord(Tone(effect: change.to.rawValue), StudioLines.words(change.to).title)
         }
         .padding(.horizontal, ShellMetrics.rowPaddingH)
         .padding(.vertical, ShellMetrics.rowPaddingV)
     }
 
-    private func binding(_ rule: ReadyRule) -> Binding<RuleEffect> {
-        Binding(get: { effects[rule.id] ?? rule.effect }, set: { effects[rule.id] = $0 })
-    }
-
-    private var picks: [(rule: ReadyRule, effect: RuleEffect)] {
-        adding.rules.map { ($0, effects[$0.id] ?? $0.effect) }
-    }
-
-    /// The rules in the runtime's own file format, which is exactly what is imported.
-    private var preview: String {
-        ReadyRules.toml(picks) ?? ""
-    }
-
+    /// Takes out each changed rule first, then proposes every new table in one import, stopping at the first refusal.
     private func propose() {
-        guard let toml = ReadyRules.toml(picks) else { return }
+        let removals = ReadyRuleChanges.removals(adding.changes)
+        let toml = ReadyRuleChanges.toml(adding.changes)
+        sending = true
         Task {
+            defer { sending = false }
+            for name in removals {
+                let outcome = await screen.studio.remove(name)
+                if case .failed(let why) = outcome {
+                    problem = why
+                    return
+                }
+            }
+            guard let toml else { return }
             let outcome = await screen.studio.importPack(toml)
             screen.said(outcome)
             if case .failed(let why) = outcome {
                 problem = why
                 return
             }
+            saved()
             close()
         }
     }

@@ -115,9 +115,9 @@ export function draftSentence(draft: { effect: string; action: string; agents?: 
 
 /** The switches most people want first, each only a rule proposed with these fields. */
 export const ALWAYS_ASK = [
-  { id: 'push-main', title: 'Pushing to main', draft: { effect: 'ask', action: 'git.push', branches: ['main'], reason: 'you chose to be asked before anything reaches main' } },
-  { id: 'delete-files', title: 'Deleting files', draft: { effect: 'ask', action: 'filesystem.delete', reason: 'you chose to be asked before files are deleted' } },
-  { id: 'mcp-writes', title: 'MCP tools that change something', draft: { effect: 'ask', action: 'mcp.*', classes: ['write', 'destructive', 'communication'], reason: 'you chose to be asked before a tool changes something outside this computer' } },
+  { id: 'push-main', title: 'Pushing to main', line: 'Ask before anything an agent pushes reaches main', draft: { effect: 'ask', action: 'git.push', branches: ['main'], reason: 'you chose to be asked before anything reaches main' } },
+  { id: 'delete-files', title: 'Deleting files', line: 'Ask before an agent deletes a file', draft: { effect: 'ask', action: 'filesystem.delete', reason: 'you chose to be asked before files are deleted' } },
+  { id: 'mcp-writes', title: 'MCP tools that change something', line: 'Ask before a tool changes something outside this computer', draft: { effect: 'ask', action: 'mcp.*', classes: ['write', 'destructive', 'communication'], reason: 'you chose to be asked before a tool changes something outside this computer' } },
 ] as const;
 
 /** Whether a rule already in force asks about this switch's action, so the switch shows on. */

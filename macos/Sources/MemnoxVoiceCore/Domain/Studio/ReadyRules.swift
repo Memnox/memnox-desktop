@@ -16,7 +16,7 @@ public struct ReadyRule: Equatable, Identifiable, Sendable {
     public let title: String
     public let says: String
     public let actions: [String]
-    /// The effect it ships with, offered first and marked recommended.
+    /// The effect it ships with, offered first and marked suggested.
     public let effect: RuleEffect
     /// The products and kinds of act it is about; empty for a pack's rule, which a screen draws from its actions.
     public let marks: [RuleMark]
@@ -31,8 +31,8 @@ public struct ReadyRuleGroup: Equatable, Identifiable, Sendable {
 }
 
 public enum ReadyRules {
-    /// The only effects a ready-made rule is added with, since a ready-made allow would only widen what agents do.
-    public static let effects: [RuleEffect] = [.ask, .deny]
+    /// Allow, Ask and Deny, the three choices every card and dialog offers; an allow is proposed and signed like any other.
+    public static let effects: [RuleEffect] = [.allow, .ask, .deny]
 
     private static let table = "[[policies]]"
     private static let matchTable = "[policies.match]"

@@ -10,7 +10,7 @@ enum RuleWords {
     static let proposing = "Proposing"
     static let cancel = "Cancel"
     static let whenTried = "When an agent tries it"
-    static let recommended = "Recommended"
+    static let recommended = "Suggested"
     static let preview = "The rule"
     static let optional = "(optional)"
 }
@@ -24,6 +24,10 @@ private enum RuleDialogLayout {
 /// A rule dialog's frame: its title and the line under it, a scrolling body, and Cancel and Propose at the foot.
 struct RuleDialog<Content: View>: View {
     let title: String
+    /// The line under the title; Review and save says its own, since it saves several changes at once.
+    var description = RuleWords.proposeDescription
+    /// The press at the foot, idle and busy, Propose unless the dialog saves.
+    var confirm = (idle: RuleWords.propose, busy: RuleWords.proposing)
     let proposing: Bool
     let canPropose: Bool
     let close: () -> Void
@@ -37,7 +41,7 @@ struct RuleDialog<Content: View>: View {
                     .font(Memnox.Console.sans(Memnox.Console.TextSize.large, .semibold))
                     .foregroundStyle(Memnox.Console.foreground)
                     .accessibilityAddTraits(.isHeader)
-                QuietLine(RuleWords.proposeDescription)
+                QuietLine(description)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Memnox.Spacing.xxLarge)
@@ -53,7 +57,7 @@ struct RuleDialog<Content: View>: View {
                 Button(RuleWords.cancel, action: close)
                     .buttonStyle(KitButton(kind: .secondary, wide: true))
                     .keyboardShortcut(.cancelAction)
-                Button(proposing ? RuleWords.proposing : RuleWords.propose, action: propose)
+                Button(proposing ? confirm.busy : confirm.idle, action: propose)
                     .buttonStyle(KitButton(kind: .primary, wide: true))
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canPropose || proposing)

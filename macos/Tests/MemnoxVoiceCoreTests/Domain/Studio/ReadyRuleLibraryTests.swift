@@ -10,9 +10,10 @@ final class ReadyRuleLibraryTests: XCTestCase {
         XCTAssertTrue(ReadyRuleLibrary.starterSet.allSatisfy(ids.contains))
     }
 
-    func testOffersOnlyEffectsThatHoldSomethingAndAWayRoundOnlyBesideAnAction() {
+    func testSuggestsOnlyEffectsThatHoldSomethingAndAWayRoundOnlyBesideAnAction() {
+        XCTAssertEqual(ReadyRules.effects, [.allow, .ask, .deny])
         for rule in ReadyRuleLibrary.rules {
-            XCTAssertTrue(ReadyRules.effects.contains(rule.recommended), rule.id)
+            XCTAssertNotEqual(rule.recommended, .allow, rule.id)
             XCTAssertFalse(rule.match.actions.isEmpty, rule.id)
             XCTAssertFalse(rule.marks.isEmpty, rule.id)
         }

@@ -74,10 +74,28 @@ export function appliedLine(applied: ProjectApplySummary): string {
     applied.kept.length > 0 ? `left ${applied.kept.length} of yours alone` : undefined,
     applied.governed.length > 0 ? `put ${counted(applied.governed.length, 'server', 'servers')} behind the proxy` : undefined,
   ].filter((part): part is string => part !== undefined);
-  const done = parts.length === 0 ? 'Every agent already had this project’s instructions.' : `${capital(parts.join(', '))}.`;
+  const done = parts.length === 0 ? 'Nothing needed applying: every agent here already has this project’s instructions.' : `${capital(parts.join(', '))}.`;
   if (applied.missing.length === 0) return done;
   return `${done} The hub here lacks ${listed(applied.missing)}, so no agent is given ${applied.missing.length === 1 ? 'it' : 'them'}.`;
 }
+
+/**
+ * True when applying changed no file and put no server behind the proxy, so the project was already applied; a file of
+ * the person's left alone or a name the hub lacks is said, but applying again would not change it.
+ */
+export function upToDate(applied: Pick<ProjectApplySummary, 'written' | 'removed' | 'governed'>): boolean {
+  return applied.written.length === 0 && applied.removed.length === 0 && applied.governed.length === 0;
+}
+
+/** The line under Apply or Save as project, saying what the press does before it is pressed. */
+export function pressLine(declared: boolean): string {
+  return declared
+    ? 'Apply hands its instructions to its agents at once. Servers, skills and rules that widen an agent wait for your signature.'
+    : 'Found from the sessions here. Save as project writes .memnox/project.toml with what it shows now, applying nothing until you ask.';
+}
+
+/** Said beside Choose a folder, before anything is opened. */
+export const OPEN_LINE = 'Opening hands its instructions to its agents at once. Whatever widens an agent waits for your signature on the island.';
 
 /** "3 rules of this computer hold here too, as in every project.", as the Mac's `ProjectLines.everywhereLine` says it. */
 export function everywhereLine(count: number): string {
@@ -159,23 +177,30 @@ export interface ProjectCardView {
   readonly chips: readonly string[];
 }
 
+/** The card's one line: what the organization says it is for, else the mission open in it, else its sessions. */
+export function cardLine(project: Pick<ProjectView, 'scope' | 'organization' | 'openMissions' | 'sessions'>): string {
+  const description = sharedBy(project)?.description?.trim();
+  if (description !== undefined && description !== '') return description;
+  const mission = project.openMissions[0]?.statement;
+  if (mission !== undefined) return mission;
+  const sessions = project.sessions.total;
+  return sessions === 0 ? 'No agent has worked here yet.' : `${counted(sessions, 'session', 'sessions')} so far.`;
+}
+
 /**
- * A project as one card: the organization's repository where it shares one, else the folder it lives in, a line
- * saying what it is or who worked there, and a chip for whether it keeps memory. Server and skill counts are left to
+ * A project as one card, as the Mac's ProjectCard draws it: the organization's repository where it shares one, else the
+ * folder it lives in, the card's line, and a chip for whether it keeps memory. Server and skill counts are left to
  * the project's own pages, since a project is not only code.
  */
-export function projectCard(project: Pick<ProjectView, 'name' | 'path' | 'scope' | 'organization' | 'openMissions' | 'agentsSeen' | 'sessions' | 'memoryScope'>): ProjectCardView {
+export function projectCard(project: Pick<ProjectView, 'name' | 'path' | 'scope' | 'organization' | 'openMissions' | 'sessions' | 'memoryScope'>): ProjectCardView {
   const shared = sharedBy(project);
   const repository = shared?.repository.trim() || project.path.trim() || NO_REPOSITORY;
-  const mission = project.openMissions[0]?.statement;
-  const worked = `${counted(project.agentsSeen.length, 'agent', 'agents')} worked here over ${counted(project.sessions.total, 'session', 'sessions')}`;
-  const line = shared?.description?.trim() || (mission === undefined ? worked : `Working on ${mission}`);
-  const memory = project.memoryScope === '' || project.memoryScope === 'none' ? 'No memory' : 'Memory';
+  const memory = shared?.memory ?? project.memoryScope;
   return {
     name: project.name,
     repository,
-    line,
-    chips: [memory],
+    line: cardLine(project),
+    chips: [memory === '' || memory === 'none' ? 'No memory' : 'Memory'],
   };
 }
 

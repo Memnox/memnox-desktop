@@ -57,6 +57,9 @@ public enum ProjectSidebar {
     public static let pages: [ProjectPage] = [.overview, .agents, .memory, .rules]
     /// Said in place of a project's name while the projects are still being read, or once it is gone.
     public static let unnamed = "Project"
+    /// Said where a project was open and is no longer among the projects.
+    public static let goneTitle = "This project is gone"
+    public static let goneLine = "It is no longer among the projects on this Mac. Go back to Projects to open another."
 
     /// One page of a project, the Overview unless another is named.
     public static func route(_ id: String, _ page: ProjectPage = .overview) -> WindowRoute {

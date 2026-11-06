@@ -91,7 +91,7 @@ describe('the wording of a project', () => {
     expect(appliedLine({ written: ['AGENTS.md', 'CLAUDE.md'], removed: [], kept: ['.cursorrules'], governed: [], missing: ['linear'] })).toBe(
       'Wrote 2 instruction files, left 1 of yours alone. The hub here lacks linear, so no agent is given it.',
     );
-    expect(appliedLine({ written: [], removed: [], kept: [], governed: [], missing: [] })).toBe('Every agent already had this project’s instructions.');
+    expect(appliedLine({ written: [], removed: [], kept: [], governed: [], missing: [] })).toBe('Nothing needed applying: every agent here already has this project’s instructions.');
   });
 
   it('keeps to the rules that reach into the project, counting the ones that hold everywhere apart', () => {

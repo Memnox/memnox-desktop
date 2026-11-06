@@ -99,4 +99,26 @@ final class ProjectPageLinesTests: XCTestCase {
         XCTAssertEqual(ProjectPageLines.description(project(organization: shared)), "The spring campaign")
         XCTAssertEqual(ProjectPageLines.description(project()), "Ship the projects view")
     }
+
+    func testSaysAProjectsPagesInTheWordsTheWindowsAndLinuxAppUses() {
+        XCTAssertEqual(ProjectPageLines.readySteps(project(), sources: [], rulesHere: 0)[0].detail,
+                       "What goes ahead, what asks you first, and what never happens.")
+        XCTAssertEqual(ProjectPageLines.learnedEmpty, "Nothing learned here yet. As its AI works in the tools it lives in, what it learns shows here.")
+        XCTAssertEqual(ProjectPageLines.agentsSharedLine, "AI agents are set up once for every project on this computer. This page shows the ones that work here and what this project gives each.")
+        XCTAssertEqual(ProjectPageLines.rulesHereEmpty, "No rule names this project, so the rules of this computer decide here.")
+        XCTAssertEqual(ProjectPageLines.rulesLink, "Choose what agents may do in Protection settings")
+        XCTAssertEqual(ProjectPageLines.noSkillsGiven, "This project gives its agents no skills.")
+        XCTAssertEqual(ProjectPageLines.moreSkillsLine(2), "2 more in Skills")
+        XCTAssertEqual(ProjectPageLines.allMemoryLink, "All memory, shared with every project")
+        XCTAssertEqual(ProjectPageLines.renameHeading(project()), "Rename \(project().name)")
+        XCTAssertEqual([ProjectPageLines.renameInCloud, ProjectPageLines.removeInCloud], ["Rename in Memnox Cloud", "Remove in Memnox Cloud"])
+        XCTAssertEqual(ProjectSidebar.goneTitle, "This project is gone")
+        XCTAssertEqual(ProjectPage.rules.summary, "The agents given this project, what they carry, and the rules that hold in it.")
+    }
+
+    func testSaysACardsLineAsTheWindowsAndLinuxAppDoes() {
+        XCTAssertEqual(ProjectLines.cardLine(project()), "Ship the projects view")
+        XCTAssertEqual(ProjectLines.appliedLine(ProjectApplySummary()),
+                       "Nothing needed applying: every agent here already has this project\u{2019}s instructions.")
+    }
 }

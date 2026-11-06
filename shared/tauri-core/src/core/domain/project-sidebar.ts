@@ -33,7 +33,7 @@ const PAGE_INFO: Readonly<Record<ProjectPage, Omit<ProjectPageInfo, 'page'>>> = 
   tools: { title: 'Tools', symbol: 'globe', summary: 'Where this project’s work happens, and what its agents learn from.' },
   agents: { title: 'Agents', symbol: 'cpu', summary: 'The agents that work in this project, and what each is given.' },
   memory: { title: 'Memory', symbol: 'brain', summary: 'What its agents learned in this project, and what they know in every project.' },
-  autonomy: { title: 'What its AI may do', symbol: 'checkmark.shield', summary: 'What its AI does on its own here, what waits for a person, and what is refused.' },
+  autonomy: { title: 'What its AI may do', symbol: 'checkmark.shield', summary: 'The agents given this project, what they carry, and the rules that hold in it.' },
 };
 
 export function projectPageInfo(page: ProjectPage): ProjectPageInfo {
@@ -76,13 +76,16 @@ export function editableHere(project: Pick<ProjectView, 'scope' | 'organization'
   return sharedBy(project) === undefined;
 }
 
-/** The one line under a project's name: its own description where the organization wrote one, else what it is busy with. */
+/** What it is for, in the organization's own words, else the mission open in it; undefined says nothing yet. */
 export function projectDescription(project: Pick<ProjectView, 'scope' | 'organization' | 'openMissions'>): string | undefined {
   const written = sharedBy(project)?.description?.trim();
   if (written !== undefined && written !== '') return written;
   const mission = project.openMissions[0]?.statement.trim();
-  return mission === undefined || mission === '' ? undefined : `Working on ${mission}`;
+  return mission === undefined || mission === '' ? undefined : mission;
 }
+
+/** Said under the name while there is no description to say. */
+export const NO_DESCRIPTION = 'No description yet.';
 
 // The Tools page below is left off for now, and kept whole for when it returns.
 
@@ -258,11 +261,16 @@ export type ReadyStepId = 'tools' | 'autonomy';
 export interface ReadyStep {
   readonly id: ReadyStepId;
   readonly title: string;
+  /** The caption under the step, saying what doing it means. */
+  readonly detail: string;
   readonly done: boolean;
   readonly page: ProjectPage;
 }
 
-/** What the checklist reads: how many tools and rules of its own a project has. */
+/**
+ * What the checklist reads: how many tools and rules of its own a project has. Its rules are those reaching into its
+ * folder, plus its own rule file's while they are in force, as the Mac counts them.
+ */
 export interface ReadyCounts {
   readonly tools: number;
   readonly rules: number;
@@ -271,14 +279,25 @@ export interface ReadyCounts {
 /** The short Get it ready checklist, each step done once the project has what it asks for. Adding tools is left off for now with the Tools page. */
 export function readySteps(counts: ReadyCounts): ReadyStep[] {
   return [
-    { id: 'autonomy', title: 'Choose what its AI may do', done: counts.rules > 0, page: 'autonomy' },
+    { id: 'autonomy', title: 'Choose what its AI may do', detail: 'What goes ahead, what asks you first, and what never happens.', done: counts.rules > 0, page: 'autonomy' },
   ];
 }
 
-/** Whether the checklist still shows, which it does while a step is still to do. */
+/** The checklist stands while the project has no rules of its own, and goes once one is set. */
 export function showReady(counts: ReadyCounts): boolean {
-  return readySteps(counts).some((step) => !step.done);
+  return !readySteps(counts).some((step) => step.done);
 }
+
+/** The rules the checklist counts: those reaching into the folder, and its own rule file's while they are in force. */
+export function readyRules(rulesHere: number, project: Pick<ProjectView, 'rules'>): number {
+  return rulesHere + (project.rules.inForce ? project.rules.count : 0);
+}
+
+export const READY_TITLE = 'Get it ready';
+export const LEARNED_TITLE = 'Learned lately';
+export const LEARNED_EMPTY = 'Nothing learned here yet. As its AI works in the tools it lives in, what it learns shows here.';
+export const LEARNED_MORE = 'Everything it learned';
+export const FOLDER_TITLE = 'Folder';
 
 /** "2 of 3 done", said beside the checklist's heading. */
 export function readyLine(counts: ReadyCounts): string {
@@ -425,3 +444,47 @@ export function renameProblem(name: string, project: Pick<ProjectView, 'name' | 
 export function renamedDraft(project: Parameters<typeof draftOf>[0], name: string): ProjectDraft {
   return { ...draftOf(project), name: name.trim() };
 }
+
+// The words of a project's own pages and the Projects list, pinned the same in ProjectPageLinesTests.swift.
+
+/** Under the agents on the Agents page, beside the badge that opens the shared AI agents page. */
+export const AGENTS_SHARED_LINE = 'AI agents are set up once for every project on this computer. This page shows the ones that work here and what this project gives each.';
+export const NO_AGENTS = 'No agent has worked here yet, and the project names none.';
+export const GIVEN_TITLE = 'Given this project';
+export const SEEN_TITLE = 'Seen here, not named';
+
+export const RULES_HERE_TITLE = 'Rules that hold here';
+export const RULES_HERE_EMPTY = 'No rule names this project, so the rules of this computer decide here.';
+export const RULES_LINK = 'Choose what agents may do in Protection settings';
+export const ITS_AGENTS_TITLE = 'Its agents';
+export const SKILLS_CARRIED_TITLE = 'Skills it carries';
+export const NO_SKILLS_GIVEN = 'This project gives its agents no skills.';
+/** How many of the skills every project shares the rules page lists before the rest are a link. */
+export const SHARED_SKILLS_SHOWN = 5;
+
+/** "2 more in Skills", the link under the skills every project shares. */
+export function moreSkillsLine(rest: number): string {
+  return `${rest} more in Skills`;
+}
+
+/** Said where a project the organization shares would offer a change. */
+export const SHARED_LINE = 'Your organization keeps this project, so it is changed in Memnox Cloud.';
+
+export const ALL_MEMORY_LINK = 'All memory, shared with every project';
+
+export const RENAME_TITLE = 'Rename';
+export const RENAME_IN_CLOUD = 'Rename in Memnox Cloud';
+export const REMOVE_TITLE = 'Remove';
+export const REMOVE_IN_CLOUD = 'Remove in Memnox Cloud';
+/** Said where Remove would be on a project of this computer's own, since the runtime has no call that removes one yet. */
+export const REMOVE_LINE = 'Removing a project is not something this computer can do yet.';
+export const NAME_PROMPT = 'Name';
+
+/** "Rename Spring launch", over the card renamed in place. */
+export function renameHeading(project: Pick<ProjectView, 'name'>): string {
+  return `Rename ${project.name}`;
+}
+
+/** Said where a project was open and is no longer among the projects. */
+export const GONE_TITLE = 'This project is gone';
+export const GONE_LINE = 'It is no longer among the projects on this computer. Go back to Projects to open another.';

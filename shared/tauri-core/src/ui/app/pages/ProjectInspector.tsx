@@ -44,7 +44,7 @@ export function projectNote(outcome: ProjectOutcome, keyTitle: string): string {
   return outcome.note;
 }
 
-/** One project's details, a tab each for what it gives its agents and the rules that hold in it. */
+/** One project's details in tabs, an older inspector the window no longer opens; the project's own pages in ProjectPages.tsx draw the same now. */
 export function ProjectInspector({ parts, project, said }: { parts: SettingsParts; project: ProjectView; said: (note: string) => void }) {
   const [tab, setTab] = useState<ProjectTab>('overview');
   return (
@@ -161,7 +161,7 @@ function EditControls({ parts, project, busy, said }: { parts: SettingsParts; pr
 /** The badge a project the organization shares carries in place of its standing. */
 export function OrganizationBadge() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-panel-edge px-2 py-0.5 text-footnote font-medium text-muted">
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-panel-edge px-2 py-1 text-footnote font-medium whitespace-nowrap text-muted">
       <Building2 size={12} aria-hidden />
       {FROM_ORGANIZATION}
     </span>

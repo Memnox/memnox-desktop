@@ -236,6 +236,49 @@ public enum ProjectPageLines {
     /// Said where a project the organization shares would offer a change.
     public static let sharedLine = "Your organization keeps this project, so it is changed in Memnox Cloud."
 
+    // The words of a project's own pages and the Projects list, pinned the same in shared/tauri-core's project-sidebar.ts.
+
+    /// Said under the name while there is no description to say.
+    public static let noDescription = "No description yet."
+    public static let readyTitle = "Get it ready"
+    public static let learnedTitle = "Learned lately"
+    public static let learnedEmpty = "Nothing learned here yet. As its AI works in the tools it lives in, what it learns shows here."
+    public static let learnedMore = "Everything it learned"
+    public static let folderTitle = "Folder"
+
+    /// Under the agents on the Agents page, beside the badge that opens the shared AI agents page.
+    public static let agentsSharedLine = "AI agents are set up once for every project on this computer. This page shows the ones that work here and what this project gives each."
+    public static let noAgents = "No agent has worked here yet, and the project names none."
+    public static let givenTitle = "Given this project"
+    public static let seenTitle = "Seen here, not named"
+
+    public static let rulesHereTitle = "Rules that hold here"
+    public static let rulesHereEmpty = "No rule names this project, so the rules of this computer decide here."
+    public static let rulesLink = "Choose what agents may do in Protection settings"
+    public static let itsAgentsTitle = "Its agents"
+    public static let skillsCarriedTitle = "Skills it carries"
+    public static let noSkillsGiven = "This project gives its agents no skills."
+    /// How many of the skills every project shares the rules page lists before the rest are a link.
+    public static let sharedSkillsShown = 5
+
+    /// "2 more in Skills", the link under the skills every project shares.
+    public static func moreSkillsLine(_ rest: Int) -> String {
+        "\(rest) more in Skills"
+    }
+
+    public static let allMemoryLink = "All memory, shared with every project"
+
+    public static let renameTitle = "Rename"
+    public static let renameInCloud = "Rename in Memnox Cloud"
+    public static let removeTitle = "Remove"
+    public static let removeInCloud = "Remove in Memnox Cloud"
+    public static let namePrompt = "Name"
+
+    /// "Rename Spring launch", over the card renamed in place.
+    public static func renameHeading(_ project: ProjectView) -> String {
+        "Rename \(project.name)"
+    }
+
     private static func withServers(_ project: ProjectView, _ servers: [String]) -> ProjectDraft {
         let base = ProjectLines.draft(of: project)
         return ProjectDraft(name: base.name, instructions: base.instructions, servers: servers.isEmpty ? nil : servers,

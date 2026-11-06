@@ -105,13 +105,14 @@ describe('a project as a card', () => {
     memoryScope: 'project',
   } as unknown as Pick<ProjectView, 'name' | 'path' | 'scope' | 'organization' | 'openMissions' | 'agentsSeen' | 'sessions' | 'servers' | 'skills' | 'memoryScope'>;
 
-  it('shows its folder, who worked there, and only a memory chip, never server or skill counts', () => {
-    expect(projectCard(base)).toEqual({ name: 'web', repository: '/code/web', line: '2 agents worked here over 5 sessions', chips: ['Memory'] });
+  it('shows its folder, its sessions so far, and only a memory chip, never server or skill counts', () => {
+    expect(projectCard(base)).toEqual({ name: 'web', repository: '/code/web', line: '5 sessions so far.', chips: ['Memory'] });
+    expect(projectCard({ ...base, sessions: { total: 0, ended: 0 } }).line).toBe('No agent has worked here yet.');
   });
 
   it('says what it is working on, and that it keeps no memory where it keeps none', () => {
     const card = projectCard({ ...base, memoryScope: 'none', openMissions: [{ id: 'm', statement: 'the checkout', startedAt: '' }] });
-    expect(card.line).toBe('Working on the checkout');
+    expect(card.line).toBe('the checkout');
     expect(card.chips.at(-1)).toBe('No memory');
   });
 

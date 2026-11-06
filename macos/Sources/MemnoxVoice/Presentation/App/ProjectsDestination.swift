@@ -94,8 +94,7 @@ struct ProjectsDestination: View {
                 }
             } else {
                 ShellScroll(width: width) {
-                    EmptyState(symbol: "folder", title: "This project is gone",
-                               detail: "It is no longer among the projects on this Mac. Go back to Projects to open another.")
+                    EmptyState(symbol: "folder", title: ProjectSidebar.goneTitle, detail: ProjectSidebar.goneLine)
                     GoLink(ProjectSidebar.backTitle) { shell.go(ProjectSidebar.list) }
                 }
             }
@@ -256,10 +255,10 @@ private struct ProjectCard: View {
         let shape = RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
         let text = Binding(get: { renaming ?? draft }, set: { renaming = $0 })
         return VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
-            Text("Rename \(project.name)")
+            Text(ProjectPageLines.renameHeading(project))
                 .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
                 .foregroundStyle(Memnox.Console.muted)
-            TextField("Name", text: text)
+            TextField(ProjectPageLines.namePrompt, text: text)
                 .kitField()
                 .onSubmit(save)
                 .accessibilityLabel("The project\u{2019}s new name")
@@ -356,12 +355,12 @@ private struct ProjectCard: View {
         Menu {
             if project.sharedBy != nil, let url = ProjectPageLines.cloudLink(project) {
                 // The organization keeps this project, so both are done where it is kept.
-                Button("Rename in Memnox Cloud", systemImage: "pencil") { openURL(url) }
-                Button("Remove in Memnox Cloud", systemImage: "trash") { openURL(url) }
+                Button(ProjectPageLines.renameInCloud, systemImage: "pencil") { openURL(url) }
+                Button(ProjectPageLines.removeInCloud, systemImage: "trash") { openURL(url) }
             } else {
-                Button("Rename", systemImage: "pencil") { renaming = project.name }
+                Button(ProjectPageLines.renameTitle, systemImage: "pencil") { renaming = project.name }
                 Section {
-                    Button("Remove", systemImage: "trash") {}.disabled(true)
+                    Button(ProjectPageLines.removeTitle, systemImage: "trash") {}.disabled(true)
                     Text(ProjectPageLines.removeLine)
                 }
             }

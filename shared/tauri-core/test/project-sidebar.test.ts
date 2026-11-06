@@ -27,7 +27,20 @@ import {
   toolCategory,
   toolCategoryCounts,
   toolsToAdd,
+  AGENTS_SHARED_LINE,
+  ALL_MEMORY_LINK,
+  GONE_TITLE,
+  LEARNED_EMPTY,
+  moreSkillsLine,
+  NO_SKILLS_GIVEN,
+  readyRules,
+  REMOVE_IN_CLOUD,
+  RENAME_IN_CLOUD,
+  renameHeading,
+  RULES_HERE_EMPTY,
+  RULES_LINK,
 } from '../src/core/domain/project-sidebar';
+import { appliedLine, cardLine } from '../src/core/domain/project-lines';
 
 const project = (extra: Partial<ProjectView> = {}): ProjectView => ({
   id: 'p1',
@@ -113,8 +126,8 @@ describe('the sidebar a project swaps in', () => {
     expect(projectToolCards(shared).filter((card) => card.linked).map((card) => card.name)).toEqual(['slack', 'github.com/acme/launch']);
   });
 
-  it('describes a project by what it is busy with when nobody wrote a description', () => {
-    expect(projectDescription(project({ openMissions: [{ id: 'm', statement: 'the press kit', startedAt: '2026-11-01T00:00:00Z' }] }))).toBe('Working on the press kit');
+  it('describes a project by the mission open in it when nobody wrote a description, as the Mac does', () => {
+    expect(projectDescription(project({ openMissions: [{ id: 'm', statement: 'the press kit', startedAt: '2026-11-01T00:00:00Z' }] }))).toBe('the press kit');
     expect(projectDescription(project())).toBeUndefined();
   });
 });
@@ -123,6 +136,7 @@ describe('Get it ready', () => {
   it('asks for what its AI may do, a page of the project, with adding tools left off', () => {
     const steps = readySteps({ tools: 0, rules: 0 });
     expect(steps.map((step) => `${step.title} ${step.page} ${step.done}`)).toEqual(['Choose what its AI may do autonomy false']);
+    expect(steps[0]?.detail).toBe('What goes ahead, what asks you first, and what never happens.');
     expect(readyLine({ tools: 2, rules: 0 })).toBe('0 of 1 done');
   });
 
@@ -195,5 +209,33 @@ describe('renaming a project', () => {
     expect(renameProblem('Spring launch', project())).toBe('That is already its name.');
     expect(renameProblem('New', project())).toBeUndefined();
     expect(renameProblem('New', project({ scope: 'organization', organization }))).toContain('Memnox Cloud');
+  });
+});
+
+describe('the words every desktop shares', () => {
+  it('says a project’s pages as the Mac does, pinned in ProjectPageLinesTests.swift as well', () => {
+    expect(readySteps({ tools: 0, rules: 0 })[0]?.detail).toBe('What goes ahead, what asks you first, and what never happens.');
+    expect(LEARNED_EMPTY).toBe('Nothing learned here yet. As its AI works in the tools it lives in, what it learns shows here.');
+    expect(AGENTS_SHARED_LINE).toBe('AI agents are set up once for every project on this computer. This page shows the ones that work here and what this project gives each.');
+    expect(RULES_HERE_EMPTY).toBe('No rule names this project, so the rules of this computer decide here.');
+    expect(RULES_LINK).toBe('Choose what agents may do in Protection settings');
+    expect(NO_SKILLS_GIVEN).toBe('This project gives its agents no skills.');
+    expect(moreSkillsLine(2)).toBe('2 more in Skills');
+    expect(ALL_MEMORY_LINK).toBe('All memory, shared with every project');
+    expect(renameHeading(project())).toBe('Rename Spring launch');
+    expect([RENAME_IN_CLOUD, REMOVE_IN_CLOUD]).toEqual(['Rename in Memnox Cloud', 'Remove in Memnox Cloud']);
+    expect(GONE_TITLE).toBe('This project is gone');
+    expect(projectPageInfo('autonomy').summary).toBe('The agents given this project, what they carry, and the rules that hold in it.');
+  });
+
+  it('counts the rules of its own file only while they are in force, as the Mac does', () => {
+    expect(readyRules(0, project({ rules: { count: 2, inForce: false } }))).toBe(0);
+    expect(readyRules(1, project({ rules: { count: 2, inForce: true } }))).toBe(3);
+  });
+
+  it('says a card’s line and an apply that changed nothing in the Mac’s words', () => {
+    expect(cardLine(project({ openMissions: [{ id: 'm', statement: 'Ship the projects view', startedAt: '' }] }))).toBe('Ship the projects view');
+    expect(cardLine(project())).toBe('3 sessions so far.');
+    expect(appliedLine({ written: [], removed: [], kept: [], governed: [], missing: [] })).toBe('Nothing needed applying: every agent here already has this project’s instructions.');
   });
 });

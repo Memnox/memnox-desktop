@@ -1,7 +1,31 @@
-import type { MemoryItemView, ProjectView } from '@memnox/core/wire';
-import { Bot, CalendarDays, CheckCircle2, Circle, ExternalLink, FileText, FolderGit2, ListTodo, MessagesSquare, Plug, Plus, Server, ShieldCheck, Sparkles, Users, type LucideIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import type { RuleDraftInput, StudioOutcome } from '../../../core/application/studio';
+import type { MemoryItemView, ProjectGrantView, ProjectView } from '@memnox/core/wire';
+import {
+  ArrowUpRight,
+  CalendarDays,
+  ChevronRight,
+  Circle,
+  CircleCheck,
+  Cpu,
+  ExternalLink,
+  FileText,
+  Folder as FolderIcon,
+  FolderGit2,
+  Hand,
+  ListTodo,
+  MessagesSquare,
+  Play,
+  Plug,
+  Plus,
+  Puzzle,
+  Save,
+  Server,
+  Sparkles,
+  SquareStack,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { ProjectOutcome } from '../../../core/application/projects';
 import { projectRoute, type ProjectPage, type Route, type Supports } from '../../../core/domain/destinations';
 import {
   EVERYWHERE_SHOWN,
@@ -18,10 +42,16 @@ import {
   type ItemReach,
   type SharedRow,
 } from '../../../core/domain/project-context';
-import { rowCaption, statusWord } from '../../../core/domain/memory-lines';
-import { counted, draftOf, everywhereLine, projectRules, sharedBy } from '../../../core/domain/project-lines';
+import { rowCaption } from '../../../core/domain/memory-lines';
+import { agentLabel } from '../../../core/domain/mcp-hub-lines';
+import { draftOf, everywhereLine, grantLine, pressLine, projectRules, projectStanding, rulesLine, sessionsLine, sharedBy } from '../../../core/domain/project-lines';
 import { ALL_CATEGORIES, settledCategory } from '../../../core/domain/catalog';
 import {
+  AGENTS_SHARED_LINE,
+  BACK_TO_PROJECTS,
+  GONE_LINE,
+  GONE_TITLE,
+  ALL_MEMORY_LINK,
   CAN_USE_NOTE,
   CAN_USE_SHOWN,
   CAN_USE_TITLE,
@@ -29,20 +59,37 @@ import {
   CLOUD_TOOLS_LINE,
   cloudProjectLink,
   editableHere,
+  FOLDER_TITLE,
+  GIVEN_TITLE,
+  ITS_AGENTS_TITLE,
+  LEARNED_EMPTY,
+  LEARNED_MORE,
   LEARNED_SHOWN,
-  linkedToolCount,
+  LEARNED_TITLE,
   moreLine,
+  moreSkillsLine,
+  NO_AGENTS,
+  NO_DESCRIPTION,
+  NO_SKILLS_GIVEN,
   OPEN_IN_CLOUD,
   projectAgents,
   projectDescription,
   projectPageInfo,
   projectToolCards,
-  readyLine,
+  READY_TITLE,
+  readyRules,
   readySteps,
+  RULES_HERE_EMPTY,
+  RULES_HERE_TITLE,
+  RULES_LINK,
+  SEEN_TITLE,
   SHARE_TITLE,
+  SHARED_LINE,
+  SHARED_SKILLS_SHOWN,
   showReady,
   showsTeam,
   shownToolCards,
+  SKILLS_CARRIED_TITLE,
   TEAM_TITLE,
   TEAM_TOOLS_SHOWN,
   teamLine,
@@ -58,10 +105,9 @@ import {
 } from '../../../core/domain/project-sidebar';
 import { CatalogCard, CatalogLayout, CatalogSearch, CategoryRail } from '../catalog';
 import { groupCountLine, ruleGroups } from '../../../core/domain/rule-words';
-import { ago } from '../../../core/domain/session-text';
-import { ALWAYS_ASK, EFFECT_WORDS, effectTone, switchOn } from '../../../core/domain/studio-lines';
+import { EFFECT_WORDS, effectTone } from '../../../core/domain/studio-lines';
 import { BrandLogo } from '../../kit/logos';
-import { KitButton, PageTitle } from '../../settings/kit';
+import { KitButton, PageTitle, Spinner } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { GoLink } from './HomePage';
 import { OrganizationBadge, projectNote } from './ProjectInspector';
@@ -69,27 +115,39 @@ import { CardGrid, EmptyState, Panel, ReadFailed, Row, Section, StatusWord } fro
 
 /**
  * One project's own pages, the main area beside the sidebar it swaps in: Overview, Agents, Memory, and What its AI may
- * do. Each is a page rather than a dialog. What this computer can save is saved through the daemon; what it cannot,
- * such as an organization's project, is shown read only with the way to Memnox Cloud. The desktop is one person's, so
- * people and the cloud's own actions show only once this computer is joined to a workspace or the organization shares the project.
+ * do, drawn as the Mac's ProjectPages draws them. Each is a page rather than a dialog. What this computer can save is
+ * saved through the daemon; what it cannot, such as an organization's project, is shown read only with the way to
+ * Memnox Cloud. People and the cloud's own actions show only once this computer is joined to a workspace or the
+ * organization shares the project.
  */
 export function ProjectPages({ parts, project, page, go }: { parts: SettingsParts; project: ProjectView; page: ProjectPage; go: (route: Route) => void }) {
-  const [note, setNote] = useState<string | undefined>(undefined);
   const info = projectPageInfo(page);
-  return (
-    <div className="flex w-full max-w-[880px] flex-col gap-6">
-      {page !== 'overview' && page !== 'tools' && <PageTitle title={info.title} subtitle={info.summary} eyebrow={project.name} />}
-      {note !== undefined && (
-        <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
-          {note}
-        </p>
-      )}
+  const body = (
+    <div className="flex flex-col gap-6">
       {/* Tools is left off for now, so a route to it shows the Overview, which holds its folder. */}
       {(page === 'overview' || page === 'tools') && <Overview parts={parts} project={project} go={go} />}
       {page === 'agents' && <Agents parts={parts} project={project} go={go} />}
       {page === 'memory' && <ProjectMemory parts={parts} project={project} go={go} />}
-      {page === 'autonomy' && <Autonomy parts={parts} project={project} go={go} said={setNote} />}
+      {page === 'autonomy' && <Autonomy parts={parts} project={project} go={go} />}
     </div>
+  );
+  // The Overview heads itself with the project's name; every other page says its own title and line, as on the Mac.
+  if (page === 'overview' || page === 'tools') return <div className="flex w-full flex-col">{body}</div>;
+  return (
+    <div className="flex w-full flex-col gap-5">
+      <PageTitle title={info.title} subtitle={info.summary} />
+      {body}
+    </div>
+  );
+}
+
+/** Said where a project was open and is no longer among the projects, with the way back to them. */
+export function ProjectGone({ back }: { back: () => void }) {
+  return (
+    <>
+      <EmptyState icon={FolderIcon} title={GONE_TITLE} body={GONE_LINE} />
+      <GoLink onClick={back}>{BACK_TO_PROJECTS}</GoLink>
+    </>
   );
 }
 
@@ -98,31 +156,61 @@ function sharedRoute(row: SharedRow, supports: Supports): Route | undefined {
   return shared({}, supports).find((link) => link.row === row)?.route;
 }
 
+/** A quiet line of a project's pages, the Mac's ProjectMuted. */
+function Muted({ children }: { children: ReactNode }) {
+  return <p className="text-footnote text-muted">{children}</p>;
+}
+
+/** What the last press came to, the Mac's NoteBanner. */
+function NoteBanner({ text }: { text: string | undefined }) {
+  if (text === undefined) return null;
+  return (
+    <p role="status" className="w-full rounded-xl border border-panel-edge bg-card px-4 py-3 text-footnote text-foreground">
+      {text}
+    </p>
+  );
+}
+
+/** The agents' logos overlapping, as the cards and the grants show who has a thing. */
+export function AgentLogos({ agents, names = {} }: { agents: readonly string[]; names?: Readonly<Record<string, string>> }) {
+  return (
+    <span className="flex -space-x-1.5">
+      {agents.map((kind) => (
+        <BrandLogo key={kind} agent={kind} name={names[kind] ?? agentLabel(kind)} size={20} className="ring-2 ring-card" />
+      ))}
+    </span>
+  );
+}
+
 /**
- * Whether an item belongs to this project alone or is shared with every project, as a small badge. A shared one is a
- * link to the page where it is changed, since this project only inherits it.
+ * Whether an item belongs to this project alone or is shared with every project, as the Mac's small badge: a folder
+ * or a stack before the word on a wash, and a shared one is a link to the page where it is changed.
  */
 function ReachBadge({ reach, open }: { reach: ItemReach; open?: (() => void) | undefined }) {
-  const look = reach === 'only-here' ? 'border-primary/40 text-primary' : 'border-panel-edge text-muted';
-  const className = `inline-flex shrink-0 items-center rounded-full border px-2 py-px text-label font-medium ${look}`;
+  const Icon = reach === 'only-here' ? FolderIcon : SquareStack;
+  const look = reach === 'only-here' ? 'bg-primary/10 text-primary' : 'bg-hover text-muted';
+  const className = `inline-flex shrink-0 items-center gap-0.5 rounded-full px-2.5 py-0.5 text-label font-medium whitespace-nowrap ${look}`;
   if (reach === 'every-project' && open !== undefined) {
     return (
-      <button type="button" title={REACH_HINT[reach]} onClick={open} className={`mx-focus cursor-pointer hover:bg-hover hover:text-foreground ${className}`}>
+      <button type="button" title={`${REACH_HINT[reach]}. Opens that page.`} aria-label={REACH_WORD[reach]} onClick={open} className={`mx-focus cursor-pointer ${className}`}>
+        <Icon size={10} strokeWidth={2.5} aria-hidden />
         {REACH_WORD[reach]}
+        <ArrowUpRight size={10} strokeWidth={2.5} aria-hidden />
       </button>
     );
   }
   return (
-    <span title={REACH_HINT[reach]} className={className}>
+    <span title={REACH_HINT[reach]} aria-label={REACH_WORD[reach]} className={className}>
+      <Icon size={10} strokeWidth={2.5} aria-hidden />
       {REACH_WORD[reach]}
     </span>
   );
 }
 
 /** The way to Memnox Cloud for whatever this computer only reads. */
-function CloudLink({ parts, project, children = OPEN_IN_CLOUD }: { parts: SettingsParts; project: ProjectView; children?: string }) {
+function CloudLink({ parts, project, children = OPEN_IN_CLOUD, wide = false }: { parts: SettingsParts; project: ProjectView; children?: string; wide?: boolean }) {
   return (
-    <KitButton icon={ExternalLink} onClick={() => parts.host.openPage(cloudProjectLink(project))}>
+    <KitButton icon={ExternalLink} wide={wide} className="self-start" title={cloudProjectLink(project)} onClick={() => parts.host.openPage(cloudProjectLink(project))}>
       {children}
     </KitButton>
   );
@@ -141,15 +229,15 @@ function ReadOnly({ parts, project }: { parts: SettingsParts; project: ProjectVi
   );
 }
 
-/** The counts the checklist reads, the rules of its own being those that reach into its folder or come from its file. */
+/** The counts the checklist reads, the rules of its own being those that reach into its folder plus its file's in force. */
 function useReadyCounts(parts: SettingsParts, project: ProjectView): ReadyCounts {
   const { studio } = parts;
   useObserved(studio);
   useEffect(() => {
     if (studio.rules === undefined) void studio.refresh();
   }, []);
-  const rules = studio.rules === undefined ? project.rules.count : projectRules(studio.rules.rules, project).here.length;
-  return { tools: linkedToolCount(projectToolCards(project)), rules };
+  const here = studio.rules === undefined ? 0 : projectRules(studio.rules.rules, project).here.length;
+  return { tools: 0, rules: readyRules(here, project) };
 }
 
 /** What its AI learned about the project, read once from everything memory holds. */
@@ -171,90 +259,107 @@ function useProjectMemory(parts: SettingsParts, project: ProjectView) {
 function Overview({ parts, project, go }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void }) {
   const { account } = parts;
   useObserved(account);
-  const joined = account.isSignedIn;
+  const team = showsTeam(project, account.isSignedIn);
   const counts = useReadyCounts(parts, project);
-  const learned = useProjectMemory(parts, project);
-  const description = projectDescription(project);
-  const ai = project.agents.length;
+  const steps = readySteps(counts);
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2 pt-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-[28px] leading-tight font-semibold tracking-[-0.02em] text-foreground">{project.name}</h1>
-          {sharedBy(project) !== undefined && <OrganizationBadge />}
-        </div>
-        <p className="max-w-2xl text-body leading-relaxed text-muted">{description ?? 'No description yet.'}</p>
-        <p className="text-footnote text-faint">{[counted(ai, 'AI agent', 'AI agents'), counted(counts.rules, 'rule of its own', 'rules of its own')].join(' · ')}</p>
-      </header>
-
+    <>
+      <OverviewHeader project={project} />
       {showReady(counts) && (
-        <section aria-label="Get it ready" className="flex flex-col gap-3 rounded-2xl border border-panel-edge bg-card p-5">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-base font-semibold text-foreground">Get it ready</h2>
-            <span className="text-footnote text-muted">{readyLine(counts)}</span>
-          </div>
-          <ol className="flex flex-col gap-1">
-            {readySteps(counts).map((step) => (
-              <li key={step.id}>
-                <button
-                  type="button"
-                  onClick={() => go(projectRoute(project.id, step.page))}
-                  className="mx-focus flex w-full cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-hover"
-                >
-                  {step.done ? <CheckCircle2 size={18} className="shrink-0 text-success" aria-hidden /> : <Circle size={18} className="shrink-0 text-faint" aria-hidden />}
-                  <span className={`flex-1 text-body-sm ${step.done ? 'text-muted line-through decoration-faint' : 'font-medium text-foreground'}`}>{step.title}</span>
-                  <span className="sr-only">{step.done ? 'Done' : 'Not done yet'}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
-
-      <CanUse parts={parts} project={project} joined={joined} go={go} />
-
-      <Section title="Learned lately" trailing={learned.items !== undefined && learned.items.length > LEARNED_SHOWN ? <GoLink onClick={() => go(projectRoute(project.id, 'memory'))}>Everything it learned</GoLink> : undefined}>
-        {!learned.reads || learned.items === undefined || learned.items.length === 0 ? (
-          <p className="text-body-sm text-muted">Nothing yet. What its AI reads about this project in its tools shows here once you confirm it.</p>
-        ) : (
+        <Section title={READY_TITLE}>
           <Panel>
-            {learned.items.slice(0, LEARNED_SHOWN).map((item) => (
-              <Row key={item.id} title={<span className="whitespace-pre-wrap">{item.statement}</span>} caption={rowCaption(item)} />
+            {steps.map((step) => (
+              <Row
+                key={step.id}
+                onClick={() => go(projectRoute(project.id, step.page))}
+                leading={
+                  step.done ? (
+                    <CircleCheck size={16} fill="currentColor" className="text-success [&>path]:stroke-card" aria-label="Done" />
+                  ) : (
+                    <Circle size={16} className="text-faint" aria-label="To do" />
+                  )
+                }
+                title={step.title}
+                caption={step.detail}
+                trailing={<ChevronRight size={12} strokeWidth={2.5} className="text-faint" aria-hidden />}
+              />
             ))}
           </Panel>
-        )}
-      </Section>
-
-      {showsTeam(project, joined) && <Team parts={parts} project={project} />}
-
-      <Folder project={project} />
-    </div>
+        </Section>
+      )}
+      <CanUse parts={parts} project={project} team={team} go={go} />
+      <LearnedLately parts={parts} project={project} go={go} />
+      {team && <Team parts={parts} project={project} />}
+      <Folder parts={parts} project={project} />
+    </>
   );
 }
 
-const CAN_USE_ICONS: Record<CanUseKind, LucideIcon> = { agents: Bot, skills: Sparkles, apps: Plug };
+/** The project's name with its standing on the right, what it is for, and any problem its manifest has. */
+function OverviewHeader({ project }: { project: ProjectView }) {
+  const standing = projectStanding(project);
+  const description = projectDescription(project);
+  return (
+    <header className="flex flex-col gap-2">
+      <div className="flex items-baseline gap-2">
+        <h1 className="line-clamp-2 min-w-0 flex-1 text-2xl font-semibold tracking-[-0.02em] text-foreground">{project.name}</h1>
+        <span className="shrink-0">{sharedBy(project) === undefined ? <StatusWord tone={standing.tone}>{standing.word}</StatusWord> : <OrganizationBadge />}</span>
+      </div>
+      <p className={`max-w-[560px] text-base leading-[23px] ${description === undefined ? 'text-muted' : 'text-foreground'}`}>{description ?? NO_DESCRIPTION}</p>
+      {(project.problems ?? []).map((problem) => (
+        <p key={problem} role="alert" className="text-footnote text-destructive">
+          {problem}
+        </p>
+      ))}
+    </header>
+  );
+}
+
+/** The few facts learned here most recently, with the way to all of them. */
+function LearnedLately({ parts, project, go }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void }) {
+  const learned = useProjectMemory(parts, project);
+  const items = learned.items ?? [];
+  return (
+    <Section title={LEARNED_TITLE}>
+      {items.length === 0 ? (
+        <Muted>{LEARNED_EMPTY}</Muted>
+      ) : (
+        <>
+          <Panel>
+            {items.slice(0, LEARNED_SHOWN).map((item) => (
+              <Row key={item.id} title={item.statement} caption={rowCaption(item)} />
+            ))}
+          </Panel>
+          {items.length > LEARNED_SHOWN && <GoLink onClick={() => go(projectRoute(project.id, 'memory'))}>{LEARNED_MORE}</GoLink>}
+        </>
+      )}
+    </Section>
+  );
+}
+
+const CAN_USE_ICONS: Record<CanUseKind, LucideIcon> = { agents: Cpu, skills: Sparkles, apps: Puzzle };
+
+/** The Mac's ProjectCanUse lays its parts out no narrower than this. */
+const CAN_USE_MIN = 180;
 
 /**
  * What its AI can use, as Memnox Cloud's Overview draws it: a part each for its agents, skills and apps, every part
  * saying what its word means while it is empty, and a press on one opens the page that holds it.
  */
-function CanUse({ parts, project, joined, go }: { parts: SettingsParts; project: ProjectView; joined: boolean; go: (route: Route) => void }) {
+function CanUse({ parts, project, team, go }: { parts: SettingsParts; project: ProjectView; team: boolean; go: (route: Route) => void }) {
   const { agents, support } = parts;
   useObserved(agents, support);
   const supports: Supports = (method) => support.supports(method);
   const agentNames = Object.fromEntries((agents.agents ?? []).map((each) => [each.kind, each.name]));
   return (
-    <section aria-label={CAN_USE_TITLE} className="flex flex-col gap-4 rounded-2xl border border-panel-edge bg-card p-5">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-semibold text-foreground">{CAN_USE_TITLE}</h2>
-        <p className="text-footnote text-muted">{CAN_USE_NOTE}</p>
-      </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        {canUse(project, joined, agentNames).map((part) => (
+    <Section title={CAN_USE_TITLE}>
+      <Muted>{CAN_USE_NOTE}</Muted>
+      <CardGrid min={CAN_USE_MIN}>
+        {canUse(project, team, agentNames).map((part) => (
           <CanUsePartTile key={part.kind} part={part} open={canUseRoute(part.target, project.id, supports)} go={go} />
         ))}
-      </div>
-    </section>
+      </CardGrid>
+    </Section>
   );
 }
 
@@ -267,28 +372,32 @@ function CanUsePartTile({ part, open, go }: { part: CanUsePart; open: Route | un
   const Icon = CAN_USE_ICONS[part.kind];
   const more = moreLine(part);
   return (
-    <button type="button" disabled={open === undefined} onClick={() => open !== undefined && go(open)} className="mx-focus flex cursor-pointer flex-col gap-3 rounded-xl border border-panel-edge bg-background p-4 text-left hover:bg-hover">
-      <span className="flex items-center gap-2 text-body-sm font-medium text-foreground">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-hover">
-          <Icon size={16} aria-hidden />
+    <button
+      type="button"
+      onClick={() => open !== undefined && go(open)}
+      className="mx-focus flex h-full cursor-pointer flex-col items-stretch gap-2 rounded-xl border border-panel-edge bg-card p-4 text-left"
+    >
+      <span className="flex items-center gap-2">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-hover text-foreground">
+          <Icon size={14} aria-hidden />
         </span>
-        {part.title}
-        {part.counted && <span className="tabular-nums text-muted">{part.names.length}</span>}
+        <span className="text-body-sm font-medium text-foreground">{part.title}</span>
+        {part.counted && <span className="text-body-sm tabular-nums text-muted">{part.names.length}</span>}
       </span>
       {part.names.length === 0 ? (
-        <span className="flex flex-col gap-1">
+        <>
           <span className="text-body-sm text-foreground">{part.empty}</span>
-          <span className="text-footnote leading-relaxed text-muted">{part.what}</span>
-        </span>
+          <span className="text-footnote text-muted">{part.what}</span>
+        </>
       ) : (
-        <ul className="flex flex-col gap-1 text-body-sm text-foreground">
+        <span className="flex min-w-0 flex-col gap-0.5">
           {part.names.slice(0, CAN_USE_SHOWN).map((name) => (
-            <li key={name} className="truncate">
+            <span key={name} className="truncate text-body-sm text-foreground">
               {name}
-            </li>
+            </span>
           ))}
-          {more !== undefined && <li className="text-footnote text-muted">{more}</li>}
-        </ul>
+          {more !== undefined && <span className="text-footnote text-muted">{more}</span>}
+        </span>
       )}
     </button>
   );
@@ -301,25 +410,85 @@ function CanUsePartTile({ part, open, go }: { part: CanUsePart; open: Route | un
 function Team({ parts, project }: { parts: SettingsParts; project: ProjectView }) {
   return (
     <Section title={TEAM_TITLE}>
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-panel-edge bg-card px-4 py-3">
-        <Users size={16} className="shrink-0 text-muted" aria-hidden />
-        <p className="min-w-0 flex-1 text-footnote text-muted">{teamLine(project)}</p>
-        {sharedBy(project) === undefined ? <CloudLink parts={parts} project={project}>{SHARE_TITLE}</CloudLink> : <CloudLink parts={parts} project={project} />}
+      <Muted>{teamLine(project)}</Muted>
+      {sharedBy(project) === undefined ? (
+        <CloudLink parts={parts} project={project} wide>
+          {SHARE_TITLE}
+        </CloudLink>
+      ) : (
+        <CloudLink parts={parts} project={project} />
+      )}
+    </Section>
+  );
+}
+
+/** What the last Apply came to, kept beside its button rather than as the page's note. */
+interface Applied {
+  readonly outcome: ProjectOutcome;
+  readonly at: number;
+}
+
+/**
+ * The project's folder at the Overview's foot, and Apply or Save as project on the person's own, or the line saying the
+ * organization changes it in Memnox Cloud, as the Mac's ProjectOnThisMac draws it.
+ */
+function Folder({ parts, project }: { parts: SettingsParts; project: ProjectView }) {
+  const { projects, words } = parts;
+  useObserved(projects);
+  const [note, setNote] = useState<string | undefined>(undefined);
+  const [applied, setApplied] = useState<Applied | undefined>(undefined);
+  const busy = projects.busy === project.id || projects.busy === project.path;
+  const organization = sharedBy(project);
+  const apply = () => {
+    setApplied(undefined);
+    void projects.apply(project.id).then((outcome) => setApplied({ outcome, at: Date.now() }));
+  };
+  const save = () => void projects.put(project.path, draftOf(project)).then((outcome) => setNote(projectNote(outcome, words.keyTitle)));
+  return (
+    <Section title={FOLDER_TITLE}>
+      <div className="flex flex-col items-start gap-2">
+        <p className="w-full truncate text-footnote text-muted select-text" title={project.path}>
+          {project.path}
+        </p>
+        {organization !== undefined ? (
+          <>
+            <Muted>{organization.editedIn}</Muted>
+            <CloudLink parts={parts} project={project} />
+          </>
+        ) : (
+          <>
+            {project.declared ? (
+              <KitButton kind="primary" icon={busy ? undefined : Play} disabled={busy} onClick={apply} title="Hands this project’s setup to its agents">
+                {busy && <Spinner />}
+                {busy ? 'Applying' : 'Apply'}
+              </KitButton>
+            ) : (
+              <KitButton kind="primary" icon={Save} disabled={busy} onClick={save}>
+                {busy ? 'Saving' : 'Save as project'}
+              </KitButton>
+            )}
+            {project.declared && applied !== undefined ? <ApplyResultLine applied={applied} keyTitle={words.keyTitle} /> : <Muted>{pressLine(project.declared)}</Muted>}
+          </>
+        )}
+        <NoteBanner text={note} />
+        <Muted>{sessionsLine(project, Date.now())}</Muted>
       </div>
     </Section>
   );
 }
 
-/** The project's folder at the Overview's foot, and the repository its organization shares it from, since Tools is left off for now. */
-function Folder({ project }: { project: ProjectView }) {
-  const repository = sharedBy(project)?.repository;
+/** What the last Apply came to: a tick for a change, amber for what waits on the island, red for a refusal, with its time. */
+function ApplyResultLine({ applied, keyTitle }: { applied: Applied; keyTitle: string }) {
+  const { outcome, at } = applied;
+  const look: { icon: LucideIcon; tint: string } =
+    outcome.kind === 'failed' ? { icon: TriangleAlert, tint: 'text-destructive' } : outcome.kind === 'proposed' ? { icon: Hand, tint: 'text-warm' } : { icon: CircleCheck, tint: 'text-success' };
+  const Icon = look.icon;
+  const time = new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   return (
-    <Section title="Folder">
-      <Panel>
-        {repository !== undefined && repository !== '' && <Row title={repository} caption="Repository shared by your organization" />}
-        <Row title={<span className="truncate" title={project.path}>{project.path}</span>} caption="Folder on this computer" />
-      </Panel>
-    </Section>
+    <p role="status" className={`flex items-start gap-1.5 text-footnote select-text ${look.tint}`}>
+      <Icon size={12} className="mt-0.5 shrink-0" aria-hidden />
+      <span>{`${projectNote(outcome, keyTitle)} · ${time}`}</span>
+    </p>
   );
 }
 
@@ -429,63 +598,45 @@ function ToolCard({ card, busy, act, reach, openShared }: { card: ProjectToolCar
   );
 }
 
-/** The agents that work in this project: those it names with what each is given, then those seen here it does not name. */
+
+/** The agents that work in this project, each with what the project gives it, and the way to where every agent on this computer is set up. */
 function Agents({ parts, project, go }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void }) {
-  const { agents, skills, support } = parts;
-  useObserved(agents, skills, support);
-  const readsSkills = support.supports('skills-hub') === true;
-  useEffect(() => {
-    void agents.refresh();
-    if (readsSkills && skills.hub === undefined) void skills.refresh();
-  }, [readsSkills]);
-  const supports: Supports = (method) => support.supports(method);
+  const { support } = parts;
+  useObserved(support);
+  const agentsPage = sharedRoute('agents', (method) => support.supports(method));
+  return (
+    <>
+      <AgentsHere parts={parts} project={project} />
+      {agentsPage !== undefined && (
+        <div className="flex items-center gap-2">
+          <ReachBadge reach="every-project" open={() => go(agentsPage)} />
+          <p className="min-w-0 flex-1 text-footnote text-muted">{AGENTS_SHARED_LINE}</p>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** The agents the project names, then any seen working in it that it does not name. */
+function AgentsHere({ parts, project }: { parts: SettingsParts; project: ProjectView }) {
+  const { agents } = parts;
+  useObserved(agents);
+  useEffect(() => void agents.refresh(), []);
   const agentNames = Object.fromEntries((agents.agents ?? []).map((each) => [each.kind, each.name]));
   const { given, seenOnly } = projectAgents(project, agentNames);
-  const agentsPage = sharedRoute('agents', supports);
-  const skillsPage = sharedRoute('skills', supports);
-  const hubSkills = skills.hub?.skills ?? [];
-  const named = new Set(project.skills.map((each) => each.name));
-  // The skills its agents carry here: those the project names, then the person's own that every project shares.
-  const ownSkills = project.skills.map((grant) => {
-    const skill = hubSkills.find((each) => each.name === grant.name);
-    return { name: grant.name, agents: grant.agents, reach: (skill === undefined ? undefined : skillReach(skill.scope, skill.project, project)) ?? ('only-here' as ItemReach) };
-  });
-  const inherited = hubSkills.filter((skill) => !named.has(skill.name) && skillReach(skill.scope, skill.project, project) !== undefined).map((skill) => ({ name: skill.name, agents: skill.agents, reach: skillReach(skill.scope, skill.project, project) ?? ('every-project' as ItemReach) }));
-  const carried = [...ownSkills, ...inherited];
+  if (given.length === 0 && seenOnly.length === 0) return <Muted>{NO_AGENTS}</Muted>;
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-panel-edge bg-card px-4 py-3">
-        <ReachBadge reach="every-project" open={agentsPage === undefined ? undefined : () => go(agentsPage)} />
-        <p className="min-w-0 flex-1 text-footnote text-muted">AI agents are set up once for every project on this computer. This page shows the ones that work here and what this project gives each.</p>
-        {agentsPage !== undefined && <GoLink onClick={() => go(agentsPage)}>AI agents</GoLink>}
-      </div>
-      {given.length === 0 && seenOnly.length === 0 && <p className="text-footnote text-muted">No agent has worked here yet, and the project names none.</p>}
+    <div className="flex flex-col gap-5">
       {given.length > 0 && (
-        <Section title="Given this project">
+        <Section title={GIVEN_TITLE}>
           <AgentRows agents={given} marked />
         </Section>
       )}
       {seenOnly.length > 0 && (
-        <Section title="Seen here, not named">
+        <Section title={SEEN_TITLE}>
           <AgentRows agents={seenOnly} marked={false} />
         </Section>
       )}
-      <Section title="Skills its agents carry here" trailing={skillsPage === undefined ? undefined : <GoLink onClick={() => go(skillsPage)}>Skills</GoLink>}>
-        {carried.length === 0 ? (
-          <p className="text-footnote text-muted">No skill is given here yet, by this project or for every project.</p>
-        ) : (
-          <Panel>
-            {carried.map((each) => (
-              <Row
-                key={each.name}
-                title={each.name}
-                caption={each.agents.length === 0 ? 'No agent carries it yet' : counted(each.agents.length, 'agent carries it', 'agents carry it')}
-                trailing={<ReachBadge reach={each.reach} open={skillsPage === undefined ? undefined : () => go(skillsPage)} />}
-              />
-            ))}
-          </Panel>
-        )}
-      </Section>
     </div>
   );
 }
@@ -495,23 +646,32 @@ function Agents({ parts, project, go }: { parts: SettingsParts; project: Project
  * to none, with the way to the shared Memory page where those are changed.
  */
 function ProjectMemory({ parts, project, go }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void }) {
-  const { support } = parts;
+  const { memory, support } = parts;
   const learned = useProjectMemory(parts, project);
   const memoryPage = sharedRoute('memory', (method) => support.supports(method));
-  if (!learned.reads) return <p className="text-footnote text-muted">This computer’s runtime does not keep memory yet, so nothing learned shows here.</p>;
-  if (learned.items === undefined || learned.everywhere === undefined) return null;
-  const everywhere = learned.everywhere.slice(0, EVERYWHERE_SHOWN);
+  if (!learned.reads) return <Muted>{MEMORY_HERE_EMPTY}</Muted>;
+  const openMemory = memoryPage === undefined ? undefined : () => go(memoryPage);
   return (
-    <div className="flex flex-col gap-6">
+    <>
       <Section title={MEMORY_HERE_TITLE}>
-        {learned.items.length === 0 ? <p className="text-body-sm text-muted">{MEMORY_HERE_EMPTY}</p> : <Facts items={learned.items} reach="only-here" />}
+        {learned.items === undefined ? (
+          memory.unreadable.facts ? (
+            <ReadFailed what="what was learned" retry={() => void memory.refreshEverything()} />
+          ) : (
+            <Spinner />
+          )
+        ) : learned.items.length === 0 ? (
+          <Muted>{MEMORY_HERE_EMPTY}</Muted>
+        ) : (
+          <Facts items={learned.items} reach="only-here" />
+        )}
       </Section>
-      <Section title={MEMORY_EVERYWHERE_TITLE} trailing={memoryPage === undefined ? undefined : <GoLink onClick={() => go(memoryPage)}>Memory</GoLink>}>
-        <p className="text-footnote text-muted">{MEMORY_EVERYWHERE_NOTE}</p>
-        {everywhere.length === 0 ? <p className="text-body-sm text-muted">Nothing yet.</p> : <Facts items={everywhere} reach="every-project" open={memoryPage === undefined ? undefined : () => go(memoryPage)} />}
-        {learned.everywhere.length > EVERYWHERE_SHOWN && memoryPage !== undefined && <GoLink onClick={() => go(memoryPage)}>{`All ${learned.everywhere.length} shared facts`}</GoLink>}
+      <Section title={MEMORY_EVERYWHERE_TITLE}>
+        <Muted>{MEMORY_EVERYWHERE_NOTE}</Muted>
+        {(learned.everywhere ?? []).length > 0 && <Facts items={(learned.everywhere ?? []).slice(0, EVERYWHERE_SHOWN)} reach="every-project" open={openMemory} />}
+        {openMemory !== undefined && <GoLink onClick={openMemory}>{ALL_MEMORY_LINK}</GoLink>}
       </Section>
-    </div>
+    </>
   );
 }
 
@@ -519,12 +679,7 @@ function Facts({ items, reach, open }: { items: readonly MemoryItemView[]; reach
   return (
     <Panel>
       {items.map((item) => (
-        <Row
-          key={item.id}
-          title={<span className="whitespace-pre-wrap">{item.statement}</span>}
-          caption={rowCaption(item)}
-          trailing={<ReachBadge reach={reach} open={open} />}
-        />
+        <Row key={item.id} title={item.statement} caption={rowCaption(item)} trailing={<ReachBadge reach={reach} open={open} />} />
       ))}
     </Panel>
   );
@@ -546,69 +701,115 @@ function AgentRows({ agents, marked }: { agents: readonly AgentOnProject[]; mark
   );
 }
 
-function studioNote(outcome: StudioOutcome, keyTitle: string): string {
-  if (outcome.kind === 'proposed') return `Waiting for you on the island: confirm it with ${keyTitle} and it holds in this project.`;
-  return outcome.kind === 'failed' ? outcome.why : outcome.note;
+/** What its AI may do: the rules that hold here in plain words, then the agents given it and the skills they carry. */
+function Autonomy({ parts, project, go }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void }) {
+  return (
+    <>
+      <RulesHere parts={parts} project={project} open={() => go({ destination: 'governance', tab: 'policies' })} />
+      <Section title={ITS_AGENTS_TITLE}>
+        <AgentsHere parts={parts} project={project} />
+      </Section>
+      <Section title={SKILLS_CARRIED_TITLE}>
+        <Grants project={project} grants={project.skills} empty={NO_SKILLS_GIVEN} />
+        <SharedSkills parts={parts} project={project} go={go} />
+      </Section>
+      {sharedBy(project) !== undefined && (
+        <>
+          <Muted>{SHARED_LINE}</Muted>
+          <CloudLink parts={parts} project={project} />
+        </>
+      )}
+    </>
+  );
 }
 
-/** The rules that hold in this project in plain words, and ready made ones to ask about first, scoped to its folder. */
-function Autonomy({ parts, project, go, said }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void; said: (note: string) => void }) {
-  const { studio, words } = parts;
+/** The rules reaching into this project, each family said once with a count, and how many hold everywhere. */
+function RulesHere({ parts, project, open }: { parts: SettingsParts; project: ProjectView; open: () => void }) {
+  const { studio } = parts;
   useObserved(studio);
   useEffect(() => void studio.refresh(), []);
   const view = studio.rules;
-  if (view === undefined) return studio.unreadable ? <ReadFailed what="the rules" retry={() => void studio.refresh()} /> : null;
+  if (view === undefined) {
+    return <Section title={RULES_HERE_TITLE}>{studio.unreadable ? <ReadFailed what="the rules" retry={() => void studio.refresh()} /> : <Spinner />}</Section>;
+  }
   const { here, everywhere } = projectRules(view.rules, project);
   const groups = ruleGroups(here);
-  const offered = editableHere(project) ? ALWAYS_ASK.filter((each) => !switchOn(here, each.draft.action, 'branches' in each.draft ? each.draft.branches : undefined)) : [];
-  const propose = (draft: (typeof ALWAYS_ASK)[number]['draft']) =>
-    void studio.propose({ ...draft, workingDirectories: [project.path] } as unknown as RuleDraftInput).then((outcome) => said(studioNote(outcome, words.keyTitle)));
   return (
-    <div className="flex flex-col gap-6">
-      <ReadOnly parts={parts} project={project} />
+    <Section title={RULES_HERE_TITLE}>
       {groups.length === 0 ? (
-        <EmptyState icon={ShieldCheck} title="Nothing of its own yet" body="No rule names this project, so the rules of this computer decide what its AI does here." />
+        <Muted>{RULES_HERE_EMPTY}</Muted>
       ) : (
         <Panel>
-          {groups.map((group) => (
-            <Row
-              key={`${group.effect}:${group.title}`}
-              title={group.title}
-              caption={[group.why, groupCountLine(group.rules.length)].filter((each) => each !== undefined).join(' · ')}
-              trailing={
-                <span className="flex items-center gap-2">
-                  <ReachBadge reach="only-here" />
-                  <StatusWord tone={effectTone(group.effect)}>{EFFECT_WORDS[group.effect].title}</StatusWord>
-                </span>
-              }
-            />
-          ))}
-        </Panel>
-      )}
-      {offered.length > 0 && (
-        <Section title="Ask first about">
-          <Panel>
-            {offered.map((each) => (
+          {groups.map((group) => {
+            const count = groupCountLine(group.rules.length);
+            return (
               <Row
-                key={each.id}
-                title={each.title}
-                caption={`${each.line}, in this project only`}
+                key={`${group.effect}:${group.title}`}
+                title={group.title}
+                caption={group.why === '' ? rulesLine(project.rules) : group.why}
                 trailing={
-                  <KitButton disabled={studio.busy !== undefined} onClick={() => propose(each.draft)}>
-                    Ask first
-                  </KitButton>
+                  <>
+                    {count !== undefined && <span className="text-footnote text-muted">{count}</span>}
+                    <ReachBadge reach="only-here" />
+                    <StatusWord tone={effectTone(group.effect)}>{EFFECT_WORDS[group.effect].title}</StatusWord>
+                  </>
                 }
               />
-            ))}
-          </Panel>
-          <p className="text-footnote text-muted">{`A rule that holds here waits for your signature with ${words.keyTitle}.`}</p>
-        </Section>
+            );
+          })}
+        </Panel>
       )}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-panel-edge bg-card px-4 py-3">
-        <ReachBadge reach="every-project" open={() => go({ destination: 'governance', tab: 'policies' })} />
+      <div className="flex items-center gap-2">
+        <ReachBadge reach="every-project" open={open} />
         <p className="min-w-0 flex-1 text-footnote text-muted">{everywhereLine(everywhere)}</p>
-        <GoLink onClick={() => go({ destination: 'governance', tab: 'policies' })}>Protection settings</GoLink>
       </div>
-    </div>
+      <GoLink onClick={open}>{RULES_LINK}</GoLink>
+    </Section>
+  );
+}
+
+/** A skill the project names, with who has it now and that it is only here. */
+function Grants({ project, grants, empty }: { project: ProjectView; grants: readonly ProjectGrantView[]; empty: string }) {
+  if (grants.length === 0) return <Muted>{empty}</Muted>;
+  return (
+    <Panel>
+      {grants.map((grant) => (
+        <Row
+          key={grant.name}
+          title={grant.name}
+          caption={grantLine(grant, project.agents.length)}
+          trailing={
+            <>
+              <ReachBadge reach="only-here" />
+              {grant.inHub ? <AgentLogos agents={grant.agents} /> : <StatusWord tone="attention">Not in the hub</StatusWord>}
+            </>
+          }
+        />
+      ))}
+    </Panel>
+  );
+}
+
+/** The skills every project's agents carry, the person's own and the organization's, each linking to Skills. */
+function SharedSkills({ parts, project, go }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void }) {
+  const { skills, support } = parts;
+  useObserved(skills, support);
+  const reads = support.supports('skills-hub') === true;
+  useEffect(() => {
+    if (reads && skills.hub === undefined) void skills.refresh();
+  }, [reads]);
+  const skillsPage = sharedRoute('skills', (method) => support.supports(method));
+  const open = skillsPage === undefined ? undefined : () => go(skillsPage);
+  const everywhere = (skills.hub?.skills ?? []).filter((skill) => skillReach(skill.scope, skill.project, project) === 'every-project');
+  if (everywhere.length === 0) return null;
+  return (
+    <>
+      <Panel>
+        {everywhere.slice(0, SHARED_SKILLS_SHOWN).map((skill) => (
+          <Row key={skill.name} title={skill.name} caption={skill.description} trailing={<ReachBadge reach="every-project" open={open} />} />
+        ))}
+      </Panel>
+      {everywhere.length > SHARED_SKILLS_SHOWN && open !== undefined && <GoLink onClick={open}>{moreSkillsLine(everywhere.length - SHARED_SKILLS_SHOWN)}</GoLink>}
+    </>
   );
 }

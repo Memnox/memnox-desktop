@@ -126,7 +126,7 @@ private struct ProjectMemoryPage: View {
                     }
                 }
             }
-            if let open { GoLink("All memory, shared with every project") { shell.go(open) } }
+            if let open { GoLink(ProjectPageLines.allMemoryLink) { shell.go(open) } }
         }
         .task { if memory.memory.facts == nil { await memory.memory.show(MemoryFilter()) } }
     }
@@ -176,7 +176,7 @@ private struct ProjectOverviewPage: View {
         let steps = ProjectPageLines.readySteps(project, sources: sources, rulesHere: rulesHere)
         header
         if ProjectPageLines.showsChecklist(steps) {
-            ShellSection(title: "Get it ready") {
+            ShellSection(title: ProjectPageLines.readyTitle) {
                 ShellPanel {
                     ForEach(Array(steps.enumerated()), id: \.element.title) { index, step in
                         if index > 0 { ShellDivider() }
@@ -221,7 +221,7 @@ private struct ProjectOverviewPage: View {
                 Spacer(minLength: Memnox.Spacing.medium)
                 if project.sharedBy != nil { OrganizationBadge() } else { StatusWord(Tone(standing.tone), standing.word) }
             }
-            Text(ProjectPageLines.description(project) ?? "No description yet.")
+            Text(ProjectPageLines.description(project) ?? ProjectPageLines.noDescription)
                 .font(Memnox.Console.sans(Memnox.Console.TextSize.base))
                 .foregroundStyle(ProjectPageLines.description(project) == nil ? Memnox.Console.muted : Memnox.Console.foreground)
                 .lineSpacing(Memnox.Spacing.xSmall)
@@ -247,9 +247,9 @@ private struct LearnedLately: View {
 
     var body: some View {
         let learned = ProjectPageLines.learned(memory.memory.facts?.items ?? [], in: project)
-        ShellSection(title: "Learned lately") {
+        ShellSection(title: ProjectPageLines.learnedTitle) {
             if learned.isEmpty {
-                ProjectMuted("Nothing learned here yet. As its AI works in the tools it lives in, what it learns shows here.")
+                ProjectMuted(ProjectPageLines.learnedEmpty)
             } else {
                 ShellPanel {
                     ForEach(Array(learned.prefix(ProjectPageLines.learnedShown).enumerated()), id: \.element.id) { index, item in
@@ -257,7 +257,7 @@ private struct LearnedLately: View {
                         ShellRow(title: item.statement, caption: MemoryLines.rowCaption(item)) { EmptyView() } trailing: { EmptyView() }
                     }
                 }
-                if learned.count > ProjectPageLines.learnedShown { GoLink("Everything it learned", action: more) }
+                if learned.count > ProjectPageLines.learnedShown { GoLink(ProjectPageLines.learnedMore, action: more) }
             }
         }
         .task { if memory.memory.facts == nil { await memory.memory.show(MemoryFilter()) } }
@@ -289,7 +289,7 @@ private struct ProjectOnThisMac: View {
 
     var body: some View {
         let busy = screen.projects.busy == project.id || screen.projects.busy == project.path
-        ShellSection(title: "Folder") {
+        ShellSection(title: ProjectPageLines.folderTitle) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
                 Text(project.path)
                     .font(Memnox.Console.sans(Memnox.TextSize.footnote))
@@ -648,7 +648,7 @@ private struct ProjectAgentsPage: View {
         if let open = sharedRoute(.agents, shell: shell) {
             HStack(spacing: Memnox.Spacing.medium) {
                 ReachBadge(reach: .everyProject, open: { shell.go(open) })
-                ProjectMuted("AI agents are set up once for every project on this computer. This page shows the ones that work here and what this project gives each.")
+                ProjectMuted(ProjectPageLines.agentsSharedLine)
             }
         }
     }
@@ -665,9 +665,9 @@ private struct ProjectRulesPage: View {
         } else {
             ProjectMuted(ProjectLines.rulesLine(project.rules))
         }
-        ShellSection(title: "Its agents") { AgentsHere(project: project) }
-        ShellSection(title: "Skills it carries") {
-            Grants(project: project, grants: project.skills, empty: "This project gives its agents no skills.",
+        ShellSection(title: ProjectPageLines.itsAgentsTitle) { AgentsHere(project: project) }
+        ShellSection(title: ProjectPageLines.skillsCarriedTitle) {
+            Grants(project: project, grants: project.skills, empty: ProjectPageLines.noSkillsGiven,
                    reach: { _ in .onlyHere }, open: nil)
             SharedSkills(shell: shell, project: project)
         }
@@ -689,11 +689,11 @@ private struct ProjectRulesHere: View {
     }
 
     @ViewBuilder private var content: some View {
-        ShellSection(title: "Rules that hold here") {
+        ShellSection(title: ProjectPageLines.rulesHereTitle) {
             if let view = studio.studio.rules {
                 let found = ProjectLines.rules(view.rules, in: project)
                 if found.here.isEmpty {
-                    ProjectMuted("No rule names this project, so the rules of this computer decide here.")
+                    ProjectMuted(ProjectPageLines.rulesHereEmpty)
                 } else {
                     ShellPanel {
                         ForEach(Array(PlainRules.grouped(found.here).enumerated()), id: \.element.id) { index, group in
@@ -712,7 +712,7 @@ private struct ProjectRulesHere: View {
                     ReachBadge(reach: .everyProject, open: open)
                     ProjectMuted(ProjectLines.everywhereLine(found.everywhere))
                 }
-                GoLink("Choose what agents may do in Protection settings", action: open)
+                GoLink(ProjectPageLines.rulesLink, action: open)
             } else if studio.studio.unreadable {
                 ReadFailed(what: "the rules") { Task { await studio.studio.refresh() } }
             } else {
@@ -729,11 +729,11 @@ private struct AgentsHere: View {
     var body: some View {
         let seenOnly = project.agentsSeen.filter { !project.agents.contains($0) }
         if project.agents.isEmpty, seenOnly.isEmpty {
-            ProjectMuted("No agent has worked here yet, and the project names none.")
+            ProjectMuted(ProjectPageLines.noAgents)
         } else {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
                 if !project.agents.isEmpty {
-                    ShellSection(title: "Given this project") {
+                    ShellSection(title: ProjectPageLines.givenTitle) {
                         ShellPanel {
                             ForEach(Array(project.agents.enumerated()), id: \.element) { index, kind in
                                 if index > 0 { ShellDivider() }
@@ -751,7 +751,7 @@ private struct AgentsHere: View {
                     }
                 }
                 if !seenOnly.isEmpty {
-                    ShellSection(title: "Seen here, not named") {
+                    ShellSection(title: ProjectPageLines.seenTitle) {
                         ShellPanel {
                             ForEach(Array(seenOnly.enumerated()), id: \.element) { index, kind in
                                 if index > 0 { ShellDivider() }
@@ -812,7 +812,7 @@ private struct SharedSkills: View {
     @ObservedObject var shell: AppShellModel
     let project: ProjectView
 
-    private static let shown = 5
+    private static let shown = ProjectPageLines.sharedSkillsShown
 
     var body: some View {
         let open = sharedRoute(.skills, shell: shell)
@@ -829,7 +829,7 @@ private struct SharedSkills: View {
                 }
             }
             if skills.count > Self.shown, let open {
-                GoLink("\(skills.count - Self.shown) more in Skills") { shell.go(open) }
+                GoLink(ProjectPageLines.moreSkillsLine(skills.count - Self.shown)) { shell.go(open) }
             }
         }
     }

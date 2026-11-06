@@ -1,11 +1,10 @@
 import type { ProjectView } from '@memnox/core/wire';
-import { ExternalLink, Folder, FolderGit2, FolderOpen, MoreHorizontal, Pencil, Plus, Search } from 'lucide-react';
+import { Ellipsis, Folder, FolderOpen, FolderPlus, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { projectRoute, type Route, type WidthClass } from '../../../core/domain/destinations';
 import { folderProblem } from '../../../core/domain/launch-lines';
 import { insideProject } from '../../../core/domain/shell-lines';
-import { agentLabel } from '../../../core/domain/mcp-hub-lines';
-import { counted, foldersToOpen, projectCard, projectStanding, sharedBy } from '../../../core/domain/project-lines';
+import { counted, foldersToOpen, FROM_ORGANIZATION, OPEN_LINE, projectCard, projectStanding } from '../../../core/domain/project-lines';
 import {
   ADD_TITLE,
   CHOOSE_TITLE,
@@ -23,19 +22,30 @@ import {
   type ProjectPulse,
 } from '../../../core/domain/project-context';
 import { workspacesFrom, type SeenWorkspace } from '../../../core/domain/workspaces';
-import { ago } from '../../../core/domain/session-text';
+import { ago, SEPARATOR } from '../../../core/domain/session-text';
 import { BrandLogo } from '../../kit/logos';
-import { KitButton } from '../../settings/kit';
+import { KitButton, KitField, SearchField, Spinner } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { GoLink } from './HomePage';
 import { DiscoverPage } from './DiscoverPage';
 import { MemoryPage, MemorySourcesPage } from './MemoryPage';
 import { OrganizationBadge, projectNote } from './ProjectInspector';
-import { cloudProjectLink, editableHere, OPEN_IN_CLOUD, renamedDraft, renameProblem } from '../../../core/domain/project-sidebar';
-import { openOrCopy } from '../../settings/host';
+import {
+  cloudProjectLink,
+  editableHere,
+  NAME_PROMPT,
+  REMOVE_IN_CLOUD,
+  REMOVE_LINE,
+  REMOVE_TITLE,
+  RENAME_IN_CLOUD,
+  RENAME_TITLE,
+  renamedDraft,
+  renameHeading,
+  renameProblem,
+} from '../../../core/domain/project-sidebar';
+import { AgentLogos } from './ProjectPages';
 import { SkillsPage } from './SkillsPage';
-import { CardGrid, EmptyState, Inspector, ReadFailed, ScopeChip, Section, StatTile, StatusWord } from '../widgets';
-import { projectScope } from '../../../core/domain/scope-lines';
+import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, Section, StatTile, StatusWord } from '../widgets';
 import { usePicked } from '../inspector-host';
 import { useShellChoices } from '../shell-choices';
 
@@ -60,9 +70,10 @@ export function WorkspacesPage({ parts, tab, width, go }: { parts: SettingsParts
 const HELD_RECONNECT_MS = 2_000;
 
 /**
- * The project list, modelled on Memnox Cloud's projects page: a card each, most recently active first, saying who works
- * there now and what waits on the person there, with a search once there are many. Adding one is a press on a folder the
- * agents already worked in, or on Choose a folder. Opening one swaps the sidebar for that project's own pages.
+ * The project list, as the Mac's ProjectsDestination draws it: the count, a search once there are many and Choose a
+ * folder, then a card each, most recently active first, saying who works there now and what waits on the person there,
+ * and at the foot the folders the agents already worked in, each one press from being a project. Opening one swaps the
+ * sidebar for that project's own pages.
  */
 function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) => void }) {
   const { projects, sessions, calls } = parts;
@@ -88,18 +99,19 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
   const [opening, setOpening] = useState(false);
   const [query, setQuery] = useState('');
   const [note, setNote] = useState<string | undefined>(undefined);
+  // The folder being added, so its button says so and the others wait.
+  const [adding, setAdding] = useState<string | undefined>(undefined);
   const { chooseProject } = useShellChoices();
   const all = projects.projects;
-  if (all === undefined) return projects.unreadable ? <ReadFailed what="the projects" retry={() => void projects.refresh()} /> : null;
+  if (all === undefined) return projects.unreadable ? <ReadFailed what="the projects" retry={() => void projects.refresh()} /> : <Spinner />;
   // Every project shows here: the list is where a person picks one, so nothing narrows it.
   const list = matching(recent(all), query);
-  const folders = foldersToOpen(
-    workspacesFrom(sessions.state.cards, Date.now()).map((each) => ({ path: each.path, name: each.name })),
-    all,
-  );
+  const seen = workspacesFrom(sessions.state.cards, Date.now());
+  const open = new Set(foldersToOpen(seen.map((each) => ({ path: each.path, name: each.name })), all).map((each) => each.path));
+  const folders = seen.filter((each) => open.has(each.path));
   const places = calls.state.waiting.entries.map((entry) => entry.card.place);
   const busy = projects.busy !== undefined;
-  const open = (id: string) => {
+  const openProject = (id: string) => {
     chooseProject(id);
     go(projectRoute(id));
   };
@@ -107,12 +119,14 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
   const add = (folder: string) => {
     const wrong = folderProblem(folder);
     if (wrong !== undefined) return setNote(wrong);
+    setAdding(folder);
     void projects.open(folder).then((outcome) => {
+      setAdding(undefined);
       setNote(projectNote(outcome, parts.words.keyTitle));
       if (outcome.kind === 'failed') return;
       setOpening(false);
       const made = projects.projects?.find((each) => insideProject(folder, each) && insideProject(each.path, { path: folder }));
-      if (made !== undefined) open(made.id);
+      if (made !== undefined) openProject(made.id);
     });
   };
   // The system's own folder dialog, as the Mac opens Finder's; the typed form stands in only in the browser preview.
@@ -125,204 +139,204 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
     );
   };
   return (
-    <div className="flex min-w-0 flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* No count while there is none, so the empty state below says its title once, as on the Mac. */}
-        <p className="text-footnote text-muted">{all.length === 0 ? '' : `${counted(all.length, 'project', 'projects')}, most recently active first.`}</p>
-        <KitButton kind="primary" icon={FolderOpen} onClick={choose} {...(parts.host.pickProjectFolder === undefined ? { 'aria-expanded': opening } : {})}>
-          {CHOOSE_TITLE}
+    <div className="flex min-w-0 flex-col gap-6">
+      <div className="flex flex-wrap items-center gap-3">
+        {all.length > 0 && <p className="text-footnote text-muted">{`${counted(all.length, 'project', 'projects')}, most recently active first.`}</p>}
+        <span className="min-w-2 flex-1" />
+        {all.length >= SEARCH_FROM && (
+          <div className="w-full max-w-[240px]">
+            <SearchField value={query} placeholder={SEARCH_PROMPT} onChange={setQuery} />
+          </div>
+        )}
+        <KitButton
+          kind={all.length === 0 ? 'primary' : 'secondary'}
+          icon={FolderPlus}
+          disabled={busy}
+          onClick={choose}
+          title={OPEN_LINE}
+          {...(parts.host.pickProjectFolder === undefined ? { 'aria-expanded': opening } : {})}
+        >
+          {adding === undefined ? CHOOSE_TITLE : 'Adding'}
         </KitButton>
       </div>
       {opening && <OpenFolderForm busy={busy} cancel={() => setOpening(false)} open={add} />}
-      {note !== undefined && <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote">{note}</p>}
-      {folders.length > 0 && <Suggestions folders={folders} busy={busy} add={add} />}
-      {all.length === 0 ? (
-        <EmptyState icon={Folder} title={EMPTY_TITLE} body={EMPTY_LINE} action={<KitButton kind="primary" icon={FolderOpen} onClick={choose}>{CHOOSE_TITLE}</KitButton>} />
-      ) : (
-        <>
-          {all.length >= SEARCH_FROM && (
-            <label className="flex max-w-sm items-center gap-2 rounded-lg border border-field-edge bg-field px-3">
-              <Search size={14} className="text-muted" aria-hidden />
-              <input className="h-9 min-w-0 flex-1 bg-transparent text-body-sm text-foreground outline-none placeholder:text-faint" value={query} placeholder={SEARCH_PROMPT} aria-label={SEARCH_PROMPT} onChange={(event) => setQuery(event.target.value)} />
-            </label>
-          )}
-          {list.length === 0 ? (
-            <EmptyState icon={Search} title="No project matches that." body="Try another word, or clear the search." />
-          ) : (
-            <CardGrid>
-              {list.map((each) => (
-                <ProjectCard key={each.id} parts={parts} project={each} pulse={pulse(each, sessions.state.cards, places, Date.now())} pick={() => open(each.id)} said={setNote} />
-              ))}
-            </CardGrid>
-          )}
-        </>
+      {note !== undefined && (
+        <p role="status" className="rounded-xl border border-panel-edge bg-card px-4 py-3 text-footnote text-foreground">
+          {note}
+        </p>
       )}
+      {all.length === 0 ? (
+        <EmptyState icon={FolderPlus} title={EMPTY_TITLE} body={EMPTY_LINE} />
+      ) : list.length === 0 ? (
+        <EmptyState icon={Search} title="No project matches that." body="Try another word, or clear the search." />
+      ) : (
+        <CardGrid min={PROJECT_CARD_MIN}>
+          {list.map((each) => (
+            <ProjectCard key={each.id} parts={parts} project={each} pulse={pulse(each, sessions.state.cards, places, Date.now())} pick={() => openProject(each.id)} said={setNote} />
+          ))}
+        </CardGrid>
+      )}
+      {folders.length > 0 && <Suggestions folders={folders} busy={busy} adding={adding} add={add} />}
     </div>
   );
 }
 
+/** The Mac's Projects grid lays its cards out no narrower than this. */
+const PROJECT_CARD_MIN = 280;
+
 /** The folders the agents already worked in that are not projects yet, each made one with a single press. */
-function Suggestions({ folders, busy, add }: { folders: readonly { path: string; name: string }[]; busy: boolean; add: (folder: string) => void }) {
+function Suggestions({ folders, busy, adding, add }: { folders: readonly SeenWorkspace[]; busy: boolean; adding: string | undefined; add: (folder: string) => void }) {
   return (
-    <section aria-label={SUGGESTIONS_TITLE} className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
-      <div className="flex flex-col gap-0.5">
-        <h2 className="text-body-sm font-semibold text-foreground">{SUGGESTIONS_TITLE}</h2>
-        <p className="text-footnote text-muted">{SUGGESTIONS_NOTE}</p>
-      </div>
-      <ul className="flex flex-col divide-y divide-panel-edge">
+    <Section title={SUGGESTIONS_TITLE}>
+      <p className="text-footnote text-muted">{SUGGESTIONS_NOTE}</p>
+      <Panel>
         {folders.map((each) => (
-          <li key={each.path} className="flex items-center gap-3 py-2">
-            <FolderGit2 size={15} className="shrink-0 text-muted" aria-hidden />
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-body-sm font-medium text-foreground">{each.name}</span>
-              <span className="truncate font-mono text-micro text-muted" title={each.path}>
-                {each.path}
-              </span>
-            </span>
-            <KitButton icon={Plus} disabled={busy} onClick={() => add(each.path)} aria-label={`Add ${each.name} as a project`}>
-              {ADD_TITLE}
-            </KitButton>
-          </li>
+          <Row
+            key={each.path}
+            leading={<Folder size={14} className="text-muted" aria-hidden />}
+            title={each.name}
+            caption={<span title={each.path}>{[each.path, each.lastActive === undefined ? undefined : `Active ${each.lastActive}`].filter((part) => part !== undefined).join(SEPARATOR)}</span>}
+            trailing={
+              <>
+                <AgentLogos agents={each.agents.map((agent) => agent.kind)} />
+                <KitButton icon={Plus} disabled={busy} onClick={() => add(each.path)} aria-label={`Add ${each.name} as a project`}>
+                  {adding === each.path ? 'Adding' : ADD_TITLE}
+                </KitButton>
+              </>
+            }
+          />
         ))}
-      </ul>
-    </section>
+      </Panel>
+      <p className="text-footnote text-muted">{OPEN_LINE}</p>
+    </Section>
+  );
+}
+
+const PULSE_DOT: Record<'good' | 'attention' | 'quiet', string> = { good: 'bg-success', attention: 'bg-warm', quiet: 'bg-faint' };
+const PULSE_TEXT: Record<'good' | 'attention' | 'quiet', string> = { good: 'font-medium text-success', attention: 'font-medium text-warm', quiet: 'text-muted' };
+
+/** One line of a card's pulse: a dot in its tone beside the words. */
+function PulseLine({ tone, children }: { tone: 'good' | 'attention' | 'quiet'; children: string }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <span className={`size-1.5 shrink-0 rounded-full ${PULSE_DOT[tone]}`} aria-hidden />
+      <span className={`truncate text-meta ${PULSE_TEXT[tone]}`}>{children}</span>
+    </span>
   );
 }
 
 /**
- * A project as the console's card: its name, what it is about, who worked there, and whether it keeps memory. A press
- * opens it; its menu renames it or shows its folder, and an organization's project opens in Memnox Cloud instead,
- * since this computer cannot change it. The daemon has no way to remove a project, so the menu offers none.
+ * One project as the Mac's Projects grid draws it: its name and standing, its folder, what it is for, who works there
+ * now and what waits there, a memory chip and the agents given it, and a menu to rename or remove it. A press anywhere
+ * else opens it. An organization's project is renamed and removed in Memnox Cloud, since this computer cannot change it.
  */
 function ProjectCard({ parts, project, pulse, pick, said }: { parts: SettingsParts; project: ProjectView; pulse: ProjectPulse; pick: () => void; said: (note: string) => void }) {
   const { projects, words } = parts;
   const standing = projectStanding(project);
   const card = projectCard(project);
   const [menu, setMenu] = useState(false);
-  const [renaming, setRenaming] = useState(false);
-  const [name, setName] = useState(project.name);
-  const [problem, setProblem] = useState<string | undefined>(undefined);
+  const [renaming, setRenaming] = useState<string | undefined>(undefined);
   const editable = editableHere(project);
-  const rename = () => {
-    const wrong = renameProblem(name, project);
-    setProblem(wrong);
-    if (wrong !== undefined) return;
-    void projects.put(project.path, renamedDraft(project, name)).then((outcome) => {
-      said(projectNote(outcome, words.keyTitle));
-      if (outcome.kind !== 'failed') setRenaming(false);
-    });
+  const working = workingLine(pulse);
+  const waiting = waitingLine(pulse);
+  const save = () => {
+    if (renaming !== undefined && renameProblem(renaming, project) === undefined) {
+      void projects.put(project.path, renamedDraft(project, renaming)).then((outcome) => said(projectNote(outcome, words.keyTitle)));
+    }
+    setRenaming(undefined);
   };
-  const item = 'mx-focus flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-body-sm text-foreground hover:bg-hover';
+  const item = 'mx-focus flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-body-sm text-foreground hover:bg-hover disabled:cursor-default disabled:text-faint disabled:hover:bg-transparent';
+  if (renaming !== undefined) {
+    return (
+      <article className="flex flex-col gap-3 rounded-xl border border-primary bg-card p-4">
+        <p className="text-footnote font-medium text-muted">{renameHeading(project)}</p>
+        <KitField value={renaming} placeholder={NAME_PROMPT} onChange={setRenaming} onSubmit={save} autoFocus />
+        <div className="flex gap-2">
+          <KitButton kind="primary" disabled={projects.busy !== undefined || renameProblem(renaming, project) !== undefined} onClick={save}>
+            Save
+          </KitButton>
+          <KitButton onClick={() => setRenaming(undefined)}>Cancel</KitButton>
+        </div>
+      </article>
+    );
+  }
   return (
     <article className="relative flex flex-col rounded-xl border border-panel-edge bg-card transition-colors hover:bg-hover">
-      {renaming ? (
-        <div className="flex flex-col gap-2 p-4">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-footnote font-medium text-muted">Its name</span>
-            <input
-              className="h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-body-sm text-foreground outline-none focus:border-primary"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') rename();
-                if (event.key === 'Escape') setRenaming(false);
-              }}
-              autoFocus
-            />
-          </label>
-          {problem !== undefined && (
-            <p role="alert" className="text-footnote text-destructive">
-              {problem}
-            </p>
-          )}
-          <div className="flex gap-2">
-            <KitButton kind="primary" disabled={projects.busy !== undefined} onClick={rename}>
-              Rename
-            </KitButton>
-            <KitButton onClick={() => setRenaming(false)}>Cancel</KitButton>
-          </div>
-        </div>
-      ) : (
-        <button type="button" onClick={pick} className="mx-focus flex cursor-pointer flex-col gap-3 rounded-xl p-4 pr-12 text-left">
-          <div className="flex items-start gap-3">
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-hover text-muted">
-              <Folder size={15} aria-hidden />
+      <button
+        type="button"
+        onClick={pick}
+        aria-label={[project.name, editable ? standing.word : FROM_ORGANIZATION, working, waiting, pulse.lastActivity].filter((part) => part !== undefined).join(', ')}
+        className="mx-focus flex cursor-pointer flex-col gap-3 rounded-xl p-4 text-left"
+      >
+        <span className="flex items-center gap-2">
+          <Folder size={14} className="shrink-0 text-muted" aria-hidden />
+          <span className="min-w-0 truncate text-body font-semibold text-foreground">{card.name}</span>
+          <span className="min-w-1.5 flex-1" />
+          {editable ? <StatusWord tone={standing.tone}>{standing.word}</StatusWord> : <OrganizationBadge />}
+          {/* Room for the menu laid over the corner, outside the card's own button. */}
+          <span className="w-6 shrink-0" aria-hidden />
+        </span>
+        <span className="truncate text-meta text-muted" title={project.path}>
+          {project.path}
+        </span>
+        <span className="line-clamp-2 min-h-[2lh] text-footnote text-foreground">{card.line}</span>
+        <span className="flex flex-col gap-1">
+          {working !== undefined && <PulseLine tone="good">{working}</PulseLine>}
+          {waiting !== undefined && <PulseLine tone="attention">{waiting}</PulseLine>}
+          <PulseLine tone="quiet">{pulse.lastActivity}</PulseLine>
+        </span>
+        <span className="flex items-center gap-1.5">
+          {card.chips.map((chip) => (
+            <span key={chip} className="inline-flex items-center rounded-full bg-hover px-2.5 py-0.5 text-label font-medium text-muted">
+              {chip}
             </span>
-            <span className="min-w-0 flex-1 truncate pt-1.5 text-body-sm font-medium text-foreground">{card.name}</span>
-          </div>
-          <span className="truncate font-mono text-micro text-muted" title={project.path}>
-            {project.path === '' ? card.line : project.path}
-          </span>
-          {(workingLine(pulse) !== undefined || waitingLine(pulse) !== undefined) && (
-            <span className="flex flex-wrap items-center gap-2">
-              {workingLine(pulse) !== undefined && <StatusWord tone="good">{workingLine(pulse)}</StatusWord>}
-              {waitingLine(pulse) !== undefined && <StatusWord tone="attention">{waitingLine(pulse)}</StatusWord>}
-            </span>
-          )}
-          <span className="flex flex-wrap items-center gap-1.5">
-            {sharedBy(project) === undefined ? <StatusWord tone={standing.tone}>{standing.word}</StatusWord> : <OrganizationBadge />}
-            <ScopeChip scope={projectScope(project)} />
-            {card.chips.map((chip) => (
-              <span key={chip} className="inline-flex items-center rounded-full bg-hover px-2 py-px text-label font-medium text-muted">
-                {chip}
-              </span>
-            ))}
-          </span>
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex -space-x-1.5">
-              {project.agents.map((kind) => (
-                <BrandLogo key={kind} agent={kind} name={agentLabel(kind)} size={20} className="ring-2 ring-card" />
-              ))}
-            </span>
-            <span className="text-footnote text-muted">{pulse.lastActivity}</span>
-          </div>
+          ))}
+          <span className="min-w-2 flex-1" />
+          <AgentLogos agents={project.agents} />
+        </span>
+      </button>
+      <div className="absolute top-3 right-3">
+        <button
+          type="button"
+          aria-label={`More for ${project.name}`}
+          title={`More for ${project.name}`}
+          aria-haspopup="menu"
+          aria-expanded={menu}
+          onClick={() => setMenu(!menu)}
+          className="mx-focus grid size-6 cursor-pointer place-items-center rounded-md text-muted"
+        >
+          <Ellipsis size={14} strokeWidth={2.5} aria-hidden />
         </button>
-      )}
-      {!renaming && (
-        <div className="absolute top-3 right-3">
-          <button
-            type="button"
-            aria-label={`More for ${project.name}`}
-            aria-haspopup="menu"
-            aria-expanded={menu}
-            onClick={() => setMenu(!menu)}
-            className="mx-focus grid size-8 cursor-pointer place-items-center rounded-lg text-muted hover:bg-background hover:text-foreground"
-          >
-            <MoreHorizontal size={16} aria-hidden />
-          </button>
-          {menu && (
-            <div role="menu" className="absolute top-9 right-0 z-20 flex w-52 flex-col rounded-lg border border-panel-edge bg-card p-1 shadow-[0_12px_32px_rgb(0_0_0/0.16)]" onMouseLeave={() => setMenu(false)}>
-              {editable ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={item}
-                  onClick={() => {
-                    setMenu(false);
-                    setName(project.name);
-                    setProblem(undefined);
-                    setRenaming(true);
-                  }}
-                >
+        {menu && (
+          <div role="menu" className="absolute top-7 right-0 z-20 flex w-60 flex-col rounded-lg border border-panel-edge bg-card p-1 shadow-[0_12px_32px_rgb(0_0_0/0.16)]" onMouseLeave={() => setMenu(false)}>
+            {editable ? (
+              <>
+                <button type="button" role="menuitem" className={item} onClick={() => (setMenu(false), setRenaming(project.name))}>
                   <Pencil size={14} aria-hidden />
-                  Rename
+                  {RENAME_TITLE}
                 </button>
-              ) : (
+                <div className="my-1 h-px bg-panel-edge" role="separator" />
+                <button type="button" role="menuitem" className={item} disabled>
+                  <Trash2 size={14} aria-hidden />
+                  {REMOVE_TITLE}
+                </button>
+                <p className="px-2.5 pb-1.5 text-footnote text-muted">{REMOVE_LINE}</p>
+              </>
+            ) : (
+              <>
                 <button type="button" role="menuitem" className={item} onClick={() => (setMenu(false), parts.host.openPage(cloudProjectLink(project)))}>
-                  <ExternalLink size={14} aria-hidden />
-                  {OPEN_IN_CLOUD}
+                  <Pencil size={14} aria-hidden />
+                  {RENAME_IN_CLOUD}
                 </button>
-              )}
-              {project.path.trim() !== '' && (
-                <button type="button" role="menuitem" className={item} onClick={() => (setMenu(false), void openOrCopy(parts.host, project.path).then((opened) => !opened && said(`Copied ${project.path}.`)))}>
-                  <FolderOpen size={14} aria-hidden />
-                  Show its folder
+                <button type="button" role="menuitem" className={item} onClick={() => (setMenu(false), parts.host.openPage(cloudProjectLink(project)))}>
+                  <Trash2 size={14} aria-hidden />
+                  {REMOVE_IN_CLOUD}
                 </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </article>
   );
 }
@@ -354,7 +368,7 @@ function OpenFolderForm({ busy, cancel, open }: { busy: boolean; cancel: () => v
           {problem}
         </p>
       )}
-      <p className="text-footnote text-muted">Opening hands its instructions to its agents at once. Whatever widens an agent waits for your signature on the island.</p>
+      <p className="text-footnote text-muted">{OPEN_LINE}</p>
       <div className="flex gap-2">
         <KitButton kind="primary" icon={FolderOpen} disabled={busy} onClick={go}>
           {busy ? 'Adding' : 'Add'}
@@ -378,7 +392,7 @@ function SeenTab({ parts, width, go }: { parts: SettingsParts; width: WidthClass
   const picked = workspaces.find((each) => each.path === chosen);
 
   if (workspaces.length === 0) {
-    return <EmptyState icon={FolderGit2} title="No projects yet" body="A project appears once an agent works in a repository on this computer, with every agent that has worked there." />;
+    return <EmptyState icon={Folder} title="No projects yet" body="A project appears once an agent works in a repository on this computer, with every agent that has worked there." />;
   }
   return (
     <div className="flex min-h-0">
@@ -407,7 +421,7 @@ function WorkspaceCard({ workspace, chosen, pick }: { workspace: SeenWorkspace; 
       className={`mx-focus flex cursor-pointer flex-col gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:bg-hover ${chosen ? 'border-primary' : 'border-panel-edge'}`}
     >
       <div className="flex items-center gap-2">
-        <FolderGit2 size={16} className="text-muted" aria-hidden />
+        <Folder size={14} className="text-muted" aria-hidden />
         <span className="truncate text-body font-semibold text-foreground">{workspace.name}</span>
       </div>
       <span className="truncate font-mono text-micro text-muted">{workspace.path}</span>
@@ -440,7 +454,7 @@ function WorkspaceOverview({ workspace, go }: { workspace: SeenWorkspace; go: (r
           ))}
         </div>
       </Section>
-      <GoLink onClick={() => go({ destination: 'agents', tab: 'list' })}>Its agents</GoLink>
+      <GoLink onClick={() => go({ destination: 'agents', tab: 'list' })}>Its sessions</GoLink>
       <p className="text-footnote text-muted">{`Last active ${ago(workspace.lastActiveAt, Date.now()) ?? 'a while ago'}.`}</p>
     </div>
   );

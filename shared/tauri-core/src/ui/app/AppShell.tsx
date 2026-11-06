@@ -79,7 +79,7 @@ import {
   type SharedCounts,
 } from '../../core/domain/project-context';
 import type { ProjectView } from '@memnox/core/wire';
-import { ProjectPages } from './pages/ProjectPages';
+import { ProjectGone, ProjectPages } from './pages/ProjectPages';
 import { KitButton, MemnoxTile, PageTitle } from '../settings/kit';
 import { PageBody } from '../settings/SettingsApp';
 import { useLook, useObserved, type SettingsParts } from '../settings/parts';
@@ -291,14 +291,7 @@ function OpenProject({ parts, project, page, go }: { parts: SettingsParts; proje
   if (project !== undefined) return <ProjectPages parts={parts} project={project} page={page} go={go} />;
   if (projects.unreadable) return <ReadFailed what="the projects" retry={() => void projects.refresh()} />;
   if (projects.projects === undefined) return null;
-  return (
-    <EmptyState
-      icon={Folder}
-      title="This project is not here any more"
-      body="It may have been removed on this computer, or the organization stopped sharing it."
-      action={<KitButton onClick={() => go(PROJECTS_ROUTE)}>{BACK_TO_PROJECTS}</KitButton>}
-    />
-  );
+  return <ProjectGone back={() => go(PROJECTS_ROUTE)} />;
 }
 
 /** Where the window is inside a project: Projects, its name, then the page. */

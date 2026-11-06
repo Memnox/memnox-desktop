@@ -78,9 +78,11 @@ public enum TodayLines {
         return "\(at + 1) of \(items.count)"
     }
 
-    /// The muted line under a title: the runtime's recommendation where it gave one, else the item's own detail.
+    /// The muted line under a title: the project it happens in, then the runtime's recommendation where it gave one,
+    /// else the item's own detail.
     public static func under(_ item: TodayItem) -> String? {
-        item.recommendation.map { "Recommend: \($0)" } ?? item.detail
+        let parts = [ProjectContext.inLine(item.project), item.recommendation.map { "Recommend: \($0)" } ?? item.detail].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: SessionText.separator)
     }
 
     /// How many distinct repositories have a session still open, which is what open projects counts.

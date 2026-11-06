@@ -288,7 +288,10 @@ private struct ListingCard: View {
             HStack(spacing: Memnox.Spacing.large) {
                 if entry.unsafe { StatusWord(.bad, "Marked unsafe") } else { Text(IndexLines.latest(entry)) }
                 if let installed = IndexLines.installed(entry) { StatusWord(.good, installed) }
-                Text(IndexLines.supportedAgents(entry.agents))
+                HStack(spacing: Memnox.Spacing.small) {
+                    NamedAgentLogos(agents: entry.agents)
+                    Text(IndexLines.supportedAgents(entry.agents))
+                }
             }
             .font(Memnox.Console.sans(Memnox.TextSize.footnote))
             .foregroundStyle(Memnox.Console.muted)
@@ -358,7 +361,7 @@ private struct ListingDetail: View {
                 .font(Memnox.Console.sans(Memnox.TextSize.body))
                 .foregroundStyle(Memnox.Console.foreground)
                 .fixedSize(horizontal: false, vertical: true)
-            FactList(facts: facts)
+            FactList(facts: facts, agents: ["Agents": entry.agents])
             ShellSection(title: "What it needs") {
                 NeedsView(needs: entry.needs)
             }

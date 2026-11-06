@@ -1,36 +1,31 @@
-import { ArrowRight, CircleAlert, GraduationCap, Hand, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useEffect } from 'react';
-import type { Route } from '../../../core/domain/destinations';
-import { HomeLines } from '../../../core/domain/home-lines';
-import { learnWaitingLine } from '../../../core/domain/memory-lines';
-import { ago, cardStatus, cardTitle, repositoryName } from '../../../core/domain/session-text';
-import { isActive, statusLabel } from '../../../core/domain/session-status';
+import type { Route, WidthClass } from '../../../core/domain/destinations';
+import { ago, cardStatus, cardTitle } from '../../../core/domain/session-text';
+import { inLine, projectName } from '../../../core/domain/project-context';
+import { isActive } from '../../../core/domain/session-status';
 import { greeting } from '../../../core/domain/setup-steps';
-import { autopilotLine, weekLine } from '../../../core/domain/studio-lines';
-import { islandWindow } from '../../adapters/tauri-island-window';
 import { BrandLogo } from '../../kit/logos';
-import { KitButton } from '../../settings/kit';
 import { useObserved, usePreferences, type SettingsParts } from '../../settings/parts';
 import { OverviewPage } from '../../settings/pages/OverviewPage';
 import { routeForPage } from '../../../core/domain/destinations';
 import { homeMode, modeBadge } from '../../../core/domain/home-steps';
 import { HomeStart } from './HomeStart';
-import { EmptyState, Panel, ReadFailed, Row, Section, StatTile, StatusWord } from '../widgets';
+import { TodayPage } from './TodayPage';
+import { Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
 
 const RECENT_SESSIONS = 5;
 
 /**
- * Home answers three things before anything else: what is running, what needs the person, and where they
- * can carry on. No charts, and every number is a count the ledger can show.
+ * Home is the one page the window opens on: the greeting, the getting started steps, then what Today showed in the
+ * console's home order. No charts, and every number is a count the ledger can show.
  */
-export function HomePage({ parts, go }: { parts: SettingsParts; go: (route: Route) => void }) {
-  const { home, sessions, preferences, host, studio, support, memory } = parts;
-  useObserved(home, sessions, studio, memory);
+export function HomePage({ parts, width, go }: { parts: SettingsParts; width: WidthClass; go: (route: Route) => void }) {
+  const { home, sessions, preferences, host, projects } = parts;
+  useObserved(home, sessions, projects);
   usePreferences();
   useEffect(() => {
     void home.refresh();
-    if (support.supports('progress') !== false) void studio.refresh();
-    if (support.supports('memory-learn') !== false) void memory.refreshLearn();
     sessions.start();
     return () => sessions.stop();
   }, []);
@@ -44,50 +39,26 @@ export function HomePage({ parts, go }: { parts: SettingsParts; go: (route: Rout
   }
 
   const view = home.home;
-  const running = sessions.state.cards.filter((card) => isActive(cardStatus(card)));
   const recent = sessions.state.cards.filter((card) => !isActive(cardStatus(card))).slice(0, RECENT_SESSIONS);
-  return (
-    <div className="flex flex-col gap-7">
+  const lead = (
+    <>
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="text-title font-bold text-foreground">{greeting(preferences.name)}</h1>
-          <p className="text-footnote text-muted">Your agents at a glance.</p>
+          <p className="text-footnote text-muted">What your agents can do on their own, and what still needs you.</p>
         </div>
         <Standing mode={homeMode(view?.mode)} read={view !== undefined} away={home.unavailable} />
       </header>
 
       {home.unavailable && view === undefined && <ReadFailed what="the runtime" retry={() => void home.refresh()} />}
 
-      {/* The getting started steps, as the cloud console's home lists them, above the counts until every one is done. */}
+      {/* The getting started steps, as the cloud console's home lists them, above the blocks until every one is done. */}
       <HomeStart parts={parts} go={go} actions={view?.today.actions ?? 0} mode={homeMode(view?.mode)} />
-
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
-        <StatTile value={running.length} label={running.length === 1 ? 'Agent working' : 'Agents working'} tone={running.length > 0 ? 'good' : 'quiet'} onClick={() => go({ destination: 'agents', tab: 'sessions' })} />
-        <StatTile value={view?.today.actions ?? 0} label="Actions today" />
-        <StatTile value={view?.waiting ?? 0} label="Waiting on you" tone={(view?.waiting ?? 0) > 0 ? 'attention' : 'quiet'} onClick={() => go({ destination: 'governance', tab: 'approvals' })} />
-      </div>
-
-      <Section title="Running agents" trailing={<GoLink onClick={() => go({ destination: 'agents', tab: 'sessions' })}>All sessions</GoLink>}>
-        {running.length === 0 ? (
-          <EmptyState icon={Sparkles} title="Nothing is running right now" body="Start Claude Code, Codex or any agent you use, and it appears here while it works." />
-        ) : (
-          <Panel>
-            {running.map((card) => (
-              <Row
-                key={card.sessionId}
-                leading={<BrandLogo agent={card.agent} name={card.agentName} size={30} />}
-                title={card.agentName}
-                caption={[cardTitle(card), repositoryName(card.repository)].filter((part) => part !== undefined).join(' in ')}
-                trailing={<StatusWord tone="good">{statusLabel(cardStatus(card))}</StatusWord>}
-                onClick={() => host.openLive?.(card.sessionId)}
-              />
-            ))}
-          </Panel>
-        )}
-      </Section>
-
-      <Attention parts={parts} go={go} />
-
+    </>
+  );
+  const trail = (
+    <>
+      {/* The count tiles and This week are left off for now, so Home stays on what needs the person and where to carry on. */}
       {recent.length > 0 && (
         <Section title="Carry on">
           <Panel>
@@ -96,7 +67,7 @@ export function HomePage({ parts, go }: { parts: SettingsParts; go: (route: Rout
                 key={card.sessionId}
                 leading={<BrandLogo agent={card.agent} name={card.agentName} size={26} />}
                 title={cardTitle(card)}
-                caption={[card.agentName, repositoryName(card.repository), ago(card.lastActive, Date.now())].filter((part) => part !== undefined).join(' · ')}
+                caption={[card.agentName, inLine(projectName(card.repository, projects.projects ?? [])), ago(card.lastActive, Date.now())].filter((part) => part !== undefined).join(' · ')}
                 onClick={() => host.openLive?.(card.sessionId)}
               />
             ))}
@@ -104,15 +75,10 @@ export function HomePage({ parts, go }: { parts: SettingsParts; go: (route: Rout
         </Section>
       )}
 
-      {studio.progress !== undefined && (
-        <Section title="This week" trailing={<GoLink onClick={() => go({ destination: 'governance', tab: 'policies' })}>What could run on its own</GoLink>}>
-          <p className="text-body text-foreground">{`${weekLine(studio.progress)} ${autopilotLine(studio.progress.thisWeek.answeredByAutopilot)}`}</p>
-        </Section>
-      )}
-
-      {view !== undefined && <p className="text-footnote text-muted">{HomeLines.today(view.today)}</p>}
-    </div>
+    </>
   );
+  // Learn is left off for now, so no row under Waiting on you leads to it.
+  return <TodayPage parts={parts} width={width} go={go} lead={lead} waitingFoot={null} trail={trail} />;
 }
 
 /** The mode the runtime reported, as the Mac's badge beside the greeting says it, or whether the runtime answers at all. */
@@ -121,67 +87,6 @@ function Standing({ mode, read, away }: { mode: ReturnType<typeof homeMode>; rea
   if (read) return <StatusWord tone="good">Runtime protecting this computer</StatusWord>;
   if (away) return <StatusWord tone="bad">The runtime is not answering</StatusWord>;
   return null;
-}
-
-/** Everything that waits on the person, in one place to clear, and nothing when nothing waits. */
-function Attention({ parts, go }: { parts: SettingsParts; go: (route: Route) => void }) {
-  const { home, words, memory } = parts;
-  const view = home.home;
-  if (view === undefined) return null;
-  const needs = view.needsYou ?? [];
-  const queue = memory.learn;
-  const toConfirm = queue === undefined ? 0 : queue.items.length + queue.more;
-  const nothing = view.waiting === 0 && needs.length === 0 && view.ready === undefined && view.notCovered.unprotected === 0 && toConfirm === 0;
-  if (nothing) return null;
-  return (
-    <Section title="Needs your attention">
-      <Panel>
-        {view.waiting > 0 && (
-          <Row
-            leading={<Hand size={18} className="text-warm" />}
-            title={HomeLines.waiting(view.waiting)}
-            trailing={<KitButton onClick={() => islandWindow.openFromSettings()}>Answer</KitButton>}
-          />
-        )}
-        {needs.map((line) => (
-          <Row key={line} leading={<CircleAlert size={18} className="text-warm" />} title={line} />
-        ))}
-        {toConfirm > 0 && (
-          <Row
-            leading={<GraduationCap size={18} className="text-warm" />}
-            title={learnWaitingLine(toConfirm)}
-            caption="What your agent read from your sources, and what agents suggested, counts only once you confirm it."
-            trailing={<KitButton onClick={() => go({ destination: 'governance', tab: 'learn' })}>Open Learn</KitButton>}
-          />
-        )}
-        {view.ready !== undefined && (
-          <Row
-            leading={<ArrowRight size={18} className="text-primary" />}
-            title={HomeLines.ready(view.ready)}
-            caption={view.ready.because}
-            trailing={
-              <KitButton kind="primary" disabled={home.handingOver} onClick={() => view.ready !== undefined && void home.handOver(view.ready, words.keyTitle)}>
-                {home.handingOver ? 'Proposing' : 'Let it run on its own'}
-              </KitButton>
-            }
-          />
-        )}
-        {view.notCovered.unprotected > 0 && (
-          <Row
-            leading={<ShieldCheck size={18} className="text-warm" />}
-            title={HomeLines.notCovered(view.notCovered)[0] ?? ''}
-            trailing={
-              <KitButton kind="primary" disabled={home.protecting} onClick={() => void home.protect()}>
-                {home.protecting ? 'Protecting' : 'Protect my agents'}
-              </KitButton>
-            }
-          />
-        )}
-      </Panel>
-      {home.handOverNote !== undefined && <p className="text-footnote text-muted">{home.handOverNote}</p>}
-      {view.waiting > 0 && <GoLink onClick={() => go({ destination: 'governance', tab: 'approvals' })}>See every approval</GoLink>}
-    </Section>
-  );
 }
 
 export function GoLink({ onClick, children }: { onClick: () => void; children: string }) {

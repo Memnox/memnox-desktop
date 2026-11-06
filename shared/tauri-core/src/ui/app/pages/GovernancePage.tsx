@@ -13,6 +13,7 @@ import { ActivityPage } from './ActivityPage';
 import { LearnPage } from './LearnPage';
 import { PoliciesPage } from './PoliciesPage';
 import { EmptyState, StatusWord } from '../widgets';
+import { projectNameOfPlace } from '../../../core/domain/project-context';
 
 /** How long the window waits before opening the live feed again after the daemon went away. */
 const RECONNECT_MS = 2_000;
@@ -20,6 +21,7 @@ const RECONNECT_MS = 2_000;
 export function GovernancePage({ parts, tab, width, go }: { parts: SettingsParts; tab: string | undefined; width: WidthClass; go: (route: Route) => void }) {
   if (tab === 'policies') return <PoliciesPage parts={parts} width={width} />;
   if (tab === 'activity') return <ActivityPage parts={parts} width={width} go={go} />;
+  // Learn is left off for now, so its route settles on Approvals; the page stays for when it comes back.
   if (tab === 'learn') return <LearnPage parts={parts} />;
   return <Approvals parts={parts} />;
 }
@@ -29,8 +31,12 @@ export function GovernancePage({ parts, tab, width, go }: { parts: SettingsParts
  * that reaches outside the session is signed with the computer's key, the same as on the island.
  */
 function Approvals({ parts }: { parts: SettingsParts }) {
-  const { calls, words } = parts;
-  useObserved(calls);
+  const { calls, words, projects, support } = parts;
+  useObserved(calls, projects);
+  useEffect(() => {
+    // The projects name where each call waits, so a person with several sees which one it is in.
+    if (support.supports('projects') === true && projects.projects === undefined) void projects.refresh();
+  }, []);
   useEffect(() => {
     let open = true;
     const loop = async () => {
@@ -79,7 +85,7 @@ function Approvals({ parts }: { parts: SettingsParts }) {
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-footnote">
             {card.why !== undefined && <Fact name="Why it asks" value={card.why} />}
             {card.task !== undefined && <Fact name="Task" value={card.task} />}
-            {card.place !== undefined && <Fact name="Where" value={card.place} />}
+            {projectNameOfPlace(card.place, projects.projects ?? []) !== undefined && <Fact name="Project" value={projectNameOfPlace(card.place, projects.projects ?? []) ?? ''} />}
             <Fact name="Signed" value={signedFact(card, words.keyTitle)} />
           </dl>
           <div className="flex flex-wrap items-center gap-2">

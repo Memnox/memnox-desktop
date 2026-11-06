@@ -17,6 +17,7 @@ import {
   stripLine,
   waited,
   waitsLine,
+  under,
   type TodaySources,
 } from '../src/core/domain/today-board';
 
@@ -113,5 +114,14 @@ describe('Today', () => {
 
   it('counts the repositories a session is still open in', () => {
     expect(openProjects([card('a', {}), card('b', {}), card('c', { repository: '/code/other' })])).toBe(2);
+  });
+});
+
+describe('naming the project each item happens in', () => {
+  it('names a held call by its folder and a session by its repository, so several projects stay apart', () => {
+    const projects = [{ id: 'p1', name: 'Memnox app', path: '/code/memnox', declared: true, opened: true, agents: [], agentsSeen: [], sessions: { total: 0, ended: 0 }, servers: [], skills: [], rules: { count: 0, inForce: false }, instructions: [], memoryScope: 'project', openMissions: [], openQuestions: 0 }];
+    const items = overview({ ...empty, held: [{ subject: 'h', agent: 'x', who: 'X', what: 'push', why: 'pushes main', place: 'memnox' }], sessions: [card('s', {})], projects }, now);
+    expect(items.map((item) => item.project)).toEqual(['Memnox app', 'Memnox app']);
+    expect(items.map((item) => under(item))).toEqual(['In Memnox app · pushes main', 'In Memnox app']);
   });
 });

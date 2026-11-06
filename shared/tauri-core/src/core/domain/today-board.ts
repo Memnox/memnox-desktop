@@ -1,7 +1,9 @@
-import { AGENT_STATUS, HOLD_ANSWER, type ActivityRow, type AgentView, type HomeReady, type SessionCard } from '@memnox/core/wire';
+import { AGENT_STATUS, HOLD_ANSWER, type ActivityRow, type AgentView, type HomeReady, type ProjectView, type SessionCard } from '@memnox/core/wire';
+import { inLine, projectName, projectNameOfPlace } from './project-context';
 import { FROM_NOW_ON, type HeldAnswer } from './call-label';
 import { HomeLines } from './home-lines';
 import { cardStatus, cardTitle, readable, repositoryName, SEPARATOR } from './session-text';
+import { activityWords } from './activity-words';
 import { activityLine, answeredWords, EFFECT_WORDS, isEffect } from './studio-lines';
 
 /**
@@ -95,6 +97,8 @@ export interface TodayItem {
   readonly sessionId?: string;
   readonly state: TodayState;
   readonly choices: readonly TodayChoice[];
+  /** The project it happens in, by its name, so a person with several projects sees where; absent where nothing says. */
+  readonly project?: string;
 }
 
 /** Lower is more urgent: what blocks an agent first, then what stopped, then what waits, then what is next. */
@@ -152,6 +156,8 @@ export interface TodayHeld {
   readonly at?: string;
   readonly team?: boolean;
   readonly sessionId?: string;
+  /** The folder it waits in, by name, as the daemon's event names it. */
+  readonly place?: string;
 }
 
 /** Everything Today is read from, each already held by the window. */
@@ -163,6 +169,8 @@ export interface TodaySources {
   /** What only the person can do, word for word as the home says it. */
   readonly owed: readonly string[];
   readonly ready?: HomeReady;
+  /** The projects on this computer, which name where a held call or a session happens. */
+  readonly projects?: readonly ProjectView[];
 }
 
 /** How many of what needs the person the Overview shows before it folds the rest behind a press. */
@@ -185,7 +193,7 @@ export function moment(iso: string | undefined): number | undefined {
 /** Everything on the Overview, most urgent first and the oldest first within the same urgency. */
 export function overview(sources: TodaySources, now: number): TodayItem[] {
   const today = ofToday(sources.activity, now);
-  return ordered([...heldItems(sources.held), ...stopped(today), ...sessionItems(sources.sessions), ...next(sources)]);
+  return ordered([...heldItems(sources.held, sources.projects ?? []), ...stopped(today), ...sessionItems(sources.sessions, sources.projects ?? []), ...next(sources)]);
 }
 
 /** The urgency rule: what blocks an agent first, then age, oldest first, an item with no age after those with one. */
@@ -219,7 +227,7 @@ export function done(activity: readonly ActivityRow[], now: number): TodayItem[]
 
 /** What agents handed back to the person, and what the runtime offers to let run on its own. */
 export function handoffs(sources: TodaySources): TodayItem[] {
-  return ordered([...sessionItems(sources.sessions).filter((item) => item.kind.kind === 'handed-back'), ...(sources.ready === undefined ? [] : [handOver(sources.ready)])]);
+  return ordered([...sessionItems(sources.sessions, sources.projects ?? []).filter((item) => item.kind.kind === 'handed-back'), ...(sources.ready === undefined ? [] : [handOver(sources.ready)])]);
 }
 
 /** Every action today, newest first, each with what came of it. */
@@ -268,7 +276,7 @@ export function signs(choice: TodayChoice, touchID: boolean | undefined): boolea
   return touchID ?? true;
 }
 
-function heldItems(calls: readonly TodayHeld[]): TodayItem[] {
+function heldItems(calls: readonly TodayHeld[], projects: readonly ProjectView[]): TodayItem[] {
   return calls.map((call) => ({
     id: heldId(call.subject),
     kind: { kind: 'held', team: call.team === true },
@@ -280,6 +288,7 @@ function heldItems(calls: readonly TodayHeld[]): TodayItem[] {
     ...optional('sessionId', call.sessionId),
     state: 'needs-you',
     choices: heldChoices(call.team === true),
+    ...optional('project', projectNameOfPlace(call.place, projects)),
   }));
 }
 
@@ -323,7 +332,7 @@ function stopped(rows: readonly ActivityRow[]): TodayItem[] {
   });
 }
 
-function sessionItems(cards: readonly SessionCard[]): TodayItem[] {
+function sessionItems(cards: readonly SessionCard[], projects: readonly ProjectView[]): TodayItem[] {
   return cards.flatMap((card) => {
     let kind: TodayKind;
     let state: TodayState;
@@ -348,7 +357,9 @@ function sessionItems(cards: readonly SessionCard[]): TodayItem[] {
     }
     const ways: [string, TodayAction, boolean][] = [['Open conversation', { kind: 'open-conversation' }, false]];
     if (card.host?.app !== undefined) ways.push(['Find in app', { kind: 'find-in-app' }, false]);
-    const detail = kind.kind === 'paused' ? 'Paused, so nothing it asks for runs' : repositoryName(card.repository);
+    const project = projectName(card.repository, projects);
+    // The project names where it runs, so the detail says only what the place alone does not.
+    const detail = kind.kind === 'paused' ? 'Paused, so nothing it asks for runs' : project === undefined ? repositoryName(card.repository) : undefined;
     return [
       {
         id: `session:${card.sessionId}`,
@@ -361,6 +372,7 @@ function sessionItems(cards: readonly SessionCard[]): TodayItem[] {
         sessionId: card.sessionId,
         state,
         choices: lettered(ways),
+        ...optional('project', project),
       },
     ];
   });
@@ -407,7 +419,7 @@ function record(row: ActivityRow, state: TodayState): TodayItem {
   return {
     id: `row:${row.id}`,
     kind: { kind: 'done' },
-    title: activityLine(row),
+    title: activityWords(row),
     detail,
     agent: row.agent,
     agentName: row.agentName,
@@ -513,9 +525,14 @@ export function position(id: string | undefined, items: readonly TodayItem[]): s
   return at < 0 ? undefined : `${at + 1} of ${items.length}`;
 }
 
-/** The muted line under a title: the runtime's recommendation where it gave one, else the item's own detail. */
+/**
+ * The muted line under a title: the project it happens in, then the runtime's recommendation where it gave one, else
+ * the item's own detail.
+ */
 export function under(item: TodayItem): string | undefined {
-  return item.recommendation === undefined ? item.detail : `Recommend: ${item.recommendation}`;
+  const said = item.recommendation === undefined ? item.detail : `Recommend: ${item.recommendation}`;
+  const parts = [inLine(item.project), said].filter((part): part is string => part !== undefined);
+  return parts.length === 0 ? undefined : parts.join(SEPARATOR);
 }
 
 /** How many distinct repositories have a session still open, which is what open projects counts. */

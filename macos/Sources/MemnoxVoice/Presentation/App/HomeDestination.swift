@@ -1,9 +1,9 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// Home answers three things before anything else: what is running, what needs the person, and where they can carry
-/// on. No charts, and every number is a count the ledger can show. Until setup is done, the first run's checklist is
-/// what Home has to say.
+/// Home is the one page the window opens on: the greeting, the getting started steps, then what Today showed in the
+/// console's home order. No charts, and every number is a count the ledger can show. Until setup is done, the first
+/// run's checklist is what Home has to say.
 struct HomeDestination: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var menu: MenuModel
@@ -36,35 +36,23 @@ private struct HomeAtAGlance: View {
 
     private static let recentSessions = 5
     private static let tileWidth: CGFloat = 150
-    private static let logo: CGFloat = 30
     private static let smallLogo: CGFloat = 26
 
     var body: some View {
-        let running = island.cards.filter { $0.status.isActive }
         let recent = Array(island.cards.filter { !$0.status.isActive }.prefix(Self.recentSessions))
         let view = home.home
-        ShellScroll(width: width) {
+        TodayDestination(shell: shell, island: island, home: home, agents: shell.agents, activity: shell.todayActivity, width: width) {
             header(view)
             if home.unavailable, view == nil { ReadFailed(what: "the runtime", retry: home.refresh) }
-            // The getting started steps, as the cloud console's home lists them, above the counts until every one is done.
+            // The getting started steps, as the cloud console's home lists them, above the blocks until every one is done.
             HomeStart(shell: shell, tools: menu.tools, menu: menu, home: home, actions: view?.today.actions ?? 0,
                       mode: view.flatMap { HomeMode(rawValue: $0.mode) })
-            tiles(running: running.count, view: view)
-            runningSection(running)
-            if let view {
-                if let memory = shell.memory {
-                    LearnWaiting(screen: memory) { HomeAttention(shell: shell, home: home, view: view, toConfirm: $0) }
-                } else {
-                    HomeAttention(shell: shell, home: home, view: view, toConfirm: 0)
-                }
-            }
+        } waitingFoot: {
+            // Learn is left off for now, so Home offers no row that opens it.
+            EmptyView()
+        } trail: {
+            // The count tiles and This week are left off for now, so Home reads straight down its blocks.
             if !recent.isEmpty { carryOn(recent) }
-            if let studio = shell.studio { HomeThisWeek(shell: shell, screen: studio) }
-            if let view {
-                Text(HomeLines.today(view.today))
-                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Console.muted)
-            }
         }
         .task {
             home.refresh()
@@ -94,7 +82,7 @@ private struct HomeAtAGlance: View {
                 .font(.system(size: SettingsMetrics.pageTitleSize + 3, weight: .bold))
                 .foregroundStyle(Memnox.Console.foreground)
                 .accessibilityAddTraits(.isHeader)
-            Text("Your agents at a glance.")
+            Text("What your agents can do on their own, and what still needs you.")
                 .font(Memnox.Console.sans(Memnox.TextSize.footnote))
                 .foregroundStyle(Memnox.Console.muted)
         }
@@ -121,7 +109,7 @@ private struct HomeAtAGlance: View {
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.tileWidth), spacing: Memnox.Spacing.large)],
                          spacing: Memnox.Spacing.large) {
             tile(running, running == 1 ? "Agent working" : "Agents working", symbol: "bolt",
-                 tone: running > 0 ? .good : .quiet) { shell.go(WindowRoute(.agents, tab: "sessions")) }
+                 tone: running > 0 ? .good : .quiet) { shell.go(WindowRoute(.agents, tab: "list")) }
             tile(view?.today.actions ?? 0, "Actions today", symbol: "checklist", tone: .quiet, open: nil)
             tile(waiting, "Waiting on you", symbol: "hand.raised", tone: waiting > 0 ? .attention : .quiet) {
                 shell.go(WindowRoute(.governance, tab: "approvals"))
@@ -143,30 +131,8 @@ private struct HomeAtAGlance: View {
         }
     }
 
-    private func runningSection(_ running: [SessionCard]) -> some View {
-        ShellSection(title: "Running agents") {
-            GoLink("All sessions") { shell.go(WindowRoute(.agents, tab: "sessions")) }
-        } content: {
-            if running.isEmpty {
-                EmptyState(symbol: "sparkles", title: "Nothing is running right now",
-                           detail: "Start Claude Code, Codex or any agent you use, and it appears here while it works.")
-            } else {
-                ShellPanel {
-                    ForEach(Array(running.enumerated()), id: \.element.id) { index, card in
-                        if index > 0 { ShellDivider() }
-                        ShellRow(title: card.agentName,
-                                 caption: [card.title, SessionReading.repository(card.repository)].compactMap { $0 }.joined(separator: " in "),
-                                 action: { island.watchLive(card.sessionId, card.host) }) {
-                            BrandLogo(agent: card.agent, name: card.agentName, size: Self.logo)
-                        } trailing: {
-                            StatusWord(.good, card.status.label)
-                        }
-                        .help("Watch \(card.agentName) live")
-                    }
-                }
-            }
-        }
-    }
+    /// The projects on this computer, which name where each session ran.
+    private var projects: [ProjectView] { shell.projects?.projects.projects ?? [] }
 
     private func carryOn(_ recent: [SessionCard]) -> some View {
         ShellSection(title: "Carry on") {
@@ -174,7 +140,8 @@ private struct HomeAtAGlance: View {
                 ForEach(Array(recent.enumerated()), id: \.element.id) { index, card in
                     if index > 0 { ShellDivider() }
                     ShellRow(title: card.title,
-                             caption: [card.agentName, SessionReading.repository(card.repository), SessionText.ago(card.lastActive, now: Date())]
+                             caption: [card.agentName, ProjectContext.inLine(ProjectContext.projectName(repository: card.repository, projects: projects)),
+                                       SessionText.ago(card.lastActive, now: Date())]
                                 .compactMap { $0 }.joined(separator: SessionText.separator),
                              action: { island.watchLive(card.sessionId, card.host) }) {
                         BrandLogo(agent: card.agent, name: card.agentName, size: Self.smallLogo)
@@ -206,98 +173,28 @@ private struct HomeThisWeek: View {
     }
 }
 
-/// Everything that waits on the person, in one place to clear, and nothing when nothing waits. The buttons are the
-/// home's own, so a press here does what the same press does on the overview.
-private struct HomeAttention: View {
+/// What waits in Learn, as one row under Waiting on you, and nothing while nothing waits there.
+private struct LearnRow: View {
     @ObservedObject var shell: AppShellModel
-    @ObservedObject var home: HomeModel
-    let view: DaemonHome
-    /// What waits in Learn, counted past the ones the queue listed.
     let toConfirm: Int
 
     private static let icon: CGFloat = 16
 
     var body: some View {
-        let needs = view.needsYou ?? []
-        let nothing = view.waiting == 0 && needs.isEmpty && view.ready == nil && view.notCovered.unprotected == 0 && toConfirm == 0
-        if !nothing {
-            ShellSection(title: "Needs your attention") {
-                VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
-                    ShellPanel { rows(needs) }
-                    if let note = home.handOverNote { quiet(note) }
-                    if let why = home.protectFailed { quiet(why) }
-                    if view.waiting > 0 {
-                        GoLink("See every approval") { shell.go(WindowRoute(.governance, tab: "approvals")) }
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder private func rows(_ needs: [String]) -> some View {
-        if view.waiting > 0 {
-            ShellRow(title: HomeLines.waiting(view.waiting)) {
-                icon("hand.raised", Memnox.Console.warm)
-            } trailing: {
-                Button("Answer", action: home.openWaiting)
-                    .buttonStyle(KitButton(kind: .secondary))
-                    .help("Open the waiting calls on the island")
-            }
-        }
-        ForEach(Array(needs.enumerated()), id: \.offset) { index, line in
-            if index > 0 || view.waiting > 0 { ShellDivider() }
-            ShellRow(title: line) { icon("exclamationmark.circle", Memnox.Console.warm) } trailing: { EmptyView() }
-        }
         if toConfirm > 0 {
-            if view.waiting > 0 || !needs.isEmpty { ShellDivider() }
-            ShellRow(title: MemoryLines.learnWaitingLine(toConfirm),
-                     caption: "What your agent read from your sources, and what agents suggested, counts only once you confirm it.") {
-                icon("graduationcap", Memnox.Console.warm)
-            } trailing: {
-                Button("Open Learn") { shell.go(WindowRoute(.governance, tab: "learn")) }.buttonStyle(KitButton(kind: .secondary))
-            }
-        }
-        if let ready = view.ready {
-            if view.waiting > 0 || !needs.isEmpty || toConfirm > 0 { ShellDivider() }
-            ShellRow(title: HomeLines.ready(ready), caption: ready.because) {
-                icon("arrow.right", Memnox.Console.primary)
-            } trailing: {
-                Button(home.handingOver ? "Proposing" : "Let it run on its own") { home.handOver(ready) }
-                    .buttonStyle(KitButton(kind: .primary))
-                    .disabled(home.handingOver)
-                    .help("Proposes an allow rule for exactly these; nothing changes until you confirm it with Touch ID")
-            }
-        }
-        if view.notCovered.unprotected > 0 {
-            if view.waiting > 0 || !needs.isEmpty || toConfirm > 0 || view.ready != nil { ShellDivider() }
-            ShellRow(title: HomeLines.notCovered(view.notCovered).first ?? "",
-                     caption: home.remote() ? "Run memnox setup on that server to put them under Memnox." : nil) {
-                icon("shield", Memnox.Console.warm)
-            } trailing: {
-                // The button runs this Mac's own memnox, which cannot reach a server's agents.
-                if !home.remote() {
-                    Button(home.protecting ? "Protecting" : "Protect my agents", action: home.protect)
-                        .buttonStyle(KitButton(kind: .primary))
-                        .disabled(home.protecting)
-                        .help("Hooks every agent found on this Mac into Memnox, the way setup does")
+            ShellPanel {
+                ShellRow(title: MemoryLines.learnWaitingLine(toConfirm),
+                         caption: "What your agent read from your sources, and what agents suggested, counts only once you confirm it.") {
+                    Image(systemName: "graduationcap")
+                        .font(.system(size: Self.icon, weight: .medium))
+                        .foregroundStyle(Memnox.Console.warm)
+                        .frame(width: Self.icon + 4)
+                        .accessibilityHidden(true)
+                } trailing: {
+                    Button("Open Learn") { shell.go(WindowRoute(.governance, tab: "learn")) }.buttonStyle(KitButton(kind: .secondary))
                 }
             }
         }
-    }
-
-    private func icon(_ symbol: String, _ tint: Color) -> some View {
-        Image(systemName: symbol)
-            .font(.system(size: Self.icon, weight: .medium))
-            .foregroundStyle(tint)
-            .frame(width: Self.icon + 4)
-            .accessibilityHidden(true)
-    }
-
-    private func quiet(_ text: String) -> some View {
-        Text(text)
-            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Console.muted)
-            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

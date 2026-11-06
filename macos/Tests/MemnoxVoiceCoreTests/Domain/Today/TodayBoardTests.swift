@@ -40,6 +40,20 @@ final class TodayBoardTests: XCTestCase {
         XCTAssertEqual(ids, ["stopped:r1", "held:early", "held:late", "session:b", "owed:Turn on Touch ID", "session:w"])
     }
 
+    func testNamesTheProjectEachItemHappensIn() {
+        let web = ProjectView(id: "p1", name: "Website", path: "/code/web", declared: true, opened: true, agents: [], agentsSeen: [],
+                              sessions: ProjectSessionsView(total: 0, ended: 0), servers: [], skills: [],
+                              rules: ProjectRulesView(count: 0, inForce: false), instructions: [], memoryScope: "project",
+                              openMissions: [], openQuestions: 0)
+        let call = TodayHeld(subject: "h", agent: "codex", who: "Codex", what: "rm -rf build", why: "deletes files",
+                             at: "2026-11-01T12:00:00Z", place: "web")
+        let card = SessionCard(sessionId: "b", agent: "codex", agentName: "Codex", task: "docs", state: "open", repository: "/code/web/docs")
+        let items = TodayBoard.overview(TodaySources(held: [call], sessions: [card], projects: [web]), now: now, calendar: calendar)
+        XCTAssertEqual(items.map(\.project), ["Website", "Website"])
+        XCTAssertEqual(items.first.flatMap(TodayLines.under), "In Website\(SessionText.separator)deletes files")
+        XCTAssertEqual(items.last.flatMap(TodayLines.under), "In Website")
+    }
+
     func testSectionsFollowTheItemsAndDropAnEmptyOne() throws {
         let sources = TodaySources(held: [held("a", at: "2026-11-01T12:00:00Z")], owed: ["Sign in"])
         let sections = TodayBoard.sections(TodayBoard.overview(sources, now: now, calendar: calendar))

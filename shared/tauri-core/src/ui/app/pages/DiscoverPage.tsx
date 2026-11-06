@@ -26,6 +26,8 @@ import {
 import { KitButton, KitField, SearchField } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { CardGrid, EmptyState, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
+import { agentLabel } from '../../../core/domain/mcp-hub-lines';
+import { AgentLogos } from '../../kit/logos';
 import { Facts } from './SkillsPage';
 
 const KINDS: readonly { id: IndexKindFilter; title: string }[] = [
@@ -227,7 +229,7 @@ function ListingCard({ entry, view }: { entry: IndexEntryView; view: () => void 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         {entry.unsafe ? <StatusWord tone="bad">Marked unsafe</StatusWord> : <span className="text-footnote text-muted">{latestLine(entry)}</span>}
         {installed !== undefined && <StatusWord tone="good">{installed}</StatusWord>}
-        <span className="text-footnote text-muted">{supportedAgentsLine(entry.agents)}</span>
+        <AgentsLine agents={entry.agents} />
       </div>
       <p className="truncate text-footnote text-muted">{needsSummaryLine(entry.needs)}</p>
       {warnings !== undefined && <StatusWord tone="attention">{warnings}</StatusWord>}
@@ -235,6 +237,16 @@ function ListingCard({ entry, view }: { entry: IndexEntryView; view: () => void 
         <KitButton onClick={view}>View listing</KitButton>
       </div>
     </article>
+  );
+}
+
+/** The agents a listing supports, their logos ahead of the line that names them. */
+function AgentsLine({ agents, className = 'text-footnote text-muted' }: { agents: readonly string[]; className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${className}`}>
+      <AgentLogos agents={agents.map((agent) => ({ agent, name: agentLabel(agent) }))} />
+      {supportedAgentsLine(agents)}
+    </span>
   );
 }
 
@@ -261,7 +273,7 @@ function Listing({ parts, entry, width, back, said }: { parts: SettingsParts; en
               ['Publisher', entry.publisher.name],
               ['Category', entry.category ?? 'None given'],
               ['License', entry.license ?? 'None given'],
-              ['Agents', supportedAgentsLine(entry.agents)],
+              ['Agents', <AgentsLine agents={entry.agents} className="" />],
               ...(installed === undefined ? [] : [['Here', installed] as const]),
             ]}
           />

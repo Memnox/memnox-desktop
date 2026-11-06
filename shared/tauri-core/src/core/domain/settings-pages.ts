@@ -55,7 +55,7 @@ export interface SettingsGroup {
 export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
   { title: undefined, pages: ['overview'] },
   { title: 'You', pages: ['account'] },
-  { title: 'This computer', pages: ['permissions', 'connection', 'phones', 'network', 'appearance', 'backup', 'sync'] },
+  { title: 'This computer', pages: ['permissions', 'connection', 'phones', 'appearance', 'sync'] },
   { title: 'Agents and tools', pages: ['tools', 'apps'] },
   { title: 'Voice', pages: ['voice', 'listening', 'dictation'] },
   { title: 'Support', pages: ['help'] },

@@ -1,10 +1,10 @@
 import type { MemoryItemView } from '@memnox/core/wire';
 import { Check, GraduationCap, Pencil, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { confidenceLine, duplicateLine, kindWord, moreLine, oldestFirst, originLine, statusWord, TAINTED_LINE } from '../../../core/domain/memory-lines';
+import { confidenceLine, duplicateLine, kindWord, moreLine, oldestFirst, statusWord, TAINTED_LINE } from '../../../core/domain/memory-lines';
 import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { Evidence, memoryNote } from './MemoryPage';
+import { Evidence, memoryNote, OriginLine } from './MemoryPage';
 import { EmptyState, ReadFailed, StatusWord } from '../widgets';
 
 /**
@@ -71,7 +71,7 @@ function Suggestion({ parts, item, note, said }: { parts: SettingsParts; item: M
     <article className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
       <header className="flex flex-wrap items-center gap-2.5">
         <span className="rounded-full border border-panel-edge px-2 py-0.5 text-micro font-medium text-muted">{kindWord(item.kind)}</span>
-        <span className="flex-1 text-footnote text-muted">{originLine(item)}</span>
+        <OriginLine item={item} className="flex-1 text-footnote text-muted" />
         {item.tainted && <StatusWord tone="attention">{TAINTED_LINE}</StatusWord>}
         {item.proposalId !== undefined && <StatusWord tone="attention">Waiting for your signature on the island</StatusWord>}
         {item.status === 'conflicting' && <StatusWord tone={statusWord(item.status).tone}>{statusWord(item.status).word}</StatusWord>}

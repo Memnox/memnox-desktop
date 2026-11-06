@@ -3,7 +3,7 @@ import Foundation
 /// The Memnox window's five destinations and Settings, the same on the Mac, Windows and Linux. A tab that needs a
 /// daemon method is shown only once the daemon answers it, so nothing on screen is a promise.
 public enum Destination: String, CaseIterable, Sendable {
-    /// What needs the person today, most urgent first; the window opens on it.
+    /// What Today showed now sits on Home, so this stays only for old links, which land on Home.
     case today
     case home
     case agents
@@ -39,7 +39,7 @@ public enum TabGroupId: String, CaseIterable, Sendable {
         case .skills: "Skills"
         case .hub: "Hub"
         case .apps: "Apps"
-        case .review: "Waiting on you"
+        case .review: "Needs your attention"
         case .rules: "Rules"
         case .record: "Record"
         case .account: "Account"
@@ -89,10 +89,13 @@ public struct DestinationInfo: Equatable, Sendable {
 public struct WindowRoute: Hashable, Sendable {
     public let destination: Destination
     public let tab: String?
+    /// One project opened from Projects and the page of it shown, which swaps the sidebar for the project's own.
+    public let project: ProjectPlace?
 
-    public init(_ destination: Destination, tab: String? = nil) {
+    public init(_ destination: Destination, tab: String? = nil, project: ProjectPlace? = nil) {
         self.destination = destination
         self.tab = tab
+        self.project = project
     }
 }
 
@@ -127,8 +130,7 @@ public enum Destinations {
         TabInfo(id: "connection", title: "Connection", group: .account,
                 summary: "The Memnox service your agents talk to, and the key Touch ID signs with."),
         TabInfo(id: "phones", title: "Phones", group: .devices, summary: "Phones paired with this Mac and what each may do."),
-        TabInfo(id: "network", title: "Local network", group: .devices,
-                summary: "Reach this Mac over the network you share, rather than through the relay.", needs: "lan-status"),
+        // Local network is left off for now, since phones reach this Mac through the relay without a setting.
         TabInfo(id: "sync", title: "Personal sync", group: .devices,
                 summary: "Your own setup carried between your machines, sealed under a key only they hold.", needs: "personal-sync-status"),
         TabInfo(id: "voice", title: "Voice", group: .voice, summary: "Who thinks for the voice, and the voice it answers in."),
@@ -136,8 +138,7 @@ public enum Destinations {
         TabInfo(id: "dictation", title: "Dictation", group: .voice,
                 summary: "Speak instead of typing, in any app, written the way you would have typed it."),
         TabInfo(id: "appearance", title: "Appearance", group: .app, summary: "Light, dark, or the same as this Mac."),
-        TabInfo(id: "backup", title: "Backup", group: .app,
-                summary: "Your rules, hubs, skills, projects and memory, sealed under a passphrase and put back once you sign."),
+        // Backup is left off for now, so nobody leans on a restore that has not been tried end to end.
         TabInfo(id: "help", title: "Help", group: .app, summary: "Rules, a quick test, and what happened for support."),
     ]
 
@@ -148,15 +149,15 @@ public enum Destinations {
         "apps": WindowRoute(.mcp, tab: "apps"),
     ]
 
-    /// Where the window opens: what needs the person today, with Home still one row below it.
-    public static let landing = WindowRoute(.today)
+    /// Where the window opens: Home, which holds what needs the person today below the greeting.
+    public static let landing = WindowRoute(.home)
 
     public static let all: [DestinationInfo] = [
         DestinationInfo(id: .today, title: "Today", subtitle: "What needs you today, the most urgent first, and what your agents did.",
                         key: nil, tabs: []),
         DestinationInfo(id: .home, title: "Home", subtitle: "What is running, what needs you, and where to carry on.",
                         key: "1", tabs: []),
-        DestinationInfo(id: .agents, title: "Agents", subtitle: "The agents on this Mac, their sessions, and what each can reach.",
+        DestinationInfo(id: .agents, title: "AI agents", subtitle: "The agents on this Mac, their sessions, and what each can reach.",
                         key: "2", tabs: [
                             TabInfo(id: "list", title: "Agents", group: .agents,
                                     summary: "The agents on this Mac and what each can reach.", needs: "agents"),
@@ -168,26 +169,31 @@ public enum Destinations {
         DestinationInfo(id: .workspaces, title: "Workspaces",
                         subtitle: "Your projects, with the skills, tools, memory and rules each one carries.",
                         key: "3", tabs: [
-                            TabInfo(id: "projects", title: "Workspaces", group: .projects,
+                            TabInfo(id: "projects", title: "Projects", group: .projects,
                                     summary: "Your projects, with the skills, tools, memory and rules each one carries."),
+                            // The agents and all they reach as one map, its own page so it is one press from the sidebar.
+                            TabInfo(id: "map", title: "Map", group: .knowledge,
+                                    summary: "Your agents and everything they reach, drawn as one map of what they know and use.",
+                                    needs: "memory-facts"),
                             TabInfo(id: "memory", title: "Memory", group: .knowledge,
                                     summary: "What your agents know, each fact with the evidence it was read from, and the sources it came out of.",
                                     needs: "memory-facts"),
-                            TabInfo(id: "sources", title: "Sources", group: .knowledge,
+                            TabInfo(id: "layers", title: "Layers", group: .knowledge,
+                                    summary: "MEMORY.md, the router and the skills each project keeps, as the three layers any agent reads.",
+                                    needs: "memory-layers"),
+                            TabInfo(id: "sources", title: "Files", group: .knowledge,
                                     summary: "Where your agents' memory is read from: notes, instruction files, exports and memory servers.",
                                     needs: "memory-facts"),
                             TabInfo(id: "skills", title: "My Skills", group: .skills,
                                     summary: "The skills you keep, and the agents each one is given to.", needs: "skills-hub"),
                             TabInfo(id: "assigned", title: "Assigned", group: .skills, summary: "Which skills each agent carries.",
                                     needs: "skills-hub"),
-                            TabInfo(id: "discover", title: "Discover", group: .skills,
-                                    summary: "The community index. Installing makes nothing live until you accept it.", needs: "index-list"),
-                            TabInfo(id: "profiles", title: "Profiles", group: .projects,
-                                    summary: "Named bundles of skills, servers and a rule pack, each piece given to an agent only once you sign.",
-                                    needs: "profiles"),
+                            // Discover is left off for now, since the marketplace holds no listing yet, and Profiles too,
+                            // since a bundle handed across a team is kept in Memnox Cloud rather than on one person's Mac.
                         ]),
         DestinationInfo(id: .mcp, title: "MCP Hub", subtitle: "Servers set up once and given to the agents you choose.",
                         key: "4", tabs: [
+                            // Servers, Clients and Secrets stand as the MCP servers row, Connectors as a row of its own.
                             TabInfo(id: "servers", title: "Servers", group: .hub,
                                     summary: "Servers set up once and given to the agents you choose.", needs: "mcp-hub"),
                             TabInfo(id: "clients", title: "Clients", group: .hub, summary: "Which agent has which server, set in one place.",
@@ -202,8 +208,8 @@ public enum Destinations {
                         key: "5", tabs: [
                             TabInfo(id: "approvals", title: "Approvals", group: .review,
                                     summary: "What waits on you, oldest first, each saying what the agent wants to do and where."),
-                            TabInfo(id: "policies", title: "Rules", group: .rules,
-                                    summary: "What your agents may do, ask about first, or never do.", needs: "rules"),
+                            TabInfo(id: "policies", title: "Protection settings", group: .rules,
+                                    summary: "For each thing your AI might do, choose Allow, Ask or Deny. Nothing changes until you save and the change is approved.", needs: "rules"),
                             TabInfo(id: "activity", title: "Activity", group: .record,
                                     summary: "What your agents did, newest first, beside what was decided.", needs: "activity"),
                             TabInfo(id: "learn", title: "Learn", group: .review,
@@ -218,9 +224,21 @@ public enum Destinations {
         all.first { $0.id == id }!
     }
 
-    /// The tabs shown now: those needing nothing, and those whose method the daemon answered.
+    /// Pages left off for now, so the window stays straightforward and nobody gets lost; each still settles on its
+    /// destination's first tab shown, so an old link lands somewhere.
+    public static let leftOff: Set<WindowRoute> = [
+        WindowRoute(.governance, tab: "learn"),
+        WindowRoute(.mcp, tab: "clients"),
+        WindowRoute(.mcp, tab: "secrets"),
+        WindowRoute(.workspaces, tab: "assigned"),
+        WindowRoute(.agents, tab: "sessions"),
+        WindowRoute(.settings, tab: "sync"),
+    ]
+
+    /// The tabs shown now: those needing nothing, and those whose method the daemon answered, past the ones left off.
     public static func visibleTabs(_ id: Destination, supports: Supports) -> [TabInfo] {
         info(id).tabs.filter { tab in
+            if leftOff.contains(WindowRoute(id, tab: tab.id)) { return false }
             guard let needs = tab.needs else { return true }
             return supports(needs) == true
         }
@@ -248,22 +266,26 @@ public enum Destinations {
 
     /// The route as it will be drawn: a missing or hidden tab falls back to the first one shown.
     public static func settled(_ route: WindowRoute, supports: Supports) -> WindowRoute {
+        if route.destination == .today { return WindowRoute(.home) }
         let tabs = visibleTabs(route.destination, supports: supports)
         guard let first = tabs.first else { return WindowRoute(route.destination) }
         let tab = tabs.first { $0.id == route.tab } ?? first
-        return WindowRoute(route.destination, tab: tab.id)
+        // A project's page stays open while its tab is still the one shown.
+        return WindowRoute(route.destination, tab: tab.id, project: tab.id == route.tab ? route.project : nil)
     }
 
     /// A page an old Settings link names, as a route: moved pages land on their destination, the rest under Settings.
     public static func route(forPage name: String) -> WindowRoute? {
         if let moved = moved[name] { return moved }
+        if name == Destination.today.rawValue { return WindowRoute(.home) }
         if settingsTabs.contains(where: { $0.id == name }) { return WindowRoute(.settings, tab: name) }
         return Destination(rawValue: name).map { WindowRoute($0) }
     }
 
     /// Every place the palette can go, in sidebar order.
     public static func commands(supports: Supports) -> [PaletteCommand] {
-        all.flatMap { each -> [PaletteCommand] in
+        // Today folded into Home, so the palette offers Home alone for both.
+        all.filter { $0.id != .today }.flatMap { each -> [PaletteCommand] in
             let top = PaletteCommand(route: WindowRoute(each.id), title: each.title, under: "", key: each.key.map(String.init))
             let tabs = visibleTabs(each.id, supports: supports).map {
                 PaletteCommand(route: WindowRoute(each.id, tab: $0.id), title: $0.title, under: each.title)

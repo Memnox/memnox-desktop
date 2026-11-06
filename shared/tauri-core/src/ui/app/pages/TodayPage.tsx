@@ -1,45 +1,34 @@
-import { CheckCircle2, ChevronDown, ChevronUp, Fingerprint, ListChecks, Sun, Undo2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Fingerprint } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { HeldOutcome } from '../../../core/application/held-calls';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
 import type { HeldCard } from '../../../core/domain/held-card';
+import { briefItems, HOME_BRIEF_NONE, HOME_BRIEF_TITLE, homeBrief, type HomeBriefBlock } from '../../../core/domain/home-brief';
+import { HomeLines } from '../../../core/domain/home-lines';
 import {
   age,
   choiceFor,
-  done,
-  handoffs,
-  headline,
   heldId,
-  log,
   NO_CHOICES,
   NO_RECOMMENDATION,
-  openProjects,
-  overview,
   position,
-  sectionOf,
-  sections,
   signs,
   startOfDay,
   step,
   stripLine,
   syncedLine,
-  TODAY_SECTION_TITLE,
   TODAY_STATE_LABEL,
-  TODAY_TAB_TITLE,
-  TODAY_TABS,
   under,
   URGENT_SHOWN,
   waited,
   waitsLine,
   type TodayChoice,
   type TodayItem,
-  type TodaySection,
   type TodaySources,
   type TodayState,
-  type TodayTab,
 } from '../../../core/domain/today-board';
-import { BrandLogo } from '../../kit/logos';
-import { KitButton, PageTitle } from '../../settings/kit';
+import { AgentName, BrandLogo } from '../../kit/logos';
+import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { bringForward } from '../../sessions/open-session';
 import { EmptyState, Inspector, StatusWord, type Tone } from '../widgets';
@@ -59,20 +48,36 @@ const STATE_TONE: Record<TodayState, Tone> = {
 };
 
 /**
- * What needs the person today, most urgent first, read off what the window already holds: the calls waiting, the
- * sessions, what the agents did since midnight, the agents outside Memnox and what only the person can do. Every
- * answer to a held call goes through `HeldCalls`, so an allow is signed with this computer's key exactly as on the
- * island, and is not sent when the signature is not given. Ported from the Mac's `TodayDestination`.
+ * What Today showed, drawn on Home below `lead` as the console's home brief: waiting on you, working now, today, ready
+ * to hand over and not covered. Every answer to a held call goes through `HeldCalls`, so an allow is signed with this
+ * computer's key exactly as on the island, and is not sent when the signature is not given. Ported from the Mac's
+ * `TodayDestination`.
  */
-export function TodayPage({ parts, width, go }: { parts: SettingsParts; width: WidthClass; go: (route: Route) => void }) {
-  const { calls, sessions, home, agents, activity, support, words } = parts;
-  useObserved(calls, home, agents, activity, support);
+export function TodayPage({
+  parts,
+  width,
+  go,
+  lead,
+  waitingFoot,
+  trail,
+}: {
+  parts: SettingsParts;
+  width: WidthClass;
+  go: (route: Route) => void;
+  /** The greeting and the getting started steps, above every block. */
+  lead: ReactNode;
+  /** What else waits on the person and lives outside Today's items, under Waiting on you. */
+  waitingFoot: ReactNode;
+  /** The counts and the sessions to carry on, below every block. */
+  trail: ReactNode;
+}) {
+  const { calls, sessions, home, agents, activity, support, words, projects } = parts;
+  useObserved(calls, home, agents, activity, support, projects);
   useSessions(parts);
   useHeldFeed(parts);
   const [now, setNow] = useState(Date.now);
   const [readAt, setReadAt] = useState(Date.now);
-  const [tab, setTab] = useState<TodayTab>('overview');
-  const [hidden, setHidden] = useState<ReadonlySet<TodaySection>>(new Set());
+  const [hidden, setHidden] = useState<ReadonlySet<HomeBriefBlock>>(new Set());
   const [everyUrgent, setEveryUrgent] = useState(false);
   const [open, setOpen] = useState<string | undefined>(undefined);
   const [note, setNote] = useState<string | undefined>(undefined);
@@ -90,6 +95,8 @@ export function TodayPage({ parts, width, go }: { parts: SettingsParts; width: W
     void home.refresh().then(() => setReadAt(Date.now()));
     if (support.supports('agents') === true) void agents.refresh();
     readActivity();
+    // The projects name where each held call and session happens, so a person with several sees where.
+    if (support.supports('projects') === true && projects.projects === undefined) void projects.refresh();
     page.current?.focus();
   }, [support.supports('agents'), support.supports('activity')]);
   // A row arriving live is a name only, so the day is read again to show it whole.
@@ -98,19 +105,26 @@ export function TodayPage({ parts, width, go }: { parts: SettingsParts; width: W
 
   const waiting = calls.state.waiting.entries;
   const sources: TodaySources = {
-    held: waiting.map(({ subject, card }) => ({ subject, agent: card.agent, who: card.who, what: card.what, ...(card.why === undefined ? {} : { why: card.why }), ...(card.sessionId === undefined ? {} : { sessionId: card.sessionId }) })),
+    held: waiting.map(({ subject, card }) => ({
+      subject,
+      agent: card.agent,
+      who: card.who,
+      what: card.what,
+      ...(card.why === undefined ? {} : { why: card.why }),
+      ...(card.sessionId === undefined ? {} : { sessionId: card.sessionId }),
+      ...(card.place === undefined ? {} : { place: card.place }),
+    })),
     sessions: sessions.state.cards,
     activity: activity.rows,
     agents: agents.agents ?? [],
     owed: home.home?.needsYou ?? [],
     ...(home.home?.ready === undefined ? {} : { ready: home.home.ready }),
+    projects: projects.projects ?? [],
   };
-  const board = overview(sources, now);
-  const lists: Record<TodayTab, TodayItem[]> = { overview: board, done: done(activity.rows, now), handoffs: handoffs(sources), log: log(activity.rows, now) };
-  const items = lists[tab];
+  const blocks = homeBrief(sources, now);
+  const items = briefItems(blocks);
   const opened = items.find((item) => item.id === open);
-  const needYou = board.filter((item) => sectionOf(item) === 'needs-you');
-  const nextCount = board.filter((item) => sectionOf(item) === 'next').length;
+  const needYou = blocks.find((each) => each.block === 'waiting')?.items ?? [];
 
   const cardOf = (item: TodayItem): HeldCard | undefined => waiting.find(({ subject }) => heldId(subject) === item.id)?.card;
   const busy = (item: TodayItem): boolean => {
@@ -120,11 +134,10 @@ export function TodayPage({ parts, width, go }: { parts: SettingsParts; width: W
     return false;
   };
   const moveTo = (id: string | undefined) => {
-    const item = items.find((each) => each.id === id);
-    const section = item === undefined ? undefined : sectionOf(item);
+    const block = blocks.find((each) => each.items.some((item) => item.id === id))?.block;
     // Moving onto a row folded away opens it, so the open item is always on screen.
-    if (section !== undefined && hidden.has(section)) setHidden((now) => new Set([...now].filter((each) => each !== section)));
-    if (section === 'needs-you' && needYou.findIndex((each) => each.id === id) >= URGENT_SHOWN) setEveryUrgent(true);
+    if (block !== undefined && hidden.has(block)) setHidden((now) => new Set([...now].filter((each) => each !== block)));
+    if (block === 'waiting' && needYou.findIndex((each) => each.id === id) >= URGENT_SHOWN) setEveryUrgent(true);
     setOpen(id);
   };
 
@@ -183,42 +196,46 @@ export function TodayPage({ parts, width, go }: { parts: SettingsParts; width: W
   const shownUrgent = everyUrgent ? needYou.length : Math.min(needYou.length, URGENT_SHOWN);
   return (
     <div ref={page} tabIndex={-1} onKeyDown={keys} className="flex min-h-0 outline-none">
-      <div className="flex min-w-0 flex-1 flex-col gap-5">
-        <PageTitle title="Today" subtitle={headline(now, needYou.length, nextCount, openProjects(sessions.state.cards))} />
-        <CountTabs chosen={tab} counts={lists} choose={(next) => (setTab(next), setOpen(undefined))} />
-        {tab === 'overview' && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-panel-edge bg-card px-4 py-2.5 text-body-sm text-muted">
-            <span className={needYou.length === 0 ? 'invisible' : ''}>
-              <StatusWord tone={needYou.length === 0 ? 'good' : 'attention'}>{needYou.length === 0 ? TODAY_STATE_LABEL.done : TODAY_STATE_LABEL['needs-you']}</StatusWord>
-            </span>
-            <span className="text-foreground">{stripLine(needYou.length, shownUrgent)}</span>
-            {waitsLine(needYou) !== undefined && <span>{waitsLine(needYou)}</span>}
-            <span className="flex-1" />
-            <span className="font-code text-label text-faint">{syncedLine(readAt)}</span>
-          </div>
-        )}
+      <div className="flex min-w-0 flex-1 flex-col gap-7">
+        {lead}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-panel-edge bg-card px-4 py-2.5 text-body-sm text-muted">
+          <span className={needYou.length === 0 ? 'invisible' : ''}>
+            <StatusWord tone={needYou.length === 0 ? 'good' : 'attention'}>{needYou.length === 0 ? TODAY_STATE_LABEL.done : TODAY_STATE_LABEL['needs-you']}</StatusWord>
+          </span>
+          <span className="text-foreground">{stripLine(needYou.length, shownUrgent)}</span>
+          {waitsLine(needYou) !== undefined && <span>{waitsLine(needYou)}</span>}
+          <span className="flex-1" />
+          <span className="font-code text-label text-faint">{syncedLine(readAt)}</span>
+        </div>
         {note !== undefined && <p role="status" className="text-footnote text-muted">{note}</p>}
-        {items.length === 0 ? (
-          <Empty tab={tab} activity={support.supports('activity') === true} />
-        ) : tab === 'overview' ? (
-          sections(items).map(({ section, items: held }) => {
-            const folded = hidden.has(section);
-            const cut = section === 'needs-you' && !everyUrgent && held.length > URGENT_SHOWN;
-            const shown = cut ? held.slice(0, URGENT_SHOWN) : held;
-            return (
-              <section key={section} className="flex flex-col gap-2.5">
-                <div className="flex min-h-7 items-center justify-between gap-3">
-                  <h2 className="text-base font-medium text-foreground">{`${TODAY_SECTION_TITLE[section]} · ${held.length}`}</h2>
-                  <KitButton onClick={() => setHidden((now) => (folded ? new Set([...now].filter((each) => each !== section)) : new Set([...now, section])))}>{folded ? 'Show' : 'Hide'}</KitButton>
-                </div>
-                {!folded && <Table items={shown} all={items} now={now} open={open} pick={moveTo} />}
-                {!folded && cut && <GoLink onClick={() => setEveryUrgent(true)}>{`Show all ${held.length}`}</GoLink>}
-              </section>
-            );
-          })
-        ) : (
-          <Table items={items} all={items} now={now} open={open} pick={moveTo} />
-        )}
+        {blocks.map(({ block, items: held }) => {
+          const folded = hidden.has(block);
+          const cut = block === 'waiting' && !everyUrgent && held.length > URGENT_SHOWN;
+          const shown = cut ? held.slice(0, URGENT_SHOWN) : held;
+          const today = home.home?.today;
+          return (
+            <section key={block} className="flex flex-col gap-2.5">
+              <div className="flex min-h-7 items-center justify-between gap-3">
+                <h2 className="text-base font-medium text-foreground">{held.length === 0 ? HOME_BRIEF_TITLE[block] : `${HOME_BRIEF_TITLE[block]} · ${held.length}`}</h2>
+                <span className="flex items-center gap-3">
+                  {block === 'today' && <GoLink onClick={() => go({ destination: 'governance', tab: 'activity' })}>Activity</GoLink>}
+                  {held.length > 0 && (
+                    <KitButton onClick={() => setHidden((now) => (folded ? new Set([...now].filter((each) => each !== block)) : new Set([...now, block])))}>{folded ? 'Show' : 'Hide'}</KitButton>
+                  )}
+                </span>
+              </div>
+              {held.length === 0 ? (
+                <p className="text-body-sm text-muted">{HOME_BRIEF_NONE[block]}</p>
+              ) : (
+                !folded && <Table items={shown} all={items} now={now} open={open} pick={moveTo} />
+              )}
+              {!folded && cut && <GoLink onClick={() => setEveryUrgent(true)}>{`Show all ${held.length}`}</GoLink>}
+              {block === 'today' && today !== undefined && <p className="text-footnote text-muted">{HomeLines.today(today)}</p>}
+              {block === 'waiting' && waitingFoot}
+            </section>
+          );
+        })}
+        {trail}
       </div>
       {opened !== undefined && (
         <Inspector title={position(opened.id, items) ?? 'Details'} width={width} close={() => setOpen(undefined)}>
@@ -269,30 +286,6 @@ function useHeldFeed({ calls }: SettingsParts): void {
   }, []);
 }
 
-/** The tabs across Today, each with how many it holds, as the console's counted tabs are. */
-function CountTabs({ chosen, counts, choose }: { chosen: TodayTab; counts: Record<TodayTab, readonly TodayItem[]>; choose: (tab: TodayTab) => void }) {
-  return (
-    <div role="tablist" aria-label="Today" className="flex flex-wrap gap-1 border-b border-panel-edge">
-      {TODAY_TABS.map((tab) => {
-        const on = tab === chosen;
-        return (
-          <button
-            key={tab}
-            type="button"
-            role="tab"
-            aria-selected={on}
-            onClick={() => choose(tab)}
-            className={`mx-focus -mb-px flex h-9 cursor-pointer items-center gap-2 border-b-2 px-3 text-body-sm ${on ? 'border-primary font-medium text-foreground' : 'border-transparent text-muted hover:text-foreground'}`}
-          >
-            {TODAY_TAB_TITLE[tab]}
-            <span className="rounded-full bg-hover px-1.5 text-label font-medium tabular-nums text-muted">{counts[tab].length}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 /** The numbered table: what, with its muted line under it, who it is from, how long ago, and its state. */
 function Table({ items, all, now, open, pick }: { items: readonly TodayItem[]; all: readonly TodayItem[]; now: number; open: string | undefined; pick: (id: string) => void }) {
   return (
@@ -339,25 +332,6 @@ function Table({ items, all, now, open, pick }: { items: readonly TodayItem[]; a
   );
 }
 
-function Empty({ tab, activity }: { tab: TodayTab; activity: boolean }) {
-  switch (tab) {
-    case 'overview':
-      return <EmptyState icon={Sun} title="Nothing needs you today" body="When an agent asks first, stops, or hands back to you, it waits here, the most urgent first." />;
-    case 'done':
-      return <EmptyState icon={CheckCircle2} title="Nothing done yet today" body="What your agents run today shows here as it goes through, newest first." />;
-    case 'handoffs':
-      return <EmptyState icon={Undo2} title="Nothing handed back" body="A session that finished its turn and waits on you shows here, with the way back into it." />;
-    case 'log':
-      return (
-        <EmptyState
-          icon={ListChecks}
-          title="Nothing in today's record"
-          body={activity ? 'Every action your agents take today is written here with what your rules decided.' : "This computer's runtime does not answer activity yet, so today's record cannot be read."}
-        />
-      );
-  }
-}
-
 /** The open item: what it is, the facts, what was recommended, and the choices, each pressed by its letter. */
 function Detail({
   item,
@@ -380,10 +354,11 @@ function Detail({
   move: (offset: number) => void;
   press: (choice: TodayChoice) => void;
 }) {
-  const facts: [string, string][] = [
-    ['From', item.agentName],
+  const facts: [string, ReactNode][] = [
+    ['From', <AgentName agent={item.agent ?? 'memnox'} name={item.agentName} />],
     ['Waiting', waited(item.since, now)],
   ];
+  if (item.project !== undefined) facts.push(['Project', item.project]);
   if (item.detail !== undefined) facts.push(['About', item.detail]);
   if (item.kind.kind === 'held' && card !== undefined) facts.push(['Signed', signedLine(card, keyTitle)]);
   return (

@@ -68,6 +68,7 @@ struct AppShellView: View {
         let shape = RoundedRectangle(cornerRadius: Layout.panelRadius, style: .continuous)
         return VStack(spacing: 0) {
             topBar(route, width)
+            strip(route, width)
             AppPage(shell: shell, models: models, route: route, width: width)
                 .id(route)
                 .environment(\.paneHeading, heading(route))
@@ -82,9 +83,27 @@ struct AppShellView: View {
         .padding(.leading, width == .compact ? Layout.panelInset : 0)
     }
 
+    /// The tabs of the sidebar row the page sits under, as the console sets a page's tabs under its top bar, drawn only
+    /// once the row holds two pages the runtime answers.
+    @ViewBuilder private func strip(_ route: WindowRoute, _ width: WidthClass) -> some View {
+        let tabs = Sidebar.strip(for: route, supports: shell.supports)
+        if let chosen = tabs.firstIndex(where: { $0.route == route }) {
+            InspectorTabs(tabs: tabs.indices.map { (id: String($0), title: tabs[$0].title) }, chosen: String(chosen)) { id in
+                if let at = Int(id), tabs.indices.contains(at) { shell.go(tabs[at].route) }
+            }
+            .padding(.horizontal, ShellScroll<EmptyView>.side(width))
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(Sidebar.row(of: route)?.title ?? "")
+        }
+    }
+
     /// Settings keeps its tree beside the page; every other page is reached from the sidebar, so it shows only its own
     /// title and line, and Home and Today show neither, since Today writes its own line from what waits.
     private func heading(_ route: WindowRoute) -> PaneHeading? {
+        // A project's Overview heads itself with the project's name; its other pages say their own title and line.
+        if let place = ProjectSidebar.place(of: route) {
+            return place.page == .overview ? nil : .page(title: place.page.title, subtitle: place.page.summary)
+        }
         let info = Destinations.info(route.destination)
         let tabs = Destinations.visibleTabs(route.destination, supports: shell.supports)
         if route.destination != .settings, route.destination != .home, route.destination != .today, let shown = Destinations.tab(of: route) {
@@ -108,6 +127,7 @@ struct AppShellView: View {
             breadcrumb(route)
                 .padding(.leading, Memnox.Spacing.medium)
             Spacer(minLength: Memnox.Spacing.medium)
+            if shell.demo { DemoBadge() }
             if width != .compact {
                 TopBarPickers(shell: shell)
             } else {
@@ -120,26 +140,32 @@ struct AppShellView: View {
         .frame(height: ShellMetrics.barHeight - Layout.panelInset)
     }
 
-    /// Where the window is, as the console's top bar says it: the destination, then its tab once there are tabs.
+    /// Where the window is, as the console's top bar says it: the sidebar row, then its tab once the row has a strip.
     private func breadcrumb(_ route: WindowRoute) -> some View {
-        let info = Destinations.info(route.destination)
-        let tabs = Destinations.visibleTabs(route.destination, supports: shell.supports)
-        let tab = tabs.count < 2 ? nil : tabs.first { $0.id == route.tab }
+        let parts = crumbs(route)
         return HStack(spacing: Memnox.Spacing.small) {
-            Text(info.title)
-                .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, tab == nil ? .medium : .regular))
-                .foregroundStyle(tab == nil ? Memnox.Console.foreground : Memnox.Console.muted)
-            if let tab {
-                Text("/").foregroundStyle(Memnox.Console.faint).accessibilityHidden(true)
-                Text(tab.title)
-                    .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
-                    .foregroundStyle(Memnox.Console.foreground)
+            ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
+                let last = index == parts.count - 1
+                if index > 0 { Text("/").foregroundStyle(Memnox.Console.faint).accessibilityHidden(true) }
+                Text(part)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, last ? .medium : .regular))
+                    .foregroundStyle(last ? Memnox.Console.foreground : Memnox.Console.muted)
             }
         }
         .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
         .lineLimit(1)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
+    }
+
+    /// The sidebar row and its tab once the row has a strip, or inside a project, Projects, its name and the page.
+    private func crumbs(_ route: WindowRoute) -> [String] {
+        if let place = ProjectSidebar.place(of: route) {
+            return ProjectSidebar.breadcrumb(place, name: shell.projects?.projects.projects?.first { $0.id == place.id }?.name)
+        }
+        let row = Sidebar.row(of: route)?.title ?? Destinations.info(route.destination).title
+        let tab = Sidebar.strip(for: route, supports: shell.supports).first { $0.route == route }
+        return [row] + (tab.map { [$0.title] } ?? [])
     }
 
     /// Back, Forward and the menu, each a 36 square that lights at radius 6 under the pointer.
@@ -237,10 +263,8 @@ private struct AppPage: View {
     var body: some View {
         if let menu = models.menu, let setup = models.setup, let island = shell.island {
             switch route.destination {
-            case .today:
-                TodayDestination(shell: shell, island: island, home: models.home, agents: shell.agents, activity: shell.todayActivity,
-                                 width: width)
-            case .home:
+            // An old link to Today settles on Home, which now holds what Today showed.
+            case .today, .home:
                 HomeDestination(shell: shell, menu: menu, setup: setup, island: island, models: models, width: width)
             case .agents:
                 if route.tab == "computer" {
@@ -253,23 +277,23 @@ private struct AppPage: View {
                     SessionsDestination(shell: shell, island: island, width: width)
                 }
             case .workspaces:
-                // Memory reads `memory-facts`, My Skills and Assigned `skills-hub`, Discover `index-list` and Profiles `profiles`; until this Mac's runtime answers them only the projects show.
+                // Memory reads `memory-facts`, My Skills and Assigned `skills-hub`, and Discover `index-list`; until this Mac's runtime answers them only the projects show.
                 if route.tab == "skills" || route.tab == "assigned" {
                     if let skills = shell.skills {
                         SkillsDestination(screen: skills, island: island, tab: route.tab, current: shell.currentProject,
                                           scope: shell.scope, width: width)
                     }
                 } else if route.tab == "sources" {
-                    // Where memory is read from, under Inputs beside the connectors, as Memnox Cloud places its sources.
+                    // Where memory is read from, as Files under Connected tools beside the connectors, as Memnox Cloud places its sources.
                     if let memory = shell.memory { ShellScroll(width: width) { MemorySourcesPage(screen: memory, shell: shell) } }
-                } else if route.tab == "memory" {
-                    if let memory = shell.memory { MemoryDestination(screen: memory, shell: shell, island: island, width: width) }
+                } else if route.tab == "memory" || route.tab == "map" || route.tab == "layers" {
+                    if let memory = shell.memory {
+                        MemoryDestination(screen: memory, shell: shell, island: island, width: width, shown: MemoryView(tab: route.tab))
+                    }
                 } else if route.tab == "discover" {
                     if let index = shell.index { DiscoverDestination(screen: index, width: width) }
-                } else if route.tab == "profiles" {
-                    if let profiles = shell.profiles { ProfilesDestination(shell: shell, screen: profiles, width: width) }
                 } else {
-                    WorkspacesDestination(shell: shell, island: island, width: width)
+                    WorkspacesDestination(shell: shell, island: island, account: models.account, width: width)
                 }
             case .mcp:
                 // Servers, Clients and Secrets read `mcp-hub`; until this Mac's runtime answers it only Your apps shows.
@@ -287,7 +311,7 @@ private struct AppPage: View {
                 } else if route.tab == "learn", let memory = shell.memory {
                     LearnDestination(screen: memory, island: island, width: width)
                 } else if route.tab == "approvals" || route.tab == nil {
-                    ApprovalsDestination(island: island, width: width)
+                    ApprovalsDestination(island: island, projects: shell.projects?.projects.projects ?? [], width: width)
                 }
             case .settings:
                 SettingsDestination(models: models, menu: menu, setup: setup, tab: route.tab, backup: shell.backup,
@@ -321,7 +345,9 @@ private struct TopBarPickers: View {
 
     var body: some View {
         HStack(spacing: Memnox.Spacing.small) {
-            if shell.supports("projects") == true, let projects = shell.projects?.projects.projects, !projects.isEmpty {
+            // Inside a project its own sidebar holds the switcher, so the top bar shows no second one.
+            if shell.supports("projects") == true, ProjectSidebar.place(of: shell.route) == nil,
+               let projects = shell.projects?.projects.projects, !projects.isEmpty {
                 let current = shell.currentProject
                 Menu {
                     Button(ShellLines.allProjects) { shell.projectId = "" }
@@ -364,5 +390,26 @@ private struct TopBarPickers: View {
         .background(Memnox.Console.field, in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous)
             .strokeBorder(Memnox.Console.controlEdge, lineWidth: Memnox.Stroke.hairline))
+    }
+}
+
+/// Says the window shows made up data, so a demo is never taken for the person's own.
+private struct DemoBadge: View {
+    private enum Layout {
+        static let horizontal: CGFloat = 8
+        static let vertical: CGFloat = 3
+        static let fill = 0.14
+    }
+
+    var body: some View {
+        Text("Demo data")
+            .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
+            .foregroundStyle(Memnox.Console.warm)
+            .padding(.horizontal, Layout.horizontal)
+            .padding(.vertical, Layout.vertical)
+            .background(Memnox.Console.warm.opacity(Layout.fill), in: Capsule())
+            .overlay(Capsule().strokeBorder(Memnox.Console.warm, lineWidth: Memnox.Stroke.hairline))
+            .help("Everything in this window comes from the demo fixture, and nothing reaches Memnox or your accounts.")
+            .accessibilityLabel("Demo data: nothing here is real")
     }
 }

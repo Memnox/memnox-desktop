@@ -8,28 +8,29 @@ final class DestinationsTests: XCTestCase {
     private let everything: Supports = { _ in true }
 
     func testHidesATabUntilTheDaemonAnswersTheMethodItReads() {
-        XCTAssertEqual(Destinations.visibleTabs(.mcp, supports: nothingNew).map(\.id), ["apps"])
-        XCTAssertEqual(Destinations.visibleTabs(.mcp, supports: everything).map(\.id), ["servers", "clients", "secrets", "apps"])
+        XCTAssertEqual(Destinations.visibleTabs(.workspaces, supports: nothingNew).map(\.id), ["projects"])
         // Not asked yet is not a yes, so nothing shows before the daemon answers.
         XCTAssertEqual(Destinations.visibleTabs(.governance, supports: { _ in nil }).map(\.id), ["approvals"])
     }
 
     func testListsEveryAgentFirstOnceTheDaemonAnswersAgents() {
-        XCTAssertEqual(Destinations.visibleTabs(.agents, supports: everything).map(\.id), ["list", "sessions", "computer"])
+        XCTAssertEqual(Destinations.visibleTabs(.agents, supports: everything).map(\.id), ["list", "computer"])
         XCTAssertEqual(Destinations.settled(WindowRoute(.agents), supports: everything), WindowRoute(.agents, tab: "list"))
-        // A runtime older than the agents view opens Agents on its sessions, as before.
-        XCTAssertEqual(Destinations.settled(WindowRoute(.agents), supports: nothingNew), WindowRoute(.agents, tab: "sessions"))
+        // Sessions is left off for now, so a runtime older than the agents view opens Agents on this computer.
+        XCTAssertEqual(Destinations.settled(WindowRoute(.agents), supports: nothingNew), WindowRoute(.agents, tab: "computer"))
+        XCTAssertEqual(Destinations.settled(WindowRoute(.agents, tab: "sessions"), supports: everything), WindowRoute(.agents, tab: "list"))
         XCTAssertEqual(Destinations.visibleTabs(.governance, supports: { $0 == "rules" || $0 == "activity" }).map(\.id),
                        ["approvals", "policies", "activity"])
     }
 
     func testShowsTheSkillsHubOnlyWhereTheRuntimeKeepsOne() {
         XCTAssertEqual(Destinations.visibleTabs(.workspaces, supports: nothingNew).map(\.id), ["projects"])
-        XCTAssertEqual(Destinations.visibleTabs(.workspaces, supports: everything).map(\.id), ["projects", "memory", "sources", "skills", "assigned", "discover", "profiles"])
+        XCTAssertEqual(Destinations.visibleTabs(.workspaces, supports: everything).map(\.id), ["projects", "map", "memory", "layers", "sources", "skills"])
     }
 
     func testLandsOnTheFirstTabShownWhenTheOneAskedForIsHidden() {
         XCTAssertEqual(Destinations.settled(WindowRoute(.mcp, tab: "servers"), supports: nothingNew), WindowRoute(.mcp, tab: "apps"))
+        XCTAssertEqual(Destinations.settled(WindowRoute(.mcp, tab: "servers"), supports: everything), WindowRoute(.mcp, tab: "servers"))
         XCTAssertEqual(Destinations.settled(WindowRoute(.home), supports: everything), WindowRoute(.home))
         XCTAssertEqual(Destinations.settled(WindowRoute(.settings), supports: nothingNew), WindowRoute(.settings, tab: "account"))
     }
@@ -44,50 +45,58 @@ final class DestinationsTests: XCTestCase {
         XCTAssertNil(Destinations.route(forPage: "nowhere"))
     }
 
-    func testKeepsBackupUnderSettingsAfterAppearanceAsWindowsAndLinuxDo() {
-        let tabs = Destinations.settingsTabs.map(\.id)
-        XCTAssertEqual(tabs.firstIndex(of: "backup"), tabs.firstIndex(of: "appearance").map { $0 + 1 })
-        XCTAssertEqual(Destinations.route(forPage: "backup"), WindowRoute(.settings, tab: "backup"))
-        XCTAssertEqual(Destinations.settled(WindowRoute(.settings, tab: "backup"), supports: { _ in false }), WindowRoute(.settings, tab: "backup"))
+    func testLeavesDiscoverOutForNowAndShowsTheHubOnceTheRuntimeAnswersIt() {
+        XCTAssertFalse(Destinations.visibleTabs(.workspaces, supports: everything).map(\.id).contains("discover"))
+        XCTAssertEqual(Destinations.visibleTabs(.mcp, supports: everything).map(\.id), ["servers", "apps"])
+        XCTAssertEqual(Destinations.visibleTabs(.mcp, supports: nothingNew).map(\.id), ["apps"])
+        XCTAssertEqual(Destinations.matchCommands("servers", supports: everything).map(\.title), ["Servers"])
     }
 
-    func testShowsTheLocalNetworkAfterPhonesOnlyWhereTheRuntimeAnswersIt() {
-        XCTAssertFalse(Destinations.visibleTabs(.settings, supports: { _ in false }).map(\.id).contains("network"))
-        let tabs = Destinations.visibleTabs(.settings, supports: { _ in true }).map(\.id)
-        XCTAssertEqual(tabs.firstIndex(of: "network"), tabs.firstIndex(of: "phones").map { $0 + 1 })
-        XCTAssertEqual(Destinations.route(forPage: "network"), WindowRoute(.settings, tab: "network"))
+    func testLeavesBackupOutOfSettingsForNowAsWindowsAndLinuxDo() {
+        XCTAssertFalse(Destinations.settingsTabs.map(\.id).contains("backup"))
     }
 
-    func testShowsPersonalSyncAfterTheLocalNetworkOnlyWhereTheRuntimeAnswersIt() {
-        XCTAssertFalse(Destinations.visibleTabs(.settings, supports: { _ in false }).map(\.id).contains("sync"))
-        let tabs = Destinations.visibleTabs(.settings, supports: { _ in true }).map(\.id)
-        XCTAssertEqual(Array(tabs[3...5]), ["phones", "network", "sync"])
-        XCTAssertEqual(Destinations.route(forPage: "sync"), WindowRoute(.settings, tab: "sync"))
+    func testLeavesTheLocalNetworkOutOfSettingsForNowAsWindowsAndLinuxDo() {
+        XCTAssertFalse(Destinations.visibleTabs(.settings, supports: { _ in true }).map(\.id).contains("network"))
+    }
+
+    func testLeavesWhatCouldLoseAPersonOffForNowAndSettlesItsOldLinks() {
+        XCTAssertFalse(Destinations.visibleTabs(.settings, supports: { _ in true }).map(\.id).contains("sync"))
+        XCTAssertEqual(Destinations.settled(WindowRoute(.settings, tab: "sync"), supports: everything), WindowRoute(.settings, tab: "account"))
+        XCTAssertEqual(Destinations.settled(WindowRoute(.governance, tab: "learn"), supports: everything), WindowRoute(.governance, tab: "approvals"))
+        XCTAssertEqual(Destinations.settled(WindowRoute(.mcp, tab: "secrets"), supports: everything), WindowRoute(.mcp, tab: "servers"))
+        XCTAssertEqual(Destinations.settled(WindowRoute(.workspaces, tab: "assigned"), supports: everything), WindowRoute(.workspaces, tab: "projects"))
     }
 
     func testGroupsSettingsUnderWhoAChangeIsAboutAsTheConsolesSettingsTreeDoes() {
         let groups = Destinations.tabGroups(.settings, supports: everything).map { [$0.title] + $0.tabs.map(\.id) }
         XCTAssertEqual(groups, [
             ["Account", "account", "permissions", "connection"],
-            ["Devices", "phones", "network", "sync"],
+            ["Devices", "phones"],
             ["Voice", "voice", "listening", "dictation"],
-            ["App", "appearance", "backup", "help"],
+            ["App", "appearance", "help"],
         ])
     }
 
     func testGroupsEveryDestinationAsWindowsAndLinuxDo() {
         let titles = { (id: Destination) in Destinations.tabGroups(id, supports: self.everything).map { [$0.title] + $0.tabs.map(\.title) } }
-        XCTAssertEqual(titles(.agents), [["Agents", "Agents", "Sessions"], ["This computer", "On this computer"]])
-        XCTAssertEqual(titles(.workspaces), [["Projects", "Workspaces", "Profiles"], ["Knowledge", "Memory", "Sources"],
-                                             ["Skills", "My Skills", "Assigned", "Discover"]])
-        XCTAssertEqual(titles(.mcp), [["Hub", "Servers", "Clients", "Secrets"], ["Apps", "Connectors"]])
-        XCTAssertEqual(titles(.governance), [["Waiting on you", "Approvals", "Learn"], ["Rules", "Rules"], ["Record", "Activity"]])
+        XCTAssertEqual(titles(.agents), [["Agents", "Agents"], ["This computer", "On this computer"]])
+        XCTAssertEqual(titles(.workspaces), [["Projects", "Projects"], ["Knowledge", "Map", "Memory", "Layers", "Files"],
+                                             ["Skills", "My Skills"]])
+        XCTAssertEqual(titles(.mcp), [["Hub", "Servers"], ["Apps", "Connectors"]])
+        XCTAssertEqual(titles(.governance), [["Needs your attention", "Approvals"], ["Rules", "Protection settings"], ["Record", "Activity"]])
     }
 
     func testDropsAHeadingWhoseEveryTabIsHiddenSoNoGroupStandsOverNothing() {
         XCTAssertEqual(Destinations.tabGroups(.mcp, supports: nothingNew).map(\.title), ["Apps"])
         XCTAssertEqual(Destinations.tabGroups(.mcp, supports: everything).map(\.title), ["Hub", "Apps"])
         XCTAssertEqual(Destinations.tabGroups(.home, supports: everything), [])
+    }
+
+    func testGivesTheMapItsOwnPageOnceTheRuntimeAnswersMemory() {
+        XCTAssertFalse(Destinations.visibleTabs(.workspaces, supports: nothingNew).map(\.id).contains("map"))
+        XCTAssertEqual(Destinations.tab(of: WindowRoute(.workspaces, tab: "map"))?.tab.title, "Map")
+        XCTAssertEqual(Destinations.settled(WindowRoute(.workspaces, tab: "map"), supports: everything), WindowRoute(.workspaces, tab: "map"))
     }
 
     func testNamesThePaneARouteOpensWithItsHeadingAndWhatItIsFor() {
@@ -135,13 +144,13 @@ final class DestinationsTests: XCTestCase {
         XCTAssertNil(Destinations.info(.settings).key)
     }
 
-    func testOpensOnTodayWithHomeStillReachable() {
-        XCTAssertEqual(Destinations.landing, WindowRoute(.today))
-        XCTAssertEqual(Destinations.all.first?.id, .today)
-        XCTAssertEqual(Destinations.settled(WindowRoute(.today), supports: everything), WindowRoute(.today))
+    func testOpensOnHomeAndSendsAnOldTodayLinkThere() {
+        XCTAssertEqual(Destinations.landing, WindowRoute(.home))
+        XCTAssertEqual(Destinations.settled(WindowRoute(.today), supports: everything), WindowRoute(.home))
         // Today keeps no digit, so Command 1 to 5 still open what they opened on Windows and Linux.
         XCTAssertNil(Destinations.info(.today).key)
         XCTAssertEqual(Destinations.route(forPage: "home"), WindowRoute(.home))
-        XCTAssertEqual(Destinations.route(forPage: "today"), WindowRoute(.today))
+        XCTAssertEqual(Destinations.route(forPage: "today"), WindowRoute(.home))
+        XCTAssertFalse(Destinations.commands(supports: everything).contains { $0.route.destination == .today })
     }
 }

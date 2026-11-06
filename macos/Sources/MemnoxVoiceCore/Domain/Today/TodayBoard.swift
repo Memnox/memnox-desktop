@@ -107,10 +107,13 @@ public struct TodayItem: Equatable, Identifiable, Sendable {
     public let sessionId: String?
     public let state: TodayState
     public let choices: [TodayChoice]
+    /// The project it happens in, by its name, so a person with several projects sees where; nil where nothing says.
+    public let project: String?
 
     public init(id: String, kind: TodayKind, title: String, detail: String? = nil, recommendation: String? = nil,
                 agent: String? = nil, agentName: String, since: Date? = nil, sessionId: String? = nil,
-                state: TodayState, choices: [TodayChoice] = []) {
+                state: TodayState, choices: [TodayChoice] = [], project: String? = nil) {
+        self.project = project
         self.id = id
         self.kind = kind
         self.title = title
@@ -163,9 +166,12 @@ public struct TodayHeld: Equatable, Sendable {
     public let at: String?
     public let team: Bool
     public let sessionId: String?
+    /// The folder it waits in, by name, as the daemon's event names it.
+    public let place: String?
 
     public init(subject: String, agent: String, who: String, what: String, why: String? = nil, at: String? = nil,
-                team: Bool = false, sessionId: String? = nil) {
+                team: Bool = false, sessionId: String? = nil, place: String? = nil) {
+        self.place = place
         self.subject = subject
         self.agent = agent
         self.who = who
@@ -186,9 +192,12 @@ public struct TodaySources: Equatable, Sendable {
     /// What only the person can do, word for word as the home says it.
     public var owed: [String]
     public var ready: HomeReady?
+    /// The projects on this computer, which name where a held call or a session happens.
+    public var projects: [ProjectView]
 
     public init(held: [TodayHeld] = [], sessions: [SessionCard] = [], activity: [ActivityRow] = [],
-                agents: [AgentStanding] = [], owed: [String] = [], ready: HomeReady? = nil) {
+                agents: [AgentStanding] = [], owed: [String] = [], ready: HomeReady? = nil, projects: [ProjectView] = []) {
+        self.projects = projects
         self.held = held
         self.sessions = sessions
         self.activity = activity
@@ -205,7 +214,7 @@ public enum TodayBoard {
     /// Everything on the Overview, most urgent first and the oldest first within the same urgency.
     public static func overview(_ sources: TodaySources, now: Date, calendar: Calendar = .current) -> [TodayItem] {
         let today = ofToday(sources.activity, now: now, calendar: calendar)
-        let items = held(sources.held) + stopped(today) + sessions(sources.sessions) + next(sources)
+        let items = held(sources.held, sources.projects) + stopped(today) + sessions(sources.sessions, sources.projects) + next(sources)
         return ordered(items)
     }
 
@@ -239,7 +248,7 @@ public enum TodayBoard {
 
     /// What agents handed back to the person, and what the runtime offers to let run on its own.
     public static func handoffs(_ sources: TodaySources) -> [TodayItem] {
-        ordered(sessions(sources.sessions).filter { $0.kind == .handedBack } + (sources.ready.map { [handOver($0)] } ?? []))
+        ordered(sessions(sources.sessions, sources.projects).filter { $0.kind == .handedBack } + (sources.ready.map { [handOver($0)] } ?? []))
     }
 
     /// Every action today, newest first, each with what came of it.
@@ -283,11 +292,12 @@ public enum TodayBoard {
 
     // MARK: Reading each source
 
-    private static func held(_ calls: [TodayHeld]) -> [TodayItem] {
+    private static func held(_ calls: [TodayHeld], _ projects: [ProjectView]) -> [TodayItem] {
         calls.map { call in
             TodayItem(id: "held:\(call.subject)", kind: .held(team: call.team), title: call.what, detail: call.why,
                       agent: call.agent, agentName: call.who, since: call.at.flatMap(moment), sessionId: call.sessionId,
-                      state: .needsYou, choices: heldChoices(team: call.team))
+                      state: .needsYou, choices: heldChoices(team: call.team),
+                      project: ProjectContext.projectName(place: call.place, projects: projects))
         }
     }
 
@@ -311,7 +321,7 @@ public enum TodayBoard {
         }
     }
 
-    private static func sessions(_ cards: [SessionCard]) -> [TodayItem] {
+    private static func sessions(_ cards: [SessionCard], _ projects: [ProjectView]) -> [TodayItem] {
         cards.compactMap { card in
             let kind: TodayKind
             let state: TodayState
@@ -323,10 +333,12 @@ public enum TodayBoard {
             }
             var ways: [(String, TodayAction, Bool)] = [("Open conversation", .openConversation, false)]
             if card.host?.app != nil { ways.append(("Find in app", .findInApp, false)) }
-            let detail = kind == .paused ? "Paused, so nothing it asks for runs" : SessionReading.repository(card.repository)
+            let project = ProjectContext.projectName(repository: card.repository, projects: projects)
+            // The project names where it runs, so the detail says only what the place alone does not.
+            let detail = kind == .paused ? "Paused, so nothing it asks for runs" : (project == nil ? SessionReading.repository(card.repository) : nil)
             return TodayItem(id: "session:\(card.sessionId)", kind: kind, title: card.title, detail: detail, agent: card.agent,
                              agentName: card.agentName, since: card.lastActive.flatMap(moment), sessionId: card.sessionId,
-                             state: state, choices: lettered(ways))
+                             state: state, choices: lettered(ways), project: project)
         }
     }
 
@@ -352,7 +364,7 @@ public enum TodayBoard {
     private static func record(_ row: ActivityRow, state: TodayState) -> TodayItem {
         let detail = [StudioLines.verdict(row.effect), row.rule, StudioLines.answeredWords(by: row.answeredBy, how: row.answeredHow)]
             .compactMap { $0 }.joined(separator: SessionText.separator)
-        return TodayItem(id: "row:\(row.id)", kind: .done, title: StudioLines.activityLine(operation: row.operation, target: row.target),
+        return TodayItem(id: "row:\(row.id)", kind: .done, title: ActivityWords.line(operation: row.operation, target: row.target),
                          detail: detail, agent: row.agent, agentName: row.agentName, since: moment(row.at), sessionId: row.session,
                          state: state, choices: lettered([("See why in Activity", .openActivity, false)]))
     }

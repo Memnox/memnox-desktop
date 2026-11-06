@@ -36,8 +36,15 @@ describe('an inspector popped out', () => {
 });
 
 describe('the palette', () => {
+  it('reaches the Memory and Files pages by the names the sidebar gives them', () => {
+    const titles = commands(() => true).map((each) => each.title);
+    expect(titles).toEqual(expect.arrayContaining(['Memory', 'Files', 'Activity', 'Protection settings']));
+    expect(titles).not.toContain('Sources');
+    expect(titles).not.toContain('Map');
+  });
+
   it('lists the number key beside each destination', () => {
     const keyed = commands(() => true).filter((each) => each.key !== undefined).map((each) => `${each.key} ${each.title}`);
-    expect(keyed).toEqual(['1 Home', '2 Agents', '3 Workspaces', '4 MCP Hub', '5 Governance']);
+    expect(keyed).toEqual(['1 Home', '2 AI agents', '3 Projects', '4 MCP Hub', '5 Governance']);
   });
 });

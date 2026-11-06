@@ -2,35 +2,43 @@ import Combine
 import MemnoxVoiceCore
 import SwiftUI
 
-/// What needs the person today, most urgent first, read off what the window already holds: the calls waiting on the
-/// island, the sessions, what the agents did since midnight, the agents outside Memnox and what only the person can do.
-/// Every answer to a held call goes through the island's own path, so an allow is signed with Touch ID exactly as there.
-struct TodayDestination: View {
+/// Today's fixed measures, kept apart since a generic view cannot hold stored statics.
+private enum TodayLayout {
+    /// The window reads the clock this often, so ages and the synced time stay true while it is open.
+    static let clockSeconds: TimeInterval = 15
+
+    static let columns = [
+        WorkColumn(title: "", width: WorkTable.numberWidth), WorkColumn(title: "What", width: nil),
+        WorkColumn(title: "From", width: WorkTable.fromWidth), WorkColumn(title: "When", width: WorkTable.whenWidth),
+        WorkColumn(title: "State", width: WorkTable.stateWidth),
+    ]
+}
+
+/// What Today showed, drawn on Home below what `lead` puts first, as the console's home brief: waiting on you, working
+/// now, today, ready to hand over and not covered. Every answer to a held call goes through the island's own path, so
+/// an allow is signed with Touch ID exactly as there.
+struct TodayDestination<Lead: View, WaitingFoot: View, Trail: View>: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var island: IslandModel
     let home: HomeModel?
     let agents: AgentsScreen?
     let activity: ActivityScreen?
     let width: WidthClass
+    /// The greeting and the getting started steps, above every block.
+    @ViewBuilder let lead: Lead
+    /// What else waits on the person and lives outside Today's items, under Waiting on you.
+    @ViewBuilder let waitingFoot: WaitingFoot
+    /// The counts and the sessions to carry on, below every block.
+    @ViewBuilder let trail: Trail
 
-    @State private var tab: TodayTab = .overview
-    @State private var hidden: Set<TodaySection> = []
+    @State private var hidden: Set<HomeBriefBlock> = []
     @State private var everyUrgent = false
     /// Bumped when the home, the agents or the activity change, since each is optional and so not observed directly.
     @State private var tick = 0
     @FocusState private var focused: Bool
 
-    /// The window reads the clock this often, so ages and the synced time stay true while it is open.
-    private static let clockSeconds: TimeInterval = 15
-
-    private static let columns = [
-        WorkColumn(title: "", width: WorkTable.numberWidth), WorkColumn(title: "What", width: nil),
-        WorkColumn(title: "From", width: WorkTable.fromWidth), WorkColumn(title: "When", width: WorkTable.whenWidth),
-        WorkColumn(title: "State", width: WorkTable.stateWidth),
-    ]
-
     var body: some View {
-        TimelineView(.periodic(from: .now, by: Self.clockSeconds)) { context in
+        TimelineView(.periodic(from: .now, by: TodayLayout.clockSeconds)) { context in
             page(now: context.date)
         }
         .onReceive(changes) { _ in tick += 1 }
@@ -51,25 +59,18 @@ struct TodayDestination: View {
 
     private func page(now: Date) -> some View {
         let sources = self.sources
-        let overview = TodayBoard.overview(sources, now: now)
-        let rows = activity?.activity.rows ?? []
-        let lists: [TodayTab: [TodayItem]] = [
-            .overview: overview,
-            .done: TodayBoard.done(rows, now: now),
-            .handoffs: TodayBoard.handoffs(sources),
-            .log: TodayBoard.log(rows, now: now),
-        ]
-        let items = lists[tab] ?? []
+        let blocks = HomeBrief.blocks(sources, now: now)
+        let items = HomeBrief.items(blocks)
         let open = items.first { $0.id == shell.inspecting }
         return InspectorLayout(width: width, title: TodayLines.position(of: open?.id, in: items), close: { shell.inspecting = nil }) {
             ShellScroll(width: width) {
-                header(overview, now: now)
-                CountTabs(tabs: TodayTab.allCases.map { ($0, $0.title, lists[$0]?.count ?? 0) }, chosen: tab) { chosen in
-                    tab = chosen
-                    shell.inspecting = nil
+                lead
+                strip(blocks.first { $0.block == .waiting }?.items ?? [], now: now)
+                notes
+                ForEach(blocks, id: \.block) { each in
+                    block(each.block, each.items, all: items, now: now)
                 }
-                if tab == .overview { strip(overview, now: now) }
-                table(items, now: now)
+                trail
             }
         } detail: {
             if let open { panel(open, in: items, now: now) }
@@ -87,10 +88,12 @@ struct TodayDestination: View {
         _ = tick
         let held = island.waiting.entries.map { entry in
             TodayHeld(subject: entry.card.subject, agent: entry.card.agent, who: entry.card.who, what: entry.card.what,
-                      why: entry.card.why, at: entry.card.at, team: entry.card.team, sessionId: entry.card.sessionId)
+                      why: entry.card.why, at: entry.card.at, team: entry.card.team, sessionId: entry.card.sessionId,
+                      place: entry.card.place)
         }
         return TodaySources(held: held, sessions: island.cards, activity: activity?.activity.rows ?? [],
-                            agents: agents?.agents.agents ?? [], owed: home?.home?.needsYou ?? [], ready: home?.home?.ready)
+                            agents: agents?.agents.agents ?? [], owed: home?.home?.needsYou ?? [], ready: home?.home?.ready,
+                            projects: shell.projects?.projects.projects ?? [])
     }
 
     private func read() async {
@@ -105,18 +108,19 @@ struct TodayDestination: View {
         await activity.activity.show(ActivityFilter(since: ISO8601DateFormatter().string(from: midnight)))
     }
 
-    // MARK: Header and strip
+    // MARK: Strip and notes
 
-    private func header(_ overview: [TodayItem], now: Date) -> some View {
-        let needYou = overview.filter { $0.section == .needsYou }.count
-        let next = overview.filter { $0.section == .next }.count
-        // No Start deep work button: nothing in the runtime maps to one, so none is drawn.
-        return PageTitle(title: "Today", subtitle: TodayLines.headline(now, needYou: needYou, next: next,
-                                                                        openProjects: TodayLines.openProjects(island.cards)))
+    /// What a press on hand over or protect came to, kept beside the blocks it changed.
+    @ViewBuilder private var notes: some View {
+        ForEach([home?.handOverNote, home?.protectFailed].compactMap { $0 }, id: \.self) { line in
+            Text(line)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
-    private func strip(_ overview: [TodayItem], now: Date) -> some View {
-        let needYou = overview.filter { $0.section == .needsYou }
+    private func strip(_ needYou: [TodayItem], now: Date) -> some View {
         let shown = everyUrgent ? needYou.count : min(needYou.count, TodayBoard.urgentShown)
         return WorkStrip {
             StateMark(needYou.isEmpty ? TodayState.done : TodayState.needsYou)
@@ -131,44 +135,44 @@ struct TodayDestination: View {
         }
     }
 
-    // MARK: The table
+    // MARK: The blocks
 
-    @ViewBuilder private func table(_ items: [TodayItem], now: Date) -> some View {
-        if items.isEmpty {
-            empty
-        } else if tab == .overview {
-            VStack(alignment: .leading, spacing: ShellMetrics.sectionSpacing) {
-                ForEach(TodayBoard.sections(items), id: \.section) { group in
-                    section(group.section, group.items, all: items, now: now)
-                }
-            }
-        } else {
-            ShellPanel {
-                WorkTableHead(columns: Self.columns)
-                rows(items, all: items, now: now)
-            }
-        }
-    }
-
-    private func section(_ section: TodaySection, _ held: [TodayItem], all: [TodayItem], now: Date) -> some View {
-        let folded = hidden.contains(section)
-        let cut = section == .needsYou && !everyUrgent && held.count > TodayBoard.urgentShown
+    /// One block under its console title, its rows as Today's table, or its empty line while it holds nothing.
+    private func block(_ block: HomeBriefBlock, _ held: [TodayItem], all: [TodayItem], now: Date) -> some View {
+        let folded = hidden.contains(block)
+        let cut = block == .waiting && !everyUrgent && held.count > TodayBoard.urgentShown
         let shown = cut ? Array(held.prefix(TodayBoard.urgentShown)) : held
-        return ShellSection(title: "\(section.title) \u{00B7} \(held.count)") {
-            Button(folded ? "Show" : "Hide") {
-                withAnimation(.snappy(duration: Memnox.Motion.quick)) {
-                    if folded { hidden.remove(section) } else { hidden.insert(section) }
+        return ShellSection(title: held.isEmpty ? block.title : "\(block.title) \u{00B7} \(held.count)") {
+            HStack(spacing: Memnox.Spacing.medium) {
+                if block == .today { GoLink("Activity") { shell.go(WindowRoute(.governance, tab: "activity")) } }
+                if !held.isEmpty {
+                    Button(folded ? "Show" : "Hide") {
+                        withAnimation(.snappy(duration: Memnox.Motion.quick)) {
+                            if folded { hidden.remove(block) } else { hidden.insert(block) }
+                        }
+                    }
+                    .buttonStyle(KitButton(kind: .secondary))
                 }
             }
-            .buttonStyle(KitButton(kind: .secondary))
         } content: {
-            if !folded {
+            if held.isEmpty {
+                Text(block.none)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
+                    .foregroundStyle(Memnox.Console.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if !folded {
                 ShellPanel {
-                    WorkTableHead(columns: Self.columns)
+                    WorkTableHead(columns: TodayLayout.columns)
                     rows(shown, all: all, now: now)
                 }
                 if cut { GoLink("Show all \(held.count)") { everyUrgent = true } }
             }
+            if block == .today, let today = home?.home?.today {
+                Text(HomeLines.today(today))
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
+            }
+            if block == .waiting { waitingFoot }
         }
     }
 
@@ -180,25 +184,6 @@ struct TodayDestination: View {
                 shell.inspecting = item.id
                 focused = true
             }
-        }
-    }
-
-    @ViewBuilder private var empty: some View {
-        switch tab {
-        case .overview:
-            EmptyState(symbol: "sun.max", title: "Nothing needs you today",
-                       detail: "When an agent asks first, stops, or hands back to you, it waits here, the most urgent first.")
-        case .done:
-            EmptyState(symbol: "checkmark.circle", title: "Nothing done yet today",
-                       detail: "What your agents run today shows here as it goes through, newest first.")
-        case .handoffs:
-            EmptyState(symbol: "arrow.uturn.left", title: "Nothing handed back",
-                       detail: "A session that finished its turn and waits on you shows here, with the way back into it.")
-        case .log:
-            EmptyState(symbol: "list.bullet.rectangle", title: "Nothing in today's record",
-                       detail: shell.supports("activity") == true
-                           ? "Every action your agents take today is written here with what your rules decided."
-                           : "This Mac's runtime does not answer activity yet, so today's record cannot be read.")
         }
     }
 
@@ -220,7 +205,7 @@ struct TodayDestination: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
             StateMark(item.state)
-            FactList(facts: facts(item, now: now))
+            FactList(facts: facts(item, now: now), agents: ["From": [item.agent ?? item.agentName]])
             block("RECOMMENDATION") {
                 Text(item.recommendation ?? TodayLines.noRecommendation)
                     .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
@@ -246,6 +231,7 @@ struct TodayDestination: View {
 
     private func facts(_ item: TodayItem, now: Date) -> [(String, String)] {
         var facts: [(String, String)] = [("From", item.agentName), ("Waiting", TodayLines.waited(item.since, now: now))]
+        if let project = item.project { facts.append(("Project", project)) }
         if let detail = item.detail { facts.append(("About", detail)) }
         if case .held = item.kind, let card = card(item) {
             facts.append(("Signed", HeldSigning.line(touchID: card.touchID, actionDigest: card.actionDigest)))
@@ -300,9 +286,10 @@ struct TodayDestination: View {
     private func step(_ offset: Int, _ items: [TodayItem]) {
         guard let next = TodayBoard.step(from: shell.inspecting, by: offset, in: items) else { return }
         // Moving onto a row folded away opens it, so the open item is always on screen.
-        if let item = items.first(where: { $0.id == next }), let section = item.section {
-            hidden.remove(section)
-            if section == .needsYou, (items.firstIndex { $0.id == next } ?? 0) >= TodayBoard.urgentShown { everyUrgent = true }
+        let blocks = HomeBrief.blocks(sources, now: Date())
+        if let block = blocks.first(where: { $0.items.contains { $0.id == next } }) {
+            hidden.remove(block.block)
+            if block.block == .waiting, (block.items.firstIndex { $0.id == next } ?? 0) >= TodayBoard.urgentShown { everyUrgent = true }
         }
         shell.inspecting = next
     }

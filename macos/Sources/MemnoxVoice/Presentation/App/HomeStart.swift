@@ -17,7 +17,6 @@ struct HomeStart: View {
     let mode: HomeMode?
     @AppStorage(Self.hiddenKey) private var hidden = false
     @StateObject private var reads = StartReads()
-    @State private var confirmingEnforce = false
 
     /// Remembered, so a person who hid it is not shown it again on every opening.
     static let hiddenKey = "memnox.home.startHidden"
@@ -64,17 +63,17 @@ struct HomeStart: View {
                 .accessibilityLabel("What to do next")
             }
         }
-        .consoleSheet(isPresented: $confirmingEnforce) {
+        .consoleSheet(isPresented: $home.askingEnforce) {
             ConsoleConfirm(symbol: "hand.raised", title: HomeEnforce.title, message: HomeEnforce.message,
                            detail: HomeEnforce.detail, confirm: HomeEnforce.confirm, destructive: false,
                            aside: HomeEnforce.readFirst,
                            asideAct: {
-                               confirmingEnforce = false
+                               home.askingEnforce = false
                                shell.go(Self.route(.enforce))
                            },
-                           cancel: { confirmingEnforce = false },
+                           cancel: { home.askingEnforce = false },
                            act: {
-                               confirmingEnforce = false
+                               home.askingEnforce = false
                                home.enforce()
                            })
         }
@@ -157,7 +156,7 @@ struct HomeStart: View {
     /// A step's press: stopping rather than watching is confirmed here first, every other step opens where it is done.
     private func press(_ step: HomeStep) {
         if step.id == .enforce, !step.done {
-            confirmingEnforce = true
+            home.askingEnforce = true
         } else {
             shell.go(Self.route(step.id))
         }

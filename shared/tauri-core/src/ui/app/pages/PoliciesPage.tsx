@@ -256,6 +256,8 @@ const MARK_SIDE = 28;
 const MARK_CORNER_SHARE = 8 / 36;
 const GLYPH_SHARE = 0.42;
 const LOGO_SHARE = 0.78;
+/** `RuleMarks.ring`: each square ringed in the card's colour, so the one under it reads as tucked behind. */
+const MARK_RING = 2;
 
 /**
  * What a rule is about, as the Mac's `RuleMarks` stacks it: up to four squares, each tucked under the one before it and
@@ -272,7 +274,7 @@ function RuleMarks({ marks, actions, side = MARK_SIDE }: { marks: readonly RuleM
           <span
             key={tile.kind === 'logo' ? tile.toolkit : tile.kind === 'mark' ? tile.mark : tile.glyph}
             className={`grid shrink-0 place-items-center border border-border text-muted ${tile.kind === 'logo' ? 'bg-white' : 'bg-background'}`}
-            style={{ width: side, height: side, borderRadius: radius, marginLeft: at === 0 ? 0 : -side * MARK_OVERLAP_SHARE, boxShadow: '0 0 0 2px var(--color-card)', zIndex: tiles.length - at }}
+            style={{ width: side, height: side, borderRadius: radius, marginLeft: at === 0 ? 0 : -side * MARK_OVERLAP_SHARE, boxShadow: `0 0 0 ${MARK_RING}px var(--color-card)`, zIndex: tiles.length - at }}
           >
             {tile.kind === 'logo' ? <ToolMark toolkit={tile.toolkit} size={Math.round(side * LOGO_SHARE)} /> : Icon !== undefined && <Icon size={Math.round(side * GLYPH_SHARE)} />}
           </span>
@@ -362,7 +364,7 @@ function EffectSegments({ label, value, suggested, disabled, pick }: { label: st
 function ChangesBar({ count, busy, undo, review }: { count: number; busy: boolean; undo: () => void; review: () => void }) {
   return (
     <div className="sticky bottom-4 z-20">
-      <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 rounded-xl border border-panel-edge bg-card px-4 py-3 shadow-[0_12px_32px_rgb(0_0_0/0.12)]">
+      <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-xl border border-panel-edge bg-card px-4 py-2 shadow-app-changes">
         <p className="min-w-0 flex-1 text-body-sm">
           <span className="font-medium text-foreground">{changeCountLine(count)}</span> <span className="text-muted">{PROTECTION.notSaved}</span>
         </p>
@@ -511,7 +513,7 @@ const BAND_TINT: Record<Effect, string> = {
 function EffectBand({ effect }: { effect: Effect }) {
   const Icon = EFFECT_ICONS[effect];
   return (
-    <div className={`flex min-h-[30px] w-full items-center gap-1.5 rounded-md px-2 ${BAND_TINT[effect]}`}>
+    <div className={`flex min-h-app-effect-band w-full items-center gap-1.5 rounded-md px-2 ${BAND_TINT[effect]}`}>
       <Icon size={SMALL_GLYPH} strokeWidth={SMALL_STROKE} aria-hidden />
       <span className="text-body-sm font-medium">{EFFECT_WORDS[effect].title}</span>
     </div>
@@ -608,15 +610,16 @@ function RuleDetail({ rule, alike, open, remove, busy }: { rule: PolicyRuleView;
 
 /**
  * The actions the rules already name, as the Mac's borderless `Menu` beside the field: a list glyph with its
- * chevron that opens a menu under it, closing on a pick or once the pointer leaves.
+ * chevron that opens a menu under it, closing on a pick, a press outside it, Escape or once the pointer leaves.
  */
 function KnownActions({ known, pick }: { known: readonly string[]; pick: (action: string) => void }) {
   const [open, setOpen] = useState(false);
+  const press = useRef<HTMLDivElement>(null);
   return (
-    <div className="relative shrink-0">
+    <div ref={press} className="relative shrink-0">
       <Button kind="quiet" icon={List} trailing={ChevronDown} title={RULE_BUILDER.knownHelp} aria-label={RULE_BUILDER.knownActions} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} />
       {open && (
-        <Menu className="absolute top-full right-0 z-20 mt-1 max-h-72 w-64 overflow-y-auto" onMouseLeave={() => setOpen(false)}>
+        <Menu className="absolute top-full right-0 z-20 mt-1 max-h-72 w-64 overflow-y-auto" anchor={press} onClose={() => setOpen(false)} onMouseLeave={() => setOpen(false)}>
           {known.map((each) => (
             <MenuItem key={each} onPress={() => (setOpen(false), pick(each))}>
               {each}

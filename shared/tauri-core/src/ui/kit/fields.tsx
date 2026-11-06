@@ -43,11 +43,16 @@ export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
   onSubmit?: () => void;
   /** A fixed width in points, where the Mac gives the field one. */
   width?: number;
+  /**
+   * The narrowest it may shrink to in a row, where the Mac gives the field a minimum; without one it may shrink to
+   * nothing, so a row of fields never overflows.
+   */
+  minWidth?: number;
 }
 
 /** `KitField`, as the console's field: 36 tall at radius 6, a blue border and soft ring when focused. */
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { look, mono, wide, onValue, onSubmit, onChange, onKeyDown, width, className, style, placeholder, type = 'text', ...rest },
+  { look, mono, wide, onValue, onSubmit, onChange, onKeyDown, width, minWidth, className, style, placeholder, type = 'text', ...rest },
   ref,
 ) {
   const changed = (event: ChangeEvent<HTMLInputElement>) => {
@@ -62,8 +67,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     <input
       ref={ref}
       type={type}
-      className={`min-w-0 ${fieldClass({ look, mono, wide })} ${className ?? ''}`}
-      style={width === undefined ? style : { ...style, width }}
+      className={`${minWidth === undefined ? 'min-w-0' : ''} ${fieldClass({ look, mono, wide })} ${className ?? ''}`}
+      style={{ ...style, ...(width === undefined ? {} : { width }), ...(minWidth === undefined ? {} : { minWidth }) }}
       placeholder={placeholder}
       aria-label={rest['aria-label'] ?? placeholder}
       onChange={changed}
@@ -206,6 +211,18 @@ const CHECKBOX_TICK = 9;
 const CHECKBOX_TICK_STROKE = 3.5;
 
 /**
+ * `CheckboxFace` alone: the square and its tick with no press of its own, for a row that is itself the press, since
+ * a button cannot sit inside a button. The row carries `role="checkbox"` and `aria-checked`.
+ */
+export function CheckboxFace({ checked }: { checked: boolean }) {
+  return (
+    <span className={`grid size-3.5 shrink-0 place-items-center rounded-key ${checked ? 'bg-primary text-white' : 'border border-rim bg-field'}`} aria-hidden>
+      {checked && <Check size={CHECKBOX_TICK} strokeWidth={CHECKBOX_TICK_STROKE} />}
+    </span>
+  );
+}
+
+/**
  * `CheckboxStyle`: a 14 square at radius 4, the brand blue with a white tick when on, the field fill under the rim
  * when off, its words 13 after it, 6 apart. The whole row presses.
  */
@@ -237,9 +254,7 @@ export function Checkbox({
       onClick={onToggle}
       className="mx-focus inline-flex cursor-pointer items-center gap-1.5 text-left text-body-sm text-foreground disabled:cursor-default disabled:opacity-50"
     >
-      <span className={`grid size-3.5 shrink-0 place-items-center rounded-key ${checked ? 'bg-primary text-white' : 'border border-rim bg-field'}`} aria-hidden>
-        {checked && <Check size={CHECKBOX_TICK} strokeWidth={CHECKBOX_TICK_STROKE} />}
-      </span>
+      <CheckboxFace checked={checked} />
       {children}
     </button>
   );
@@ -280,11 +295,24 @@ const CLEAR_GLYPH = 13;
  * `SearchField`, as the console's: a bordered field at radius 6 with a magnifier, and a clear button while there is
  * text. With `count` it says beside it how much of the pool is on screen, as "N of M".
  */
-export function SearchInput({ value, placeholder, onChange, count }: { value: string; placeholder: string; onChange: (value: string) => void; count?: { shown: number; total: number } }) {
+export function SearchInput({
+  value,
+  placeholder,
+  onChange,
+  count,
+  autoFocus,
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  count?: { shown: number; total: number };
+  /** Takes the keyboard on arrival, as a popover's search does. */
+  autoFocus?: boolean;
+}) {
   const field = (
     <label className="mx-field-within flex h-field items-center gap-2 rounded-control border border-field-edge bg-field px-3">
       <Search size={SEARCH_GLYPH} className="shrink-0 text-muted" aria-hidden />
-      <Input look="bare" className="flex-1 text-body-sm text-foreground placeholder:text-muted" value={value} placeholder={placeholder} onValue={onChange} />
+      <Input look="bare" autoFocus={autoFocus} className="flex-1 text-body-sm text-foreground placeholder:text-muted" value={value} placeholder={placeholder} onValue={onChange} />
       {value !== '' && (
         <button type="button" className="grid cursor-pointer text-muted" onClick={() => onChange('')} aria-label={KitLines.clear}>
           <CircleX size={CLEAR_GLYPH} fill="currentColor" className="text-muted [&>path]:stroke-background" />

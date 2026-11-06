@@ -12,9 +12,9 @@ interface Variable {
 }
 
 /** A variable's or header's name is short, so its field is capped and the value takes the rest of the row. */
-const NAME_FIELD = 'max-w-[180px]';
-const HEADER_FIELD = 'max-w-[170px]';
-/** The value never narrows past what a token's start reads at; the field's own `min-w-0` would let it. */
+const NAME_FIELD = 'max-w-app-variable-name';
+const HEADER_FIELD = 'max-w-app-variable-name';
+/** The value never narrows past what a token's start reads at. */
 const VALUE_MIN = 140;
 
 /** The agents' logos in the list, as large as a row of 13 point words. */
@@ -174,7 +174,7 @@ export function AddServerDialog({ parts, agents, close, noted }: { parts: Settin
               <Input
                 wide
                 className="flex-1"
-                style={{ minWidth: VALUE_MIN }}
+                minWidth={VALUE_MIN}
                 aria-label={AddServerLines.value}
                 type={variable.secret ? 'password' : 'text'}
                 autoComplete="off"
@@ -255,7 +255,7 @@ function HeaderRows({ rows, change }: { rows: readonly HeaderRow[]; change: (row
           <Input
             wide
             className="flex-1"
-                style={{ minWidth: VALUE_MIN }}
+                minWidth={VALUE_MIN}
             aria-label={AddServerLines.headerValue}
             placeholder={AddServerLines.headerValuePlaceholder}
             type={row.secret ? 'password' : 'text'}

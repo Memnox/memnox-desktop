@@ -95,7 +95,7 @@ import { demoOn } from '../adapters/demo';
 import { useWidthClass } from './use-width';
 import { SubNavFrame } from './SubNav';
 import './shell.css';
-import { IconButton, Input, Pressable, ReadFailed, StatusWord, Tabs, TruncatedText } from '../kit';
+import { IconButton, Popover, Pressable, ReadFailed, SearchInput, SFSymbol, SideDrawer, StatusWord, Tabs, TruncatedText } from '../kit';
 import { ShellLines } from '../../core/domain/shell-lines';
 
 /** The Mac's SF Symbols as lucide draws the nearest of each, so the two sidebars wear the same icons. */
@@ -129,16 +129,25 @@ const COLLAPSED_KEY = 'memnox.sidebar.collapsed';
 const BAR_GLYPH = 13;
 const BAR_GLYPH_STROKE = 2;
 
-/** The sidebar's glyphs: 14 for a row, 12 for its search and 10 for a heading's fold chevron. */
-const NAV_GLYPH = 14;
-const NAV_GLYPH_STROKE = 1.9;
-const SEARCH_GLYPH = 12;
-const SEARCH_GLYPH_STROKE = 2.2;
-const FOLD_GLYPH = 10;
-const FOLD_GLYPH_STROKE = 2.6;
+/** `AppShellView.goTo`: the magnifier at callout size beside Go to's words. */
+const GO_TO_GLYPH = 14;
 
-/** The project switcher's own glyphs, a point under the rows' since they sit beside words of 13. */
-const SWITCHER_GLYPH = 13;
+/**
+ * `AppSidebar.Layout`: a row's glyph 13 at regular weight, the search's caption sized and medium, and a heading's
+ * chevron 9 and semibold, at the stroke `SFSymbol` gives each weight.
+ */
+const NAV_GLYPH = 13;
+const NAV_GLYPH_STROKE = 1.75;
+const SEARCH_GLYPH = 11;
+const SEARCH_GLYPH_STROKE = 2;
+const FOLD_GLYPH = 9;
+const FOLD_GLYPH_STROKE = 2.25;
+
+/** The switcher's chevron is the heading's; the tick by the current project is caption sized and semibold. */
+const SWITCHER_CHEVRON = FOLD_GLYPH;
+const SWITCHER_TICK = 11;
+/** All projects at the switcher's foot wears its symbol at the words' own 13. */
+const ALL_PROJECTS_GLYPH = 13;
 
 /** The Memnox mark at the sidebar's head. */
 const BRAND_TILE = 24;
@@ -249,9 +258,9 @@ function Shell({ parts, first }: { parts: SettingsParts; first: Route }) {
   return (
     <div className="mx-app flex h-full bg-background text-foreground" data-width={width}>
       {width !== 'compact' && sidebar}
-      {/* The panel stands 8 from the window's edges and the sidebar, so its border reads all the way round. */}
-      <main className={`my-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-panel-edge bg-card ${width === 'compact' ? 'ml-2' : ''}`}>
-        <header className="flex h-12 shrink-0 items-center gap-1 px-3 narrow:pr-5">
+      {/* The panel stands off the window's edges and the sidebar, so its border reads all the way round. */}
+      <main className={`my-shell-panel-inset mr-shell-panel-inset flex min-w-0 flex-1 flex-col overflow-hidden rounded-card border border-panel-edge bg-card ${width === 'compact' ? 'ml-shell-panel-inset' : ''}`}>
+        <header className="flex h-shell-top-bar shrink-0 items-center gap-1 px-3 narrow:pr-5">
           {width === 'compact' && <BarButton icon={Menu} label={ShellLines.openMenu} onClick={() => setSheet(true)} />}
           <BarButton icon={ChevronLeft} label={ShellLines.back} disabled={!history.canGoBack} onClick={() => step(true)} />
           <BarButton icon={ChevronRight} label={ShellLines.forward} disabled={!history.canGoForward} onClick={() => step(false)} />
@@ -267,13 +276,13 @@ function Shell({ parts, first }: { parts: SettingsParts; first: Route }) {
               aria-label={ShellLines.goTo}
               title={ShellLines.goTo}
             >
-              <Search size={NAV_GLYPH} aria-hidden />
+              <Search size={GO_TO_GLYPH} aria-hidden />
               <kbd className="rounded-control border border-panel-edge bg-hover px-1.5 text-label font-medium text-muted">{ShellLines.paletteKeys}</kbd>
             </Pressable>
           )}
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div key={`${route.destination}/${route.tab ?? ''}/${place?.id ?? ''}/${place?.page ?? ''}`} className="mx-auto flex max-w-[1216px] flex-col gap-5 px-5 pt-4 pb-10 wide:px-7 max-narrow:px-3.5">
+          <div key={`${route.destination}/${route.tab ?? ''}/${place?.id ?? ''}/${place?.page ?? ''}`} className="mx-auto flex max-w-shell-page flex-col gap-shell-section px-shell-side pt-shell-top pb-shell-foot wide:px-shell-side-wide max-narrow:px-shell-side-compact">
             <InspectorWindow.Provider value={inspectors}>
               {place !== undefined ? (
                 <OpenProject parts={parts} project={project} page={place.page} go={go} />
@@ -293,11 +302,9 @@ function Shell({ parts, first }: { parts: SettingsParts; first: Route }) {
         </div>
       </main>
       {width === 'compact' && sheet && (
-        // A sheet from the side rather than a sheet from the top, which the kit's Modal does not draw.
-        <div className="fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label={ShellLines.menu}>
-          <div className="h-full bg-background shadow-2xl">{sidebar}</div>
-          <Pressable className="flex-1 cursor-default bg-black/40" aria-label={ShellLines.closeMenu} onClick={() => setSheet(false)} />
-        </div>
+        <SideDrawer label={ShellLines.menu} closeLabel={ShellLines.closeMenu} onClose={() => setSheet(false)}>
+          {sidebar}
+        </SideDrawer>
       )}
       {palette && <CommandPalette supports={supports} go={go} close={() => setPalette(false)} />}
     </div>
@@ -335,7 +342,7 @@ function Crumbs({ parts }: { parts: readonly string[] }) {
 function DemoBadge() {
   return (
     <span
-      className="mr-2 shrink-0 rounded-full border border-warm bg-warm/[0.14] px-2 py-[3px] text-body-sm font-medium text-warm"
+      className="mr-2 shrink-0 rounded-full border border-warm bg-warm/[0.14] px-2 py-shell-badge-y text-body-sm font-medium text-warm"
       title={ShellLines.demoHint}
       aria-label={ShellLines.demoLabel}
     >
@@ -402,7 +409,7 @@ function Page({ parts, route, width, go }: { parts: SettingsParts; route: Route;
       const page = pageNamed(route.tab) ?? 'account';
       // The pane header above it names the page, as the console's settings pane does.
       return (
-        <div className="flex w-full max-w-[760px] flex-col gap-5">
+        <div className="flex w-full max-w-settings-page flex-col gap-5">
           <PageBody page={page} parts={parts} go={(next) => go(routeForPage(next) ?? { destination: 'settings', tab: next })} />
         </div>
       );
@@ -462,8 +469,8 @@ function Sidebar({
   const settings = destinationInfo('settings');
   const here = rowOf(route);
   return (
-    <nav aria-label={ShellLines.navigation} className={`flex h-full shrink-0 flex-col bg-background ${rail ? 'w-16 items-center' : 'w-[240px]'}`}>
-      <div className={`flex h-14 w-full shrink-0 items-center gap-2.5 ${rail ? 'justify-center' : 'px-4'}`}>
+    <nav aria-label={ShellLines.navigation} className={`flex h-full shrink-0 flex-col bg-background ${rail ? 'w-sidebar-rail items-center' : 'w-sidebar'}`}>
+      <div className={`flex h-shell-bar w-full shrink-0 items-center gap-2.5 ${rail ? 'justify-center' : 'px-4'}`}>
         <MemnoxTile size={BRAND_TILE} />
         {!rail && <span className="flex-1 text-headline font-semibold tracking-[-0.02em]">{ShellLines.brand}</span>}
       </div>
@@ -473,7 +480,7 @@ function Sidebar({
             onClick={search}
             title={ShellLines.searchHint}
             aria-label={ShellLines.searchEverything}
-            className="mx-focus flex h-[30px] w-full cursor-pointer items-center gap-1.5 rounded-control border border-panel-edge bg-card px-2.5 text-body-sm text-muted hover:bg-hover"
+            className="mx-focus flex h-sidebar-search w-full cursor-pointer items-center gap-1.5 rounded-control border border-panel-edge bg-card px-2.5 text-body-sm text-muted hover:bg-hover"
           >
             <Search size={SEARCH_GLYPH} strokeWidth={SEARCH_GLYPH_STROKE} aria-hidden />
             <span className="flex-1 text-left">{ShellLines.search}</span>
@@ -529,16 +536,15 @@ function ProjectRows({
   const links = SHARED_SHOWN ? shared(counts, supports) : [];
   return (
     <>
-      <ProjectSwitcher parts={parts} project={project} route={route} rail={rail} go={go} />
       <NavItem icon={ChevronLeft} title={sidebar.back.title} hint={sidebar.back.title} rail={rail} chosen={false} onClick={() => go(sidebar.back.route)} />
-      {rail && <div className="mt-1.5 w-full border-t border-panel-edge pt-1.5" />}
+      <ProjectSwitcher parts={parts} project={project} route={route} rail={rail} go={go} />
       {sidebar.rows.map((row) => (
         <NavItem key={row.page} icon={ICONS[row.symbol]} title={row.title} hint={row.summary} rail={rail} chosen={row.chosen} onClick={() => go(row.route)} />
       ))}
       {links.length > 0 && (
-        <div className={`flex flex-col gap-0.5 ${rail ? 'mt-1.5 items-center border-t border-panel-edge pt-1.5' : 'pt-4'}`}>
+        <div className={`flex flex-col gap-0.5 ${rail ? 'mt-1.5 items-center border-t border-panel-edge pt-1.5' : 'pt-2.5'}`}>
           {!rail && (
-            <span className="px-1.5 pb-1 text-meta font-medium text-faint" title={SHARED_NOTE}>
+            <span className="flex h-sidebar-heading items-center px-1.5 text-meta font-medium text-faint" title={SHARED_NOTE}>
               {SHARED_TITLE}
             </span>
           )}
@@ -588,6 +594,7 @@ function ProjectSwitcher({ parts, project, route, rail, go }: { parts: SettingsP
   const { chooseProject } = useShellChoices();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const press = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
     sessions.start();
@@ -610,61 +617,57 @@ function ProjectSwitcher({ parts, project, route, rail, go }: { parts: SettingsP
     go(PROJECTS_ROUTE);
   };
   return (
-    <div className="relative">
+    <>
       <Pressable
-        onClick={() => setOpen(!open)}
-        aria-haspopup="listbox"
+        ref={press}
+        onClick={() => (open ? close() : setOpen(true))}
+        aria-haspopup="dialog"
         aria-expanded={open}
         title={rail ? project.name : SWITCHER_HINT}
         aria-label={`${project.name}, ${SWITCHER_HINT}`}
-        className={`mx-focus flex cursor-pointer items-center gap-2 rounded-control text-left hover:bg-hover ${rail ? 'size-10 justify-center' : 'mb-1 h-field w-full px-1.5'}`}
+        className={`mx-focus flex h-sidebar-row cursor-pointer items-center gap-1.5 rounded-control text-left hover:bg-hover ${rail ? 'w-sidebar-rail-row justify-center' : 'mt-2.5 w-full px-1.5'}`}
       >
-        <Folder size={NAV_GLYPH} strokeWidth={NAV_GLYPH_STROKE} className="w-[18px] shrink-0 text-primary" aria-hidden />
-        {!rail && <span className="min-w-0 flex-1 truncate text-body-sm font-semibold text-foreground">{project.name}</span>}
-        {!rail && <ChevronsUpDown size={SWITCHER_GLYPH} className="shrink-0 text-muted" aria-hidden />}
+        {rail ? (
+          <Folder size={NAV_GLYPH} strokeWidth={NAV_GLYPH_STROKE} className="shrink-0 text-foreground" aria-hidden />
+        ) : (
+          <>
+            <span className="min-w-0 flex-1 truncate text-body-sm font-semibold text-foreground">{project.name}</span>
+            <ChevronsUpDown size={SWITCHER_CHEVRON} strokeWidth={FOLD_GLYPH_STROKE} className="shrink-0 text-muted" aria-hidden />
+          </>
+        )}
       </Pressable>
       {open && (
-        <>
-          <Pressable aria-label={ShellLines.closeProjects} className="fixed inset-0 z-30 cursor-default" onClick={close} />
-          {/* A popover under its press rather than a sheet over the page, which the kit's Modal does not draw. */}
-          <div
-            role="dialog"
-            aria-label={SWITCHER_HINT}
-            className="absolute top-10 left-0 z-40 flex w-72 flex-col gap-1 rounded-control border border-panel-edge bg-card p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.16)]"
-            onKeyDown={(event) => event.key === 'Escape' && close()}
-          >
-            <label className="mx-field-within flex items-center gap-2 rounded-control border border-field-edge bg-field px-2.5">
-              <Search size={SWITCHER_GLYPH} className="text-muted" aria-hidden />
-              <Input look="bare" autoFocus className="h-control flex-1 text-body-sm text-foreground placeholder:text-faint" value={query} placeholder={SWITCHER_PROMPT} onValue={setQuery} />
-            </label>
-            <ul role="listbox" aria-label={ShellLines.projects} className="flex max-h-80 flex-col gap-0.5 overflow-y-auto">
-              {rows.map((row) => (
-                <li key={row.id}>
-                  <Pressable
-                    role="option"
-                    aria-selected={row.current}
-                    onClick={() => pick(row.id)}
-                    className={`mx-focus flex w-full cursor-pointer items-center gap-2.5 rounded-control px-2 py-1.5 text-left hover:bg-hover ${row.current ? 'bg-hover' : ''}`}
-                  >
-                    <span className={`size-2 shrink-0 rounded-full ${row.live ? 'bg-success' : 'bg-transparent'}`} title={row.live ? ShellLines.agentWorking : undefined} aria-label={row.live ? ShellLines.agentWorking : undefined} />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-body-sm font-medium text-foreground">{row.name}</span>
-                      <TruncatedText text={row.folder} middle className="font-code text-micro text-muted" />
-                    </span>
-                    {row.current && <Check size={SWITCHER_GLYPH} className="shrink-0 text-primary" aria-hidden />}
-                  </Pressable>
-                </li>
-              ))}
-              {rows.length === 0 && <li className="px-2 py-1.5 text-footnote text-muted">{ShellLines.noProjectMatches}</li>}
-            </ul>
-            <Pressable onClick={all} className="mx-focus flex cursor-pointer items-center gap-2 rounded-control border-t border-panel-edge px-2 py-2 text-left text-body-sm text-foreground hover:bg-hover">
-              <ChevronLeft size={SWITCHER_GLYPH} className="text-muted" aria-hidden />
-              {ALL_PROJECTS_TITLE}
-            </Pressable>
-          </div>
-        </>
+        // `ProjectSwitcherList`, beside its press as the Mac's popover opens on its trailing edge.
+        <Popover anchor={press} side="trailing" label={SWITCHER_HINT} onClose={close} className="w-switcher gap-2 p-3">
+          <SearchInput autoFocus value={query} placeholder={SWITCHER_PROMPT} onChange={setQuery} />
+          <ul role="listbox" aria-label={ShellLines.projects} className="flex max-h-switcher-list flex-col gap-0.5 overflow-y-auto">
+            {rows.map((row) => (
+              <li key={row.id}>
+                <Pressable
+                  role="option"
+                  aria-selected={row.current}
+                  onClick={() => pick(row.id)}
+                  className={`mx-focus flex h-switcher-row w-full cursor-pointer items-center gap-2.5 rounded-control px-1.5 text-left hover:bg-hover ${row.current ? 'bg-hover' : ''}`}
+                >
+                  <span className={`size-shell-dot shrink-0 rounded-full ${row.live ? 'bg-success' : 'bg-transparent'}`} title={row.live ? ShellLines.agentWorking : undefined} aria-label={row.live ? ShellLines.agentWorking : undefined} />
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className={`truncate text-body-sm text-foreground ${row.current ? 'font-semibold' : ''}`}>{row.name}</span>
+                    <TruncatedText text={row.folder} middle className="text-meta text-muted" />
+                  </span>
+                  {row.current && <Check size={SWITCHER_TICK} strokeWidth={FOLD_GLYPH_STROKE} className="shrink-0 text-primary" aria-hidden />}
+                </Pressable>
+              </li>
+            ))}
+            {rows.length === 0 && <li className="p-1.5 text-footnote text-muted">{ShellLines.noProjectMatches}</li>}
+          </ul>
+          <div className="h-px bg-panel-edge" role="separator" />
+          <Pressable onClick={all} className="mx-focus flex cursor-pointer items-center gap-1.5 text-left text-body-sm text-primary">
+            <SFSymbol name="square.grid.2x2" size={ALL_PROJECTS_GLYPH} />
+            {ALL_PROJECTS_TITLE}
+          </Pressable>
+        </Popover>
       )}
-    </div>
+    </>
   );
 }
 
@@ -702,11 +705,12 @@ function Heading({
   }, [holds]);
   if (rows.length === 0) return null;
   const items = rows.map((row) => <RowItem key={row.title} row={row} rail={rail} supports={supports} chosen={row === here} go={go} />);
-  if (rail) return <div className="flex flex-col items-center gap-0.5 border-t border-panel-edge pt-1.5 mt-1.5">{items}</div>;
+  // On the rail the heading gives way to a little room between the sections, as the Mac's does.
+  if (rail) return <div className="flex flex-col items-center gap-0.5 pt-2.5">{items}</div>;
   return (
     <div className="flex flex-col gap-0.5 pt-2.5">
-      <Pressable onClick={() => fold(open)} aria-expanded={open} className="mx-focus flex h-[26px] cursor-pointer items-center gap-1.5 rounded-control px-1.5 text-meta font-medium text-faint">
-        <ChevronRight size={FOLD_GLYPH} strokeWidth={FOLD_GLYPH_STROKE} className={`w-[18px] transition-transform duration-200 ${open ? 'rotate-90' : ''}`} aria-hidden />
+      <Pressable onClick={() => fold(open)} aria-expanded={open} className="mx-focus flex h-sidebar-heading cursor-pointer items-center gap-1.5 rounded-control px-1.5 text-meta font-medium text-faint">
+        <ChevronRight size={FOLD_GLYPH} strokeWidth={FOLD_GLYPH_STROKE} className={`w-sidebar-icon transition-transform duration-(--mx-duration-quick) ${open ? 'rotate-90' : ''}`} aria-hidden />
         <span className="truncate">{section.title}</span>
       </Pressable>
       {open && items}
@@ -722,13 +726,13 @@ function NavItem({ icon: Icon, title, hint, rail, chosen, onClick, count }: { ic
       title={rail ? title : hint}
       aria-label={rail ? title : undefined}
       aria-current={chosen ? 'page' : undefined}
-      className={`mx-focus flex cursor-pointer items-center gap-2.5 rounded-control text-body-sm transition-colors ${rail ? 'size-10 justify-center' : 'h-[30px] w-full px-1.5'} ${
+      className={`mx-focus flex cursor-pointer items-center gap-2.5 rounded-control text-body-sm transition-colors ${rail ? 'size-sidebar-rail-row justify-center' : 'h-sidebar-row w-full px-1.5'} ${
         chosen ? 'bg-primary font-medium text-white' : 'text-foreground hover:bg-hover'
       }`}
     >
-      <Icon size={NAV_GLYPH} strokeWidth={NAV_GLYPH_STROKE} className={`w-[18px] shrink-0 ${chosen ? 'text-white' : 'text-primary'}`} aria-hidden />
+      <Icon size={NAV_GLYPH} strokeWidth={NAV_GLYPH_STROKE} className={`w-sidebar-icon shrink-0 ${chosen ? 'text-white' : 'text-primary'}`} aria-hidden />
       {!rail && <span className="flex-1 truncate text-left">{title}</span>}
-      {!rail && count !== undefined && <span className={`shrink-0 tabular-nums text-meta ${chosen ? 'text-white' : 'text-muted'}`}>{count}</span>}
+      {!rail && count !== undefined && <span className={`shrink-0 tabular-nums text-meta ${chosen ? 'text-white' : 'text-faint'}`}>{count}</span>}
     </Pressable>
   );
 }
@@ -741,21 +745,21 @@ function RuntimeStatus({ parts, rail }: { parts: SettingsParts; rail: boolean })
   const words = up ? ShellLines.runtimeUp : home.unavailable ? ShellLines.runtimeDown : ShellLines.runtimeReaching;
   if (rail) {
     return (
-      <span title={words} className="grid h-9 w-10 place-items-center">
+      <span title={words} className="grid h-sidebar-row w-sidebar-rail-row place-items-center">
         <span aria-label={words} className={`size-2 rounded-full ${up ? 'bg-success' : home.unavailable ? 'bg-destructive' : 'bg-faint'}`} />
       </span>
     );
   }
   return (
-    <div className="flex h-9 items-center px-2">
+    <div className="flex min-h-sidebar-row items-center px-1.5">
       <StatusWord tone={up ? 'good' : home.unavailable ? 'bad' : 'quiet'}>{words}</StatusWord>
     </div>
   );
 }
 
-/** `AppShellView.iconButton`: a 36 square in muted ink, its 13 medium glyph, lit under the pointer. */
+/** `AppShellView.iconButton`: a 36 square in muted ink, its 13 medium glyph, lit under the pointer, fading to 0.35 when it cannot go. */
 function BarButton({ icon, label, onClick, disabled = false }: { icon: LucideIcon; label: string; onClick: () => void; disabled?: boolean }) {
-  return <IconButton icon={icon} label={label} size="lg" iconSize={BAR_GLYPH} strokeWidth={BAR_GLYPH_STROKE} disabled={disabled} onClick={onClick} />;
+  return <IconButton icon={icon} label={label} size="lg" iconSize={BAR_GLYPH} strokeWidth={BAR_GLYPH_STROKE} fade="bar" disabled={disabled} onClick={onClick} />;
 }
 
 interface ShortcutActions {

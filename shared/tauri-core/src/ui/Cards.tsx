@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import { HOLD_ANSWER, RULE_SCOPE, type RuleDraft, type RuleScope } from '@memnox/core/wire';
 import { agentColour, FROM_NOW_ON, suggestedScope, type FinishedCard, type HeldAnswer, type HeldCalls, type HeldCard, type HeldOutcome, type ProposalCards, type WaitingCalls } from '../core';
 import { ANSWERING_ROW, GlyphButton, IslandButton, IslandCard, Menu, MenuItem, MiddleCut, PRESSABLE, Pressable, PulseDot, SFSymbol, type SFSymbolName, VEIL, veilOf } from './kit';
@@ -19,7 +19,7 @@ import { shownProposal } from '../core/domain/proposal-card';
 export const CONTENT_INSET = 'absolute inset-x-2.5 bottom-2.5 top-9';
 
 /** The text column the held and finished cards share, clear of the orb that sits over their left side. */
-const CALL_COLUMN = 'flex h-full flex-col justify-center gap-2.5 pl-[98px] pr-[18px]';
+const CALL_COLUMN = 'flex h-full flex-col justify-center gap-2.5 pl-card-call-leading pr-card-call-trailing';
 
 /** The system monospaced face, which `.system(design: .monospaced)` always is, rather than DM Mono. */
 const SYSTEM_MONO = "font-['DM_Mono',ui-monospace,'SF_Mono','Cascadia_Mono','JetBrains_Mono',Consolas,monospace]";
@@ -143,26 +143,13 @@ const MENU_SYMBOL = 13;
 function MoreAnswers({ items, disabled }: { items: { label: string; symbol?: SFSymbolName; choose: () => void }[]; disabled: boolean }) {
   const [open, setOpen] = useState(false);
   const holder = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (event: PointerEvent) => {
-      if (!holder.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false);
-    window.addEventListener('pointerdown', away);
-    window.addEventListener('keydown', escape);
-    return () => {
-      window.removeEventListener('pointerdown', away);
-      window.removeEventListener('keydown', escape);
-    };
-  }, [open]);
   return (
-    <div ref={holder} className="relative">
-      <Pressable className={`${PRESSABLE} grid h-[29px] place-items-center px-1 text-white`} disabled={disabled} onClick={() => setOpen(!open)} aria-label={HeldLines.moreAnswers} aria-expanded={open}>
+    <div ref={holder} className="relative self-stretch">
+      <Pressable className={`${PRESSABLE} grid h-full place-items-center px-1 text-white`} disabled={disabled} onClick={() => setOpen(!open)} aria-label={HeldLines.moreAnswers} aria-expanded={open}>
         <SFSymbol name="ellipsis" size={MENU_SYMBOL} />
       </Pressable>
       {open && (
-        <Menu tone="island" className="absolute right-0 bottom-full z-10 mb-1">
+        <Menu tone="island" className="absolute right-0 bottom-full z-10 mb-1" anchor={holder} onClose={() => setOpen(false)}>
           {items.map((item) => (
             <MenuItem
               key={item.label}
@@ -214,7 +201,7 @@ const TALK_SYMBOL = 12.5;
 export function Empty({ onTalk, talkDisabled = false }: { onTalk: () => void; talkDisabled?: boolean }) {
   return (
     <IslandCard veil={VEIL.empty} className={CONTENT_INSET}>
-      <div className="flex h-full flex-col items-start justify-center gap-3 pl-[112px]">
+      <div className="flex h-full flex-col items-start justify-center gap-3 pl-card-empty-leading">
         <p className="m-0 text-headline font-medium text-white">{CardLines.nothingRunning}</p>
         <IslandButton kind="primary" symbol="waveform" symbolSize={TALK_SYMBOL} disabled={talkDisabled} onClick={onTalk}>
           {CardLines.talk}
@@ -317,7 +304,7 @@ function RuleCard({ subject, rule, cards, onAnswered }: { subject: string; rule:
         </span>
       </div>
       <p className="m-0 line-clamp-2 text-headline font-semibold text-white">{sentence(rule.summary)}</p>
-      <dl className="m-0 grid grid-cols-[70px_1fr] gap-x-2 gap-y-1 text-button">
+      <dl className="m-0 grid grid-cols-(--mx-card-rule-columns) gap-x-2 gap-y-1 text-button">
         {details.map(([label, value, code]) => (
           <div key={label} className="contents">
             <dt className="text-white/[0.62]">{label}</dt>
@@ -326,7 +313,7 @@ function RuleCard({ subject, rule, cards, onAnswered }: { subject: string; rule:
         ))}
       </dl>
       <p className="m-0 text-footnote font-semibold text-white/50">{RuleCardLines.where}</p>
-      <div className="grid max-h-[138px] min-h-0 !shrink content-start gap-1 overflow-y-auto [scrollbar-width:none]" role="radiogroup" aria-label={RuleCardLines.where}>
+      <div className="grid max-h-card-rule-places min-h-0 !shrink content-start gap-1 overflow-y-auto [scrollbar-width:none]" role="radiogroup" aria-label={RuleCardLines.where}>
         {rule.scopes.map((each) => (
           <PlaceRow key={each.id} scope={each} picked={scope === each.id} pick={() => setScope(each.id)} />
         ))}
@@ -362,9 +349,9 @@ function PlaceRow({ scope, picked, pick }: { scope: RuleScope; picked: boolean; 
       role="radio"
       aria-checked={picked}
       onClick={pick}
-      className={`${PRESSABLE} flex items-center gap-2.5 rounded-card border px-2.5 py-[7px] text-left ${picked ? 'border-primary/55 bg-white/[0.14]' : 'border-transparent hover:bg-white/[0.06]'}`}
+      className={`${PRESSABLE} flex items-center gap-2.5 rounded-card border px-2.5 py-card-place-y text-left ${picked ? 'border-primary/55 bg-white/[0.14]' : 'border-transparent hover:bg-white/[0.06]'}`}
     >
-      <span className="grid w-[18px] shrink-0 place-items-center text-white/[0.62]">
+      <span className="grid w-card-place-icon shrink-0 place-items-center text-white/[0.62]">
         <SFSymbol name={look.symbol} size={13} />
       </span>
       <span className="grid min-w-0 flex-1 gap-0.5">

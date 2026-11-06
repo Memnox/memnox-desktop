@@ -31,7 +31,7 @@ const MODAL_SCRIM: Record<ModalPlace, string> = {
 };
 
 /** The card every modal is drawn on: radius 12, the panel edge, and the console's lift (0.18 black, radius 30, 12 down). */
-const MODAL_CARD = 'flex flex-col rounded-card border border-panel-edge bg-card shadow-[0_12px_60px_rgb(0_0_0/0.18)]';
+const MODAL_CARD = 'flex flex-col rounded-card border border-panel-edge bg-card shadow-lift';
 
 /** The card's width and how it holds a body taller than the window. */
 const MODAL_SHAPE: Record<ModalPlace, string> = {

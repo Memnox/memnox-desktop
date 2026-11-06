@@ -1,14 +1,15 @@
 /**
  * The base components every window draws with, each the web twin of one Swift view or style, named as the Mac
- * names it. A page outside this folder draws no raw input, select, textarea, button or dialog; `test/kit-guard`
- * holds it to that.
+ * names it. A page outside this folder draws no raw input, select, textarea, button or dialog, and types no length
+ * or colour of its own; `test/kit-guard` holds it to that.
  */
 export { Pill, StatusWord, TONE_TEXT, type PillTint, type Tone } from './Badge';
-export { Button, buttonClass, IconButton, Pressable, type ButtonKind, type ButtonProps, type ButtonSize, type IconButtonProps, type IconButtonSize } from './Button';
+export { Button, buttonClass, ICON_BUTTON_FADE, IconButton, Pressable, type ButtonKind, type ButtonProps, type ButtonSize, type IconButtonFade, type IconButtonProps, type IconButtonSize } from './Button';
 export { Chip, ChipGroup, type ChipRole } from './Chip';
 export { ConfirmDialog, Dialog, Modal, type ConfirmTone, type ModalPlace } from './Dialog';
 export {
   Checkbox,
+  CheckboxFace,
   Field,
   FilePicker,
   Input,
@@ -27,6 +28,10 @@ export {
 } from './fields';
 export { Card, CardGrid, EmptyState, Fold, Panel, Row, Section, StatTile, type CardPad } from './layout';
 export { Menu, MenuItem, MenuSeparator, type MenuTone } from './Menu';
+export { SPACING } from './metrics';
+export { Popover, type PopoverSide } from './Popover';
+export { SideDrawer } from './SideDrawer';
+export { useDismiss } from './dismiss';
 export { Banner, ErrorLine, Note, ReadFailed } from './Note';
 export { Spinner } from './Spinner';
 export { CountTabs, Tabs, type TabItem } from './Tabs';

@@ -1,6 +1,6 @@
 import type { ProjectView } from '@memnox/core/wire';
 import { Ellipsis, Folder, FolderOpen, FolderPlus, Pencil, Plus, Search, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { projectRoute, type Route, type WidthClass } from '../../../core/domain/destinations';
 import { folderProblem } from '../../../core/domain/launch-lines';
 import { insideProject } from '../../../core/domain/shell-lines';
@@ -46,6 +46,7 @@ import { Inspector } from '../widgets';
 import { usePicked } from '../inspector-host';
 import { useShellChoices } from '../shell-choices';
 import { BrandLogo, Button, Card, CardGrid, EmptyState, ErrorLine, Field, IconButton, Input, Menu, MenuItem, MenuSeparator, Note, Panel, PRESS_DIP, Pressable, ReadFailed, Row, SearchInput, Section, Spinner, StatTile, StatusWord } from '../../kit';
+import { PAGE_METRICS } from '../page-metrics';
 
 /** Where a seen repository's sessions are listed. */
 const SESSIONS_ROUTE: Route = { destination: 'agents', tab: 'list' };
@@ -181,8 +182,7 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
 /** The Mac's Projects grid lays its cards out no narrower than this. */
 const PROJECT_CARD_MIN = 280;
 
-/** The search beside Choose a folder stays this narrow, so the count keeps its line. */
-const PROJECT_SEARCH_WIDTH = 240;
+const PROJECT_SEARCH_WIDTH = PAGE_METRICS.projectSearch;
 
 /** A folder glyph beside a name, as the button glyphs are. */
 const FOLDER_GLYPH = 14;
@@ -242,6 +242,8 @@ function ProjectCard({ parts, project, pulse, pick, said }: { parts: SettingsPar
   const standing = projectStanding(project);
   const card = projectCard(project);
   const [menu, setMenu] = useState(false);
+  // The ellipsis and its menu, so a press on the ellipsis toggles the menu rather than counting as outside it.
+  const more = useRef<HTMLDivElement>(null);
   const [renaming, setRenaming] = useState<string | undefined>(undefined);
   const editable = editableHere(project);
   const working = workingLine(pulse);
@@ -300,10 +302,10 @@ function ProjectCard({ parts, project, pulse, pick, said }: { parts: SettingsPar
           <AgentLogos agents={project.agents} />
         </span>
       </Pressable>
-      <div className="absolute top-3 right-3">
+      <div ref={more} className="absolute top-3 right-3">
         <IconButton icon={Ellipsis} size="xs" iconSize={FOLDER_GLYPH} label={ProjectsPageLines.more(project.name)} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)} />
         {menu && (
-          <Menu className="absolute top-7 right-0 z-20 w-60" onMouseLeave={() => setMenu(false)}>
+          <Menu className="absolute top-7 right-0 z-20 w-60" anchor={more} onClose={() => setMenu(false)} onMouseLeave={() => setMenu(false)}>
             {editable ? (
               <>
                 <MenuItem onPress={() => (setMenu(false), setRenaming(project.name))}>

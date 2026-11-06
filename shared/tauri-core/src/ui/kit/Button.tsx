@@ -56,6 +56,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: LucideIcon;
   /** A glyph after the words, as a chevron that says the press opens something. */
   trailing?: LucideIcon;
+  /** The trailing glyph's size where the Mac draws it smaller than the leading one, as a micro chevron. */
+  trailingSize?: number;
   /** The full width of whatever holds it. */
   wide?: boolean;
   /** Working: a spinner takes the icon's place and the press waits, so it is not sent twice. */
@@ -65,14 +67,14 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 /** `KitButton`, in the console's shape: 32 tall at radius 6, 13 medium words, a leading icon 14, 6 before the word. */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { kind = 'secondary', icon: Icon, trailing: Trailing, wide = false, busy = false, size, disabled, children, className, type = 'button', ...rest },
+  { kind = 'secondary', icon: Icon, trailing: Trailing, trailingSize = BUTTON_ICON, wide = false, busy = false, size, disabled, children, className, type = 'button', ...rest },
   ref,
 ) {
   return (
     <button ref={ref} type={type} className={`${buttonClass(kind, wide, size)} ${className ?? ''}`} disabled={disabled === true || busy} aria-busy={busy || undefined} {...rest}>
       {busy ? <Spinner size={BUTTON_ICON} /> : Icon !== undefined && <Icon size={BUTTON_ICON} strokeWidth={2} aria-hidden />}
       {children}
-      {Trailing !== undefined && <Trailing size={BUTTON_ICON} strokeWidth={2} aria-hidden />}
+      {Trailing !== undefined && <Trailing size={trailingSize} strokeWidth={2} aria-hidden />}
     </button>
   );
 });
@@ -81,6 +83,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 export type IconButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
 const ICON_BUTTON_SIZE: Record<IconButtonSize, string> = { xs: 'size-6', sm: 'size-7', md: 'size-control', lg: 'size-field' };
+
+/**
+ * How far a press that cannot be used fades: `kit` is the kit's 0.5, `bar` the window's top bar, whose Back and
+ * Forward fade to `AppShellView.Layout.disabledOpacity`, 0.35.
+ */
+export type IconButtonFade = 'kit' | 'bar';
+
+export const ICON_BUTTON_FADE: Record<IconButtonFade, string> = { kit: 'disabled:opacity-50', bar: 'disabled:opacity-35' };
 
 /** The glyph is footnote sized and semibold, as the Mac draws the inspector's close and pop out marks. */
 const ICON_BUTTON_GLYPH = 12;
@@ -94,11 +104,13 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   /** Overrides the glyph's size where the Mac draws it larger or smaller than its footnote size. */
   iconSize?: number;
   strokeWidth?: number;
+  /** How far it fades while it cannot be used. */
+  fade?: IconButtonFade;
 }
 
 /** A square glyph press in muted ink that `hoverLight` lights under the pointer: the console's close, remove and more marks. */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { icon: Icon, label, size = 'md', iconSize = ICON_BUTTON_GLYPH, strokeWidth = ICON_BUTTON_STROKE, className, type = 'button', title, ...rest },
+  { icon: Icon, label, size = 'md', iconSize = ICON_BUTTON_GLYPH, strokeWidth = ICON_BUTTON_STROKE, fade = 'kit', className, type = 'button', title, ...rest },
   ref,
 ) {
   return (
@@ -107,7 +119,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       type={type}
       aria-label={label}
       title={title ?? label}
-      className={`mx-focus grid ${ICON_BUTTON_SIZE[size]} shrink-0 cursor-pointer place-items-center rounded-control text-muted transition-colors duration-(--mx-duration-quick) ease-out hover:bg-hover disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent ${className ?? ''}`}
+      className={`mx-focus grid ${ICON_BUTTON_SIZE[size]} shrink-0 cursor-pointer place-items-center rounded-control text-muted transition-colors duration-(--mx-duration-quick) ease-out hover:bg-hover disabled:cursor-default ${ICON_BUTTON_FADE[fade]} disabled:hover:bg-transparent ${className ?? ''}`}
       {...rest}
     >
       <Icon size={iconSize} strokeWidth={strokeWidth} aria-hidden />

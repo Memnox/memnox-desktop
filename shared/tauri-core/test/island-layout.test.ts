@@ -41,11 +41,10 @@ describe('which mode the island takes', () => {
     expect(settle({ ...RESTING, talking: true, dictating: true })).toBe('hearing');
   });
 
-  it('shows a reply under its question, tall when it is long, and a rule or dictation over both', () => {
-    expect(settle({ ...RESTING, talking: true, wordsHeard: true, answering: true })).toBe('conversation');
-    expect(settle({ ...RESTING, talking: true, answering: true, answerTall: true })).toBe('answer');
-    expect(settle({ ...RESTING, talking: true, answering: true, ruling: true })).toBe('hearing');
-    expect(settle({ ...RESTING, answering: true, opened: true })).toBe('empty');
+  it('keeps the orb up while Memnox answers, as the Mac does, since what it says is heard rather than read', () => {
+    expect(settle({ ...RESTING, talking: true, opened: true })).toBe('voice');
+    expect(settle({ ...RESTING, talking: true, phoneTurn: true })).toBe('voice');
+    expect(settle({ ...RESTING, phoneTurn: true, opened: true })).toBe('conversation');
   });
 
   it('counts only a reply to something asked in this time talking', () => {
@@ -132,10 +131,10 @@ describe('the measurements each mode is drawn at', () => {
     expect(showsSatellites('empty', false)).toBe(true);
   });
 
-  it('counts the last ten seconds of an untouched minute and then closes', () => {
-    expect(idleCountdown(10_000)).toEqual({ fraction: undefined, closes: false });
-    expect(idleCountdown(55_000)).toEqual({ fraction: 0.5, closes: false });
-    expect(idleCountdown(60_000).closes).toBe(true);
+  it('counts the last ten of twenty untouched seconds, as the Mac does, and then closes', () => {
+    expect(idleCountdown(5_000)).toEqual({ fraction: undefined, closes: false });
+    expect(idleCountdown(15_000)).toEqual({ fraction: 0.5, closes: false });
+    expect(idleCountdown(20_000).closes).toBe(true);
   });
 });
 

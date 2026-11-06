@@ -25,6 +25,7 @@ import {
   STAND_IN_NOTCH,
   type FinishedCard,
   type HeldAnswer,
+  handedOutcome,
   type HeldCalls,
   type HeldOutcome,
   type IslandMode,
@@ -46,7 +47,8 @@ import { Settings } from './Settings';
 import { Hearing, useConversation, voiceFacts, VoicePills } from './Talk';
 import { PhoneTurn } from './voice/PhoneTurn';
 import { AnswerCard, IslandConversation } from './voice/Conversation';
-import { answeringTurn, isLongReply, type TurnWords } from '../core/domain/island-layout';
+import { answeringTurn, type TurnWords } from '../core/domain/island-layout';
+import { shownProposal } from '../core/domain/proposal-card';
 import type { Exchange } from '../core';
 import { useLiveExchange } from './island/live-exchange';
 import { parseHistory } from '../core/domain/history';
@@ -222,8 +224,8 @@ export function Island({
   const [countdown, setCountdown] = useState<number | undefined>(preview.countdown);
   // An exchange picked in the side panel, opened tall while nobody talks, as the Mac's `picked`.
   const [picked, setPicked] = useState<Exchange | undefined>(preview.picked);
-  // The answer under the question opened tall or put back by hand; undefined lets a long reply open itself.
-  const [expanded, setExpanded] = useState<boolean>();
+  // The answer under the question opened tall or put back by hand; while talking the orb stays up, as on the Mac.
+  const [, setExpanded] = useState<boolean>();
   // What the voice held when this time talking began, so a new press never shows the last reply.
   const talkStart = useRef<TurnWords>();
   const wasActive = useRef(false);
@@ -243,8 +245,8 @@ export function Island({
   const lastActivity = useRef(performance.now());
   const onLeft = useRef(false);
 
-  // The latest proposal decides between the work and the rule screens; the newest is the one shown.
-  const proposal = proposals[proposals.length - 1];
+  // Something going out in the person's name comes before a rule, as on the Mac; the newest of each is the one shown.
+  const proposal = shownProposal(proposals);
   const settled = settle({
     ...RESTING,
     held: held.waiting.shown !== undefined || held.settled !== undefined,
@@ -258,8 +260,6 @@ export function Island({
     talking: active,
     // The person's own words open the hearing screen; what Memnox says is heard, so the orb stays up for it.
     ...(preview.talk !== undefined ? { wordsHeard: (talk.heard ?? '') !== '' } : voiceFacts(conversation, liveWords)),
-    answering,
-    answerTall: expanded ?? isLongReply(talk.reply),
     pickedAnswer: picked !== undefined,
     opened: opened || settingsOpen,
     working: working.length,
@@ -373,7 +373,7 @@ export function Island({
     return () => clearTimeout(wait);
   }, [hovering, active, mode, onSide, sideOpen, preview.hovering]);
 
-  // Open and untouched for a minute it puts itself away, counting the last ten seconds down as a shrinking line.
+  // Open and untouched for twenty seconds it puts itself away, counting the last ten seconds down as a shrinking line.
   useEffect(() => {
     if (!(opened || settingsOpen) || active || !countsDown(mode) || preview.countdown !== undefined) {
       if (preview.countdown === undefined) setCountdown(undefined);
@@ -445,6 +445,21 @@ export function Island({
     if (outcome.kind === 'cancelled') return;
     orb.current?.react(outcome.kind === 'failed' ? 'stumble' : outcome.kind !== 'answered' ? 'settle' : choice === HOLD_ANSWER.DENY ? 'refused' : 'allowed');
   }
+
+  // A page's answer to a held call is pressed here, as the Mac's pages hand theirs to its island: the key is asked for,
+  // the island shakes on a failure and its card says who got there first, and the page hears how it ended.
+  const answeredRef = useRef(answered);
+  answeredRef.current = answered;
+  useEffect(() => {
+    if (previewing) return;
+    return islandWindow.onHeldHanded((subject, choice) => {
+      talking.answeredByHand(subject);
+      void calls.answer(subject, choice).then((outcome) => {
+        answeredRef.current(choice, outcome);
+        islandWindow.tellHeldAnswered(subject, handedOutcome(outcome));
+      });
+    });
+  }, [calls, talking, previewing]);
 
   function proposalAnswered(outcome: HeldOutcome, sent = false) {
     extras?.proposalAnswered(outcome, sent);

@@ -90,7 +90,7 @@ export const ISLAND_TIMING = {
   dwellResting: 650,
   dwellBusy: 200,
   /** Open and untouched this long, it puts itself away; the last ten seconds show as a shrinking line. */
-  idleClose: 60_000,
+  idleClose: 20_000,
   countdownFrom: 10_000,
   finishedFor: 5_200,
   phoneTurnFor: 8_000,
@@ -330,10 +330,6 @@ export interface IslandFacts {
   readonly ruling: boolean;
   /** Live words are on and some have been heard. */
   readonly wordsHeard: boolean;
-  /** A reply to the person's own question is under way or just said, so the turn shows the question and its answer. */
-  readonly answering: boolean;
-  /** That answer opened up tall, by Show more or because it is too long for its card. */
-  readonly answerTall: boolean;
   readonly phoneTurn: boolean;
   readonly opened: boolean;
   readonly launcher: boolean;
@@ -355,8 +351,6 @@ export const RESTING: IslandFacts = {
   dictating: false,
   ruling: false,
   wordsHeard: false,
-  answering: false,
-  answerTall: false,
   phoneTurn: false,
   opened: false,
   launcher: false,
@@ -374,12 +368,9 @@ export function settle(facts: IslandFacts): IslandMode {
   if (facts.draft) return 'draft';
   if (facts.rule) return 'rule';
   if (facts.finished) return 'finished';
-  // A rule is always shown as it is said, since the person signs it; a reply shows under its question, tall when long.
-  if (facts.talking) {
-    if (facts.ruling || facts.dictating) return 'hearing';
-    if (facts.answering) return facts.answerTall ? 'answer' : 'conversation';
-    return facts.wordsHeard ? 'hearing' : 'voice';
-  }
+  // What Memnox says is heard rather than read, so a turn keeps the orb up instead of printing the answer, as the
+  // Mac's settle does; the answer stays in the history at the side. A rule is always shown as it is said, since the person signs it.
+  if (facts.talking) return facts.ruling || facts.dictating || facts.wordsHeard ? 'hearing' : 'voice';
   // The person talking here comes first; a phone's turn is only watched, so it waits behind them.
   if (facts.phoneTurn) return 'conversation';
   if (facts.opened && facts.launcher) return 'launcher';

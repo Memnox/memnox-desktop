@@ -7,6 +7,7 @@ import { WorkCard } from './cards/WorkCard';
 import { SessionLogo } from './sessions/parts';
 import { note } from './ui';
 import { CardLines, HeldLines, RuleCardLines } from '../core/domain/island-lines';
+import { shownProposal } from '../core/domain/proposal-card';
 
 /**
  * The island's cards, each the web twin of one Swift view in `Island/IslandCalls.swift`,
@@ -242,7 +243,7 @@ export function ProposalCard({
     (changed) => cards.observe(changed),
     () => cards.cards,
   );
-  const card = all[all.length - 1];
+  const card = shownProposal(all);
   if (card === undefined) return null;
   // Keyed by subject, so a new card never inherits the last one's choice or edits.
   return (

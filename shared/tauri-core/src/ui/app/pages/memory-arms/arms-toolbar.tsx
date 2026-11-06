@@ -33,12 +33,12 @@ type ToolbarProps = {
   onReplay: () => void;
 };
 
-/** The ARMS map's own controls, top right: motion and its speed, the view, the search button, and the zoom. */
+/** The ARMS map's own controls, top right under the count in view, as the Mac stacks them: motion and its speed, the view, the search button, and the zoom. */
 export function ArmsToolbar(props: ToolbarProps) {
   return (
     <div
       onPointerDown={(event) => event.stopPropagation()}
-      className="pointer-events-none absolute right-4 top-4 z-300 flex max-w-[calc(100%-2rem)] flex-wrap items-center justify-end gap-2 [&>*]:pointer-events-auto"
+      className="pointer-events-none flex flex-wrap items-center justify-end gap-2 [&>*]:pointer-events-auto"
     >
       <div className={`${CHIP} px-2`}>
         <Switch on={props.motion && !props.reduced} label="Motion" disabled={props.reduced} onChange={props.onMotion} />

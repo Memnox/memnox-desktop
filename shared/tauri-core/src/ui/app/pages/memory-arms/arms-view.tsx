@@ -14,6 +14,7 @@ import { ArmsSearch } from "./arms-search";
 import { ArmsStage } from "./arms-stage";
 import { ArmsToolbar } from "./arms-toolbar";
 import { ArmsTooltip } from "./arms-tooltip";
+import { BRAIN_HEADING, brainStats, inViewLine } from "../../../../core/domain/memory-brain-lines";
 import { usePrefersReducedMotion } from "./use-reduced-motion";
 import "./arms.css";
 
@@ -49,6 +50,8 @@ export function ArmsView({
   go,
   nodeCard,
   aside,
+  bar,
+  foot,
 }: {
   map: MemoryMap;
   input: ArmsInput;
@@ -59,6 +62,10 @@ export function ArmsView({
   nodeCard: (nodeId: string, onClose: () => void) => ReactNode;
   /** A line under the legend saying what the picture stands on, where it is not whole and live. */
   aside?: string;
+  /** The page's filters, laid along the top left as the Mac lays them, with the view's controls to their right. */
+  bar?: ReactNode;
+  /** The page's own lines under the heading's counts. */
+  foot?: ReactNode;
 }) {
   const reduced = usePrefersReducedMotion();
   const [mode, setMode] = useState<ArmsMode>("brain");
@@ -100,6 +107,7 @@ export function ArmsView({
     const found = firstMatch(model.items, matches);
     if (found !== undefined) setPicked(found);
   };
+  const stats = useMemo(() => brainStats(map, input.apps.length), [map, input.apps]);
   const frame = { width: engine.current?.width ?? 0, height: engine.current?.height ?? 0 };
 
   return (
@@ -125,7 +133,16 @@ export function ArmsView({
       {model.empty && <EmptyBrain />}
       {hovered !== undefined && hovered.item.id !== picked?.id && <ArmsTooltip hovered={hovered} model={model} links={links} frame={frame} />}
       {searching && <ArmsSearch query={query} onQuery={setQuery} matches={matches.size} onOpen={openFirst} onClose={closeSearch} />}
-      <ArmsToolbar
+      {/* The bar and the view's controls along the top, then the heading and its counts, as the Mac's overlays stand. */}
+      <div className="pointer-events-none absolute inset-x-4 top-4 z-300 flex flex-col gap-3">
+        <div className="flex items-start gap-2">
+          <div onPointerDown={(event) => event.stopPropagation()} className="pointer-events-auto flex min-w-0 flex-col gap-1.5">
+            {bar}
+          </div>
+          <span className="min-w-2 flex-1" />
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <p className="font-mono text-caption text-muted">{inViewLine(model.items.length)}</p>
+            <ArmsToolbar
         mode={mode}
         onMode={setMode}
         motion={motion}
@@ -138,7 +155,11 @@ export function ArmsView({
         onFit={() => engine.current?.fit()}
         onZoomIn={() => engine.current?.zoomBy(ZOOM_STEP)}
         onReplay={() => engine.current?.replay()}
-      />
+            />
+          </div>
+        </div>
+        <BrainHeading stats={stats} foot={foot} />
+      </div>
       {model.sectors.length > 1 && (
         <div onPointerDown={(event) => event.stopPropagation()} className="absolute inset-x-0 bottom-4 z-300 flex justify-center px-40 max-[900px]:px-4">
           <SectorList sectors={model.sectors} sector={sector} onSector={setSector} />
@@ -248,6 +269,36 @@ function useAnchoredCard(engine: { readonly current: ArmsEngine | undefined }, p
   }, [picked, placeNow, engine]);
 
   return { card, pointer, place };
+}
+
+/** The heading over the brain's top left: what it is, the two line title, its counts and the page's own lines. */
+function BrainHeading({ stats, foot }: { stats: { memories: number; sources: number; connections: number }; foot: ReactNode }) {
+  const stat = (count: number, caption: string) => (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[26px] leading-none font-semibold tabular-nums text-foreground">{count}</span>
+      <span className="font-mono text-micro font-medium tracking-[0.18em] text-faint">{caption}</span>
+    </div>
+  );
+  return (
+    <div className="flex max-w-[380px] flex-col gap-2">
+      <p className="font-mono text-caption font-medium tracking-[0.18em] text-muted">{BRAIN_HEADING.overline}</p>
+      <h2 className="text-[34px] leading-[1.1] font-semibold tracking-[-0.014em]">
+        <span className="block text-foreground">{BRAIN_HEADING.title}</span>
+        <span className="block text-faint">{BRAIN_HEADING.titleQuiet}</span>
+      </h2>
+      <p className="text-body-sm text-muted">{BRAIN_HEADING.subline}</p>
+      <div className="flex items-start gap-5 pt-1">
+        {stat(stats.memories, BRAIN_HEADING.memories)}
+        {stat(stats.sources, BRAIN_HEADING.sources)}
+        {stat(stats.connections, BRAIN_HEADING.connections)}
+      </div>
+      {foot !== undefined && (
+        <div onPointerDown={(event) => event.stopPropagation()} className="pointer-events-auto flex flex-col gap-1.5">
+          {foot}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** What an empty brain says, in place of a silhouette drawn round nothing. */

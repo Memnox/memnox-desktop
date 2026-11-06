@@ -6,6 +6,7 @@ import { StepRow } from './LiveSession';
 import { CardButton, CardHeader, LiveSection } from './window-kit';
 import { islandWindow } from '../adapters/tauri-island-window';
 import './sessions.css';
+import { LiveSessionLines } from '../../core/domain/island-lines';
 
 /**
  * The card wall, the web twin of the Mac's `CardWall` of `SessionPopupView`s: every session lately as its
@@ -126,9 +127,13 @@ export function Board({ sessions, title, onWatch, onClose, initial }: { sessions
   );
 }
 
+/** A card's rough parts: its frame, up to three steps and three files at a row each, and the last thing said. */
+const ESTIMATE = { frame: 300, rowsShown: 3, row: 20, lastSaid: 60 } as const;
+
 /** A rough height, enough to lay each next card in the shortest column. */
 function estimate(view: SessionView): number {
-  return 300 + Math.min(3, view.steps.length) * 20 + Math.min(3, view.files.length) * 20 + (view.lastSaid === undefined ? 0 : 60);
+  const rows = Math.min(ESTIMATE.rowsShown, view.steps.length) + Math.min(ESTIMATE.rowsShown, view.files.length);
+  return ESTIMATE.frame + rows * ESTIMATE.row + (view.lastSaid === undefined ? 0 : ESTIMATE.lastSaid);
 }
 
 /**
@@ -142,7 +147,7 @@ export function SessionPopup({ view, order, onWatch, onClose, now = Date.now() }
   const lastAsk = readable(view.lastAsk);
   const context = viewContext(view, now);
   const latest = view.steps[view.steps.length - 1];
-  const line = view.paused !== undefined ? `Paused: ${view.paused}` : view.thinking ? 'Thinking through its answer' : latest?.text;
+  const line = view.paused !== undefined ? LiveSessionLines.paused(view.paused) : view.thinking ? LiveSessionLines.thinking : latest?.text;
   const conversation = (view.conversation ?? []).slice(-2);
   return (
     <article
@@ -161,10 +166,10 @@ export function SessionPopup({ view, order, onWatch, onClose, now = Date.now() }
         }
         onClose={onClose}
       />
-      <LiveSection title="About">
+      <LiveSection title={LiveSessionLines.about}>
         <div className="flex flex-col gap-1.5">
-          {task !== undefined ? <p className="m-0 line-clamp-3 text-callout font-medium text-foreground/[0.92]">{task}</p> : <p className="m-0 text-callout text-muted">No request recorded for this session yet</p>}
-          {lastAsk !== undefined && lastAsk !== task && <p className="m-0 line-clamp-2 text-footnote text-foreground/[0.62]">Latest ask: {lastAsk}</p>}
+          {task !== undefined ? <p className="m-0 line-clamp-3 text-callout font-medium text-foreground/[0.92]">{task}</p> : <p className="m-0 text-callout text-muted">{LiveSessionLines.noRequest}</p>}
+          {lastAsk !== undefined && lastAsk !== task && <p className="m-0 line-clamp-2 text-footnote text-foreground/[0.62]">{LiveSessionLines.latestAsk(lastAsk)}</p>}
           {context !== undefined && <p className="m-0 line-clamp-2 text-caption text-muted">{context}</p>}
         </div>
       </LiveSection>
@@ -177,7 +182,7 @@ export function SessionPopup({ view, order, onWatch, onClose, now = Date.now() }
         </div>
       )}
       {view.lastSaid !== undefined ? (
-        <LiveSection title="Where it stands">
+        <LiveSection title={LiveSessionLines.whereItStands}>
           <p className="m-0 line-clamp-4 text-callout text-foreground/[0.92]">{view.lastSaid}</p>
         </LiveSection>
       ) : (

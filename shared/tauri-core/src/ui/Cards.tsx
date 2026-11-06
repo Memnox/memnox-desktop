@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { HOLD_ANSWER, RULE_SCOPE, type RuleDraft, type RuleScope } from '@memnox/core/wire';
 import { agentColour, FROM_NOW_ON, suggestedScope, type FinishedCard, type HeldAnswer, type HeldCalls, type HeldCard, type HeldOutcome, type ProposalCards, type WaitingCalls } from '../core';
-import { ANSWERING_ROW, GlyphButton, IslandButton, IslandCard, MiddleCut, PRESSABLE, PulseDot, SFSymbol, VEIL, veilOf, type SFSymbolName } from './kit';
+import { ANSWERING_ROW, GlyphButton, IslandButton, IslandCard, Menu, MenuItem, MiddleCut, PRESSABLE, Pressable, PulseDot, SFSymbol, type SFSymbolName, VEIL, veilOf } from './kit';
 import { ConversationStack } from './cards/QuestionBubble';
 import { WorkCard } from './cards/WorkCard';
 import { SessionLogo } from './sessions/parts';
 import { note } from './ui';
+import { CardLines, HeldLines, RuleCardLines } from '../core/domain/island-lines';
 
 /**
  * The island's cards, each the web twin of one Swift view in `Island/IslandCalls.swift`,
@@ -29,9 +30,9 @@ export function told(outcome: HeldOutcome): string | undefined {
     case 'answered-elsewhere':
       return undefined;
     case 'cancelled':
-      return 'Nothing was sent, so it is still waiting.';
+      return HeldLines.cancelled;
     case 'failed':
-      return `That did not go through: ${outcome.why}`;
+      return HeldLines.failed(outcome.why);
   }
 }
 
@@ -97,16 +98,16 @@ export function HeldCall({
         <MiddleCut text={card.what} className={`max-w-full self-start overflow-hidden rounded-command border border-white/[0.08] bg-white/[0.06] px-3 py-2 ${SYSTEM_MONO} text-body text-white`} />
         <div className={`flex items-center gap-2 ${busy ? ANSWERING_ROW : ''}`} aria-disabled={busy}>
           <IslandButton inRow disabled={busy} onClick={() => void press(ANSWER.deny)}>
-            Deny
+            {HeldLines.deny}
           </IslandButton>
           <IslandButton inRow disabled={busy} symbol={card.touchID ? 'touchid' : undefined} onClick={() => void press(ANSWER.session)}>
-            Allow this session
+            {HeldLines.allowSession}
           </IslandButton>
           <IslandButton kind="primary" inRow disabled={busy} symbol={card.touchID ? 'touchid' : undefined} onClick={() => void press(ANSWER.once)}>
-            Allow once
+            {HeldLines.allowOnce}
           </IslandButton>
           {/* The answer that leaves a rule behind waits behind More, as on every other door. */}
-          <MoreAnswers disabled={busy} items={[{ label: 'Allow from now on', symbol: 'touchid', choose: () => void press(ANSWER.always) }]} />
+          <MoreAnswers disabled={busy} items={[{ label: HeldLines.allowAlways, symbol: 'touchid', choose: () => void press(ANSWER.always) }]} />
         </div>
         {said !== undefined && (
           <p className={`${note} -mt-1 mb-0`}>
@@ -124,12 +125,15 @@ function QueueRow({ waiting, header, disabled, step }: { waiting: WaitingCalls<H
     <div className="flex items-center gap-1.5 text-white">
       <span className="min-w-0 truncate text-footnote font-medium text-amber">{header}</span>
       <span className="min-w-1.5 flex-1" />
-      <GlyphButton symbol="chevron.left" label="An older call" disabled={disabled || !waiting.canStepOlder} onPress={() => step(1)} />
+      <GlyphButton symbol="chevron.left" label={HeldLines.olderCall} disabled={disabled || !waiting.canStepOlder} onPress={() => step(1)} />
       {waiting.positionText !== undefined && <span className="tabular whitespace-nowrap text-footnote text-white/[0.62]">{waiting.positionText}</span>}
-      <GlyphButton symbol="chevron.right" label="A newer call" disabled={disabled || !waiting.canStepNewer} onPress={() => step(-1)} />
+      <GlyphButton symbol="chevron.right" label={HeldLines.newerCall} disabled={disabled || !waiting.canStepNewer} onPress={() => step(-1)} />
     </div>
   );
 }
+
+/** The menu's glyphs, at the size of its 13 point words. */
+const MENU_SYMBOL = 13;
 
 /**
  * A borderless menu showing only an ellipsis, as `.menuStyle(.borderlessButton)` with its indicator
@@ -153,27 +157,25 @@ function MoreAnswers({ items, disabled }: { items: { label: string; symbol?: SFS
   }, [open]);
   return (
     <div ref={holder} className="relative">
-      <button type="button" className={`${PRESSABLE} grid h-[29px] place-items-center px-1 text-white`} disabled={disabled} onClick={() => setOpen(!open)} aria-label="More answers" aria-expanded={open}>
-        <SFSymbol name="ellipsis" size={13} />
-      </button>
+      <Pressable className={`${PRESSABLE} grid h-[29px] place-items-center px-1 text-white`} disabled={disabled} onClick={() => setOpen(!open)} aria-label={HeldLines.moreAnswers} aria-expanded={open}>
+        <SFSymbol name="ellipsis" size={MENU_SYMBOL} />
+      </Pressable>
       {open && (
-        <div role="menu" className="absolute bottom-full right-0 z-10 mb-1 min-w-max animate-[fade-in_120ms_ease-out] rounded-control border border-white/[0.14] bg-[#2a2a2c]/95 p-[5px] shadow-[0_8px_24px_rgb(0_0_0/0.5)] backdrop-blur-xl">
+        <Menu tone="island" className="absolute right-0 bottom-full z-10 mb-1">
           {items.map((item) => (
-            <button
+            <MenuItem
               key={item.label}
-              role="menuitem"
-              type="button"
-              className="flex w-full cursor-pointer items-center gap-1.5 rounded-key px-2 py-[3px] text-left text-body text-white hover:bg-primary"
-              onClick={() => {
+              tone="island"
+              onPress={() => {
                 setOpen(false);
                 item.choose();
               }}
             >
-              {item.symbol !== undefined && <SFSymbol name={item.symbol} size={13} />}
+              {item.symbol !== undefined && <SFSymbol name={item.symbol} size={MENU_SYMBOL} />}
               {item.label}
-            </button>
+            </MenuItem>
           ))}
-        </div>
+        </Menu>
       )}
     </div>
   );
@@ -194,9 +196,9 @@ export function Finished({ card, onOpen, onDone }: { card: FinishedCard; onOpen?
         </div>
         <p className="m-0 line-clamp-2 text-body text-island-soft">{card.summary}</p>
         <div className="flex items-center gap-2">
-          {card.sessionId !== undefined && onOpen !== undefined && <IslandButton onClick={onOpen}>Open</IslandButton>}
+          {card.sessionId !== undefined && onOpen !== undefined && <IslandButton onClick={onOpen}>{CardLines.open}</IslandButton>}
           <IslandButton kind="primary" onClick={onDone}>
-            OK
+            {CardLines.ok}
           </IslandButton>
         </div>
       </div>
@@ -204,14 +206,17 @@ export function Finished({ card, onOpen, onDone }: { card: FinishedCard; onOpen?
   );
 }
 
+/** The waveform on Talk, at the size of the pill's words. */
+const TALK_SYMBOL = 12.5;
+
 /** `IslandEmpty`: opened with nothing running, and the one thing to do from here. */
 export function Empty({ onTalk, talkDisabled = false }: { onTalk: () => void; talkDisabled?: boolean }) {
   return (
     <IslandCard veil={VEIL.empty} className={CONTENT_INSET}>
       <div className="flex h-full flex-col items-start justify-center gap-3 pl-[112px]">
-        <p className="m-0 text-headline font-medium text-white">Nothing is running right now.</p>
-        <IslandButton kind="primary" symbol="waveform" symbolSize={12.5} disabled={talkDisabled} onClick={onTalk}>
-          Talk to Memnox
+        <p className="m-0 text-headline font-medium text-white">{CardLines.nothingRunning}</p>
+        <IslandButton kind="primary" symbol="waveform" symbolSize={TALK_SYMBOL} disabled={talkDisabled} onClick={onTalk}>
+          {CardLines.talk}
         </IslandButton>
       </div>
     </IslandCard>
@@ -259,16 +264,19 @@ const EFFECT: Record<string, { tint: string; lifted: string; word: string }> = {
 };
 const UNKNOWN_EFFECT = { tint: '#6366F1', lifted: '#8A8CF5' };
 
+/** How strongly the effect's tint washes the rule card, and more strongly its pill. */
+const RULE_VEIL = { card: 0.3, pill: 0.2 } as const;
+
 /** "on this computer", "in shop" or "for the team", the way the button says where a rule holds. */
 function placeWords(scope: RuleScope): string {
-  if (scope.kind === RULE_SCOPE.REPOSITORY) return `in ${scope.label}`;
-  if (scope.kind === RULE_SCOPE.TEAM) return 'for the team';
-  return 'on this computer';
+  if (scope.kind === RULE_SCOPE.REPOSITORY) return RuleCardLines.inFolder(scope.label);
+  if (scope.kind === RULE_SCOPE.TEAM) return RuleCardLines.forTeam;
+  return RuleCardLines.onComputer;
 }
 
 /** The signing button's words: a team rule is proposed rather than enforced, since an admin decides. */
 function enforceWords(scope: RuleScope): string {
-  return scope.kind === RULE_SCOPE.TEAM ? 'Propose for the team' : `Enforce ${placeWords(scope)}`;
+  return scope.kind === RULE_SCOPE.TEAM ? RuleCardLines.proposeTeam : RuleCardLines.enforceIn(placeWords(scope));
 }
 
 const sentence = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
@@ -290,20 +298,20 @@ function RuleCard({ subject, rule, cards, onAnswered }: { subject: string; rule:
     onAnswered(outcome, scopeId !== undefined);
   }
 
-  const details: [string, string, boolean][] = [['Action', rule.action, true]];
-  if (rule.branches !== undefined && rule.branches.length > 0) details.push(['Branches', rule.branches.join(', '), true]);
-  if (rule.targets !== undefined && rule.targets.length > 0) details.push(['Paths', rule.targets.join(', '), true]);
-  details.push(['Why', rule.reason, false]);
+  const details: [string, string, boolean][] = [[RuleCardLines.action, rule.action, true]];
+  if (rule.branches !== undefined && rule.branches.length > 0) details.push([RuleCardLines.branches, rule.branches.join(', '), true]);
+  if (rule.targets !== undefined && rule.targets.length > 0) details.push([RuleCardLines.paths, rule.targets.join(', '), true]);
+  details.push([RuleCardLines.why, rule.reason, false]);
 
   return (
-    <IslandCard veil={veilOf(tint, 0.3)} className="flex min-h-0 flex-1 flex-col gap-2.5 p-3.5 [&>*]:shrink-0">
+    <IslandCard veil={veilOf(tint, RULE_VEIL.card)} className="flex min-h-0 flex-1 flex-col gap-2.5 p-3.5 [&>*]:shrink-0">
       <div className="flex items-center gap-2">
         <span className="grid" style={{ color: tint }}>
           <SFSymbol name="shield.lefthalf.filled" size={13} />
         </span>
-        <span className="text-callout font-semibold text-white">New rule</span>
+        <span className="text-callout font-semibold text-white">{RuleCardLines.title}</span>
         <span className="flex-1" />
-        <span className="rounded-full px-2.5 py-1 text-footnote font-semibold" style={{ color: effect?.lifted ?? UNKNOWN_EFFECT.lifted, backgroundColor: veilOf(tint, 0.2) }}>
+        <span className="rounded-full px-2.5 py-1 text-footnote font-semibold" style={{ color: effect?.lifted ?? UNKNOWN_EFFECT.lifted, backgroundColor: veilOf(tint, RULE_VEIL.pill) }}>
           {effect?.word ?? rule.effect}
         </span>
       </div>
@@ -316,8 +324,8 @@ function RuleCard({ subject, rule, cards, onAnswered }: { subject: string; rule:
           </div>
         ))}
       </dl>
-      <p className="m-0 text-footnote font-semibold text-white/50">Where should it hold?</p>
-      <div className="grid max-h-[138px] min-h-0 !shrink content-start gap-1 overflow-y-auto [scrollbar-width:none]" role="radiogroup" aria-label="Where should it hold?">
+      <p className="m-0 text-footnote font-semibold text-white/50">{RuleCardLines.where}</p>
+      <div className="grid max-h-[138px] min-h-0 !shrink content-start gap-1 overflow-y-auto [scrollbar-width:none]" role="radiogroup" aria-label={RuleCardLines.where}>
         {rule.scopes.map((each) => (
           <PlaceRow key={each.id} scope={each} picked={scope === each.id} pick={() => setScope(each.id)} />
         ))}
@@ -325,11 +333,11 @@ function RuleCard({ subject, rule, cards, onAnswered }: { subject: string; rule:
       <span className="flex-1" />
       <div className={`flex items-center gap-2 ${busy ? ANSWERING_ROW : ''}`}>
         <IslandButton inRow disabled={busy} onClick={() => void answer(undefined)}>
-          Not now
+          {RuleCardLines.notNow}
         </IslandButton>
         <span className="flex-1" />
         <IslandButton kind="primary" symbol="touchid" disabled={busy || picked === undefined} onClick={() => void answer(scope)}>
-          <span className="truncate">{picked === undefined ? 'Enforce' : enforceWords(picked)}</span>
+          <span className="truncate">{picked === undefined ? RuleCardLines.enforce : enforceWords(picked)}</span>
         </IslandButton>
       </div>
       {said !== undefined && <p className={`${note} m-0`}>{said}</p>}
@@ -339,18 +347,17 @@ function RuleCard({ subject, rule, cards, onAnswered }: { subject: string; rule:
 
 /** What each kind of place a rule holds is drawn with, and what holding there means. */
 function placeLook(scope: RuleScope): { symbol: SFSymbolName; detail: string } {
-  if (scope.kind === RULE_SCOPE.TEAM) return { symbol: 'person.3', detail: 'Every agent the team runs, cloud ones too, once an admin approves' };
-  if (scope.kind === RULE_SCOPE.REPOSITORY && scope.folder !== undefined) return { symbol: 'folder', detail: `Only agents in ${scope.folder}` };
-  if (scope.kind === RULE_SCOPE.REPOSITORY) return { symbol: 'folder', detail: `Only agents in ${scope.label}` };
-  return { symbol: 'desktopcomputer', detail: 'Every agent, in every folder' };
+  if (scope.kind === RULE_SCOPE.TEAM) return { symbol: 'person.3', detail: RuleCardLines.teamDetail };
+  if (scope.kind === RULE_SCOPE.REPOSITORY && scope.folder !== undefined) return { symbol: 'folder', detail: RuleCardLines.folderDetail(scope.folder) };
+  if (scope.kind === RULE_SCOPE.REPOSITORY) return { symbol: 'folder', detail: RuleCardLines.folderDetail(scope.label) };
+  return { symbol: 'desktopcomputer', detail: RuleCardLines.computerDetail };
 }
 
 /** One place a rule can hold, picked with a blue ring and a filled check. */
 function PlaceRow({ scope, picked, pick }: { scope: RuleScope; picked: boolean; pick: () => void }) {
   const look = placeLook(scope);
   return (
-    <button
-      type="button"
+    <Pressable
       role="radio"
       aria-checked={picked}
       onClick={pick}
@@ -368,6 +375,6 @@ function PlaceRow({ scope, picked, pick }: { scope: RuleScope; picked: boolean; 
       <span className={`grid ${picked ? 'text-primary' : 'text-white/50'}`}>
         <SFSymbol name={picked ? 'checkmark.circle.fill' : 'circle'} size={13} />
       </span>
-    </button>
+    </Pressable>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { MailDraft } from '@memnox/core/wire';
-import { ANSWERING_ROW, IslandButton, IslandCard, PRESSABLE, SFSymbol, VEIL } from '../kit';
+import { ANSWERING_ROW, IslandButton, IslandCard, PRESSABLE, Pressable, SFSymbol, VEIL } from '../kit';
+import { WorkCardLines } from '../../core/domain/island-lines';
 
 /** Gmail's own send blue, which the mail draft's Send wears rather than the tool colour. */
 const MAIL_SEND = '#1A73E8';
@@ -46,11 +47,11 @@ export function DraftCard({ draft, onAnswer, sending = false, className }: { dra
             <SFSymbol name="arrowshape.turn.up.left" size={13} />
           </span>
         )}
-        <span className="text-callout font-semibold text-white">{reply ? 'Reply' : 'New Message'}</span>
+        <span className="text-callout font-semibold text-white">{reply ? WorkCardLines.reply : WorkCardLines.newMessage}</span>
         <span className="flex-1" />
-        <button type="button" className={`${PRESSABLE} grid size-6 place-items-center rounded-full bg-white/10 text-white/[0.92]`} disabled={sending} onClick={() => onAnswer(false)} title="Close without sending" aria-label="Close without sending">
+        <Pressable className={`${PRESSABLE} grid size-6 place-items-center rounded-full bg-white/10 text-white/[0.92]`} disabled={sending} onClick={() => onAnswer(false)} title={WorkCardLines.close} aria-label={WorkCardLines.close}>
           <SFSymbol name="xmark" size={12} weight="bold" />
-        </button>
+        </Pressable>
       </div>
       {draft.thread !== undefined && (
         <Row>
@@ -77,14 +78,14 @@ export function DraftCard({ draft, onAnswer, sending = false, className }: { dra
         {typing && <span className="ml-px inline-block h-4 w-[1.5px] translate-y-[3px] animate-caret bg-white" />}
       </p>
       <div className={`flex items-center gap-2 ${sending ? ANSWERING_ROW : ''}`}>
-        <IslandButton inRow onClick={() => void navigator.clipboard?.writeText(draft.body)} aria-label="Copy the message" title="Copy the message">
+        <IslandButton inRow onClick={() => void navigator.clipboard?.writeText(draft.body)} aria-label={WorkCardLines.copy} title={WorkCardLines.copy}>
           <SFSymbol name="doc.on.doc" size={12} />
         </IslandButton>
         <span className="flex-1" />
-        <button type="button" className={`${PRESSABLE} inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-callout font-semibold text-white`} style={{ backgroundColor: MAIL_SEND }} onClick={() => onAnswer(true)}>
+        <Pressable className={`${PRESSABLE} inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-callout font-semibold text-white`} style={{ backgroundColor: MAIL_SEND }} onClick={() => onAnswer(true)}>
           <SFSymbol name="touchid" size={14} />
-          Send
-        </button>
+          {WorkCardLines.sendWord}
+        </Pressable>
       </div>
     </IslandCard>
   );

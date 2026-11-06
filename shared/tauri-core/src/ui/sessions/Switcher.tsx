@@ -5,6 +5,14 @@ import { shelfPlace, shelfStart, SWITCHER_TIMING, turnMs } from '../../core/doma
 import { BrandLogo } from '../kit';
 import { tinted } from './parts';
 import './sessions.css';
+import { SessionCardLines } from '../../core/domain/island-lines';
+
+/**
+ * The switcher's look, as the Mac's shelf: the window dims to 38%, the shelf rises from 40 below to rest 30 above
+ * centre in a 440 perspective, the front card wears its status colour at 80% and a deeper shadow, and each card's
+ * depth orders it. The turn eases with a slight overshoot, and the switcher closes a frame after its exit.
+ */
+const SWITCHER_LOOK = { dim: 0.38, enterFrom: 40, restAt: -30, perspective: 440, zBase: 100, zStep: 10, frontEdge: 0.8, frontShadow: 44, backShadow: 28, overshoot: 0.6, doneSlackMs: 10 } as const;
 
 /**
  * The switcher, the web twin of the Mac's `SwitcherPanel`: the sessions as cards on a shelf, turning past
@@ -32,7 +40,7 @@ export function Switcher({ cards, target, onDone, still = false }: { cards: read
       const tick = (now: number) => {
         const p = Math.min(1, (now - began) / turn);
         // A spring at damping 0.82 eases out with the slightest overshoot, which this curve stands in for.
-        const eased = 1 - Math.pow(1 - p, 3) * (1 - 0.6 * p);
+        const eased = 1 - Math.pow(1 - p, 3) * (1 - SWITCHER_LOOK.overshoot * p);
         setSelected(start + (index - start) * eased);
         if (p < 1) frame = requestAnimationFrame(tick);
       };
@@ -41,7 +49,7 @@ export function Switcher({ cards, target, onDone, still = false }: { cards: read
     const chooseAt = SWITCHER_TIMING.settleBeforeTurn + SWITCHER_TIMING.perStep * Math.abs(index - start) + SWITCHER_TIMING.hold;
     at(chooseAt, () => setChosen(true));
     at(chooseAt + SWITCHER_TIMING.chosenHold, () => setShown(false));
-    at(chooseAt + SWITCHER_TIMING.chosenHold + SWITCHER_TIMING.exit + 10, () => done.current());
+    at(chooseAt + SWITCHER_TIMING.chosenHold + SWITCHER_TIMING.exit + SWITCHER_LOOK.doneSlackMs, () => done.current());
     return () => {
       timers.forEach(clearTimeout);
       cancelAnimationFrame(frame);
@@ -50,10 +58,10 @@ export function Switcher({ cards, target, onDone, still = false }: { cards: read
 
   return (
     <div className="fixed inset-0 overflow-hidden font-sans">
-      <div className="absolute inset-0 bg-black transition-opacity" style={{ opacity: shown ? 0.38 : 0, transitionDuration: `${shown ? SWITCHER_TIMING.fadeIn : SWITCHER_TIMING.exit}ms` }} />
+      <div className="absolute inset-0 bg-black transition-opacity" style={{ opacity: shown ? SWITCHER_LOOK.dim : 0, transitionDuration: `${shown ? SWITCHER_TIMING.fadeIn : SWITCHER_TIMING.exit}ms` }} />
       <div
         className="absolute inset-0 grid place-items-center transition-[opacity,translate]"
-        style={{ opacity: shown ? 1 : 0, translate: `0 ${shown ? -30 : 40}px`, transitionDuration: `${shown ? SWITCHER_TIMING.fadeIn : SWITCHER_TIMING.exit}ms`, perspective: 440 }}
+        style={{ opacity: shown ? 1 : 0, translate: `0 ${shown ? SWITCHER_LOOK.restAt : SWITCHER_LOOK.enterFrom}px`, transitionDuration: `${shown ? SWITCHER_TIMING.fadeIn : SWITCHER_TIMING.exit}ms`, perspective: SWITCHER_LOOK.perspective }}
       >
         {cards.map((card, at) => {
           const place = shelfPlace(at - selected, chosen);
@@ -67,7 +75,7 @@ export function Switcher({ cards, target, onDone, still = false }: { cards: read
                 translate: `0 ${place.y}px`,
                 filter: `brightness(${1 + place.brightness})`,
                 opacity: place.hidden ? 0 : 1,
-                zIndex: Math.round(100 + place.z * 10),
+                zIndex: Math.round(SWITCHER_LOOK.zBase + place.z * SWITCHER_LOOK.zStep),
               }}
             >
               <SessionTile card={card} front={place.front} />
@@ -87,8 +95,8 @@ function SessionTile({ card, front }: { card: SessionCard; front: boolean }) {
     <div
       className="flex h-[300px] w-[240px] flex-col gap-3 rounded-island border bg-surface p-[18px] text-foreground"
       style={{
-        borderColor: front ? tinted(colour, 0.8) : 'rgb(255 255 255 / 0.11)',
-        boxShadow: `0 10px ${front ? 44 : 28}px rgb(0 0 0 / 0.4)`,
+        borderColor: front ? tinted(colour, SWITCHER_LOOK.frontEdge) : 'rgb(255 255 255 / 0.11)',
+        boxShadow: `0 10px ${front ? SWITCHER_LOOK.frontShadow : SWITCHER_LOOK.backShadow}px rgb(0 0 0 / 0.4)`,
         WebkitBoxReflect: 'below 4px linear-gradient(transparent 70%, rgb(0 0 0 / 0.16))',
       }}
     >
@@ -96,7 +104,7 @@ function SessionTile({ card, front }: { card: SessionCard; front: boolean }) {
         <BrandLogo agent={card.agent} name={card.agentName} size={36} />
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate font-display text-[20px] leading-tight text-foreground">{card.agentName}</span>
-          <span className="truncate text-caption text-muted">{card.runningIn ?? 'Somewhere unknown'}</span>
+          <span className="truncate text-caption text-muted">{card.runningIn ?? SessionCardLines.somewhereUnknown}</span>
         </div>
       </div>
       <p className="m-0 line-clamp-4 text-body text-foreground/90">{cardTitle(card)}</p>

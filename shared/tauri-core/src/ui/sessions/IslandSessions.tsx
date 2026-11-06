@@ -18,9 +18,10 @@ import {
   totals,
   viewStatus,
 } from '../../core';
-import { IslandCard, MiddleCut, PRESSABLE, PulseDot, SFSymbol, ShimmerText, veilOf } from '../kit';
+import { IslandCard, MiddleCut, PRESSABLE, Pressable, PulseDot, SFSymbol, ShimmerText, veilOf } from '../kit';
 import { Counts, MiniSpinner, SessionLogo, StatusBadge, StepIcon } from './parts';
 import './sessions.css';
+import { SessionCardLines } from '../../core/domain/island-lines';
 
 /**
  * The open island's session screens, each the web twin of one Swift view in `Island/IslandOverview.swift`
@@ -42,7 +43,10 @@ const SHOWN_FILES = 5;
 const SHOWN_ROLL = 3;
 
 /** The clock the screens read "ago" against, ticking so a line that says just now moves on. */
-function useNow(everyMs = 15_000): number {
+/** "Ago" moves in minutes, so a quarter of one is often enough. */
+const NOW_EVERY_MS = 15_000;
+
+function useNow(everyMs = NOW_EVERY_MS): number {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), everyMs);
@@ -88,7 +92,7 @@ export function Overview({
   }, []);
   return (
     <div className={`${CONTENT_INSET} flex gap-2.5`}>
-      <IslandCard veil={veil} className="w-[280px] shrink-0 cursor-pointer" onClick={onDetail} title="See what it is changing" role="button" aria-label="See what it is changing">
+      <IslandCard veil={veil} className="w-[280px] shrink-0 cursor-pointer" onClick={onDetail} title={SessionCardLines.seeChanging} role="button" aria-label={SessionCardLines.seeChanging}>
         {card !== undefined && (
           <div className="flex h-full min-w-0 flex-col justify-center gap-0.5 pl-[88px] pr-3.5">
             <div className="flex min-w-0 items-center gap-[7px]">
@@ -144,7 +148,7 @@ export function StepRoll({ steps, thinking }: { steps: readonly SessionViewStep[
           </div>
         );
       })}
-      {shown.length === 0 && <span className="flex h-[26px] shrink-0 items-center text-footnote text-quiet">{thinking ? 'Thinking' : 'Nothing done yet'}</span>}
+      {shown.length === 0 && <span className="flex h-[26px] shrink-0 items-center text-footnote text-quiet">{thinking ? SessionCardLines.thinking : SessionCardLines.nothingDone}</span>}
     </div>
   );
 }
@@ -156,13 +160,12 @@ export function StepRoll({ steps, thinking }: { steps: readonly SessionViewStep[
 export function SessionRow({ card, focused, now, onHover, onOpen }: { card: SessionCard; focused: boolean; now: number; onHover: () => void; onOpen: () => void }) {
   const active = isActive(cardStatus(card));
   return (
-    <button
-      type="button"
+    <Pressable
       className={`${PRESSABLE} flex h-[30px] w-full min-w-0 items-center gap-2.5 rounded-[11px] px-2 text-left transition-colors duration-150 ease-out ${focused ? 'bg-white/[0.08]' : 'bg-transparent'}`}
       onPointerEnter={onHover}
       onFocus={onHover}
       onClick={onOpen}
-      title="Go to this session"
+      title={SessionCardLines.goTo}
     >
       <SessionLogo agent={card.agent} name={card.agentName} size={22} />
       <span className="flex min-w-0 flex-1 flex-col gap-px">
@@ -176,7 +179,7 @@ export function SessionRow({ card, focused, now, onHover, onOpen }: { card: Sess
       ) : (
         active && <PulseDot colour="#8CC8FF" size={7} />
       )}
-    </button>
+    </Pressable>
   );
 }
 
@@ -207,19 +210,18 @@ export function SessionDetail({ session, onOpen, onWatch }: { session: SessionVi
                 )}
               </span>
             </div>
-            <button
-              type="button"
+            <Pressable
               className={`${PRESSABLE} grid size-[26px] shrink-0 place-items-center rounded-full bg-white/[0.08] text-white`}
               onClick={onOpen}
-              title={session.runningIn === undefined ? 'Open this session' : `Open this session in ${session.runningIn}`}
-              aria-label="Open this session"
+              title={session.runningIn === undefined ? SessionCardLines.open : SessionCardLines.openIn(session.runningIn)}
+              aria-label={SessionCardLines.open}
             >
               <SFSymbol name="arrow.up.forward" size={11} weight="semibold" />
-            </button>
+            </Pressable>
           </div>
           {asked !== undefined && (
             <div className="flex min-w-0 flex-col gap-0.5">
-              <span className={`text-micro font-semibold uppercase tracking-[0.6px] ${asked.followUp ? 'text-island-sky' : 'text-white/40'}`}>{asked.followUp ? 'Follow-up' : 'Asked'}</span>
+              <span className={`text-micro font-semibold uppercase tracking-[0.6px] ${asked.followUp ? 'text-island-sky' : 'text-white/40'}`}>{asked.followUp ? SessionCardLines.followUp : SessionCardLines.asked}</span>
               <span className="line-clamp-2 text-footnote text-island-soft" title={asked.words}>
                 {asked.words}
               </span>
@@ -268,11 +270,11 @@ function FilesPanel({ session, onWatch }: { session: SessionView; onWatch: () =>
   const sum = totals(files);
   const rest = files.length - SHOWN_FILES;
   return (
-    <button type="button" className={`${PRESSABLE} group flex min-w-0 flex-1 text-left`} onClick={onWatch} title="Open the live window to read the diffs">
+    <Pressable className={`${PRESSABLE} group flex min-w-0 flex-1 text-left`} onClick={onWatch} title={SessionCardLines.openLive}>
       <IslandCard className="flex size-full min-w-0 flex-col gap-[7px] p-3.5">
         {files.length === 0 ? (
           <span className="m-auto text-center text-footnote text-island-soft">
-            {onlyNetwork(session.steps) ? 'Memnox sees only where this session connects, not the files it changes' : 'No files changed yet'}
+            {onlyNetwork(session.steps) ? SessionCardLines.onlyNetwork : SessionCardLines.noFiles}
           </span>
         ) : (
           <>
@@ -300,11 +302,11 @@ function FilesPanel({ session, onWatch }: { session: SessionView; onWatch: () =>
             <span className="flex-1" />
             <span className="flex items-center gap-1 text-caption font-medium text-white/55 transition-colors group-hover:text-island-sky">
               <SFSymbol name="plusminus" size={11} weight="medium" />
-              {rest > 0 ? `${rest} more, see every diff` : 'See the diffs'}
+              {rest > 0 ? SessionCardLines.moreDiffs(rest) : SessionCardLines.seeDiffs}
             </span>
           </>
         )}
       </IslandCard>
-    </button>
+    </Pressable>
   );
 }

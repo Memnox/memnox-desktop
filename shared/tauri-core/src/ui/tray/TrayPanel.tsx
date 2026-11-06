@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { chipLabel, chipTooltip, listeningBadge, MENU_PANEL, MENU_WORDS, MENU_SETTLE, menuRows, stripNote, type MenuAction, type MenuRow, type ToolChip } from '../../core/domain/menu-panel';
 import { demoOn } from '../adapters/demo';
-import { AgentMark, LogoMark, SFSymbol, ToolMark, type SFSymbolName } from '../kit';
+import { AgentMark, LogoMark, Pressable, SFSymbol, type SFSymbolName, ToolMark } from '../kit';
 
 /** What the panel draws, gathered by its window from the island and the daemon. */
 export interface TrayPanelState {
@@ -54,9 +54,9 @@ export function TrayPanel({ state, opened, onAction, online = true }: { state: T
             {MENU_WORDS.connected}
           </span>
           <span className="flex-1" />
-          <button type="button" className="cursor-pointer text-micro font-semibold text-primary" onClick={() => onAction('tools')}>
+          <Pressable className="cursor-pointer text-micro font-semibold text-primary" onClick={() => onAction('tools')}>
             {MENU_WORDS.manage}
-          </button>
+          </Pressable>
         </div>
         <MenuCard className="h-[52px]">
           {note !== undefined ? (
@@ -99,13 +99,13 @@ function MenuCard({ className, children }: { className?: string; children: React
 /** One agent or app: a 26 mark with its status dot in its corner, and its name 10 medium 4 under it, 58 wide. */
 function Chip({ chip, online, onPress }: { chip: ToolChip; online: boolean; onPress: () => void }) {
   return (
-    <button type="button" className="flex w-[58px] shrink-0 cursor-pointer flex-col items-center gap-1 transition-[scale] duration-[220ms] active:scale-[0.97]" onClick={onPress} title={chipTooltip(chip)} aria-label={chipLabel(chip)}>
+    <Pressable className="flex w-[58px] shrink-0 cursor-pointer flex-col items-center gap-1 transition-[scale] duration-[220ms] active:scale-[0.97]" onClick={onPress} title={chipTooltip(chip)} aria-label={chipLabel(chip)}>
       <span className="relative">
         {chip.kind === 'agent' ? <AgentMark agent={chip.key} name={chip.name} size={26} /> : <ToolMark toolkit={chip.key} size={26} online={online} />}
         <span className={`absolute right-0 bottom-0 size-1.5 rounded-full ${chip.ready ? 'bg-success' : 'bg-warm'}`} style={{ boxShadow: 'inset 0 0 0 0.5px rgb(0 0 0 / 0.4)' }} />
       </span>
       <span className="w-full truncate text-center text-micro font-medium text-ink">{chip.name}</span>
-    </button>
+    </Pressable>
   );
 }
 
@@ -118,8 +118,7 @@ function Keycap({ label }: { label: string }) {
 function Row({ row, onPress }: { row: MenuRow; onPress: () => void }) {
   const quiet = row.quiet === true;
   return (
-    <button
-      type="button"
+    <Pressable
       className="flex h-8 w-full cursor-pointer items-center gap-[11px] rounded-[11px] px-2.5 text-left transition-[background-color,scale] duration-[120ms] ease-out hover:bg-[var(--mx-ink-07)] active:scale-[0.97]"
       onClick={onPress}
       title={row.tooltip}
@@ -135,6 +134,6 @@ function Row({ row, onPress }: { row: MenuRow; onPress: () => void }) {
           ))}
         </span>
       )}
-    </button>
+    </Pressable>
   );
 }

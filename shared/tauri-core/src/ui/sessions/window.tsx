@@ -15,6 +15,8 @@ import { Switcher } from './Switcher';
 import { ASK_AGAIN_EVENT, DISMISS_EVENT } from './tauri-presenter';
 import { bringForward, SESSION_TURNED_EVENT } from './open-session';
 import '../styles.css';
+import { TAURI_COMMAND } from '../adapters/tauri-commands';
+import { SessionCardLines } from '../../core/domain/island-lines';
 
 /**
  * The session windows' composition root: the live window, the side panel, the switcher and the card
@@ -37,7 +39,7 @@ const ids = new RequestIds();
 const sessions = new Sessions(link, ids, timer);
 
 function close(): void {
-  void invoke('close_session_window').catch(() => undefined);
+  void invoke(TAURI_COMMAND.closeSessionWindow).catch(() => undefined);
 }
 
 /** Held calls watched from this window too, so one can be answered where it is read, signed as from the island. */
@@ -56,7 +58,7 @@ function watchedCalls(): HeldCalls {
 }
 
 function openLive(sessionId: string): void {
-  void invoke('open_live_session', { sessionId }).catch(() => undefined);
+  void invoke(TAURI_COMMAND.openLiveSession, { sessionId }).catch(() => undefined);
 }
 
 function LiveWindow({ first }: { first: string }) {
@@ -72,7 +74,7 @@ function LiveWindow({ first }: { first: string }) {
       sessions={sessions}
       calls={calls}
       onClose={close}
-      onOpenFolder={(path) => void invoke('open_folder', { path }).catch(() => undefined)}
+      onOpenFolder={(path) => void invoke(TAURI_COMMAND.openFolder, { path }).catch(() => undefined)}
       onOpenApp={bringForward}
     />
   );
@@ -220,7 +222,7 @@ function Page() {
     case 'switcher':
       return <SwitcherWindow target={asked.get('session') ?? ''} />;
     case 'board':
-      return <Board sessions={sessions} title={asked.get('title') ?? 'Your sessions'} onWatch={openLive} onClose={close} />;
+      return <Board sessions={sessions} title={asked.get('title') ?? SessionCardLines.yourSessions} onWatch={openLive} onClose={close} />;
     default:
       return null;
   }

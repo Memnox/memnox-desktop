@@ -1,9 +1,10 @@
 import { useState, useSyncExternalStore } from 'react';
 import { HOLD_ANSWER } from '@memnox/core/wire';
 import type { HeldCalls, HeldCard, HeldOutcome } from '../../core';
-import { ANSWERING_ROW, BrandLogo, SFSymbol } from '../kit';
+import { ANSWERING_ROW, BrandLogo, Pressable, SFSymbol } from '../kit';
 import { HeldImpactLines } from './HeldImpact';
 import { SYSTEM_MONO } from './MarkdownText';
+import { HeldLines } from '../../core/domain/island-lines';
 
 /**
  * `HeldStrip`: a call waiting on the person, answered where it is read, inside a window such as the live
@@ -20,7 +21,7 @@ export function HeldStrip({ calls, card, onAnswered }: { calls: HeldCalls; card:
 
   async function press(answer: typeof HOLD_ANSWER.DENY | typeof HOLD_ANSWER.ONCE) {
     const outcome = await calls.answer(card.subject, answer);
-    setSaid(outcome.kind === 'failed' ? `That did not go through: ${outcome.why}` : outcome.kind === 'cancelled' ? 'Nothing was sent, so it is still waiting.' : undefined);
+    setSaid(outcome.kind === 'failed' ? HeldLines.failed(outcome.why) : outcome.kind === 'cancelled' ? HeldLines.cancelled : undefined);
     onAnswered?.(outcome);
   }
 
@@ -36,13 +37,13 @@ export function HeldStrip({ calls, card, onAnswered }: { calls: HeldCalls; card:
       </p>
       {card.impact !== undefined && <HeldImpactLines impact={card.impact} />}
       <div className={`flex items-center gap-2 ${answering ? ANSWERING_ROW : ''}`}>
-        <button type="button" className="inline-flex cursor-pointer items-center rounded-full bg-[var(--mx-ink-fill-09,rgb(255_255_255/0.09))] px-3.5 py-[7px] text-button font-medium text-ink active:scale-[0.94]" disabled={answering} onClick={() => void press(HOLD_ANSWER.DENY)}>
-          Deny
-        </button>
-        <button type="button" className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-primary-fill px-3.5 py-[7px] text-button font-medium text-primary-text active:scale-[0.94]" disabled={answering} onClick={() => void press(HOLD_ANSWER.ONCE)}>
+        <Pressable className="inline-flex cursor-pointer items-center rounded-full bg-[var(--mx-ink-fill-09,rgb(255_255_255/0.09))] px-3.5 py-[7px] text-button font-medium text-ink active:scale-[0.94]" disabled={answering} onClick={() => void press(HOLD_ANSWER.DENY)}>
+          {HeldLines.deny}
+        </Pressable>
+        <Pressable className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-primary-fill px-3.5 py-[7px] text-button font-medium text-primary-text active:scale-[0.94]" disabled={answering} onClick={() => void press(HOLD_ANSWER.ONCE)}>
           {card.touchID && <SFSymbol name="touchid" size={12} />}
-          Allow once
-        </button>
+          {HeldLines.allowOnce}
+        </Pressable>
       </div>
       {said !== undefined && <p className="m-0 text-caption text-ink-secondary">{said}</p>}
     </div>

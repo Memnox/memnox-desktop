@@ -3,6 +3,7 @@ import { emit, listen } from '@tauri-apps/api/event';
 import type { DisplayHost, TraceCard } from '@memnox/core/wire';
 import type { Presenter, Shown, SummaryCard, WalkCard } from '../../core';
 import { openSession, SESSION_TURNED_EVENT } from './open-session';
+import { TAURI_COMMAND } from '../adapters/tauri-commands';
 
 /** Told to the floating cards' window, which draws a summary, a walk or a trace in the top left. */
 export const FLOATING_CARD_EVENT = 'floating-card';
@@ -19,7 +20,7 @@ const SWITCHER_WAIT_MS = 6_000;
  */
 export class TauriPresenter implements Presenter {
   async live(sessionId: string): Promise<void> {
-    await invoke('open_live_session', { sessionId }).catch(() => undefined);
+    await invoke(TAURI_COMMAND.openLiveSession, { sessionId }).catch(() => undefined);
   }
 
   /**
@@ -33,7 +34,7 @@ export class TauriPresenter implements Presenter {
     const wait = setTimeout(finished, SWITCHER_WAIT_MS);
     try {
       // No switcher is no reason not to open it, so a refusal goes straight on.
-      await invoke('open_switcher', { sessionId }).then(
+      await invoke(TAURI_COMMAND.openSwitcher, { sessionId }).then(
         () => turned,
         () => undefined,
       );
@@ -57,23 +58,23 @@ export class TauriPresenter implements Presenter {
   }
 
   async board(title: string): Promise<void> {
-    await invoke('open_board', { title }).catch(() => undefined);
+    await invoke(TAURI_COMMAND.openBoard, { title }).catch(() => undefined);
   }
 
   async dismissAll(): Promise<void> {
     await emit(DISMISS_EVENT);
-    await invoke('dismiss_session_windows').catch(() => undefined);
+    await invoke(TAURI_COMMAND.dismissSessionWindows).catch(() => undefined);
   }
 
   openFolder(path: string): Promise<boolean> {
-    return invoke<void>('open_folder', { path }).then(
+    return invoke<void>(TAURI_COMMAND.openFolder, { path }).then(
       () => true,
       () => false,
     );
   }
 
   openLink(url: string): Promise<boolean> {
-    return invoke<void>('open_link', { url }).then(
+    return invoke<void>(TAURI_COMMAND.openLink, { url }).then(
       () => true,
       () => false,
     );

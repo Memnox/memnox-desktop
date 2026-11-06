@@ -1,8 +1,9 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import type { AgentQuestions, HeldOutcome } from '../../core';
 import { choiceForKey, nextQuestion, questionPosition, type QuestionItem, type QuestionOption } from '../../core/domain/agent-question';
-import { ANSWERING_ROW, IslandButton, IslandCard, PRESSABLE, SFSymbol, VEIL } from '../kit';
+import { ANSWERING_ROW, IslandButton, IslandCard, PRESSABLE, Pressable, SFSymbol, VEIL } from '../kit';
 import { SessionLogo } from './parts';
+import { QuestionLines } from '../../core/domain/island-lines';
 
 const CONTENT_INSET = 'absolute inset-x-2.5 bottom-2.5 top-9';
 
@@ -73,15 +74,15 @@ export function Question({ questions, onAnswered }: { questions: AgentQuestions;
         </div>
         <div className="flex min-w-0 items-center gap-2">
           <IslandButton symbol="macwindow" onClick={() => questions.dismiss()}>
-            Answer on screen
+            {QuestionLines.onScreen}
           </IslandButton>
           {item.multiSelect && (
             <IslandButton kind="primary" disabled={state.ticked.size === 0 || state.answering} onClick={() => void questions.done().then(onAnswered)}>
-              Done
+              {QuestionLines.done}
             </IslandButton>
           )}
           <span className="min-w-1.5 flex-1" />
-          <span className="truncate text-caption text-white/50">{item.multiSelect ? 'Tick what applies, then Done' : 'Pick one, or say your answer'}</span>
+          <span className="truncate text-caption text-white/50">{item.multiSelect ? QuestionLines.tickWhatApplies : QuestionLines.pickOne}</span>
         </div>
       </div>
     </IslandCard>
@@ -92,8 +93,7 @@ export function Question({ questions, onAnswered }: { questions: AgentQuestions;
 function Choice({ option, index, multi, ticked, onPress }: { option: QuestionOption; index: number; multi: boolean; ticked: boolean; onPress: () => void }) {
   const key = index < 9 ? String(index + 1) : undefined;
   return (
-    <button
-      type="button"
+    <Pressable
       className={`${PRESSABLE} flex w-full shrink-0 items-start gap-2.5 rounded-card border px-3 py-2.5 text-left ${ticked ? 'border-amber bg-white/16' : 'border-white/[0.08] bg-white/[0.06]'}`}
       onClick={onPress}
       title={key === undefined ? option.label : `Press ${key}`}
@@ -116,6 +116,6 @@ function Choice({ option, index, multi, ticked, onPress }: { option: QuestionOpt
           </span>
         )}
       </span>
-    </button>
+    </Pressable>
   );
 }

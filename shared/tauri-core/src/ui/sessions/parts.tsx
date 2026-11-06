@@ -47,6 +47,9 @@ export function tinted(hex: string, opacity: number): string {
   return `color-mix(in srgb, ${hex} ${opacity * 100}%, transparent)`;
 }
 
+/** The badge's capsule, its status colour at 16%. */
+const BADGE_TINT = 0.16;
+
 /**
  * `IslandStatusBadge`: a 6 dot in the status colour, pulsing only while busy, and the label 10 semibold
  * in that colour lifted toward white, on a capsule of the colour at 16%.
@@ -54,7 +57,7 @@ export function tinted(hex: string, opacity: number): string {
 export function StatusBadge({ status, label }: { status: SessionStatus; label: string }) {
   const tint = statusTint(status);
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-0.5 text-micro font-semibold" style={{ backgroundColor: tinted(tint, 0.16), color: lifted(tint) }}>
+    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-0.5 text-micro font-semibold" style={{ backgroundColor: tinted(tint, BADGE_TINT), color: lifted(tint) }}>
       {isActive(status) ? <PulseDot colour={tint} size={6} /> : <span className="size-1.5 rounded-full" style={{ backgroundColor: tint }} />}
       {label}
     </span>

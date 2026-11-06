@@ -20,10 +20,11 @@ import {
   type Shown,
 } from '../../core';
 import { openWords } from '../../core/domain/floating-cards';
-import { BrandLogo, SFSymbol } from '../kit';
+import { BrandLogo, Pressable, SFSymbol } from '../kit';
 import { tinted } from './parts';
 import { CardButton, CardHeader, HeldStrip, PRESS_DOWN } from './window-kit';
 import './sessions.css';
+import { LiveSessionLines, SessionCardLines } from '../../core/domain/island-lines';
 
 /**
  * The live window on one session, the web twin of the Mac's `LiveSession`: who and where with how it
@@ -115,7 +116,7 @@ export function LiveSession({
   if (view === undefined) {
     return (
       <Surface colour={statusTint('quiet')}>
-        <CardHeader mark={<SFSymbol name="circle" size={14} />} title="Reading the session" onClose={onClose} />
+        <CardHeader mark={<SFSymbol name="circle" size={14} />} title={LiveSessionLines.reading} onClose={onClose} />
       </Surface>
     );
   }
@@ -168,7 +169,7 @@ export function LiveSession({
         <div className="flex items-center gap-2">
           {notOpened === undefined ? <span className="flex-1" /> : <span className="min-w-0 flex-1 truncate text-footnote text-muted" title={notOpened}>{notOpened}</span>}
           <CardButton title="Close" symbol="xmark" onPress={onClose} />
-          {folder !== undefined && onOpenFolder !== undefined && <CardButton title="Open its folder" symbol="folder" primary={openApp === undefined} onPress={() => onOpenFolder(folder)} />}
+          {folder !== undefined && onOpenFolder !== undefined && <CardButton title={LiveSessionLines.openFolder} symbol="folder" primary={openApp === undefined} onPress={() => onOpenFolder(folder)} />}
           {openApp !== undefined && <CardButton title={openWords(host, 'Open session')} symbol="arrow.up.forward.app" primary onPress={openApp} />}
         </div>
       </Part>
@@ -213,10 +214,13 @@ function Part({ order, grow = false, children }: { order: number; grow?: boolean
   );
 }
 
+/** The state pill's capsule, its colour at 14%. */
+const STATE_PILL_TINT = 0.14;
+
 /** `StatePill`: a 7 dot, breathing while it works, and the label 11 medium, in the status colour on 14% of it. */
 function StatePill({ colour, label, breathing }: { colour: string; label: string; breathing: boolean }) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-[9px] py-[3px] text-caption font-medium" style={{ color: colour, backgroundColor: tinted(colour, 0.14) }}>
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-[9px] py-[3px] text-caption font-medium" style={{ color: colour, backgroundColor: tinted(colour, STATE_PILL_TINT) }}>
       <span className={`size-[7px] rounded-full ${breathing ? 'animate-[state-breathe_1.8s_ease-in-out_infinite]' : ''}`} style={{ backgroundColor: colour }} />
       {label}
     </span>
@@ -231,7 +235,7 @@ function Brief({ view }: { view: SessionView }) {
     <div className="flex flex-col gap-2.5">
       {task !== undefined && (
         <div className="flex flex-col gap-1">
-          <span className="text-micro font-semibold uppercase tracking-[0.8px] text-ink/45">Asked</span>
+          <span className="text-micro font-semibold uppercase tracking-[0.8px] text-ink/45">{SessionCardLines.asked}</span>
           <p className="m-0 line-clamp-3 text-callout font-medium text-foreground">{task}</p>
         </div>
       )}
@@ -250,7 +254,7 @@ function Brief({ view }: { view: SessionView }) {
       {view.waitingOnYou > 0 && (
         <span className="flex items-center gap-1.5 text-footnote font-semibold text-warm">
           <Hand size={12} strokeWidth={2.25} fill="currentColor" />
-          {view.waitingOnYou === 1 ? 'One call is waiting on you' : `${view.waitingOnYou} calls are waiting on you`}
+          {LiveSessionLines.waiting(view.waitingOnYou)}
         </span>
       )}
     </div>
@@ -261,7 +265,7 @@ function Brief({ view }: { view: SessionView }) {
 function NowLine({ view }: { view: SessionView }) {
   const latest = view.steps[view.steps.length - 1];
   const line =
-    view.paused !== undefined ? `Paused: ${view.paused}` : view.thinking ? 'Thinking through its answer' : latest !== undefined ? stepLine(latest) : 'Nothing recorded yet';
+    view.paused !== undefined ? LiveSessionLines.paused(view.paused) : view.thinking ? LiveSessionLines.thinking : latest !== undefined ? stepLine(latest) : LiveSessionLines.nothingRecorded;
   return (
     <div className="flex items-center gap-2 rounded-island border border-ink/[0.035] bg-[var(--mx-section)] px-3.5 py-[11px]">
       <span className="grid shrink-0 text-primary">
@@ -273,9 +277,9 @@ function NowLine({ view }: { view: SessionView }) {
 }
 
 const TABS: { id: LiveTab; title: string; icon: ReactNode }[] = [
-  { id: 'conversation', title: 'Conversation', icon: <MessagesSquare size={12} strokeWidth={2} /> },
+  { id: 'conversation', title: LiveSessionLines.conversation, icon: <MessagesSquare size={12} strokeWidth={2} /> },
   { id: 'changes', title: 'Changes', icon: <SFSymbol name="plusminus" size={12} /> },
-  { id: 'activity', title: 'Activity', icon: <ListCollapse size={12} strokeWidth={2} /> },
+  { id: 'activity', title: LiveSessionLines.activity, icon: <ListCollapse size={12} strokeWidth={2} /> },
 ];
 
 /** `LiveTabBar`: one capsule track of ink 6%, the picked tab on a capsule of ink 12% sliding between them. */
@@ -288,9 +292,8 @@ function TabBar({ tab, onPick, counts }: { tab: LiveTab; onPick: (tab: LiveTab) 
         style={{ width: `calc((100% - 6px) / ${TABS.length})`, left: `calc(3px + ${index} * (100% - 6px) / ${TABS.length})` }}
       />
       {TABS.map((each) => (
-        <button
+        <Pressable
           key={each.id}
-          type="button"
           className={`relative z-10 flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full text-footnote ${each.id === tab ? 'font-semibold text-foreground' : 'font-medium text-muted'}`}
           onClick={() => onPick(each.id)}
           aria-pressed={each.id === tab}
@@ -298,7 +301,7 @@ function TabBar({ tab, onPick, counts }: { tab: LiveTab; onPick: (tab: LiveTab) 
           {each.icon}
           {each.title}
           <span className="tabular text-ink/50">{counts[each.id]}</span>
-        </button>
+        </Pressable>
       ))}
     </div>
   );
@@ -307,14 +310,14 @@ function TabBar({ tab, onPick, counts }: { tab: LiveTab; onPick: (tab: LiveTab) 
 /** The person's lines on the right in blue, the agent's as text, a tool as one quiet mono line. */
 function Conversation({ lines, thinking }: { lines: readonly ConversationLine[]; thinking: boolean }) {
   if (lines.length === 0) {
-    return <p className="m-0 text-body text-muted">This agent keeps no transcript Memnox can read, so its steps and changes tell the story.</p>;
+    return <p className="m-0 text-body text-muted">{LiveSessionLines.noTranscript}</p>;
   }
   let asked = false;
   return (
     <div className="flex select-text flex-col gap-3">
       {lines.map((line, index) => {
         if (line.who === 'person') {
-          const label = asked ? 'Follow-up' : 'You asked';
+          const label = asked ? SessionCardLines.followUp : SessionCardLines.youAsked;
           asked = true;
           return (
             <div key={index} className="flex flex-col items-end gap-1 pl-14">
@@ -348,7 +351,7 @@ function Conversation({ lines, thinking }: { lines: readonly ConversationLine[];
 function Changes({ view, sessions }: { view: SessionView; sessions: Sessions }) {
   const sum = totals(view.files);
   const [open, setOpen] = useState<string>();
-  if (view.files.length === 0) return <p className="m-0 text-body text-muted">No files changed yet.</p>;
+  if (view.files.length === 0) return <p className="m-0 text-body text-muted">{LiveSessionLines.noFiles}</p>;
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2 px-1 pb-1">
@@ -391,7 +394,7 @@ function FileRow({
   }, [open, diff, sessions, sessionId, path]);
   return (
     <div className={`rounded-[10px] ${open ? 'bg-ink/[0.05]' : ''}`}>
-      <button type="button" className={`${PRESS_DOWN} flex h-8 w-full min-w-0 items-center gap-2 rounded-[10px] px-2 text-left hover:bg-ink/[0.04]`} onClick={onToggle} title={path}>
+      <Pressable className={`${PRESS_DOWN} flex h-8 w-full min-w-0 items-center gap-2 rounded-[10px] px-2 text-left hover:bg-ink/[0.04]`} onClick={onToggle} title={path}>
         <ChevronRight size={10} strokeWidth={3} className={`shrink-0 text-muted transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
         <span className="grid shrink-0 text-muted">
           <SFSymbol name="doc.text" size={11} />
@@ -407,13 +410,13 @@ function FileRow({
             {removed}
           </span>
         )}
-      </button>
+      </Pressable>
       {open && (
         <div className="px-2 pb-2">
           {diff === undefined ? (
-            <span className="text-caption text-muted">Reading the diff{'…'}</span>
+            <span className="text-caption text-muted">{LiveSessionLines.readingDiff}</span>
           ) : diff === null ? (
-            <span className="text-caption text-muted">No diff is known for this file.</span>
+            <span className="text-caption text-muted">{LiveSessionLines.noDiff}</span>
           ) : (
             <Diff lines={diffLines(diff.lines)} />
           )}
@@ -465,7 +468,7 @@ function Activity({ steps, helpers, now }: { steps: readonly SessionViewStep[]; 
         </div>
       )}
       <div className="flex flex-col gap-[5px]">
-        {shown.length === 0 && <span className="text-body text-muted">Nothing recorded yet.</span>}
+        {shown.length === 0 && <span className="text-body text-muted">{LiveSessionLines.nothingRecordedSentence}</span>}
         {shown.map((step, index) => (
           <StepRow key={`${step.at}-${index}`} step={step} now={now} />
         ))}

@@ -1,8 +1,9 @@
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { HOLD_ANSWER } from '@memnox/core/wire';
 import type { HeldCalls, HeldCard } from '../../core';
-import { BrandLogo, IslandButton, SFSymbol, type SFSymbolName } from '../kit';
+import { BrandLogo, IslandButton, Pressable, SFSymbol, type SFSymbolName } from '../kit';
 import { HeldImpactLines } from '../cards/HeldImpact';
+import { HeldLines } from '../../core/domain/island-lines';
 
 /**
  * The pieces the session windows share, outside the island: these follow the system's light or dark as
@@ -19,30 +20,28 @@ export const PRESS_DOWN = 'cursor-pointer select-none transition-[scale] duratio
 export function CardButton({ title, symbol, primary = false, disabled, onPress }: { title: string; symbol?: SFSymbolName; primary?: boolean; disabled?: boolean; onPress: () => void }) {
   const look = primary ? 'bg-[#F5F6F8]/[0.92] text-[#0B0C0E] hover:bg-[#F5F6F8]' : 'bg-ink/[0.09] text-ink hover:bg-ink/15';
   return (
-    <button
-      type="button"
+    <Pressable
       className={`${PRESS_DOWN} inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-button font-medium transition-colors duration-[120ms] ease-out disabled:opacity-40 ${look}`}
       disabled={disabled}
       onClick={onPress}
     >
       {symbol !== undefined && <SFSymbol name={symbol} size={12.5} weight="medium" />}
       {title}
-    </button>
+    </Pressable>
   );
 }
 
 /** `CloseButton`: an 11 semibold cross, muted until hovered, in a 26 circle that fills ink 12% on hover. */
 export function CloseButton({ onPress, label = 'Close' }: { onPress: () => void; label?: string }) {
   return (
-    <button
-      type="button"
+    <Pressable
       className={`${PRESS_DOWN} grid size-[26px] shrink-0 place-items-center rounded-full text-muted transition-colors duration-[120ms] ease-out hover:bg-ink/[0.12] hover:text-foreground`}
       onClick={onPress}
       title={label}
       aria-label={label}
     >
       <SFSymbol name="xmark" size={11} weight="semibold" />
-    </button>
+    </Pressable>
   );
 }
 
@@ -52,8 +51,7 @@ export function CloseButton({ onPress, label = 'Close' }: { onPress: () => void;
  */
 export function FilterChip({ title, chosen, count, onPress }: { title: string; chosen: boolean; count?: number; onPress: () => void }) {
   return (
-    <button
-      type="button"
+    <Pressable
       className={`${PRESS_DOWN} inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2.5 text-caption transition-colors duration-200 ${
         chosen ? 'bg-primary-fill font-semibold text-primary-text' : 'border border-ink/[0.14] bg-ink/[0.06] font-medium text-ink'
       }`}
@@ -62,7 +60,7 @@ export function FilterChip({ title, chosen, count, onPress }: { title: string; c
     >
       {title}
       {count !== undefined && <span className={`tabular text-micro font-semibold ${chosen ? 'opacity-[0.92]' : 'opacity-50'}`}>{count}</span>}
-    </button>
+    </Pressable>
   );
 }
 
@@ -115,7 +113,7 @@ export function HeldStrip({ calls, card }: { calls: HeldCalls; card: HeldCard })
   const answering = state.answering && state.pressed === card.subject;
   async function press(answer: typeof HOLD_ANSWER.DENY | typeof HOLD_ANSWER.ONCE) {
     const outcome = await calls.answer(card.subject, answer);
-    setSaid(outcome.kind === 'failed' ? outcome.why : outcome.kind === 'cancelled' ? 'Nothing was sent, so it is still waiting.' : undefined);
+    setSaid(outcome.kind === 'failed' ? outcome.why : outcome.kind === 'cancelled' ? HeldLines.cancelled : undefined);
   }
   return (
     <div className="flex flex-col gap-2.5 rounded-island border bg-surface p-3" style={{ borderColor: 'rgb(255 159 10 / 0.62)' }}>
@@ -130,10 +128,10 @@ export function HeldStrip({ calls, card }: { calls: HeldCalls; card: HeldCard })
       {card.impact !== undefined && <HeldImpactLines impact={card.impact} />}
       <div className={`flex items-center gap-2 ${answering ? 'pointer-events-none opacity-[0.55]' : ''}`}>
         <IslandButton inRow onClick={() => void press(HOLD_ANSWER.DENY)} className="!bg-ink/[0.09] !text-ink">
-          Deny
+          {HeldLines.deny}
         </IslandButton>
         <IslandButton inRow kind="primary" symbol={card.touchID ? 'touchid' : undefined} onClick={() => void press(HOLD_ANSWER.ONCE)}>
-          Allow once
+          {HeldLines.allowOnce}
         </IslandButton>
       </div>
       {said !== undefined && <span className="text-footnote text-destructive">{said}</span>}

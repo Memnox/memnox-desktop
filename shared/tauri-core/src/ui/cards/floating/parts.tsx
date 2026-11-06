@@ -1,14 +1,21 @@
 import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import type { CardExcerpt, CardFile } from '@memnox/core/wire';
 import { extensionBadge } from '../../../core/domain/floating-cards';
-import { LogoMark, SFSymbol, type SFSymbolName } from '../../kit';
+import { LogoMark, Pressable, SFSymbol, type SFSymbolName } from '../../kit';
 import { SYSTEM_MONO } from '../MarkdownText';
+import { FloatingLines } from '../../../core/domain/island-lines';
 
 /**
  * The pieces every floating card shares, from the Mac's `Cards/CardHeader.swift`, `CardControls.swift`
  * and `FileList.swift`. Unlike the island these follow the system's appearance, so they draw with the
  * adaptive tokens.
  */
+
+/** A count rises once the card has settled, over a little more than a second. */
+const COUNT_UP = { delayMs: 550, durationMs: 1_100 } as const;
+
+/** The page dots: the current one stretched to 16, the rest 6 round. */
+const PAGE_DOT = { current: 16, other: 6 } as const;
 
 /** The last two parts of a path, which is how somebody names a file out loud. */
 export function shortPath(path: string): string {
@@ -63,15 +70,14 @@ export function CloseButton({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener('keydown', escape);
   }, [onClose]);
   return (
-    <button
-      type="button"
+    <Pressable
       className="grid size-[26px] shrink-0 cursor-pointer place-items-center rounded-full text-muted transition-[background-color,color,scale] duration-[120ms] ease-out hover:bg-[var(--mx-ink-fill-12)] hover:text-foreground active:scale-[0.94]"
       onClick={onClose}
       title="Close"
       aria-label="Close"
     >
       <SFSymbol name="xmark" size={11} weight="semibold" />
-    </button>
+    </Pressable>
   );
 }
 
@@ -85,14 +91,13 @@ export function CardButton({ kind = 'plain', symbol, children, className, ...res
       ? 'bg-primary-fill/[0.92] text-primary-text enabled:hover:bg-primary-fill'
       : 'bg-[var(--mx-ink-fill-09)] text-ink enabled:hover:bg-[var(--mx-ink-fill-15)]';
   return (
-    <button
-      type="button"
+    <Pressable
       className={`inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-button font-medium transition-[background-color,scale] duration-[120ms] ease-out enabled:active:scale-[0.94] disabled:cursor-default disabled:opacity-40 ${look} ${className ?? ''}`}
       {...rest}
     >
       {symbol !== undefined && <SFSymbol name={symbol} size={12.5} />}
       {children}
-    </button>
+    </Pressable>
   );
 }
 
@@ -105,9 +110,9 @@ function useRolled(target: number): number {
       return;
     }
     let frame = 0;
-    const begin = performance.now() + 550;
+    const begin = performance.now() + COUNT_UP.delayMs;
     const step = (now: number) => {
-      const progress = Math.min(1, Math.max(0, (now - begin) / 1100));
+      const progress = Math.min(1, Math.max(0, (now - begin) / COUNT_UP.durationMs));
       setShown(Math.round(target * (1 - (1 - progress) ** 3)));
       if (progress < 1) frame = requestAnimationFrame(step);
     };
@@ -175,12 +180,12 @@ export function CodeExcerpt({ excerpt }: { excerpt: CardExcerpt }) {
 /** `PageDots`: 6 dots of white 22%, the current one 16 wide in the blue. */
 export function PageDots({ count, current }: { count: number; current: number }) {
   return (
-    <div className="flex items-center gap-[5px]" aria-label={`Page ${current + 1} of ${count}`}>
+    <div className="flex items-center gap-[5px]" aria-label={FloatingLines.page(current + 1, count)}>
       {Array.from({ length: count }, (_, index) => (
         <span
           key={index}
           className="h-1.5 rounded-full transition-[width,background-color] duration-[420ms] ease-[cubic-bezier(0.3,1.2,0.6,1)]"
-          style={{ width: index === current ? 16 : 6, backgroundColor: index === current ? '#3b82f7' : 'rgb(255 255 255 / 0.22)' }}
+          style={{ width: index === current ? PAGE_DOT.current : PAGE_DOT.other, backgroundColor: index === current ? 'var(--color-primary)' : 'rgb(255 255 255 / 0.22)' }}
         />
       ))}
     </div>

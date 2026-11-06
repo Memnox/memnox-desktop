@@ -5,8 +5,33 @@ import { agentStatus, connectionLines, reachLine, ringPoint, SCAN_TIMING, scanCo
 import { BrandLogo } from '../kit';
 import { Orb } from '../Orb';
 import { SYSTEM_MONO } from '../cards/MarkdownText';
+import { ScanLines } from '../../core/domain/island-lines';
 
 type Phase = 'scanning' | 'found' | 'leaving';
+
+/**
+ * The scan's measures, as the Mac's `ScanOverlay` places them: the ring sits 10 under the window's centre, never
+ * shorter than 80, under a heading 110 tall from 90 down and over the cards' half height; the rays are 55% at 1.2,
+ * the light on a working ray is 3 round, and the pulse rings fade from 45% while scanning to 12% once found. The
+ * orb is 62% of the 200 ring, and the scan reads as found a beat after the last card lands.
+ */
+const SCAN_LAYOUT = {
+  centreDrop: 10,
+  ringLeast: 80,
+  headingTop: 90,
+  headingHeight: 110,
+  headingGap: 50,
+  cardHalf: 100,
+  summaryBottom: 70,
+  rayOpacity: 0.55,
+  rayWidth: 1.2,
+  lightRadius: 3,
+  ringScanning: 0.45,
+  ringFound: 0.12,
+  orbDiameter: 200 * 0.62,
+  foundAfterMs: 600,
+  closeSlackMs: 50,
+} as const;
 
 /**
  * The scan, on the whole screen, from the Mac's `ScanOverlay`: Memnox in the middle with pulse rings,
@@ -31,7 +56,7 @@ export function ScanScreen({ agents, onClose, still = false }: { agents: readonl
     setRevealed(0);
     setPhase('scanning');
     const timers = agents.map((_, index) => setTimeout(() => setRevealed(index + 1), SCAN_TIMING.warmUpMs + index * SCAN_TIMING.perAgentMs));
-    timers.push(setTimeout(() => setPhase('found'), SCAN_TIMING.warmUpMs + agents.length * SCAN_TIMING.perAgentMs + 600));
+    timers.push(setTimeout(() => setPhase('found'), SCAN_TIMING.warmUpMs + agents.length * SCAN_TIMING.perAgentMs + SCAN_LAYOUT.foundAfterMs));
     return () => timers.forEach(clearTimeout);
     // Keyed on the count, so a capability figure landing later updates the screen rather than sweeping again.
   }, [agents.length, still]);
@@ -41,7 +66,7 @@ export function ScanScreen({ agents, onClose, still = false }: { agents: readonl
   useEffect(() => {
     const close = () => {
       setPhase('leaving');
-      setTimeout(() => leave.current(), SCAN_TIMING.fadeOutMs + 50);
+      setTimeout(() => leave.current(), SCAN_TIMING.fadeOutMs + SCAN_LAYOUT.closeSlackMs);
     };
     const escape = (event: KeyboardEvent) => event.key === 'Escape' && close();
     window.addEventListener('keydown', escape);
@@ -53,13 +78,10 @@ export function ScanScreen({ agents, onClose, still = false }: { agents: readonl
     };
   }, [still]);
 
-  const centre = { x: size.width / 2, y: size.height / 2 + 10 };
+  const centre = { x: size.width / 2, y: size.height / 2 + SCAN_LAYOUT.centreDrop };
   // On a short screen the ring flattens, so the top card clears the heading and the bottom one the totals.
-  const HEADING_TOP = 90;
-  const HEADING_HEIGHT = 110;
-  const CARD_HALF = 100;
   const fit = scanRing(size);
-  const ring = { width: fit.width, height: Math.max(80, Math.min(fit.height, centre.y - HEADING_TOP - HEADING_HEIGHT - CARD_HALF)) };
+  const ring = { width: fit.width, height: Math.max(SCAN_LAYOUT.ringLeast, Math.min(fit.height, centre.y - SCAN_LAYOUT.headingTop - SCAN_LAYOUT.headingHeight - SCAN_LAYOUT.cardHalf)) };
   const found = phase !== 'scanning';
   const totals = scanTotals(agents);
 
@@ -69,7 +91,7 @@ export function ScanScreen({ agents, onClose, still = false }: { agents: readonl
       style={{ opacity: phase === 'leaving' ? 0 : 1, scale: phase === 'leaving' ? '1.03' : '1', filter: phase === 'leaving' ? 'blur(6px)' : 'none' }}
       onClick={() => (window as unknown as { closeScan?: () => void }).closeScan?.()}
       role="dialog"
-      aria-label="Scan of the agents on this computer"
+      aria-label={ScanLines.label}
     >
       <div className="absolute inset-0 bg-black/90 backdrop-blur-2xl" />
       {/* A dot grid every 34, the dots 1.4 in white 8%, at 45%. */}
@@ -86,13 +108,13 @@ export function ScanScreen({ agents, onClose, still = false }: { agents: readonl
                 x2={point.x}
                 y2={point.y}
                 stroke={agentColour(agent.kind)}
-                strokeOpacity={0.55}
-                strokeWidth={1.2}
+                strokeOpacity={SCAN_LAYOUT.rayOpacity}
+                strokeWidth={SCAN_LAYOUT.rayWidth}
                 strokeDasharray="2 5"
                 style={{ animation: 'fade-in 550ms ease-out both' }}
               />
               {agent.working > 0 && (
-                <circle r={3} fill={agentColour(agent.kind)} style={{ filter: `drop-shadow(0 0 8px ${agentColour(agent.kind)})`, offsetPath: `path('M ${centre.x} ${centre.y} L ${point.x} ${point.y}')`, animation: `scan-light 1.6s linear infinite`, ['--len' as string]: length }} />
+                <circle r={SCAN_LAYOUT.lightRadius} fill={agentColour(agent.kind)} style={{ filter: `drop-shadow(0 0 8px ${agentColour(agent.kind)})`, offsetPath: `path('M ${centre.x} ${centre.y} L ${point.x} ${point.y}')`, animation: `scan-light 1.6s linear infinite`, ['--len' as string]: length }} />
               )}
             </g>
           );
@@ -103,18 +125,18 @@ export function ScanScreen({ agents, onClose, still = false }: { agents: readonl
         <span
           key={wave}
           className="pointer-events-none absolute size-[200px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary"
-          style={{ left: centre.x, top: centre.y, ['--ring-opacity' as string]: found ? 0.12 : 0.45, animation: `scan-ring 2.4s ease-out ${wave * 0.8}s infinite both` }}
+          style={{ left: centre.x, top: centre.y, ['--ring-opacity' as string]: found ? SCAN_LAYOUT.ringFound : SCAN_LAYOUT.ringScanning, animation: `scan-ring 2.4s ease-out ${wave * 0.8}s infinite both` }}
         />
       ))}
       <div className="pointer-events-none absolute" style={{ left: 0, top: 0 }}>
-        <Orb x={centre.x} y={centre.y} diameter={200 * 0.62} state={found ? 'idle' : 'thinking'} waiting={false} loudness={() => 0} />
+        <Orb x={centre.x} y={centre.y} diameter={SCAN_LAYOUT.orbDiameter} state={found ? 'idle' : 'thinking'} waiting={false} loudness={() => 0} />
       </div>
-      <Heading found={found} count={revealed} total={agents.length} top={Math.max(HEADING_TOP, centre.y - ring.height - CARD_HALF - HEADING_HEIGHT - 50)} />
+      <Heading found={found} count={revealed} total={agents.length} top={Math.max(SCAN_LAYOUT.headingTop, centre.y - ring.height - SCAN_LAYOUT.cardHalf - SCAN_LAYOUT.headingHeight - SCAN_LAYOUT.headingGap)} />
       {agents.slice(0, revealed).map((agent, index) => {
         const point = ringPoint(index, agents.length, centre, ring);
         return <AgentCard key={agent.id} agent={agent} x={point.x} y={point.y} />;
       })}
-      <Summary shown={found} totals={totals} capabilities={scanCapabilities(agents)} bottom={70} />
+      <Summary shown={found} totals={totals} capabilities={scanCapabilities(agents)} bottom={SCAN_LAYOUT.summaryBottom} />
     </div>
   );
 }
@@ -125,7 +147,7 @@ function Heading({ found, count, total, top }: { found: boolean; count: number; 
     <div className="pointer-events-none absolute inset-x-0 flex flex-col items-center gap-2.5" style={{ top, animation: 'pill-in 500ms ease-out both' }}>
       <span className="flex items-center gap-2 rounded-full bg-white/[0.07] px-3 py-1.5">
         <span className={`size-[7px] rounded-full ${found ? 'bg-green' : 'bg-island-sky'}`} />
-        <span className="text-footnote font-semibold text-white/70">{found ? 'Scan complete' : 'Scanning this computer'}</span>
+        <span className="text-footnote font-semibold text-white/70">{found ? ScanLines.complete : ScanLines.scanning}</span>
       </span>
       <span className="flex items-baseline gap-3">
         <span className="tabular font-display text-[58px] font-semibold leading-none text-white">{count}</span>

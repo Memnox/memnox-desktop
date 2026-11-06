@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { TILE } from '../../core';
-import { notchPress, SFSymbol, type SFSymbolName } from '../kit';
+import { notchPress, Pressable, SFSymbol, type SFSymbolName } from '../kit';
 import './sessions.css';
+import { LauncherLines } from '../../core/domain/island-lines';
 
 /**
  * `IslandLauncher`: everything Memnox does as a grid of tiles, five across, and the person's agents and
@@ -103,7 +104,7 @@ export function Launcher({
       </div>
       {page === 'tools' && (toolsNote !== undefined || tools.length === 0) && (
         <p className="m-0 px-1 pt-2 text-footnote text-white/60">
-          {toolsNote ?? 'No apps connected yet. Ask Memnox to do something in Gmail, Slack or GitHub and it opens the sign in for you.'}
+          {toolsNote ?? LauncherLines.noApps}
         </p>
       )}
     </div>
@@ -130,8 +131,7 @@ export function NotchSymbol({ name, tint = TINT.plain }: { name: SFSymbolName; t
 export function NotchTile({ title, caption, mark, lit = false, order, onPress }: { title: string; caption?: string; mark: ReactNode; lit?: boolean; order: number; onPress?: () => void }) {
   const [bounces, setBounces] = useState(0);
   return (
-    <button
-      type="button"
+    <Pressable
       className={`${notchPress(false)} motion-arrive flex min-w-0 animate-[notch-in_400ms_cubic-bezier(0.3,1.3,0.6,1)_both] flex-col items-center justify-center gap-1.5 border px-1.5`}
       style={{
         height: TILE.height,
@@ -153,7 +153,7 @@ export function NotchTile({ title, caption, mark, lit = false, order, onPress }:
       </span>
       <FitLine text={title} className="text-caption font-medium text-white" />
       {caption !== undefined && <FitLine text={caption} className="font-rounded text-micro font-medium text-white/60" />}
-    </button>
+    </Pressable>
   );
 }
 

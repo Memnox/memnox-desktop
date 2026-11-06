@@ -5,6 +5,7 @@ import { traceStepName } from '../../../core/domain/session-text';
 import { BrandLogo, LogoMark } from '../../kit';
 import { MarkdownText, SYSTEM_MONO } from '../MarkdownText';
 import { CardButton, CardFace, CardHeader, CodeExcerpt, FileList, PageDots } from './parts';
+import { FloatingLines } from '../../../core/domain/island-lines';
 
 /** What the person asked of a card: its session's live window, or the session's own window. */
 export interface CardActions {
@@ -14,6 +15,8 @@ export interface CardActions {
   link?: (href: string) => void;
   hovering?: (over: boolean) => void;
 }
+
+const MS_PER_SECOND = 1_000;
 
 /** One floating card, by its kind. */
 export function FloatingCardView({ card, actions }: { card: FloatingCard; actions: CardActions }) {
@@ -49,10 +52,10 @@ function SummaryCardView({ card, actions }: { card: Extract<FloatingCard, { kind
           <div className="flex items-center gap-2">
             <span className="flex-1" />
             <CardButton symbol="play.circle" onClick={() => actions.watch(session, card.host)}>
-              Watch live
+              {FloatingLines.watch}
             </CardButton>
             <CardButton kind="primary" symbol="arrow.up.forward.app" onClick={() => actions.open(session, card.host)}>
-              {openWords(card.host, 'Open session')}
+              {openWords(card.host, FloatingLines.openSession)}
             </CardButton>
           </div>
         )}
@@ -77,7 +80,7 @@ function WalkView({ card, actions }: { card: Extract<FloatingCard, { kind: 'walk
     const turn = setTimeout(() => {
       setDirection('next');
       setIndex((now) => Math.min(now + 1, count - 1));
-    }, pageSeconds(page) * 1000);
+    }, pageSeconds(page) * MS_PER_SECOND);
     return () => clearTimeout(turn);
   }, [byHand, index, count, page]);
 
@@ -104,14 +107,14 @@ function WalkView({ card, actions }: { card: Extract<FloatingCard, { kind: 'walk
           <PageDots count={count} current={index} />
           <span className="flex-1" />
           <CardButton symbol="chevron.left" disabled={index === 0} className={index === 0 ? '!opacity-35' : ''} onClick={() => turn(-1)}>
-            Back
+            {FloatingLines.back}
           </CardButton>
           <CardButton symbol="chevron.right" disabled={index >= count - 1} className={index >= count - 1 ? '!opacity-35' : ''} onClick={() => turn(1)}>
-            Next
+            {FloatingLines.next}
           </CardButton>
           {session !== undefined && (
             <CardButton kind="primary" symbol="arrow.up.forward.app" onClick={() => actions.open(session, card.host)}>
-              Open
+              {FloatingLines.open}
             </CardButton>
           )}
         </div>
@@ -129,7 +132,7 @@ const TONE: Record<ReturnType<typeof traceTone>, string> = {
 
 /** Milliseconds under a second and seconds with one place above, the way a waterfall is read. */
 function duration(ms: number): string {
-  return ms < 1000 ? `${Math.trunc(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
+  return ms < MS_PER_SECOND ? `${Math.trunc(ms)} ms` : `${(ms / MS_PER_SECOND).toFixed(1)} s`;
 }
 
 /** The track every bar sits on. */

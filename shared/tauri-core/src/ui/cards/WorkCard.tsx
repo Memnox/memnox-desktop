@@ -3,8 +3,10 @@ import { invoke } from '@tauri-apps/api/core';
 import type { WorkDraft } from '@memnox/core/wire';
 import { typedAddresses, type HeldOutcome, type ProposalCards } from '../../core';
 import { avatarLetter, shownPeople, toolkitName, toolLook, workFootnote, workLayout, workTitle } from '../../core/domain/tool-brand';
-import { ANSWERING_ROW, IslandCard, PRESSABLE, SFSymbol, ToolMark } from '../kit';
+import { ANSWERING_ROW, Input, IslandCard, PRESSABLE, Pressable, SFSymbol, Textarea, ToolMark } from '../kit';
 import { SYSTEM_MONO } from './MarkdownText';
+import { TAURI_COMMAND } from '../adapters/tauri-commands';
+import { HeldLines, WorkCardLines } from '../../core/domain/island-lines';
 
 /** What the work card says while the key is up; Windows Hello and polkit both read as a fingerprint here. */
 const KEY_NAME = 'your fingerprint';
@@ -83,20 +85,19 @@ export function WorkCard({
         <ToolMark toolkit={work.toolkit} size={22} />
         <span className="truncate text-callout font-semibold text-white">{workTitle(work.kind, work.toolkit)}</span>
         <span className="flex-1" />
-        <button
-          type="button"
+        <Pressable
           className={`${PRESSABLE} grid size-6 shrink-0 place-items-center rounded-full bg-white/10 text-white/[0.92]`}
           // Not while the key is up, so a stray click cannot turn a send into a decline halfway.
           disabled={sending}
           onClick={() => void answer(false)}
-          title="Close without sending"
-          aria-label="Close without sending"
+          title={WorkCardLines.close}
+          aria-label={WorkCardLines.close}
         >
           <SFSymbol name="xmark" size={12} weight="bold" />
-        </button>
+        </Pressable>
       </div>
       <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-caption font-medium">
-        <span className="text-footnote font-medium text-white/[0.92]">{shown === undefined ? 'As you' : `As ${shown}`}</span>
+        <span className="text-footnote font-medium text-white/[0.92]">{shown === undefined ? WorkCardLines.asYou : WorkCardLines.as(shown)}</span>
         {work.account?.check === 'matched' ? (
           <span className="grid text-green" aria-label="your account">
             <SFSymbol name="checkmark.seal.fill" size={11} />
@@ -123,18 +124,17 @@ export function WorkCard({
           {said ?? footnote}
         </span>
         <span className="flex-1" />
-        <button
-          type="button"
+        <Pressable
           className={`${PRESSABLE} inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-callout font-semibold text-white`}
           style={{ backgroundColor: look.colour, boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.14)' }}
           disabled={empty || badAddress || sending}
           onClick={() => void answer(true)}
-          title={empty ? 'Write something to send' : badAddress ? 'Check the address' : 'Send with your fingerprint'}
+          title={empty ? WorkCardLines.writeSomething : badAddress ? WorkCardLines.checkAddress : WorkCardLines.send}
           aria-label={`${look.send} on ${tool}, with your fingerprint`}
         >
           <SFSymbol name="touchid" size={14} />
           {look.send}
-        </button>
+        </Pressable>
       </div>
     </IslandCard>
   );
@@ -147,9 +147,9 @@ function told(outcome: HeldOutcome): string | undefined {
     case 'answered-elsewhere':
       return undefined;
     case 'cancelled':
-      return 'Nothing was sent, so it is still waiting.';
+      return HeldLines.cancelled;
     case 'failed':
-      return `That did not go through: ${outcome.why}`;
+      return HeldLines.failed(outcome.why);
   }
 }
 
@@ -177,7 +177,7 @@ function Layout({
             <Avatar who={who} colour={colour} />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <div className="flex items-baseline gap-1.5">
-                <span className="text-body font-bold text-white">{who ?? 'You'}</span>
+                <span className="text-body font-bold text-white">{who ?? WorkCardLines.you}</span>
                 <span className="text-caption text-white/[0.62]">now</span>
               </div>
               {work.body !== undefined && editor}
@@ -193,7 +193,7 @@ function Layout({
           <div className="overflow-hidden rounded-lg border border-white/[0.14]">
             <div className="flex h-[30px] items-center gap-1.5 bg-white/[0.05] px-2.5 text-footnote text-white">
               <Avatar who={who} colour={colour} size={19.2} />
-              <span className="font-bold">{who ?? 'You'}</span>
+              <span className="font-bold">{who ?? WorkCardLines.you}</span>
               <span className="text-white/[0.62]">commenting</span>
             </div>
             <Rule />
@@ -223,10 +223,13 @@ function Layout({
   }
 }
 
+/** The avatar at its own size: a 32 square at radius 6 holding a 14 letter, scaled together at any other. */
+const AVATAR = { side: 32, radius: 6, letter: 14 } as const;
+
 /** The first letter of the shown name, 14 bold white on a 32 square of the tool's colour at radius 6. */
-function Avatar({ who, colour, size = 32 }: { who: string | undefined; colour: string; size?: number }) {
+function Avatar({ who, colour, size = AVATAR.side }: { who: string | undefined; colour: string; size?: number }) {
   return (
-    <span className="grid shrink-0 place-items-center font-bold text-white" style={{ width: size, height: size, borderRadius: 6 * (size / 32), backgroundColor: colour, fontSize: 14 * (size / 32) }} aria-hidden>
+    <span className="grid shrink-0 place-items-center font-bold text-white" style={{ width: size, height: size, borderRadius: AVATAR.radius * (size / AVATAR.side), backgroundColor: colour, fontSize: AVATAR.letter * (size / AVATAR.side) }} aria-hidden>
       {avatarLetter(who)}
     </span>
   );
@@ -266,23 +269,24 @@ function Chips({ label, people }: { label: string; people: readonly string[] }) 
 function AddressField({ typed, name, bad, onChange }: { typed: string; name: string | undefined; bad: boolean; onChange: (typed: string) => void }) {
   return (
     <div className={`flex min-w-0 items-center gap-2 rounded-lg bg-white/10 px-2.5 py-1 ${bad ? 'ring-1 ring-amber' : ''}`}>
-      <span className="text-body text-white/[0.62]">To</span>
-      <input
-        className={`min-w-0 flex-1 border-0 bg-transparent ${SYSTEM_MONO} text-footnote font-medium text-white outline-none select-text`}
+      <span className="text-body text-white/[0.62]">{WorkCardLines.to}</span>
+      <Input
+        look="bare"
+        className={`flex-1 ${SYSTEM_MONO} text-footnote font-medium text-white select-text`}
         value={typed}
-        placeholder="name@example.com"
+        placeholder={WorkCardLines.addressExample}
         spellCheck={false}
-        onChange={(event) => onChange(event.target.value)}
+        onValue={onChange}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             event.stopPropagation();
             event.currentTarget.blur();
           }
         }}
-        onPointerDown={() => void invoke('island_keyboard', { on: true }).catch(() => undefined)}
-        onBlur={() => void invoke('island_keyboard', { on: false }).catch(() => undefined)}
-        title="Change who it goes to, then send it"
-        aria-label="The address it goes to"
+        onPointerDown={() => void invoke(TAURI_COMMAND.islandKeyboard, { on: true }).catch(() => undefined)}
+        onBlur={() => void invoke(TAURI_COMMAND.islandKeyboard, { on: false }).catch(() => undefined)}
+        title={WorkCardLines.changeAddress}
+        aria-label={WorkCardLines.address}
         aria-invalid={bad}
       />
       {name !== undefined && <span className="truncate text-caption font-medium text-white/[0.62]">{name}</span>}
@@ -294,7 +298,7 @@ function AddressField({ typed, name, bad, onChange }: { typed: string; name: str
 function AlsoSends({ fields }: { fields: WorkDraft['fields'] }) {
   return (
     <div className="flex flex-col gap-1">
-      <p className="m-0 text-caption font-semibold text-white/[0.62]">Also sends</p>
+      <p className="m-0 text-caption font-semibold text-white/[0.62]">{WorkCardLines.alsoSends}</p>
       <dl className={`m-0 grid grid-cols-[96px_1fr] gap-x-2 gap-y-0.5 ${SYSTEM_MONO} text-caption`}>
         {fields.map((field) => (
           <div key={field.name} className="contents">
@@ -314,20 +318,24 @@ function AlsoSends({ fields }: { fields: WorkDraft['fields'] }) {
  */
 function Editor({ words, onChange, onEscape }: { words: string; onChange: (words: string) => void; onEscape: (box: HTMLTextAreaElement) => void }) {
   return (
-    <textarea
-      className="max-h-[180px] min-h-[72px] w-full shrink-0 resize-none rounded-lg border-0 bg-white/10 p-1.5 font-sans text-callout leading-[21px] text-white outline-none select-text"
+    // The fill is on the frame, since the bare field draws none of its own.
+    <div className="w-full shrink-0 rounded-lg bg-white/10">
+    <Textarea
+      look="bare"
+      className="block max-h-[180px] min-h-[72px] w-full resize-none rounded-lg p-1.5 font-sans text-callout leading-[21px] text-white select-text"
       value={words}
-      onChange={(event) => onChange(event.target.value)}
+      onValue={onChange}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.stopPropagation();
           onEscape(event.currentTarget);
         }
       }}
-      onPointerDown={() => void invoke('island_keyboard', { on: true }).catch(() => undefined)}
-      onBlur={() => void invoke('island_keyboard', { on: false }).catch(() => undefined)}
-      title="Change the words, then send them"
-      aria-label="The words that will be sent"
+      onPointerDown={() => void invoke(TAURI_COMMAND.islandKeyboard, { on: true }).catch(() => undefined)}
+      onBlur={() => void invoke(TAURI_COMMAND.islandKeyboard, { on: false }).catch(() => undefined)}
+      title={WorkCardLines.changeWords}
+      aria-label={WorkCardLines.words}
     />
+    </div>
   );
 }

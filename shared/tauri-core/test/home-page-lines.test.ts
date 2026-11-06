@@ -18,6 +18,7 @@ const swift = [
 const onMac = (text: string) => text.replace(/this computer/g, 'this Mac');
 const said = (text: string) => swift.includes(`"${onMac(text)}"`);
 const page = readFileSync(fileURLToPath(new URL('../src/ui/app/pages/TodayPage.tsx', import.meta.url)), 'utf8');
+const styles = readFileSync(fileURLToPath(new URL('../src/ui/styles.css', import.meta.url)), 'utf8');
 
 describe('Home and Today use the Mac words', () => {
   it('puts the same words on Home', () => {
@@ -60,8 +61,11 @@ describe('Home and Today use the Mac words', () => {
     const table = mac(`${app}/WorkTable.swift`);
     const width = (name: string) => Number(new RegExp(`static let ${name}: CGFloat = (\\d+)`).exec(table)?.[1]);
     expect(TODAY_TABLE).toEqual({ number: width('numberWidth'), from: width('fromWidth'), when: width('whenWidth'), state: width('stateWidth'), logo: width('logo'), head: width('headHeight') });
-    expect(page).toContain(`grid-cols-[${TODAY_TABLE.number}px_minmax(0,1fr)_${TODAY_TABLE.from}px_${TODAY_TABLE.when}px_${TODAY_TABLE.state}px]`);
-    expect(page).toContain(`h-[${TODAY_TABLE.head}px]`);
+    // The page reads the widths from styles.css tokens, so the tokens carry the table's widths.
+    expect(page).toContain('grid-cols-(--mx-app-work-columns)');
+    expect(page).toContain('h-app-work-head');
+    expect(styles).toContain(`--mx-app-work-columns: ${TODAY_TABLE.number}px minmax(0, 1fr) ${TODAY_TABLE.from}px ${TODAY_TABLE.when}px ${TODAY_TABLE.state}px;`);
+    expect(styles).toContain(`--spacing-app-work-head: ${TODAY_TABLE.head}px;`);
     expect(page).toContain(`size={${TODAY_TABLE.logo}}`);
   });
 

@@ -46,7 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// How often a running app looks for a newer release, often enough that one is seen the day it ships.
     private static let updateCheckSeconds: TimeInterval = 6 * 60 * 60
     private let updates = AppUpdates(feed: GitHubReleases(transport: URLSessionTransport()))
-    private let link = UnixSocketLink()
+    /// The demo world when the app was opened in demo mode, else this Mac's own daemon.
+    private let link: DaemonLink = DemoLaunch.link ?? UnixSocketLink()
     /// One id source for every request, since a relay session refuses an id already in flight.
     private let ids = RequestIds()
     /// This Mac's daemon, or a server picked in setup: what the voice and the session views talk to.
@@ -62,9 +63,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var serverPairing: ServerPairing!
     /// Memnox Cloud for the person signed in on this Mac; a different deployment is set under this defaults key.
     private static let cloudKey = "cloudURL"
-    private let cloud = HttpWorkspaceInbox(base: UserDefaults.standard.string(forKey: AppDelegate.cloudKey).flatMap(URL.init(string:)) ?? HttpWorkspaceInbox.defaultBase)
+    private let cloud = DemoLaunch.link == nil
+        ? HttpWorkspaceInbox(base: UserDefaults.standard.string(forKey: AppDelegate.cloudKey).flatMap(URL.init(string:)) ?? HttpWorkspaceInbox.defaultBase)
+        : HttpWorkspaceInbox(transport: OfflineTransport())
     /// The team credential, in its own Keychain item apart from the paired servers.
-    private let personCredential = KeychainPersonCredential()
+    private let personCredential: PersonCredentialStore = DemoLaunch.link.map { DemoCredentialStore(name: $0.personName) } ?? KeychainPersonCredential()
     /// Teammates' calls the workspace routed to the person, answered through it and never through a daemon.
     private var teamCalls: WorkspaceAnswering!
     private var account: AccountModel?
@@ -142,7 +145,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         // Opened from the disk image: the copy in Applications takes over, since only it can keep its permissions.
-        if ApplicationsFolder.moveIfOutside() { return }
+        if DemoLaunch.link == nil, ApplicationsFolder.moveIfOutside() { return }
+        // A demo never installs, starts or updates the runtime, and its window says the data is made up.
+        runtime.demoOnly = DemoLaunch.link?.demoOnly
+        AppWindow.shared.shell.demo = DemoLaunch.link != nil
         // Before anything reads the Kokoro voice, so the first sentence is already in Sky.
         KokoroVoice.adoptSkyOnce()
         let voice = Voice()
@@ -166,7 +172,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { [ears] in await ears.prepare() }
         let key: ConfirmKey
         do {
-            key = ForegroundKey(try SecureEnclaveConfirmKey())
+            // A demo signs nothing anybody verifies, so it keeps a key in memory rather than asking for Touch ID.
+            key = DemoLaunch.link == nil ? ForegroundKey(try SecureEnclaveConfirmKey()) : SoftwareConfirmKey()
         } catch {
             // No Secure Enclave or no keychain: nothing can ever be confirmed from this Mac.
             NSLog("Memnox: no confirmation key, so allows stay in the terminal: \(error)")
@@ -334,9 +341,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.previewChime = { [chimes] in chimes.play(.finished) }
         panel.useMenu(menu) { [weak self] in self?.madeSetupModel() }
         menu.uninstall = { [weak self] in self?.confirmUninstall(trashed: false) }
+        menu.demoOn = DemoLaunch.link != nil
+        menu.switchDemo = { DemoLaunch.switchTo(DemoLaunch.link == nil) }
         trashWatch = TrashWatch { [weak self] in self?.confirmUninstall(trashed: true) }
         menuBar = MenuBarPanel(model: menu)
         SettingsWindow.shared.prepareSetup = { [weak self] in
+            // A demo still needs the model, since the window draws every page from it; making it starts nothing, and an
+            // install pressed in a demo is refused by the runtime's demoOnly guard.
             guard let self else { return }
             SettingsWindow.shared.setup = self.madeSetupModel()
         }
@@ -396,6 +407,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         listenToDaemon()
         readInbox()
         watchPresence()
+        if DemoLaunch.link != nil {
+            // The window is what a demo is for, so it opens on it, and nothing is started, installed or asked of setup.
+            SettingsWindow.shared.show(.overview)
+            return
+        }
         let setUp = UserDefaults.standard.bool(forKey: SetupModel.doneKey)
         // Every launch, the first included, so the daemon is up as the app opens and an app updated past its runtime
         // brings the runtime along before anyone asks. Setup's own check joins this run rather than starting another.
@@ -414,6 +430,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Asks before anything goes, since a rule set and a history cannot be had back; from the Trash, keeping it all is one
     /// press too, for somebody who only meant to move the app.
     private func confirmUninstall(trashed: Bool) {
+        guard DemoLaunch.link == nil else { return }
         let alert = NSAlert()
         alert.messageText = trashed ? "Memnox is in the Trash" : "Uninstall Memnox?"
         alert.informativeText = (trashed ? "Remove everything it put on this Mac too? " : "")
@@ -693,6 +710,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // Seen as well as said, and only from the daemon's facts, so a pass the ledger never saw is never celebrated.
         if let gesture = reaction(to: event) { panel.react(gesture, session: event.sessionId) }
+        // The demo's calls and notices wait on the island and in the window without being read out one after another.
+        if DemoLaunch.link != nil { return }
         if event.eventKind == .proposal {
             let previous = confirmations
             confirmations = Task { [conversation] in
@@ -760,6 +779,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Reads the team's inbox now and then every little while, for as long as the app runs; signed out, it reads nothing.
     private func readInbox() {
+        // A demo's workspace is made up, so its inbox is never read from the cloud.
+        guard DemoLaunch.link == nil else { return }
         readingInbox?.cancel()
         readingInbox = Task { [weak self] in
             while !Task.isCancelled {
@@ -1529,6 +1550,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Points the conversation at the machine remembered, falling back to this Mac when that server is no longer paired,
     /// and tells the events which device ids are this Mac's own on each server.
     private func restoreMachine() {
+        // A demo talks to its fixture alone, so no paired server is dialed or picked.
+        guard DemoLaunch.link == nil else { return }
         let paired = servers.all()
         OwnDevices.shared.set(Set(paired.map(\.deviceId)))
         // A link per server still paired, so a forgotten one is closed rather than left open on the relay.

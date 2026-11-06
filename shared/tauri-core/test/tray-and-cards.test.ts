@@ -146,11 +146,13 @@ describe('agent question', () => {
 describe('menu panel', () => {
   it('lists the rows in the Mac order, mute keeping the panel open', () => {
     const rows = menuRows(false, ['Ctrl', 'Alt', 'Space']);
-    expect(rows.map((row) => row.title)).toEqual(['Talk to Memnox', 'Say a rule', 'Copy what happened', 'Mute voice', 'Settings', 'Quit Memnox']);
+    expect(rows.map((row) => row.title)).toEqual(['Talk to Memnox', 'Say a rule', 'Copy what happened', 'Mute voice', 'Watch a demo', 'Settings', 'Quit Memnox']);
     expect(rows[3]?.staysOpen).toBe(true);
     expect(rows[4]?.dividerAbove).toBe(true);
-    expect(rows[5]?.quiet).toBe(true);
+    expect(rows[6]?.quiet).toBe(true);
     expect(menuRows(true, [])[3]?.title).toBe('Unmute voice');
+    // In the demo the same row leads back out of it.
+    expect(menuRows(false, [], true)[4]?.title).toBe('Leave the demo');
   });
 
   it('says how to start a talk in the badge', () => {

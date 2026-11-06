@@ -5,8 +5,7 @@ import { emit, emitTo, listen } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import type { SessionCard } from '@memnox/core/wire';
 import { HeldCalls, HistoryKeeper, RequestIds, Sessions, Signer, type Timer } from '../../core';
-import { TauriConfirmKey } from '../adapters/tauri-confirm-key';
-import { TauriDaemonLink } from '../adapters/tauri-daemon-link';
+import { confirmKey, daemonLink } from '../adapters/demo';
 import { islandWindow } from '../adapters/tauri-island-window';
 import { Board } from './Board';
 import { localHistory, HISTORY_KEY } from './history-store';
@@ -33,7 +32,7 @@ const timer: Timer = (ms, fire) => {
 
 const asked = new URLSearchParams(window.location.search);
 const view = asked.get('view');
-const link = new TauriDaemonLink();
+const link = daemonLink();
 const ids = new RequestIds();
 const sessions = new Sessions(link, ids, timer);
 
@@ -44,7 +43,7 @@ function close(): void {
 /** Held calls watched from this window too, so one can be answered where it is read, signed as from the island. */
 function watchedCalls(): HeldCalls {
   let calls: HeldCalls | undefined;
-  const signer = new Signer(link, new TauriConfirmKey(), ids, (status) => calls?.keyChanged(status));
+  const signer = new Signer(link, confirmKey(), ids, (status) => calls?.keyChanged(status));
   calls = new HeldCalls(link, signer, ids, { timer });
   const held = calls;
   void (async () => {

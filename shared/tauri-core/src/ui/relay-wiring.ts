@@ -14,6 +14,7 @@ import { deliversFrom } from '../core/domain/machine-events';
 import { settledLine } from '../core/domain/settled-line';
 import { tauriCloud, tauriPersonCredential } from './adapters/tauri-cloud';
 import { TauriRelayLink, tauriPairer } from './adapters/tauri-relay';
+import { demoCloud, demoCredentials, demoOn } from './adapters/demo';
 import { SERVERS_CHANGED, TALKING_TO, TEAM_CHANGED } from './relay-keys';
 
 /**
@@ -23,7 +24,8 @@ import { SERVERS_CHANGED, TALKING_TO, TEAM_CHANGED } from './relay-keys';
  */
 export function islandRelay(parts: { local: DaemonLink; ids: RequestIds; key: ConfirmKey; timer: Timer; store: PreferenceStore }) {
   const target = new TargetLink(parts.local);
-  const team = new WorkspaceAnswering(new CloudInbox(tauriCloud), tauriPersonCredential, parts.key);
+  // A demo's workspace is made up, so its calls are never asked of Memnox Cloud.
+  const team = demoOn ? new WorkspaceAnswering(new CloudInbox(demoCloud), demoCredentials, parts.key) : new WorkspaceAnswering(new CloudInbox(tauriCloud), tauriPersonCredential, parts.key);
   /** What HeldCalls takes: answers by the link that routes them, this computer's events filtered and remembered, the team's own answers. */
   const heldOptions: Pick<HeldCallsOptions, 'answers' | 'accept' | 'team'> = {
     answers: target,
@@ -50,6 +52,8 @@ export function islandRelay(parts: { local: DaemonLink; ids: RequestIds; key: Co
   /** Starts the servers' feeds and the inbox once the queue and the voice exist. */
   function start(island: { calls: HeldCalls; talking: Talking }): void {
     calls = island.calls;
+    // A demo dials no paired server and reads no team inbox, so everything it shows comes from its fixture.
+    if (demoOn) return;
     const feeds = new ServerFeeds(target, (machineId) => new TauriRelayLink(machineId), parts.ids, (event, server) => island.calls.fromServer(event, server), (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     const restore = () =>
       void tauriPairer

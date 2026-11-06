@@ -1,13 +1,11 @@
 import { StrictMode, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HeldCalls, ProposalCards, RequestIds, Setup, Signer, Talking, VoiceSettings, Wakefulness, type Timer } from '../core';
-import { TauriConfirmKey } from './adapters/tauri-confirm-key';
-import { TauriDaemonLink } from './adapters/tauri-daemon-link';
+import { confirmKey, daemonLink, runtime } from './adapters/demo';
 import { hearPresses } from './adapters/tauri-presses';
 import { Presses } from '../core/application/presses';
 import { islandRelay } from './relay-wiring';
 import { TauriPower } from './adapters/tauri-power';
-import { TauriRuntime } from './adapters/tauri-runtime';
 import { TauriSpeaker } from './adapters/tauri-speaker';
 import { islandExtras } from './tray/island-extras';
 import { DictationPolish, Mouth, VoicePreferences, VoiceTurns } from '../core';
@@ -45,12 +43,12 @@ const timer: Timer = (ms, fire) => {
 
 /** The composition root: the one place the Tauri adapters meet the core. */
 const ids = new RequestIds();
-const link = new TauriDaemonLink();
+const link = daemonLink();
 let calls: HeldCalls | undefined;
 /** Set once the talking is built, so the key's prompt and a display under way show on the island's caption line. */
 let caption: (text: string | undefined) => void = () => undefined;
 const platform = platformOf(navigator.userAgent);
-const systemKey = new TauriConfirmKey();
+const systemKey = confirmKey();
 /** The system's key, with the caption saying what its prompt is for while it is up, as the Mac's "Touch ID to ...". */
 const key: ConfirmKey = {
   publicPoint: () => systemKey.publicPoint(),
@@ -119,7 +117,7 @@ const voiceTurns = new VoiceTurns({
   microphone: () => invoke<{ microphone: 'allowed' | 'denied' | 'none' | 'unknown' }>('permission_facts').then((facts) => facts.microphone),
 });
 const wakefulness = new Wakefulness(link, new TauriPower(), ids);
-const setup = new Setup(link, new TauriRuntime(), ids, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+const setup = new Setup(link, runtime(), ids, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
 const voiceSettings = new VoiceSettings(link, ids);
 // What waits on the person is said in its turn and listened for; the rest goes straight to the talking.
 calls.observeEvents((event) => voiceTurns.arrived(event));

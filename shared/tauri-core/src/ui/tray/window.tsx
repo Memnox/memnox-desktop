@@ -5,7 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import { RequestIds } from '../../core';
 import { Tools } from '../../core/application/tools';
 import type { MenuAction, ToolChip } from '../../core/domain/menu-panel';
-import { TauriDaemonLink } from '../adapters/tauri-daemon-link';
+import { daemonLink } from '../adapters/demo';
 import { WINDOW_EVENTS, type IslandStatus } from '../adapters/tauri-windows';
 import { TrayPanel, type TrayPanelState } from './TrayPanel';
 import '../styles.css';
@@ -49,7 +49,7 @@ function previewState(scene: string): TrayPanelState {
 
 if (preview === undefined) document.documentElement.dataset.solid = '';
 
-const tools = preview === undefined ? new Tools(new TauriDaemonLink(), new RequestIds()) : undefined;
+const tools = preview === undefined ? new Tools(daemonLink(), new RequestIds()) : undefined;
 
 /**
  * The tray panel's window: Rust shows it beside the tray icon and hides it on a click outside or Escape;

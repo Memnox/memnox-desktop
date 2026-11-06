@@ -10,6 +10,7 @@ import type { PressEnd } from '../../core/domain/chimes';
 import { toolkitName } from '../../core/domain/tool-brand';
 import { movedOn, SIGN_IN_NOTICE } from '../../core/domain/sign-in-notice';
 import { answerMenuOpened, forwardCards, onCardSession, onMenuAction, showScan } from '../adapters/tauri-windows';
+import { demoOn } from '../adapters/demo';
 import { openSession } from '../sessions/open-session';
 
 /** How the talk key reads on Windows and Linux. */
@@ -136,6 +137,10 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
         return;
       case 'settings':
         void invoke('open_settings', { page: null }).catch(() => undefined);
+        return;
+      case 'demo':
+        // Every window reads the demo once as it starts, so switching reopens the app.
+        void invoke('switch_demo', { on: !demoOn }).catch(() => undefined);
         return;
       case 'tools':
         void invoke('open_settings', { page: 'tools' }).catch(() => undefined);

@@ -7,8 +7,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronsUpDown,
   ChevronUp,
+  ChevronsUpDown,
   Circle,
   CircleArrowRight,
   CircleCheck,
@@ -48,6 +48,7 @@ import {
   Terminal,
   TextCursor,
   TriangleAlert,
+  Undo2,
   Users,
   Volume2,
   VolumeX,
@@ -121,6 +122,7 @@ export const SF_SYMBOLS = {
   'person.2': Users,
   plusminus: Diff,
   'play.circle': CirclePlay,
+  'arrow.uturn.backward': Undo2,
   magnifyingglass: Search,
 } as const satisfies Record<string, LucideIcon>;
 

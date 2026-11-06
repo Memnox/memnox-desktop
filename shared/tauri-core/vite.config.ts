@@ -9,6 +9,7 @@ const wire = fileURLToPath(new URL('./.runtime/packages/core/dist/wire.js', impo
 
 /** The pages beside this file, one per kind of window, by name. */
 const root = fileURLToPath(new URL('.', import.meta.url));
+const demo = fileURLToPath(new URL('../demo', import.meta.url));
 const pages = Object.fromEntries(
   readdirSync(root)
     // The preview is for a designer's browser and never ships.
@@ -21,7 +22,8 @@ export default defineConfig({
   resolve: { alias: { '@memnox/core/wire': wire } },
   // Tauri serves the dev build on a fixed port and must see its own errors in the terminal.
   clearScreen: false,
-  server: { port: 1420, strictPort: true },
+  // The demo world lives in shared/demo beside this app, read by the Mac too, so the dev server may serve it.
+  server: { port: 1420, strictPort: true, fs: { allow: [root, demo] } },
   // Every page at the root is built, so each window's page ships without being listed here by hand.
   build: { target: 'es2022', outDir: 'dist', rollupOptions: { input: pages } },
   test: { include: ['test/**/*.test.ts'] },

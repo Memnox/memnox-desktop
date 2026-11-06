@@ -179,6 +179,8 @@ final class AppShellModel: ObservableObject {
         didSet { UserDefaults.standard.set(scopeChoice, forKey: ShellLines.scopeKey) }
     }
     @Published var island: IslandModel?
+    /// Every answer comes from the demo fixture, so the window wears a badge that says so.
+    @Published var demo = false
 
     /// The scope remembered, moving a choice the two choice selector kept to the three choice key once.
     private static func rememberedScope() -> String {

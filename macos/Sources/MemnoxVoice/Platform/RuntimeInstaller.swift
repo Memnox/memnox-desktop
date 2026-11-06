@@ -14,9 +14,12 @@ final class RuntimeInstaller: ObservableObject {
     @Published private(set) var failed: String?
     private var running: Task<DaemonVoice, Never>?
     private let source = RuntimeSource.ofThisApp()
+    /// Set in demo mode, which never installs, starts or updates anything: each step says this instead.
+    var demoOnly: String?
 
     /// The daemon ready for this app, or as close as it could get; one run at a time, shared by every caller.
     func ensure(_ conversation: Conversation) async -> DaemonVoice {
+        if demoOnly != nil { return await conversation.daemonVoice() }
         if let running { return await running.value }
         let task = Task { await self.bringUp(conversation) }
         running = task
@@ -58,6 +61,7 @@ final class RuntimeInstaller: ObservableObject {
     /// Nil once the service answers again, else why not, in words the person can act on.
     @discardableResult
     func updateNow(_ conversation: Conversation) async -> String? {
+        if let demoOnly { return demoOnly }
         guard doing == nil else { return "Memnox is busy with another step. Try again in a moment." }
         guard let memnox = await memnoxCommand() else { return failed ?? Self.notRestarted }
         let state = await update(memnox, conversation)
@@ -71,6 +75,7 @@ final class RuntimeInstaller: ObservableObject {
     /// Puts the agents found here under Memnox with the same `memnox setup --yes` the first run uses: it asks nothing,
     /// takes nothing on its line but fixed words, and hooks every agent installed. Nil when it went through, else why.
     func protectAgents() async -> String? {
+        if let demoOnly { return demoOnly }
         // Two runs of the CLI at once would race over the same agent configs, and doing is set while any runs.
         guard doing == nil else { return "Memnox is still starting up. Try again in a moment." }
         doing = "Putting your agents under Memnox"
@@ -86,6 +91,7 @@ final class RuntimeInstaller: ObservableObject {
     /// The runtime's own `memnox uninstall --purge`: the hooks, the wrapping, the service and ~/.memnox. memnox is only
     /// looked for, never installed, since the point is to leave nothing behind; false when there was none to ask.
     func uninstallRuntime() async -> Bool {
+        guard demoOnly == nil else { return false }
         var memnox = installedMemnox()
         if memnox == nil { memnox = await Self.found(Command.memnox).map(Self.quoted) }
         guard let memnox else { return false }

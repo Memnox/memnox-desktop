@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { chipTooltip, listeningBadge, MENU_PANEL, MENU_SETTLE, menuRows, stripNote, type MenuAction, type MenuRow, type ToolChip } from '../../core/domain/menu-panel';
+import { demoOn } from '../adapters/demo';
 import { AgentMark, LogoMark, SFSymbol, ToolMark, type SFSymbolName } from '../kit';
 
 /** What the panel draws, gathered by its window from the island and the daemon. */
@@ -70,7 +71,7 @@ export function TrayPanel({ state, opened, onAction, online = true }: { state: T
 
       <section style={settle(1, opened)}>
         <MenuCard className="flex flex-col gap-0.5 p-1">
-          {menuRows(state.muted, state.talkKeys).map((row) => (
+          {menuRows(state.muted, state.talkKeys, demoOn).map((row) => (
             <div key={row.action} className="contents">
               {row.dividerAbove === true && <hr className="my-0.5 ml-[41px] mr-0 h-px border-0 bg-[var(--mx-ink-faint-05)]" />}
               <Row row={row} onPress={() => onAction(row.action)} />

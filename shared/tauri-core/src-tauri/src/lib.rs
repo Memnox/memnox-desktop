@@ -5,6 +5,7 @@
 mod awake;
 mod cloud;
 mod daemon;
+mod demo;
 mod focus;
 mod glass;
 mod island;
@@ -43,6 +44,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(demo::plugin())
         .manage(awake::Awake::default())
         .manage(relay::Relays::default())
         .manage(glass::Glassed::default())
@@ -98,6 +100,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            demo::switch_demo,
             daemon::daemon_stream,
             relay::relay_servers,
             relay::relay_pair,

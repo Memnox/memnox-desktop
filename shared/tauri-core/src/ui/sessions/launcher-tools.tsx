@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { RequestIds, toolkitName } from '../../core';
 import { agentStatusWord, connectionStatusWord, Tools } from '../../core/application/tools';
-import { TauriDaemonLink } from '../adapters/tauri-daemon-link';
+import { daemonLink } from '../adapters/demo';
 import { AgentMark, ToolMark } from '../kit';
 import type { LauncherTool } from './Launcher';
 
@@ -18,7 +18,7 @@ export interface PickedTool {
 /** The launcher's own read of the agents and apps, made once, so the island needs nothing more passed in. */
 let shared: Tools | undefined;
 function tools(): Tools {
-  shared ??= new Tools(new TauriDaemonLink(), new RequestIds());
+  shared ??= new Tools(daemonLink(), new RequestIds());
   return shared;
 }
 

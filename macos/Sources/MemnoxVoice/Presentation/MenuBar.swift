@@ -33,6 +33,9 @@ final class MenuModel: ObservableObject {
     var previewChime: () -> Void = {}
     /// Asks, then takes Memnox and everything it put on this Mac away, the app last.
     var uninstall: () -> Void = {}
+    /// Whether the app is showing the made up power user rather than this Mac, and how to switch, which reopens the app.
+    var demoOn = false
+    var switchDemo: () -> Void = {}
     let setLiveWords: (Bool) -> Void
     let setStayPut: (Bool) -> Void
     let chooseVoice: (String) -> Void
@@ -272,6 +275,13 @@ struct MenuView: View {
                 // What Memnox does above the line, the app itself below it, as a Mac menu groups them.
                 MenuDivider()
                     .padding(.vertical, Memnox.Spacing.xxSmall)
+                // Reopens the app on the made up power user, so a person can see everything Memnox does before their own agents fill it.
+                MenuRow(symbol: model.demoOn ? MenuSymbol.leaveDemo : MenuSymbol.demo,
+                        title: model.demoOn ? "Leave the demo" : "Watch a demo") {
+                    close()
+                    model.switchDemo()
+                }
+                .help(model.demoOn ? "Reopens Memnox on this Mac's own agents" : "Reopens Memnox with made up data, so every page shows what it can do")
                 MenuRow(symbol: MenuSymbol.settings, title: "Settings", action: showSettings)
                 MenuRow(symbol: MenuSymbol.quit, title: "Quit Memnox", quiet: true) {
                     NSApp.terminate(nil)
@@ -728,6 +738,8 @@ enum MenuSymbol {
     static let hideNotch = "eye.slash"
     static let showNotch = "eye"
     static let quit = "power"
+    static let demo = "play.circle"
+    static let leaveDemo = "arrow.uturn.backward"
     static let settings = "gearshape"
     static let more = "chevron.right"
     static let needYou = "hand.raised"

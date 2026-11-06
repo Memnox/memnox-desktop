@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, CircleArrowRight, CircleCheck, CircleDashed, CircleX, Fingerprint, TriangleAlert, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ChevronUp, Fingerprint } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { HOLD_ANSWER } from '@memnox/core/wire';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
@@ -33,7 +33,7 @@ import { useObserved, type SettingsParts } from '../../settings/parts';
 import { bringForward } from '../../sessions/open-session';
 import { Inspector } from '../widgets';
 import { GoLink } from './HomePage';
-import { Button, IconButton, PRESS_DIP, Pressable, StatusWord, type Tone } from '../../kit';
+import { Button, IconButton, PRESS_DIP, Pressable, SFSymbol, StatusWord, type SFSymbolName, type Tone } from '../../kit';
 import { handHeld, heldBusy } from '../held-hand';
 
 /** The window reads the clock this often, so ages and the synced time stay true while it is open. */
@@ -41,13 +41,16 @@ const CLOCK_MS = 15_000;
 /** How long the window waits before opening the live feed again after the daemon went away. */
 const RECONNECT_MS = 2_000;
 
-/** Each state's mark and colour, as the Mac's `StateMark` draws them, so the colour is never all that says it. */
-const STATE_MARK: Record<TodayState, { icon: LucideIcon; tone: Tone }> = {
-  'needs-you': { icon: TriangleAlert, tone: 'attention' },
-  stopped: { icon: CircleX, tone: 'bad' },
-  working: { icon: CircleDashed, tone: 'good' },
-  'up-next': { icon: CircleArrowRight, tone: 'quiet' },
-  done: { icon: CircleCheck, tone: 'good' },
+/**
+ * Each state's mark and colour by the Mac's own symbol names in `StateMark`, so the colour is never all that says it
+ * and the filled ones are drawn filled.
+ */
+const STATE_MARK: Record<TodayState, { symbol: SFSymbolName; tone: Tone }> = {
+  'needs-you': { symbol: 'exclamationmark.triangle.fill', tone: 'attention' },
+  stopped: { symbol: 'xmark.circle.fill', tone: 'bad' },
+  working: { symbol: 'circle.dotted', tone: 'good' },
+  'up-next': { symbol: 'arrow.right.circle', tone: 'quiet' },
+  done: { symbol: 'checkmark.circle.fill', tone: 'good' },
 };
 
 const MARK_TEXT: Record<Tone, string> = {
@@ -57,26 +60,25 @@ const MARK_TEXT: Record<Tone, string> = {
   quiet: 'text-muted',
 };
 
-/** The Mac's `WorkTable` widths: the number, From, When and State, with What taking what is left. Tailwind reads class
- * names whole, so the widths are written out here and a test holds them to `TODAY_TABLE`. */
-const TABLE_COLUMNS = 'grid-cols-[28px_minmax(0,1fr)_170px_72px_118px]';
+/** The Mac's `WorkTable` widths: the number, From, When and State, with What taking what is left. They live in a
+ * styles.css token, which a test holds to `TODAY_TABLE` and the Swift. */
+const TABLE_COLUMNS = 'grid-cols-(--mx-app-work-columns)';
 
 /** Where Activity opens, under Governance as the Mac places it. */
 const ACTIVITY_ROUTE: Route = { destination: 'governance', tab: 'activity' };
 
-/** `StateMark`'s glyph is caption sized and heavy, so it reads beside 12 point words. */
+/** `WorkTable.markSize`: the glyph is caption sized and semibold, so it reads beside 12 point words. */
 const STATE_GLYPH = 11;
-const STATE_STROKE = 2.6;
 
 /** The fingerprint on a choice that signs, as small as its keycap's letter. */
 const SIGNED_GLYPH = 12;
 
 /** A state as a mark in its colour beside its word, the Mac's `StateMark`, used on every work table. */
 export function StateMark({ state }: { state: TodayState }) {
-  const { icon: Icon, tone } = STATE_MARK[state];
+  const { symbol, tone } = STATE_MARK[state];
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5">
-      <Icon size={STATE_GLYPH} strokeWidth={STATE_STROKE} className={`shrink-0 ${MARK_TEXT[tone]}`} aria-hidden />
+      <SFSymbol name={symbol} size={STATE_GLYPH} weight="semibold" className={`shrink-0 ${MARK_TEXT[tone]}`} />
       <span className="truncate text-meta font-medium text-foreground">{TODAY_STATE_LABEL[state]}</span>
     </span>
   );
@@ -326,7 +328,7 @@ function useHeldFeed({ calls }: SettingsParts): void {
 function Table({ items, all, now, open, pick }: { items: readonly TodayItem[]; all: readonly TodayItem[]; now: number; open: string | undefined; pick: (id: string) => void }) {
   return (
     <div className="overflow-hidden rounded-card border border-panel-edge bg-card">
-      <div className={`grid ${TABLE_COLUMNS} h-[34px] items-center gap-3 border-b border-panel-edge px-4 text-label font-medium text-faint`} aria-hidden>
+      <div className={`grid ${TABLE_COLUMNS} h-app-work-head items-center gap-3 border-b border-panel-edge px-4 text-label font-medium text-faint`} aria-hidden>
         {TodayPageLines.columns.map((title, index) => (
           <span key={index} className="truncate">
             {title}
@@ -458,7 +460,7 @@ function ChoiceRow({ choice, signed, keyTitle, disabled, press }: { choice: Toda
       aria-label={TodayNotes.choiceLabel(choice.title, choice.recommended, signed ? keyTitle : undefined)}
       className={`mx-focus flex h-field cursor-pointer items-center gap-2.5 rounded-control border bg-card px-2.5 text-left hover:bg-hover disabled:cursor-default disabled:opacity-50 ${PRESS_DIP} ${choice.recommended ? 'border-primary' : 'border-panel-edge'}`}
     >
-      <span className="grid size-[22px] place-items-center rounded-control border border-panel-edge bg-keycap font-code text-label font-medium text-muted">{choice.key}</span>
+      <span className="grid size-app-choice-key place-items-center rounded-control border border-panel-edge bg-keycap font-code text-label font-medium text-muted">{choice.key}</span>
       <span className="text-body-sm font-medium text-foreground">{choice.title}</span>
       {signed && <Fingerprint size={SIGNED_GLYPH} className="text-muted" aria-hidden />}
       <span className="flex-1" />

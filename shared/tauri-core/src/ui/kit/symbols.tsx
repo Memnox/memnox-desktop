@@ -12,6 +12,7 @@ import {
   Circle,
   CircleArrowRight,
   CircleCheck,
+  CircleDashed,
   CirclePlay,
   CircleX,
   ClipboardCopy,
@@ -74,6 +75,7 @@ export const SF_SYMBOLS = {
   'checkmark.seal.fill': BadgeCheck,
   circle: Circle,
   'circle.fill': Circle,
+  'circle.dotted': CircleDashed,
   ellipsis: Ellipsis,
   'text.cursor': TextCursor,
   iphone: Smartphone,
@@ -128,8 +130,24 @@ export const SF_SYMBOLS = {
 
 export type SFSymbolName = keyof typeof SF_SYMBOLS;
 
-/** Symbols the Mac draws filled, which lucide draws as outlines unless told to fill. */
-const FILLED = new Set<SFSymbolName>(['checkmark.circle.fill', 'circle.fill', 'xmark.circle.fill']);
+/**
+ * A `.fill` symbol is drawn filled: lucide's first shape is the glyph's outline (the disc, the badge, the triangle,
+ * the envelope), so it takes the symbol's colour as fill and stroke, and the marks after it are cut out of it in the
+ * colour of the ground under it, `--mx-symbol-ground`, as SF Symbols knocks them out.
+ */
+const FILLED_LOOK = '[&>*]:stroke-(--mx-symbol-ground) [&>:first-child]:stroke-current';
+
+/** Whether the Mac draws this symbol filled. */
+function filled(name: SFSymbolName): boolean {
+  return name.endsWith('.fill');
+}
+
+/**
+ * Filled symbols whose lucide stand in has no outline to fill, such as an eye in a disc: the disc is drawn filled
+ * and the mark sits inside it in the ground's colour, at this share of the disc.
+ */
+const IN_DISC = new Set<SFSymbolName>(['eye.circle.fill']);
+const DISC_MARK_SHARE = 0.6;
 
 /** SwiftUI's symbol weights as lucide stroke widths: medium 2, semibold 2.25, bold 2.5. */
 const STROKE = { regular: 1.75, medium: 2, semibold: 2.25, bold: 2.5 } as const;
@@ -138,7 +156,7 @@ export type SymbolWeight = keyof typeof STROKE;
 
 /**
  * An SF Symbol drawn with its lucide stand in. With no size it takes 13, the body size a symbol with no
- * font of its own inherits on the Mac. A filled symbol paints its glyph in the island's black on its colour.
+ * font of its own inherits on the Mac. A `.fill` symbol is filled in its colour with its marks cut out of it.
  */
 export function SFSymbol({
   name,
@@ -155,16 +173,22 @@ export function SFSymbol({
   label?: string;
 }) {
   const Icon = SF_SYMBOLS[name];
-  const filled = FILLED.has(name);
+  const stroke = STROKE[weight];
+  if (IN_DISC.has(name)) {
+    return (
+      <span className={`relative inline-grid shrink-0 place-items-center ${className ?? ''}`} style={{ width: size, height: size }} role={label === undefined ? undefined : 'img'} aria-label={label} aria-hidden={label === undefined}>
+        <Circle size={size} strokeWidth={stroke} fill="currentColor" className="absolute inset-0" />
+        <Icon size={size * DISC_MARK_SHARE} strokeWidth={stroke} className="relative stroke-(--mx-symbol-ground)" />
+      </span>
+    );
+  }
+  const solid = filled(name);
   return (
     <Icon
       size={size}
-      strokeWidth={STROKE[weight]}
-      className={className}
-      // The fill is the symbol's colour and the mark inside it the black under it, as `.fill` symbols draw.
-      fill={filled ? 'currentColor' : 'none'}
-      color={filled ? undefined : 'currentColor'}
-      style={filled ? { stroke: '#000' } : undefined}
+      strokeWidth={stroke}
+      className={`${solid ? FILLED_LOOK : ''} ${className ?? ''}`}
+      fill={solid ? 'currentColor' : 'none'}
       aria-label={label}
       aria-hidden={label === undefined}
     />

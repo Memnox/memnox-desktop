@@ -4,6 +4,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
 import type { LiveActivityRow } from '@memnox/core/wire';
+import type { FoundHome } from '../../core/domain/agent-homes';
 import type { Look } from '../../core/domain/appearance';
 import type { PermissionFacts, PrivacyPane } from '../../core/domain/permission-steps';
 import type { PathLook } from '../../core/domain/memory-import';
@@ -84,6 +85,10 @@ export interface SettingsHost {
   onFileDrop?(listener: (drop: FileDrop) => void): () => void;
   /** Whether the system shows Memnox's notifications, asking it first when `ask` is set. */
   notices?(ask: boolean): Promise<boolean>;
+  /** The terminals and the editor here a session may open in, which `focus/homes.rs` finds. */
+  agentHomes?(): Promise<readonly FoundHome[]>;
+  /** An agent app's own link, through the system's URL handler, as a follow up opens Claude Code's chat. */
+  openAppLink?(link: string): void;
   readonly voices: {
     choice(): Promise<{ voices: string[]; chosen: string | null; speed?: number }>;
     /** How fast the voice speaks, held between half speed and normal. */
@@ -110,6 +115,8 @@ export const tauriHost: SettingsHost = {
   setStartsAtSignIn: (on) => invoke<boolean>('set_start_at_sign_in', { on }),
   restart: () => void invoke(TAURI_COMMAND.restartMemnox),
   openPage: (url) => void invoke(TAURI_COMMAND.openPage, { url }).catch(() => undefined),
+  agentHomes: () => invoke<FoundHome[]>(TAURI_COMMAND.agentHomes),
+  openAppLink: (link) => void invoke(TAURI_COMMAND.openAppLinks, { links: [link] }).catch(() => undefined),
   // `local_file.rs` refuses a folder, a link and anything runnable, and the refusal is the copy fallback.
   readSkillFile: (path) => invoke<string>('read_skill_file', { path }).then(
     (text) => text,

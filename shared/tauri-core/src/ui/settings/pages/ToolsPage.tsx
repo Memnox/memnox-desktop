@@ -1,4 +1,4 @@
-import { Brain, Copy, RotateCw, SquareTerminal, Terminal } from 'lucide-react';
+import { Brain, Copy, RotateCw, Terminal } from 'lucide-react';
 import { Fragment, useEffect } from 'react';
 import { agentStatusWord } from '../../../core/application/tools';
 import { EMBEDDING_COMMAND, MEANING_SEARCH_LINE, MEANING_SEARCH_TITLE } from '../../../core/domain/memory-lines';
@@ -7,6 +7,8 @@ import { SettingsCard, SettingsDivider, SettingsRow, SettingsSection } from '../
 import { useObserved, type SettingsParts } from '../parts';
 import { Button } from '../../kit';
 import { ToolsPageLines } from '../../../core/domain/tools-page-lines';
+import { AgentHomesLines } from '../../../core/domain/agent-homes';
+import { AgentHomesSetup } from './AgentHomesSetup';
 
 /** A 7 dot after a tool: ready in the success colour, needing the person in the warm one. */
 function StatusDot({ ready }: { ready: boolean }) {
@@ -18,14 +20,10 @@ function StatusDot({ ready }: { ready: boolean }) {
  * apps are their own page, Your apps, as on the Mac.
  */
 export function ToolsPage({ parts }: { parts: SettingsParts }) {
-  const { tools, steps } = parts;
-  useObserved(tools, steps);
-  useEffect(() => {
-    void tools.refresh();
-    void steps.refresh();
-  }, []);
+  const { tools } = parts;
+  useObserved(tools);
+  useEffect(() => void tools.refresh(), []);
   const { agents, reading } = tools.state;
-  const editor = steps.editor;
   return (
     <>
       <SettingsCard title={ToolsPageLines.agents}>
@@ -42,18 +40,9 @@ export function ToolsPage({ parts }: { parts: SettingsParts }) {
           ))
         )}
       </SettingsCard>
-      {/* The same check as the first run, for an editor installed since; Windows and Linux find a session's tab without asking. */}
-      <SettingsSection title={ToolsPageLines.whereRun}>
-        <SettingsCard>
-          {editor.shown ? (
-            <SettingsRow icon={SquareTerminal} title={ToolsPageLines.editor} caption={editor.detail}>
-              {editor.state.kind !== 'done' && <Button onClick={() => void steps.readPermissions()}>{ToolsPageLines.checkAgain}</Button>}
-              <StatusDot ready={editor.state.kind === 'done'} />
-            </SettingsRow>
-          ) : (
-            <SettingsRow icon={SquareTerminal} title={ToolsPageLines.noEditor} caption={ToolsPageLines.editorHint} />
-          )}
-        </SettingsCard>
+      {/* The same checklist as the first run, for an app installed since or a step skipped then. */}
+      <SettingsSection title={AgentHomesLines.section}>
+        <AgentHomesSetup homes={parts.homes} platform={parts.host.platform} />
       </SettingsSection>
       <SettingsCard title={ToolsPageLines.memory}>
         <SettingsRow

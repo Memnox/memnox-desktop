@@ -1,4 +1,5 @@
 import type { Delivery, DisplayHost } from '@memnox/core/wire';
+import type { AgentHomeKind } from '../../domain/agent-homes';
 import type { EditorKind, TerminalKind, TerminalPane } from '../../domain/session-focus';
 
 /** How a display that acts on another app ended, in the runtime's DELIVERY words, with why when it did not. */
@@ -21,6 +22,8 @@ export interface Terminals {
   focusEditor(host: DisplayHost): Promise<Shown>;
   /** A new tab in a supported terminal, in the folder, running the runtime's line as it was sent. */
   launchInTerminal(terminal: TerminalKind | undefined, line: string, folder: string, background: boolean): Promise<Shown>;
+  /** A window of the app the person picked, in the folder, running the runtime's line as it was sent. */
+  launchInHome(home: AgentHomeKind, line: string, folder: string): Promise<Shown>;
   /** The editor on the folder, then the Memnox extension's launch link, answered once the extension writes back. */
   launchInEditor(editor: EditorKind, folder: string, request: string): Promise<Shown>;
   /** An agent app's own links, a moment apart, through the system's URL handler. */

@@ -3,6 +3,7 @@
  * is a compile error rather than a call that silently fails.
  */
 export const TAURI_COMMAND = {
+  agentHomes: 'agent_homes',
   applyAppearance: 'apply_appearance',
   cardsFit: 'cards_fit',
   cardsHide: 'cards_hide',
@@ -32,6 +33,7 @@ export const TAURI_COMMAND = {
   keyboardHasAltgr: 'keyboard_has_altgr',
   keysWatching: 'keys_watching',
   launchInEditor: 'launch_in_editor',
+  launchInHome: 'launch_in_home',
   launchInTerminal: 'launch_in_terminal',
   listenOnce: 'listen_once',
   lookMemoryPaths: 'look_memory_paths',
@@ -66,6 +68,7 @@ export const TAURI_COMMAND = {
   relayServers: 'relay_servers',
   relayStream: 'relay_stream',
   restartMemnox: 'restart_memnox',
+  runtimeBuild: 'runtime_build',
   runtimeFound: 'runtime_found',
   runtimeInstall: 'runtime_install',
   runtimeRun: 'runtime_run',

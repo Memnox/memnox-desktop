@@ -119,6 +119,10 @@ class ScriptedTerminals implements Terminals {
     this.asked.push(`launch ${terminal ?? 'any'} ${folder} ${background ? 'behind' : 'front'} ${line}`);
     return this.answers.terminal ?? { answer: 'typed' as const };
   }
+  async launchInHome(home: string, line: string, folder: string) {
+    this.asked.push(`window ${home} ${folder} ${line}`);
+    return this.answers.terminal ?? { answer: 'typed' as const };
+  }
   async launchInEditor(editor: string, folder: string, request: string) {
     this.asked.push(`launch ${editor} ${folder} ${request}`);
     return this.answers.launchEditor ?? { answer: 'typed' as const };
@@ -206,6 +210,18 @@ describe('what the daemon asks to bring forward or start', () => {
     await displays.handle(show('launch', { subject: 'dsp_9', host: { cwd: '/a', appPath: '/usr/share/code/code' } }));
     expect(terminals.asked).toEqual(['launch code /a dsp_9']);
     expect(link.sent('delivered')[0]).toMatchObject({ answer: 'failed', reason: 'the Memnox extension did not answer' });
+  });
+
+  it('starts one the runtime named no app for in the app picked under Where your agents run', async () => {
+    const link = new ScriptedDaemon(answering);
+    const terminals = new ScriptedTerminals();
+    const picked = (home: 'konsole' | 'vscode' | 'windows-terminal') => new Displays(link, new RequestIds(), new FocusingPresenter({ answer: 'typed' }), { terminals, stayPut: () => false, sessionHome: async () => home });
+    await picked('konsole').handle(show('launch', { summary: 'claude', host: { cwd: '/a' } }));
+    await picked('vscode').handle(show('launch', { subject: 'dsp_2', host: { cwd: '/a' } }));
+    await picked('windows-terminal').handle(show('launch', { summary: 'claude', host: { cwd: '/a' } }));
+    // An app the runtime named wins over the pick.
+    await picked('konsole').handle(show('launch', { summary: 'claude', host: { cwd: '/a', app: 'WezTerm' } }));
+    expect(terminals.asked).toEqual(['window konsole /a claude', 'launch code /a dsp_2', 'launch windows-terminal /a front claude', 'launch wezterm /a front claude']);
   });
 
   it('starts nothing without a folder, in an agent panel, or with no terminals reached', async () => {

@@ -1,4 +1,4 @@
-import { Check, ChevronLeft, ChevronRight, CircleAlert, type LucideIcon } from 'lucide-react';
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { SettingsKitLines } from '../../core/domain/settings-kit-lines';
 import type { StepState } from '../../core/domain/step-state';
@@ -114,6 +114,86 @@ export function NeedsHint({ why, size = CAPTION_SIZE }: { why: string; size?: nu
       <span className="select-text">{why}</span>
     </p>
   );
+}
+
+/** `KitCard.symbol`: the card's symbol at title size, in a column 20 wide. */
+const KIT_SYMBOL = 17;
+
+/**
+ * `KitCard` from `OnboardingKit.swift`: one card at radius 16 and padding 16, its symbol, a 15 semibold title and a
+ * 13 line at ink 62%, then its rows.
+ */
+export function KitCard({ icon: Icon, title, detail, children }: { icon?: LucideIcon; title?: string; detail?: string; children?: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-4 rounded-setup bg-card p-4">
+      {title !== undefined && (
+        <div className="flex items-start gap-3">
+          {Icon !== undefined && (
+            <span className="flex w-5 shrink-0 justify-center text-ink-primary" aria-hidden>
+              <Icon size={KIT_SYMBOL} strokeWidth={1.75} />
+            </span>
+          )}
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <h3 className="text-headline font-semibold text-foreground">{title}</h3>
+            {detail !== undefined && <p className="text-body text-ink-secondary">{detail}</p>}
+          </div>
+        </div>
+      )}
+      {children !== undefined && <div className="flex flex-col">{children}</div>}
+    </section>
+  );
+}
+
+/** `KitRow`: its tile, a 14 semibold title over a 12 line at ink 62%, then one control that keeps its width; 10 above and below. */
+export function KitRow({ icon, title, detail, children }: { icon: LucideIcon; title: string; detail?: string; children?: ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 py-2.5">
+      <IconTile icon={icon} />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-callout font-semibold text-foreground">{title}</span>
+        {detail !== undefined && <span className="text-footnote text-ink-secondary">{detail}</span>}
+      </div>
+      {children !== undefined && <div className="ml-2 flex shrink-0 items-center gap-1.5">{children}</div>}
+    </div>
+  );
+}
+
+/** `KitDivider`: a hairline of ink 6% starting under the titles, the tile's side and 12 in. */
+export function KitDivider() {
+  return <div className="ml-[38px] h-px shrink-0 bg-ink-faint-fill" />;
+}
+
+/** The app tile's icon side and the check that marks the chosen one, as `AgentHomePicker` draws them. */
+const APP_TILE_ICON = 36;
+const APP_TILE_CHECK = 16;
+
+/**
+ * One app in `AgentHomePicker`: its icon 36 over its 12 semibold name, on a fill of ink 6% at radius 14, edged 2 in the
+ * Memnox blue with a check at its corner once chosen.
+ */
+export function AppTile({ icon, name, chosen, hint, choose }: { icon: LucideIcon; name: string; chosen: boolean; hint: string; choose: () => void }) {
+  return (
+    <Pressable
+      aria-pressed={chosen}
+      aria-label={name}
+      title={hint}
+      onClick={choose}
+      className={`mx-focus relative flex cursor-pointer flex-col items-center gap-1.5 rounded-tile bg-ink-faint-fill px-2 py-2 transition-transform duration-(--mx-duration-quick) active:scale-[0.97] ${chosen ? 'ring-2 ring-primary ring-inset' : ''}`}
+    >
+      <IconTile icon={icon} size={APP_TILE_ICON} />
+      <span className="max-w-full truncate text-footnote font-semibold text-ink-primary">{name}</span>
+      {chosen && (
+        <span className="absolute top-1.5 right-1.5 text-primary" aria-hidden>
+          <CheckCircle2 size={APP_TILE_CHECK} strokeWidth={2.25} />
+        </span>
+      )}
+    </Pressable>
+  );
+}
+
+/** `AgentHomePicker`'s grid: tiles at least 96 wide, 8 apart, 10 above and below. */
+export function AppTileGrid({ children }: { children: ReactNode }) {
+  return <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 py-2.5">{children}</div>;
 }
 
 /** `SettingsCard`, as the console's setting card: a bordered white card at radius 12, padding 20, a 16 medium heading. */

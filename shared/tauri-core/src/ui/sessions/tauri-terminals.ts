@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { DELIVERY, type DisplayHost } from '@memnox/core/wire';
 import { reasonOf, type EditorKind, type Shown, type TerminalKind, type TerminalPane, type Terminals } from '../../core';
+import type { AgentHomeKind } from '../../core/domain/agent-homes';
 import { TAURI_COMMAND } from '../adapters/tauri-commands';
 
 /** Rust's `focus` commands, each reaching a tool only through that tool's own documented controls. */
@@ -19,6 +20,10 @@ export class TauriTerminals implements Terminals {
 
   launchInTerminal(terminal: TerminalKind | undefined, line: string, folder: string, background: boolean): Promise<Shown> {
     return this.shown(invoke<Shown>(TAURI_COMMAND.launchInTerminal, { terminal: terminal ?? null, line, folder, background }), 'no terminal would open a tab');
+  }
+
+  launchInHome(home: AgentHomeKind, line: string, folder: string): Promise<Shown> {
+    return this.shown(invoke<Shown>(TAURI_COMMAND.launchInHome, { home, line, folder }), 'the app would not open a window');
   }
 
   launchInEditor(editor: EditorKind, folder: string, request: string): Promise<Shown> {

@@ -21,6 +21,8 @@ import { localHistory } from './sessions/history-store';
 import { ASK_AGAIN_EVENT, TauriPresenter } from './sessions/tauri-presenter';
 import { openSession, terminals } from './sessions/open-session';
 import { Preferences } from '../core/application/preferences';
+import { sessionHome } from '../core/application/agent-homes';
+import type { FoundHome } from '../core/domain/agent-homes';
 import type { VoiceChoices } from '../core/application/voice-preferences';
 import { firstName } from '../core/domain/setup-steps';
 import { displayCaption, keyCaption } from '../core/domain/caption-lines';
@@ -126,7 +128,12 @@ calls.observeEvents((event) => voiceTurns.arrived(event));
 const sessions = new Sessions(relay.target, ids, timer);
 const questions = new AgentQuestions(link, ids, timer, (subject) => talking.answeredByHand(subject));
 // LAUNCH and APP reach a tool only through its own documented controls, and Stay where I am keeps the person's window.
-const displays = new Displays(link, ids, new TauriPresenter(), { terminals, stayPut: () => voicePreferences.choices.stayPut });
+const displays = new Displays(link, ids, new TauriPresenter(), {
+  terminals,
+  stayPut: () => voicePreferences.choices.stayPut,
+  // The app picked under Where your agents run, read by the same rule the page shows.
+  sessionHome: () => sessionHome(localPreferences, () => invoke<FoundHome[]>(TAURI_COMMAND.agentHomes)),
+});
 calls.observeEvents((event) => {
   // "typing it in", "starting it" and the like while a display that takes a moment is carried out.
   const doing = event.kind === DAEMON_EVENT.SHOW ? displayCaption(event) : undefined;

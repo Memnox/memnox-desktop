@@ -569,6 +569,11 @@ export function previewSeed(): Record<string, string> {
 export const previewHost: SettingsHost = {
   platform,
   computerName: () => 'Desk',
+  // A terminal and the editor, its extension in except in the state that shows what still needs doing.
+  agentHomes: async () => [
+    { kind: platform === 'windows' ? 'windows-terminal' : 'gnome-terminal' },
+    { kind: 'vscode', memnoxExtension: previewState !== 'needs', claudeCode: true },
+  ],
   permissionFacts: async () => {
     // An editor here, and the extension landed except in the state that shows what still needs doing.
     const editors = { present: true, withExtension: previewState === 'needs' ? [] : ['.vscode/extensions'] };

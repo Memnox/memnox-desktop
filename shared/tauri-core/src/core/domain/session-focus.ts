@@ -1,4 +1,5 @@
 import type { DisplayHost } from '@memnox/core/wire';
+import type { AgentHomeKind } from './agent-homes';
 import { bestTab } from './tab-match';
 import { isAgentProgram } from './terminal-front';
 
@@ -155,6 +156,8 @@ export function isAppLink(link: string): boolean {
 export type LaunchPlan =
   | { readonly kind: 'editor'; readonly editor: EditorKind; readonly app: string }
   | { readonly kind: 'terminal'; readonly terminal?: TerminalKind; readonly background: boolean }
+  /** A window of the app the person picked under Where your agents run, for a terminal with no tab command. */
+  | { readonly kind: 'window'; readonly home: AgentHomeKind }
   | { readonly kind: 'none'; readonly why: string };
 
 /** The terminals that open a tab without bringing their window forward, so Stay where I am keeps the person's window. */

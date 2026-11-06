@@ -16,7 +16,7 @@ use super::process::{command, open_url, run, Failure, EDITOR_WAIT};
 
 /// The Memnox extension's link host, and the start of its installed folder's name before the version.
 const EXTENSION_HOST: &str = "memnox.memnox-terminals";
-const EXTENSION_FOLDER: &str = "memnox.memnox-terminals-";
+pub(super) const EXTENSION_FOLDER: &str = "memnox.memnox-terminals-";
 /// Where the runtime writes each display request, and the extension its answer on it.
 const DISPLAYS: &str = ".memnox/displays";
 
@@ -48,13 +48,18 @@ fn home() -> Option<PathBuf> {
 /// handles makes the editor offer to search its marketplace. A copy uninstalled since the editor started
 /// stays on disk until it restarts, listed in `.obsolete`, and is never loaded.
 fn has_extension(editor: Editor) -> bool {
+    has_extension_named(editor, EXTENSION_FOLDER)
+}
+
+/// Whether the editor has an extension whose folder starts so, which the Where your agents run checklist reads too.
+pub fn has_extension_named(editor: Editor, prefix: &str) -> bool {
     let Some(folder) = home().map(|home| home.join(editor.folder()).join("extensions")) else {
         return false;
     };
-    installed_in(&folder)
+    installed_named(&folder, prefix)
 }
 
-fn installed_in(folder: &Path) -> bool {
+fn installed_named(folder: &Path, prefix: &str) -> bool {
     let removed: std::collections::HashMap<String, bool> = std::fs::read(folder.join(".obsolete"))
         .ok()
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
@@ -63,7 +68,7 @@ fn installed_in(folder: &Path) -> bool {
         .map(|entries| {
             entries.flatten().any(|entry| {
                 let name = entry.file_name().to_string_lossy().to_string();
-                name.starts_with(EXTENSION_FOLDER) && removed.get(&name) != Some(&true)
+                name.starts_with(prefix) && removed.get(&name) != Some(&true)
             })
         })
         .unwrap_or(false)
@@ -285,13 +290,13 @@ mod tests {
     fn finds_an_installed_extension_but_not_an_uninstalled_one() {
         let folder = std::env::temp_dir().join(format!("memnox-extensions-{}", std::process::id()));
         std::fs::create_dir_all(folder.join("memnox.memnox-terminals-1.0.0")).unwrap();
-        assert!(installed_in(&folder));
+        assert!(installed_named(&folder, EXTENSION_FOLDER));
         std::fs::write(
             folder.join(".obsolete"),
             br#"{"memnox.memnox-terminals-1.0.0":true}"#,
         )
         .unwrap();
-        assert!(!installed_in(&folder));
+        assert!(!installed_named(&folder, EXTENSION_FOLDER));
         std::fs::remove_dir_all(&folder).unwrap();
     }
 

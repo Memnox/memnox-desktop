@@ -390,7 +390,7 @@ fn posix_shell() -> String {
 
 /// PowerShell 7 where it is installed, since the runtime's line joins its steps with `&&`, which
 /// Windows PowerShell 5 does not read.
-fn powershell() -> &'static str {
+pub(super) fn powershell() -> &'static str {
     let found = std::env::var_os("PATH")
         .map(|path| std::env::split_paths(&path).any(|folder| folder.join("pwsh.exe").is_file()))
         .unwrap_or(false);
@@ -403,7 +403,7 @@ fn powershell() -> &'static str {
 
 /// The program and its arguments that run the runtime's line in a new tab and keep the tab open after,
 /// with the line passed whole, so no terminal's own parsing reaches inside it.
-fn shell_for(line: &str, windows: bool) -> Vec<String> {
+pub(super) fn shell_for(line: &str, windows: bool) -> Vec<String> {
     let line = one_line(line);
     if windows {
         vec![

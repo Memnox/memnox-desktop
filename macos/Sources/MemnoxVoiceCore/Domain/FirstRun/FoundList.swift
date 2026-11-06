@@ -66,9 +66,9 @@ public enum FoundList {
         expanded || group.items.count <= collapsed ? nil : "Show all \(group.items.count)"
     }
 
-    /// "2 MCP servers and 86 skills", what one agent holds under its name.
+    /// "2 tools and 86 skills", what one agent holds under its name.
     public static func holds(_ group: FoundGroup) -> String {
-        let servers = counted(group.servers, "MCP server", "MCP servers")
+        let servers = counted(group.servers, "tool", "tools")
         let skills = counted(group.skills, "skill", "skills")
         if group.servers == 0 { return skills }
         if group.skills == 0 { return servers }

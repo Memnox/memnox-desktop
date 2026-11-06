@@ -9,11 +9,33 @@ final class FirstRunLinesTests: XCTestCase {
         try JSONDecoder().decode(McpHubEntryView.self, from: Data(json.utf8))
     }
 
-    func testRunsThreeStepsForAFreshMacWithWhatIsOptionalAfterThem() {
-        XCTAssertEqual(FirstRunLines.steps, ["Connect your agents", "Set up your workspace", "Choose your boundaries"])
-        XCTAssertEqual(FirstRunLines.progress(step: 0, optional: false), 1.0 / 3.0, accuracy: 0.0001)
-        XCTAssertEqual(FirstRunLines.progress(step: 2, optional: false), 1)
-        XCTAssertEqual(FirstRunLines.progress(step: 2, optional: true), 1)
+    private func pack(_ id: String) -> RulePackView {
+        RulePackView(id: id, name: id, description: "", ruleCount: 3, toml: "")
+    }
+
+    func testRunsThreeShortStepsCountedOnEveryOne() {
+        XCTAssertEqual(FirstRunLines.steps, ["Connect", "Bring in what your agents use", "Starting rules"])
+        XCTAssertEqual((0..<3).map { FirstRunLines.progressLabel(step: $0) }, ["Step 1 of 3", "Step 2 of 3", "Step 3 of 3"])
+        XCTAssertEqual(FirstRunLines.progressLabel(step: 7), "Step 3 of 3")
+        XCTAssertEqual(FirstRunLines.progress(step: 0, done: false), 1.0 / 3.0, accuracy: 0.0001)
+        XCTAssertEqual(FirstRunLines.progress(step: 2, done: false), 1)
+        XCTAssertEqual(FirstRunLines.progress(step: 0, done: true), 1)
+    }
+
+    func testMovesOnFromConnectAsSoonAsTheServiceRuns() {
+        XCTAssertTrue(FirstRunLines.canContinueConnect(serviceRunning: true))
+        XCTAssertFalse(FirstRunLines.canContinueConnect(serviceRunning: false))
+        XCTAssertTrue(FirstRunLines.connectWaiting.contains("by itself"))
+    }
+
+    func testRecommendsTheSafeDefaultsAndKeepsTheOtherPacksBehindIt() {
+        let packs = [pack("read-only-agents"), pack("safe-defaults"), pack("no-outward-writes")]
+        XCTAssertEqual(FirstRunLines.recommendedPack(packs)?.id, "safe-defaults")
+        XCTAssertEqual(FirstRunLines.otherPacks(packs).map(\.id), ["read-only-agents", "no-outward-writes"])
+        // A runtime that ships other packs still has one chosen for the person, its first.
+        XCTAssertEqual(FirstRunLines.recommendedPack([pack("careful"), pack("open")])?.id, "careful")
+        XCTAssertNil(FirstRunLines.recommendedPack([]))
+        XCTAssertEqual(FirstRunLines.otherPacks([]), [])
     }
 
     func testCountsWhatOneAgentKeepsAndLeavesARepositoryFileWhereItIs() throws {
@@ -30,12 +52,12 @@ final class FirstRunLinesTests: XCTestCase {
         XCTAssertEqual(found.servers.map(\.name), ["notion", "github"])
         XCTAssertEqual(found.skills.map(\.id), ["f1"])
         XCTAssertEqual(found.agents, 2)
-        XCTAssertEqual(FirstRunLines.foundLine(found), "We found 2 MCP servers and 1 skill across 2 agents.")
+        XCTAssertEqual(FirstRunLines.foundLine(found), "We found 2 tools and 1 skill across 2 agents.")
     }
 
     func testSaysPlainlyWhenThereIsNothingToBringIn() {
         XCTAssertEqual(FirstRunLines.foundLine(FirstRunLines.found(servers: [], skills: [])),
-                       "Nothing to bring in: no agent here keeps MCP servers or skills of its own yet.")
+                       "Nothing to bring in: no agent here keeps tools or skills of its own yet.")
     }
 
     func testSaysWhatAnImportBroughtInAndWhatItLeft() {

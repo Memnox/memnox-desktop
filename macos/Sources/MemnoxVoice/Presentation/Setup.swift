@@ -723,7 +723,7 @@ final class SetupModel: ObservableObject {
     var nameState: StepState { name.trimmingCharacters(in: .whitespaces).isEmpty ? .waiting : .done }
 
     /// Setup is done; from the first run the full screen scan of this Mac then goes up over the closed setup window, and
-    /// closing it opens the Memnox window on Home.
+    /// closing it opens the Memnox window on Home, which asks whether to enforce while this Mac only observes.
     func finish(scanning: Bool = false) {
         let chosen = name.trimmingCharacters(in: .whitespaces)
         owner.name = chosen.isEmpty ? nil : chosen
@@ -732,7 +732,7 @@ final class SetupModel: ObservableObject {
         Task {
             await usePicked()
             finished()
-            if scanning { await SetupScan.shared.run(self) }
+            if scanning { await SetupScan.shared.run(self) } else { SetupScan.openHome(self) }
         }
     }
 

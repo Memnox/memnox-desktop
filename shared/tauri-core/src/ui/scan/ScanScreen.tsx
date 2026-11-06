@@ -203,7 +203,7 @@ function Summary({ shown, totals, capabilities, bottom }: { shown: boolean; tota
       style={{ bottom, opacity: shown ? 1 : 0, translate: shown ? '-50% 0' : '-50% 24px', boxShadow: '0 10px 48px rgb(0 0 0 / 0.6), inset 0 0 0 1px rgb(255 255 255 / 0.08)' }}
     >
       <Figure value={totals.agents} label="agents" shown={shown} />
-      <Figure value={totals.tools} label="MCP tools" shown={shown} />
+      <Figure value={totals.tools} label="tools" shown={shown} />
       <Figure value={capabilities} label="real capabilities" tint="text-amber" shown={shown} />
       <Figure value={totals.working} label="working" tint="text-green" shown={shown} />
       <span className="h-[22px] w-px bg-white/10" />

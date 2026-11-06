@@ -94,8 +94,8 @@ final class ScanTallyTests: XCTestCase {
     }
 
     func testSaysTheWholeScanInALine() throws {
-        XCTAssertEqual(ScanLines.summary(try tally()), "Found 2 agents, 1 skill, 1 MCP server, 1 memory source and 1 connected app.")
+        XCTAssertEqual(ScanLines.summary(try tally()), "Found 2 agents, 1 skill, 1 tool, 1 memory source and 1 connected app.")
         XCTAssertEqual(ScanLines.summary(ScanTally(findings: [])),
-                       "Found no agents, no skills, no MCP servers, no memory sources and no connected apps.")
+                       "Found no agents, no skills, no tools, no memory sources and no connected apps.")
     }
 }

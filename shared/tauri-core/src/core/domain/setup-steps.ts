@@ -172,10 +172,10 @@ function counted(count: number, one: string, many: string): string {
   return count === 1 ? `1 ${one}` : `${count} ${many}`;
 }
 
-/** "We found 3 MCP servers and 2 skills across 2 agents." Counts, never a score. */
+/** "We found 3 tools and 2 skills across 2 agents." Counts, never a score. */
 export function foundLine(found: FoundToImport): string {
-  if (found.servers.length === 0 && found.skills.length === 0) return 'Nothing to bring in: no agent here keeps MCP servers or skills of its own yet.';
-  const servers = counted(found.servers.length, 'MCP server', 'MCP servers');
+  if (found.servers.length === 0 && found.skills.length === 0) return 'Nothing to bring in: no agent here keeps tools or skills of its own yet.';
+  const servers = counted(found.servers.length, 'tool', 'tools');
   const skills = counted(found.skills.length, 'skill', 'skills');
   return `We found ${servers} and ${skills} across ${counted(found.agents, 'agent', 'agents')}.`;
 }

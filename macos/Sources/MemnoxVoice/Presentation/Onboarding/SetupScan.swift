@@ -30,11 +30,11 @@ final class SetupScan {
         let tally = ScanLines.tally(agents: agents, scanned: scanned, skills: shell.skills?.skills.hub, servers: shell.hub?.hub.hub,
                                     sources: shell.memory?.memory.sources ?? [], apps: tools?.yourApps ?? [])
         // Home opens whichever way the scan goes, and straight away when there is no agent to draw.
-        panel.closed = { Self.openHome() }
+        panel.closed = { [weak setup] in setup.map(Self.openHome) }
         let nodes = scanned?.agents ?? ScanLines.nodes(agents)
         guard !nodes.isEmpty else {
             panel.closed = nil
-            Self.openHome()
+            Self.openHome(setup)
             return
         }
         // Up until the voice has finished explaining it, and quiet the moment the person closes it.
@@ -63,8 +63,10 @@ final class SetupScan {
     private static let recountEvery: TimeInterval = 3
     private static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
-    private static func openHome() {
+    /// Home with the next steps, and while this Mac only watches, the question whether to stop rather than watch.
+    static func openHome(_ setup: SetupModel) {
         SettingsWindow.shared.show()
         AppWindow.shared.shell.go(WindowRoute(.home))
+        Task { await SettingsWindow.shared.home?.offerEnforce { await setup.narrate([$0]) } }
     }
 }

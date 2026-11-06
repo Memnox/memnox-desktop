@@ -13,8 +13,8 @@ final class FoundListTests: XCTestCase {
         let groups = FoundList.groups(found(skills: 90))
         XCTAssertEqual(groups.map(\.agent), ["claude-code", "codex-cli", "cursor"])
         XCTAssertEqual(groups[0].items.first?.name, "github")
-        XCTAssertEqual(FoundList.holds(groups[0]), "1 MCP server and 90 skills")
-        XCTAssertEqual(FoundList.holds(groups[2]), "1 MCP server")
+        XCTAssertEqual(FoundList.holds(groups[0]), "1 tool and 90 skills")
+        XCTAssertEqual(FoundList.holds(groups[2]), "1 tool")
     }
 
     func testShowsAFewOfALongGroupUntilShowAll() {

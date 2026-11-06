@@ -5,7 +5,8 @@ public enum FirstRunPage: Int, CaseIterable, Sendable {
     case connect
     case workspace
     case boundaries
-    case optional
+    /// The end, once the three steps are done.
+    case ready
 }
 
 /// Everything the spoken guide says from the first step until setup is finished and the scan after it, written to be heard: short
@@ -26,14 +27,14 @@ public enum FirstRunGuide {
         case .connect: return connect
         case .workspace: return workspace
         case .boundaries: return boundaries
-        case .optional: return optional
+        case .ready: return ready
         }
     }
 
     /// Said on the second step once the agents' own servers and skills are counted, so the person hears how many.
     public static func found(_ found: FoundToImport) -> String {
-        if found.isEmpty { return "None of your agents keeps skills or MCP servers of its own yet, so there is nothing to bring in. Press Continue." }
-        return "\(FirstRunLines.foundLine(found)) They are grouped by agent. Search the list, or untick any you want to leave where they are."
+        if found.isEmpty { return "None of your agents keeps skills or tools of its own yet, so there is nothing to bring in. Press Continue." }
+        return "\(FirstRunLines.foundLine(found)) I ticked every one. Press Bring them in, or untick any you want to leave where they are."
     }
 
     /// Said once Import has run, so the person knows what changed before moving on.
@@ -42,12 +43,12 @@ public enum FirstRunGuide {
     }
 
     /// Said once a pack is chosen, while its rules wait on the island.
-    public static let packProposed = "Your rules are waiting on the island at the top of your screen. Confirm each one with Touch ID, then press Finish."
+    public static let packProposed = "Your starting rules are waiting on the island at the top of your screen. Confirm each one with Touch ID."
 
     /// Said over the full screen scan once setup closes, with what it counted, before the person opens Memnox.
     public static func scanned(_ tally: ScanTally) -> [String] {
         [
-            "Now I am scanning this Mac for your agents, their skills, MCP servers, memory sources and connected apps.",
+            "Now I am scanning this Mac for your agents, their skills, tools, memory sources and connected apps.",
             "Your memory stays local. Instruction files and notes are linked where they are, and read only on this Mac.",
             ScanLines.summary(tally),
             "From now on, everything your agents do is kept in the activity record, with the rule that decided it.",
@@ -56,35 +57,30 @@ public enum FirstRunGuide {
     }
 
     private static let connect = [
-        "Setup has three steps, then a few optional extras. I will talk you through each one.",
-        "Step one connects your agents. I install the Memnox service in your home folder, and keep it running and up to date.",
-        "Then I put myself under the agents I find, like Claude Code, Codex and Cursor. Everything they do passes your rules first.",
-        "From you I need one thing now: Touch ID. Your approval signs what agents ask, and the key never leaves this Mac.",
-        "Once your agents show a tick, press Continue.",
+        "Setup takes three short steps, and I will talk you through each one.",
+        "Step one connects your agents. The Memnox service installs and starts by itself, and keeps itself up to date.",
+        "I put myself under the agents I find, like Claude Code, Codex and Cursor, so everything they do passes your rules first.",
+        "Touch ID signs what you approve, and the key never leaves this Mac.",
+        "Press Continue as soon as the service shows a tick.",
     ]
 
     private static let workspace = [
-        "Step two sets up your workspace.",
-        "Your agents already keep skills and MCP servers of their own, each in its own folder.",
-        "Bring them into Memnox once, and every agent you choose can share them.",
-        "A server brought in runs behind Memnox, so every call it makes is ruled on and recorded.",
+        "Step two brings in the skills and tools your agents already keep, each in its own folder.",
+        "Brought in once, they are shared with every agent you choose.",
+        "A tool brought in runs behind Memnox, so everything it does is checked against your rules and recorded.",
     ]
 
     private static let boundaries = [
-        "Step three chooses your boundaries.",
-        "Every action an agent takes meets a rule: allow, ask or deny.",
-        "Allow runs on its own. Ask stops and waits for you on the notch island. Deny never runs.",
-        "Pick a pack of rules to start from. Nothing holds until you confirm each rule with Touch ID on the island.",
-        "You can change any rule later, under Governance.",
+        "Step three sets your starting rules.",
+        "Every action an agent takes meets a rule: allow, ask or deny. Ask waits for you on the notch island.",
+        "I chose the pack I recommend. Press Finish, and confirm its rules with Touch ID on the island.",
+        "You can change any rule later, under Protection settings.",
     ]
 
-    private static let optional = [
-        "That is the three steps done. Your agents now work inside your boundaries.",
-        "The rest is optional, and waits in Settings.",
-        "Allow the microphone, and talk to your agents from anywhere. Press Option Space, ask, and let go.",
-        "Memnox can also act in your apps for you, like Gmail, Slack and GitHub, through connectors. Nothing goes out until you approve it.",
-        "Pair your iPhone to answer your agents when you are away from this Mac.",
-        "When you are ready, press Start using Memnox, and I will scan this Mac.",
+    private static let ready = [
+        "That is the three steps done. Your agents now work inside your rules.",
+        "The rest is optional and waits in Settings: the voice, your workspace, and your iPhone.",
+        "Memnox can also act in your apps, like Gmail, Slack and GitHub, through connectors. Nothing goes out until you approve it.",
     ]
 
     private static func greeting(_ name: String) -> String {

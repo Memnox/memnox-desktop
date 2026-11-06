@@ -13,7 +13,7 @@ const parts = worldParts();
 paintLook(parts.preferences.look);
 
 const asked = new URLSearchParams(window.location.search);
-const stage = (['intro', 'name', 'steps', 'optional'] as const).find((each) => each === asked.get('stage')) satisfies OnboardingStage | undefined;
+const stage = (['intro', 'steps', 'done'] as const).find((each) => each === asked.get('stage')) satisfies OnboardingStage | undefined;
 const stepNumber = Number(asked.get('step') ?? '0');
 const step = ([0, 1, 2] as const).find((each) => each === stepNumber) satisfies OnboardingStep | undefined;
 

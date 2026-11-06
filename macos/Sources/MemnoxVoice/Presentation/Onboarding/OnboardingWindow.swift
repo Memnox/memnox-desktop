@@ -2,23 +2,24 @@ import AppKit
 import MemnoxVoiceCore
 import SwiftUI
 
-/// Where the first run stands: the opening over the whole screen, the name asked there, the three steps every Mac
-/// needs, then what is optional after them.
+/// Where the first run stands: the opening over the whole screen, the name asked there, the three short steps every
+/// Mac needs, then the end with one next action and what is optional.
 enum OnboardingStage: Equatable {
     case intro
     case name
     case steps
-    /// The voice, its permissions, the apps, the workspace and the phone, each optional, after the three steps.
-    case optional
+    /// The end: one next action, and the voice, the keys, the workspace and the phone as links to Settings.
+    case ready
 }
 
-/// The three steps a fresh Mac needs with no account, the same as Windows and Linux; the notch plays beside all of them.
+/// The three short steps a fresh Mac needs with no account, safe defaults already chosen in each; the notch plays beside
+/// all of them.
 enum OnboardingStep: Int, CaseIterable, Identifiable {
-    /// The service, Touch ID, and the agents found here, each protected so it passes the boundaries first.
+    /// The service, Touch ID, and the agents found here, on one card.
     case connect
-    /// The servers and skills the agents already keep, brought into Memnox with one tap.
+    /// The servers and skills the agents already keep, every one ticked and brought in with one press.
     case workspace
-    /// A pack of rules to start from, each rule proposed and signed on the island one by one.
+    /// The recommended pack of rules, already chosen, proposed on Finish and signed on the island one by one.
     case boundaries
 
     var id: Int { rawValue }
@@ -54,23 +55,23 @@ final class OnboardingFlow: ObservableObject {
 
     /// The step the window was on, kept so a reopen for Screen Recording comes back to the same page.
     private static let stepKey = "onboardingStep"
-    /// Whether the window was on what is optional, which is where Screen Recording is asked for.
+    /// Whether the window was on the end, so a reopen comes back to it.
     private static let optionalKey = "onboardingOptional"
 
-    var optional: Bool { stage == .optional }
+    var ready: Bool { stage == .ready }
 
-    /// The next step, or what is optional once the three are done.
+    /// The next step, or the end once the three are done.
     func next() {
         if let following = OnboardingStep(rawValue: step.rawValue + 1) {
             step = following
         } else {
-            stage = .optional
+            stage = .ready
         }
         remember()
     }
 
     func back() {
-        if stage == .optional {
+        if stage == .ready {
             stage = .steps
         } else if let previous = OnboardingStep(rawValue: step.rawValue - 1) {
             step = previous
@@ -90,7 +91,7 @@ final class OnboardingFlow: ObservableObject {
         guard stage == .intro, UserDefaults.standard.object(forKey: Self.stepKey) != nil,
               let kept = OnboardingStep(rawValue: UserDefaults.standard.integer(forKey: Self.stepKey)) else { return }
         step = kept
-        stage = UserDefaults.standard.bool(forKey: Self.optionalKey) ? .optional : .steps
+        stage = UserDefaults.standard.bool(forKey: Self.optionalKey) ? .ready : .steps
     }
 
     /// Forgets the step, once the first run is over.
@@ -100,13 +101,13 @@ final class OnboardingFlow: ObservableObject {
         UserDefaults.standard.removeObject(forKey: Self.guidedKey)
     }
 
-    /// The page on screen, a step or what is optional, so each is introduced once.
+    /// The page on screen, a step or the end, so each is introduced once.
     var page: Int { guidePage.rawValue }
 
     /// The page as the spoken guide knows it.
     var guidePage: FirstRunPage {
         switch stage {
-        case .optional: return .optional
+        case .ready: return .ready
         case .intro, .name, .steps:
             switch step {
             case .connect: return .connect
@@ -129,7 +130,7 @@ final class OnboardingFlow: ObservableObject {
 
     private func remember() {
         UserDefaults.standard.set(step.rawValue, forKey: Self.stepKey)
-        UserDefaults.standard.set(optional, forKey: Self.optionalKey)
+        UserDefaults.standard.set(ready, forKey: Self.optionalKey)
     }
 }
 
@@ -166,7 +167,7 @@ final class OnboardingWindow {
         flow.menu = SettingsWindow.shared.menu
         flow.account = SettingsWindow.shared.account
         flow.recall()
-        if flow.stage == .steps || flow.optional { showSteps() } else { showVeil() }
+        if flow.stage == .steps || flow.ready { showSteps() } else { showVeil() }
         SetupAmbience.shared.start()
     }
 

@@ -17,11 +17,11 @@ describe('setting up a workspace on a fresh computer', () => {
     expect(found.servers.map((each) => each.name)).toEqual(['notion', 'github']);
     expect(found.skills.map((each) => each.id)).toEqual(['f1']);
     expect(found.agents).toBe(2);
-    expect(foundLine(found)).toBe('We found 2 MCP servers and 1 skill across 2 agents.');
+    expect(foundLine(found)).toBe('We found 2 tools and 1 skill across 2 agents.');
   });
 
   it('says plainly when there is nothing to bring in', () => {
-    expect(foundLine(foundToImport([], []))).toBe('Nothing to bring in: no agent here keeps MCP servers or skills of its own yet.');
+    expect(foundLine(foundToImport([], []))).toBe('Nothing to bring in: no agent here keeps tools or skills of its own yet.');
   });
 
   it('says what an import brought in and what it left', () => {

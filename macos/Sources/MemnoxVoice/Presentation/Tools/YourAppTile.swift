@@ -48,10 +48,13 @@ struct YourAppTile: View {
             }
             status
             if let agents = card.agentsLine(name: McpHubLines.agentLabel) {
-                Text(agents)
-                    .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
-                    .foregroundStyle(Memnox.Console.muted)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: Memnox.Spacing.small) {
+                    NamedAgentLogos(agents: card.uses.map(\.agent))
+                    Text(agents)
+                        .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                        .foregroundStyle(Memnox.Console.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer(minLength: 0)
             if let note { YourAppNoteView(note: note, dismiss: dismissNote) }

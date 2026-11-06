@@ -13,7 +13,7 @@ public enum ScanKind: String, CaseIterable, Sendable {
         switch self {
         case .agents: return "Agents"
         case .skills: return "Skills"
-        case .servers: return "MCP servers"
+        case .servers: return "Tools"
         case .sources: return "Memory sources"
         case .apps: return "Connected apps"
         }
@@ -124,7 +124,7 @@ public enum ScanLines {
         }
     }
 
-    /// "Found 3 agents, 90 skills, 4 MCP servers, 2 memory sources and no connected apps."
+    /// "Found 3 agents, 90 skills, 4 tools, 2 memory sources and no connected apps."
     public static func summary(_ tally: ScanTally) -> String {
         let parts = ScanKind.allCases.map { kind in counted(tally.count(kind), kind) }
         return "Found \(listed(parts))."
@@ -136,7 +136,7 @@ public enum ScanLines {
         switch kind {
         case .agents: one = "agent"
         case .skills: one = "skill"
-        case .servers: one = "MCP server"
+        case .servers: one = "tool"
         case .sources: one = "memory source"
         case .apps: one = "connected app"
         }
@@ -147,9 +147,9 @@ public enum ScanLines {
         }
     }
 
-    /// The heading lowercased for a sentence, but MCP stays in capitals since it is said as letters.
+    /// The heading lowercased for a sentence.
     private static func plural(_ kind: ScanKind) -> String {
-        kind == .servers ? "MCP servers" : kind.title.lowercased()
+        kind.title.lowercased()
     }
 
     private static func listed(_ parts: [String]) -> String {

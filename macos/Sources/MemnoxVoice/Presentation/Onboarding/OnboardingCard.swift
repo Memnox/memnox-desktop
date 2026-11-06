@@ -61,7 +61,7 @@ struct OnboardingCard: View {
     /// Back on the left; on the right where all of this can be changed later, and the music and the voice.
     private var footer: some View {
         HStack(spacing: Memnox.Spacing.medium) {
-            if flow.step != .connect || flow.optional {
+            if flow.step != .connect || flow.ready {
                 Button("Back", systemImage: "chevron.left") { flow.back() }
                     .buttonStyle(KitButton(kind: .secondary))
                     .keyboardShortcut(.cancelAction)
@@ -79,9 +79,9 @@ struct OnboardingCard: View {
     }
 }
 
-/// Every step as a numbered mark joined by a line, as a stepper reads: a done step is a blue mark with a tick, the
-/// step on screen a blue ring around its number with its name in full ink, and what is left an outline. What is
-/// optional comes last, so a new person always sees where they are and how much is left.
+/// The three steps as numbered marks joined by a line, as a stepper reads: a done step is a blue mark with a tick, the
+/// step on screen a blue ring around its number with its name in full ink, and what is left an outline. Step N of 3
+/// stands at the end, so a new person always sees where they are and how much is left.
 private struct OnboardingStepper: View {
     @ObservedObject var flow: OnboardingFlow
 
@@ -113,25 +113,22 @@ private struct OnboardingStepper: View {
                 let state = state(of: step)
                 mark(String(step.rawValue + 1), state)
                 if everyName || state == .here { name(step.title, state) }
-                line(lit: state == .done)
+                if step != OnboardingStep.allCases.last { line(lit: state == .done) }
             }
-            let extras: State = flow.optional ? .here : .ahead
-            mark(String(OnboardingStep.allCases.count + 1), extras)
-            if everyName || extras == .here { name("Optional extras", extras) }
-            Spacer(minLength: 0)
-            Text(flow.optional ? "Almost done" : "Step \(flow.step.rawValue + 1) of \(OnboardingStep.allCases.count)")
+            Spacer(minLength: Memnox.Spacing.large)
+            Text(flow.ready ? "Done" : FirstRunLines.progressLabel(step: flow.step.rawValue))
                 .font(Memnox.Console.sans(Memnox.Console.TextSize.meta, .medium))
                 .foregroundStyle(Memnox.Console.muted)
                 .fixedSize()
         }
         .animation(.easeOut(duration: Memnox.Motion.quick), value: flow.page)
         .accessibilityElement()
-        .accessibilityLabel(flow.optional ? "Three steps done, the rest is optional"
-            : "Step \(flow.step.rawValue + 1) of \(OnboardingStep.allCases.count), \(flow.step.title)")
+        .accessibilityLabel(flow.ready ? "Three steps done, the rest is optional"
+            : "\(FirstRunLines.progressLabel(step: flow.step.rawValue)), \(flow.step.title)")
     }
 
     private func state(of step: OnboardingStep) -> State {
-        if flow.optional || step.rawValue < flow.step.rawValue { return .done }
+        if flow.ready || step.rawValue < flow.step.rawValue { return .done }
         return step == flow.step ? .here : .ahead
     }
 
@@ -176,8 +173,8 @@ private struct OnboardingStepView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
-            if flow.optional {
-                OptionalStep(flow: flow, setup: setup)
+            if flow.ready {
+                ReadyStep(flow: flow, setup: setup)
             } else {
                 switch flow.step {
                 case .connect: ConnectStep(flow: flow, setup: setup)

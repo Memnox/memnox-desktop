@@ -22,16 +22,46 @@ public struct FoundToImport: Equatable, Sendable {
     public var isEmpty: Bool { servers.isEmpty && skills.isEmpty }
 }
 
-/// The first run's three steps and what each says, the same as Windows and Linux say them in onboarding.ts and
-/// setup-steps.ts. Counts, never a score.
+/// The first run's three short steps and what each says, with the safe defaults already chosen so a press of Continue
+/// is always the sensible answer. Counts, never a score.
 public enum FirstRunLines {
-    /// The three steps by name; the voice, its permissions and the phone come after them, each optional.
-    public static let steps = ["Connect your agents", "Set up your workspace", "Choose your boundaries"]
+    /// The three steps by name, as the stepper shows them; the voice, the keys, the workspace and the phone wait after
+    /// them in Settings, each optional.
+    public static let steps = ["Connect", "Bring in what your agents use", "Starting rules"]
 
-    /// How far the bar is filled: a third, two thirds, then whole, and whole again for what is optional.
-    public static func progress(step: Int, optional: Bool) -> Double {
-        if optional { return 1 }
+    /// "Step 2 of 3", over every step, so a new person always knows how much is left.
+    public static func progressLabel(step: Int) -> String {
+        "Step \(min(max(step, 0), steps.count - 1) + 1) of \(steps.count)"
+    }
+
+    /// How far the bar is filled: a third, two thirds, then whole, and whole again once the steps are done.
+    public static func progress(step: Int, done: Bool) -> Double {
+        if done { return 1 }
         return Double(step + 1) / Double(steps.count)
+    }
+
+    /// The first step moves on as soon as the service runs, since everything after it reads through the service and
+    /// the key and the agents finish on their own behind it.
+    public static func canContinueConnect(serviceRunning: Bool) -> Bool { serviceRunning }
+
+    /// Said under Continue while the service is still on its way, so the person knows they need do nothing.
+    public static let connectWaiting = "Continue opens once the Memnox service is running. It installs and starts by itself."
+
+    /// The one button of the second step, every sensible row already ticked.
+    public static let bringIn = "Bring them in"
+
+    /// The pack a new Mac starts under, the one Memnox ships as its safe defaults.
+    public static let recommendedPackId = "safe-defaults"
+
+    /// The pack offered first and already chosen: the safe defaults when the runtime ships them, otherwise its first.
+    public static func recommendedPack(_ packs: [RulePackView]) -> RulePackView? {
+        packs.first { $0.id == recommendedPackId } ?? packs.first
+    }
+
+    /// Every other pack, behind See other packs, in the runtime's order.
+    public static func otherPacks(_ packs: [RulePackView]) -> [RulePackView] {
+        let recommended = recommendedPack(packs)?.id
+        return packs.filter { $0.id != recommended }
     }
 
     public static func found(servers: [McpHubEntryView], skills: [FoundSkillView]) -> FoundToImport {
@@ -41,10 +71,10 @@ public enum FirstRunLines {
         return FoundToImport(servers: importableServers, skills: importableSkills, agents: agents.count)
     }
 
-    /// "We found 3 MCP servers and 2 skills across 2 agents."
+    /// "We found 3 tools and 2 skills across 2 agents."
     public static func foundLine(_ found: FoundToImport) -> String {
-        if found.isEmpty { return "Nothing to bring in: no agent here keeps MCP servers or skills of its own yet." }
-        let servers = counted(found.servers.count, "MCP server", "MCP servers")
+        if found.isEmpty { return "Nothing to bring in: no agent here keeps tools or skills of its own yet." }
+        let servers = counted(found.servers.count, "tool", "tools")
         let skills = counted(found.skills.count, "skill", "skills")
         return "We found \(servers) and \(skills) across \(counted(found.agents, "agent", "agents"))."
     }

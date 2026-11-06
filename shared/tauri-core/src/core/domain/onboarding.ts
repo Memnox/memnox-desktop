@@ -1,19 +1,84 @@
+import type { PermissionStep } from './permission-steps';
 import type { Platform } from './platform';
+import type { SettingsPage } from './settings-pages';
 
 /**
- * The first run on a fresh computer, with no account: a veil with the wordmark, the name asked for, then
- * three steps that connect the agents, bring in what they already have, and choose the boundaries. The
- * voice, the permissions it needs and the phone come after, each optional.
+ * The first run on a fresh computer, with no account, cut to three short steps as the console's was: a veil with
+ * the wordmark, then connect, the grants this system asks for, and the starting rules, each with a safe default
+ * already chosen. The end screen offers one next action; the name, the voice, the workspace and the phone are
+ * optional there and in Settings, never a step.
  */
-export type OnboardingStage = 'intro' | 'name' | 'steps' | 'optional';
+export type OnboardingStage = 'intro' | 'steps' | 'done';
 
-export const ONBOARDING_STEPS = ['Connect your agents', 'Set up your workspace', 'Choose your boundaries'] as const;
+export const ONBOARDING_STEPS = ['Connect', 'Permissions', 'Starting rules'] as const;
 export type OnboardingStep = 0 | 1 | 2;
 
-/** How far the progress bar is filled: a third, two thirds, then whole, and whole again for what is optional. */
+/** "Step 2 of 3", over each step's title. */
+export function stepCounter(step: OnboardingStep): string {
+  return `Step ${step + 1} of ${ONBOARDING_STEPS.length}`;
+}
+
+/** How far the progress bar is filled: a third, two thirds, then whole, and whole again on the end screen. */
 export function progressOf(step: OnboardingStep, stage: OnboardingStage = 'steps'): number {
-  if (stage === 'optional') return 1;
+  if (stage === 'done') return 1;
   return (step + 1) / ONBOARDING_STEPS.length;
+}
+
+/** The title and the line under it on each step. */
+export function stepHeading(step: OnboardingStep, keyTitle: string): { readonly title: string; readonly detail: string } {
+  switch (step) {
+    case 0:
+      return { title: 'Connect your agents', detail: `The Memnox service starts by itself and ${keyTitle} becomes the key only you approve with. No account needed.` };
+    case 1:
+      return { title: 'Permissions', detail: 'Only what this computer asks you for. Everything else installs by itself.' };
+    case 2:
+      return { title: 'Starting rules', detail: `The recommended rules are chosen for you. Each one holds once you confirm it with ${keyTitle} on the island.` };
+  }
+}
+
+/**
+ * The grants this system actually asks the person for: a switch the system guards, such as the Windows microphone,
+ * or anything still left to do. A row the system never asks about is not listed, since there is nothing to press.
+ */
+export function permissionsAsked(steps: readonly PermissionStep[]): readonly PermissionStep[] {
+  return steps.filter((step) => step.state.kind !== 'done' || step.switchName !== undefined);
+}
+
+/** The line over the grants: still asking, nothing to grant, every one granted, or how many are left. */
+export function permissionsLine(asked: readonly PermissionStep[]): string {
+  if (asked.some((step) => step.state.kind === 'waiting')) return 'Asking this computer what it needs.';
+  const left = asked.filter((step) => step.state.kind === 'needs').length;
+  if (asked.length === 0) return 'Nothing to grant. This computer lets Memnox hear, type and see without asking.';
+  if (left === 0) return 'Everything this computer asks for is granted.';
+  return left === 1 ? 'One grant left. Memnox carries on without it, and asks again in Settings.' : `${left} grants left. Memnox carries on without them, and asks again in Settings.`;
+}
+
+/** The pack the first run starts on, the same safe defaults the runtime ships. */
+export const RECOMMENDED_PACK = 'safe-defaults';
+
+/** The packs as the last step lists them: the recommended one chosen, the rest behind See other packs. */
+export function startingPacks<Pack extends { readonly id: string }>(packs: readonly Pack[]): { readonly recommended: Pack | undefined; readonly others: readonly Pack[] } {
+  const recommended = packs.find((pack) => pack.id === RECOMMENDED_PACK) ?? packs[0];
+  return { recommended, others: packs.filter((pack) => pack !== recommended) };
+}
+
+/** One optional thing the end screen offers, opening the Settings page that holds it. */
+export interface EndLink {
+  readonly id: 'name' | 'voice' | 'workspace' | 'phone';
+  readonly title: string;
+  readonly detail: string;
+  readonly page: SettingsPage;
+}
+
+/** What the end screen offers after its one next action, the name dropped once it is given. */
+export function endLinks(name: string | undefined): readonly EndLink[] {
+  const all: readonly EndLink[] = [
+    { id: 'name', title: 'Tell Memnox your name', detail: 'So it greets you by name.', page: 'account' },
+    { id: 'voice', title: 'Pick a voice', detail: 'Who answers when you talk, and how it sounds.', page: 'voice' },
+    { id: 'workspace', title: 'Sign in to your workspace', detail: 'Share rules and approvals with your team.', page: 'account' },
+    { id: 'phone', title: 'Pair your phone', detail: 'Answer your agents when you are away.', page: 'phones' },
+  ];
+  return name === undefined || name.trim() === '' ? all : all.filter((link) => link.id !== 'name');
 }
 
 /** One of the five things Memnox does, each a row the first step lists. */
@@ -49,8 +114,6 @@ function greeting(name: string | undefined): string {
  * has its notch and each system's own key and grants where the Mac names Touch ID and System Settings.
  */
 export const GuideLines = {
-  /** Said over the opening, with the same words it shows. */
-  name: 'Welcome to Memnox. I’m the voice over your agents. So, what should I call you?',
   welcome(name: string | undefined): string {
     return `Hi${greeting(name)}, I’m Memnox. I live in the island at the top of your screen and watch over your AI agents, so they can work on their own and stay inside the boundaries you set. No account needed.`;
   },
@@ -58,14 +121,14 @@ export const GuideLines = {
   setup(platform: Platform): string {
     return `Here is what I will do on this computer. I install the Memnox service in your home folder and keep it running and up to date, and I connect it to the agents I find, like Claude Code, Codex and Cursor, so what they do passes your rules first. From you I need one thing now: ${KEY_SAID[platform]} so only you approve.`;
   },
-  /** Said over the second step, before anything is brought in. */
-  workspace: 'Your agents already have servers and skills of their own. Bring them in with one tap, so each is set up once and given to the agents you choose.',
+  /** Said over the second step, which lists only what this system asks for. */
+  permissions: 'Next, the few things this computer asks you to allow. Everything else I install myself.',
   /** Said over the third step: a pack is only proposed, and each rule waits for the person. */
   boundaries(platform: Platform): string {
-    return `Last, choose your boundaries. Pick a pack of rules to start from, and confirm each rule with ${KEY_SAID[platform]} on the island. You can change any of them later.`;
+    return `Last, your starting rules. The recommended ones are already chosen, and each holds once you confirm it with ${KEY_SAID[platform]} on the island. You can change any of them later.`;
   },
-  /** Said once the three steps are done, over what is left and optional. */
-  optional: 'That is everything your agents need. The rest is optional: the microphone so you can talk to me, a voice to answer, and your phone for when you are away.',
+  /** Said on the end screen, over its one next action and what is optional. */
+  done: 'That is everything your agents need. Your name, a voice and your phone are optional, and wait in Settings.',
   /** Said when hearing waits on a switch the person has to turn on. */
   microphone(platform: Platform): string {
     return platform === 'windows'

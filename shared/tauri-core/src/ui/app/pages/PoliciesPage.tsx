@@ -1,15 +1,15 @@
-import { AppWindow, ArrowRight, ChevronRight, List, Box, Cloud, Database, Download, FileText, GitBranch, GitPullRequest, Globe, HardDrive, KeyRound, Layers, MessageSquare, Plus, Puzzle, Route, Search, Send, Settings, ShieldAlert, ShieldCheck, Sparkles, SquareTerminal, Undo2, Upload, UserCheck, UserCog, Workflow, Asterisk, type LucideIcon } from 'lucide-react';
+import { AppWindow, ArrowRight, ChevronDown, ChevronRight, List, Box, Cloud, Database, Download, FileText, GitBranch, GitPullRequest, Globe, HardDrive, KeyRound, Layers, MessageSquare, Plus, Puzzle, Route, Search, Send, Settings, ShieldAlert, ShieldCheck, Sparkles, SquareTerminal, Undo2, Upload, UserCheck, UserCog, Workflow, Asterisk, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { RuleDraftInput, StudioOutcome } from '../../../core/application/studio';
 import type { WidthClass } from '../../../core/domain/destinations';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
 import { almostLine, autopilotLine, draftSentence, EFFECT_WORDS, effectTone, exportedCount, NOTHING_TO_EXPORT, packCopiedLine, packSavedLine, isEffect, weekLine, type Effect } from '../../../core/domain/studio-lines';
-import { RULE_BUILDER, RULE_DETAIL, RULE_DIALOG, RULE_EXAMPLES, ruleCaption, ruleDetailSentence, ruleFacts } from '../../../core/domain/rule-dialog-lines';
+import { RULE_BUILDER, RULE_DETAIL, RULE_DIALOG, RULE_EXAMPLES, ruleDetailSentence, ruleFacts } from '../../../core/domain/rule-dialog-lines';
 import { ALL_CATEGORIES, settledCategory } from '../../../core/domain/catalog';
 import { onTab, ruleCards, type EffectTab, type RuleCard } from '../../../core/domain/rule-catalog';
 import { MARK_OVERLAP_SHARE, markTiles, type ActionGlyph, type RuleMark } from '../../../core/domain/ready-rule-library';
 import { READY_EFFECTS, readyGroups, readyInForce, shownGroups, starterRules, type ReadyRule } from '../../../core/domain/ready-rules';
-import { groupCountLine, ruleAsWritten, ruleWords } from '../../../core/domain/rule-words';
+import { AS_WRITTEN, plainCaption, plainCountLine, plainRule, writtenLines } from '../../../core/domain/plain-rules';
 import { canChange, changeCountLine, changeLine, changesToml, currentEffect, flatRules, inForceTabs, pickingSuggested, PROTECTION, PROTECTION_TABS, readyBadge, readyChanges, removals, type ProtectionTab, type ReadyChange } from '../../../core/domain/protection-lines';
 import type { PolicyRuleView } from '@memnox/core/wire';
 import { AgentLogos, ToolMark } from '../../kit/logos';
@@ -23,7 +23,7 @@ import { ruleScope } from '../../../core/domain/scope-lines';
 import { usePicked } from '../inspector-host';
 import { useShellChoices } from '../shell-choices';
 import { inScope, NO_ORGANIZATION_ITEMS, ORGANIZATION_READ_ONLY } from '../../../core/domain/shell-lines';
-import { Button, CardGrid, Chip, CountTabs, EmptyState, ErrorLine, FilePicker, Input, Note, Panel, PRESS_DIP, Pressable, ReadFailed, Row, SearchInput, Section, Select, SelectOverlay, StatusWord } from '../../kit';
+import { Button, CardGrid, Chip, CountTabs, EmptyState, ErrorLine, FilePicker, Input, Menu, MenuItem, Note, Panel, PRESS_DIP, Pressable, ReadFailed, Row, SearchInput, Section, Select, StatusWord } from '../../kit';
 
 /** The Mac's ready rule cards: none narrower than 240, 16 apart. */
 const READY_CARD = { min: 240, gap: 16 } as const;
@@ -473,12 +473,12 @@ function RulesInForce({ cards, filtered, chosen, pick }: { cards: readonly RuleC
   return (
     <Panel>
       {cards.map((card) => {
-        const count = groupCountLine(card.rules.length);
+        const count = plainCountLine(card.rules.length);
         return (
           <Row
             key={card.id}
             title={card.title}
-            caption={ruleCaption(card.rule?.match.agents, card.line, agentLabel)}
+            caption={card.line}
             chosen={card.rules.some((rule) => rule.name === chosen)}
             onClick={() => pick(card.rules[0]?.name ?? card.id)}
             trailing={
@@ -546,24 +546,27 @@ const moment = (iso: string): string => {
  * the same, the rule as written behind a disclosure, its other fields, and Remove where it is this computer's own.
  */
 function RuleDetail({ rule, alike, open, remove, busy }: { rule: PolicyRuleView; alike: readonly PolicyRuleView[]; open: (name: string) => void; remove: (name: string) => void; busy: boolean }) {
-  const words = ruleWords(rule);
+  const plain = plainRule(rule);
+  const why = plainCaption(plain);
   const effect = isEffect(rule.effect) ? rule.effect : undefined;
   const sentence = effect === undefined ? rule.sentence : ruleDetailSentence({ actions: rule.match.actions, effect, ...(rule.match.agents === undefined ? {} : { agents: rule.match.agents }), ...(rule.match.targets === undefined ? {} : { targets: rule.match.targets }) }, agentLabel);
   return (
     <div className="flex flex-col">
       <div className="flex flex-col gap-3 pb-4">
         {effect !== undefined && <EffectBand effect={effect} />}
-        <h3 className="text-lg font-semibold text-foreground select-text">{words.title}</h3>
+        <h3 className="text-lg font-semibold text-foreground select-text">{plain.title}</h3>
       </div>
       <div className="h-px bg-panel-edge" />
       <div className="flex flex-col gap-5 pt-4">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-meta text-muted">{RULE_DETAIL.why}</span>
-          <span className="text-body-sm text-foreground select-text">{ruleCaption(rule.match.agents, words.why, agentLabel)}</span>
-        </div>
+        {why !== undefined && (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-meta text-muted">{RULE_DETAIL.why}</span>
+            <span className="text-body-sm text-foreground select-text">{why}</span>
+          </div>
+        )}
         {alike.length > 1 && (
           <div className="flex flex-col items-start gap-1">
-            <span className="text-meta text-muted">{groupCountLine(alike.length)}</span>
+            <span className="text-meta text-muted">{plainCountLine(alike.length)}</span>
             {alike.map((each) => (
               <Pressable
                 key={each.name}
@@ -579,11 +582,11 @@ function RuleDetail({ rule, alike, open, remove, busy }: { rule: PolicyRuleView;
         <details key={rule.name} className="group">
           <summary className="mx-focus flex cursor-pointer list-none items-center gap-1.5 text-body-sm font-medium text-foreground select-none">
             <ChevronRight size={SMALL_GLYPH} strokeWidth={SMALL_STROKE} className="text-muted transition-transform group-open:rotate-90" aria-hidden />
-            {RULE_DETAIL.asWritten}
+            {AS_WRITTEN}
           </summary>
           <div className="flex flex-col gap-3 pt-2">
             <p className="text-body-sm leading-relaxed text-foreground select-text">{sentence}</p>
-            <FactList facts={ruleAsWritten(rule).map((each) => [each.field, each.values])} agents={{ [RULE_DETAIL.agents]: rule.match.agents ?? [] }} />
+            <FactList facts={writtenLines(rule.match).map((each) => [each.label, each.value])} agents={{ [RULE_DETAIL.agents]: rule.match.agents ?? [] }} />
             <CodeBlock code={ruleText(tableOfRule(rule))} label={RULES_FILE} />
           </div>
         </details>
@@ -599,6 +602,28 @@ function RuleDetail({ rule, alike, open, remove, busy }: { rule: PolicyRuleView;
           <p className="text-footnote text-muted">{RULE_DETAIL.elsewhere}</p>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The actions the rules already name, as the Mac's borderless `Menu` beside the field: a list glyph with its
+ * chevron that opens a menu under it, closing on a pick or once the pointer leaves.
+ */
+function KnownActions({ known, pick }: { known: readonly string[]; pick: (action: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative shrink-0">
+      <Button kind="quiet" icon={List} trailing={ChevronDown} title={RULE_BUILDER.knownHelp} aria-label={RULE_BUILDER.knownActions} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} />
+      {open && (
+        <Menu className="absolute top-full right-0 z-20 mt-1 max-h-72 w-64 overflow-y-auto" onMouseLeave={() => setOpen(false)}>
+          {known.map((each) => (
+            <MenuItem key={each} onPress={() => (setOpen(false), pick(each))}>
+              {each}
+            </MenuItem>
+          ))}
+        </Menu>
+      )}
     </div>
   );
 }
@@ -660,12 +685,7 @@ function RuleBuilder({ parts, start, close, said }: { parts: SettingsParts; star
       <RuleField label={RULE_BUILDER.action}>
         <div className="flex items-center gap-1.5">
           <Input ref={first} wide mono placeholder={RULE_BUILDER.actionPlaceholder} value={action} onValue={setAction} aria-label={RULE_BUILDER.action} />
-          {known.length > 0 && (
-            <label className="relative grid size-field shrink-0 cursor-pointer place-items-center rounded-control text-muted hover:bg-hover" title={RULE_BUILDER.knownHelp}>
-              <List size={KNOWN_GLYPH} aria-hidden />
-              <SelectOverlay value="" blank options={known.map((each) => ({ value: each, label: each }))} label={RULE_BUILDER.knownActions} onValue={(picked) => picked !== '' && setAction(picked)} />
-            </label>
-          )}
+          {known.length > 0 && <KnownActions known={known} pick={setAction} />}
         </div>
         <div className="flex flex-wrap items-center gap-1.5 pt-1">
           <span className="flex h-control items-center text-meta text-muted">{RULE_BUILDER.tryOne}</span>

@@ -1,7 +1,7 @@
 import type { PolicyRuleView } from '@memnox/core/wire';
 import { ALL_CATEGORIES, categoryCounts, matchesSearch, searchWords, type CategoryCount } from './catalog';
-import { ruleGroups } from './rule-words';
-import { ALWAYS_ASK, EFFECT_WORDS, sourceWords, switchOn, type Effect } from './studio-lines';
+import { plainCaption, plainGroups } from './plain-rules';
+import { ALWAYS_ASK, EFFECT_WORDS, isEffect, sourceWords, switchOn, type Effect } from './studio-lines';
 
 /**
  * The Rules page as the console's Connected tools page lays a catalogue out: Allow, Ask and Deny as tabs with
@@ -91,20 +91,25 @@ export function ruleCards(rules: readonly PolicyRuleView[], readyMade: readonly 
         readyMade: each,
       }),
     );
-  // Rules that read the same in plain words are one card with a count, so five rules on one thing read once.
-  const inForce = ruleGroups(rules).map(
-    (group): RuleCard => ({
-      id: group.rules[0]?.name ?? group.title,
-      effect: group.effect,
-      title: group.title,
-      line: group.why,
-      category: ruleCategory(group.rules[0]?.match.actions ?? []),
-      suggested: false,
-      keywords: group.rules.map((rule) => `${rule.name} ${rule.sentence} ${sourceWords(rule)} ${rule.match.actions.join(' ')}`).join(' '),
-      ...(group.rules[0] === undefined ? {} : { rule: group.rules[0] }),
-      rules: group.rules,
-    }),
-  );
+  // Rules that read, do and are for the same agents alike are one card with a count, as the Mac's PlainRules.grouped.
+  const inForce = plainGroups(rules).flatMap((group): RuleCard[] => {
+    const first = group.rules[0];
+    if (first === undefined || !isEffect(group.effect)) return [];
+    return [
+      {
+        id: first.name,
+        effect: group.effect,
+        title: group.plain.title,
+        // The caption says whom it is only for and why, else where the rule came from, as the Mac's row.
+        line: plainCaption(group.plain) ?? sourceWords(first),
+        category: ruleCategory(first.match.actions),
+        suggested: false,
+        keywords: group.rules.map((rule) => `${rule.name} ${rule.sentence} ${sourceWords(rule)} ${rule.match.actions.join(' ')}`).join(' '),
+        rule: first,
+        rules: group.rules,
+      },
+    ];
+  });
   return [...suggested, ...inForce];
 }
 

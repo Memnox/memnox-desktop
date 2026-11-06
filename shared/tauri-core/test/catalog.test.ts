@@ -69,7 +69,7 @@ describe('the rules as a catalogue', () => {
 
     const asking = ruleCards([rule('mine', 'ask', ['filesystem.delete'])]);
     expect(asking.filter((card) => card.suggested).map((card) => card.title)).toEqual(['Pushing to main', 'MCP tools that change something']);
-    expect(asking.at(-1)).toMatchObject({ id: 'mine', title: 'Deleting files', suggested: false, line: 'Sometimes it really is the build directory, so a person should look.', category: 'files' });
+    expect(asking.at(-1)).toMatchObject({ id: 'mine', title: 'Deleting files', suggested: false, line: 'Sometimes it really is the build folder, so a person should look first.', category: 'files' });
   });
 
   it('counts each tab, narrows by category and search, and totals against the tab’s pool', () => {

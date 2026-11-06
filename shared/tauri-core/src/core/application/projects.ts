@@ -1,11 +1,18 @@
 import { PROJECTS_METHOD, type DaemonRequest, type DaemonResponse, type ProjectDraft, type ProjectView } from '@memnox/core/wire';
-import { appliedLine } from '../domain/project-lines';
+import { appliedLine, upToDate } from '../domain/project-lines';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
 
-/** How one press on a project ended: done at once, done with the rest waiting for a signature on the island, or refused. */
-export type ProjectOutcome = { kind: 'done'; note: string } | { kind: 'proposed'; id: string; note: string } | { kind: 'failed'; why: string };
+/**
+ * How one press on a project ended: done at once, done with the rest waiting for a signature on the island, nothing to
+ * do because every agent already had it, or refused, as the Mac's `ProjectOutcome`.
+ */
+export type ProjectOutcome =
+  | { kind: 'done'; note: string }
+  | { kind: 'proposed'; id: string; note: string }
+  | { kind: 'up-to-date'; note: string }
+  | { kind: 'failed'; why: string };
 
 /**
  * The projects as the runtime keeps them: one repository, the agents seen in it, and what each agent opened
@@ -68,6 +75,7 @@ export class Projects extends Observed {
     if (!response.ok) return { kind: 'failed', why: response.error ?? 'The runtime refused this.' };
     const note = response.projectApplied === undefined ? done : appliedLine(response.projectApplied);
     if (response.proposed !== undefined) return { kind: 'proposed', id: response.proposed, note };
+    if (response.projectApplied !== undefined && upToDate(response.projectApplied)) return { kind: 'up-to-date', note };
     return { kind: 'done', note };
   }
 

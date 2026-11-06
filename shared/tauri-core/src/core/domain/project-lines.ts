@@ -218,3 +218,65 @@ function listed(items: readonly string[]): string {
   if (items.length <= 1) return items.join('');
   return `${items.slice(0, -1).join(', ')} and ${items.at(-1) ?? ''}`;
 }
+
+/** The projects list's own words, as the Mac's Projects grid says them. */
+export const ProjectsPageLines = {
+  theProjects: 'the projects',
+  countLine: (count: number) => `${counted(count, 'project', 'projects')}, most recently active first.`,
+  adding: 'Adding',
+  add: 'Add',
+  save: 'Save',
+  cancel: 'Cancel',
+  noMatch: 'No project matches that.',
+  noMatchBody: 'Try another word, or clear the search.',
+  active: (when: string) => `Active ${when}`,
+  addAsProject: (name: string) => `Add ${name} as a project`,
+  more: (name: string) => `More for ${name}`,
+  folderLabel: 'Its folder, from the top of the drive',
+  folderPlaceholder: '/home/you/code/project',
+  noProjects: 'No projects yet',
+  noProjectsBody: 'A project appears once an agent works in a repository on this computer, with every agent that has worked there.',
+  agents: (count: number) => (count === 1 ? 'Agent' : 'Agents'),
+  sessions: (count: number) => (count === 1 ? 'Session' : 'Sessions'),
+  agentsHere: 'Agents that worked here',
+  itsSessions: 'Its sessions',
+  lastActive: (when: string | undefined) => `Last active ${when ?? 'a while ago'}.`,
+} as const;
+
+/** What one press on a project came to, as the Mac's `ProjectLines.note`: what waits on the island named with the key that signs it. */
+export function projectNote(outcome: { kind: 'failed'; why: string } | { kind: 'proposed' | 'done' | 'up-to-date'; note: string }, keyTitle: string): string {
+  if (outcome.kind === 'failed') return outcome.why;
+  if (outcome.kind === 'proposed') return `${outcome.note} Its servers, skills and rules wait for you on the island: confirm them with ${keyTitle}.`;
+  return outcome.note;
+}
+
+/** A project's own pages' words, as the Mac's project pages say them. */
+export const ProjectPageLines = {
+  done: 'Done',
+  toDo: 'To do',
+  apply: 'Apply',
+  applying: 'Applying',
+  upToDate: 'Up to date',
+  applyHint: 'Hands this project’s setup to its agents',
+  upToDateHint: 'Nothing needed applying when you last pressed. Press to check again.',
+  saveAsProject: 'Save as project',
+  saving: 'Saving',
+  opensPage: (hint: string) => `${hint}. Opens that page.`,
+  allTools: 'All tools',
+  searchTools: 'Search tools',
+  noTools: 'No tools here',
+  noToolsBody: 'Add the places this project lives: its apps, documents and repositories.',
+  noToolsMatch: 'Nothing matches that search. Try fewer words.',
+  serverNote: 'Adding a server writes it into the project’s .memnox/project.toml. Its AI is given it once you apply the project, signed on the island.',
+  linked: 'Linked',
+  missingHere: 'Missing here',
+  add: 'Add',
+  connect: 'Connect',
+  workedHere: 'Worked here',
+  notSeenHere: 'Not seen here',
+  notInHub: 'Not in the hub',
+  whatWasLearned: 'what was learned',
+  theRules: 'the rules',
+  /** The result line's time after its words. */
+  at: (note: string, time: string) => `${note} · ${time}`,
+} as const;

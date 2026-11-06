@@ -3,7 +3,6 @@ import { answerClock, isAnswering, type Exchange } from '../../core';
 import { MarkdownText } from '../cards/MarkdownText';
 import { QuestionBubble } from '../cards/QuestionBubble';
 import { IslandButton, IslandCard, Pressable, SFSymbol, ShimmerText, VEIL } from '../kit';
-import { LiveWords } from './LiveWords';
 import './voice.css';
 import { ConversationLines } from '../../core/domain/island-lines';
 
@@ -16,36 +15,15 @@ export interface Proof {
 
 /** Long enough to read "Copied", short enough that the button is itself again by the next look. */
 const COPIED_FOR_MS = 1_500;
-const BUBBLE_TEXT_SIZE = 15;
 
 /**
  * `IslandConversation`: a turn on screen, the question in a bubble and under it exactly one card,
- * arriving from 0.97 anchored at its top. The question gives way to the person's live words the moment
- * they start a follow up; a phone's turn names the phone above it.
+ * arriving from 0.97 anchored at its top. A phone's turn names the phone above it.
  */
-export function IslandConversation({
-  question,
-  live,
-  listening = false,
-  from,
-  className,
-  children,
-}: {
-  question?: string;
-  /** Their words as they say a follow up, which take the question's place. */
-  live?: string;
-  listening?: boolean;
-  from?: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  const following = live !== undefined && live !== '';
-  const text = following ? live : question;
+export function IslandConversation({ question, from, className, children }: { question?: string; from?: string; className?: string; children: ReactNode }) {
   return (
     <div className={`flex flex-col gap-2 ${className ?? ''}`}>
-      {text !== undefined && text.trim() !== '' && (
-        <QuestionBubble question={following ? <LiveWords text={text} size={BUBBLE_TEXT_SIZE} align="leading" listening={listening} /> : text} from={from} />
-      )}
+      {question !== undefined && question.trim() !== '' && <QuestionBubble question={question} from={from} />}
       <div className="flex min-h-0 flex-1 origin-top animate-card-in flex-col">{children}</div>
     </div>
   );
@@ -58,22 +36,12 @@ export function IslandConversation({
 export function AnswerCard({
   exchange,
   proofs = [],
-  live = false,
-  expanded = false,
-  onExpand,
   onOpen,
-  thinking = ConversationLines.thinking,
 }: {
   exchange: Exchange;
   proofs?: readonly Proof[];
-  /** True while talking, which is when the answer can be opened up tall or put back. */
-  live?: boolean;
-  expanded?: boolean;
-  onExpand?: () => void;
   /** Opens the answer in its own window. */
   onOpen?: () => void;
-  /** What the brain is reading while nothing is written yet, so a long lookup never looks stuck. */
-  thinking?: string;
 }) {
   const answering = isAnswering(exchange);
   const empty = exchange.answer.trim() === '';
@@ -113,7 +81,7 @@ export function AnswerCard({
       </div>
       {empty ? (
         <div className="min-h-0 flex-1">
-          <ShimmerText>{thinking}</ShimmerText>
+          <ShimmerText>{ConversationLines.thinking}</ShimmerText>
         </div>
       ) : (
         <div ref={scroll} className="memnox-answer-fade min-h-0 flex-1 overflow-y-auto [scrollbar-width:none]">
@@ -124,14 +92,6 @@ export function AnswerCard({
         <ProofRow key={index} proof={proof} />
       ))}
       <div className="flex items-center gap-2 text-button font-medium">
-        {live && onExpand !== undefined && (
-          <IslandButton onClick={onExpand}>
-            <span className="flex items-center gap-1">
-              {expanded ? ConversationLines.showLess : ConversationLines.showMore}
-              <SFSymbol name={expanded ? 'chevron.up' : 'chevron.down'} size={11} weight="semibold" />
-            </span>
-          </IslandButton>
-        )}
         <span className="flex-1" />
         <IslandButton symbol={copied ? 'checkmark' : 'doc.on.doc'} disabled={empty} onClick={copy}>
           {copied ? ConversationLines.copied : ConversationLines.copy}

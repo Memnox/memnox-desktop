@@ -47,10 +47,8 @@ import { Settings } from './Settings';
 import { Hearing, useConversation, voiceFacts, VoicePills } from './Talk';
 import { PhoneTurn } from './voice/PhoneTurn';
 import { AnswerCard, IslandConversation } from './voice/Conversation';
-import { answeringTurn, type TurnWords } from '../core/domain/island-layout';
 import { shownProposal } from '../core/domain/proposal-card';
 import type { Exchange } from '../core';
-import { useLiveExchange } from './island/live-exchange';
 import { parseHistory } from '../core/domain/history';
 import { localHistory } from './sessions/history-store';
 import { showSummary } from './adapters/tauri-windows';
@@ -145,9 +143,8 @@ const NO_SESSIONS: SessionsState = { cards: [], focusId: undefined, focused: und
 const RESTING_MODES: readonly IslandMode[] = ['peek', 'compact', 'empty', 'overview', 'session'];
 
 /** The talking modes share one content, so the island grows around the words instead of refading them. */
-function contentId(mode: IslandMode, active: boolean): string {
+function contentId(mode: IslandMode): string {
   if (mode === 'conversation' || mode === 'draft' || mode === 'rule') return 'conversation';
-  if (mode === 'answer' && active) return 'conversation';
   return mode;
 }
 
@@ -224,20 +221,6 @@ export function Island({
   const [countdown, setCountdown] = useState<number | undefined>(preview.countdown);
   // An exchange picked in the side panel, opened tall while nobody talks, as the Mac's `picked`.
   const [picked, setPicked] = useState<Exchange | undefined>(preview.picked);
-  // The answer under the question opened tall or put back by hand; while talking the orb stays up, as on the Mac.
-  const [, setExpanded] = useState<boolean>();
-  // What the voice held when this time talking began, so a new press never shows the last reply.
-  const talkStart = useRef<TurnWords>();
-  const wasActive = useRef(false);
-  if (active !== wasActive.current) {
-    wasActive.current = active;
-    talkStart.current = active && preview.talk === undefined ? { phase: talk.phase, heard: talk.heard, reply: talk.reply } : undefined;
-  }
-  const answering = active && answeringTurn(talk, talkStart.current);
-  const turn = useLiveExchange(talk);
-  useEffect(() => {
-    if (!answering) setExpanded(undefined);
-  }, [answering, talk.heard]);
   const orb = useRef<OrbHandle>();
   const shape = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -488,16 +471,6 @@ export function Island({
     ...launcher?.facts,
   };
 
-  /** The person's own turn: their question in the bubble, or their live words as they follow up, over the answer arriving. */
-  function turnView(tall: boolean): ReactNode {
-    if (turn === undefined) return null;
-    return (
-      <IslandConversation question={turn.question} live={conversation.turns.live} listening={conversation.turns.listening} className={CONTENT_INSET}>
-        <AnswerCard exchange={turn} live expanded={tall} onExpand={() => setExpanded(!tall)} onOpen={() => onOpenAnswer(turn)} thinking={talk.phase === 'thinking' && talk.caption !== undefined ? talk.caption : 'Thinking'} />
-      </IslandConversation>
-    );
-  }
-
   const content: ReactNode = (() => {
     switch (mode) {
       case 'peek':
@@ -530,7 +503,6 @@ export function Island({
               <Settings voiceSettings={voiceSettings} setup={setup} />
             </IslandCard>
           );
-        if (active) return turnView(true);
         return picked === undefined ? null : (
           <IslandConversation question={picked.question} className={CONTENT_INSET}>
             <AnswerCard exchange={picked} onOpen={() => onOpenAnswer(picked)} />
@@ -605,7 +577,6 @@ export function Island({
         );
       // A phone's turn, shown like the person's own with the phone named, and no sound.
       case 'conversation':
-        if (active) return turnView(false);
         return conversation.turns.phone === undefined ? null : <PhoneTurn turn={conversation.turns.phone} />;
     }
   })();
@@ -635,7 +606,7 @@ export function Island({
         <div className="absolute" style={{ left: -ISLAND.pointerSlop, top: 0, width: shapeWidth + 2 * ISLAND.pointerSlop, height: moved.height + ISLAND.pointerSlop }} />
         <div className="absolute top-0" style={{ left: ISLAND.flare, width: moved.width, height: moved.height }}>
           <div className="absolute inset-0 overflow-hidden" style={{ borderRadius: `0 0 ${moved.radius}px ${moved.radius}px` }}>
-            <ContentSwap id={contentId(mode, active)}>{content}</ContentSwap>
+            <ContentSwap id={contentId(mode)}>{content}</ContentSwap>
             {header && (
               <IslandHeader
                 title={title}
@@ -682,7 +653,7 @@ export function Island({
         />
       )}
       <div className="pointer-events-none absolute inset-x-0 flex flex-col items-center" style={{ top: moved.height + ISLAND.pillGap }}>
-        <div ref={below} className="pointer-events-auto flex max-w-[560px] flex-col items-center gap-1.5">
+        <div ref={below} className="pointer-events-auto flex max-w-island flex-col items-center gap-1.5">
         {setupState.doing !== undefined && (
           <UnderPill symbol={<LoaderCircle size={11} strokeWidth={2.25} />} tone="neutral" spinning>
             {setupState.doing}
@@ -691,7 +662,7 @@ export function Island({
         {setupState.failed !== undefined && (
           <UnderPill symbol="exclamationmark.triangle.fill" tone="red">
             <span className="truncate">{setupState.failed}</span>
-            <IslandButton className="!px-2.5 !py-[3px] !text-caption" onClick={() => void setup.ensure()}>
+            <IslandButton onClick={() => void setup.ensure()}>
               {IslandLines.checkAgain}
             </IslandButton>
           </UnderPill>
@@ -794,7 +765,7 @@ function IslandHeader({ title, count, pastOrb, notch, back }: { title: string; c
       </span>
       <span className="flex-1" style={{ minWidth: notch.width + HEADER_INSET.besideNotch }} />
       {/* Nothing at all when nothing works, since "0 working" reads like a fault. */}
-      <span className="tabular shrink-0 whitespace-nowrap pr-[18px] text-button font-medium text-white/55" style={{ opacity: count === 0 ? 0 : 1 }} aria-hidden={count === 0}>
+      <span className="tabular shrink-0 whitespace-nowrap pr-island-count-trailing text-button font-medium text-white/55" style={{ opacity: count === 0 ? 0 : 1 }} aria-hidden={count === 0}>
         {IslandLines.working(count)}
       </span>
     </div>

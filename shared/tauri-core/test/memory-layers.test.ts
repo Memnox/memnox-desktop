@@ -11,7 +11,6 @@ import {
   planSummary,
   sessionCostLines,
   valueLines,
-  workspaceGraphLine,
   type MemoryLayersPlan,
   type MemoryLayersView,
   type ProjectLayersView,
@@ -88,12 +87,6 @@ describe('the Layers view, as the Mac words it', () => {
     expect(planSummary({ project: '/r', digest: 'd', files: [file(false)] })).toBe('Everything is already as the map would write it.');
     expect(planSummary({ project: '/r', digest: 'd', files: [file(true), file(false)] })).toBe('Writes 1 file, 1 already as planned. Only what sits inside Memnox\'s fenced blocks changes.');
     expect(keepList(' the release branch\n\n  tests first ')).toEqual(['the release branch', 'tests first']);
-  });
-
-  it('says what a saved or partial workspace picture leaves out, and nothing for a whole live one', () => {
-    expect(workspaceGraphLine({ source: 'live', withheld: 0, truncated: false })).toBeUndefined();
-    expect(workspaceGraphLine({ source: 'saved', fallback: 'not-joined', withheld: 0, truncated: false })).toBe('This computer is not in a workspace, so only what it keeps itself is drawn.');
-    expect(workspaceGraphLine({ source: 'live', withheld: 1200, truncated: true })).toBe("1,200 kept back by this computer's clearance, cut at the most the cloud draws at once.");
   });
 });
 

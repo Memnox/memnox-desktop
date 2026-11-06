@@ -185,20 +185,6 @@ export function writtenLine(files: readonly string[]): string {
   return files.length === 0 ? 'Nothing needed writing.' : `Wrote ${files.join(', ')}.`;
 }
 
-/** What the brain says it is standing on, so a saved or partial workspace picture never reads as whole and live. */
-export function workspaceGraphLine(graph: { source: string; fallback?: string; withheld: number; truncated: boolean }): string | undefined {
-  const parts: string[] = [];
-  if (graph.source === 'saved') {
-    if (graph.fallback === 'not-joined') parts.push('This computer is not in a workspace, so only what it keeps itself is drawn');
-    else if (graph.fallback === 'unreachable') parts.push('Memnox Cloud did not answer in time, so the workspace is drawn from what this computer last saved');
-    else if (graph.fallback === 'refused') parts.push('Memnox Cloud refused the read, so the workspace is drawn from what this computer last saved');
-    else parts.push('The workspace is drawn from what this computer last saved');
-  }
-  if (graph.withheld > 0) parts.push(`${grouped(graph.withheld)} kept back by this computer's clearance`);
-  if (graph.truncated) parts.push('cut at the most the cloud draws at once');
-  return parts.length === 0 ? undefined : `${parts.join(', ')}.`;
-}
-
 /** The layers view's own words, as the Mac's Layers view says them. */
 export const LayersPageLines = {
   theLayers: 'the memory layers',

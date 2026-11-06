@@ -385,20 +385,3 @@ export const LONG_REPLY = { characters: 520, lines: 7 } as const;
 export function isLongReply(reply: string): boolean {
   return reply.length > LONG_REPLY.characters || reply.split('\n').length > LONG_REPLY.lines;
 }
-
-/** What `answeringTurn` reads of the voice: its phase, the words heard and the reply so far. */
-export interface TurnWords {
-  readonly phase: 'idle' | 'listening' | 'thinking' | 'speaking';
-  readonly heard: string | undefined;
-  readonly reply: string;
-}
-
-/**
- * Whether the voice is answering something asked in this time talking, rather than still holding the last
- * one's words: `since` is what it held when the talking began, so a new press never shows an old reply.
- */
-export function answeringTurn(now: TurnWords, since: TurnWords | undefined): boolean {
-  if ((now.heard ?? '').trim() === '') return false;
-  if (since !== undefined && now.heard === since.heard && now.reply === since.reply && since.reply !== '') return false;
-  return now.phase === 'thinking' || now.reply !== '';
-}

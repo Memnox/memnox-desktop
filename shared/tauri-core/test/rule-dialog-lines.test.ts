@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { actionPhrase, RULE_BUILDER, RULE_DETAIL, RULE_DIALOG, RULE_EXAMPLES, ruleCaption, ruleDetailSentence, ruleFacts } from '../src/core/domain/rule-dialog-lines';
 import { inForceTabs } from '../src/core/domain/protection-lines';
-import { ruleAsWritten } from '../src/core/domain/rule-words';
 import { tomlLine, tomlLines } from '../src/core/domain/toml-tokens';
 
 /**
@@ -42,7 +41,6 @@ describe('the rule dialogs use the Mac words', () => {
     for (const text of Object.values(RULE_DETAIL)) expect(said(text), text).toBe(true);
     const rule = { name: 'git-push-ask', source: 'file', file: 'memnox.policies.toml', until: '2026-11-06T10:00:00Z' } as const;
     expect(ruleFacts(rule, () => 'Nov 6').map(([label]) => label)).toEqual(['Name', 'From', 'File', 'Until']);
-    expect(ruleAsWritten({ match: { actions: ['git.push'], classes: ['write'] } }).at(-1)?.field).toBe('Kinds of call');
   });
 
   it('reads a rule back as one sentence', () => {

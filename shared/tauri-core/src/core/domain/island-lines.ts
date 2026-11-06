@@ -176,8 +176,6 @@ export const ConversationLines = {
   working: 'Working',
   thinking: 'Thinking',
   done: 'Done',
-  showLess: 'Show less',
-  showMore: 'Show more',
   copied: 'Copied',
   copy: 'Copy',
   openAnswer: 'Open answer',

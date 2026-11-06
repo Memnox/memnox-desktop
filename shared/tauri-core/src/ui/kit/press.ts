@@ -29,3 +29,7 @@ export function notchPress(lifts = true): string {
 
 /** The answers on a card dim together while one is being signed, so a second press is not invited. */
 export const ANSWERING_ROW = 'pointer-events-none opacity-[0.55]';
+
+/** `PressDip`: a row, a chip or a confirm's act dips to 0.98 and dims to 0.75 while held, easing out over Motion.quick. */
+export const PRESS_DIP =
+  'transition-[scale,opacity,background-color,border-color] duration-(--mx-duration-quick) ease-out enabled:active:scale-[0.98] enabled:active:opacity-75';

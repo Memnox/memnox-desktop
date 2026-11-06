@@ -11,6 +11,59 @@ export const CURRENT_PROJECT_KEY = 'memnox.project.current';
 export const ALL_PROJECTS = 'All projects';
 export const SWITCHER_LABEL = 'Current project';
 
+/** The window's own words: its top bar, its sidebar and the project switcher. */
+export const ShellLines = {
+  brand: 'Memnox',
+  navigation: 'Memnox',
+  openMenu: 'Open the menu',
+  closeMenu: 'Close the menu',
+  menu: 'Menu',
+  back: 'Back',
+  forward: 'Forward',
+  goTo: 'Go to anything',
+  paletteKeys: 'Ctrl K',
+  search: 'Search',
+  searchEverything: 'Search everything',
+  searchHint: 'Search everything, Ctrl K',
+  showLabels: 'Show labels',
+  hideLabels: 'Hide labels',
+  foldHint: 'Fold the sidebar to its icons',
+  pages: 'Pages',
+  projects: 'Projects',
+  closeProjects: 'Close the project list',
+  noProjectMatches: 'No project matches that.',
+  agentWorking: 'An agent is working here now',
+  runtimeUp: 'Runtime running',
+  runtimeDown: 'Runtime not answering',
+  runtimeReaching: 'Reaching the runtime',
+  demoBadge: 'Demo data',
+  demoLabel: 'Demo data: nothing here is real',
+  demoHint: 'Everything in this window comes from the demo fixture, and nothing reaches Memnox or your accounts.',
+  crumbGap: '/',
+} as const;
+
+/** A code block's copy press. */
+export const CodeLines = {
+  copy: 'Copy',
+  copied: 'Copied',
+  copyNamed: (label: string) => `Copy ${label}`,
+} as const;
+
+/** The palette's words, as the Mac's CommandPalette says them. */
+export const PaletteLines = {
+  label: 'Go to',
+  prompt: 'Go to a page, such as servers or approvals',
+  nothing: 'Nothing here by that name.',
+} as const;
+
+/** The details pane's own presses. */
+export const InspectorLines = {
+  expand: 'Open full page',
+  popOut: 'Open in its own window',
+  close: 'Close the details',
+  resize: 'Resize the details',
+} as const;
+
 /** The project the person picked, or undefined for every project, also when the one remembered is gone. */
 export function currentProject<P extends Pick<ProjectView, 'id'>>(projects: readonly P[] | undefined, saved: string | undefined): P | undefined {
   if (saved === undefined || saved === '' || projects === undefined) return undefined;

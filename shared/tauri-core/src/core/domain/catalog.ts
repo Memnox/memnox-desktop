@@ -7,6 +7,11 @@
 /** Stands for every category, so the rail's first row is never confused with a real one. */
 export const ALL_CATEGORIES = 'all';
 
+/** The catalogue's own words. */
+export const CatalogLines = {
+  categories: 'Categories',
+} as const;
+
 export interface CategoryCount {
   readonly id: string;
   readonly title: string;

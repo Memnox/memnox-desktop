@@ -67,6 +67,8 @@
 
   --mx-stroke-hairline: 1px;
   --mx-stroke-emphasis: 1.5px;
+  /* Memnox.Console.ringWidth: the soft ring outside a focused field. */
+  --mx-ring-width: 3px;
 
   --mx-duration-quick: 200ms;
   --mx-duration-standard: 300ms;
@@ -328,7 +330,7 @@ html.mx-window .mx-field:focus-visible,
 html.mx-window .mx-field-within:focus-within {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--mx-ring);
+  box-shadow: 0 0 0 var(--mx-ring-width) var(--mx-ring);
 }
 
 /* The adaptive palette under Tailwind names, read through the variables so a theme change repaints. */
@@ -373,6 +375,9 @@ html.mx-window .mx-field-within:focus-within {
 }
 
 @theme {
+  /* Memnox.Console.controlHeight and fieldHeight: a button, a select and a chip are 32, a text field 36, as `h-control` and `h-field`. */
+  --spacing-control: 32px;
+  --spacing-field: 36px;
   /* The same in both appearances. */
   --color-primary: #3b82f7;
   /* The orb's blue, and the fallback tool colour; never the brand blue of a picked ring. */
@@ -646,6 +651,20 @@ body {
   .animate-content-out {
     animation-name: fade-out;
   }
+}
+
+/*
+ * The console's layout sizes as Tailwind names, so a class says `medium:` or `max-w-sheet` rather than a number.
+ * The breakpoints are WIDTH in core/domain/destinations.ts, the widths the Mac's window changes its layout at, and
+ * test/layout-tokens.test.ts holds the two together.
+ */
+@theme {
+  --breakpoint-narrow: 640px;
+  --breakpoint-medium: 900px;
+  --breakpoint-wide: 1200px;
+  /* A sheet over the page, as the Mac's: 560 wide, at most 720 tall. */
+  --container-sheet: 560px;
+  --max-height-sheet: 720px;
 }
 
 /* The tray panel, the tool page, the floating cards and the scan screen. */

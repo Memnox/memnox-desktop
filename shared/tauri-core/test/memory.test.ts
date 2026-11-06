@@ -25,6 +25,7 @@ import {
   sourceInputOf,
   statusWord,
   trustWord,
+  memoryViewShown,
 } from '../src/core/domain/memory-lines';
 import { ScriptedDaemon } from './doubles';
 
@@ -245,5 +246,17 @@ describe('a press on evidence', () => {
   it('says whether the file opened or its path was copied', () => {
     expect(filePressLine(true)).toBe('Opened');
     expect(filePressLine(false)).toBe('Path copied');
+  });
+});
+
+describe('the one Memory page', () => {
+  it('opens on the map, keeps the view switched to, and opens a linked item on the list', () => {
+    const offered = ['graph', 'list', 'layers'] as const;
+    expect(memoryViewShown(undefined, offered, false)).toBe('graph');
+    expect(memoryViewShown('list', offered, false)).toBe('list');
+    expect(memoryViewShown('layers', offered, false)).toBe('layers');
+    expect(memoryViewShown('layers', ['graph', 'list'], false)).toBe('graph');
+    expect(memoryViewShown(undefined, offered, true)).toBe('list');
+    expect(memoryViewShown('graph', offered, true)).toBe('graph');
   });
 });

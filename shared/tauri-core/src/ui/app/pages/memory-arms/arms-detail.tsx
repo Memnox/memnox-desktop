@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 import type { Route } from "../../../../core/domain/destinations";
@@ -6,6 +6,7 @@ import { effectTone, EFFECT_WORDS, isEffect } from "../../../../core/domain/stud
 import { systemName, type MemoryMapEdge, type MemoryMapNode } from "../../../../core/domain/memory-arms/arms-node";
 import { faceInk, initialsFor, profileOf } from "../../../../core/domain/memory-arms/arms-faces";
 import type { ArmsItem, ArmsModel } from "../../../../core/domain/memory-arms/arms-model";
+import { AgentName } from "../../../kit/logos";
 import { StatusWord } from "../../widgets";
 import { markUrl } from "./arms-support";
 import { kindWord } from "./arms-tooltip";
@@ -145,7 +146,7 @@ function FooterLink({ item, go }: { item: ArmsItem; go: (route: Route) => void }
   );
   if (item.core === true || item.layer === "skill") return place("Open My Skills", { destination: "workspaces", tab: "skills" });
   if (item.layer === "rule") return place("Open Rules", { destination: "governance", tab: "policies" });
-  if (item.layer === "app") return item.slug?.startsWith("mcp:") === true ? place("Open Servers", { destination: "mcp", tab: "servers" }) : place("Open Connectors", { destination: "mcp", tab: "apps" });
+  if (item.layer === "app") return place("Open Connectors", { destination: "mcp", tab: "apps" });
   return null;
 }
 
@@ -192,7 +193,17 @@ function Body({
     return (
       <>
         {skill.description !== undefined && skill.description !== "" && <p className="text-body-sm text-muted">{skill.description}</p>}
-        {(skill.agents ?? []).length > 0 && <p className="text-meta text-muted">{`Given to ${(skill.agents ?? []).join(", ")}`}</p>}
+        {(skill.agents ?? []).length > 0 && (
+          <p className="text-meta text-muted">
+            {"Given to "}
+            {(skill.agents ?? []).map((agent, index) => (
+              <Fragment key={agent}>
+                {index > 0 && ", "}
+                <AgentName agent={agent} name={agent} size={12} />
+              </Fragment>
+            ))}
+          </p>
+        )}
         {(skill.servers ?? []).length > 0 && (
           <p className="flex flex-wrap gap-1.5">
             {(skill.servers ?? []).map((server) => (

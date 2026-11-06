@@ -126,6 +126,40 @@ enum BrainLook {
     static let axisShare = 0.3
     static let laneInset = 40.0
     static var laneLabelX: Double { -BrainOutline.halfLength - laneInset }
+    /// A tissue grain's largest size in world points, its line, and how much light each band of it keeps, so the
+    /// silhouette reads as a shape while the memory drawn over it stays the brightest thing on the canvas.
+    static let grain = 3.4
+    static let grainWidth = 0.8
+    static let tissueShares: [TissueBand: Double] = [.gold: 0.34, .violet: 0.34, .teal: 0.28, .pale: 0.15]
+    /// The share of the silhouette the tissue fills at its densest, under which a smaller brain thins its grains.
+    static let tissueFull = 0.9
+    /// A memory mark this big on the screen is drawn as a wireframe tetrahedron, smaller ones stay a dot.
+    static let wireFrom = 3.0
+    static let wireWidth = 1.0
+    /// What the pointer's lens adds to a mark's size at its middle, and from how much pull a grain turns white.
+    static let lensGrowth = 1.3
+    static let lensWhite = 0.08
+    static let lensShare = 0.85
+    /// Spreads the marks' tumbles apart by index without hashing an id every frame.
+    static let goldenShare = 0.618_033_988_749_895
+    /// The leader from a hovered mark to its card: its line, the dot on the mark and the square at the card.
+    static let leaderWidth = 1.0
+    static let leaderDot = 2.4
+    static let leaderSquare = 5.5
+    static let leaderShare = 0.85
+    /// The tour's labels: how far out from the middle of the canvas each stands from its part, the room kept clear
+    /// along the edges and above the deck, how many at most, and their type.
+    static let tagReach = 120.0
+    static let tagEdge = 28.0
+    static let tagFoot = 210.0
+    static let tagWidth = 210.0
+    static let mostTags = 4
+    static let tagName: CGFloat = 11
+    static let tagDetail: CGFloat = 9.5
+    static let tagTracking: CGFloat = 1.4
+    static let tagGap = 9.0
+    /// What the envelope and the tissue keep of their light while the areas slide out of them.
+    static let shellOpen = 0.6
 }
 
 /// The brain's colours: each memory area its own from the references' warm and cool run, the core white, the rules
@@ -163,6 +197,16 @@ enum ArmsInk {
     }
 
     static func of(_ layer: BrainLayer) -> Color { of(slot: slot(layer, area: 0)) }
+
+    /// The tissue's bands: the gold and the violet of the reference brains along the rim, teal under them, pale inside.
+    static func of(_ band: TissueBand) -> Color {
+        switch band {
+        case .gold: Memnox.Console.Brain.instructions
+        case .violet: Memnox.Console.Brain.team
+        case .teal: Memnox.Console.Brain.servers
+        case .pale: Memnox.Console.Brain.ink
+        }
+    }
 }
 
 /// What a frame needs beyond the marks' own spots: the turn, the camera, the light of the moment and what is in focus.
@@ -188,6 +232,11 @@ struct BrainScene {
     let now: Double
     /// What the canvas search matched, by index, nil while nothing is searched.
     let matches: Set<Int>?
+    /// Where the pointer's lens is, nil while the pointer is away, on a card or holding the ground.
+    let lens: CGPoint?
+    /// How far the tour has each assembly open, and its playhead, nil while no tour runs.
+    let pose: TourPose
+    let playhead: Double?
 }
 
 /// Draws one frame of the brain in a handful of fills and strokes however many marks there are: the picked area's
@@ -233,6 +282,7 @@ struct BrainPainter {
         switch scene.mode {
         case .map:
             wedge(&context)
+            tissue(&context, near: near)
             envelopes(&context)
             heartbeat(&context)
         case .orbs:
@@ -247,7 +297,8 @@ struct BrainPainter {
         badges(&context)
         sparks(&context)
         rings(&context)
-        names(&context)
+        leader(&context)
+        if scene.playhead == nil { names(&context) } else { tourLabels(&context) }
     }
 
     private func neighbours() -> Set<Int>? {
@@ -289,6 +340,60 @@ struct BrainPainter {
                      with: .color(ink.opacity(BrainLook.wedgeShare * scene.areaShare)))
     }
 
+    /// How far the pointer's lens pulls a spot on the screen, none while there is no lens.
+    private func pull(_ at: CGPoint) -> Double {
+        guard let lens = scene.lens else { return 0 }
+        return BrainLens.pull(distance: hypot(at.x - lens.x, at.y - lens.y))
+    }
+
+    /// A tetrahedron's six edges about a spot, its corners this far out, tumbled to this phase.
+    private static func wire(_ path: inout Path, _ centre: CGPoint, _ radius: Double, spin: Double, seconds: Double) {
+        let corners = BrainTissue.corners(spin: spin, seconds: seconds).map { CGPoint(x: centre.x + $0.x * radius, y: centre.y + $0.y * radius) }
+        for (from, to) in BrainTissue.edges {
+            path.move(to: corners[from])
+            path.addLine(to: corners[to])
+        }
+    }
+
+    /// The silhouette filled with tumbling wireframe grains as far as the envelope reaches, thinned for a small brain
+    /// so it never reads denser than a full one, and whitened and swollen under the pointer's lens.
+    private func tissue(_ context: inout GraphicsContext, near: Set<Int>?) {
+        let arrived = scene.opening.map { BrainMotion.opening(.memory, seconds: $0, still: scene.still).light } ?? 1
+        guard inside > 0, arrived > 0 else { return }
+        let reach = inside + BrainLook.envelopePad
+        // The grains a brain keeps go with its area, which is the square of its reach.
+        let kept = min(1, (reach / BrainLook.tissueFull) * (reach / BrainLook.tissueFull))
+        let quiet = near == nil && scene.area == nil && scene.matches == nil ? 1 : BrainLook.unlit
+        let steps = BrainLook.lightSteps
+        let base = BrainLook.grain * max(grow, BrainLook.leastDot)
+        let seconds = scene.still ? 0 : scene.idle
+        let seen = CGRect(origin: .zero, size: scene.size).insetBy(dx: -base * 2, dy: -base * 2)
+        var bands = [TissueBand: Path]()
+        var white = Array(repeating: Path(), count: steps)
+        let opened = 1 - BrainLook.shellOpen * max(scene.pose.areas, scene.pose.apart)
+        for grain in BrainTissue.grains where grain.rank < kept {
+            let spot = BrainTour.scattered(BrainShell.point(grain.angle, share: grain.share * reach), seed: grain.rank, apart: scene.pose.apart)
+            let centre = screen(spot)
+            guard seen.contains(centre) else { continue }
+            let pulled = pull(centre)
+            let radius = base * grain.size * (1 + BrainLook.lensGrowth * pulled)
+            if pulled > BrainLook.lensWhite {
+                Self.wire(&white[min(Int(pulled * Double(steps)), steps - 1)], centre, radius, spin: grain.spin, seconds: seconds)
+            } else {
+                Self.wire(&bands[grain.band, default: Path()], centre, radius, spin: grain.spin, seconds: seconds)
+            }
+        }
+        for (band, path) in bands {
+            context.stroke(path, with: .color(ArmsInk.of(band).opacity((BrainLook.tissueShares[band] ?? 0) * arrived * quiet * opened)),
+                           lineWidth: BrainLook.grainWidth)
+        }
+        for step in 0..<steps {
+            let light = (Double(step) + 1) / Double(steps)
+            context.stroke(white[step], with: .color(Memnox.Console.Brain.ink.opacity(BrainLook.lensShare * light * arrived)),
+                           lineWidth: BrainLook.grainWidth)
+        }
+    }
+
     /// The envelopes drawn only around what exists, lit as it arrives: the silhouette just past the core and the
     /// clusters, each area's dotted ring, the core's glow, and the rules ring drawing itself round.
     private func envelopes(_ context: inout GraphicsContext) {
@@ -298,7 +403,8 @@ struct BrainPainter {
             var outline = Path()
             outline.addLines(BrainShell.outline(share: inside + BrainLook.envelopePad, corners: BrainLook.bandCorners).map(screen))
             outline.closeSubpath()
-            context.stroke(outline, with: .color(quiet.opacity(BrainLook.outlineShare * arrived)), lineWidth: Memnox.Stroke.hairline)
+            let opened = 1 - BrainLook.shellOpen * max(scene.pose.areas, scene.pose.apart)
+            context.stroke(outline, with: .color(quiet.opacity(BrainLook.outlineShare * arrived * opened)), lineWidth: Memnox.Stroke.hairline)
         }
         for (order, area) in prepared.areas.enumerated() {
             let light = areaLight(order)
@@ -324,10 +430,12 @@ struct BrainPainter {
         var ring = Path()
         // From the crown round, so the ring draws itself the way the rules light.
         let corners = BrainLook.bandCorners
-        ring.addLines((0...corners).map { onLayers(BrainArms.start + Double($0) / Double(corners) * 2 * Double.pi, share: rules) })
+        let out = rules * (1 + BrainTour.ringOut * scene.pose.rules)
+        ring.addLines((0...corners).map { onLayers(BrainArms.start + Double($0) / Double(corners) * 2 * Double.pi, share: out) })
         let trimmed = ring.trimmedPath(from: 0, to: drawn)
-        context.stroke(trimmed, with: .color(ArmsInk.rules.opacity(BrainLook.ringGlowShare)), lineWidth: BrainLook.ringGlow)
-        context.stroke(trimmed, with: .color(ArmsInk.rules.opacity(BrainLook.ringShare)), lineWidth: Memnox.Stroke.hairline)
+        let whole = 1 - scene.pose.apart
+        context.stroke(trimmed, with: .color(ArmsInk.rules.opacity(BrainLook.ringGlowShare * whole)), lineWidth: BrainLook.ringGlow)
+        context.stroke(trimmed, with: .color(ArmsInk.rules.opacity(BrainLook.ringShare * whole)), lineWidth: Memnox.Stroke.hairline)
     }
 
     /// A soft line of light leaving the core every few heartbeats, out past everything drawn.
@@ -436,8 +544,12 @@ struct BrainPainter {
         let steps = BrainLook.lightSteps
         let buckets = ArmsInk.slots * steps
         var cores = Array(repeating: Path(), count: buckets)
+        var wires = Array(repeating: Path(), count: buckets)
         var halos = Array(repeating: Path(), count: buckets)
+        var lensed = Array(repeating: Path(), count: steps)
+        var lensedWires = Array(repeating: Path(), count: steps)
         var tiles = Path()
+        let seconds = scene.still ? 0 : scene.idle
         let overAt = scene.over.flatMap { prepared.index[$0] }
         // A dense brain's halos fade, so a thousand dots read as a cluster rather than one glare.
         let glowShare = BrainLook.glowShare * min(1, (BrainLook.denseFrom / Double(max(prepared.nodes.count, 1))).squareRoot())
@@ -449,12 +561,20 @@ struct BrainPainter {
             var radius = frame.radius[index]
             if index == overAt { radius *= 1 + BrainLook.swellGrowth * scene.swell }
             let centre = at(index)
+            let pulled = pull(centre)
+            radius *= 1 + BrainLook.lensGrowth * pulled
+            let lensStep = min(Int(pulled * Double(steps)), steps - 1)
             let disc = CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)
             switch prepared.spots[index].layer {
             case .skills:
                 cores[bucket].addPath(Self.star(centre, radius))
+            case .memory where radius >= BrainLook.wireFrom:
+                let spin = (Double(index) * BrainLook.goldenShare).truncatingRemainder(dividingBy: 1)
+                Self.wire(&wires[bucket], centre, radius, spin: spin, seconds: seconds)
+                if pulled > BrainLook.lensWhite { Self.wire(&lensedWires[lensStep], centre, radius, spin: spin, seconds: seconds) }
             case .memory:
                 cores[bucket].addEllipse(in: disc)
+                if pulled > BrainLook.lensWhite { lensed[lensStep].addEllipse(in: disc) }
             case .rules:
                 tiles.addEllipse(in: disc)
                 cores[bucket].addEllipse(in: disc.insetBy(dx: radius * BrainLook.starWaist, dy: radius * BrainLook.starWaist))
@@ -479,7 +599,14 @@ struct BrainPainter {
                 } else {
                     context.fill(cores[bucket], with: .color(ink.opacity(light)))
                 }
+                context.stroke(wires[bucket], with: .color(ink.opacity(light)), lineWidth: BrainLook.wireWidth)
             }
+        }
+        // What the pointer's lens passes over is lit white over its colour, the more the nearer the pointer.
+        for step in 0..<steps {
+            let white = Memnox.Console.Brain.ink.opacity(BrainLook.lensShare * (Double(step) + 1) / Double(steps))
+            context.fill(lensed[step], with: .color(white))
+            context.stroke(lensedWires[step], with: .color(white), lineWidth: BrainLook.wireWidth)
         }
         context.blendMode = .normal
         context.fill(tiles, with: .color(Memnox.Console.Brain.card.opacity(BrainPanel.fill)))
@@ -650,6 +777,92 @@ struct BrainPainter {
             let centre = at(index)
             context.stroke(Path(ellipseIn: CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)),
                            with: .color(id == scene.selected ? Memnox.Console.Brain.ink : Memnox.Console.primary), lineWidth: BrainLook.ringWidth)
+        }
+    }
+
+    /// The leader from the mark under the pointer out to its card, the way an instrument labels a part: a dot on the
+    /// mark, a hairline in its colour and a square where it meets the card.
+    private func leader(_ context: inout GraphicsContext) {
+        guard scene.lens != nil, let over = scene.over, let index = prepared.index[over], frame.light[index] > 0 else { return }
+        let mark = at(index)
+        let card = BrainTip.origin(x: mark.x, y: mark.y, radius: frame.radius[index], size: scene.size)
+        let end = CGPoint(x: card.x < mark.x ? card.x + MapMetrics.tipWidth : card.x, y: card.y + MapMetrics.tipLift)
+        let ink = ArmsInk.of(slot: prepared.ink[index]).opacity(BrainLook.leaderShare * scene.swell)
+        var line = Path()
+        line.move(to: mark)
+        line.addLine(to: end)
+        context.stroke(line, with: .color(ink), lineWidth: BrainLook.leaderWidth)
+        let dot = BrainLook.leaderDot
+        context.fill(Path(ellipseIn: CGRect(x: mark.x - dot, y: mark.y - dot, width: dot * 2, height: dot * 2)), with: .color(ink))
+        let square = BrainLook.leaderSquare
+        context.fill(Path(CGRect(x: end.x - square / 2, y: end.y - square / 2, width: square, height: square)), with: .color(ink))
+    }
+
+    /// One part the tour names: where it is on the screen, what it is called, the line under that, and how open it is.
+    private struct Tag {
+        let at: CGPoint
+        let name: String
+        let detail: String
+        let open: Double
+    }
+
+    /// What the stretch the tour is in names: the part it opened, or in the teardown one of each.
+    private func tags() -> [Tag] {
+        guard let playhead = scene.playhead else { return [] }
+        let pose = scene.pose
+        let layers = Dictionary(prepared.layerRows.map { ($0.layer, $0.count) }, uniquingKeysWith: { first, _ in first })
+        let first = { (layer: BrainLayer) in prepared.spots.indices.first { prepared.spots[$0].layer == layer && frame.light[$0] > 0 } }
+        let largest = prepared.areas.indices.sorted { prepared.areas[$0].count > prepared.areas[$1].count }
+        let core = Tag(at: onLayers(0, share: 0), name: "CORE", detail: BrainWords.counted(layers[.skills] ?? 0, "FILE", "FILES"), open: pose.core)
+        let areaTag = { (order: Int, open: Double) in
+            Tag(at: frame.areas[order], name: BrainWords.label(prepared.areas[order].group).uppercased(),
+                detail: BrainWords.counted(prepared.areas[order].count, "PIECE", "PIECES"), open: open)
+        }
+        let rules = first(.rules).map { Tag(at: at($0), name: "RULES", detail: BrainWords.counted(layers[.rules] ?? 0, "RULE", "RULES"), open: pose.rules) }
+        let tiles = first(.applications).map {
+            Tag(at: at($0), name: "APPLICATIONS", detail: BrainWords.counted(layers[.applications] ?? 0, "TILE", "TILES"), open: pose.applications)
+        }
+        switch BrainTour.section(at: playhead).part {
+        case .assembled: return []
+        case .core: return (layers[.skills] ?? 0) > 0 ? [core] : []
+        case .areas: return largest.prefix(BrainLook.mostTags).map { areaTag($0, pose.areas) }
+        case .rules: return [rules].compactMap { $0 }
+        case .applications: return [tiles].compactMap { $0 }
+        case .teardown, .reassembly:
+            let apart = { (tag: Tag) in Tag(at: tag.at, name: tag.name, detail: "\(tag.detail) · APART", open: pose.apart) }
+            return ([core] + largest.prefix(1).map { areaTag($0, pose.areas) } + [rules, tiles].compactMap { $0 })
+                .prefix(BrainLook.mostTags).map(apart)
+        }
+    }
+
+    /// The tour's labels, the way an instrument names a part: a dot on the part, a hairline out away from the middle
+    /// of the canvas to a square, and the part's name in spaced capitals with its count under it, fading in as it opens.
+    private func tourLabels(_ context: inout GraphicsContext) {
+        let size = scene.size
+        let middle = CGPoint(x: size.width / 2, y: size.height / 2)
+        for tag in tags() where tag.open > 0 {
+            let away = CGPoint(x: tag.at.x - middle.x, y: tag.at.y - middle.y)
+            let length = max(hypot(away.x, away.y), 1)
+            let right = away.x >= 0
+            let end = CGPoint(x: min(max(tag.at.x + away.x / length * BrainLook.tagReach, BrainLook.tagEdge), size.width - BrainLook.tagEdge),
+                              y: min(max(tag.at.y + away.y / length * BrainLook.tagReach, BrainLook.tagEdge), size.height - BrainLook.tagFoot))
+            let ink = Memnox.Console.primary.opacity(BrainLook.leaderShare * tag.open)
+            var line = Path()
+            line.move(to: tag.at)
+            line.addLine(to: end)
+            context.stroke(line, with: .color(ink), lineWidth: BrainLook.leaderWidth)
+            let dot = BrainLook.leaderDot
+            context.fill(Path(ellipseIn: CGRect(x: tag.at.x - dot, y: tag.at.y - dot, width: dot * 2, height: dot * 2)), with: .color(ink))
+            let square = BrainLook.leaderSquare
+            context.fill(Path(CGRect(x: end.x - square / 2, y: end.y - square / 2, width: square, height: square)), with: .color(ink))
+            let name = context.resolve(Text(tag.name).font(Memnox.Console.code(BrainLook.tagName, .semibold)).tracking(BrainLook.tagTracking)
+                .foregroundColor(Memnox.Console.Brain.ink.opacity(tag.open)))
+            let detail = context.resolve(Text(tag.detail).font(Memnox.Console.code(BrainLook.tagDetail)).tracking(BrainLook.tagTracking)
+                .foregroundColor(Memnox.Console.Brain.quiet.opacity(tag.open)))
+            let x = right ? end.x + BrainLook.tagGap : end.x - BrainLook.tagGap
+            let anchor: UnitPoint = right ? .bottomLeading : .bottomTrailing
+            context.draw(name, at: CGPoint(x: x, y: end.y + square), anchor: anchor)
+            context.draw(detail, at: CGPoint(x: x, y: end.y + square + BrainLook.tagGap + BrainLook.tagDetail), anchor: anchor)
         }
     }
 

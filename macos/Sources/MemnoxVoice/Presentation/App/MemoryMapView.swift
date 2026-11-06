@@ -93,6 +93,8 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
     @State private var allLabels = false
     /// Every overlay away and the brain moving on its own until Escape.
     @State private var cinema = false
+    /// The brain taken apart and put back on a loop, its playhead running or held, nil while no tour runs.
+    @State private var tour: BrainTourClock?
     /// When the opening began, which a replay starts again.
     @State private var openedAt = Date()
     /// The idle life's clock, at the slider's speed, and the 3D view's own turn, which holds while a hand is on it.
@@ -162,7 +164,12 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
                     .allowsHitTesting(false)
                 }
                 .accessibilityHidden(true)
-                if !cinema { overlays(prepared, size: geometry.size) }
+                if !cinema && tour == nil { overlays(prepared, size: geometry.size) }
+                if let tour {
+                    TimelineView(.animation(minimumInterval: MapMotion.frame, paused: tour.held != nil)) { timeline in
+                        deck(prepared, at: tour.seconds(at: timeline.date))
+                    }
+                }
                 if !cinema, let selected, let index = prepared.index[selected] {
                     TimelineView(.animation(minimumInterval: MapMotion.frame, paused: !live)) { timeline in
                         detail(prepared, index: index, at: live ? timeline.date : Date(), size: geometry.size)
@@ -277,7 +284,7 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
     private func moving(_ prepared: BrainPrepared) -> Bool {
         let now = Date()
         let opening = now.timeIntervalSince(openedAt) < openingLength
-        return idle.running || orbit.running || opening || now < easing || pulse.sparks.busy
+        return idle.running || orbit.running || opening || now < easing || pulse.sparks.busy || tour?.held == nil && tour != nil
             || prepared.nodes.contains { working.contains($0.id) }
     }
 
@@ -319,6 +326,10 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
                               help: "Fly the layers in again from the core outward, or press \(BrainWords.replayKey)", enabled: true, action: replay)
                     BrainPill(symbol: "film", title: "Cinema", help: "Hide everything but the brain; Escape brings it back",
                               enabled: true, action: enterCinema)
+                    BrainPill(symbol: "cube.transparent", title: "Tour",
+                              help: reduceMotion ? "The tour moves the brain, so it waits while Reduce Motion is on"
+                                  : "Take the brain apart layer by layer and put it back, or press \(BrainWords.tourKey)",
+                              enabled: !reduceMotion, action: startTour)
                 }
                 Spacer(minLength: Memnox.Spacing.medium)
                 VStack(alignment: .trailing, spacing: Memnox.Spacing.medium) {
@@ -353,12 +364,20 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
         let opening = date.timeIntervalSince(openedAt)
         let seconds = date.timeIntervalSinceReferenceDate
         pulse.sparks.advance(at: seconds)
-        return BrainScene(mode: mode, camera: shownCamera(at: date), size: size, turn: orbTurn(at: date),
+        let playhead = tour?.seconds(at: date)
+        let pose = playhead.map(BrainTour.pose(at:)) ?? .assembled
+        var camera = shownCamera(at: date)
+        // The tour pushes in and stands back about the middle of the canvas, over wherever the camera is.
+        if pose.zoom != 1 { camera = camera.zoomed(by: pose.zoom, at: (size.width / 2, size.height / 2), size: (size.width, size.height)) }
+        let turn = orbTurn(at: date)
+        return BrainScene(mode: mode, camera: camera, size: size, turn: SurfaceTurn(yaw: turn.yaw + pose.turn, pitch: turn.pitch),
                           opening: opening < openingLength ? opening : nil, still: reduceMotion, idle: idle.seconds(at: date),
                           focus: focus, selected: selected, keyed: focused ? over : nil, over: over,
                           swell: reduceMotion ? 1 : BrainMotion.swell(date.timeIntervalSince(overAt)), area: area ?? fading,
                           areaShare: areaShare(at: date), allLabels: allLabels,
-                          working: working, sparks: pulse.sparks.sparks, now: seconds, matches: matches)
+                          working: working, sparks: pulse.sparks.sparks, now: seconds, matches: matches,
+                          lens: hand == nil && !overCard && mode != .timeline ? pointer : nil,
+                          pose: mode == .timeline ? .assembled : pose, playhead: mode == .timeline ? nil : playhead)
     }
 
     /// How far the lit area has bloomed in, or the one put out has faded back.
@@ -405,8 +424,10 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
             frame.light.append(light)
             frame.depth.append(seen.depth)
         }
-        frame.areas = prepared.areas.map { area in
-            let at = onScreen((area.x, area.y), latitude: 0, mode: scene.mode, scene: scene)
+        frame.areas = prepared.areas.enumerated().map { order, area in
+            let hub = scene.pose == .assembled ? (area.x, area.y)
+                : BrainTour.opened((area.x, area.y), layer: .memory, area: (area.x, area.y), seed: Self.seed(order), pose: scene.pose)
+            let at = onScreen(hub, latitude: 0, mode: scene.mode, scene: scene)
             return CGPoint(x: at.x, y: at.y)
         }
         return frame
@@ -429,11 +450,21 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
         let size = (width: Double(scene.size.width), height: Double(scene.size.height))
         switch mode {
         case .map, .orbs:
-            return onScreen(Self.grown(index, prepared, reach: reveal.reach), latitude: spot.latitude, mode: mode, scene: scene)
+            var flat = Self.grown(index, prepared, reach: reveal.reach)
+            if scene.pose != .assembled {
+                let area = prepared.areaAt[index].map { (prepared.areas[$0].x, prepared.areas[$0].y) }
+                flat = BrainTour.opened(flat, layer: spot.layer, area: area, seed: Self.seed(index), pose: scene.pose)
+            }
+            return onScreen(flat, latitude: spot.latitude, mode: mode, scene: scene)
         case .timeline:
             let at = scene.camera.onScreen(prepared.timeline[index], size: size)
             return (at.x, at.y, 1, 1)
         }
+    }
+
+    /// A mark's own fraction for the tour, spread by its index so no id is hashed in a frame.
+    static func seed(_ index: Int) -> Double {
+        (Double(index) * BrainLook.goldenShare).truncatingRemainder(dividingBy: 1)
     }
 
     /// Where a mark stands in the world on the flat view as it grows in: a memory piece out of its area's hub, so each
@@ -546,16 +577,13 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
         let node = prepared.nodes[index]
         let layer = prepared.spots[index].layer
         let place = prepared.areaOf[index].map(BrainWords.label) ?? BrainWords.layerWord(layer)
-        let reach = frame.radius[index] + BrainLook.nameGap
-        let right = frame.x[index] + reach + MapMetrics.tipWidth < size.width
-        let x = right ? frame.x[index] + reach : frame.x[index] - reach - MapMetrics.tipWidth
-        let y = min(max(frame.y[index] - MapMetrics.tipLift, 0), max(size.height - MapMetrics.tipTall, 0))
+        let origin = BrainTip.origin(x: frame.x[index], y: frame.y[index], radius: frame.radius[index], size: size)
         let brand = prepared.brands.first { $0.index == index }?.brand ?? node.mark.map(BrainBrand.toolkit)
         let person = prepared.people.first { $0.index == index }
         return BrainTipCard(name: node.label, kind: MapWords.kindWord(node.kind), place: place, links: prepared.degree[index],
                             brand: brand, person: person.map { ($0.initials, ArmsInk.avatars[$0.colour % ArmsInk.avatars.count]) })
             .frame(width: MapMetrics.tipWidth, alignment: .leading)
-            .offset(x: x, y: y)
+            .offset(x: origin.x, y: origin.y)
     }
 
     /// The picked node's card beside it at this moment, on the side with room, its pointer at the node.
@@ -693,6 +721,31 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
         own = false
         glideTo(fitted(stage, next, prepared()))
         ease(for: BrainMotion.morphLength)
+    }
+
+    /// The tour's deck along the foot: what is open, the rail to scrub it, and the buttons to hold it and leave it.
+    private func deck(_ prepared: BrainPrepared, at seconds: Double) -> some View {
+        let part = BrainTour.section(at: seconds).part
+        return BrainTourDeck(name: BrainWords.tourName(part), detail: BrainWords.tourDetail(part, prepared), number: BrainTour.number(at: seconds),
+                             playhead: BrainTour.playhead(seconds: seconds), running: tour?.held == nil,
+                             scrub: { at in tour?.scrub(to: at, now: Date()) }, toggle: { tour?.toggle(now: Date()) }, close: leaveTour)
+            .padding(MapMetrics.inset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+    }
+
+    /// Starts the tour from the brain assembled, framed whole, with any open card put away.
+    private func startTour() {
+        guard !reduceMotion else { return }
+        if selected != nil { select(nil, prepared().base) }
+        tour = BrainTourClock(started: Date())
+        own = false
+        glideTo(fitted(stage, mode, prepared()))
+        focused = true
+    }
+
+    private func leaveTour() {
+        tour = nil
+        beat += 1
     }
 
     private func enterCinema() {
@@ -902,6 +955,10 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
                 select(nil, prepared.base)
                 return .handled
             }
+            if tour != nil {
+                leaveTour()
+                return .handled
+            }
             if cinema {
                 leaveCinema()
                 return .handled
@@ -911,7 +968,7 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
             return .handled
         }
         if press.key == .space {
-            motionOn.toggle()
+            if tour != nil { tour?.toggle(now: Date()) } else { motionOn.toggle() }
             return .handled
         }
         switch press.characters.lowercased() {
@@ -926,6 +983,9 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
             return .handled
         case BrainWords.replayKey.lowercased():
             replay()
+            return .handled
+        case BrainWords.tourKey.lowercased():
+            if tour == nil { startTour() } else { leaveTour() }
             return .handled
         case BrainWords.motionKey.lowercased():
             motionOn.toggle()
@@ -965,6 +1025,27 @@ struct MemoryMapView<Bar: View, Foot: View, Card: View>: View {
 }
 
 /// Where a glide set off from and when, which the spring carries to the camera's target.
+/// The tour's playhead: when it started, and where it is held while paused, so scrubbing and pausing only move the start.
+struct BrainTourClock {
+    var started: Date
+    var held: Double?
+
+    func seconds(at date: Date) -> Double { held ?? date.timeIntervalSince(started) }
+
+    mutating func toggle(now: Date) {
+        if let held {
+            started = now.addingTimeInterval(-held)
+            self.held = nil
+        } else {
+            held = BrainTour.playhead(seconds: now.timeIntervalSince(started))
+        }
+    }
+
+    mutating func scrub(to seconds: Double, now: Date) {
+        if held != nil { held = seconds } else { started = now.addingTimeInterval(-seconds) }
+    }
+}
+
 struct BrainGlide {
     let from: SurfaceCamera
     let at: Date
@@ -1211,6 +1292,18 @@ final class BrainPulse: @unchecked Sendable {
     var sparks = BrainSparks()
 }
 
+/// Where the hover card stands beside its mark: out past a leader on the side with room, raised so the leader climbs to
+/// it, and kept on the canvas. The card and the leader the painter draws to it both read it, so they always meet.
+enum BrainTip {
+    static func origin(x: Double, y: Double, radius: Double, size: CGSize) -> CGPoint {
+        let reach = radius + MapMetrics.leaderReach
+        let right = x + reach + MapMetrics.tipWidth < size.width
+        let left = right ? x + reach : x - reach - MapMetrics.tipWidth
+        let top = min(max(y - MapMetrics.tipLift - MapMetrics.leaderRise, 0), max(size.height - MapMetrics.tipTall, 0))
+        return CGPoint(x: left, y: top)
+    }
+}
+
 /// One frame of the brain: each mark's spot, size, light and nearness on the screen.
 struct BrainFrame {
     var x: [Double]
@@ -1250,6 +1343,9 @@ enum MapMetrics {
     /// The hover card: how wide it is, how far above the mark it starts and how tall it is at the most.
     static let tipWidth: CGFloat = 220
     static let tipLift = 18.0
+    /// How far out and up the hover card stands from its mark, so the leader to it reads as a line rather than a tick.
+    static let leaderReach = 44.0
+    static let leaderRise = 26.0
     static let tipTall = 96.0
     static let tipLogo: CGFloat = 22
     /// The picked node's card, the console's: as wide as its w-80, as tall as its content up to 36rem, the least it
@@ -1288,6 +1384,7 @@ enum MapMetrics {
 /// The brain's own words, in Memnox's voice.
 enum BrainWords {
     static let replayKey = "R"
+    static let tourKey = "T"
     static let motionKey = "M"
     static let searchKey = "/"
     static let seekPrompt = "SEARCH THE BRAIN"
@@ -1298,6 +1395,33 @@ enum BrainWords {
     /// Routines are not something Memnox runs yet, so the band says what runs without the person today.
     static let routinesLater = "Routines come later; this ring holds the rules and standing permissions that run without you today."
     static let serverSymbol = "server.rack"
+
+    /// What each stretch of the tour is called on its deck, as an instrument names a mode.
+    static func tourName(_ part: TourPart) -> String {
+        switch part {
+        case .assembled: "ASSEMBLED"
+        case .core: "CORE OPEN"
+        case .areas: "AREAS OPEN"
+        case .rules: "RULES OUT"
+        case .applications: "APPLICATIONS OUT"
+        case .teardown: "TEARDOWN"
+        case .reassembly: "REASSEMBLY"
+        }
+    }
+
+    /// The line under a stretch's name, counting what it opened.
+    static func tourDetail(_ part: TourPart, _ prepared: BrainPrepared) -> String {
+        let layers = Dictionary(prepared.layerRows.map { ($0.layer, $0.count) }, uniquingKeysWith: { first, _ in first })
+        switch part {
+        case .assembled: return "EVERY LAYER IN PLACE"
+        case .core: return "\(counted(layers[.skills] ?? 0, "FILE", "FILES")) · SPREAD FROM THE MIDDLE"
+        case .areas: return "\(counted(prepared.areas.count, "AREA", "AREAS")) · SLID OUT FROM THE CORE"
+        case .rules: return "\(counted(layers[.rules] ?? 0, "RULE", "RULES")) · RING TELESCOPED OUT"
+        case .applications: return "\(counted(layers[.applications] ?? 0, "APPLICATION", "APPLICATIONS")) · TILES OUT"
+        case .teardown: return "\(counted(prepared.nodes.count, "MARK", "MARKS")) APART · TURNTABLE"
+        case .reassembly: return "TURNTABLE · RETURNING"
+        }
+    }
 
     static func label(_ group: SourceGroup) -> String {
         switch group {
@@ -1570,6 +1694,112 @@ private struct BrainGrowth: View {
 }
 
 /// A rounded button along the foot, Replay or Cinema.
+/// The tour's deck, an instrument's operation log: the mode it is in, large in the accent, what that mode opened, a
+/// rail with a tick at each stretch to click or drag through, the play button, the time and the way out.
+private struct BrainTourDeck: View {
+    let name: String
+    let detail: String
+    let number: Int
+    let playhead: Double
+    let running: Bool
+    let scrub: (Double) -> Void
+    let toggle: () -> Void
+    let close: () -> Void
+
+    private static let width: CGFloat = 560
+    private static let play: CGFloat = 34
+    private static let rail: CGFloat = 18
+    private static let knob: CGFloat = 11
+    private static let tick: CGFloat = 9
+    private static let bar: CGFloat = 3
+    private static let mode: CGFloat = 24
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+            HStack {
+                Text("TOUR · OPERATING MODE")
+                    .padding(.leading, Memnox.Spacing.small)
+                    .overlay(alignment: .leading) { Rectangle().fill(Memnox.Console.primary).frame(width: Self.bar) }
+                Spacer()
+                Text(String(format: "%02d / %02d", number, BrainTour.sections.count))
+                    .foregroundStyle(Memnox.Console.Brain.faint)
+                Button(action: close) { Image(systemName: "xmark") }
+                    .buttonStyle(.plain)
+                    .pointingHand()
+                    .help("Leave the tour, or press Escape")
+                    .accessibilityLabel("Leave the tour")
+            }
+            .font(Memnox.Console.code(Memnox.Console.Brain.caption, .semibold))
+            .tracking(1.4)
+            .foregroundStyle(Memnox.Console.Brain.quiet)
+            Text(name)
+                .font(Memnox.Console.sans(Self.mode, .bold))
+                .foregroundStyle(Memnox.Console.primary)
+            Text(detail)
+                .font(Memnox.Console.code(Memnox.Console.Brain.caption))
+                .tracking(1.2)
+                .foregroundStyle(Memnox.Console.Brain.quiet)
+            HStack(spacing: Memnox.Spacing.medium) {
+                Button(action: toggle) {
+                    Image(systemName: running ? "pause.fill" : "play.fill")
+                        .foregroundStyle(Memnox.Console.Brain.ink)
+                        .frame(width: Self.play, height: Self.play)
+                        .background(Memnox.Console.primary, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .pointingHand()
+                .help(running ? "Hold the tour, or press Space" : "Run the tour on, or press Space")
+                .accessibilityLabel(running ? "Pause the tour" : "Play the tour")
+                VStack(spacing: Memnox.Spacing.xxSmall) {
+                    rail
+                    HStack {
+                        Text(String(format: "00:%02d / 00:%02d", Int(playhead), Int(BrainTour.length)))
+                        Spacer()
+                        Text("CLICK OR DRAG THE RAIL")
+                    }
+                    .font(Memnox.Console.code(Memnox.Console.Brain.caption))
+                    .foregroundStyle(Memnox.Console.Brain.faint)
+                }
+            }
+        }
+        .padding(Memnox.Spacing.large)
+        .frame(width: Self.width)
+        .mapPanel(radius: Memnox.Console.controlRadius)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Tour")
+    }
+
+    private var rail: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let at = width * playhead / BrainTour.length
+            ZStack(alignment: .leading) {
+                Rectangle().fill(Memnox.Console.Brain.edge).frame(height: Memnox.Stroke.hairline * 2)
+                Rectangle().fill(Memnox.Console.primary).frame(width: at, height: Memnox.Stroke.hairline * 2)
+                ForEach(BrainTour.sections.indices.dropFirst(), id: \.self) { order in
+                    Rectangle().fill(Memnox.Console.Brain.faint)
+                        .frame(width: Memnox.Stroke.hairline, height: Self.tick)
+                        .offset(x: width * BrainTour.sections[order].start / BrainTour.length)
+                }
+                Circle()
+                    .fill(Memnox.Console.Brain.ground)
+                    .overlay(Circle().strokeBorder(Memnox.Console.primary, lineWidth: Memnox.Stroke.hairline * 2))
+                    .frame(width: Self.knob, height: Self.knob)
+                    .offset(x: at - Self.knob / 2)
+            }
+            .frame(height: Self.rail)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+                scrub(min(max(drag.location.x / max(width, 1), 0), 0.9999) * BrainTour.length)
+            })
+        }
+        .frame(height: Self.rail)
+        .accessibilityElement()
+        .accessibilityLabel("Tour time")
+        .accessibilityValue("\(Int(playhead)) of \(Int(BrainTour.length)) seconds")
+    }
+}
+
 private struct BrainPill: View {
     let symbol: String
     let title: String

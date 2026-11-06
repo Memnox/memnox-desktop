@@ -246,3 +246,15 @@ export function sourceInputOf(form: SourceForm): MemorySourceInput {
     ...(place === 'server' ? { server: form.server.trim(), tool: form.tool.trim() } : {}),
   };
 }
+
+/** How memory is drawn: the graph of it, the list, or the three layers any agent reads. */
+export type MemoryView = 'graph' | 'list' | 'layers';
+
+/**
+ * Which view the one Memory page draws: the map when it opens, the view the person switched to after that, and the
+ * list for a popped out item, where its details are drawn. A view this runtime does not offer falls back to the map.
+ */
+export function memoryViewShown(chosen: MemoryView | undefined, offered: readonly MemoryView[], linked: boolean): MemoryView {
+  if (chosen !== undefined && offered.includes(chosen)) return chosen;
+  return linked ? 'list' : 'graph';
+}

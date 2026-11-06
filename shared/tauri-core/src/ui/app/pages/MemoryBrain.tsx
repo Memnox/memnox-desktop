@@ -1,4 +1,5 @@
 import { useEffect, useMemo, type ReactNode } from 'react';
+import type { MemoryItemView } from '@memnox/core/wire';
 import type { Route } from '../../../core/domain/destinations';
 import { localArmsInput } from '../../../core/domain/memory-arms/arms-local';
 import { workspaceGraphLine } from '../../../core/domain/memory-layers-lines';
@@ -17,10 +18,13 @@ export function MemoryBrain({
   parts,
   go,
   nodeCard,
+  shown,
 }: {
   parts: SettingsParts;
   go?: (route: Route) => void;
   nodeCard: (nodeId: string, close: () => void) => ReactNode;
+  /** The facts the page's project filter leaves on the brain; every fact when absent. */
+  shown?: (items: readonly MemoryItemView[]) => readonly MemoryItemView[];
 }) {
   const { memory, skills, hub, studio, support } = parts;
   useObserved(memory, skills, hub, studio, support);
@@ -56,7 +60,7 @@ export function MemoryBrain({
   const built = useMemo(
     () =>
       localArmsInput({
-        ...(memory.everything === undefined ? {} : { items: memory.everything }),
+        ...(memory.everything === undefined ? {} : { items: shown === undefined ? memory.everything : shown(memory.everything) }),
         ...(memory.sources === undefined ? {} : { sources: memory.sources }),
         ...(memory.layers === undefined ? {} : { layers: memory.layers }),
         ...(memory.workspaceGraph === undefined ? {} : { workspace: memory.workspaceGraph }),
@@ -64,7 +68,7 @@ export function MemoryBrain({
         ...(ruleList === undefined ? {} : { rules: ruleList.map((rule) => ({ name: rule.name, effect: rule.effect })) }),
         ...(servers === undefined ? {} : { servers: servers.map((server) => ({ name: server.name })) }),
       }),
-    [memory.everything, memory.sources, memory.layers, memory.workspaceGraph, skillList, ruleList, servers],
+    [memory.everything, memory.sources, memory.layers, memory.workspaceGraph, skillList, ruleList, servers, shown],
   );
   const cardSkills = useMemo(
     () => (skillList ?? []).map((skill) => ({ name: skill.name, ...(skill.description === undefined ? {} : { description: skill.description }), agents: skill.agents, servers: skill.mcpServers })),

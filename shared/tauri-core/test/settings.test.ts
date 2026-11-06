@@ -270,10 +270,10 @@ describe('pairing a phone', () => {
     };
   }
 
-  function pairingOver(daemon: ScriptedDaemon, key = new PersonKey(), connected: boolean | undefined = true) {
+  function pairingOver(daemon: ScriptedDaemon, key = new PersonKey()) {
     const ids = new RequestIds();
     const link = heldOpen(daemon);
-    return { pairing: new PhonePairing(link, new Signer(link, key, ids), key, ids, async () => connected, () => 'Desk'), key };
+    return { pairing: new PhonePairing(link, new Signer(link, key, ids), key, ids, () => 'Desk'), key };
   }
 
   it('shows the QR, then the digits, and pairs once the key signs the pairing', async () => {
@@ -306,7 +306,7 @@ describe('pairing a phone', () => {
 
   it('asks the daemon for a pairing on a computer with no workspace, since none is needed', async () => {
     const daemon = new ScriptedDaemon();
-    const { pairing } = pairingOver(daemon, new PersonKey(), false);
+    const { pairing } = pairingOver(daemon);
     await pairing.pair();
     expect(daemon.requests.map((each) => each.method)).toEqual(['pair-begin']);
   });

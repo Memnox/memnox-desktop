@@ -121,11 +121,6 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     async () => void (await setup.bringUpToDate()),
     () => host.computerName(),
   );
-  const connected = async (): Promise<boolean | undefined> => {
-    await machine.refresh();
-    if (machine.step.kind === 'signed-in') return true;
-    return machine.step.kind === 'signed-out' ? false : undefined;
-  };
   const tools = new Tools(link, ids);
   const timer = (ms: number, fire: () => void) => {
     const handle = setTimeout(fire, ms);
@@ -157,7 +152,7 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     dictation: new DictationWords(store),
     preferences: new Preferences(store),
     account,
-    pairing: new PhonePairing(link, signer, key, ids, connected, () => host.computerName()),
+    pairing: new PhonePairing(link, signer, key, ids, () => host.computerName()),
     home: new Home(link, ids, () => setup.protectAgents(), (ms, fire) => {
       const handle = setTimeout(fire, ms);
       return () => clearTimeout(handle);

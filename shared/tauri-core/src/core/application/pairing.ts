@@ -28,8 +28,6 @@ export class PhonePairing extends Observed {
     private readonly signer: Signer,
     private readonly key: ConfirmKey,
     private readonly ids: RequestIds,
-    /** Whether this computer is connected to a workspace, asked before a phone pairs; undefined when unknown. */
-    private readonly machineConnected: () => Promise<boolean | undefined>,
     /** What to call this computer on the phone. */
     private readonly computerName: () => string | undefined = () => undefined,
   ) {

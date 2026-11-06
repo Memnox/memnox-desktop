@@ -41,6 +41,7 @@ export class Home extends Observed {
   private handNote: string | undefined;
   private protectingNow = false;
   private protectWhy: string | undefined;
+  private restartingNow = false;
   private enforcingNow = false;
   private enforceSaid: string | undefined;
   /** Set while a read is due after a burst, so more events in the burst ask for nothing more. */
@@ -55,6 +56,8 @@ export class Home extends Observed {
       fire();
       return () => undefined;
     },
+    /** Restarts the Memnox service on the newest runtime: undefined once it answers again, else why not. */
+    private readonly restartServiceAction: () => Promise<string | undefined> = async () => undefined,
   ) {
     super();
   }
@@ -87,6 +90,11 @@ export class Home extends Observed {
 
   get protectFailed(): string | undefined {
     return this.protectWhy;
+  }
+
+  /** True while the Memnox service is rebuilt and restarted for a Protect the old service could not see through. */
+  get restarting(): boolean {
+    return this.restartingNow;
   }
 
   get enforcing(): boolean {
@@ -163,13 +171,27 @@ export class Home extends Observed {
 
   /** One press: every agent found here goes under Memnox through the runtime's own setup. */
   async protect(): Promise<void> {
-    if (this.protectingNow) return;
+    if (this.protectingNow || this.restartingNow) return;
     this.protectingNow = true;
     this.protectWhy = undefined;
     this.changed();
     this.protectWhy = await this.protectAgents();
     this.protectingNow = false;
     await this.refresh();
+  }
+
+  /**
+   * Restarts the Memnox service on the newest runtime, as the Mac's `HomeModel.restartService`: undefined once it
+   * answers again, else why not, and undefined at once while a restart or a Protect is under way, whose caller reports it.
+   */
+  async restartService(): Promise<string | undefined> {
+    if (this.restartingNow || this.protectingNow) return undefined;
+    this.restartingNow = true;
+    this.changed();
+    const failed = await this.restartServiceAction();
+    this.restartingNow = false;
+    await this.refresh();
+    return failed;
   }
 
   private async readNumbers(): Promise<void> {

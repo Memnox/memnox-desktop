@@ -21,6 +21,10 @@ export class TauriRuntime implements Runtime {
     return invoke<boolean>(TAURI_COMMAND.runtimeRun, { step });
   }
 
+  build(): Promise<boolean> {
+    return invoke<boolean>(TAURI_COMMAND.runtimeBuild);
+  }
+
   async source(): Promise<RuntimeSource> {
     return runtimeSourceOf(await invoke<{ kind?: unknown; checkout?: unknown }>(TAURI_COMMAND.runtimeSource));
   }

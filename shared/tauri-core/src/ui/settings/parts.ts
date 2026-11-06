@@ -1,5 +1,6 @@
 import { useEffect, useReducer } from 'react';
 import { Account } from '../../core/application/account';
+import { AgentHomes } from '../../core/application/agent-homes';
 import { AppConnections } from '../../core/application/app-connections';
 import { Backup } from '../../core/application/backup';
 import { CommunityIndex } from '../../core/application/community-index';
@@ -56,6 +57,8 @@ export interface SettingsParts {
   readonly pairing: PhonePairing;
   readonly home: Home;
   readonly tools: Tools;
+  /** The terminal or editor a session opens in, picked under Where your agents run. */
+  readonly homes: AgentHomes;
   /** Adding any app, signing in to one again and disconnecting it, read back through `tools`. */
   readonly apps: AppConnections;
   /** The servers paired over the relay, and which machine the voice talks to. */
@@ -153,11 +156,22 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     preferences: new Preferences(store),
     account,
     pairing: new PhonePairing(link, signer, key, ids, () => host.computerName()),
-    home: new Home(link, ids, () => setup.protectAgents(), (ms, fire) => {
-      const handle = setTimeout(fire, ms);
-      return () => clearTimeout(handle);
-    }),
+    home: new Home(
+      link,
+      ids,
+      () => setup.protectAgents(),
+      (ms, fire) => {
+        const handle = setTimeout(fire, ms);
+        return () => clearTimeout(handle);
+      },
+      () => setup.restartService(),
+    ),
     tools,
+    homes: new AgentHomes(
+      store,
+      () => host.agentHomes?.() ?? Promise.resolve([]),
+      (link) => (host.openAppLink ?? host.openPage)(link),
+    ),
     apps: new AppConnections(
       link,
       ids,

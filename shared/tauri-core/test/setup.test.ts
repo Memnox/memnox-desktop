@@ -11,6 +11,7 @@ import { ScriptedDaemon } from './doubles';
 /** A runtime that writes down what it was asked to do, and brings the daemon up when told to. */
 class Machine implements Runtime {
   source?: Runtime['source'];
+  build?: Runtime['build'];
   readonly steps: (RuntimeStep | 'install')[] = [];
   constructor(
     private installed: boolean,
@@ -119,8 +120,25 @@ describe('a daemon whose version does not show what it lacks', () => {
       if (step === 'start') updated.done = true;
     });
     machine.source = async () => ({ kind: 'local', checkout: '/src/memnox-runtime' });
+    const built: string[] = [];
+    machine.build = async () => (built.push('build'), true);
     await new Setup(daemon, machine, new RequestIds(), noWait).ensure();
+    expect(built).toEqual(['build']);
     expect(machine.steps).toEqual(['start']);
+  });
+});
+
+describe('restarting the Memnox service', () => {
+  it('updates and restarts it, and says nothing once it answers again', async () => {
+    const machine = new Machine(true, true);
+    const setup = new Setup(daemonAt({ now: '0.14.0' }), machine, new RequestIds(), noWait);
+    expect(await setup.restartService()).toBeUndefined();
+    expect(machine.steps).toEqual(['update']);
+  });
+
+  it('says how to restart it by hand when there is no memnox to ask', async () => {
+    const setup = new Setup(daemonAt({ now: undefined }), new Machine(false, true), new RequestIds(), noWait);
+    expect(await setup.restartService()).toBe('The Memnox service would not restart. In a terminal: memnox daemon --install');
   });
 });
 

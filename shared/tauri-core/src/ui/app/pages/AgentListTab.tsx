@@ -99,6 +99,16 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
       setResult(afterProtect(kinds, agents.agents ?? [], home.protectFailed, { at: Date.now() }));
     });
   };
+  // For a result that said the service is too old to see these agents held, then the cards are read again so the
+  // line says whether the newer service counts them protected.
+  const restart = (kinds: readonly string[]) => {
+    if (home.restarting || home.protecting) return;
+    void home.restartService().then(async (failed) => {
+      await agents.refresh();
+      setResult(afterProtect(kinds, agents.agents ?? [], failed, { restarted: true, at: Date.now() }));
+    });
+  };
+  const followUp = { restarting: home.restarting, busy: home.restarting || home.protecting, restart };
 
   if (list === undefined) return agents.unreadable ? <ReadFailed what={AgentListLines.readWhat} retry={() => void agents.refresh()} /> : null;
   const noteLine = note !== undefined && <Note>{note}</Note>;
@@ -138,9 +148,9 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
               </span>
               <span className="text-body-sm font-semibold text-foreground">{open}</span>
             </span>
-            {result !== undefined && outside.some((kind) => result.kinds.includes(kind)) ? <ProtectResultLine result={result} /> : <span className="text-meta text-muted">{OUTSIDE_MEMNOX}</span>}
+            {result !== undefined && outside.some((kind) => result.kinds.includes(kind)) ? <ProtectResultLine result={result} followUp={followUp} /> : <span className="text-meta text-muted">{OUTSIDE_MEMNOX}</span>}
           </div>
-          <ProtectButton busy={home.protecting} press={() => protect(outside)} />
+          <ProtectButton busy={home.protecting} blocked={home.restarting} press={() => protect(outside)} />
         </section>
       )}
       {shown.length === 0 ? (
@@ -155,6 +165,7 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
               busy={agents.busy === agent.kind}
               protecting={home.protecting}
               result={result !== undefined && result.kinds.includes(agent.kind) ? result : undefined}
+              followUp={followUp}
               launchOpen={launching === agent.kind}
               protect={() => protect([agent.kind])}
               pause={() => void agents.pause(agent.kind).then(said)}
@@ -183,22 +194,40 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
   );
 }
 
-function ProtectButton({ busy, press }: { busy: boolean; press: () => void }) {
+/** Waits while a press or a restart runs, as the Mac's ProtectButton. */
+function ProtectButton({ busy, blocked = false, press }: { busy: boolean; blocked?: boolean; press: () => void }) {
   return (
-    <Button kind="primary" busy={busy} onClick={press} title={AgentListLines.protectHelp}>
+    <Button kind="primary" busy={busy} disabled={blocked} onClick={press} title={AgentListLines.protectHelp}>
       {busy ? AgentListLines.protecting : AgentListLines.protect}
     </Button>
   );
 }
 
-/** What a Protect press came to, in green once the agents are held and in amber while something keeps one outside. */
-function ProtectResultLine({ result }: { result: ProtectResult }) {
+/** What the result line's one follow up press needs: whether a restart runs, and how to start one for these agents. */
+interface FollowUp {
+  readonly restarting: boolean;
+  readonly busy: boolean;
+  readonly restart: (kinds: readonly string[]) => void;
+}
+
+/**
+ * What a Protect press came to, in green once the agents are held and in amber while something keeps one outside,
+ * with the one step the app can take for the person under it, as the Mac's ProtectResultLine.
+ */
+function ProtectResultLine({ result, followUp }: { result: ProtectResult; followUp: FollowUp }) {
   const Icon = result.held ? ShieldCheck : TriangleAlert;
   const when = result.at === undefined ? '' : ` · ${new Date(result.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
   return (
-    <span className={`flex items-start gap-1.5 text-meta select-text ${result.held ? 'text-success' : 'text-warm'}`}>
-      <Icon size={RESULT_GLYPH} className="mt-px shrink-0" aria-hidden />
-      <span>{`${result.line}${when}`}</span>
+    <span className="flex flex-col items-start gap-2">
+      <span className={`flex items-start gap-1.5 text-meta select-text ${result.held ? 'text-success' : 'text-warm'}`}>
+        <Icon size={RESULT_GLYPH} className="mt-px shrink-0" aria-hidden />
+        <span>{`${result.line}${when}`}</span>
+      </span>
+      {result.restartService && (
+        <Button busy={followUp.restarting} disabled={followUp.busy} onClick={() => followUp.restart(result.kinds)} title={AgentListLines.restartHelp}>
+          {followUp.restarting ? AgentListLines.restartingService : AgentListLines.restartService}
+        </Button>
+      )}
     </span>
   );
 }
@@ -213,6 +242,7 @@ function AgentCard({
   busy,
   protecting,
   result,
+  followUp,
   launchOpen,
   protect,
   pause,
@@ -225,6 +255,7 @@ function AgentCard({
   busy: boolean;
   protecting: boolean;
   result: ProtectResult | undefined;
+  followUp: FollowUp;
   launchOpen: boolean;
   protect: () => void;
   pause: () => void;
@@ -281,7 +312,7 @@ function AgentCard({
       <span className="flex-1" />
       <footer className="flex items-center gap-2">
         {press === 'protect' ? (
-          <ProtectButton busy={protecting} press={protect} />
+          <ProtectButton busy={protecting} blocked={followUp.restarting} press={protect} />
         ) : press === 'resume' ? (
           <Button icon={Play} disabled={busy} onClick={resume} title={AgentListLines.resumeHelp(keyTitle)}>
             {AgentListLines.resume}
@@ -298,7 +329,7 @@ function AgentCard({
           </Button>
         )}
       </footer>
-      {result !== undefined && <ProtectResultLine result={result} />}
+      {result !== undefined && <ProtectResultLine result={result} followUp={followUp} />}
       {launchOpen && launchForm}
     </article>
   );

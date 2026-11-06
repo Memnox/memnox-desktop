@@ -235,6 +235,7 @@ describe('the one sign in', () => {
     expect(opened).toEqual(['https://console.memnox.com/device']);
     expect(daemon.sent('person-sign-in')[0]?.name).toBe('Desk');
     expect(account.whole).toEqual({ kind: 'signed-in', name: 'Sam', workspace: 'Acme' });
+    expect(account.isJoined).toBe(true);
   });
 
   it('calls a daemon that does not know the question too old, and one that is down unreachable', async () => {
@@ -376,6 +377,20 @@ describe('the home', () => {
     expect(daemon.sent('hand-over')[0]?.action).toBe('git push');
     expect(home.handOverNote).toBe('Pick where it holds on the island, then confirm with Windows Hello.');
     expect(home.home).toEqual(view);
+  });
+
+  it('restarts the service once at a time and says why it failed', async () => {
+    const daemon = new ScriptedDaemon({});
+    let restarts = 0;
+    let finish: (why: string | undefined) => void = () => undefined;
+    const home = new Home(daemon, new RequestIds(), async () => undefined, undefined, () => (restarts += 1, new Promise((done) => (finish = done))));
+    const first = home.restartService();
+    expect(home.restarting).toBe(true);
+    expect(await home.restartService()).toBeUndefined();
+    finish('The Memnox service would not restart. In a terminal: memnox daemon --install');
+    expect(await first).toBe('The Memnox service would not restart. In a terminal: memnox daemon --install');
+    expect(home.restarting).toBe(false);
+    expect(restarts).toBe(1);
   });
 });
 

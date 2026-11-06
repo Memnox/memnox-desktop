@@ -64,4 +64,11 @@ describe('Home and Today use the Mac words', () => {
     expect(page).toContain(`h-[${TODAY_TABLE.head}px]`);
     expect(page).toContain(`size={${TODAY_TABLE.logo}}`);
   });
+
+  it('keeps every column at every width, as the Mac table does', () => {
+    // The Mac's WorkTable never folds, so no column hides and no row changes its grid on a narrow window.
+    expect(page).not.toMatch(/max-narrow:/);
+    expect(page).not.toMatch(/\bnarrow:/);
+    expect(page.match(/\$\{TABLE_COLUMNS\}/g)).toHaveLength(2);
+  });
 });

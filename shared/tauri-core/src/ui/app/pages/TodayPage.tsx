@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp, CircleArrowRight, CircleCheck, CircleDashed, CircleX, Fingerprint, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import type { HeldOutcome } from '../../../core/application/held-calls';
+import { HOLD_ANSWER } from '@memnox/core/wire';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
 import type { HeldCard } from '../../../core/domain/held-card';
 import { briefItems, HOME_BRIEF_NONE, HOME_BRIEF_TITLE, homeBrief, type HomeBriefBlock } from '../../../core/domain/home-brief';
@@ -34,6 +34,7 @@ import { bringForward } from '../../sessions/open-session';
 import { Inspector } from '../widgets';
 import { GoLink } from './HomePage';
 import { Button, IconButton, PRESS_DIP, Pressable, StatusWord, type Tone } from '../../kit';
+import { handHeld, heldBusy } from '../held-hand';
 
 /** The window reads the clock this often, so ages and the synced time stay true while it is open. */
 const CLOCK_MS = 15_000;
@@ -162,7 +163,7 @@ export function TodayPage({
 
   const cardOf = (item: TodayItem): HeldCard | undefined => waiting.find(({ subject }) => heldId(subject) === item.id)?.card;
   const busy = (item: TodayItem): boolean => {
-    if (item.kind.kind === 'held') return calls.state.answering;
+    if (item.kind.kind === 'held') return heldBusy(calls.state);
     if (item.kind.kind === 'hand-over') return home.handingOver;
     if (item.kind.kind === 'unprotected') return home.protecting;
     return false;
@@ -183,10 +184,11 @@ export function TodayPage({
         if (card === undefined) return;
         // The item leaves once answered, so the one after it opens rather than nothing.
         const after = step(item.id, 1, items);
-        // The same path the island's buttons take, so an allow is signed or is not sent.
-        const outcome = await calls.answer(card.subject, choice.action.answer);
-        if (outcome.kind === 'answered' || outcome.kind === 'answered-elsewhere') setOpen(after === item.id ? undefined : after);
-        setNote(outcomeNote(outcome));
+        // An edit is made on the island's own card alone, so it is never offered here.
+        if (choice.action.answer === HOLD_ANSWER.EDIT) return;
+        // Handed to the island, as the Mac's Today does, so an allow is signed there and how it ended is said on its card.
+        handHeld(calls, card.subject, choice.action.answer);
+        setOpen(after === item.id ? undefined : after);
         return;
       }
       case 'hand-over':
@@ -324,7 +326,7 @@ function useHeldFeed({ calls }: SettingsParts): void {
 function Table({ items, all, now, open, pick }: { items: readonly TodayItem[]; all: readonly TodayItem[]; now: number; open: string | undefined; pick: (id: string) => void }) {
   return (
     <div className="overflow-hidden rounded-card border border-panel-edge bg-card">
-      <div className={`grid ${TABLE_COLUMNS} h-[34px] items-center gap-3 border-b border-panel-edge px-4 text-label font-medium text-faint max-narrow:hidden`} aria-hidden>
+      <div className={`grid ${TABLE_COLUMNS} h-[34px] items-center gap-3 border-b border-panel-edge px-4 text-label font-medium text-faint`} aria-hidden>
         {TodayPageLines.columns.map((title, index) => (
           <span key={index} className="truncate">
             {title}
@@ -342,20 +344,20 @@ function Table({ items, all, now, open, pick }: { items: readonly TodayItem[]; a
               aria-pressed={chosen}
               aria-label={TodayNotes.rowLabel(number, item.title, item.agentName, TODAY_STATE_LABEL[item.state])}
               onClick={() => pick(item.id)}
-              className={`mx-focus grid w-full cursor-pointer ${TABLE_COLUMNS} items-center gap-3 px-4 py-3 text-left hover:bg-hover max-narrow:grid-cols-[2rem_minmax(0,1fr)] ${PRESS_DIP} ${chosen ? 'bg-active' : ''}`}
+              className={`mx-focus grid w-full cursor-pointer ${TABLE_COLUMNS} items-center gap-3 px-4 py-3 text-left hover:bg-hover ${PRESS_DIP} ${chosen ? 'bg-active' : ''}`}
             >
               <span className="font-code text-label text-faint">{number}</span>
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate text-body-sm font-medium text-foreground">{item.title}</span>
                 {line !== undefined && <span className="truncate text-meta text-muted">{line}</span>}
               </span>
-              <span className="flex min-w-0 items-center gap-1.5 max-narrow:hidden">
+              <span className="flex min-w-0 items-center gap-1.5">
                 {/* Written out, as the widths are, so the test holds the logo to TODAY_TABLE.logo. */}
                 <BrandLogo agent={item.agent ?? 'memnox'} name={item.agentName} size={20} />
                 <span className="truncate text-meta text-foreground">{item.agentName}</span>
               </span>
-              <span className="font-code text-label text-muted max-narrow:hidden">{age(item.since, now) ?? ''}</span>
-              <span className="min-w-0 max-narrow:hidden">
+              <span className="font-code text-label text-muted">{age(item.since, now) ?? ''}</span>
+              <span className="min-w-0">
                 <StateMark state={item.state} />
               </span>
             </Pressable>
@@ -463,17 +465,4 @@ function ChoiceRow({ choice, signed, keyTitle, disabled, press }: { choice: Toda
       {choice.recommended && <StatusWord tone="good">{TodayPageLines.recommended}</StatusWord>}
     </Pressable>
   );
-}
-
-function outcomeNote(outcome: HeldOutcome): string {
-  switch (outcome.kind) {
-    case 'answered':
-      return TodayNotes.answered;
-    case 'answered-elsewhere':
-      return TodayNotes.answeredElsewhere;
-    case 'cancelled':
-      return TodayNotes.cancelled;
-    case 'failed':
-      return outcome.why;
-  }
 }

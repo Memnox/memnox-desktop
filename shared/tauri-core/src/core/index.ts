@@ -1,5 +1,5 @@
 /** The core every desktop screen draws from: no DOM, no Tauri, only the daemon, the key and the voice through ports. */
-export { HeldCalls, type HeldCallsOptions, type HeldOutcome, type HeldState } from './application/held-calls';
+export { HeldCalls, handedOutcome, type HandedOutcome, type HeldCallsOptions, type HeldOutcome, type HeldState } from './application/held-calls';
 export { RequestIds } from './application/request-ids';
 export { ProposalCards } from './application/proposal-cards';
 export { NO_KEY_LINE, Signer, type Signing } from './application/signer';

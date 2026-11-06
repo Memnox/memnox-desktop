@@ -1,9 +1,6 @@
 import { HOLD_ANSWER } from '@memnox/core/wire';
 import { ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { HeldOutcome } from '../../../core/application/held-calls';
-import type { HeldCard } from '../../../core/domain/held-card';
-import type { HeldAnswer } from '../../../core/domain/call-label';
 import { HeldImpactLines } from '../../cards/HeldImpact';
 import { NOTICES_ASKED_KEY, NOTICES_DENIED, NOTICES_DETAIL, NOTICES_KEY, NOTICES_TITLE } from '../../../core/domain/held-notices';
 import { useObserved, type SettingsParts } from '../../settings/parts';
@@ -15,6 +12,7 @@ import { projectNameOfPlace } from '../../../core/domain/project-context';
 import { heldFacts, NOTHING_WAITING, NOTHING_WAITING_DETAIL, waitingLine } from '../../../core/domain/approvals-lines';
 import { GovernanceLines } from '../../../core/domain/governance-lines';
 import { BrandLogo, Button, EmptyState, StatusWord, Switch } from '../../kit';
+import { handHeld, heldBusy } from '../held-hand';
 
 /** How long the window waits before opening the live feed again after the daemon went away. */
 const RECONNECT_MS = 2_000;
@@ -31,8 +29,9 @@ export function GovernancePage({ parts, tab, width, go }: { parts: SettingsParts
 }
 
 /**
- * What waits on the person, oldest first, each saying exactly what the agent wants to do and where. A yes
- * that reaches outside the session is signed with the computer's key, the same as on the island.
+ * What waits on the person, oldest first, each saying exactly what the agent wants to do and where. Every answer goes
+ * through the island, as the Mac's does, so a yes that reaches outside the session is signed exactly as there and how
+ * it ended is said on the island's card; the card here leaves once the answer stands.
  */
 function Approvals({ parts }: { parts: SettingsParts }) {
   const { calls, words, projects, support } = parts;
@@ -54,13 +53,8 @@ function Approvals({ parts }: { parts: SettingsParts }) {
       open = false;
     };
   }, []);
-  const [notes, setNotes] = useState<Record<string, string>>({});
   const waiting = [...calls.state.waiting.newestFirst].reverse();
-
-  const answer = async (card: HeldCard, choice: HeldAnswer) => {
-    const outcome = await calls.answer(card.subject, choice);
-    setNotes((now) => ({ ...now, [card.subject]: outcomeNote(outcome) }));
-  };
+  const busy = heldBusy(calls.state);
 
   return (
     <div className="flex flex-col gap-6">
@@ -87,19 +81,18 @@ function Approvals({ parts }: { parts: SettingsParts }) {
                   ))}
                 </dl>
                 <div className="flex items-center gap-2">
-                  <Button kind="primary" disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.ONCE)}>
+                  <Button kind="primary" disabled={busy} onClick={() => handHeld(calls, subject, HOLD_ANSWER.ONCE)}>
                     {GovernanceLines.allowOnce}
                   </Button>
-                  <Button disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.SESSION)}>
+                  <Button disabled={busy} onClick={() => handHeld(calls, subject, HOLD_ANSWER.SESSION)}>
                     {GovernanceLines.allowSession}
                   </Button>
                   {/* Set apart from the yeses, so a refusal is never pressed by a slip. */}
                   <span className="min-w-5 flex-1" />
-                  <Button disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.DENY)}>
+                  <Button disabled={busy} onClick={() => handHeld(calls, subject, HOLD_ANSWER.DENY)}>
                     {GovernanceLines.deny}
                   </Button>
                 </div>
-                {notes[subject] !== undefined && <p className="text-footnote text-muted">{notes[subject]}</p>}
               </article>
             ))}
           </div>
@@ -153,17 +146,4 @@ function Fact({ name, value }: { name: string; value: string }) {
       <dd className="min-w-0 break-words text-foreground">{value}</dd>
     </>
   );
-}
-
-function outcomeNote(outcome: HeldOutcome): string {
-  switch (outcome.kind) {
-    case 'answered':
-      return GovernanceLines.answered;
-    case 'answered-elsewhere':
-      return GovernanceLines.answeredElsewhere;
-    case 'cancelled':
-      return GovernanceLines.cancelled;
-    case 'failed':
-      return outcome.why;
-  }
 }

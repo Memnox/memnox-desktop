@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { LIBRARY_RULES, markToolkit, READY_RULE_CATEGORIES, RULE_MARKS, STARTER_SET } from '../src/core/domain/ready-rule-library';
+import { actionGlyph, LIBRARY_RULES, MARK_OVERLAP_SHARE, markTiles, markToolkit, MOST_MARKS, READY_RULE_CATEGORIES, RULE_MARKS, STARTER_SET } from '../src/core/domain/ready-rule-library';
 
 /**
  * The library is written twice, once in Swift for the Mac and once here, so this reads the Mac's own file and checks
@@ -198,5 +198,26 @@ describe('the ready-made library matches the Mac', () => {
     }
     expect(Object.keys(toolkits).sort()).toEqual([...RULE_MARKS].sort());
     for (const mark of RULE_MARKS) expect(markToolkit(mark), mark).toBe(toolkits[mark]);
+  });
+});
+
+describe('the stack of marks a ready card draws', () => {
+  it('stacks up to four marks in order, a logo where a product has one, as the Mac’s RuleMarks does', () => {
+    expect(markTiles(['github', 'git', 'key', 'cloud', 'files'], [])).toEqual([
+      { kind: 'logo', toolkit: markToolkit('github') },
+      { kind: 'mark', mark: 'git' },
+      { kind: 'mark', mark: 'key' },
+      { kind: 'mark', mark: 'cloud' },
+    ]);
+    expect(MOST_MARKS).toBe(4);
+    expect(MARK_OVERLAP_SHARE).toBe(0.22);
+  });
+
+  it('reads at most two distinct glyphs from the actions when a rule has no mark, a terminal for an unknown tool', () => {
+    expect(markTiles([], ['aws.s3.rm', 'gcloud.storage.rm', 'git.push', 'psql.drop'])).toEqual([
+      { kind: 'action', glyph: 'cloud' },
+      { kind: 'action', glyph: 'branch' },
+    ]);
+    expect(actionGlyph('make.build')).toBe('terminal');
   });
 });

@@ -48,6 +48,58 @@ export function markToolkit(mark: RuleMark): string | undefined {
   return TOOLKITS[mark];
 }
 
+/** The glyph a kind of tool wears, named for the Mac's SF Symbol so both draw the same one; unknown tools are a terminal. */
+export type ActionGlyph = 'asterisk' | 'branch' | 'pull' | 'doc' | 'puzzle' | 'globe' | 'cloud' | 'box' | 'stack' | 'send' | 'cylinder' | 'terminal';
+
+const ACTION_GLYPHS: Readonly<Record<string, ActionGlyph>> = {
+  '*': 'asterisk',
+  git: 'branch',
+  gh: 'pull',
+  filesystem: 'doc',
+  mcp: 'puzzle',
+  http: 'globe',
+  aws: 'cloud',
+  gcloud: 'cloud',
+  az: 'cloud',
+  kubectl: 'box',
+  docker: 'box',
+  npm: 'box',
+  terraform: 'stack',
+  vercel: 'send',
+  fly: 'send',
+  heroku: 'send',
+  netlify: 'send',
+  psql: 'cylinder',
+  mysql: 'cylinder',
+};
+
+/** The glyph for the first word of an action, as the Mac's `RuleSymbols.action` picks it. */
+export function actionGlyph(action: string): ActionGlyph {
+  return ACTION_GLYPHS[action.split('.')[0] ?? action] ?? 'terminal';
+}
+
+/** One square of a rule's stack of marks: a product's logo, a glyph for a kind of act, or one read from an action. */
+export type MarkTile = { readonly kind: 'logo'; readonly toolkit: string } | { readonly kind: 'mark'; readonly mark: RuleMark } | { readonly kind: 'action'; readonly glyph: ActionGlyph };
+
+/** At most four marks stand in the stack, and at most two glyphs read from actions, as the Mac's `RuleMarks` draws them. */
+export const MOST_MARKS = 4;
+export const MOST_ACTION_MARKS = 2;
+/** How far each square tucks under the one before it, as a share of its side. */
+export const MARK_OVERLAP_SHARE = 0.22;
+
+/** The squares a rule's card stacks, in order: its marks, else the distinct glyphs of its actions. */
+export function markTiles(marks: readonly RuleMark[], actions: readonly string[]): MarkTile[] {
+  if (marks.length > 0) {
+    return marks.slice(0, MOST_MARKS).map((mark) => {
+      const toolkit = markToolkit(mark);
+      return toolkit === undefined ? { kind: 'mark', mark } : { kind: 'logo', toolkit };
+    });
+  }
+  const glyphs: ActionGlyph[] = [];
+  for (const glyph of actions.map(actionGlyph)) if (!glyphs.includes(glyph)) glyphs.push(glyph);
+  return glyphs.slice(0, MOST_ACTION_MARKS).map((glyph) => ({ kind: 'action', glyph }));
+}
+
 /** A ready-made rule as the console's library writes it: what it covers, the effect it is offered with, and why. */
 export interface LibraryRule {
   /** Also the rule's name, so adding it twice is one rule rather than two. */

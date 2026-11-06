@@ -131,7 +131,7 @@ struct RulesLibrary: View {
     }
 }
 
-/// One ready-made rule: its mark, its name and one line, its effect now as a coloured badge with Changed under it once a
+/// One ready-made rule: its stack of marks, its name and one line, its effect now as a coloured badge with Changed under it once a
 /// pick waits, and Allow, Ask and Deny to pick, the suggested one marked. A card with a pick waiting is outlined in blue.
 private struct ReadyRuleCard: View {
     let rule: ReadyRule
@@ -155,7 +155,7 @@ private struct ReadyRuleCard: View {
         let shape = RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous)
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
             HStack(alignment: .top, spacing: Memnox.Spacing.medium) {
-                RuleMarks(marks: Array(rule.marks.prefix(1)), actions: Array(rule.actions.prefix(1)), size: Layout.mark)
+                RuleMarks(marks: rule.marks, actions: rule.actions, size: Layout.mark)
                 Spacer(minLength: Memnox.Spacing.medium)
                 VStack(alignment: .trailing, spacing: Memnox.Spacing.xxSmall) {
                     StatusWord(Tone(badge.tone), badge.word)

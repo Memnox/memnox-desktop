@@ -1,4 +1,4 @@
-import { AppWindow, ArrowRight, Ban, Box, Check, CircleHelp, Cloud, Database, Download, FileText, GitBranch, GitPullRequest, Globe, HardDrive, KeyRound, Layers, MessageSquare, Package, Plus, Puzzle, Rocket, Route, Settings, ShieldAlert, ShieldCheck, Sparkles, SquareTerminal, Undo2, Upload, UserCheck, UserCog, Workflow, Asterisk, type LucideIcon } from 'lucide-react';
+import { AppWindow, ArrowRight, Ban, Box, Check, CircleHelp, Cloud, Database, Download, FileText, GitBranch, GitPullRequest, Globe, HardDrive, KeyRound, Layers, MessageSquare, Package, Plus, Puzzle, Route, Search, Send, Settings, ShieldAlert, ShieldCheck, Sparkles, SquareTerminal, Undo2, Upload, UserCheck, UserCog, Workflow, Asterisk, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { RuleDraftInput, StudioOutcome } from '../../../core/application/studio';
 import type { WidthClass } from '../../../core/domain/destinations';
@@ -7,7 +7,7 @@ import { agentLabel } from '../../../core/domain/mcp-hub-lines';
 import { almostLine, autopilotLine, draftSentence, EFFECT_WORDS, effectTone, exportedCount, NOTHING_TO_EXPORT, packCopiedLine, packSavedLine, sourceWords, weekLine, type Effect } from '../../../core/domain/studio-lines';
 import { ALL_CATEGORIES, settledCategory } from '../../../core/domain/catalog';
 import { effectTabs, onTab, ruleCards, type EffectTab, type RuleCard } from '../../../core/domain/rule-catalog';
-import { markToolkit, type RuleMark } from '../../../core/domain/ready-rule-library';
+import { MARK_OVERLAP_SHARE, markTiles, type ActionGlyph, type RuleMark } from '../../../core/domain/ready-rule-library';
 import { READY_EFFECTS, readyGroups, readyInForce, shownGroups, starterRules, type ReadyRule } from '../../../core/domain/ready-rules';
 import { groupCountLine, ruleAsWritten } from '../../../core/domain/rule-words';
 import { canChange, changeCountLine, changeLine, changesToml, currentEffect, flatRules, pickingSuggested, PROTECTION, PROTECTION_TABS, readyBadge, readyChanges, removals, type ProtectionTab, type ReadyChange } from '../../../core/domain/protection-lines';
@@ -36,7 +36,7 @@ const MARK_ICONS: Record<RuleMark, LucideIcon> = {
   message: MessageSquare,
   network: Globe,
   package: Box,
-  rocket: Rocket,
+  rocket: Send,
   terminal: SquareTerminal,
   workflow: Workflow,
   storage: HardDrive,
@@ -53,29 +53,6 @@ const MARK_ICONS: Record<RuleMark, LucideIcon> = {
   mongodb: AppWindow,
   stripe: AppWindow,
   heroku: AppWindow,
-};
-
-/** The glyph for the first word of an action, by the kind of tool it names, as the Mac's `RuleSymbols.action`; anything unknown is a terminal. */
-const ACTION_ICONS: Record<string, LucideIcon> = {
-  '*': Asterisk,
-  git: GitBranch,
-  gh: GitPullRequest,
-  filesystem: FileText,
-  mcp: Puzzle,
-  http: Globe,
-  aws: Cloud,
-  gcloud: Cloud,
-  az: Cloud,
-  kubectl: Box,
-  docker: Box,
-  npm: Box,
-  terraform: Layers,
-  vercel: Rocket,
-  fly: Rocket,
-  heroku: Rocket,
-  netlify: Rocket,
-  psql: Database,
-  mysql: Database,
 };
 
 /** Each effect wears the console's glyph for it. */
@@ -214,7 +191,7 @@ function ReadyMadeRules({ parts, groups, inForce, picked, setPicked, orgOnly, op
           )}
         </div>
         {shown.length === 0 ? (
-          <EmptyState icon={ShieldCheck} title={PROTECTION.noneMatchTitle} body={PROTECTION.noneMatchDetail} />
+          <EmptyState icon={Search} title={PROTECTION.noneMatchTitle} body={PROTECTION.noneMatchDetail} />
         ) : (
           <CardGrid>
             {shown.map((rule) => {
@@ -238,46 +215,90 @@ function ReadyMadeRules({ parts, groups, inForce, picked, setPicked, orgOnly, op
   );
 }
 
-/** What a rule is about, as the Mac's `RuleMarks` draws its first: a product's own logo, a glyph for a kind of act, and for a pack's rule a glyph read from its first action. */
-function RuleMarkIcon({ rule }: { rule: ReadyRule }) {
-  const mark = rule.marks[0];
-  const toolkit = mark === undefined ? undefined : markToolkit(mark);
-  if (toolkit !== undefined) return <ToolMark toolkit={toolkit} size={24} />;
-  const action = rule.actions[0] ?? '';
-  const Icon = mark === undefined ? (ACTION_ICONS[action.split('.')[0] ?? action] ?? SquareTerminal) : MARK_ICONS[mark];
-  return <Icon size={15} aria-hidden />;
+/** The glyph a tool's action wears, the lucide stand in for the Mac's SF Symbol of the same name. */
+const ACTION_ICONS: Record<ActionGlyph, LucideIcon> = {
+  asterisk: Asterisk,
+  branch: GitBranch,
+  pull: GitPullRequest,
+  doc: FileText,
+  puzzle: Puzzle,
+  globe: Globe,
+  cloud: Cloud,
+  box: Box,
+  stack: Layers,
+  send: Send,
+  cylinder: Database,
+  terminal: SquareTerminal,
+};
+
+/** The side of a ready card's squares, and the share of it the glyph and the logo take, as the Mac's card draws them. */
+const MARK_SIDE = 28;
+const GLYPH_SHARE = 0.42;
+const LOGO_SHARE = 0.78;
+/** The Mac's corner of a square, 8 on a side of 36, scaled to the side drawn. */
+const MARK_RADIUS = (MARK_SIDE * 8) / 36;
+
+/**
+ * What a rule is about, as the Mac's `RuleMarks` stacks it: up to four squares, each tucked under the one before it and
+ * ringed in the card's colour, a product's own logo on white or a glyph for a kind of act.
+ */
+function RuleMarks({ rule }: { rule: ReadyRule }) {
+  const tiles = markTiles(rule.marks, rule.actions);
+  return (
+    <span className="flex shrink-0 items-center" aria-hidden>
+      {tiles.map((tile, at) => {
+        const Icon = tile.kind === 'mark' ? MARK_ICONS[tile.mark] : tile.kind === 'action' ? ACTION_ICONS[tile.glyph] : undefined;
+        return (
+          <span
+            key={tile.kind === 'logo' ? tile.toolkit : tile.kind === 'mark' ? tile.mark : tile.glyph}
+            className={`grid shrink-0 place-items-center border border-border text-muted ${tile.kind === 'logo' ? 'bg-white' : 'bg-background'}`}
+            style={{ width: MARK_SIDE, height: MARK_SIDE, borderRadius: MARK_RADIUS, marginLeft: at === 0 ? 0 : -MARK_SIDE * MARK_OVERLAP_SHARE, boxShadow: '0 0 0 2px var(--color-card)', zIndex: tiles.length - at }}
+          >
+            {tile.kind === 'logo' ? <ToolMark toolkit={tile.toolkit} size={Math.round(MARK_SIDE * LOGO_SHARE)} /> : Icon !== undefined && <Icon size={Math.round(MARK_SIDE * GLYPH_SHARE)} />}
+          </span>
+        );
+      })}
+    </span>
+  );
 }
 
-/** One ready-made rule: what it is about, its words, its effect now with Changed once a pick waits, and the three choices. */
+/**
+ * One ready-made rule laid out as the Mac's card: its stack of marks with its effect now and Changed beside it, its
+ * name and one line, then Allow, Ask and Deny with Details. A card with a pick waiting is outlined in blue.
+ */
 function ReadyCard({ rule, inForce, picked, disabled, pick, open }: { rule: ReadyRule; inForce: readonly PolicyRuleView[]; picked: Effect | undefined; disabled: boolean; pick: (effect: Effect) => void; open?: () => void }) {
   const badge = readyBadge(rule, inForce);
   const value = picked ?? currentEffect(rule, inForce);
   return (
-    <CatalogCard
-      icon={<RuleMarkIcon rule={rule} />}
-      title={rule.title}
-      line={rule.says}
-      chosen={picked !== undefined}
-      badges={
-        <>
+    <div className={`flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-left ${picked === undefined ? 'border-panel-edge' : 'border-primary'}`} aria-label={`${rule.title}, ${badge.word}`}>
+      <div className="flex items-start gap-2">
+        <RuleMarks rule={rule} />
+        <span className="flex-1" />
+        <div className="flex flex-col items-end gap-0.5">
           <StatusWord tone={badge.tone}>{badge.word}</StatusWord>
-          {/* Reserved on every card, so a marker arriving never moves the words. */}
-          <span className={`text-label font-medium text-primary ${picked === undefined ? 'invisible' : ''}`}>{PROTECTION.changed}</span>
-        </>
-      }
-      more={
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <EffectSegments label={rule.title} value={value} suggested={rule.effect} disabled={disabled} pick={pick} />
-          </div>
-          {open !== undefined && (
-            <button type="button" onClick={open} className="mx-focus h-7 shrink-0 cursor-pointer text-meta text-primary">
-              {PROTECTION.details}
-            </button>
-          )}
+          {/* Reserved on every card, so a marker arriving never moves the title. */}
+          <span className={`text-label font-medium text-primary ${picked === undefined ? 'invisible' : ''}`} aria-hidden={picked === undefined}>
+            {PROTECTION.changed}
+          </span>
         </div>
-      }
-    />
+      </div>
+      <div className="flex flex-1 flex-col gap-1">
+        <span className="text-body-sm font-medium text-foreground">{rule.title}</span>
+        <p className="line-clamp-2 text-meta text-muted" title={`${rule.says}\n${rule.actions.join(', ')}`}>
+          {rule.says}
+        </p>
+      </div>
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <EffectSegments label={rule.title} value={value} suggested={rule.effect} disabled={disabled} pick={pick} />
+        </div>
+        {open !== undefined && (
+          <button type="button" onClick={open} className="mx-focus h-7 shrink-0 cursor-pointer text-meta text-primary" title={disabled ? 'This rule is changed where it came from' : 'Open the rule in force'}>
+            {PROTECTION.details}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

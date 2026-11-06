@@ -124,3 +124,27 @@ export function instructionsFile(found: Pick<FoundSkillView, 'path'>): string {
   const slash = windows ? '\\' : '/';
   return `${found.path.endsWith(slash) ? found.path : found.path + slash}SKILL.md`;
 }
+
+/** "2 of 5 in the hub, 1 of 3 found on this computer", said while a search narrows both, as the Mac says it. */
+export function searchCountLine(hub: { shown: number; total: number }, found: { shown: number; total: number }): string {
+  return `${countedLine(hub.shown, hub.total, true)} in the hub, ${countedLine(found.shown, found.total, true)} found on this computer`;
+}
+
+/** Said where a found skill's SKILL.md does not read here. */
+export const FOUND_UNREADABLE = 'Its SKILL.md could not be read here, so import it and read it in the hub.';
+
+/** A SKILL.md split as the Mac's `SkillMarkdownReader.document` splits it: its plain front matter fields, then the rest. */
+export function skillDocument(text: string): { fields: { key: string; value: string }[]; body: string } {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const edge = (line: string | undefined) => line?.trim() === '---';
+  const end = edge(lines[0]) ? lines.findIndex((line, index) => index > 0 && edge(line)) : -1;
+  if (end === -1) return { fields: [], body: lines.join('\n') };
+  const fields = lines.slice(1, end).flatMap((line) => {
+    const colon = line.indexOf(':');
+    if (line.startsWith(' ') || colon === -1) return [];
+    const key = line.slice(0, colon).trim();
+    const value = line.slice(colon + 1).trim().replace(/^["']+|["']+$/g, '');
+    return key === '' || value === '' ? [] : [{ key, value }];
+  });
+  return { fields, body: lines.slice(end + 1).join('\n') };
+}

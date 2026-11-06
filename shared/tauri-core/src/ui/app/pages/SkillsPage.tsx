@@ -1,21 +1,25 @@
-import type { SkillView, SkillsHubView } from '@memnox/core/wire';
+import type { FoundSkillView, SkillView, SkillsHubView } from '@memnox/core/wire';
 import { ArrowLeft, Check, Download, Plus, RefreshCw, Search, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { SkillOutcome } from '../../../core/application/skills';
 import type { WidthClass } from '../../../core/domain/destinations';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
-import { assignedLine, categoryVersion, compatibilityLine, heldLine, permissionLines, updatedLine } from '../../../core/domain/skills-lines';
+import { acceptedLine, assignedLine, categoryVersion, compatibilityLine, heldLine, permissionLines, removeLines, updatedLine } from '../../../core/domain/skills-lines';
 import { BrandLogo } from '../../kit/logos';
+import { MiddleCut } from '../../kit/MiddleCut';
 import { KitButton, SearchField, Switch } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { AssignSkillDialog, NewSkillDialog } from './SkillDialogs';
+import { AssignSkillDialog, ConfirmDialog, FoundSkillDialog, NewSkillDialog } from './SkillDialogs';
 import { CardGrid, EmptyState, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
 import { skillScope } from '../../../core/domain/scope-lines';
 import { useShellChoices } from '../shell-choices';
 import { inScope, NO_ORGANIZATION_ITEMS, ORGANIZATION_READ_ONLY, skillsShown } from '../../../core/domain/shell-lines';
 import { MarkdownText } from '../../cards/MarkdownText';
 import { SkillCareSection } from './SkillCareSection';
-import { COLLAPSED_ROWS, countedLine, foundMatching, foundReach, groupedFound, homeOf, hubMatching, importAllTitle, importedLine, importingLine, instructionsFile, noMatchDetail, noMatchTitle, queryWords, shortPath } from '../../../core/domain/skill-search';
+import { COLLAPSED_ROWS, countedLine, foundMatching, foundReach, groupedFound, homeOf, hubMatching, importAllTitle, importedLine, importingLine, noMatchDetail, noMatchTitle, queryWords, searchCountLine, shortPath } from '../../../core/domain/skill-search';
+
+/** The narrowest a skill's card reads well at, as the Mac's grid sets it. */
+const SKILL_CARD_WIDTH = 260;
 
 /**
  * The Skills Hub: skills kept once and written into each agent's own format. Giving a skill to an agent
@@ -60,6 +64,8 @@ function MySkills({ parts, view, width, said, manage }: { parts: SettingsParts; 
   const [query, setQuery] = useState('');
   const [opened, open] = useState<string | undefined>(undefined);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState<{ done: number; total: number } | undefined>(undefined);
+  const [previewing, setPreviewing] = useState<FoundSkillView | undefined>(undefined);
   const { project, scope, connected } = useShellChoices();
   const picked = view.skills.find((skill) => skill.name === opened);
   if (picked !== undefined) return <SkillDetail parts={parts} view={view} skill={picked} width={width} back={() => open(undefined)} said={said} manage={() => manage(picked.name)} />;
@@ -67,8 +73,10 @@ function MySkills({ parts, view, width, said, manage }: { parts: SettingsParts; 
   const label = (agent: string) => labelOf(view, agent);
   const shown = hubMatching(scoped, query, label);
   const searching = queryWords(query) !== undefined;
+  const found = foundMatching(view.found, query, label);
+  const foundTotal = view.found.filter((each) => !each.imported).length;
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-2.5">
         <div className="w-full max-w-[320px] min-w-[180px] flex-1">
           <SearchField value={query} placeholder="Search skills and what agents have" onChange={setQuery} />
@@ -82,25 +90,28 @@ function MySkills({ parts, view, width, said, manage }: { parts: SettingsParts; 
         </KitButton>
       </div>
       {connected && scope === 'organization' && <p className="text-footnote text-muted">{scoped.length === 0 ? NO_ORGANIZATION_ITEMS : ORGANIZATION_READ_ONLY}</p>}
-      {scope !== 'organization' && view.skills.length === 0 ? (
+      {searching && <p className="text-footnote text-muted">{searchCountLine({ shown: shown.length, total: scoped.length }, { shown: found.length, total: foundTotal })}</p>}
+      {/* In the Mac's order: a search that leaves nothing, then an empty hub, then the cards. */}
+      {shown.length === 0 && searching ? (
+        <EmptyState icon={Search} title={noMatchTitle(query)} body={noMatchDetail(found.length)} />
+      ) : view.skills.length === 0 ? (
         <EmptyState
           icon={Sparkles}
           title="No skills in the hub yet"
           body="Write one with New skill and give it to any agent, or import one an agent already has from Found on this computer below."
         />
       ) : (
-        searching && shown.length === 0 ? (
-          <EmptyState icon={Search} title={noMatchTitle(query)} body={noMatchDetail(foundMatching(view.found, query, label).length)} />
-        ) : (
-        <CardGrid>
-          {shown.map((skill) => (
-            <SkillCard key={`${skill.scope}/${skill.project ?? ''}/${skill.name}`} parts={parts} skill={skill} said={said} view={() => open(skill.name)} manage={() => manage(skill.name)} />
-          ))}
-        </CardGrid>
+        shown.length > 0 && (
+          <CardGrid min={SKILL_CARD_WIDTH}>
+            {shown.map((skill) => (
+              <SkillCard key={`${skill.scope}/${skill.project ?? ''}/${skill.name}`} parts={parts} skill={skill} said={said} view={() => open(skill.name)} manage={() => manage(skill.name)} />
+            ))}
+          </CardGrid>
         )
       )}
-      <Found parts={parts} view={view} query={query} said={said} />
+      <Found parts={parts} view={view} found={found} total={foundTotal} searching={searching} importing={importing} setImporting={setImporting} said={said} preview={setPreviewing} />
       {creating && <NewSkillDialog parts={parts} close={() => setCreating(false)} said={said} />}
+      {previewing !== undefined && <FoundSkillDialog parts={parts} found={previewing} label={label(previewing.agent)} importing={importing !== undefined} close={() => setPreviewing(undefined)} said={said} />}
     </div>
   );
 }
@@ -108,13 +119,12 @@ function MySkills({ parts, view, width, said, manage }: { parts: SettingsParts; 
 function SkillCard({ parts, skill, said, view, manage }: { parts: SettingsParts; skill: SkillView; said: (outcome: SkillOutcome) => void; view: () => void; manage: () => void }) {
   const { skills } = parts;
   return (
-    <article className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
+    <article aria-label={skill.name} className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
       <div className="flex items-start gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-headline font-semibold text-foreground">{skill.name}</span>
           <span className="truncate text-footnote text-muted">{categoryVersion(skill)}</span>
         </div>
-        <ScopeChip scope={skillScope(skill)} />
         <Switch
           on={skill.enabled}
           label={skill.enabled ? `Turn ${skill.name} off for every agent` : `Hand ${skill.name} back to its agents`}
@@ -123,13 +133,15 @@ function SkillCard({ parts, skill, said, view, manage }: { parts: SettingsParts;
         />
       </div>
       <p className="truncate text-footnote text-foreground">{skill.description}</p>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      {/* Whose it is, then how it stands, on one line as the Mac sets it. */}
+      <div className="flex min-w-0 items-center gap-3 overflow-hidden text-footnote whitespace-nowrap text-muted">
+        <ScopeChip scope={skillScope(skill)} />
         {skill.held !== undefined && <StatusWord tone="attention">Held</StatusWord>}
         {!skill.enabled && <StatusWord tone="quiet">Off</StatusWord>}
-        <span className="text-footnote text-muted">{assignedLine(skill.agents.length)}</span>
-        <span className="text-footnote text-muted">{updatedLine(skill.updatedAt, Date.now())}</span>
+        <span className="truncate">{assignedLine(skill.agents.length)}</span>
+        <span className="truncate">{updatedLine(skill.updatedAt, Date.now())}</span>
       </div>
-      <div className="flex flex-wrap gap-2 border-t border-panel-edge pt-3">
+      <div className="flex gap-2 border-t border-panel-edge pt-3">
         <KitButton onClick={view}>View skill</KitButton>
         <KitButton onClick={manage}>Manage agents</KitButton>
       </div>
@@ -159,20 +171,20 @@ function SkillDetail({
   const twoColumns = width === 'wide' || width === 'medium';
   const reach = permissionLines(skill);
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center gap-2.5">
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center gap-2.5">
         <KitButton icon={ArrowLeft} onClick={back}>
           All skills
         </KitButton>
         <span className="min-w-0 flex-1 truncate text-headline font-semibold text-foreground">{skill.name}</span>
         <span className="text-footnote text-muted">{categoryVersion(skill)}</span>
       </div>
-      <div className={twoColumns ? 'grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-6' : 'flex flex-col gap-6'}>
+      <div className={twoColumns ? 'grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-6' : 'flex flex-col gap-6'}>
         <div className="flex min-w-0 flex-col gap-6">
           <p className="text-body text-foreground">{skill.description}</p>
           <Section title="Instructions">
             {/* Drawn the way its agent reads it, headings, lists and code, as the Mac's SkillMarkdown draws a SKILL.md. */}
-            <div className="max-h-[420px] overflow-auto rounded-xl border border-panel-edge bg-card p-3.5">
+            <div className="rounded-xl border border-panel-edge bg-card p-5">
               <MarkdownText source={skill.instructions} tone="window" onLink={(href) => parts.host.openPage(href)} />
             </div>
           </Section>
@@ -192,7 +204,7 @@ function SkillDetail({
                 <Row
                   key={version.version}
                   title={`v${version.version}`}
-                  caption={version.acceptedAt === undefined ? 'Never accepted' : `Accepted ${version.acceptedAt.slice(0, 10)}`}
+                  caption={acceptedLine(version.acceptedAt)}
                   trailing={
                     version.current ? (
                       <StatusWord tone="good">In use</StatusWord>
@@ -271,32 +283,27 @@ function SkillDetail({
   );
 }
 
-/** Removing only narrows, so it is done at once; a second press confirms, since its kept versions go with it. */
+/** Removing only narrows, so it is done at once once the console's confirm is answered, since its kept versions go with it. */
 function RemoveSkill({ parts, skill, back, said }: { parts: SettingsParts; skill: SkillView; back: () => void; said: (outcome: SkillOutcome) => void }) {
   const { skills } = parts;
   const [confirming, setConfirming] = useState(false);
-  const remove = () =>
+  const lines = removeLines(skill.name);
+  const remove = () => {
+    setConfirming(false);
     void skills.remove(skill.name).then((outcome) => {
       said(outcome);
       if (outcome.kind !== 'failed') back();
     });
+  };
   return (
     <Section title="Remove">
-      <p className="text-footnote text-muted">{`Takes ${skill.name} out of the hub and out of every agent it was given to, with every version kept of it.`}</p>
-      <div className="flex gap-2">
-        {confirming ? (
-          <>
-            <KitButton kind="primary" icon={Trash2} disabled={skills.busy === skill.name} onClick={remove}>
-              {`Remove ${skill.name}`}
-            </KitButton>
-            <KitButton onClick={() => setConfirming(false)}>Cancel</KitButton>
-          </>
-        ) : (
-          <KitButton icon={Trash2} onClick={() => setConfirming(true)}>
-            Remove skill
-          </KitButton>
-        )}
+      <p className="text-footnote text-muted">{lines.lead}</p>
+      <div>
+        <KitButton icon={Trash2} disabled={skills.busy === skill.name} onClick={() => setConfirming(true)}>
+          Remove skill
+        </KitButton>
       </div>
+      {confirming && <ConfirmDialog icon={Trash2} title={lines.title} message={lines.message} confirm={lines.confirm} cancel={() => setConfirming(false)} act={remove} />}
     </Section>
   );
 }
@@ -331,18 +338,35 @@ function ListSection({ title, items, mono = false }: { title: string; items: rea
 }
 
 /**
- * Skills an agent already had in its own folder, grouped by agent and narrowed by the same search as the hub, offered
- * to bring in one at a time or all at once, and never touched until then. View opens its SKILL.md where it lives.
+ * Skills an agent already had in its own folder, as the Mac's `SkillsFound`: grouped by agent and narrowed by the same
+ * search as the hub, offered to bring in one at a time or all at once, and never touched until then. A row, or its
+ * View, opens the agent's own SKILL.md drawn in the window.
  */
-function Found({ parts, view, query, said }: { parts: SettingsParts; view: SkillsHubView; query: string; said: (outcome: SkillOutcome) => void }) {
-  const { skills, host } = parts;
+function Found({
+  parts,
+  view,
+  found,
+  total,
+  searching,
+  importing,
+  setImporting,
+  said,
+  preview,
+}: {
+  parts: SettingsParts;
+  view: SkillsHubView;
+  found: readonly FoundSkillView[];
+  total: number;
+  searching: boolean;
+  importing: { done: number; total: number } | undefined;
+  setImporting: (progress: { done: number; total: number } | undefined) => void;
+  said: (outcome: SkillOutcome) => void;
+  preview: (found: FoundSkillView) => void;
+}) {
+  const { skills } = parts;
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const [importing, setImporting] = useState<{ done: number; total: number } | undefined>(undefined);
   const label = (agent: string) => labelOf(view, agent);
-  const total = view.found.filter((each) => !each.imported).length;
   if (total === 0) return null;
-  const searching = queryWords(query) !== undefined;
-  const found = foundMatching(view.found, query, label);
   const importAll = async () => {
     if (importing !== undefined || found.length === 0) return;
     setImporting({ done: 0, total: found.length });
@@ -362,7 +386,7 @@ function Found({ parts, view, query, said }: { parts: SettingsParts; view: Skill
       title={`Found on this computer · ${countedLine(found.length, total, searching)}`}
       trailing={
         importing !== undefined ? (
-          <span className="flex items-center gap-2 text-meta text-muted">
+          <span className="flex items-center gap-2 text-footnote text-muted tabular-nums">
             <progress className="w-[120px] accent-primary" value={importing.done} max={Math.max(importing.total, 1)} />
             {importingLine(importing.done, importing.total)}
           </span>
@@ -384,31 +408,15 @@ function Found({ parts, view, query, said }: { parts: SettingsParts; view: Skill
             <div key={group.agent} className="flex flex-col gap-2">
               <div className="flex items-center gap-2.5">
                 <BrandLogo agent={group.agent} name={group.label} size={20} />
-                <span className="text-body-sm font-medium text-foreground">{group.label}</span>
-                <span className="text-meta text-muted tabular-nums">{group.skills.length}</span>
+                <span className="text-body-sm font-semibold text-foreground">{group.label}</span>
+                <span className="text-footnote text-muted tabular-nums">{group.skills.length}</span>
               </div>
               <Panel>
-                {rows.map((each) => {
-                  const where = shortPath(each.path, homeOf(each.path));
-                  const reach = foundReach(each);
-                  return (
-                    <Row
-                      key={each.id}
-                      title={each.name}
-                      caption={<span title={each.path}>{reach === undefined ? where : `${where} · ${reach}`}</span>}
-                      trailing={
-                        <>
-                          {host.openFile !== undefined && <KitButton onClick={() => void host.openFile?.(instructionsFile(each))}>View</KitButton>}
-                          <KitButton disabled={skills.busy !== undefined || importing !== undefined} onClick={() => void skills.importFound(each.id, each.name).then(said)}>
-                            Import
-                          </KitButton>
-                        </>
-                      }
-                    />
-                  );
-                })}
+                {rows.map((each, index) => (
+                  <FoundRow key={each.id} found={each} divided={index > 0} busy={skills.busy !== undefined || importing !== undefined} open={() => preview(each)} bring={() => void skills.importFound(each.id, each.name).then(said)} />
+                ))}
                 {(hidden > 0 || (expanded.has(group.agent) && !searching && group.skills.length > COLLAPSED_ROWS)) && (
-                  <button type="button" className="mx-focus w-full cursor-pointer px-4 py-2.5 text-left text-meta font-medium text-primary hover:bg-hover" onClick={() => toggle(group.agent, hidden > 0)}>
+                  <button type="button" className="mx-focus w-full cursor-pointer border-t border-panel-edge px-4 py-3 text-left text-body-sm font-medium text-muted hover:bg-hover hover:text-foreground" onClick={() => toggle(group.agent, hidden > 0)}>
                     {hidden > 0 ? `Show all ${group.skills.length}` : 'Show fewer'}
                   </button>
                 )}
@@ -419,6 +427,29 @@ function Found({ parts, view, query, said }: { parts: SettingsParts; view: Skill
       )}
       <p className="text-footnote text-muted">Importing a skill keeps it once in the hub, with its files, so it can be given to any agent in that agent’s own format.</p>
     </Section>
+  );
+}
+
+/** One skill an agent has: its name, its folder from ~ cut in the middle so both ends read, what it uses, View and Import. */
+function FoundRow({ found, divided, busy, open, bring }: { found: FoundSkillView; divided: boolean; busy: boolean; open: () => void; bring: () => void }) {
+  const where = shortPath(found.path, homeOf(found.path));
+  const reach = foundReach(found);
+  return (
+    <div className={`flex items-center gap-3 px-4 py-3 ${divided ? 'border-t border-panel-edge' : ''}`}>
+      <button type="button" className="mx-focus flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5 text-left" title={found.path} aria-label={`Read ${found.name}`} onClick={open}>
+        <span className="truncate text-body-sm font-medium text-foreground">{found.name}</span>
+        <span className="flex min-w-0 gap-1.5 text-meta text-muted">
+          <span className="block min-w-0 flex-1 overflow-hidden">
+            <MiddleCut text={where} className="font-mono text-label" />
+          </span>
+          {reach !== undefined && <span className="shrink-0 truncate">{`· ${reach}`}</span>}
+        </span>
+      </button>
+      <KitButton onClick={open}>View</KitButton>
+      <KitButton disabled={busy} onClick={bring}>
+        Import
+      </KitButton>
+    </div>
   );
 }
 

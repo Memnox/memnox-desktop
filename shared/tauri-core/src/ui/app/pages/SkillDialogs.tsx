@@ -1,10 +1,13 @@
-import type { SkillView, SkillsHubView } from '@memnox/core/wire';
-import { X } from 'lucide-react';
+import type { FoundSkillView, SkillView, SkillsHubView } from '@memnox/core/wire';
+import { Trash2, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { SkillOutcome } from '../../../core/application/skills';
 import { assignedNote, assignmentChanges, compatibilityLine, conversionLosses, draftFrom, type SkillForm } from '../../../core/domain/skills-lines';
+import { FOUND_UNREADABLE, homeOf, instructionsFile, shortPath, skillDocument } from '../../../core/domain/skill-search';
 import { BrandLogo } from '../../kit/logos';
-import { KitButton } from '../../settings/kit';
+import { MiddleCut } from '../../kit/MiddleCut';
+import { MarkdownText } from '../../cards/MarkdownText';
+import { KitButton, Spinner } from '../../settings/kit';
 import type { SettingsParts } from '../../settings/parts';
 
 /** A dialog over the page, closed by its X, Escape, or a press outside it. */
@@ -66,6 +69,7 @@ export function AssignSkillDialog({ parts, view, skill, close, said }: { parts: 
       close={close}
       footer={
         <>
+          <KitButton onClick={close}>Cancel</KitButton>
           {reviewing && <KitButton onClick={() => setReviewing(false)}>Back</KitButton>}
           <span className="flex-1" />
           <KitButton kind="primary" disabled={nothing || sending} onClick={() => (reviewing || losses.length === 0 ? void send() : setReviewing(true))}>
@@ -142,6 +146,7 @@ export function NewSkillDialog({ parts, close, said }: { parts: SettingsParts; c
       close={close}
       footer={
         <>
+          <KitButton onClick={close}>Cancel</KitButton>
           <span className="flex-1" />
           <KitButton kind="primary" disabled={skills.busy !== undefined} onClick={() => void save()}>
             Add skill
@@ -187,5 +192,104 @@ export function Labelled({ label, children }: { label: string; children: ReactNo
       <span className="text-footnote font-medium text-muted">{label}</span>
       {children}
     </label>
+  );
+}
+
+/**
+ * A skill an agent already has, read from its own SKILL.md and drawn formatted, as the Mac's `FoundSkillSheet`, with
+ * Import at the foot so reading it and bringing it in are one place. Nothing here writes to the agent's file.
+ */
+export function FoundSkillDialog({ parts, found, label, importing, close, said }: { parts: SettingsParts; found: FoundSkillView; label: string; importing: boolean; close: () => void; said: (outcome: SkillOutcome) => void }) {
+  const { skills, host } = parts;
+  const file = instructionsFile(found);
+  const [text, setText] = useState<string | undefined | null>(null);
+  useEffect(() => {
+    if (host.readSkillFile === undefined) return setText(undefined);
+    void host.readSkillFile(file).then(setText);
+  }, [file]);
+  const document = typeof text === 'string' ? skillDocument(text) : undefined;
+  return (
+    <Dialog
+      title={found.name}
+      step={label}
+      close={close}
+      footer={
+        <>
+          <KitButton onClick={close}>Close</KitButton>
+          <span className="flex-1" />
+          <KitButton
+            kind="primary"
+            disabled={skills.busy !== undefined || importing}
+            onClick={() => {
+              void skills.importFound(found.id, found.name).then(said);
+              close();
+            }}
+          >
+            Import
+          </KitButton>
+        </>
+      }
+    >
+      <span className="block min-w-0 overflow-hidden text-muted select-text">
+        <MiddleCut text={shortPath(file, homeOf(file))} className="font-mono text-label" />
+      </span>
+      {document !== undefined ? (
+        <>
+          {document.fields.length > 0 && (
+            <>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-footnote">
+                {document.fields.map((field) => (
+                  <div key={field.key} className="contents">
+                    <dt className="text-muted">{field.key}</dt>
+                    <dd className="min-w-0 break-words text-foreground">{field.value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <hr className="border-panel-edge" />
+            </>
+          )}
+          <MarkdownText source={document.body} tone="window" onLink={(href) => host.openPage(href)} />
+        </>
+      ) : text === undefined ? (
+        <p className="text-footnote text-muted">{FOUND_UNREADABLE}</p>
+      ) : (
+        <Spinner />
+      )}
+    </Dialog>
+  );
+}
+
+/**
+ * The console's confirm, as the Mac's `ConsoleConfirm`: a tinted icon, the question and what it costs, then Cancel and
+ * the press itself side by side, in red where it cannot be undone.
+ */
+export function ConfirmDialog({ icon: Icon = Trash2, title, message, confirm, busy = false, cancel, act }: { icon?: LucideIcon; title: string; message: string; confirm: string; busy?: boolean; cancel: () => void; act: () => void }) {
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') cancel();
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [cancel]);
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4 backdrop-blur-[8px]" role="presentation" onMouseDown={cancel}>
+      <div role="alertdialog" aria-modal="true" aria-label={title} className="flex w-[440px] max-w-full flex-col gap-4 rounded-xl border border-panel-edge bg-card p-7 shadow-[0_24px_60px_rgb(0_0_0/0.18)]" onMouseDown={(event) => event.stopPropagation()}>
+        <span className="grid size-12 place-items-center rounded-xl bg-destructive/[0.16] text-destructive" aria-hidden>
+          <Icon size={20} strokeWidth={2} />
+        </span>
+        <div className="flex flex-col gap-2 text-body-sm">
+          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+          <p className="text-muted">{message}</p>
+        </div>
+        <div className="flex gap-2 pt-1.5">
+          <KitButton className="flex-1" onClick={cancel}>
+            Cancel
+          </KitButton>
+          <button type="button" autoFocus disabled={busy} onClick={act} className="mx-focus flex h-8 flex-1 cursor-pointer items-center justify-center rounded-md bg-destructive text-body-sm font-medium text-white disabled:opacity-45">
+            {confirm}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

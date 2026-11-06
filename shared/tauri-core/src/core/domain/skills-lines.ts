@@ -140,3 +140,21 @@ function listed(items: readonly string[]): string {
   if (items.length <= 1) return items.join('');
   return `${items.slice(0, -1).join(', ')} and ${items.at(-1) ?? ''}`;
 }
+
+/** "Accepted 6 Nov 2026", the day as this computer writes one, as the Mac's version rows say it, or that it never was. */
+export function acceptedLine(acceptedAt: string | undefined, locale?: string): string {
+  if (acceptedAt === undefined) return 'Never accepted';
+  const at = Date.parse(acceptedAt);
+  if (Number.isNaN(at)) return `Accepted ${acceptedAt}`;
+  return `Accepted ${new Date(at).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+}
+
+/** What removing a skill asks first, since every version kept of it goes with it. */
+export function removeLines(name: string): { lead: string; title: string; message: string; confirm: string } {
+  return {
+    lead: `Takes ${name} out of the hub and out of every agent it was given to, with every version kept of it.`,
+    title: `Remove ${name}?`,
+    message: 'It leaves the hub and every agent it was given to, and every version kept of it goes too.',
+    confirm: 'Remove skill',
+  };
+}

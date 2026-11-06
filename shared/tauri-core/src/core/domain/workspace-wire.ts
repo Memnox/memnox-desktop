@@ -1,5 +1,6 @@
 import type { TeamCallBrief } from '@memnox/core/wire';
 import { callLabel, teamPlace, trimmed, type CallPlace } from './call-label';
+import { readHeldImpact, type HeldImpact } from './held-impact';
 import { readInstant } from './pairing-invitation';
 import { settledLine } from './settled-line';
 
@@ -92,6 +93,8 @@ export interface WorkspaceHeldCall {
   readonly answer: string | undefined;
   readonly answeredBy: string | undefined;
   readonly answeredOn: string | undefined;
+  /** What it could affect, whether it can be undone and what was verified; undefined from an older runtime. */
+  readonly impact: HeldImpact | undefined;
 }
 
 /** The class the contract reads a machine nobody can find as. */
@@ -125,6 +128,7 @@ export function readHeldCall(raw: unknown): WorkspaceHeldCall | undefined {
     answer: text(item['answer']),
     answeredBy: text(item['answeredBy']),
     answeredOn: text(item['answeredOn']),
+    impact: readHeldImpact(item['impact']),
   };
 }
 

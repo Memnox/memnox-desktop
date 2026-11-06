@@ -48,6 +48,7 @@ export { settledLine, SETTLED_UNKNOWN } from './domain/settled-line';
 export { atRest, cubicBezier, SHRINK, springConstants, springStep, SPRINGS, type Moving, type Spring } from './domain/spring';
 export { EarlierAnswer } from './domain/earlier-answer';
 export type { HeldCard } from './domain/held-card';
+export { IMPACT_WORDS, impactEvidence, impactRows, type HeldClaim, type HeldImpact } from './domain/held-impact';
 export { accountWarning, draftAudience, suggestedScope, typedAddresses, type ProposalCard } from './domain/proposal-card';
 export { ANOTHER_KEY_LINE, type KeyStatus } from './domain/key-status';
 export { isAtLeast, MINIMUM_RUNTIME, type RuntimeState } from './domain/runtime-state';

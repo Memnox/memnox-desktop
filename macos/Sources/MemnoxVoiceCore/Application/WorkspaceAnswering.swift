@@ -32,6 +32,8 @@ public final class WorkspaceAnswering: @unchecked Sendable {
     private var open: [String: (workspace: String, call: WorkspaceHeldCall)] = [:]
     /// Calls answered here, so one the inbox still lists for a moment is not shown again.
     private var answeredHere = Set<String>()
+    /// The last failure noted for each workspace, so a poll every few seconds notes a failure once rather than each time.
+    private var failing: [String: String] = [:]
     /// Far more than are ever answered between two polls, and still a bound on a set nothing else empties.
     static let answeredKept = 200
 
@@ -76,6 +78,7 @@ public final class WorkspaceAnswering: @unchecked Sendable {
             do {
                 let calls = try await inbox.held(in: workspace, token: credential.token)
                 answered.insert(workspace)
+                if noteFailure(nil, in: workspace) { diary.note("reading the team inbox for \(workspace) works again") }
                 for call in calls where call.isSettled { settled[call.id] = call.settledLine }
                 // A yes already counted toward a quorum is this person's part done, so it stops asking them.
                 for call in calls where !call.isSettled && !call.approvedByYou && (call.expiry.map { $0 > moment } ?? true) {
@@ -84,10 +87,19 @@ public final class WorkspaceAnswering: @unchecked Sendable {
             } catch WorkspaceInboxError.signedOut {
                 return InboxChange(gone: forgetAll(), signedOut: true)
             } catch {
-                diary.note("reading the team inbox for \(workspace) failed: \(error)")
+                if noteFailure("\(error)", in: workspace) { diary.note("reading the team inbox for \(workspace) failed: \(error)") }
             }
         }
         return merge(fresh, answered: answered, settled: settled)
+    }
+
+    /// Records how a workspace's last read went; true when that differs from the time before, so it is worth a note.
+    private func noteFailure(_ failure: String?, in workspace: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard failing[workspace] != failure else { return false }
+        failing[workspace] = failure
+        return true
     }
 
     /// Puts a poll in place of what was open, and says what came and went and who answered what went.

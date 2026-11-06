@@ -3,7 +3,7 @@ import MemnoxVoiceCore
 
 /// Somewhere other than the system synthesizer that turns a sentence into audio.
 protocol VoiceEngine: Sendable {
-    /// Said in the diary when it fails and the system voice takes the sentence.
+    /// Said in the diary when it fails to voice a sentence.
     var name: String { get }
     func audio(for text: String) async throws -> Data
 }

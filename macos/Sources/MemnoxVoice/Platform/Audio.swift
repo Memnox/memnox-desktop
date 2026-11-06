@@ -591,20 +591,24 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
         case buffers([AVAudioPCMBuffer])
     }
 
+    /// A sentence the chosen voice could not render is asked for once more at its turn, when the engine is
+    /// free of the sentences fetched ahead of it, and is left unsaid rather than heard in another voice.
     private func enqueueEngine(_ sentence: String, with engine: VoiceEngine, said: @escaping () -> Void) {
-        enqueueClip(sentence, said: said) {
+        let fetch: () async -> Clip? = {
             do { return .data(try await engine.audio(for: sentence)) } catch {
                 // Cancelled means somebody talked over it, which is not a failure worth noting.
                 if (error as? URLError)?.code != .cancelled, !(error is CancellationError) {
-                    diary.note("\(engine.name) did not voice it, so the system voice does: \(error.localizedDescription)")
+                    diary.note("\(engine.name) did not voice it: \(error.localizedDescription)")
                 }
                 return nil
             }
         }
+        enqueueClip(sentence, said: said, again: fetch, fallsBack: false, sound: fetch)
     }
 
     /// Fetched at once, so the next sentence is ready while this one plays, and played in order.
-    private func enqueueClip(_ sentence: String, said: @escaping () -> Void, sound: @escaping () async -> Clip?) {
+    private func enqueueClip(_ sentence: String, said: @escaping () -> Void, again: (() async -> Clip?)? = nil,
+                             fallsBack: Bool = true, sound: @escaping () async -> Clip?) {
         let token = NSObject()
         let fetch = Task { await sound() }
         lock.lock()
@@ -619,8 +623,12 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
                 fetch.cancel()
                 return
             }
-            if let clip = await fetch.value, await self.play(clip, generation: generation) {
+            var clip = await fetch.value
+            if clip == nil, let again, self.inGeneration(generation) { clip = await again() }
+            if let clip, await self.play(clip, generation: generation) {
                 try? await Task.sleep(nanoseconds: UInt64(Self.breath * nanosecondsPerSecond))
+            } else if !fallsBack {
+                diary.note("left a sentence unsaid rather than say it in another voice")
             } else if self.inGeneration(generation) {
                 // Said here rather than queued, since a queued sentence would wait behind this one forever.
                 await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in

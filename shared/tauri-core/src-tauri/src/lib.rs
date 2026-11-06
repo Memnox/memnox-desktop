@@ -17,6 +17,7 @@ mod panels;
 mod permissions;
 mod presence;
 mod presses;
+mod project_folder;
 mod relay;
 mod rule_pack;
 mod runtime;
@@ -180,6 +181,7 @@ pub fn run() {
             settings_windows::open_inspector,
             rule_pack::pick_rule_pack,
             rule_pack::save_rule_pack,
+            project_folder::pick_project_folder,
             local_file::open_file,
             presses::presses_listen,
             presses::window_press,

@@ -3,6 +3,7 @@ import { ExternalLink, Folder, FolderGit2, FolderOpen, MoreHorizontal, Pencil, P
 import { useEffect, useState } from 'react';
 import { projectRoute, type Route, type WidthClass } from '../../../core/domain/destinations';
 import { folderProblem } from '../../../core/domain/launch-lines';
+import { insideProject } from '../../../core/domain/shell-lines';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
 import { counted, foldersToOpen, projectCard, projectStanding, sharedBy } from '../../../core/domain/project-lines';
 import {
@@ -46,8 +47,8 @@ export function WorkspacesPage({ parts, tab, width, go }: { parts: SettingsParts
   const { support } = parts;
   useObserved(support);
   if (tab === 'skills' || tab === 'assigned') return <SkillsPage parts={parts} tab={tab} width={width} />;
-  // One Memory page, opening on the map, so an old Map link lands here too.
-  if (tab === 'memory' || tab === 'map') return <MemoryPage parts={parts} width={width} go={go} />;
+  // The Memory row's three tabs, the map, the list and the layers, are one page drawn three ways.
+  if (tab === 'map' || tab === 'memory' || tab === 'layers') return <MemoryPage parts={parts} tab={tab} width={width} go={go} />;
   // Where memory is read from, under Inputs beside the connectors, as Memnox Cloud places its sources.
   if (tab === 'sources') return <MemorySourcesPage parts={parts} />;
   if (tab === 'discover') return <DiscoverPage parts={parts} width={width} />;
@@ -98,20 +99,37 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
   );
   const places = calls.state.waiting.entries.map((entry) => entry.card.place);
   const busy = projects.busy !== undefined;
-  const add = (folder: string) =>
-    void projects.open(folder).then((outcome) => {
-      setNote(projectNote(outcome, parts.words.keyTitle));
-      if (outcome.kind !== 'failed') setOpening(false);
-    });
   const open = (id: string) => {
     chooseProject(id);
     go(projectRoute(id));
   };
+  // Takes a folder in through the daemon's own open, then opens the project it became, as the Mac does.
+  const add = (folder: string) => {
+    const wrong = folderProblem(folder);
+    if (wrong !== undefined) return setNote(wrong);
+    void projects.open(folder).then((outcome) => {
+      setNote(projectNote(outcome, parts.words.keyTitle));
+      if (outcome.kind === 'failed') return;
+      setOpening(false);
+      const made = projects.projects?.find((each) => insideProject(folder, each) && insideProject(each.path, { path: folder }));
+      if (made !== undefined) open(made.id);
+    });
+  };
+  // The system's own folder dialog, as the Mac opens Finder's; the typed form stands in only in the browser preview.
+  const choose = () => {
+    const pick = parts.host.pickProjectFolder;
+    if (pick === undefined) return setOpening(!opening);
+    void pick().then(
+      (folder) => folder !== undefined && add(folder),
+      (why: unknown) => setNote(String(why)),
+    );
+  };
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-footnote text-muted">{all.length === 0 ? EMPTY_TITLE : `${counted(all.length, 'project', 'projects')}, most recently active first.`}</p>
-        <KitButton kind="primary" icon={FolderOpen} onClick={() => setOpening(!opening)} aria-expanded={opening}>
+        {/* No count while there is none, so the empty state below says its title once, as on the Mac. */}
+        <p className="text-footnote text-muted">{all.length === 0 ? '' : `${counted(all.length, 'project', 'projects')}, most recently active first.`}</p>
+        <KitButton kind="primary" icon={FolderOpen} onClick={choose} {...(parts.host.pickProjectFolder === undefined ? { 'aria-expanded': opening } : {})}>
           {CHOOSE_TITLE}
         </KitButton>
       </div>
@@ -119,7 +137,7 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
       {note !== undefined && <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote">{note}</p>}
       {folders.length > 0 && <Suggestions folders={folders} busy={busy} add={add} />}
       {all.length === 0 ? (
-        <EmptyState icon={Folder} title={EMPTY_TITLE} body={EMPTY_LINE} action={<KitButton kind="primary" icon={FolderOpen} onClick={() => setOpening(true)}>{CHOOSE_TITLE}</KitButton>} />
+        <EmptyState icon={Folder} title={EMPTY_TITLE} body={EMPTY_LINE} action={<KitButton kind="primary" icon={FolderOpen} onClick={choose}>{CHOOSE_TITLE}</KitButton>} />
       ) : (
         <>
           {all.length >= SEARCH_FROM && (
@@ -129,7 +147,7 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
             </label>
           )}
           {list.length === 0 ? (
-            <EmptyState icon={Search} title="No project matches that" body="Try another word, or clear the search." />
+            <EmptyState icon={Search} title="No project matches that." body="Try another word, or clear the search." />
           ) : (
             <CardGrid>
               {list.map((each) => (

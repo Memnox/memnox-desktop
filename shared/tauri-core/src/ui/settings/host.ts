@@ -58,6 +58,8 @@ export interface SettingsHost {
   pickRulePack?(): Promise<string | undefined>;
   /** Saves a rule pack where the person picks in the system's save dialog; false when they cancelled. */
   saveRulePack?(toml: string): Promise<boolean>;
+  /** A folder the person picks in the system's own folder dialog to add as a project; undefined when they cancelled. */
+  pickProjectFolder?(): Promise<string | undefined>;
   /** Whether the system shows Memnox's notifications, asking it first when `ask` is set. */
   notices?(ask: boolean): Promise<boolean>;
   readonly voices: {
@@ -119,6 +121,8 @@ export const tauriHost: SettingsHost = {
   // `rule_pack.rs` shows the dialog and reads or writes the file, so this window names no path itself.
   pickRulePack: () => invoke<string | null>('pick_rule_pack').then((toml) => toml ?? undefined),
   saveRulePack: (toml) => invoke<boolean>('save_rule_pack', { toml }),
+  // `project_folder.rs` shows the dialog, so this window holds no dialog permission of its own.
+  pickProjectFolder: () => invoke<string | null>('pick_project_folder').then((folder) => folder ?? undefined),
   notices: async (ask) => {
     if (await isPermissionGranted()) return true;
     return ask ? (await requestPermission()) === 'granted' : false;

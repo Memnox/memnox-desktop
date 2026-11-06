@@ -18,6 +18,8 @@ final class HomeModel: ObservableObject {
     @Published private(set) var enforcing = false
     /// What the last Turn on stopping came to, in words for under the step.
     @Published private(set) var enforceNote: String?
+    /// True while the confirm for Turn on stopping is up, so setup finishing can put the same question up on Home.
+    @Published var askingEnforce = false
     /// Why putting the agents under Memnox did not go through, in words the person can act on.
     @Published private(set) var protectFailed: String?
     /// True while the Memnox service is rebuilt and restarted for a Protect the old service could not see through.
@@ -133,6 +135,17 @@ final class HomeModel: ObservableObject {
             self.enforceNote = HomeEnforce.line(outcome)
             self.refresh()
         }
+    }
+
+    /// As setup finishes: reads the mode and, while this Mac only watches, puts the confirm up and says why it is asked.
+    /// A window on a server is left alone, since Turn on stopping cannot reach it from here.
+    func offerEnforce(say: @escaping (String) async -> Void) async {
+        guard !remote() else { return }
+        let read = await load()
+        if let read { home = read }
+        guard let line = HomeEnforce.afterSetup(read.flatMap { HomeMode(rawValue: $0.mode) }) else { return }
+        askingEnforce = true
+        await say(line)
     }
 
     /// One press: every agent found here goes under Memnox through the runtime's own setup, then the home is read again.

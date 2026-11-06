@@ -26,6 +26,14 @@ final class EnforceModeTests: XCTestCase {
                        "This Mac now stops what a rule denies. memnox protect --observe in a terminal puts it back.")
     }
 
+    func testAsksAfterSetupOnlyWhileTheMacObserves() {
+        XCTAssertEqual(HomeEnforce.afterSetup(.observe),
+                       "One more thing. Memnox is still in observing mode, so it records what a rule would stop but stops "
+                       + "nothing yet. Do you want to switch to enforcing mode? Choose on your screen.")
+        XCTAssertNil(HomeEnforce.afterSetup(.enforce))
+        XCTAssertNil(HomeEnforce.afterSetup(nil))
+    }
+
     func testSaysSoWhenTheMacAlreadyEnforced() {
         XCTAssertEqual(HomeEnforce.line(.enforcing(HomeModeSet(was: "enforce", now: "enforce"))),
                        "This Mac was already stopping what a rule denies.")

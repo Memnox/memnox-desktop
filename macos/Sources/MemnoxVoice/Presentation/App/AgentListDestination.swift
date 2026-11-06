@@ -105,9 +105,12 @@ private struct NeedsYouStrip: View {
                 .foregroundStyle(Memnox.Console.warm)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
-                Text(line)
-                    .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .semibold))
-                    .foregroundStyle(Memnox.Console.foreground)
+                HStack(spacing: Memnox.Spacing.small) {
+                    NamedAgentLogos(agents: kinds)
+                    Text(line)
+                        .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .semibold))
+                        .foregroundStyle(Memnox.Console.foreground)
+                }
                 // What the last press came to stands in for the reminder, since it is the newer thing to read.
                 if let result = screen.protectResult, kinds.contains(where: result.covers) {
                     ProtectResultLine(result: result, screen: screen, home: home)

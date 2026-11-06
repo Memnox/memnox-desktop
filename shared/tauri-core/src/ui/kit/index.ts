@@ -8,4 +8,4 @@ export { NotchShape, notchClipPath } from './NotchShape';
 export { ANSWERING_ROW, notchPress, PRESSABLE } from './press';
 export { SF_SYMBOLS, SFSymbol, type SFSymbolName, type SymbolWeight } from './symbols';
 export { useSprings, type Movement } from './useSprings';
-export { agentLogoUrl, AgentMark, BrandLogo, LogoMark, MEMNOX_MARK, SessionDisc, ToolMark } from './logos';
+export { agentLogoUrl, AgentMark, AgentLogos, AgentName, BrandLogo, LogoMark, MEMNOX_MARK, SessionDisc, ToolMark } from './logos';

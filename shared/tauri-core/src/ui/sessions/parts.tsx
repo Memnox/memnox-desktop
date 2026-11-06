@@ -17,7 +17,7 @@ const INITIAL_INK = '#0B1A2E';
  * navy where it ships none. `ring` draws the black ring the compact logos overlap with.
  */
 export function SessionLogo({ agent, name, size, ring, className }: { agent: string; name: string; size: number; ring?: number; className?: string }) {
-  const url = agentLogoUrl(agent);
+  const url = agentLogoUrl(agent) ?? agentLogoUrl(name);
   const inner = size * LOGO_SHARE;
   return (
     <span

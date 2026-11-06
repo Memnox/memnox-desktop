@@ -2,6 +2,7 @@ import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { HOLD_ANSWER } from '@memnox/core/wire';
 import type { HeldCalls, HeldCard } from '../../core';
 import { BrandLogo, IslandButton, SFSymbol, type SFSymbolName } from '../kit';
+import { HeldImpactLines } from '../cards/HeldImpact';
 
 /**
  * The pieces the session windows share, outside the island: these follow the system's light or dark as
@@ -126,6 +127,7 @@ export function HeldStrip({ calls, card }: { calls: HeldCalls; card: HeldCard })
       <code className="line-clamp-2 w-full break-all rounded-[8px] bg-ink-faint-fill p-2 font-['DM_Mono',ui-monospace,Consolas,monospace] text-footnote text-ink" title={card.what}>
         {card.what}
       </code>
+      {card.impact !== undefined && <HeldImpactLines impact={card.impact} />}
       <div className={`flex items-center gap-2 ${answering ? 'pointer-events-none opacity-[0.55]' : ''}`}>
         <IslandButton inRow onClick={() => void press(HOLD_ANSWER.DENY)} className="!bg-ink/[0.09] !text-ink">
           Deny

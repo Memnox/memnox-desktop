@@ -350,16 +350,21 @@ struct GoLink: View {
 /// Names and values in two columns, the facts an inspector lists.
 struct FactList: View {
     let facts: [(String, String)]
+    /// The agents a fact names, by the fact's label, so their logos stand before its words.
+    var agents: [String: [String]] = [:]
 
     var body: some View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Memnox.Spacing.xLarge, verticalSpacing: Memnox.Spacing.medium) {
             ForEach(facts, id: \.0) { name, value in
                 GridRow {
                     Text(name).foregroundStyle(Memnox.Console.muted)
-                    Text(value)
-                        .foregroundStyle(Memnox.Console.foreground)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
+                    HStack(alignment: .center, spacing: Memnox.Spacing.small) {
+                        if let named = agents[name] { NamedAgentLogos(agents: named) }
+                        Text(value)
+                            .foregroundStyle(Memnox.Console.foreground)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                    }
                 }
                 .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
             }
@@ -367,8 +372,8 @@ struct FactList: View {
     }
 }
 
-/// The tabs inside one item's details, the only tabs left in the window: each a 13 medium word over a blue rule when
-/// chosen, as the console's inspector tabs are. A destination's own tabs are its sub navigation instead.
+/// Tabs as the console draws them, inside one item's details and over a page whose sidebar row holds more than one:
+/// each a 13 medium word over a blue rule when chosen.
 struct InspectorTabs: View {
     let tabs: [(id: String, title: String)]
     let chosen: String

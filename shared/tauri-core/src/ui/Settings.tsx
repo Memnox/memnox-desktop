@@ -3,6 +3,7 @@ import type { VoiceAgentStatus } from '@memnox/core/wire';
 import { Brain, RefreshCw, ShieldPlus, Volume2 } from 'lucide-react';
 import type { Setup, VoiceSettings } from '../core';
 import { kokoro } from './adapters/tauri-runtime';
+import { BrandLogo } from './kit';
 import { button, note } from './ui';
 
 /** "af_sky" as "Sky", the way the Mac's voice menu names them. */
@@ -87,6 +88,7 @@ export function Settings({ voiceSettings, setup }: { voiceSettings: VoiceSetting
               checked={agent.chosen}
               onChange={() => void chooseAgent(agent.kind)}
             />
+            <BrandLogo agent={agent.kind} name={agent.label} size={18} className="mt-0.5" />
             <span className="grid">
               <span>{agent.label}</span>
               {agent.because !== undefined && <span className="text-xs text-muted">{agent.because}</span>}

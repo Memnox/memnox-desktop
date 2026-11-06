@@ -5,7 +5,7 @@ import type { Platform } from '../../../core/domain/platform';
 import { DICTATION_KEY_WORDS, type DictationKeyName } from '../../../core/domain/voice-keys';
 import { AgentCheckText } from '../../../core/domain/agent-check-text';
 import { firstName, voiceDetail, voiceStep } from '../../../core/domain/setup-steps';
-import { BrandLogo } from '../../kit/logos';
+import { AgentLogos, BrandLogo } from '../../kit/logos';
 import { KitButton, KitField, QuietLine, SettingsCard, SettingsDivider, SettingsRow, SettingsSection, Spinner, Surface, SwitchRow, useCopied } from '../kit';
 import { useObserved, usePreferences, type SettingsParts } from '../parts';
 import { SetupDivider, SetupStep } from '../steps';
@@ -51,7 +51,8 @@ function AgentsStep({ parts }: { parts: SettingsParts }) {
   const state = steps.agentsState;
   const done = state.kind === 'done';
   const installed = steps.agents.filter((agent) => agent.installed);
-  const missing = steps.agents.filter((agent) => !agent.installed).map((agent) => agent.label);
+  const absent = steps.agents.filter((agent) => !agent.installed);
+  const missing = absent.map((agent) => agent.label);
   return (
     <SetupStep
       state={state}
@@ -77,7 +78,12 @@ function AgentsStep({ parts }: { parts: SettingsParts }) {
                 )}
               </div>
             ))}
-            {missing.length > 0 && <p className="text-caption text-muted">Also answers through {AgentCheckText.names(missing)} once installed and logged in.</p>}
+            {missing.length > 0 && (
+              <p className="flex items-center gap-1.5 text-caption text-muted">
+                <AgentLogos agents={absent.map((agent) => ({ agent: agent.kind, name: agent.label }))} size={14} />
+                <span>Also answers through {AgentCheckText.names(missing)} once installed and logged in.</span>
+              </p>
+            )}
             <div className="flex items-center gap-2">
               <KitButton disabled={steps.checkingAgents} onClick={() => void steps.loadAgents(true)}>
                 Check again

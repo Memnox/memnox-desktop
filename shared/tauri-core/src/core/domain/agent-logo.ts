@@ -16,12 +16,17 @@ const FILES: Record<string, string> = {
   cline: 'cline',
   antigravity: 'antigravity',
   'copilot-cli': 'copilot',
+  copilot: 'copilot',
   opencode: 'opencode',
 };
 
-/** The logo's name without its extension, or undefined where the agent has none of its own. */
+/**
+ * The logo's name without its extension, or undefined where the agent has none of its own. A name the
+ * person reads, such as "Claude Code" or "Copilot CLI", finds the same file as its kind.
+ */
 export function agentLogo(agent: string | undefined): string | undefined {
-  return FILES[agentKind(agent)];
+  const kind = agentKind(agent);
+  return FILES[kind] ?? FILES[kind.trim().toLowerCase().replace(/[\s_]+/g, '-')];
 }
 
 /** The letter that stands in for a logo: the first of the name the person reads, uppercased. */

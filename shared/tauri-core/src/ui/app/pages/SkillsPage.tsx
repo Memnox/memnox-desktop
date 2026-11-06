@@ -1,6 +1,6 @@
 import type { SkillView, SkillsHubView } from '@memnox/core/wire';
 import { ArrowLeft, Check, Download, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { SkillOutcome } from '../../../core/application/skills';
 import type { WidthClass } from '../../../core/domain/destinations';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
@@ -306,7 +306,7 @@ function labelOf(view: SkillsHubView, agent: string): string {
   return view.agents.find((each) => each.agent === agent)?.label ?? agentLabel(agent);
 }
 
-export function Facts({ facts, mono = false }: { facts: readonly (readonly [string, string])[]; mono?: boolean }) {
+export function Facts({ facts, mono = false }: { facts: readonly (readonly [string, ReactNode])[]; mono?: boolean }) {
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-footnote">
       {facts.map(([name, value]) => (

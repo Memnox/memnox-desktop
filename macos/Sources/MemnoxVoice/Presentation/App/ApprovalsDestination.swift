@@ -5,6 +5,8 @@ import SwiftUI
 /// the island's own path, so a yes that reaches outside the session is signed with Touch ID exactly as on the island.
 struct ApprovalsDestination: View {
     @ObservedObject var island: IslandModel
+    /// The projects on this computer, which name where each call waits.
+    let projects: [ProjectView]
     let width: WidthClass
 
     var body: some View {
@@ -20,7 +22,7 @@ struct ApprovalsDestination: View {
                     .foregroundStyle(Memnox.Console.muted)
                 VStack(spacing: Memnox.Spacing.large) {
                     ForEach(waiting, id: \.subject) { entry in
-                        HeldCallCard(card: entry.card, busy: island.answering || island.settledNote != nil) { answer in
+                        HeldCallCard(card: entry.card, project: ProjectContext.projectName(place: entry.card.place, projects: projects), busy: island.answering || island.settledNote != nil) { answer in
                             answerHeld(entry.card, answer)
                         }
                     }
@@ -39,6 +41,8 @@ struct ApprovalsDestination: View {
 
 private struct HeldCallCard: View {
     let card: HeldCard
+    /// The project it waits in, said first so a person with several projects sees where.
+    let project: String?
     let busy: Bool
     let answer: (HoldAnswer) -> Void
 
@@ -61,6 +65,10 @@ private struct HeldCallCard: View {
                 .foregroundStyle(Memnox.Console.foreground)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
+            if let impact = card.impact {
+                HeldImpactLines(impact: impact, ink: Memnox.Console.foreground, muted: Memnox.Console.muted,
+                                font: { Memnox.Console.sans($0, $1) })
+            }
             FactList(facts: facts)
             HStack(spacing: Memnox.Spacing.medium) {
                 Button("Allow once") { answer(.once) }.buttonStyle(KitButton(kind: .primary))
@@ -80,6 +88,7 @@ private struct HeldCallCard: View {
 
     private var facts: [(String, String)] {
         var facts: [(String, String)] = []
+        if let project { facts.append(("Project", project)) }
         if let why = card.why { facts.append(("Why it asks", why)) }
         facts.append(("Signed", HeldSigning.line(touchID: card.touchID, actionDigest: card.actionDigest)))
         return facts

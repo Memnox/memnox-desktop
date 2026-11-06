@@ -32,7 +32,9 @@ private enum LayersLayout {
 struct MemoryLayersPage<Switcher: View>: View {
     @ObservedObject var screen: MemoryLayersScreen
     let width: WidthClass
-    /// The page's Graph, List and Layers switch, drawn first so the person can go back.
+    /// The project to open on until the person picks another, as the Memory page's project filter names it.
+    var preferred: String?
+    /// Anything drawn above the layers; empty under the Memory row, whose strip already moves between its tabs.
     @ViewBuilder let switcher: Switcher
     @State private var chosen: String?
     @State private var keep = ""
@@ -69,7 +71,7 @@ struct MemoryLayersPage<Switcher: View>: View {
     }
 
     private func current(_ view: MemoryLayersView) -> ProjectLayersView? {
-        view.projects.first { $0.path == chosen } ?? view.projects.first
+        view.projects.first { $0.path == chosen } ?? view.projects.first { $0.path == preferred } ?? view.projects.first
     }
 
     @ViewBuilder private func picker(_ view: MemoryLayersView) -> some View {

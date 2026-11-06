@@ -162,8 +162,8 @@ public enum ProjectLines {
 
     /// "4 sessions, 3 ended. Applied 2 hours ago."
     public static func sessionsLine(_ project: ProjectView, now: Date) -> String {
-        let applied = project.appliedAt.map { " Applied \(SessionText.ago($0, now: now) ?? "a while ago")." } ?? " Never applied on this computer."
-        return "\(project.sessions.total) sessions, \(project.sessions.ended) ended.\(applied)"
+        let applied = project.appliedAt.map { " Applied \(SessionText.ago($0, now: now) ?? "a while ago")." } ?? " Never applied."
+        return "\(counted(project.sessions.total, "session", "sessions")), \(project.sessions.ended) ended.\(applied)"
     }
 
     /// "3 rules of this computer hold here too."
@@ -253,5 +253,34 @@ public enum ProjectLines {
     private static func listed(_ items: [String]) -> String {
         guard items.count > 1, let last = items.last else { return items.joined() }
         return "\(items.dropLast().joined(separator: ", ")) and \(last)"
+    }
+}
+
+/// What a project's card says, as the console's Projects grid draws one: where it lives, one line, and chips.
+extension ProjectLines {
+    /// Said where a project has no repository to name.
+    public static let noRepository = "No repository yet"
+
+    /// The repository the organization shares it under, else the folder this Mac holds it in.
+    public static func repositoryLine(_ project: ProjectView) -> String {
+        if let repository = project.sharedBy?.repository, !repository.isEmpty { return repository }
+        return project.path.isEmpty ? noRepository : project.path
+    }
+
+    /// The card's one line: what the organization says it is for, else the mission open in it, else its sessions.
+    public static func cardLine(_ project: ProjectView) -> String {
+        if let description = project.sharedBy?.description, !description.isEmpty { return description }
+        if let mission = project.openMissions.first { return mission.statement }
+        let sessions = project.sessions.total
+        return sessions == 0 ? "No agent has worked here yet." : "\(counted(sessions, "session", "sessions")) so far."
+    }
+
+    /// The chips along the card's foot: its servers, its skills, and whether its agents keep memory from it.
+    public static func chips(_ project: ProjectView) -> [String] {
+        let servers = project.sharedBy?.servers.count ?? project.servers.count
+        let skills = project.sharedBy?.skills.count ?? project.skills.count
+        let memory = project.sharedBy?.memory ?? project.memoryScope
+        return [counted(servers, "server", "servers"), counted(skills, "skill", "skills"),
+                memory.isEmpty || memory == "none" ? "No memory" : "Memory"]
     }
 }

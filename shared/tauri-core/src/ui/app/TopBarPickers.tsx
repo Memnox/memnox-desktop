@@ -11,9 +11,9 @@ const SWITCHER_WIDTH_COMPACT = 120;
 
 /**
  * The workspace switcher and, once an organization handed anything down, the scope selector. The switcher shows
- * only where this computer's runtime keeps projects; the selector only where there is an organization to show.
+ * only where this computer's runtime keeps projects and no project is open; the selector only where there is an organization to show.
  */
-export function TopBarPickers({ width }: { width: WidthClass }) {
+export function TopBarPickers({ width, inProject = false }: { width: WidthClass; inProject?: boolean }) {
   const choices = useShellChoices();
   const projects = choices.projects;
   return (
@@ -25,7 +25,8 @@ export function TopBarPickers({ width }: { width: WidthClass }) {
           ))}
         </div>
       )}
-      {projects !== undefined && projects.length > 0 && (
+      {/* Inside a project its sidebar's own switcher moves between projects, so the bar holds no second one. */}
+      {!inProject && projects !== undefined && projects.length > 0 && (
         <SelectMenu
           value={choices.project?.id ?? EVERY_PROJECT}
           label={SWITCHER_LABEL}

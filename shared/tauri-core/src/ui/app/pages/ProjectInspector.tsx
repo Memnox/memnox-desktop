@@ -16,6 +16,7 @@ import {
   questionsLine,
   readersLine,
   rulesLine,
+  sessionsLine,
   sharedBy,
 } from '../../../core/domain/project-lines';
 import { ago } from '../../../core/domain/session-text';
@@ -126,10 +127,7 @@ function Overview({ parts, project, said }: { parts: SettingsParts; project: Pro
         )}
         <p className="text-footnote text-muted">{questionsLine(project.openQuestions)}</p>
       </Section>
-      <p className="text-footnote text-muted">
-        {`${project.sessions.total} sessions, ${project.sessions.ended} ended.`}
-        {project.appliedAt === undefined ? ' Never applied on this computer.' : ` Applied ${ago(project.appliedAt, Date.now()) ?? 'a while ago'}.`}
-      </p>
+      <p className="text-footnote text-muted">{sessionsLine(project, Date.now())}</p>
     </div>
   );
 }

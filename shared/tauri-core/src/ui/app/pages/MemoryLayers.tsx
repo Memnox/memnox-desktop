@@ -26,10 +26,11 @@ import { EmptyState, ReadFailed, Section } from '../widgets';
  * cache numbers, then the keep on compact list. Preview asks the runtime for the map, and only a confirm writes it,
  * inside Memnox's fenced blocks, with the plan's digest so a file changed since is refused.
  */
-export function MemoryLayersView({ parts }: { parts: SettingsParts }) {
+export function MemoryLayersView({ parts, project: picked }: { parts: SettingsParts; /** The repository the page's project filter picked, opened first. */ project?: string }) {
   const { memory } = parts;
   useObserved(memory);
-  const [chosen, setChosen] = useState<string | undefined>(undefined);
+  const [chosen, setChosen] = useState<string | undefined>(picked);
+  useEffect(() => setChosen(picked), [picked]);
   const [keep, setKeep] = useState<string | undefined>(undefined);
   const [note, setNote] = useState<string | undefined>(undefined);
   const [reviewing, setReviewing] = useState(false);

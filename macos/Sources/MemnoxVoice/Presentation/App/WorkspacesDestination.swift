@@ -6,11 +6,13 @@ import SwiftUI
 struct WorkspacesDestination: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var island: IslandModel
+    /// The person's sign in to Memnox Cloud, which decides whether a project shows a team.
+    let account: AccountModel?
     let width: WidthClass
 
     var body: some View {
         if shell.supports("projects") == true, let projects = shell.projects {
-            ProjectsDestination(screen: projects, shell: shell, island: island, width: width)
+            ProjectsDestination(screen: projects, shell: shell, island: island, account: account, width: width)
         } else {
             SeenWorkspacesPage(shell: shell, island: island, width: width)
         }
@@ -31,8 +33,8 @@ private struct SeenWorkspacesPage: View {
         InspectorLayout(width: width, title: picked?.name, close: { shell.inspecting = nil }) {
             ShellScroll(width: width) {
                 if workspaces.isEmpty {
-                    EmptyState(symbol: "folder", title: "No workspaces yet",
-                               detail: "A workspace appears once an agent works in a repository on this Mac, with every agent that has worked there.")
+                    EmptyState(symbol: "folder", title: "No projects yet",
+                               detail: "A project appears once an agent works in a repository on this Mac, with every agent that has worked there.")
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.cardWidth), spacing: Memnox.Spacing.large)],
                               spacing: Memnox.Spacing.large) {
@@ -43,7 +45,7 @@ private struct SeenWorkspacesPage: View {
                 }
             }
         } detail: {
-            if let picked { WorkspaceOverview(workspace: picked) { shell.go(WindowRoute(.agents, tab: "sessions")) } }
+            if let picked { WorkspaceOverview(workspace: picked) { shell.go(WindowRoute(.agents, tab: "list")) } }
         }
     }
 }

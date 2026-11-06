@@ -140,3 +140,33 @@ final class ProjectLinesTests: XCTestCase {
         XCTAssertEqual(ProjectLines.fromOrganization, "From your organization")
     }
 }
+
+final class ProjectCardLinesTests: XCTestCase {
+    private func shared(description: String?) -> ProjectView {
+        let base = sampleProject
+        return ProjectView(id: base.id, name: base.name, path: base.path, declared: true, opened: true, agents: base.agents,
+                           agentsSeen: base.agentsSeen, sessions: ProjectSessionsView(total: 0, ended: 0), servers: [], skills: [],
+                           rules: base.rules, instructions: [], memoryScope: "none", openMissions: [], openQuestions: 0,
+                           scope: .organization,
+                           organization: ProjectOrganizationView(id: "o1", name: "Shop", repository: "github.com/acme/shop",
+                                                                 description: description, servers: ["github", "linear"],
+                                                                 skills: ["review"], memory: "project", editedIn: "Edited in Memnox Cloud"))
+    }
+
+    func testNamesTheSharedRepositoryElseTheFolderHere() {
+        XCTAssertEqual(ProjectLines.repositoryLine(shared(description: nil)), "github.com/acme/shop")
+        XCTAssertEqual(ProjectLines.repositoryLine(sampleProject), "/code/memnox-desktop")
+        XCTAssertEqual(ProjectLines.noRepository, "No repository yet")
+    }
+
+    func testSaysWhatItIsForThenItsMissionThenItsSessions() {
+        XCTAssertEqual(ProjectLines.cardLine(shared(description: "The storefront")), "The storefront")
+        XCTAssertEqual(ProjectLines.cardLine(sampleProject), "Ship the projects view")
+        XCTAssertEqual(ProjectLines.cardLine(shared(description: nil)), "No agent has worked here yet.")
+    }
+
+    func testChipsCountServersAndSkillsAndSayWhetherItKeepsMemory() {
+        XCTAssertEqual(ProjectLines.chips(sampleProject), ["1 server", "2 skills", "Memory"])
+        XCTAssertEqual(ProjectLines.chips(shared(description: nil)), ["2 servers", "1 skill", "Memory"])
+    }
+}

@@ -1,5 +1,6 @@
 import type { PolicyRuleView, ProjectApplySummary, ProjectDraft, ProjectInstructionView, ProjectOrganizationView, ProjectView } from '@memnox/core/wire';
 import { agentLabel } from './mcp-hub-lines';
+import { ago } from './session-text';
 
 /** "1 agent", "3 agents": a count, never a score. */
 export function counted(count: number, one: string, many: string): string {
@@ -51,6 +52,12 @@ export function rulesLine(rules: ProjectView['rules']): string {
   if (rules.file === undefined) return 'This project names no rule file, so the rules of this computer hold.';
   if (!rules.inForce) return `${counted(rules.count, 'rule', 'rules')} in ${rules.file}, not in force until applying is signed.`;
   return `${counted(rules.count, 'rule', 'rules')} from ${rules.file}, in force.`;
+}
+
+/** "1 session, 0 ended. Never applied.", the sessions counted and when the project was last applied here. */
+export function sessionsLine(project: Pick<ProjectView, 'sessions' | 'appliedAt'>, now: number): string {
+  const applied = project.appliedAt === undefined ? ' Never applied.' : ` Applied ${ago(project.appliedAt, now) ?? 'a while ago'}.`;
+  return `${counted(project.sessions.total, 'session', 'sessions')}, ${project.sessions.ended} ended.${applied}`;
 }
 
 /** "2 open questions" or that none waits. */
@@ -134,6 +141,37 @@ export function organizationMemoryLine(memory: string): string {
   if (memory === 'none') return 'Its agents keep no memory from this project.';
   if (memory === 'project') return 'What its agents learn is kept under the organization’s project rather than this folder.';
   return `Memory is kept as ${memory}.`;
+}
+
+/** Said on a project card that names no repository, rather than leaving the line blank. */
+export const NO_REPOSITORY = 'No repository yet';
+
+/** What a project card shows, as the console draws one: name, repository, one line and its chips. */
+export interface ProjectCardView {
+  readonly name: string;
+  readonly repository: string;
+  readonly line: string;
+  readonly chips: readonly string[];
+}
+
+/**
+ * A project as one card: the organization's repository where it shares one, else the folder it lives in, a line
+ * saying what it is or who worked there, and a chip for whether it keeps memory. Server and skill counts are left to
+ * the project's own pages, since a project is not only code.
+ */
+export function projectCard(project: Pick<ProjectView, 'name' | 'path' | 'scope' | 'organization' | 'openMissions' | 'agentsSeen' | 'sessions' | 'memoryScope'>): ProjectCardView {
+  const shared = sharedBy(project);
+  const repository = shared?.repository.trim() || project.path.trim() || NO_REPOSITORY;
+  const mission = project.openMissions[0]?.statement;
+  const worked = `${counted(project.agentsSeen.length, 'agent', 'agents')} worked here over ${counted(project.sessions.total, 'session', 'sessions')}`;
+  const line = shared?.description?.trim() || (mission === undefined ? worked : `Working on ${mission}`);
+  const memory = project.memoryScope === '' || project.memoryScope === 'none' ? 'No memory' : 'Memory';
+  return {
+    name: project.name,
+    repository,
+    line,
+    chips: [memory],
+  };
 }
 
 /** Folders the sessions ran in that are not projects yet, offered as quick picks to open. */

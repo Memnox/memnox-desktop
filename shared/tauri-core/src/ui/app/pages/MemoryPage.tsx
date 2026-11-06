@@ -1,6 +1,6 @@
 import type { MemoryEvidenceView, MemoryItemView, MemorySourceView } from '@memnox/core/wire';
 import { BookOpen, Brain, FileText, Layers, Link2, List, Network, Plus, RefreshCw, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { MemoryOutcome } from '../../../core/application/memory';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
 import { LOCAL_ARMS_IDS } from '../../../core/domain/memory-arms/arms-local';
@@ -14,6 +14,7 @@ import {
   filePressLine,
   keyLine,
   kindWord,
+  memoryViewShown,
   lastReadLine,
   moreLine,
   originLine,
@@ -26,8 +27,12 @@ import {
   trustWord,
   type MemoryScopeName,
   type MemoryStatusName,
+  type MemoryView,
 } from '../../../core/domain/memory-lines';
-import { KitButton, SearchField } from '../../settings/kit';
+import { agentLabel } from '../../../core/domain/mcp-hub-lines';
+import { BrandLogo } from '../../kit/logos';
+import { KitButton, SearchField, SelectMenu } from '../../settings/kit';
+import { choiceKey, choiceOfKey, memoryChoices, memoryOwner, MEMORY_CHOICE_KEY, shownMemory, type MemoryProjectChoice } from '../../../core/domain/project-context';
 import { openOrCopy } from '../../settings/host';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AddMemorySourceDialog } from './MemorySourceDialog';
@@ -40,22 +45,12 @@ import { useInspectorHost, usePicked } from '../inspector-host';
 const CHIP = 'mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm';
 const chip = (on: boolean) => `${CHIP} ${on ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`;
 
-/**
- * How memory is shown, as the Mac shows it: drawn as the brain, read as the list, or as the three layers any agent
- * reads. Remembered for the next visit; the brain is where a first visit lands.
- */
-type MemoryView = 'graph' | 'list' | 'layers';
-const VIEW_KEY = 'memnox.memory.shown';
+/** How memory is shown on its one page: drawn as the map it opens on, read as the list, or as the three layers any agent reads. */
 const VIEWS: readonly { view: MemoryView; label: string; icon: typeof List; needs?: string }[] = [
   { view: 'graph', label: 'Graph', icon: Network },
   { view: 'list', label: 'List', icon: List },
   { view: 'layers', label: 'Layers', icon: Layers, needs: 'memory-layers' },
 ];
-
-function savedView(): MemoryView {
-  const saved = localStorage.getItem(VIEW_KEY);
-  return saved === 'list' || saved === 'layers' ? saved : 'graph';
-}
 
 /** How long typing rests before the search is asked, so each key is not a request. */
 const SEARCH_REST_MS = 300;
@@ -70,23 +65,46 @@ export function memoryNote(outcome: MemoryOutcome): string {
  * the evidence it was read from, and the sources it came out of. A statement is shown whole, as written.
  */
 export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: WidthClass; go?: (route: Route) => void }) {
-  const { memory, support } = parts;
-  useObserved(memory, support);
+  const { memory, support, projects } = parts;
+  useObserved(memory, support, projects);
+  // Which project's memory shows, remembered between openings: every project's, what no project owns, or one project's.
+  const [projectChoice, setProjectChoice] = useState<MemoryProjectChoice>(() => choiceOfKey(localStorage.getItem(MEMORY_CHOICE_KEY)));
+  const chooseProject = (choice: MemoryProjectChoice) => {
+    localStorage.setItem(MEMORY_CHOICE_KEY, choiceKey(choice));
+    setProjectChoice(choice);
+  };
+  const readsProjects = support.supports('projects') === true;
+  useEffect(() => {
+    if (readsProjects && projects.projects === undefined) void projects.refresh();
+  }, [readsProjects]);
+  const localProjects = projects.projects ?? [];
+  const chosenProject = projectChoice.kind === 'project' ? localProjects.find((each) => each.id === projectChoice.id) : undefined;
+  // Kept the same between draws, so the brain is laid out again only when the filter or the projects change.
+  const brainShown = useCallback((items: readonly MemoryItemView[]) => shownMemory(items, projectChoice, projects.projects ?? []), [choiceKey(projectChoice), projects.projects]);
+  const projectFilter =
+    localProjects.length === 0 ? null : (
+      <SelectMenu
+        value={choiceKey(projectChoice)}
+        label="Whose memory"
+        width={200}
+        options={memoryChoices(localProjects).map((each) => ({ value: choiceKey(each.choice), label: each.title }))}
+        onChange={(key) => chooseProject(choiceOfKey(key))}
+      />
+    );
   const [status, setStatus] = useState<MemoryStatusName>('verified');
   const [scope, setScope] = useState<MemoryScopeName | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [chosen, choose] = usePicked();
   const linked = useInspectorHost().item;
   const [note, setNote] = useState<string | undefined>(undefined);
-  const [saved, setView] = useState<MemoryView>(savedView);
+  const [chosenView, show] = useState<MemoryView | undefined>(undefined);
   const views = VIEWS.filter((each) => each.needs === undefined || support.supports(each.needs) === true);
-  // A view whose method this runtime does not answer falls back to the brain, so nothing on screen is a promise.
-  // A popped out item opens on the list, where its details are drawn.
-  const view: MemoryView = linked !== undefined ? 'list' : views.some((each) => each.view === saved) ? saved : 'graph';
-  const show = (next: MemoryView) => {
-    localStorage.setItem(VIEW_KEY, next);
-    setView(next);
-  };
+  // The one switch on the page, above the map and beside the list's search, so neither is drawn twice.
+  const view = memoryViewShown(
+    chosenView,
+    views.map((each) => each.view),
+    linked !== undefined,
+  );
   const switcher = (
     <div className="inline-flex items-center gap-1 rounded-lg border border-panel-edge bg-card p-1" role="group" aria-label="Show memory as">
       {views.map((each) => (
@@ -134,15 +152,19 @@ export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: 
             {note}
           </p>
         )}
-        <div className="flex flex-wrap items-center gap-2">{switcher}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          {switcher}
+          {view === 'graph' && projectFilter}
+        </div>
         {view === 'graph' ? (
           <MemoryBrain
             parts={parts}
+            shown={brainShown}
             {...(go === undefined ? {} : { go })}
             nodeCard={(id, close) => <BrainNode parts={parts} id={id} forget={(item) => forget(item, close)} />}
           />
         ) : (
-          <MemoryLayersView parts={parts} />
+          <MemoryLayersView parts={parts} {...(chosenProject === undefined ? {} : { project: chosenProject.path })} />
         )}
       </div>
     );
@@ -161,6 +183,7 @@ export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: 
               <SearchField value={query} placeholder="Search memory" onChange={setQuery} />
             </div>
             <span className="flex-1" />
+            {projectFilter}
             {switcher}
             <div className="flex gap-1.5" role="group" aria-label="Scope">
               <button type="button" className={chip(scope === undefined)} aria-pressed={scope === undefined} onClick={() => setScope(undefined)}>
@@ -191,9 +214,13 @@ export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: 
           {listed !== undefined && listed.items.length === 0 && (
             <EmptyState icon={Brain} title={query.trim() === '' ? `Nothing ${statusWord(status).word.toLowerCase()} here` : 'Nothing learned says that'} body="Add a source below and Memnox reads it with your own agent. What it finds waits in Learn until you confirm it." />
           )}
+          {projectChoice.kind === 'shared' && <p className="text-footnote text-muted">Facts that belong to no one project, so the agents in every project read them.</p>}
+          {listed !== undefined && listed.items.length > 0 && shownMemory(listed.items, projectChoice, localProjects).length === 0 && (
+            <EmptyState icon={Brain} title="Nothing here for this project" body="Pick All projects to see everything, or another project." />
+          )}
           {listed !== undefined && listed.items.length > 0 && (
             <Panel>
-              {listed.items.map((item) => (
+              {shownMemory(listed.items, projectChoice, localProjects).map((item) => (
                 <Row
                   key={item.id}
                   chosen={item.id === chosen}
@@ -202,6 +229,11 @@ export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: 
                   caption={`${kindWord(item.kind)} · ${item.evidence.length === 1 ? '1 piece of evidence' : `${item.evidence.length} pieces of evidence`}`}
                   trailing={
                     <>
+                      {localProjects.length > 0 && (
+                        <span className="inline-flex max-w-[160px] items-center truncate rounded-full border border-panel-edge px-2 py-px text-label font-medium text-muted" title={memoryOwner(item, localProjects)}>
+                          {memoryOwner(item, localProjects)}
+                        </span>
+                      )}
                       <ScopeChip scope={memoryScope(item)} />
                       {item.tainted && <StatusWord tone="attention">Untrusted source</StatusWord>}
                       <StatusWord tone={statusWord(item.status).tone}>{statusWord(item.status).word}</StatusWord>
@@ -243,7 +275,9 @@ function FactDetail({ parts, item, forget }: { parts: SettingsParts; item: Memor
         <dt className="text-muted">Kept</dt>
         <dd className="text-foreground">{item.scope === 'project' ? `With the project${item.project === undefined ? '' : ` ${item.project}`}` : 'In your personal memory'}</dd>
         <dt className="text-muted">From</dt>
-        <dd className="text-foreground">{originLine(item)}</dd>
+        <dd className="text-foreground">
+          <OriginLine item={item} />
+        </dd>
         {confidence !== undefined && (
           <>
             <dt className="text-muted">Extractor</dt>
@@ -274,6 +308,17 @@ function FactDetail({ parts, item, forget }: { parts: SettingsParts; item: Memor
         )}
       </div>
     </div>
+  );
+}
+
+/** Where an item came from, with the suggesting agent's logo ahead of the line when an agent suggested it. */
+export function OriginLine({ item, className }: { item: Pick<MemoryItemView, 'origin' | 'suggestedBy'>; className?: string }) {
+  const agent = item.origin === 'agent' ? item.suggestedBy : undefined;
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${className ?? ''}`}>
+      {agent !== undefined && <BrandLogo agent={agent} name={agentLabel(agent)} size={16} />}
+      {originLine(item)}
+    </span>
   );
 }
 

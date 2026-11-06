@@ -44,13 +44,9 @@ extension Tone {
 
 private enum MemoryLayout {
     static let searchWidth: CGFloat = 300
-    /// Whether memory is drawn as the graph or read as the list, remembered for the next visit.
-    static let viewKey = "memnox.memory.shown"
-    static let switchHeight: CGFloat = 28
-    static let switchPadding: CGFloat = 4
     /// How long typing rests before the search is asked, so each key is not a request.
     static let searchRest: Duration = .milliseconds(300)
-    /// The Inputs tab the memory sources page is routed under.
+    /// The Connected tools tab the memory sources page is routed under, named Files there.
     static let sourcesTab = "sources"
     /// The tab the Skills Hub is routed under.
     static let skillsTab = "skills"
@@ -67,10 +63,11 @@ struct MemoryDestination: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var island: IslandModel
     let width: WidthClass
+    /// The tab of the Memory row shown: the map, the list or the layers. The row's strip is the only switch between them.
+    let shown: MemoryView
     @State private var status = MemoryStatus.verified
     @State private var scope: MemoryScope?
     @State private var query = ""
-    @AppStorage(MemoryLayout.viewKey) private var view = MemoryView.graph
     @AppStorage(MemoryLayout.homeKey) private var home = MemoryHomeFilter.everything
     /// A document or a source picked on the graph, which is not an item and so is not the picked id.
     @State private var place: MemoryMapNode?
@@ -78,6 +75,16 @@ struct MemoryDestination: View {
     @State private var map: MemoryMap?
     /// The node picked on the brain, opened in a dialog over it rather than in the side details.
     @State private var opened: MapPick?
+    /// Which project's memory is shown: every project's, what is shared with every project, or one project's.
+    @AppStorage(ProjectContext.memoryChoiceKey) private var projectKey = ""
+
+    private var projects: [ProjectView] { shell.projects?.projects.projects ?? [] }
+    private var choice: MemoryProjectChoice { MemoryProjectChoice(key: projectKey) }
+
+    /// The facts the project filter leaves, which the list and the map both draw.
+    private func narrowed(_ listed: MemoryItemsView?) -> [MemoryItemView] {
+        ProjectContext.shown(listed?.items ?? [], choice, projects: projects)
+    }
 
     private var filter: MemoryFilter {
         MemoryFilter(status: status, scope: scope, query: query.trimmingCharacters(in: .whitespaces).isEmpty ? nil : query)
@@ -91,10 +98,11 @@ struct MemoryDestination: View {
                         close: { shell.inspecting = nil; place = nil }) {
             // The graph takes the whole panel edge to edge, the console's way, with the page's title, its controls and
             // the way to the sources floated over it; the list keeps the page.
-            if view == .graph {
+            if shown == .graph {
                 graph(listed)
-            } else if view == .layers, let layers = shell.memoryLayers {
-                MemoryLayersPage(screen: layers, width: width) { viewSwitch }
+            } else if shown == .layers, let layers = shell.memoryLayers {
+                // Each project keeps its own layers, so the project picked in the filter is the one they open on.
+                MemoryLayersPage(screen: layers, width: width, preferred: chosenProject(choice)?.path) { EmptyView() }
             } else {
                 ShellScroll(width: width) {
                     NoteBanner(text: screen.note)
@@ -138,12 +146,12 @@ struct MemoryDestination: View {
         .onChange(of: island.waiting.count) { Task { await memory.show(memory.filter) } }
     }
 
-    /// Where the sources went: a quiet line that takes the person to them under Inputs.
+    /// Where the sources went: a quiet line that takes the person to them under Connected tools.
     private var sourcesLink: some View {
         Button { shell.go(WindowRoute(.workspaces, tab: MemoryLayout.sourcesTab)) } label: {
             HStack(spacing: Memnox.Spacing.small) {
                 Image(systemName: "books.vertical").accessibilityHidden(true)
-                Text("Add or manage sources under Inputs")
+                Text("Add or manage files under Connected tools")
             }
             .font(Memnox.Console.sans(Memnox.TextSize.footnote))
             .foregroundStyle(Memnox.Console.primary)
@@ -174,35 +182,6 @@ struct MemoryDestination: View {
         shell.inspecting = item
     }
 
-    /// Graph or List, as the console's own segmented switch.
-    private var viewSwitch: some View {
-        HStack(spacing: Memnox.Spacing.xSmall) {
-            ForEach(MemoryView.allCases, id: \.self) { each in
-                let on = view == each
-                Button { view = each } label: {
-                    Label(each.title, systemImage: each.symbol)
-                        .labelStyle(KitLabel())
-                        .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, on ? .medium : .regular))
-                        .foregroundStyle(on ? Memnox.Console.foreground : Memnox.Console.muted)
-                        .padding(.horizontal, Memnox.Spacing.large)
-                        .frame(height: MemoryLayout.switchHeight)
-                        .background(on ? Memnox.Console.active : Color.clear,
-                                    in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .pointingHand()
-                .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
-            }
-        }
-        .padding(MemoryLayout.switchPadding)
-        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous)
-            .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Show memory as")
-    }
-
     /// What the empty graph says: a first visit is told where memory comes from, a filter that matched nothing says
     /// so, and the workspace alone says how to join one or that nothing came down yet.
     private var emptyLine: String {
@@ -219,13 +198,39 @@ struct MemoryDestination: View {
         return "Nothing \(MemoryLines.statusWord(status.rawValue).word.lowercased()) here."
     }
 
+    private func chosenProject(_ choice: MemoryProjectChoice) -> ProjectView? {
+        guard case .project(let id) = choice else { return nil }
+        return projects.first { $0.id == id }
+    }
+
+    /// The project filter: every project, what is shared with every project, or one project, only once there are projects.
+    @ViewBuilder private var projectRow: some View {
+        if !projects.isEmpty {
+            Menu {
+                ForEach(ProjectContext.memoryChoices(projects), id: \.choice) { each in
+                    Button { projectKey = each.choice.key } label: {
+                        if each.choice == choice { Label(each.title, systemImage: "checkmark") } else { Text(each.title) }
+                    }
+                }
+            } label: {
+                Label(ProjectContext.title(choice, projects: projects), systemImage: "folder")
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
+            }
+            .menuStyle(.button)
+            .buttonStyle(KitButton(kind: .secondary))
+            .fixedSize()
+            .help("Show the memory of one project, or what every project shares")
+            .accessibilityLabel("Project: \(ProjectContext.title(choice, projects: projects))")
+        }
+    }
+
     /// The search, the switch and the status chips on one row where the window is wide enough, so the graph below
     /// gets the height, and on two where it is not.
     private var filters: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: Memnox.Spacing.medium) {
-                SearchField(prompt: searchPrompt, text: $query).frame(width: MemoryLayout.searchWidth)
-                viewSwitch
+                listTools
+                projectRow
                 statusRow
                 Spacer(minLength: Memnox.Spacing.medium)
                 homeRow
@@ -235,11 +240,12 @@ struct MemoryDestination: View {
         }
     }
 
-    /// The search names how much it reaches; on the brain the slash key searches the canvas instead.
-    private var searchPrompt: String {
-        guard view == .graph else { return "Search memory" }
-        let count = screen.memory.facts?.items.count ?? 0
-        return "Search \(count) \(count == 1 ? "memory" : "memories")"
+    /// The list's own search. The map has none here, since the brain carries its own search along its foot, and the
+    /// strip over the page already moves between the map, the list and the layers.
+    @ViewBuilder private var listTools: some View {
+        if shown == .list {
+            SearchField(prompt: "Search memory", text: $query).frame(width: MemoryLayout.searchWidth)
+        }
     }
 
     /// Whose a fact is matters only once there is an organization beside the person.
@@ -259,7 +265,7 @@ struct MemoryDestination: View {
     /// Whose memory the graph draws: everything, this Mac's alone, or what came down from the workspace. Only the graph
     /// draws the workspace, so the list keeps this Mac's alone and no chip.
     @ViewBuilder private var homeRow: some View {
-        if view == .graph {
+        if shown == .graph {
             HStack(spacing: Memnox.Spacing.small) {
                 ForEach(WorkspaceMemoryLines.filters, id: \.filter) { each in
                     MemoryChip(title: each.label, on: home == each.filter) { home = each.filter }
@@ -327,8 +333,8 @@ struct MemoryDestination: View {
     private var stackedFilters: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             HStack(spacing: Memnox.Spacing.medium) {
-                SearchField(prompt: searchPrompt, text: $query).frame(maxWidth: MemoryLayout.searchWidth)
-                viewSwitch
+                listTools
+                projectRow
                 Spacer(minLength: Memnox.Spacing.medium)
                 scopeRow
             }
@@ -345,7 +351,7 @@ struct MemoryDestination: View {
     private func graph(_ listed: MemoryItemsView?) -> some View {
         let memory = screen.memory
         return LocalMemoryMap(tools: island.tools, agents: shell.agents, skills: shell.skills, studio: shell.studio, hub: shell.hub,
-                              sessions: island.cards, items: listed?.items ?? [],
+                              sessions: island.cards, items: narrowed(listed),
                               sources: memory.sources ?? [], workspace: memory.workspace,
                               workspaceGraph: memory.workspaceGraph, status: filter.query == nil ? status : nil, shown: home,
                               selected: opened?.id,
@@ -383,16 +389,21 @@ struct MemoryDestination: View {
             ReadFailed(what: "what was learned") { Task { await memory.show(memory.filter) } }
         }
         if let listed {
-            if listed.items.isEmpty {
+            let items = narrowed(listed)
+            if choice == .shared { MemoryQuiet(ProjectContext.memoryEverywhereNote) }
+            if items.isEmpty {
                 EmptyState(symbol: "brain",
                            title: filter.query == nil ? "Nothing \(MemoryLines.statusWord(status.rawValue).word.lowercased()) here" : "Nothing learned says that",
-                           detail: "Add a source under Inputs and Memnox reads it with your own agent. What it finds waits in Learn until you confirm it.")
+                           detail: "Add a file under Connected tools and Memnox reads it with your own agent. What it finds waits in Learn until you confirm it.")
             } else {
                 ShellPanel {
-                    ForEach(Array(listed.items.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         if index > 0 { ShellDivider() }
                         let word = MemoryLines.statusWord(item.status)
-                        ShellRow(title: item.statement, caption: MemoryLines.rowCaption(item), chosen: item.id == shell.inspecting,
+                        // Whose each fact is, so a person with several projects sees which one learned it.
+                        let owner = ProjectContext.owner(of: item, projects: projects)
+                        ShellRow(title: item.statement, caption: [MemoryLines.rowCaption(item), owner].joined(separator: SessionText.separator),
+                                 chosen: item.id == shell.inspecting,
                                  action: { pick(item.id) }) {
                             EmptyView()
                         } trailing: {
@@ -411,11 +422,20 @@ struct MemoryDestination: View {
 }
 
 /// How memory is shown: drawn as the graph of what it was read out of, or read as the list.
-private enum MemoryView: String, CaseIterable {
+enum MemoryView: String, CaseIterable {
     case graph
     case list
     /// MEMORY.md, the router and the skills as three layers, with the short term card below them.
     case layers
+
+    /// The view a tab of the Memory row draws, the map for any other.
+    init(tab: String?) {
+        switch tab {
+        case "memory": self = .list
+        case "layers": self = .layers
+        default: self = .graph
+        }
+    }
 
     var title: String {
         switch self {
@@ -902,7 +922,8 @@ private struct SkillPlace: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
             if let skill {
-                FactList(facts: [("Version", skill.version), ("Given to", skill.agents.isEmpty ? "No agent yet" : skill.agents.joined(separator: ", "))])
+                FactList(facts: [("Version", skill.version), ("Given to", skill.agents.isEmpty ? "No agent yet" : skill.agents.joined(separator: ", "))],
+                         agents: ["Given to": skill.agents])
             }
             if let path { PathRow(path: path) }
             PlaceSection(title: SkillSearch.skillFile) {

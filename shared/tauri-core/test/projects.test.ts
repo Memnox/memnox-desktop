@@ -16,6 +16,7 @@ import {
   questionsLine,
   readersLine,
   rulesLine,
+  sessionsLine,
   sharedBy,
 } from '../src/core/domain/project-lines';
 import { ScriptedDaemon } from './doubles';
@@ -81,6 +82,8 @@ describe('the wording of a project', () => {
     expect(rulesLine({ file: 'p.toml', count: 0, inForce: false, problem: 'no such file' })).toBe('p.toml will not load: no such file');
     expect(questionsLine(0)).toBe('No open questions');
     expect(questionsLine(1)).toBe('1 open question');
+    expect(sessionsLine({ sessions: { total: 1, ended: 0 } }, 0)).toBe('1 session, 0 ended. Never applied.');
+    expect(sessionsLine({ sessions: { total: 3, ended: 2 } }, 0)).toBe('3 sessions, 2 ended. Never applied.');
   });
 
   it('says what applying did at once and what the hub lacks', () => {

@@ -39,7 +39,7 @@ export function SetupStep({
         ) : (
           tile
         )}
-        <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
+        <div className="flex min-w-0 flex-1 flex-col gap-settings-step-line">
           <span className="text-body text-foreground">{title}</span>
           <span className="text-micro text-muted">{detail}</span>
         </div>
@@ -48,9 +48,9 @@ export function SetupStep({
           {tile !== undefined && state.kind === 'done' && <StatusMark state={state} />}
         </div>
       </div>
-      {extra !== undefined && <div className={tile === undefined ? 'pl-8' : 'pl-[38px]'}>{extra}</div>}
+      {extra !== undefined && <div className={tile === undefined ? 'pl-8' : 'pl-settings-row-text'}>{extra}</div>}
       {showsHint && state.kind === 'needs' && (
-        <div className={tile === undefined ? 'pl-8' : 'pl-[38px]'}>
+        <div className={tile === undefined ? 'pl-8' : 'pl-settings-row-text'}>
           <NeedsHint why={state.why} />
         </div>
       )}
@@ -87,7 +87,7 @@ export function PermissionGuide({
       <ol className="flex flex-col gap-2">
         {steps.map((step, index) => (
           <li key={step} className="flex items-start gap-2">
-            <span className="grid size-[18px] shrink-0 place-items-center rounded-full bg-ink-edge text-micro font-semibold text-ink">{index + 1}</span>
+            <span className="grid size-settings-guide-number shrink-0 place-items-center rounded-full bg-ink-edge text-micro font-semibold text-ink">{index + 1}</span>
             <span className="select-text text-footnote text-ink-primary">{step}</span>
           </li>
         ))}
@@ -105,27 +105,33 @@ export function PermissionGuide({
   );
 }
 
+/** `GuideLayout.barWidths`: the two other apps' name bars, of different lengths so they read as names. */
+const GUIDE_BAR_WIDTHS = [84, 110] as const;
+/** `GuideLayout.pointerSize`, the pointer drawn bold. */
+const GUIDE_POINTER = 16;
+const GUIDE_POINTER_STROKE = 2.5;
+
 /** The picture of the pane: two greyed rows and the switch for Memnox, flipped off and on by a pointer. */
 function SwitchPicture({ pane, switchName }: { pane: string; switchName: string }) {
   return (
-    <div className="relative h-[116px] w-[300px] overflow-hidden rounded-[10px] border border-ink-edge bg-raised" aria-hidden>
-      <div className="flex h-[26px] items-center px-3 text-caption font-semibold text-ink-primary">{pane}</div>
-      {[84, 110].map((width) => (
-        <div key={width} className="flex h-[30px] items-center gap-2 px-3">
-          <span className="size-[18px] rounded-[5px] bg-ink-fill" />
+    <div className="relative h-settings-guide-height w-settings-guide-width overflow-hidden rounded-settings-guide border border-ink-edge bg-raised" aria-hidden>
+      <div className="flex h-settings-guide-header items-center px-3 text-caption font-semibold text-ink-primary">{pane}</div>
+      {GUIDE_BAR_WIDTHS.map((width) => (
+        <div key={width} className="flex h-settings-guide-row items-center gap-1.5 px-3">
+          <span className="size-settings-guide-tile rounded-settings-guide-tile bg-ink-fill" />
           <span className="h-2 rounded-full bg-ink-fill" style={{ width }} />
-          <span className="ml-auto h-[17px] w-[30px] rounded-full bg-primary opacity-35" />
+          <span className="ml-auto h-settings-guide-switch-height w-settings-guide-switch-width rounded-full bg-primary opacity-35" />
         </div>
       ))}
-      <div className="flex h-[30px] items-center gap-2 bg-primary/[0.08] px-3">
-        <span className="size-[18px] rounded-[5px] bg-primary" />
+      <div className="flex h-settings-guide-row items-center gap-1.5 bg-primary/[0.08] px-3">
+        <span className="size-settings-guide-tile rounded-settings-guide-tile bg-primary" />
         <span className="truncate text-footnote font-medium text-ink">{switchName}</span>
-        <span className="relative ml-auto h-[17px] w-[30px] shrink-0 animate-[guide-switch_5.6s_infinite] rounded-full">
-          <span className="absolute top-0.5 left-0.5 size-[13px] animate-[guide-knob_5.6s_infinite] rounded-full bg-white shadow-[0_1px_1px_rgba(0,0,0,.25)]" />
+        <span className="relative ml-auto h-settings-guide-switch-height w-settings-guide-switch-width shrink-0 animate-[guide-switch_5.6s_infinite] rounded-full">
+          <span className="absolute top-0.5 left-0.5 size-settings-guide-knob animate-[guide-knob_5.6s_infinite] rounded-full bg-white" />
         </span>
       </div>
-      <span className="absolute top-0 left-0 animate-[guide-pointer_5.6s_infinite] text-white [filter:drop-shadow(0_0_0.8px_rgba(0,0,0,.9))]">
-        <MousePointer2 size={16} strokeWidth={2.5} fill="white" />
+      <span className="absolute top-0 left-0 animate-[guide-pointer_5.6s_infinite] text-white drop-shadow-settings-pointer">
+        <MousePointer2 size={GUIDE_POINTER} strokeWidth={GUIDE_POINTER_STROKE} fill="white" />
       </span>
     </div>
   );

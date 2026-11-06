@@ -169,7 +169,7 @@ function Rail({ total, categories, chosen, choose }: { total: number; categories
   const rows = [{ id: undefined, label: YourAppsLines.allToolkits, count: total }, ...categories];
   return (
     <nav aria-label={YourAppsLines.categories} className="flex shrink-0 flex-col gap-0.5" style={{ width: YourAppsLayout.railWidth }}>
-      <p className="m-0 px-2.5 pb-1.5 font-code text-meta tracking-[1.98px] text-muted uppercase">{YourAppsLines.categories}</p>
+      <p className="m-0 px-2.5 pb-1.5 font-code text-meta tracking-heading text-muted uppercase">{YourAppsLines.categories}</p>
       {rows.map((row) => {
         const on = row.id === chosen;
         return (

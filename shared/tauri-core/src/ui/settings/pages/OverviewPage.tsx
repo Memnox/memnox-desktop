@@ -185,7 +185,7 @@ function HomeBlocks({ parts, view }: { parts: SettingsParts; view: HomeView }) {
             >
               <span className="relative">
                 <BrandLogo agent={session.agent} name={session.agentName} size={SESSION_LOGO} />
-                <span className="absolute -right-0.5 -bottom-0.5 size-[9px] rounded-full bg-green ring-2 ring-surface" />
+                <span className="absolute -right-0.5 -bottom-0.5 size-settings-live-dot rounded-full bg-green ring-2 ring-surface" />
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-px">
                 <span className="text-body font-semibold text-ink">{session.agentName}</span>

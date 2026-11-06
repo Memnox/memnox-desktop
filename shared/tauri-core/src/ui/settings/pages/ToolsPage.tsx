@@ -12,7 +12,7 @@ import { AgentHomesSetup } from './AgentHomesSetup';
 
 /** A 7 dot after a tool: ready in the success colour, needing the person in the warm one. */
 function StatusDot({ ready }: { ready: boolean }) {
-  return <span className={`size-[7px] shrink-0 rounded-full ${ready ? 'bg-success' : 'bg-warm'}`} aria-label={ready ? ToolsPageLines.ready : ToolsPageLines.needsYou} />;
+  return <span className={`size-settings-tool-dot shrink-0 rounded-full ${ready ? 'bg-success' : 'bg-warm'}`} aria-label={ready ? ToolsPageLines.ready : ToolsPageLines.needsYou} />;
 }
 
 /**

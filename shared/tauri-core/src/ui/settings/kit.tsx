@@ -38,10 +38,10 @@ const CAPSULE_CHEVRON_STROKE = 2.5;
 /** How long Copied stands before the press reads Copy again, long enough to be seen and no longer. */
 const COPIED_FOR_MS = 1_500;
 
-/** `Keycap`: 11 medium on a rounded key, at least 18 square. */
+/** `Keycap` in the console look: 11 medium muted on a key at the control radius, at least 18 square. */
 export function Keycap({ label }: { label: string }) {
   return (
-    <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-key border border-control-edge bg-keycap px-1.5 text-caption font-medium leading-none text-foreground">
+    <span className="inline-flex h-settings-keycap min-w-settings-keycap items-center justify-center rounded-control border border-control-edge bg-keycap px-1.5 text-caption font-medium leading-none text-muted">
       {label}
     </span>
   );
@@ -160,7 +160,7 @@ export function KitRow({ icon, title, detail, children }: { icon: LucideIcon; ti
 
 /** `KitDivider`: a hairline of ink 6% starting under the titles, the tile's side and 12 in. */
 export function KitDivider() {
-  return <div className="ml-[38px] h-px shrink-0 bg-ink-faint-fill" />;
+  return <div className="ml-settings-row-text h-px shrink-0 bg-ink-faint-fill" />;
 }
 
 /** The app tile's icon side and the check that marks the chosen one, as `AgentHomePicker` draws them. */
@@ -193,7 +193,7 @@ export function AppTile({ icon, name, chosen, hint, choose }: { icon: LucideIcon
 
 /** `AgentHomePicker`'s grid: tiles at least 96 wide, 8 apart, 10 above and below. */
 export function AppTileGrid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 py-2.5">{children}</div>;
+  return <div className="grid grid-cols-(--mx-settings-app-tiles) gap-2 py-2.5">{children}</div>;
 }
 
 /** `SettingsCard`, as the console's setting card: a bordered white card at radius 12, padding 20, a 16 medium heading. */
@@ -286,7 +286,7 @@ export function SwitchRow({
 
 /** `SettingsDivider`: 1 px of the border colour, starting under the titles (38 in) or full width. */
 export function SettingsDivider({ full = false }: { full?: boolean }) {
-  return <div className={`h-px shrink-0 bg-border ${full ? '' : 'ml-[38px]'}`} />;
+  return <div className={`h-px shrink-0 bg-border ${full ? '' : 'ml-settings-row-text'}`} />;
 }
 
 /** `HoverLight`: a rounded hover fill reaching 8 past the row on either side. */
@@ -297,7 +297,7 @@ export const HOVER_LIGHT =
 export function NavigationCapsule({ canBack, canForward, back, forward }: { canBack: boolean; canForward: boolean; back: () => void; forward: () => void }) {
   const half = 'grid h-full flex-1 cursor-pointer place-items-center disabled:cursor-default';
   return (
-    <div className="flex h-8 w-[69px] shrink-0 rounded-full border border-capsule-edge bg-capsule shadow-[0_1px_2px_rgba(0,0,0,.06)]">
+    <div className="flex h-8 w-settings-capsule shrink-0 rounded-full border border-capsule-edge bg-capsule shadow-settings-capsule">
       <Pressable className={`${half} ${canBack ? 'text-foreground' : 'text-faint'}`} disabled={!canBack} onClick={back} title={SettingsKitLines.back} aria-label={SettingsKitLines.back}>
         <ChevronLeft size={CAPSULE_CHEVRON} strokeWidth={CAPSULE_CHEVRON_STROKE} />
       </Pressable>
@@ -331,7 +331,7 @@ export function QuietLine({ children, size = CAPTION_SIZE }: { children: ReactNo
 /** Six digits as both screens show them: 26 semibold mono, tracking 2, in ink. */
 export function Digits({ code, size = DIGITS_SIZE }: { code: string; size?: number }) {
   return (
-    <span className="select-text font-code font-semibold tracking-[2px] text-ink" style={{ fontSize: size }}>
+    <span className="select-text font-code font-semibold tracking-settings-code text-ink" style={{ fontSize: size }}>
       {code}
     </span>
   );

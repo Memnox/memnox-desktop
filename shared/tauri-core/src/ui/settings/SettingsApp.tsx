@@ -78,11 +78,11 @@ export function SettingsApp({ parts, first }: { parts: SettingsParts; first?: Se
   const info = pageInfo(page);
   return (
     <div className="flex h-full bg-surface text-foreground">
-      <aside className="flex w-[243px] shrink-0 flex-col">
-        <div className="px-[9px] pt-3 pb-[9px]">
+      <aside className="flex w-settings-sidebar shrink-0 flex-col">
+        <div className="px-settings-sidebar-pad pt-3 pb-settings-sidebar-pad">
           <SearchInput value={query} placeholder={SettingsWindowLines.search} onChange={setQuery} />
         </div>
-        <nav className="flex-1 overflow-y-auto px-[9px] pb-[9px] [scrollbar-width:none]">
+        <nav className="flex-1 overflow-y-auto px-settings-sidebar-pad pb-settings-sidebar-pad [scrollbar-width:none]">
           {query.trim() !== ''
             ? matchingPages(query).map((each) => <SidebarRow key={each} page={each} chosen={each === page} go={go} />)
             : SETTINGS_GROUPS.map((group) => (
@@ -105,7 +105,7 @@ export function SettingsApp({ parts, first }: { parts: SettingsParts; first?: Se
         </nav>
       </aside>
       <main className="my-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-panel-edge bg-background">
-        <header className="flex h-11 shrink-0 items-center gap-[13px] pl-[19px]">
+        <header className="flex h-11 shrink-0 items-center gap-settings-header-gap pl-settings-header-leading">
           <NavigationCapsule
             canBack={history.canGoBack}
             canForward={history.canGoForward}
@@ -121,7 +121,7 @@ export function SettingsApp({ parts, first }: { parts: SettingsParts; first?: Se
           <span className="truncate text-headline font-semibold text-foreground">{info.title}</span>
         </header>
         <div className="flex-1 overflow-y-auto [scrollbar-width:none]">
-          <div key={page} className="mx-auto flex max-w-[760px] flex-col gap-5 px-[22px] pt-2 pb-[22px]">
+          <div key={page} className="mx-auto flex max-w-settings-page flex-col gap-5 px-settings-page-pad pt-2 pb-settings-page-pad">
             {page !== 'overview' && <PageTitle title={info.title} subtitle={info.subtitle} />}
             <PageBody page={page} parts={parts} go={go} />
           </div>
@@ -172,18 +172,18 @@ const ROW_GLYPH_STROKE = 1.9;
 const FOLD_GLYPH = 10;
 const FOLD_GLYPH_STROKE = 3;
 
-/** A sidebar row: 30 tall, the icon in an 18 column, 9 to the label; chosen is white on the blue. */
+/** A sidebar row: 30 tall at radius 8, the icon in an 18 column, 9 to the label; chosen is white on the blue. */
 function SidebarRow({ page, chosen, go }: { page: SettingsPage; chosen: boolean; go: (page: SettingsPage) => void }) {
   const Icon = ICONS[page];
   const info = pageInfo(page);
   return (
     <Pressable
-      className={`flex h-[30px] w-full cursor-pointer items-center gap-[9px] rounded-control px-2.5 text-left text-body transition-colors duration-200 ${chosen ? 'bg-primary font-medium text-white' : 'text-foreground hover:bg-hover'}`}
+      className={`flex h-settings-row w-full cursor-pointer items-center gap-settings-row-icon-gap rounded-settings-row px-2.5 text-left text-body transition-colors duration-200 ${chosen ? 'bg-primary font-medium text-white' : 'text-foreground hover:bg-hover'}`}
       onClick={() => go(page)}
       title={info.subtitle}
       aria-current={chosen ? 'page' : undefined}
     >
-      <span className={`grid w-[18px] shrink-0 place-items-center ${chosen ? 'text-white' : 'text-primary'}`}>
+      <span className={`grid w-settings-row-icon shrink-0 place-items-center ${chosen ? 'text-white' : 'text-primary'}`}>
         <Icon size={ROW_GLYPH} strokeWidth={ROW_GLYPH_STROKE} />
       </span>
       <span className="truncate">{info.title}</span>

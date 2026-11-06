@@ -113,7 +113,7 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
   const back = () => (done ? setStage('steps') : setStep((step - 1) as OnboardingStep));
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
-      <div className="flex flex-col gap-2 px-7 pt-[18px]">
+      <div className="flex flex-col gap-2 px-onboard-side pt-onboard-top">
         <div className="h-1 overflow-hidden rounded-full bg-ink-fill">
           <div className="h-full rounded-full bg-ink-primary transition-[width] duration-500 ease-out" style={{ width: `${progressOf(step, stage) * 100}%` }} />
         </div>
@@ -195,14 +195,11 @@ function MuteButton({ parts }: { parts: SettingsParts }) {
 /** The wordmark and Get Started on the dark veil; the name is asked on the end screen or in Settings, never here. */
 function Veil({ next }: { next: () => void }) {
   return (
-    <div
-      className="relative flex h-full flex-col items-center justify-center text-white"
-      style={{ background: 'linear-gradient(rgb(0 0 0 / 0.58), rgb(0 0 0 / 0.58)), radial-gradient(120% 90% at 50% 20%, #2b4f7f 0%, #10213a 55%, #05070c 100%)' }}
-    >
+    <div className="relative flex h-full flex-col items-center justify-center bg-(image:--mx-onboard-veil) text-white">
       <div className="flex animate-[card-in_600ms_cubic-bezier(.2,.8,.2,1)_both] flex-col items-center gap-11">
-        <div className="flex items-center gap-4" style={{ filter: 'drop-shadow(0 0 6px rgb(255 255 255 / .6)) drop-shadow(0 0 28px rgb(255 255 255 / .55))' }}>
-          <img src={MEMNOX_MARK} alt="" className="h-[72px] w-auto" draggable={false} />
-          <span className="font-display text-[72px] leading-none font-semibold tracking-tight">{OnboardingLines.brand}</span>
+        <div className="flex items-center gap-4 drop-shadow-onboard-wordmark">
+          <img src={MEMNOX_MARK} alt="" className="h-onboard-wordmark w-auto" draggable={false} />
+          <span className="font-display text-onboard-wordmark leading-none font-semibold tracking-tight">{OnboardingLines.brand}</span>
         </div>
         <Button kind="glass" trailing={ArrowRight} onClick={next} autoFocus>
           {OnboardingLines.getStarted}
@@ -227,17 +224,17 @@ function ScrollColumn({ children }: { children: ReactNode }) {
     return () => observer.disconnect();
   }, []);
   return (
-    <div className="relative w-[458px] shrink-0">
+    <div className="relative w-onboard-scroll shrink-0">
       <div
         ref={scroller}
         onScroll={measure}
-        className="h-full animate-[satellite-right_500ms_cubic-bezier(.2,.8,.2,1)_both] overflow-y-auto pr-[18px]"
-        style={{ maskImage: more ? 'linear-gradient(black calc(100% - 36px), transparent)' : undefined }}
+        className="h-full animate-[satellite-right_500ms_cubic-bezier(.2,.8,.2,1)_both] overflow-y-auto pr-onboard-gutter"
+        style={{ maskImage: more ? 'var(--mx-onboard-fade)' : undefined }}
       >
         <div className="flex flex-col gap-5 py-9">{children}</div>
       </div>
       {more && (
-        <span className="absolute bottom-2 left-1/2 -translate-x-1/2 shadow-[0_4px_10px_rgba(0,0,0,.25)] [border-radius:999px]">
+        <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full shadow-onboard-more">
           <Button icon={ChevronDown} onClick={() => scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })}>
             {OnboardingLines.moreBelow}
           </Button>
@@ -252,7 +249,7 @@ function StepTitle({ counter, title, detail }: { counter?: string; title: string
   return (
     <header className="flex flex-col gap-2">
       {counter !== undefined && <span className="text-footnote font-medium text-ink-tertiary">{counter}</span>}
-      <h1 className="font-display text-[30px] leading-tight font-semibold text-ink">{title}</h1>
+      <h1 className="font-display text-onboard-title leading-tight font-semibold text-ink">{title}</h1>
       <p className="text-headline text-ink-secondary">{detail}</p>
     </header>
   );
@@ -300,7 +297,7 @@ function KitRow({ tile, title, detail, hint, trailing }: { tile: ReactNode; titl
 }
 
 function KitDivider() {
-  return <div className="ml-[38px] h-px bg-ink-faint-fill" />;
+  return <div className="ml-settings-row-text h-px bg-ink-faint-fill" />;
 }
 
 /** A row's done mark, or its control until then. */
@@ -451,7 +448,7 @@ function PermissionsStep({ parts, next }: { parts: SettingsParts; next: () => vo
                 }
               />
               {step.state.kind === 'needs' && step.guide.length > 0 && (
-                <div className="pb-2.5 pl-[38px]">
+                <div className="pb-2.5 pl-settings-row-text">
                   <PermissionGuide
                     steps={step.guide}
                     pane={pane === 'microphone' ? 'Microphone' : undefined}

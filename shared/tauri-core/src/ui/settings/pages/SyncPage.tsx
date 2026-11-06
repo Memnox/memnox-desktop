@@ -85,7 +85,7 @@ function StateCard({ parts, status, note, said }: { parts: SettingsParts; status
 /** Six groups of five digits, large and monospaced, so two screens read side by side. */
 function FingerprintDigits({ fingerprint }: { fingerprint: string }) {
   return (
-    <div className="grid w-fit grid-cols-3 gap-x-5 gap-y-1.5 font-mono text-[24px] font-semibold tracking-[2px] text-foreground tabular-nums" aria-label={`Fingerprint ${fingerprint}`}>
+    <div className="grid w-fit grid-cols-3 gap-x-5 gap-y-1.5 font-mono text-settings-fingerprint font-semibold tracking-settings-fingerprint text-foreground tabular-nums" aria-label={`Fingerprint ${fingerprint}`}>
       {fingerprintGroups(fingerprint).map((group, index) => (
         <span key={`${index}-${group}`}>{group}</span>
       ))}

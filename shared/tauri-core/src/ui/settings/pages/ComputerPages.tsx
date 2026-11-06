@@ -277,8 +277,7 @@ export function AppearancePage({ parts }: { parts: SettingsParts }) {
         {LOOKS.map((look) => (
           <Pressable key={look} className="flex cursor-pointer flex-col items-center gap-2 transition-transform duration-200 ease-press active:scale-[0.94]" onClick={() => pick(look)} aria-pressed={look === chosen}>
             <span
-              className="block rounded-xl"
-              style={{ boxShadow: look === chosen ? '0 0 0 2px var(--color-primary)' : '0 0 0 1px var(--mx-ink-edge)' }}
+              className={`block rounded-xl ${look === chosen ? 'shadow-settings-look-picked' : 'shadow-settings-look'}`}
             >
               <LookThumbnail look={look} />
             </span>
@@ -306,7 +305,7 @@ function LookThumbnail({ look }: { look: Look }) {
     </svg>
   );
   return (
-    <span className="relative block h-[92px] w-[136px] overflow-hidden rounded-xl">
+    <span className="relative block h-settings-look-height w-settings-look-width overflow-hidden rounded-xl">
       {look === 'light' && page(false)}
       {look === 'dark' && page(true)}
       {look === 'system' && (

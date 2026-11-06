@@ -128,8 +128,8 @@ export function IslandDemo({ part }: { part: WelcomeRow['id'] }) {
   return (
     <div className="pointer-events-none flex min-w-0 flex-1 py-9" aria-hidden>
       <div className="relative flex flex-1 items-end justify-center overflow-hidden rounded-3xl border border-ink-rim p-6" style={{ background: 'linear-gradient(#86B3C9, #4F7BB3)' }}>
-        <div className="relative aspect-[828/634] w-full max-w-[520px] rounded-t-[22px] bg-[#0C0C0D] px-[1.7%] pt-[1.7%] shadow-[0_14px_24px_rgba(0,0,0,.35)] [mask-image:linear-gradient(black_82%,transparent)]">
-          <div className="relative h-full overflow-hidden rounded-t-[14px]" style={{ background: 'linear-gradient(160deg, #1E86EE, #0a3d7a)' }}>
+        <div className="relative aspect-[828/634] w-full max-w-onboard-demo rounded-t-onboard-lid bg-onboard-bezel px-[1.7%] pt-[1.7%] shadow-onboard-lid [mask-image:linear-gradient(black_82%,transparent)]">
+          <div className="relative h-full overflow-hidden rounded-t-onboard-screen" style={{ background: 'linear-gradient(160deg, #1E86EE, #0a3d7a)' }}>
             <div
               key={part}
               className="absolute top-0 left-1/2 animate-[fade-in_300ms_ease-out]"

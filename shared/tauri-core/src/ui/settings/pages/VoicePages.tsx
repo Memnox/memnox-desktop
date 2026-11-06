@@ -86,7 +86,7 @@ function AgentsStep({ parts }: { parts: SettingsParts }) {
             {installed.map((agent) => (
               <div key={agent.kind} className="flex items-center gap-2">
                 <BrandLogo agent={agent.kind} name={agent.label} size={AGENT_LOGO} />
-                <span className="w-[84px] shrink-0 truncate text-caption font-semibold text-foreground">{agent.label}</span>
+                <span className="w-settings-agent-label shrink-0 truncate text-caption font-semibold text-foreground">{agent.label}</span>
                 <span className={`min-w-0 flex-1 truncate text-caption ${agent.works === false ? 'text-ink-primary' : 'text-ink-secondary'}`} title={AgentCheckText.status(agent, steps.checkingAgents)}>
                   {AgentCheckText.status(agent, steps.checkingAgents)}
                 </span>
@@ -331,7 +331,7 @@ export function DictationPage({ parts }: { parts: SettingsParts }) {
           ) : (
             words.map((word) => (
               <Fragment key={`${word.said ?? ''}:${word.written}`}>
-                <div className="ml-[41px] h-px bg-ink-rim" />
+                <div className="ml-settings-menu-divider h-px bg-ink-rim" />
                 <div className="flex items-center gap-1.5 px-4 py-2 text-callout">
                   {word.said !== undefined && (
                     <>
@@ -357,7 +357,7 @@ export function DictationPage({ parts }: { parts: SettingsParts }) {
             <>
               {history.map((entry, index) => (
                 <Fragment key={entry.at}>
-                  {index > 0 && <div className="ml-[41px] h-px bg-ink-rim" />}
+                  {index > 0 && <div className="ml-settings-menu-divider h-px bg-ink-rim" />}
                   <div className="flex items-center gap-3 px-4 py-3">
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="line-clamp-3 select-text text-callout text-ink">{entry.written}</span>
@@ -369,7 +369,7 @@ export function DictationPage({ parts }: { parts: SettingsParts }) {
                   </div>
                 </Fragment>
               ))}
-              <div className="ml-[41px] h-px bg-ink-rim" />
+              <div className="ml-settings-menu-divider h-px bg-ink-rim" />
               <div className="flex justify-end px-4 py-3">
                 <Button onClick={() => dictation.clearHistory()}>{VoiceLines.clearHistory}</Button>
               </div>

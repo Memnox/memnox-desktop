@@ -172,7 +172,7 @@ function homeSteps(standing: HomeStanding, keyTitle: string): HomeStep[] {
       id: 'rulesInForce',
       title: 'Let your rules reach them',
       value: 'Memnox decides on this computer with no network in the path. This is the moment it controls something rather than watching it.',
-      how: `Add a ready made pack, then confirm each rule with ${keyTitle} on the island.`,
+      how: `Add a ready-made pack, then confirm each rule with ${keyTitle} on the island.`,
       action: 'Add rules',
       track: 'computer',
       done: standing.rulesInForce > 0,

@@ -87,7 +87,7 @@ final class McpHubLinesTests: XCTestCase {
         XCTAssertEqual(McpHubLines.reachCaption(given, agent: "cursor"), "Has this server only in web")
         XCTAssertNil(McpHubLines.reachCaption(given, agent: "codex-cli"))
         XCTAssertEqual(McpHubLines.projectOnlyHelp(given, agent: "cursor"),
-                       "Cursor has this server only in /Users/bo/code/web, given in that project's settings in Workspaces.")
+                       "Cursor has this server only in /Users/bo/code/web, given in that project's settings in Projects.")
     }
 
     func testCountsTheProjectsOfAnAgentGivenAServerInMoreThanOne() throws {
@@ -98,7 +98,7 @@ final class McpHubLinesTests: XCTestCase {
     func testOffersAProjectOnlyAgentTheServerInEveryProject() throws {
         XCTAssertEqual(McpHubLines.giveEverywhere, "Give in every project")
         XCTAssertEqual(McpHubLines.projectOnlyLine,
-                       "A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Workspaces, and giving it here gives it in every project.")
+                       "A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Projects, and giving it here gives it in every project.")
     }
 
     func testAPressIsSaidInItsRowWaitingDoneOrRefused() {

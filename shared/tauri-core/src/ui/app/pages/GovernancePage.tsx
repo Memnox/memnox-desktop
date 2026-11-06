@@ -5,6 +5,7 @@ import type { HeldOutcome } from '../../../core/application/held-calls';
 import type { HeldCard } from '../../../core/domain/held-card';
 import type { HeldAnswer } from '../../../core/domain/call-label';
 import { BrandLogo } from '../../kit/logos';
+import { HeldImpactLines } from '../../cards/HeldImpact';
 import { KitButton, SwitchRow } from '../../settings/kit';
 import { NOTICES_ASKED_KEY, NOTICES_DENIED, NOTICES_DETAIL, NOTICES_KEY, NOTICES_TITLE } from '../../../core/domain/held-notices';
 import { useObserved, type SettingsParts } from '../../settings/parts';
@@ -82,10 +83,13 @@ function Approvals({ parts }: { parts: SettingsParts }) {
             <StatusWord tone="attention">Asks first</StatusWord>
           </header>
           <p className="text-body text-foreground">{card.what}</p>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-footnote">
+          {/* What the held action could affect, under what it does, as the Mac's card shows it. */}
+          {card.impact !== undefined && <HeldImpactLines impact={card.impact} />}
+          {/* Project, then why, then how it is signed, in the Mac's order. */}
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-meta">
+            {projectNameOfPlace(card.place, projects.projects ?? []) !== undefined && <Fact name="Project" value={projectNameOfPlace(card.place, projects.projects ?? []) ?? ''} />}
             {card.why !== undefined && <Fact name="Why it asks" value={card.why} />}
             {card.task !== undefined && <Fact name="Task" value={card.task} />}
-            {projectNameOfPlace(card.place, projects.projects ?? []) !== undefined && <Fact name="Project" value={projectNameOfPlace(card.place, projects.projects ?? []) ?? ''} />}
             <Fact name="Signed" value={signedFact(card, words.keyTitle)} />
           </dl>
           <div className="flex flex-wrap items-center gap-2">

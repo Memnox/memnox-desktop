@@ -1,5 +1,5 @@
 import type { SkillView, SkillsHubView } from '@memnox/core/wire';
-import { ArrowLeft, Check, Download, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Download, Plus, RefreshCw, Search, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { SkillOutcome } from '../../../core/application/skills';
 import type { WidthClass } from '../../../core/domain/destinations';
@@ -71,7 +71,7 @@ function MySkills({ parts, view, width, said, manage }: { parts: SettingsParts; 
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-2.5">
         <div className="w-full max-w-[320px] min-w-[180px] flex-1">
-          <SearchField value={query} placeholder="Search skills" onChange={setQuery} />
+          <SearchField value={query} placeholder="Search skills and what agents have" onChange={setQuery} />
         </div>
         <span className="flex-1" />
         <KitButton icon={RefreshCw} disabled={skills.busy === 'sync'} onClick={() => void skills.sync().then(said)} title="Write what the hub gives each agent into its folder again">
@@ -86,12 +86,11 @@ function MySkills({ parts, view, width, said, manage }: { parts: SettingsParts; 
         <EmptyState
           icon={Sparkles}
           title="No skills in the hub yet"
-          body="Write a skill once and give it to any agent, or bring in one an agent already has from Found on this computer below."
-          action={<KitButton kind="primary" icon={Plus} onClick={() => setCreating(true)}>New skill</KitButton>}
+          body="Write one with New skill and give it to any agent, or import one an agent already has from Found on this computer below."
         />
       ) : (
         searching && shown.length === 0 ? (
-          <EmptyState icon={Sparkles} title={noMatchTitle(query)} body={noMatchDetail(foundMatching(view.found, query, label).length)} />
+          <EmptyState icon={Search} title={noMatchTitle(query)} body={noMatchDetail(foundMatching(view.found, query, label).length)} />
         ) : (
         <CardGrid>
           {shown.map((skill) => (

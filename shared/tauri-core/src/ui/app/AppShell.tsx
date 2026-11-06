@@ -324,7 +324,7 @@ function Crumbs({ parts }: { parts: readonly string[] }) {
 function DemoBadge() {
   return (
     <span
-      className="mr-2 shrink-0 rounded-full border border-warm/40 bg-warm/10 px-2 py-0.5 text-body-sm font-medium text-warm"
+      className="mr-2 shrink-0 rounded-full border border-warm bg-warm/[0.14] px-2 py-[3px] text-body-sm font-medium text-warm"
       title="Everything in this window comes from the demo fixture, and nothing reaches Memnox or your accounts."
       aria-label="Demo data: nothing here is real"
     >

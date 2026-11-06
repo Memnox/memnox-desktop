@@ -718,7 +718,7 @@ private struct McpClients: View {
 
     @ViewBuilder private func cell(_ server: McpHubServerView, _ agent: String) -> some View {
         if McpHubLines.reach(server, agent: agent) == .projects {
-            // Unticked, since ticking gives it everywhere; the project assignment is changed in Workspaces.
+            // Unticked, since ticking gives it everywhere; the project assignment is changed in Projects.
             let help = McpHubLines.projectOnlyHelp(server, agent: agent)
             let everywhere = Binding(get: { false }, set: { want in
                 if want { screen.press { await $0.assign(server.name, agent: agent, on: true) } }

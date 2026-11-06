@@ -1,5 +1,5 @@
 import type { ActivityFilter, DecisionView } from '@memnox/core/wire';
-import { ArrowUp, Copy, FileText, History, RotateCw } from 'lucide-react';
+import { ArrowUp, Copy, FileText, History } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
 import { agentNameOf, missedRowsLine, newRowsLine, type ShownActivity } from '../../../core/domain/live-activity';
@@ -117,7 +117,7 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
         {activity.missed > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <p role="status" className="text-footnote text-muted">{missedRowsLine(activity.missed)}</p>
-            <KitButton icon={RotateCw} onClick={() => void activity.show(filter)}>
+            <KitButton onClick={() => void activity.show(filter)}>
               Refresh
             </KitButton>
           </div>
@@ -192,7 +192,7 @@ function DecisionDetail({ view, host, change }: { view: DecisionView; host: Sett
       )}
       {view.chain !== '' && (
         <Section title="Who it acted for">
-          <p className="text-footnote break-words text-foreground">{view.chain}</p>
+          <p className="text-footnote break-words text-muted">{view.chain}</p>
         </Section>
       )}
       {view.context.length > 0 && (

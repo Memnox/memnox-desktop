@@ -166,7 +166,7 @@ public enum Destinations {
                             TabInfo(id: "computer", title: "On this computer", group: .computer,
                                     summary: "The agents on this Mac and the apps Memnox can act in as you."),
                         ]),
-        DestinationInfo(id: .workspaces, title: "Workspaces",
+        DestinationInfo(id: .workspaces, title: "Projects",
                         subtitle: "Your projects, with the skills, tools, memory and rules each one carries.",
                         key: "3", tabs: [
                             TabInfo(id: "projects", title: "Projects", group: .projects,

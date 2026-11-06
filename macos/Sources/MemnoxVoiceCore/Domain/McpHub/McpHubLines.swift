@@ -255,15 +255,15 @@ public enum McpHubLines {
     }
 
     /// Why a project only assignment is never taken away here: unticking would remove nothing.
-    public static let projectOnlyLine = "A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Workspaces, and giving it here gives it in every project."
+    public static let projectOnlyLine = "A folder means the agent has this server only in that project. It is given in that project's settings, so it is changed in Projects, and giving it here gives it in every project."
     /// The control beside a project only assignment: it gives the server everywhere, signed like every other give.
     public static let giveEverywhere = "Give in every project"
-    public static let workspacesLink = "Open Workspaces"
+    public static let workspacesLink = "Open Projects"
 
     /// The help on a project only cell: who has it, where, and where it is changed.
     public static func projectOnlyHelp(_ server: McpHubServerView, agent: String) -> String {
         let paths = server.projects(of: agent).joined(separator: ", ")
-        return "\(agentLabel(agent)) has this server only in \(paths), given in that project's settings in Workspaces."
+        return "\(agentLabel(agent)) has this server only in \(paths), given in that project's settings in Projects."
     }
 
     /// Each agent a server is shown on once, in the hub's order, since one given in two repositories is listed twice.

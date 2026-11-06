@@ -1,0 +1,14 @@
+name = "memnox-desktop"
+agents = [ "claude-code" ]
+
+[instructions]
+sources = [ "CLAUDE.md" ]
+
+[mcp]
+servers = []
+
+[skills]
+names = []
+
+[memory]
+scope = "project"

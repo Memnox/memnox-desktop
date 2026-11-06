@@ -27,13 +27,14 @@ import { useObserved, type SettingsParts } from '../../settings/parts';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
 import { Facts } from './SkillsPage';
 import { AgentLogos, Button, Card, CardGrid, Chip, ChipGroup, EmptyState, Input, Note, Panel, ReadFailed, Row, SearchInput, Section, StatusWord } from '../../kit';
+import { PAGE_METRICS } from '../page-metrics';
 
 /** Words go to the runtime this long after the last key, so each key is not a request. */
 const SEARCH_REST_MS = 250;
 
-/** The Mac's search, between 180 and 320 wide, and the address field no wider than 360. */
-const SEARCH = { least: 180, most: 320 } as const;
-const ADDRESS_WIDTH = 360;
+/** The Mac's search and its address field, each grown to its width and no further. */
+const SEARCH_WIDTH = PAGE_METRICS.discoverSearch;
+const ADDRESS_WIDTH = PAGE_METRICS.discoverAddress;
 
 /**
  * The community index under the Skills Hub. Install never makes anything live: the runtime checks the
@@ -75,7 +76,7 @@ export function DiscoverPage({ parts, width }: { parts: SettingsParts; width: Wi
     <div className="flex flex-col gap-5">
       {status}
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="w-full flex-1" style={{ maxWidth: SEARCH.most, minWidth: SEARCH.least }}>
+        <div className="w-full flex-1" style={{ maxWidth: SEARCH_WIDTH }}>
           <SearchInput value={query} placeholder={DiscoverLines.search} onChange={setQuery} />
         </div>
         <span className="flex-1" />

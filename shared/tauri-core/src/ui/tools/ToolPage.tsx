@@ -31,10 +31,10 @@ export function ToolPage({ toolkit, connected, onAsk, online = true, talkKey = T
   const tint = toolLook(toolkit).colour;
   return (
     <div className="flex size-full items-center gap-3.5">
-      <div className="flex w-[132px] shrink-0 flex-col items-center gap-1.5">
-        <div className="relative grid h-[62px] w-full place-items-center" style={arrival(0)}>
-          <span className="pointer-events-none absolute left-1/2 top-1/2 size-[104px] -translate-x-1/2 -translate-y-1/2 animate-halo rounded-full blur-[22px]" style={{ backgroundColor: tint }} aria-hidden />
-          <span className="relative rounded-[14px] shadow-[0_4px_16px_rgb(0_0_0/0.4)]">
+      <div className="flex w-tool-left shrink-0 flex-col items-center gap-1.5">
+        <div className="relative grid h-tool-mark-row w-full place-items-center" style={arrival(0)}>
+          <span className="pointer-events-none absolute left-1/2 top-1/2 size-tool-halo -translate-x-1/2 -translate-y-1/2 animate-halo rounded-full blur-tool-halo" style={{ backgroundColor: tint }} aria-hidden />
+          <span className="relative drop-shadow-tool-mark">
             <ToolMark toolkit={toolkit} size={MARK_SIDE} online={online} />
           </span>
         </div>
@@ -45,14 +45,14 @@ export function ToolPage({ toolkit, connected, onAsk, online = true, talkKey = T
         </span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <span className="font-rounded text-micro font-semibold tracking-[0.6px] text-white/60" style={arrival(0)}>
+        <span className="font-rounded text-micro font-semibold tracking-tool-label text-white/60" style={arrival(0)}>
           {ToolPageLines.askHeading}
         </span>
         {toolAsks(toolkit).map((words, index) => (
           <Pressable
             key={words}
-            className={`${notchPress(true)} flex h-9 w-full items-center gap-1.5 rounded-[11px] bg-white/[0.045] px-2 text-left`}
-            style={{ ...arrival(index + 1), boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.04)' }}
+            className={`${notchPress(true)} flex h-9 w-full items-center gap-1.5 rounded-tool-ask bg-white/[0.045] px-2 text-left inset-ring inset-ring-tool-rim`}
+            style={arrival(index + 1)}
             onClick={() => onAsk(words)}
             title={ToolPageLines.askTitle(words)}
             aria-label={ToolPageLines.askLabel(words)}

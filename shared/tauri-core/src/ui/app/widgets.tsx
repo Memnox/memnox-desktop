@@ -83,7 +83,7 @@ export function Inspector({
   const frame = beside
     ? 'relative flex shrink-0 flex-col border-l border-panel-edge bg-card'
     : placed === 'drawer'
-      ? 'fixed inset-y-2 right-2 z-30 flex flex-col rounded-card border border-panel-edge bg-card shadow-[0_24px_60px_rgb(0_0_0/0.18)]'
+      ? 'fixed inset-y-2 right-2 z-30 flex flex-col rounded-card border border-panel-edge bg-card shadow-lift'
       : 'fixed inset-0 z-30 flex flex-col bg-card';
   const popOut = host.popOut;
   const pane = (

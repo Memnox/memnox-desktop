@@ -7,11 +7,12 @@ import { MarkdownText } from '../../cards/MarkdownText';
 import type { SettingsParts } from '../../settings/parts';
 import { KitLines } from '../../../core/domain/kit-lines';
 import { BrandLogo, Button, Checkbox, Dialog, ErrorLine, Field, Input, MiddleCut, Spinner, Textarea } from '../../kit';
+import { PAGE_METRICS } from '../page-metrics';
 
 /** `SheetLayout`: an agent's logo in the assign list, the version column, and the instructions editor's height. */
 const AGENT_LOGO = 20;
-const VERSION_WIDTH = 120;
-const INSTRUCTIONS_HEIGHT = 160;
+const VERSION_WIDTH = PAGE_METRICS.skillVersion;
+const INSTRUCTIONS_HEIGHT = PAGE_METRICS.skillInstructions;
 
 /**
  * Who a skill is given to, checked per agent with what each keeps of it. Before Continue the dialog says

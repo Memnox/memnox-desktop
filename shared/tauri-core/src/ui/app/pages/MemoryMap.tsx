@@ -80,7 +80,7 @@ function Mark({ node, selected }: { node: MemoryMapNode; selected: boolean }) {
   }
 }
 
-const CARD = 'relative flex flex-col justify-center overflow-hidden rounded-xl border bg-card text-left shadow-[0_8px_24px_rgb(0_0_0/0.1)] transition-colors';
+const CARD = 'relative flex flex-col justify-center overflow-hidden rounded-xl border bg-card text-left shadow-brain-panel transition-colors';
 const PICKED = 'border-foreground ring-2 ring-primary/40';
 
 /** A fact written on the map, its status a rail down the left, since the card's border tells it from the ground. */
@@ -95,10 +95,10 @@ function MemoryCard({ node, selected }: { node: MemoryMapNode; selected: boolean
     >
       <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: ink }} />
       <span className="flex items-center gap-1.5">
-        <span className="min-w-0 truncate text-[10px] tracking-[0.12em] uppercase" style={{ color: ink }}>
+        <span className="min-w-0 truncate text-micro tracking-[0.12em] uppercase" style={{ color: ink }}>
           {node.memoryKind === undefined ? 'Memory' : kindWord(node.memoryKind)}
         </span>
-        {node.tainted === true && <span className="shrink-0 text-[10px] text-warm">Untrusted</span>}
+        {node.tainted === true && <span className="shrink-0 text-micro text-warm">Untrusted</span>}
       </span>
       <span className="line-clamp-2 text-label leading-tight font-medium text-foreground">{node.label}</span>
     </span>
@@ -108,7 +108,7 @@ function MemoryCard({ node, selected }: { node: MemoryMapNode; selected: boolean
 function DocumentCard({ node, selected }: { node: MemoryMapNode; selected: boolean }) {
   return (
     <span className={`${CARD} px-3 ${selected ? PICKED : 'border-panel-edge hover:border-foreground'}`} style={{ width: MEMORY_MAP_PX.document.width, height: MEMORY_MAP_PX.document.height }}>
-      <span className="flex items-center gap-1 text-[10px] text-warm">
+      <span className="flex items-center gap-1 text-micro text-warm">
         <FileText size={11} className="shrink-0" aria-hidden />
         <span className="truncate">{node.detail ?? 'Document'}</span>
       </span>
@@ -126,7 +126,7 @@ function RuleCard({ node, selected }: { node: MemoryMapNode; selected: boolean }
       className={`${CARD} px-3 ${selected ? PICKED : 'hover:border-foreground'}`}
       style={{ width: MEMORY_MAP_PX.rule.width, height: MEMORY_MAP_PX.rule.height, ...(selected ? {} : { borderColor: `color-mix(in oklab, ${ink} 45%, var(--mx-border))` }) }}
     >
-      <span className="flex items-center gap-1 text-[10px] tracking-[0.12em] uppercase" style={{ color: ink }}>
+      <span className="flex items-center gap-1 text-micro tracking-[0.12em] uppercase" style={{ color: ink }}>
         <Gavel size={11} className="shrink-0" aria-hidden />
         {known ? `Rule, ${EFFECT_WORDS[effect].title}` : 'Rule'}
       </span>
@@ -139,7 +139,7 @@ function RuleCard({ node, selected }: { node: MemoryMapNode; selected: boolean }
 function SourceDisc({ selected }: { selected: boolean }) {
   return (
     <span
-      className={`flex items-center justify-center rounded-full border bg-background shadow-[0_8px_24px_rgb(0_0_0/0.1)] transition-colors ${selected ? PICKED : 'border-panel-edge hover:border-foreground'}`}
+      className={`flex items-center justify-center rounded-full border bg-background shadow-brain-panel transition-colors ${selected ? PICKED : 'border-panel-edge hover:border-foreground'}`}
       style={{ width: MEMORY_MAP_PX.source, height: MEMORY_MAP_PX.source }}
     >
       <BookOpen size={18} className="text-primary" aria-hidden />
@@ -150,7 +150,7 @@ function SourceDisc({ selected }: { selected: boolean }) {
 /** How to read the lines and the rails, folded so it never covers the drawing until asked. */
 function Legend() {
   return (
-    <details className="group rounded-lg border border-panel-edge bg-card shadow-[0_8px_24px_rgb(0_0_0/0.1)]">
+    <details className="group rounded-lg border border-panel-edge bg-card shadow-brain-panel">
       <summary className="mx-focus cursor-pointer list-none px-3 py-2 text-label font-medium tracking-[0.14em] text-muted uppercase select-none">How to read the map</summary>
       <div className="flex flex-col gap-3 px-3 pb-3">
         <ul className="flex flex-col gap-1.5">

@@ -5,7 +5,8 @@ const WORD_GAP = 0.28;
 const LINE_GAP = 0.3;
 const CARET_HEIGHT = 1.1;
 /** The newest word is a touch brighter, so the eye stays where the voice is. */
-const OLDER_INK = 'rgb(255 255 255 / 0.78)';
+const NEWEST_INK = 'text-white';
+const OLDER_INK = 'text-white/78';
 
 /**
  * `LiveWords` in its `WordFlow`: what is being said, each word its own element laid out like a paragraph
@@ -20,7 +21,7 @@ export function LiveWords({ text, size, align, listening }: { text: string; size
       style={{ columnGap: size * WORD_GAP, rowGap: size * LINE_GAP, justifyContent: align === 'center' ? 'center' : 'flex-start', fontSize: size, lineHeight: 1.2 }}
     >
       {words.map((word, index) => (
-        <span key={`${index}:${word}`} className="memnox-word font-medium" style={{ color: index === words.length - 1 ? '#fff' : OLDER_INK }}>
+        <span key={`${index}:${word}`} className={`memnox-word font-medium ${index === words.length - 1 ? NEWEST_INK : OLDER_INK}`}>
           {word}
         </span>
       ))}

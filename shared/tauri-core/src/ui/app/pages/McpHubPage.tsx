@@ -15,9 +15,10 @@ import { usePicked } from '../inspector-host';
 import { useShellChoices } from '../shell-choices';
 import { inScope, NO_ORGANIZATION_ITEMS, ORGANIZATION_READ_ONLY } from '../../../core/domain/shell-lines';
 import { BrandLogo, Button, CardGrid, Checkbox, EmptyState, Input, Note, Panel, Pressable, ReadFailed, Row, SearchInput, Section, Spinner, StatusWord, TruncatedText } from '../../kit';
+import { PAGE_METRICS } from '../page-metrics';
 
-/** The Mac's server search: between 180 and 320 wide. */
-const SEARCH = { least: 180, most: 320 } as const;
+/** The Mac's server search grows to its width and no further. */
+const SEARCH_WIDTH = PAGE_METRICS.hubSearch;
 
 /** A spinner beside 12 point words, smaller than a button's. */
 const SMALL_SPINNER = 10;
@@ -89,7 +90,7 @@ function Servers({ parts, view, width, said, noted, workspaces }: { parts: Setti
     <div className="flex min-h-0">
       <div className="flex min-w-0 flex-1 flex-col gap-5">
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="w-full flex-1" style={{ maxWidth: SEARCH.most, minWidth: SEARCH.least }}>
+          <div className="w-full flex-1" style={{ maxWidth: SEARCH_WIDTH }}>
             <SearchInput value={query} placeholder={McpHubPageLines.search} onChange={setQuery} />
           </div>
           <span className="flex-1" />

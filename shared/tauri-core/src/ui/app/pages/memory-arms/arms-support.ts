@@ -7,6 +7,9 @@
 /** The device pixel ratio is read up to this, since a sharper glow is not worth four times the fill. */
 export const MOST_PIXEL_RATIO = 2;
 
+/** `Memnox.Console.Brain.quiet`, the dot of a mark with no area, which `.mx-brain` sets as its muted ink. */
+export const QUIET_DOT = "var(--mx-muted)";
+
 /** Each mark the core names, `agent:` or `tool:` and the file, as Vite serves it. */
 const MARKS: Readonly<Record<string, string>> = {
   'agent:claude': new URL('../../../assets/agents/claude.svg', import.meta.url).href,

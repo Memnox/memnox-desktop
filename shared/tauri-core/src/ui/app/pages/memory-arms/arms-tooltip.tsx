@@ -1,5 +1,5 @@
 
-import { markUrl } from "./arms-support";
+import { markUrl, QUIET_DOT } from "./arms-support";
 
 import { faceInk, initialsFor } from "../../../../core/domain/memory-arms/arms-faces";
 import type { Hovered } from "./arms-engine";
@@ -28,8 +28,14 @@ export function kindWord(item: ArmsItem): string {
   }
 }
 
+/** How far the card stands off its mark, and the least it keeps from the brain's edges. */
 const OFFSET = 12;
-const WIDTH = 240;
+const EDGE = 8;
+/** `MapMetrics.tipWidth` and `tipTall`: the card's width, and the height kept free under it at the foot. */
+const WIDTH = 220;
+const TIP_TALL = 96;
+/** The card's top sits this far above the mark's centre, so its first line reads beside the mark. */
+const TIP_RISE = 28;
 
 /** The hover card beside a mark: its face or mark, its name, what it is, its area and how many things it links to. */
 export function ArmsTooltip({
@@ -48,14 +54,14 @@ export function ArmsTooltip({
   const linked = new Set(links.get(item.id) ?? []).size;
   const right = hovered.x + hovered.radius + OFFSET + WIDTH < frame.width;
   const left = right ? hovered.x + hovered.radius + OFFSET : hovered.x - hovered.radius - OFFSET - WIDTH;
-  const top = Math.max(8, Math.min(frame.height - 96, hovered.y - 28));
+  const top = Math.max(EDGE, Math.min(frame.height - TIP_TALL, hovered.y - TIP_RISE));
   const person = item.kind === "person" || item.kind === "group";
 
   return (
     <div
       role="tooltip"
-      style={{ left: Math.max(8, left), top, width: WIDTH }}
-      className="pointer-events-none absolute z-300 flex items-start gap-2.5 rounded-xl border border-panel-edge bg-card/95 p-3 shadow-[0_24px_60px_rgb(0_0_0/0.45)] backdrop-blur"
+      style={{ left: Math.max(EDGE, left), top, width: WIDTH }}
+      className="pointer-events-none absolute z-300 flex items-start gap-2.5 rounded-xl border border-panel-edge bg-card/95 p-3 shadow-brain-panel backdrop-blur"
     >
       {person ? (
         <span
@@ -68,7 +74,7 @@ export function ArmsTooltip({
       ) : item.logo !== undefined ? (
         <img src={markUrl(item.logo)} alt="" className="size-8 shrink-0 rounded-full border border-panel-edge bg-card object-contain p-1" aria-hidden />
       ) : (
-        <span className="mt-1 size-3 shrink-0 rounded-full" style={{ background: area?.ink ?? "#ADADAD" }} aria-hidden />
+        <span className="mt-1 size-3 shrink-0 rounded-full" style={{ background: area?.ink ?? QUIET_DOT }} aria-hidden />
       )}
       <div className="min-w-0">
         <p className="break-words text-body-sm font-semibold leading-snug text-foreground">{item.label}</p>

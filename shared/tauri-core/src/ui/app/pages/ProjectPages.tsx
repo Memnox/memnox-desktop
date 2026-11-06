@@ -320,7 +320,7 @@ function OverviewHeader({ project }: { project: ProjectView }) {
         <h1 className="line-clamp-2 min-w-0 flex-1 text-2xl font-semibold tracking-[-0.02em] text-foreground">{project.name}</h1>
         <span className="shrink-0">{sharedBy(project) === undefined ? <StatusWord tone={standing.tone}>{standing.word}</StatusWord> : <OrganizationBadge />}</span>
       </div>
-      <p className={`max-w-[560px] text-base leading-[23px] ${description === undefined ? 'text-muted' : 'text-foreground'}`}>{description ?? NO_DESCRIPTION}</p>
+      <p className={`max-w-app-description text-base leading-app-description ${description === undefined ? 'text-muted' : 'text-foreground'}`}>{description ?? NO_DESCRIPTION}</p>
       {(project.problems ?? []).map((problem) => (
         <p key={problem} role="alert" className="text-footnote text-destructive">
           {problem}

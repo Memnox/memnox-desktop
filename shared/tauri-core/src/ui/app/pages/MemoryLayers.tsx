@@ -81,7 +81,7 @@ export function MemoryLayersView({ parts, project: picked }: { parts: SettingsPa
       ) : (
         <>
           {view.projects.length > 1 && (
-            <div className="w-full max-w-[320px]">
+            <div>
               <Select
                 label={LayersPageLines.project}
                 value={project.path}
@@ -155,7 +155,7 @@ function LayerCardView({ card }: { card: LayerCard }) {
     <div className="flex items-center gap-3 rounded-card border border-panel-edge bg-card p-4" role="group" aria-label={LayersPageLines.layerLabel(card.number, card.file, card.role, card.state)}>
       <span
         aria-hidden
-        className={`grid size-[26px] shrink-0 place-items-center rounded-full text-body-sm font-semibold tabular-nums ${
+        className={`grid size-app-layer-badge shrink-0 place-items-center rounded-full text-body-sm font-semibold tabular-nums ${
           card.settled ? 'bg-[color-mix(in_oklab,var(--mx-success)_14%,transparent)] text-success' : 'bg-[color-mix(in_oklab,var(--mx-faint)_14%,transparent)] text-muted'
         }`}
       >

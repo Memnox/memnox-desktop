@@ -17,7 +17,7 @@ export function CategoryRail({ categories, total, chosen, choose, allTitle }: { 
   return (
     <>
       <nav aria-label={CatalogLines.categories} className="hidden flex-col gap-0.5 medium:flex">
-        <p className="px-2.5 pb-1.5 font-code text-meta tracking-[1.98px] text-muted uppercase">{CatalogLines.categories}</p>
+        <p className="px-2.5 pb-1.5 font-code text-meta tracking-heading text-muted uppercase">{CatalogLines.categories}</p>
         {rows.map((row) => {
           const on = row.id === chosen;
           return (
@@ -48,7 +48,7 @@ export function CategoryRail({ categories, total, chosen, choose, allTitle }: { 
 /** The rail beside the search and the cards, stacking under 900 where a column would push the cards off the fold. */
 export function CatalogLayout({ rail, children }: { rail: ReactNode; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-3 medium:grid-cols-[200px_minmax(0,1fr)]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-3 medium:grid-cols-(--mx-shell-catalog-columns)">
       <div>{rail}</div>
       <div className="flex min-w-0 flex-col gap-3">{children}</div>
     </div>

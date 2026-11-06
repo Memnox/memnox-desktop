@@ -59,7 +59,7 @@ export function SubNavFrame({
   const shown = tabOf(route);
   return (
     <div className="@container">
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 @3xl:grid-cols-[13rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 @3xl:grid-cols-(--mx-shell-sub-nav-columns)">
         <SubNav title={title} groups={groups} chosen={route.tab} choose={choose} />
         <div className="flex min-w-0 flex-col">
           {shown !== undefined && (
@@ -91,7 +91,7 @@ function SubNav({ title, groups, chosen, choose }: { title: string; groups: read
   return (
     <nav ref={tree} aria-label={title} onKeyDown={walk} className="flex min-w-0 flex-col gap-6">
       <h2 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">{title}</h2>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-6 @3xl:flex @3xl:flex-col">
+      <div className="grid grid-cols-(--mx-app-nav-groups) gap-6 @3xl:flex @3xl:flex-col">
         {groups.map((group) => {
           const Icon = GROUP_ICONS[group.id];
           return (

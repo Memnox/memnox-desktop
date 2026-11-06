@@ -298,7 +298,7 @@ export function ArmsView({
           ref={card}
           onPointerDown={(event) => event.stopPropagation()}
           style={{ visibility: "hidden" }}
-          className="absolute left-0 top-0 z-400 w-80 max-w-[calc(100%-2rem)] will-change-transform"
+          className="absolute left-0 top-0 z-400 w-80 max-w-(--mx-app-arms-card-most) will-change-transform"
         >
           <span ref={pointer} aria-hidden className="absolute size-3 rotate-45 border border-panel-edge bg-card" />
           <ArmsCard

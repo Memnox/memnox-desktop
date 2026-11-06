@@ -15,6 +15,7 @@ import { MarkdownText } from '../../cards/MarkdownText';
 import { SkillCareSection } from './SkillCareSection';
 import { COLLAPSED_ROWS, countedLine, foundMatching, foundReach, groupedFound, homeOf, hubMatching, importAllTitle, importedLine, importingLine, noMatchDetail, noMatchTitle, queryWords, searchCountLine, shortPath } from '../../../core/domain/skill-search';
 import { BrandLogo, Button, Card, CardGrid, ConfirmDialog, EmptyState, MiddleCut, Note, Panel, PRESS_DIP, Pressable, ReadFailed, Row, SearchInput, Section, StatusWord, Switch } from '../../kit';
+import { PAGE_METRICS } from '../page-metrics';
 
 /** The narrowest a skill's card reads well at, as the Mac's grid sets it. */
 const SKILL_CARD_WIDTH = 260;
@@ -28,7 +29,7 @@ const GRID_LOGO = 18;
 const GRID_TICK = 15;
 
 /** The import bar, wide enough to read its progress beside the count. */
-const IMPORT_PROGRESS_WIDTH = 120;
+const IMPORT_PROGRESS_WIDTH = PAGE_METRICS.skillProgress;
 
 /** What sets what a found skill reaches apart from its folder. */
 const SEPARATOR_DOT = '· ';
@@ -86,7 +87,7 @@ function MySkills({ parts, view, width, said, manage }: { parts: SettingsParts; 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="w-full max-w-[320px] min-w-[180px] flex-1">
+        <div className="w-full max-w-app-skill-search flex-1">
           <SearchInput value={query} placeholder={SkillsPageLines.search} onChange={setQuery} />
         </div>
         <span className="flex-1" />
@@ -271,7 +272,7 @@ function SkillDetail({
                     <StatusWord tone={!each.supported ? 'bad' : each.loses.length === 0 ? 'good' : 'attention'}>{compatibilityLine(each)}</StatusWord>
                   </div>
                   {each.loses.map((loss) => (
-                    <span key={loss} className="pl-[30px] text-footnote text-muted">
+                    <span key={loss} className="pl-(--mx-app-skill-loss-indent) text-footnote text-muted">
                       {loss}
                     </span>
                   ))}

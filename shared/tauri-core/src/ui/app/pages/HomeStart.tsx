@@ -24,9 +24,10 @@ import {
 import { HomeStartLines } from '../../../core/domain/home-page-lines';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { Button, ConfirmDialog, PRESS_DIP, Pressable } from '../../kit';
+import { PAGE_METRICS } from '../page-metrics';
 
 /** The two tracks sit side by side once each has this much room, as the Mac's grid does. */
-const TRACK_MIN = 280;
+const TRACK_MIN = PAGE_METRICS.homeTrack;
 
 /** A step's tick or ring, as the button glyphs are, the tick drawn a little heavy. */
 const STEP_GLYPH = 14;

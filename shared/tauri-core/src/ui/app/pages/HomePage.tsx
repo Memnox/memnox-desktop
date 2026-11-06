@@ -45,7 +45,7 @@ export function HomePage({ parts, width, go }: { parts: SettingsParts; width: Wi
     <>
       <header className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
         <div className="flex flex-col gap-1">
-          <h1 className="text-[22px] leading-tight font-bold text-foreground">{greeting(preferences.name)}</h1>
+          <h1 className="text-app-greeting leading-tight font-bold text-foreground">{greeting(preferences.name)}</h1>
           <p className="text-footnote text-muted">{HomePageLines.lead}</p>
         </div>
         <Standing mode={homeMode(view?.mode)} read={view !== undefined} away={home.unavailable} />

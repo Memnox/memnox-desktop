@@ -13,9 +13,6 @@ import { ArmsView } from './memory-arms/arms-view';
 /** Where Open Account leads, the account page under Settings. */
 const ACCOUNT_ROUTE: Route = { destination: 'settings', tab: 'account' };
 
-/** The brain stands this tall at least, so a short window still shows the whole silhouette. */
-const LEAST_HEIGHT = 520;
-
 /**
  * Memory drawn as the brain, as the Mac and Memnox Cloud draw it, from this computer's own reads: every fact memory
  * holds with the documents it cites, the projects' instruction files, the workspace's graph where the runtime answers
@@ -107,8 +104,9 @@ export function MemoryBrain({
     () => (ruleList ?? []).map((rule) => ({ name: rule.name, effect: rule.effect, sentence: rule.sentence, ...(rule.reason === undefined ? {} : { reason: rule.reason }) })),
     [ruleList],
   );
+  // The brain stands at least `--mx-app-brain-height` tall, so a short window still shows the whole silhouette.
   return (
-    <div className="relative w-full" style={{ height: `max(${LEAST_HEIGHT}px, calc(100vh - 260px))` }}>
+    <div className="relative h-(--mx-app-brain-height) w-full">
       <ArmsView
         map={built.map}
         input={built.input}

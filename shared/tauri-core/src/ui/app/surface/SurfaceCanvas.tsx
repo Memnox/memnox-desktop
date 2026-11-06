@@ -131,7 +131,7 @@ export function SurfaceCanvas<N extends Placed, E extends SurfaceEdge>({
       role="group"
       aria-label={label}
       onKeyDown={keys}
-      className={`relative h-[min(620px,70vh)] min-h-[380px] w-full touch-none overflow-hidden rounded-xl border border-panel-edge bg-card select-none ${gestures.panning ? 'cursor-grabbing' : 'cursor-grab'}`}
+      className={`relative h-(--mx-app-surface-height) min-h-app-surface-least w-full touch-none overflow-hidden rounded-xl border border-panel-edge bg-card select-none ${gestures.panning ? 'cursor-grabbing' : 'cursor-grab'}`}
       style={{ backgroundImage: STAGE_GLOW }}
       onPointerDown={gestures.startPan}
       onWheel={(event) => {
@@ -212,7 +212,7 @@ export function SurfaceCanvas<N extends Placed, E extends SurfaceEdge>({
             >
               {mark(node, { selected: picked })}
               {node.captioned !== false && camera.k >= NAMES_BELOW && (
-                <span className={`absolute top-full left-1/2 mt-1 line-clamp-2 w-28 -translate-x-1/2 text-center text-[10px] leading-snug font-medium ${picked ? 'text-foreground' : 'text-muted'}`}>{node.label}</span>
+                <span className={`absolute top-full left-1/2 mt-1 line-clamp-2 w-28 -translate-x-1/2 text-center text-micro leading-snug font-medium ${picked ? 'text-foreground' : 'text-muted'}`}>{node.label}</span>
               )}
             </Pressable>
           );
@@ -220,7 +220,7 @@ export function SurfaceCanvas<N extends Placed, E extends SurfaceEdge>({
       </div>
 
       <div className="absolute top-3 left-3 flex flex-col gap-2" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-center gap-0.5 rounded-lg border border-panel-edge bg-card p-1 shadow-[0_8px_24px_rgb(0_0_0/0.1)]">
+        <div className="flex items-center gap-0.5 rounded-lg border border-panel-edge bg-card p-1 shadow-brain-panel">
           <Control label={SurfaceLines.fit} icon={Maximize2} onClick={fit} />
           <Control
             label={SurfaceLines.arrange}
@@ -235,13 +235,13 @@ export function SurfaceCanvas<N extends Placed, E extends SurfaceEdge>({
           <span className="w-10 text-center text-meta text-muted tabular-nums" aria-label={SurfaceLines.zoom}>{SurfaceLines.percent(camera.k)}</span>
           <Control label={SurfaceLines.zoomIn} icon={Plus} disabled={camera.k >= ZOOM.max} onClick={() => zoomBy(PRESS_ZOOM, middle)} />
         </div>
-        <div className="flex items-center gap-0.5 rounded-lg border border-panel-edge bg-card p-1 shadow-[0_8px_24px_rgb(0_0_0/0.1)]">
+        <div className="flex items-center gap-0.5 rounded-lg border border-panel-edge bg-card p-1 shadow-brain-panel">
           <span className="px-1.5 text-meta text-muted">{SurfaceLines.size}</span>
           <Control label={SurfaceLines.smaller} icon={Minus} disabled={nodeSize <= NODE_SIZE.min} onClick={() => setNodeSize(Math.max(NODE_SIZE.min, Math.round((nodeSize - SIZE_STEP) * TENTHS) / TENTHS))} />
           <Control label={SurfaceLines.larger} icon={Plus} disabled={nodeSize >= NODE_SIZE.max} onClick={() => setNodeSize(Math.min(NODE_SIZE.max, Math.round((nodeSize + SIZE_STEP) * TENTHS) / TENTHS))} />
         </div>
       </div>
-      <div className="absolute bottom-3 left-3 max-w-[260px]" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+      <div className="absolute bottom-3 left-3 max-w-app-surface-legend" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
         {legend}
       </div>
     </div>

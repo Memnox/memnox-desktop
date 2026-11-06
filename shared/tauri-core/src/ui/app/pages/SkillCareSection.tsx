@@ -85,7 +85,7 @@ function Suggestion({ calibration, current, busy, accept, dismiss }: { calibrati
   return (
     <div className="flex flex-col gap-2.5">
       <p className="text-body-sm font-semibold text-foreground">{suggestionTitle(calibration, current)}</p>
-      <pre className="max-h-[320px] overflow-auto rounded-card border border-panel-edge bg-card py-2 font-code text-meta">
+      <pre className="overflow-auto rounded-card border border-panel-edge bg-card py-2 font-code text-meta">
         {lineDiff(calibration.before, calibration.after).map((line) => (
           <div key={line.index} className={`flex gap-3 px-3 whitespace-pre-wrap ${MARK[line.mark].className}`}>
             <span aria-hidden className="select-none">

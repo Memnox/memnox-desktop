@@ -10,10 +10,11 @@ import { useInspectorHost } from '../inspector-host';
 import { Inspector } from '../widgets';
 import { ActivityLines } from '../../../core/domain/activity-words';
 import { BrandLogo, Button, Chip, ChipGroup, EmptyState, Panel, ReadFailed, Row, SearchInput, Section, Select, StatusWord } from '../../kit';
+import { PAGE_METRICS } from '../page-metrics';
 
-/** The Mac's toolbar: the search no wider than 280 and the kind no wider than 150. */
-const SEARCH_WIDTH = 280;
-const KIND_WIDTH = 150;
+/** The Mac's toolbar: the search and the kind, each capped. */
+const SEARCH_WIDTH = PAGE_METRICS.activitySearch;
+const KIND_WIDTH = PAGE_METRICS.activityKind;
 
 /** An agent's logo at the head of its row. */
 const ROW_LOGO = 24;

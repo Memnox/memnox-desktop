@@ -234,7 +234,7 @@ export function MemoryPage({ parts, tab, width, go }: { parts: SettingsParts; /*
         <Section title={MemoryPageLines.knowTitle}>
           {/* The search, the project, the status and the scope on one row where they fit, in the Mac's order. */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="w-full max-w-[300px] min-w-[180px] flex-1">
+            <div className="w-app-memory-search max-w-full">
               <SearchInput value={query} placeholder={MemoryPageLines.searchPlaceholder} onChange={setQuery} />
             </div>
             {projectFilter}

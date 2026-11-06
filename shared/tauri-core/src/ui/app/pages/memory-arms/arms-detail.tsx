@@ -9,7 +9,7 @@ import type { ArmsItem, ArmsModel } from "../../../../core/domain/memory-arms/ar
 import { AgentName } from "../../../kit/logos";
 import { Pressable, StatusWord } from "../../../kit";
 import { ArmsLines } from "../../../../core/domain/memory-brain-lines";
-import { markUrl } from "./arms-support";
+import { markUrl, QUIET_DOT } from "./arms-support";
 import { kindWord } from "./arms-tooltip";
 
 /** A skill as the card says it: what the Skills Hub keeps, the agents it is given to and the servers it calls. */
@@ -93,7 +93,7 @@ export function ArmsCard({
   );
 
   return (
-    <div className="relative flex max-h-[min(36rem,calc(100vh-10rem))] flex-col overflow-hidden rounded-2xl border border-panel-edge bg-card shadow-xl">
+    <div className="relative flex max-h-(--mx-app-arms-detail-most) flex-col overflow-hidden rounded-2xl border border-panel-edge bg-card shadow-xl">
       <header className="flex items-start justify-between gap-3 p-4 pb-3">
         <div className="flex min-w-0 items-start gap-2.5">
           <Mark item={item} ink={area?.ink} />
@@ -141,7 +141,7 @@ function Mark({ item, ink }: { item: ArmsItem; ink: string | undefined }) {
   if (item.logo !== undefined) {
     return <img src={markUrl(item.logo)} alt="" className="size-9 shrink-0 rounded-full border border-panel-edge bg-card object-contain p-1.5" aria-hidden />;
   }
-  return <span className="mt-1 size-3 shrink-0 rounded-full" style={{ background: ink ?? "#ADADAD" }} aria-hidden />;
+  return <span className="mt-1 size-3 shrink-0 rounded-full" style={{ background: ink ?? QUIET_DOT }} aria-hidden />;
 }
 
 function FooterLink({ item, go }: { item: ArmsItem; go: (route: Route) => void }) {

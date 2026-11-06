@@ -41,14 +41,14 @@ export function CodeBlock({ code, label, maxHeight, copy }: { code: string; labe
           onClick={press}
           title={CodeLines.copyNamed(label)}
           aria-label={copied ? CodeLines.copied : CodeLines.copyNamed(label)}
-          className="mx-focus inline-flex h-[26px] cursor-pointer items-center gap-1 rounded-control px-2.5 text-meta font-medium text-muted transition-colors hover:bg-hover hover:text-foreground"
+          className="mx-focus inline-flex h-app-code-copy cursor-pointer items-center gap-1 rounded-control px-2.5 text-meta font-medium text-muted transition-colors hover:bg-hover hover:text-foreground"
         >
           {copied ? <Check size={COPY_GLYPH} strokeWidth={COPY_GLYPH_STROKE} aria-hidden /> : <Copy size={COPY_GLYPH} strokeWidth={COPY_GLYPH_STROKE} aria-hidden />}
           {copied ? CodeLines.copied : CodeLines.copy}
         </Pressable>
       </div>
       <div className="h-px shrink-0 bg-border" />
-      <pre className="overflow-auto p-4 font-code text-button leading-[21px] select-text" style={maxHeight === undefined ? undefined : { maxHeight }}>
+      <pre className="overflow-auto p-4 font-code text-button leading-app-code select-text" style={maxHeight === undefined ? undefined : { maxHeight }}>
         {tomlLines(code).map((line, row) => (
           <span key={row}>
             {row > 0 && '\n'}

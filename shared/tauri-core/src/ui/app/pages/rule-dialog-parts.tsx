@@ -138,7 +138,7 @@ export function DataClassChips({ text, setText }: { text: string; setText: (next
             key={word}
             aria-pressed={on}
             onClick={() => setText(toggledWord(word, text))}
-            className={`mx-focus inline-flex h-[30px] cursor-pointer items-center rounded-full border px-3 text-meta transition-colors ${
+            className={`mx-focus inline-flex h-app-rule-chip cursor-pointer items-center rounded-full border px-3 text-meta transition-colors ${
               on ? 'border-primary bg-[color-mix(in_oklab,var(--color-primary)_10%,transparent)] text-foreground' : 'border-border text-muted hover:bg-hover hover:text-foreground'
             }`}
           >

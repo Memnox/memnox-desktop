@@ -3,10 +3,6 @@ import type { MailDraft } from '@memnox/core/wire';
 import { ANSWERING_ROW, IslandButton, IslandCard, PRESSABLE, Pressable, SFSymbol, VEIL } from '../kit';
 import { WorkCardLines } from '../../core/domain/island-lines';
 
-/** Gmail's own send blue, which the mail draft's Send wears rather than the tool colour. */
-const MAIL_SEND = '#1A73E8';
-/** The mail's red, on its envelope. */
-const MAIL_RED = '#EA4335';
 /** The body types in over about 1.1 s at 60 frames, at least two characters a frame. */
 const TYPE_IN_MS = 1100;
 const FRAME_MS = 1000 / 60;
@@ -38,8 +34,8 @@ export function DraftCard({ draft, onAnswer, sending = false, className }: { dra
   const typing = typed < draft.body.length;
   return (
     <IslandCard veil={VEIL.draft} className={`flex flex-col px-3.5 pb-3.5 ${className ?? ''}`}>
-      <div className="flex h-[42px] shrink-0 items-center gap-2 pt-2">
-        <span className="grid" style={{ color: MAIL_RED }}>
+      <div className="flex h-card-mail-head shrink-0 items-center gap-2 pt-2">
+        <span className="grid text-card-mail-red">
           <SFSymbol name="envelope.fill" size={16} />
         </span>
         {reply && (
@@ -73,16 +69,16 @@ export function DraftCard({ draft, onAnswer, sending = false, className }: { dra
           <span className="truncate text-callout font-semibold text-white">{draft.subject}</span>
         </Row>
       )}
-      <p className="m-0 min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap py-2.5 text-callout leading-[21px] text-white/[0.92] [scrollbar-width:none]">
+      <p className="m-0 min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap py-2.5 text-callout leading-card-body text-white/[0.92] [scrollbar-width:none]">
         {draft.body.slice(0, typed)}
-        {typing && <span className="ml-px inline-block h-4 w-[1.5px] translate-y-[3px] animate-caret bg-white" />}
+        {typing && <span className="ml-px inline-block h-4 w-card-caret animate-caret bg-white" />}
       </p>
       <div className={`flex items-center gap-2 ${sending ? ANSWERING_ROW : ''}`}>
         <IslandButton inRow onClick={() => void navigator.clipboard?.writeText(draft.body)} aria-label={WorkCardLines.copy} title={WorkCardLines.copy}>
           <SFSymbol name="doc.on.doc" size={12} />
         </IslandButton>
         <span className="flex-1" />
-        <Pressable className={`${PRESSABLE} inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-callout font-semibold text-white`} style={{ backgroundColor: MAIL_SEND }} onClick={() => onAnswer(true)}>
+        <Pressable className={`${PRESSABLE} inline-flex items-center gap-1.5 rounded-full bg-card-mail-send px-4 py-2 text-callout font-semibold text-white`} onClick={() => onAnswer(true)}>
           <SFSymbol name="touchid" size={14} />
           {WorkCardLines.sendWord}
         </Pressable>
@@ -93,7 +89,7 @@ export function DraftCard({ draft, onAnswer, sending = false, className }: { dra
 
 /** One 34 tall row of the mail's head, under a white 7% rule. */
 function Row({ children }: { children: ReactNode }) {
-  return <div className="flex h-[34px] shrink-0 items-center border-t border-white/[0.07]">{children}</div>;
+  return <div className="flex h-card-mail-row shrink-0 items-center border-t border-white/[0.07]">{children}</div>;
 }
 
 function People({ label, people }: { label: string; people: readonly string[] }) {

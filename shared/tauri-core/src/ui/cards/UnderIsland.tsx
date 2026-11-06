@@ -44,7 +44,7 @@ export function UnderIsland({
  */
 export function PhonePill({ label, symbol }: { label: string; symbol: 'iphone' | 'iphone.radiowaves.left.and.right' }) {
   return (
-    <div className="pointer-events-none inline-flex max-w-full animate-pill-in items-center gap-1 rounded-full bg-black px-3 py-[5px]" style={{ boxShadow: 'inset 0 0 0 1px rgb(255 159 10 / 0.5)' }} role="status">
+    <div className="pointer-events-none inline-flex max-w-full animate-pill-in items-center gap-1 rounded-full bg-black px-3 py-card-phone-pill-y ring-1 ring-amber/50 ring-inset" role="status">
       <span className="grid shrink-0 text-amber">
         <SFSymbol name={symbol} size={11} weight="semibold" />
       </span>
@@ -62,19 +62,19 @@ const AGAIN_BADGE = { side: 11, inset: 4, symbol: 6.6 } as const;
  */
 export function SignInRow({ tools, onSignIn, online = true }: { tools: readonly ToolSignIn[]; onSignIn: (tool: ToolSignIn) => void; online?: boolean }) {
   return (
-    <div className="inline-flex animate-pill-in items-center gap-1 rounded-full bg-black px-2.5 py-[3px]" style={{ boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.14)' }}>
+    <div className="inline-flex animate-pill-in items-center gap-1 rounded-full bg-black px-2.5 py-card-sign-in-y ring-1 ring-white/14 ring-inset">
       <span className="pr-1 text-caption font-medium text-white/[0.62]">{signInLead(tools.map((tool) => tool.again === true))}</span>
       {tools.map((tool) => (
         <Pressable
           key={tool.toolkit}
-          className={`${PRESSABLE} relative grid size-[30px] place-items-center`}
+          className={`${PRESSABLE} relative grid size-card-sign-in-hit place-items-center`}
           onClick={() => onSignIn(tool)}
           title={signInLabel(tool.toolkit, tool.again === true)}
           aria-label={signInLabel(tool.toolkit, tool.again === true)}
         >
           <ToolMark toolkit={tool.toolkit} size={22} online={online} />
           {tool.again === true && (
-            <span className="absolute grid size-[11px] place-items-center rounded-full bg-amber text-black" style={{ right: AGAIN_BADGE.inset - AGAIN_BADGE.side / 3, bottom: AGAIN_BADGE.inset - AGAIN_BADGE.side / 3 }}>
+            <span className="absolute grid size-card-again-badge place-items-center rounded-full bg-amber text-black" style={{ right: AGAIN_BADGE.inset - AGAIN_BADGE.side / 3, bottom: AGAIN_BADGE.inset - AGAIN_BADGE.side / 3 }}>
               <SFSymbol name="arrow.triangle.2.circlepath" size={AGAIN_BADGE.symbol} weight="bold" />
             </span>
           )}
@@ -91,8 +91,7 @@ export function SignInRow({ tools, onSignIn, online = true }: { tools: readonly 
 export function SignedInPill({ pill, onNotMe, online = true }: { pill: SignedIn; onNotMe: () => void; online?: boolean }) {
   return (
     <div
-      className="inline-flex max-w-full animate-pill-in items-center gap-1.5 rounded-full bg-black px-3 py-1.5"
-      style={{ boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.14)' }}
+      className="inline-flex max-w-full animate-pill-in items-center gap-1.5 rounded-full bg-black px-3 py-1.5 ring-1 ring-white/14 ring-inset"
       role="status"
       aria-label={SignedInLines.signedIn(pill.toolkit, pill.who)}
     >

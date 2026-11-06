@@ -14,6 +14,16 @@ import { FloatingLines } from '../../../core/domain/island-lines';
 /** A count rises once the card has settled, over a little more than a second. */
 const COUNT_UP = { delayMs: 550, durationMs: 1_100 } as const;
 
+/**
+ * A changed line's tint and its 2 wide rule: green added, red removed, and an unchanged line in ink 20%, each
+ * line at 9% of its tint and its rule at 70%, as `CodeExcerpt` draws them.
+ */
+const DIFF_LINE = {
+  added: 'bg-green/9 shadow-card-diff-added text-[var(--mx-code-text)]',
+  removed: 'bg-red/9 shadow-card-diff-removed text-[var(--mx-code-removed)]',
+  same: 'bg-(--mx-code-unchanged) shadow-card-diff-same text-[var(--mx-code-text)]',
+} as const;
+
 /** The page dots: the current one stretched to 16, the rest 6 round. */
 const PAGE_DOT = { current: 16, other: 6 } as const;
 
@@ -23,23 +33,15 @@ export function shortPath(path: string): string {
 }
 
 /**
- * `CardFace`: 20 padding, 440 wide, radius 16 on the surface with a 0.7 rim of ink 11% that becomes
- * 16% at 1 px under the pointer, a deep shadow, and the entrance from 0.96 at the top left.
+ * `CardFace`: 20 padding, 440 wide, radius 28 on the live window's page with a hairline of ink 7% that
+ * lifts to 16% under the pointer, a deep shadow, and the entrance from 0.96 at the top left.
  */
 export function CardFace({ children, onHover }: { children: ReactNode; onHover?: (over: boolean) => void }) {
-  const [over, setOver] = useState(false);
   return (
     <div
-      className="w-[440px] origin-top-left animate-float-in rounded-island bg-surface p-5 text-foreground transition-[box-shadow] duration-[250ms] ease-out"
-      style={{ boxShadow: `0 12px 60px rgb(0 0 0 / 0.5), inset 0 0 0 ${over ? 1 : 0.7}px var(${over ? '--mx-ink-edge-16' : '--mx-ink-edge-11'})` }}
-      onPointerEnter={() => {
-        setOver(true);
-        onHover?.(true);
-      }}
-      onPointerLeave={() => {
-        setOver(false);
-        onHover?.(false);
-      }}
+      className="w-card-face origin-top-left animate-float-in rounded-card-face bg-(--mx-live-page) p-5 text-foreground shadow-card-face ring-1 ring-(--mx-ink-07) ring-inset transition-[box-shadow] duration-[250ms] ease-out hover:ring-(--mx-ink-edge-16)"
+      onPointerEnter={() => onHover?.(true)}
+      onPointerLeave={() => onHover?.(false)}
     >
       {children}
     </div>
@@ -52,7 +54,7 @@ export function CardHeader({ mark, title, subtitle, accessory, onClose }: { mark
     <div className="flex items-center gap-2.5">
       <span className="grid size-7 shrink-0 place-items-center text-ink">{mark ?? <LogoMark size={28} />}</span>
       <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="line-clamp-2 font-display text-[22px] font-semibold leading-[26px] text-foreground">{title}</span>
+        <span className="line-clamp-2 font-display text-card-title font-semibold text-foreground">{title}</span>
         {subtitle !== undefined && <span className="truncate text-footnote text-muted">{subtitle}</span>}
       </div>
       <span className="min-w-2 flex-1" />
@@ -71,7 +73,7 @@ export function CloseButton({ onClose }: { onClose: () => void }) {
   }, [onClose]);
   return (
     <Pressable
-      className="grid size-[26px] shrink-0 cursor-pointer place-items-center rounded-full text-muted transition-[background-color,color,scale] duration-[120ms] ease-out hover:bg-[var(--mx-ink-fill-12)] hover:text-foreground active:scale-[0.94]"
+      className="grid size-card-close shrink-0 cursor-pointer place-items-center rounded-full text-muted transition-[background-color,color,scale] duration-[120ms] ease-out hover:bg-[var(--mx-ink-fill-12)] hover:text-foreground active:scale-[0.94]"
       onClick={onClose}
       title="Close"
       aria-label="Close"
@@ -124,7 +126,7 @@ function useRolled(target: number): number {
 
 function Count({ value, sign, tone }: { value: number; sign: string; tone: string }) {
   const shown = useRolled(value);
-  return <span className={`tabular ${SYSTEM_MONO} text-[11.5px] font-medium ${tone}`}>{`${sign}${shown}`}</span>;
+  return <span className={`tabular ${SYSTEM_MONO} text-card-code font-medium ${tone}`}>{`${sign}${shown}`}</span>;
 }
 
 /** `FileList`: each changed file by its short path, with its lines added in green and removed in red. */
@@ -153,20 +155,18 @@ export function FileList({ files }: { files: readonly CardFile[] }) {
  */
 export function CodeExcerpt({ excerpt }: { excerpt: CardExcerpt }) {
   return (
-    <div className="overflow-hidden rounded-[14px] border border-[var(--mx-ink-faint-05)] bg-[var(--mx-code-page)]">
-      <div className="flex h-[30px] items-center gap-2 bg-white/[0.03] px-3">
-        <span className={`rounded-[3px] bg-primary px-1 py-0.5 ${SYSTEM_MONO} text-[9px] font-bold leading-none text-white`}>{extensionBadge(excerpt.path)}</span>
-        <span className={`truncate ${SYSTEM_MONO} text-[11.5px] font-medium text-[var(--mx-code-name)]`}>{shortPath(excerpt.path)}</span>
+    <div className="overflow-hidden rounded-card-code border border-[var(--mx-ink-faint-05)] bg-[var(--mx-code-page)]">
+      <div className="flex h-card-code-head items-center gap-2 bg-(--mx-ink-03) px-3">
+        <span className={`rounded-card-badge bg-primary px-1 py-0.5 ${SYSTEM_MONO} text-card-badge font-bold leading-none text-white`}>{extensionBadge(excerpt.path)}</span>
+        <span className={`truncate ${SYSTEM_MONO} text-card-code font-medium text-[var(--mx-code-name)]`}>{shortPath(excerpt.path)}</span>
       </div>
       <div className="flex flex-col gap-px py-1.5">
         {excerpt.lines.map((line, index) => {
           const kind = line.startsWith('+') ? 'added' : line.startsWith('-') ? 'removed' : 'same';
-          const tint = kind === 'added' ? '48 209 88' : kind === 'removed' ? '255 69 58' : '255 255 255';
           return (
             <div
               key={index}
-              className={`truncate whitespace-pre px-3 py-0.5 ${SYSTEM_MONO} text-[11.5px] ${kind === 'removed' ? 'text-[var(--mx-code-removed)]' : 'text-[var(--mx-code-text)]'}`}
-              style={{ backgroundColor: kind === 'same' ? undefined : `rgb(${tint} / 0.09)`, boxShadow: `inset 2px 0 0 rgb(${tint} / ${kind === 'same' ? 0.2 * 0.7 : 0.7})` }}
+              className={`truncate whitespace-pre px-3 py-0.5 ${SYSTEM_MONO} text-card-code ${DIFF_LINE[kind]}`}
             >
               {line.slice(1) || ' '}
             </div>
@@ -177,15 +177,15 @@ export function CodeExcerpt({ excerpt }: { excerpt: CardExcerpt }) {
   );
 }
 
-/** `PageDots`: 6 dots of white 22%, the current one 16 wide in the blue. */
+/** `PageDots`: 6 dots of ink 22%, the current one 16 wide in the blue. */
 export function PageDots({ count, current }: { count: number; current: number }) {
   return (
-    <div className="flex items-center gap-[5px]" aria-label={FloatingLines.page(current + 1, count)}>
+    <div className="flex items-center gap-card-dot" aria-label={FloatingLines.page(current + 1, count)}>
       {Array.from({ length: count }, (_, index) => (
         <span
           key={index}
-          className="h-1.5 rounded-full transition-[width,background-color] duration-[420ms] ease-[cubic-bezier(0.3,1.2,0.6,1)]"
-          style={{ width: index === current ? PAGE_DOT.current : PAGE_DOT.other, backgroundColor: index === current ? 'var(--color-primary)' : 'rgb(255 255 255 / 0.22)' }}
+          className={`h-1.5 rounded-full transition-[width,background-color] duration-[420ms] ease-[cubic-bezier(0.3,1.2,0.6,1)] ${index === current ? 'bg-primary' : 'bg-(--mx-ink-22)'}`}
+          style={{ width: index === current ? PAGE_DOT.current : PAGE_DOT.other }}
         />
       ))}
     </div>

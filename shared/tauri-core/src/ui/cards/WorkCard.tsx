@@ -125,8 +125,8 @@ export function WorkCard({
         </span>
         <span className="flex-1" />
         <Pressable
-          className={`${PRESSABLE} inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-callout font-semibold text-white`}
-          style={{ backgroundColor: look.colour, boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.14)' }}
+          className={`${PRESSABLE} inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-callout font-semibold text-white ring-1 ring-white/14 ring-inset`}
+          style={{ backgroundColor: look.colour }}
           disabled={empty || badAddress || sending}
           onClick={() => void answer(true)}
           title={empty ? WorkCardLines.writeSomething : badAddress ? WorkCardLines.checkAddress : WorkCardLines.send}
@@ -191,7 +191,7 @@ function Layout({
         <div className="flex flex-col gap-2">
           {work.where !== undefined && <Where place={work.where} />}
           <div className="overflow-hidden rounded-lg border border-white/[0.14]">
-            <div className="flex h-[30px] items-center gap-1.5 bg-white/[0.05] px-2.5 text-footnote text-white">
+            <div className="flex h-card-work-row items-center gap-1.5 bg-white/[0.05] px-2.5 text-footnote text-white">
               <Avatar who={who} colour={colour} size={19.2} />
               <span className="font-bold">{who ?? WorkCardLines.you}</span>
               <span className="text-white/[0.62]">commenting</span>
@@ -299,7 +299,7 @@ function AlsoSends({ fields }: { fields: WorkDraft['fields'] }) {
   return (
     <div className="flex flex-col gap-1">
       <p className="m-0 text-caption font-semibold text-white/[0.62]">{WorkCardLines.alsoSends}</p>
-      <dl className={`m-0 grid grid-cols-[96px_1fr] gap-x-2 gap-y-0.5 ${SYSTEM_MONO} text-caption`}>
+      <dl className={`m-0 grid grid-cols-(--mx-card-work-fields) gap-x-2 gap-y-0.5 ${SYSTEM_MONO} text-caption`}>
         {fields.map((field) => (
           <div key={field.name} className="contents">
             <dt className="truncate text-white/[0.62]">{field.name}</dt>
@@ -322,7 +322,7 @@ function Editor({ words, onChange, onEscape }: { words: string; onChange: (words
     <div className="w-full shrink-0 rounded-lg bg-white/10">
     <Textarea
       look="bare"
-      className="block max-h-[180px] min-h-[72px] w-full resize-none rounded-lg p-1.5 font-sans text-callout leading-[21px] text-white select-text"
+      className="block max-h-card-editor-most min-h-card-editor-least w-full resize-none rounded-lg p-1.5 font-sans text-callout leading-card-body text-white select-text"
       value={words}
       onValue={onChange}
       onKeyDown={(event) => {

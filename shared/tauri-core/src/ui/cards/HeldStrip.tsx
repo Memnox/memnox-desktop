@@ -5,6 +5,8 @@ import { ANSWERING_ROW, BrandLogo, Pressable, SFSymbol } from '../kit';
 import { HeldImpactLines } from './HeldImpact';
 import { SYSTEM_MONO } from './MarkdownText';
 import { HeldLines } from '../../core/domain/island-lines';
+// The ink strengths of `IslandButton`'s fills, which a window outside the island does not load on its own.
+import './floating/floating.css';
 
 /**
  * `HeldStrip`: a call waiting on the person, answered where it is read, inside a window such as the live
@@ -26,7 +28,7 @@ export function HeldStrip({ calls, card, onAnswered }: { calls: HeldCalls; card:
   }
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-island bg-surface p-3" style={{ boxShadow: 'inset 0 0 0 1px rgb(255 159 10 / 0.62)' }}>
+    <div className="flex flex-col gap-2.5 rounded-island bg-surface p-3 ring-1 ring-amber/62 ring-inset">
       <div className="flex min-w-0 items-center gap-2">
         <BrandLogo agent={card.agent} name={card.who} size={22} />
         <span className="shrink-0 text-body font-semibold text-ink">{card.who}</span>
@@ -37,10 +39,10 @@ export function HeldStrip({ calls, card, onAnswered }: { calls: HeldCalls; card:
       </p>
       {card.impact !== undefined && <HeldImpactLines impact={card.impact} />}
       <div className={`flex items-center gap-2 ${answering ? ANSWERING_ROW : ''}`}>
-        <Pressable className="inline-flex cursor-pointer items-center rounded-full bg-[var(--mx-ink-fill-09,rgb(255_255_255/0.09))] px-3.5 py-[7px] text-button font-medium text-ink active:scale-[0.94]" disabled={answering} onClick={() => void press(HOLD_ANSWER.DENY)}>
+        <Pressable className="inline-flex cursor-pointer items-center rounded-full bg-(--mx-ink-fill-09) px-3.5 py-card-pill-y text-button font-medium text-ink active:scale-[0.94] active:bg-(--mx-ink-fill-15)" disabled={answering} onClick={() => void press(HOLD_ANSWER.DENY)}>
           {HeldLines.deny}
         </Pressable>
-        <Pressable className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-primary-fill px-3.5 py-[7px] text-button font-medium text-primary-text active:scale-[0.94]" disabled={answering} onClick={() => void press(HOLD_ANSWER.ONCE)}>
+        <Pressable className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-primary-fill px-3.5 py-card-pill-y text-button font-medium text-primary-text active:scale-[0.94]" disabled={answering} onClick={() => void press(HOLD_ANSWER.ONCE)}>
           {card.touchID && <SFSymbol name="touchid" size={12} />}
           {HeldLines.allowOnce}
         </Pressable>

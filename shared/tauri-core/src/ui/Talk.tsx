@@ -172,7 +172,7 @@ export function VoicePills({ conversation }: { conversation: Conversation }) {
           ) : (
             <>
               <span>{TalkLines.notInstalled}</span>
-              <IslandButton className="!px-2.5 !py-[3px] !text-caption" onClick={() => void install()}>
+              <IslandButton onClick={() => void install()}>
                 {TalkLines.tryAgain}
               </IslandButton>
             </>

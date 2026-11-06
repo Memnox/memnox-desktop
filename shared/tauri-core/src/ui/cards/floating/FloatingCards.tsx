@@ -96,10 +96,10 @@ function WalkView({ card, actions }: { card: Extract<FloatingCard, { kind: 'walk
     <CardFace onHover={actions.hovering}>
       <div className="flex flex-col gap-3">
         <CardHeader mark={markFor(card.agent)} title={card.title} accessory={<span className="tabular text-caption font-medium text-muted">{pagePosition(index, count)}</span>} onClose={actions.close} />
-        <div className="relative h-[300px] overflow-hidden">
+        <div className="relative h-card-walk-page overflow-hidden">
           <div key={index} className="flex flex-col gap-2.5" style={{ animation: `${direction === 'next' ? 'walk-in-next' : 'walk-in-back'} 460ms cubic-bezier(0.3, 1.1, 0.6, 1) both` }}>
             <FileList files={[{ path: page.path, added: page.added, removed: page.removed }]} />
-            <p className="m-0 text-callout leading-[20px] text-foreground/[0.92] select-text">{page.note}</p>
+            <p className="m-0 text-callout leading-card-walk-note text-foreground/[0.92] select-text">{page.note}</p>
             {page.lines.length > 0 && <CodeExcerpt excerpt={{ path: page.path, lines: page.lines }} />}
           </div>
         </div>
@@ -163,7 +163,7 @@ function TraceView({ title, trace, actions }: { title: string; trace: TraceCard;
             const bar = traceBar(row, trace.totalMs, TRACK);
             return (
               <div key={index} className="flex items-center gap-2.5">
-                <span className={`w-[150px] shrink-0 truncate text-footnote ${row.depth === 0 ? 'font-semibold text-foreground' : 'text-foreground/85'}`} style={{ paddingLeft: bar.indent }} title={row.name}>
+                <span className={`w-card-trace-name shrink-0 truncate text-footnote ${row.depth === 0 ? 'font-semibold text-foreground' : 'text-foreground/85'}`} style={{ paddingLeft: bar.indent }} title={row.name}>
                   {traceStepName(row.name)}
                 </span>
                 <span className="relative h-1.5 shrink-0 rounded-full bg-[var(--mx-ink-faint-fill)]" style={{ width: TRACK }}>
@@ -172,7 +172,7 @@ function TraceView({ title, trace, actions }: { title: string; trace: TraceCard;
                     style={{ left: bar.offset, width: grown ? bar.width : 0, backgroundColor: TONE[traceTone(row)], transitionDelay: `${250 + index * 50}ms` }}
                   />
                 </span>
-                <span className={`w-[52px] shrink-0 text-right ${SYSTEM_MONO} text-caption text-muted`}>{duration(row.durationMs)}</span>
+                <span className={`w-card-trace-duration shrink-0 text-right ${SYSTEM_MONO} text-caption text-muted`}>{duration(row.durationMs)}</span>
               </div>
             );
           })}

@@ -132,15 +132,8 @@ export function Orb({ x, y, diameter, state, waiting, loudness, handle }: OrbPro
     <canvas ref={canvas} className="pointer-events-none absolute" style={place} aria-hidden />
   ) : (
     <span
-      className="pointer-events-none absolute rounded-full"
-      style={{
-        left: x - diameter / 2,
-        top: y - diameter / 2,
-        width: diameter,
-        height: diameter,
-        background: 'radial-gradient(circle at 50% 35%, #8cc8ff 0%, #1e86ee 55%, #0f47c7 100%)',
-        boxShadow: '0 0 18px rgb(30 134 238 / 0.5)',
-      }}
+      className="pointer-events-none absolute rounded-full bg-(image:--mx-orb-fallback) shadow-orb-glow"
+      style={{ left: x - diameter / 2, top: y - diameter / 2, width: diameter, height: diameter }}
       aria-hidden
     />
   );

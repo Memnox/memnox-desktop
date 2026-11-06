@@ -85,5 +85,5 @@ export function Counts({ added, removed, className }: { added?: number; removed?
 
 /** The mini spinner the Mac draws for a step still at work. */
 export function MiniSpinner({ size = 10 }: { size?: number }) {
-  return <span className="inline-block animate-spin rounded-full border-[1.5px] border-white/25 border-t-white/80" style={{ width: size, height: size }} aria-hidden />;
+  return <span className="inline-block animate-spin rounded-full border-(length:--mx-stroke-emphasis) border-white/25 border-t-white/80" style={{ width: size, height: size }} aria-hidden />;
 }

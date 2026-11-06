@@ -198,8 +198,8 @@ function useHeldFor(calls: HeldCalls | undefined, sessionId: string): HeldCard |
 /** The window's surface: radius 28 on the page colour, ink 7% rim, and a 3 tall band across the top in its status colour. */
 function Surface({ colour, children }: { colour: string; children: ReactNode }) {
   return (
-    <div className="relative flex h-screen w-screen animate-[live-in_600ms_cubic-bezier(0.34,1.3,0.64,1)_both] flex-col gap-3.5 overflow-hidden rounded-[28px] border border-ink/[0.07] bg-[var(--mx-page)] p-[22px] font-sans text-foreground">
-      <span className="absolute inset-x-0 top-0 h-[3px] transition-colors duration-500" style={{ backgroundColor: colour }} />
+    <div className="relative flex h-screen w-screen animate-[live-in_600ms_cubic-bezier(0.34,1.3,0.64,1)_both] flex-col gap-3.5 overflow-hidden rounded-session-card border border-ink/[0.07] bg-(--mx-page) p-session-live-pad font-sans text-foreground">
+      <span className="absolute inset-x-0 top-0 h-session-status-edge transition-colors duration-500" style={{ backgroundColor: colour }} />
       {children}
     </div>
   );
@@ -220,8 +220,8 @@ const STATE_PILL_TINT = 0.14;
 /** `StatePill`: a 7 dot, breathing while it works, and the label 11 medium, in the status colour on 14% of it. */
 function StatePill({ colour, label, breathing }: { colour: string; label: string; breathing: boolean }) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-[9px] py-[3px] text-caption font-medium" style={{ color: colour, backgroundColor: tinted(colour, STATE_PILL_TINT) }}>
-      <span className={`size-[7px] rounded-full ${breathing ? 'animate-[state-breathe_1.8s_ease-in-out_infinite]' : ''}`} style={{ backgroundColor: colour }} />
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-session-pill-x py-session-pill-y text-caption font-medium" style={{ color: colour, backgroundColor: tinted(colour, STATE_PILL_TINT) }}>
+      <span className={`size-session-dot rounded-full ${breathing ? 'animate-[state-breathe_1.8s_ease-in-out_infinite]' : ''}`} style={{ backgroundColor: colour }} />
       {label}
     </span>
   );
@@ -235,7 +235,7 @@ function Brief({ view }: { view: SessionView }) {
     <div className="flex flex-col gap-2.5">
       {task !== undefined && (
         <div className="flex flex-col gap-1">
-          <span className="text-micro font-semibold uppercase tracking-[0.8px] text-ink/45">{SessionCardLines.asked}</span>
+          <span className="text-micro font-semibold uppercase tracking-session-label text-ink/45">{SessionCardLines.asked}</span>
           <p className="m-0 line-clamp-3 text-callout font-medium text-foreground">{task}</p>
         </div>
       )}
@@ -267,7 +267,7 @@ function NowLine({ view }: { view: SessionView }) {
   const line =
     view.paused !== undefined ? LiveSessionLines.paused(view.paused) : view.thinking ? LiveSessionLines.thinking : latest !== undefined ? stepLine(latest) : LiveSessionLines.nothingRecorded;
   return (
-    <div className="flex items-center gap-2 rounded-island border border-ink/[0.035] bg-[var(--mx-section)] px-3.5 py-[11px]">
+    <div className="flex items-center gap-2 rounded-island border border-ink/[0.035] bg-(--mx-section) px-3.5 py-session-now-y">
       <span className="grid shrink-0 text-primary">
         <SFSymbol name={view.thinking ? 'sparkles' : 'arrow.right.circle'} size={13} />
       </span>
@@ -282,14 +282,17 @@ const TABS: { id: LiveTab; title: string; icon: ReactNode }[] = [
   { id: 'activity', title: LiveSessionLines.activity, icon: <ListCollapse size={12} strokeWidth={2} /> },
 ];
 
+/** The track a tab slides along: the bar's width less its inset on either side. */
+const TAB_TRACK = '(100% - 2 * var(--spacing-session-tab-inset))';
+
 /** `LiveTabBar`: one capsule track of ink 6%, the picked tab on a capsule of ink 12% sliding between them. */
 function TabBar({ tab, onPick, counts }: { tab: LiveTab; onPick: (tab: LiveTab) => void; counts: Record<LiveTab, number> }) {
   const index = TABS.findIndex((each) => each.id === tab);
   return (
-    <div className="relative flex h-[30px] rounded-full bg-ink/[0.06] p-[3px]">
+    <div className="relative flex h-session-tab-bar rounded-full bg-ink/[0.06] p-session-tab-inset">
       <span
-        className="absolute inset-y-[3px] rounded-full bg-ink/[0.12] transition-[left] duration-[350ms] ease-snappy"
-        style={{ width: `calc((100% - 6px) / ${TABS.length})`, left: `calc(3px + ${index} * (100% - 6px) / ${TABS.length})` }}
+        className="absolute inset-y-session-tab-inset rounded-full bg-ink/[0.12] transition-[left] duration-[350ms] ease-snappy"
+        style={{ width: `calc(${TAB_TRACK} / ${TABS.length})`, left: `calc(var(--spacing-session-tab-inset) + ${index} * ${TAB_TRACK} / ${TABS.length})` }}
       />
       {TABS.map((each) => (
         <Pressable
@@ -322,7 +325,7 @@ function Conversation({ lines, thinking }: { lines: readonly ConversationLine[];
           return (
             <div key={index} className="flex flex-col items-end gap-1 pl-14">
               <span className={`text-micro font-semibold ${label === 'You asked' ? 'text-muted' : 'text-primary'}`}>{label}</span>
-              <span className="rounded-[14px] px-2.5 py-1.5 text-body text-foreground" style={{ backgroundColor: 'rgb(59 130 247 / 0.28)' }}>
+              <span className="rounded-session-bubble bg-primary/[0.28] px-2.5 py-1.5 text-body text-foreground">
                 {line.text}
               </span>
             </div>
@@ -337,7 +340,7 @@ function Conversation({ lines, thinking }: { lines: readonly ConversationLine[];
           );
         }
         return (
-          <p key={index} className="m-0 whitespace-pre-wrap text-body leading-[19px] text-foreground/[0.92]">
+          <p key={index} className="m-0 whitespace-pre-wrap text-body leading-session-reply text-foreground/[0.92]">
             {line.text}
           </p>
         );
@@ -393,8 +396,8 @@ function FileRow({
     void sessions.diff(sessionId, path).then((read) => setDiff(read ?? null));
   }, [open, diff, sessions, sessionId, path]);
   return (
-    <div className={`rounded-[10px] ${open ? 'bg-ink/[0.05]' : ''}`}>
-      <Pressable className={`${PRESS_DOWN} flex h-8 w-full min-w-0 items-center gap-2 rounded-[10px] px-2 text-left hover:bg-ink/[0.04]`} onClick={onToggle} title={path}>
+    <div className={`rounded-session-file-row ${open ? 'bg-ink/[0.05]' : ''}`}>
+      <Pressable className={`${PRESS_DOWN} flex h-8 w-full min-w-0 items-center gap-2 rounded-session-file-row px-2 text-left hover:bg-ink/[0.04]`} onClick={onToggle} title={path}>
         <ChevronRight size={10} strokeWidth={3} className={`shrink-0 text-muted transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
         <span className="grid shrink-0 text-muted">
           <SFSymbol name="doc.text" size={11} />
@@ -429,20 +432,19 @@ function FileRow({
 /** A file's diff: rows 17 tall in 11 mono, both line numbers in 34 wide gutters, added green and removed red at 16%. */
 function Diff({ lines }: { lines: readonly DiffLine[] }) {
   return (
-    <div className="max-h-[300px] select-text overflow-auto rounded-[8px] bg-ink/[0.03] py-1 font-mono text-caption">
+    <div className="max-h-session-diff select-text overflow-auto rounded-session-command bg-ink/[0.03] py-1 font-mono text-caption">
       {lines.map((line, index) =>
         line.kind === 'hunk' ? (
-          <div key={index} className="flex h-[17px] items-center px-2 text-primary" style={{ backgroundColor: 'rgb(59 130 247 / 0.06)' }}>
+          <div key={index} className="flex h-session-diff-row items-center bg-primary/[0.06] px-2 text-primary">
             {line.text === '' ? '⋯' : line.text}
           </div>
         ) : (
           <div
             key={index}
-            className="flex h-[17px] items-center whitespace-pre"
-            style={{ backgroundColor: line.kind === 'added' ? 'rgb(48 209 88 / 0.16)' : line.kind === 'removed' ? 'rgb(255 69 58 / 0.16)' : undefined }}
+            className={`flex h-session-diff-row items-center whitespace-pre ${line.kind === 'added' ? 'bg-green/[0.16]' : line.kind === 'removed' ? 'bg-red/[0.16]' : ''}`}
           >
-            <span className="w-[34px] shrink-0 pr-1 text-right text-ink/35">{line.old ?? ''}</span>
-            <span className="w-[34px] shrink-0 pr-1 text-right text-ink/35">{line.new ?? ''}</span>
+            <span className="w-session-diff-gutter shrink-0 pr-1 text-right text-ink/35">{line.old ?? ''}</span>
+            <span className="w-session-diff-gutter shrink-0 pr-1 text-right text-ink/35">{line.new ?? ''}</span>
             <span className="text-foreground">{line.text}</span>
           </div>
         ),
@@ -467,7 +469,7 @@ function Activity({ steps, helpers, now }: { steps: readonly SessionViewStep[]; 
           ))}
         </div>
       )}
-      <div className="flex flex-col gap-[5px]">
+      <div className="flex flex-col gap-session-step">
         {shown.length === 0 && <span className="text-body text-muted">{LiveSessionLines.nothingRecordedSentence}</span>}
         {shown.map((step, index) => (
           <StepRow key={`${step.at}-${index}`} step={step} now={now} />

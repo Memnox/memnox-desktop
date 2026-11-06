@@ -12,7 +12,7 @@ import { SessionCardLines } from '../../core/domain/island-lines';
  * centre in a 440 perspective, the front card wears its status colour at 80% and a deeper shadow, and each card's
  * depth orders it. The turn eases with a slight overshoot, and the switcher closes a frame after its exit.
  */
-const SWITCHER_LOOK = { dim: 0.38, enterFrom: 40, restAt: -30, perspective: 440, zBase: 100, zStep: 10, frontEdge: 0.8, frontShadow: 44, backShadow: 28, overshoot: 0.6, doneSlackMs: 10 } as const;
+const SWITCHER_LOOK = { dim: 0.38, enterFrom: 40, restAt: -30, perspective: 440, zBase: 100, zStep: 10, frontEdge: 0.8, overshoot: 0.6, doneSlackMs: 10 } as const;
 
 /**
  * The switcher, the web twin of the Mac's `SwitcherPanel`: the sessions as cards on a shelf, turning past
@@ -87,30 +87,32 @@ export function Switcher({ cards, target, onDone, still = false }: { cards: read
   );
 }
 
+/** The card reflected in the glass it stands on, `reflectionGap` below it and fading out at `reflectionOpacity`. */
+const TILE_REFLECTION = 'below var(--mx-session-tile-reflection-gap) linear-gradient(transparent 70%, rgb(0 0 0 / var(--mx-session-tile-reflection)))';
+
 /** One session as a card: where it runs, who it is, what it is on and how it stands, reflected in the glass below. */
 function SessionTile({ card, front }: { card: SessionCard; front: boolean }) {
   const status = cardStatus(card);
   const colour = statusTint(status);
   return (
     <div
-      className="flex h-[300px] w-[240px] flex-col gap-3 rounded-island border bg-surface p-[18px] text-foreground"
+      className={`flex h-session-tile-height w-session-tile-width flex-col gap-3 rounded-island border-(length:--mx-session-surface-edge) bg-surface p-session-tile-pad text-foreground ${front ? 'shadow-session-tile-front' : 'border-ink/[0.11] shadow-session-tile'}`}
       style={{
-        borderColor: front ? tinted(colour, SWITCHER_LOOK.frontEdge) : 'rgb(255 255 255 / 0.11)',
-        boxShadow: `0 10px ${front ? SWITCHER_LOOK.frontShadow : SWITCHER_LOOK.backShadow}px rgb(0 0 0 / 0.4)`,
-        WebkitBoxReflect: 'below 4px linear-gradient(transparent 70%, rgb(0 0 0 / 0.16))',
+        borderColor: front ? tinted(colour, SWITCHER_LOOK.frontEdge) : undefined,
+        WebkitBoxReflect: TILE_REFLECTION,
       }}
     >
       <div className="flex min-w-0 items-center gap-2.5">
         <BrandLogo agent={card.agent} name={card.agentName} size={36} />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate font-display text-[20px] leading-tight text-foreground">{card.agentName}</span>
+          <span className="truncate font-display text-session-tile-name leading-tight text-foreground">{card.agentName}</span>
           <span className="truncate text-caption text-muted">{card.runningIn ?? SessionCardLines.somewhereUnknown}</span>
         </div>
       </div>
       <p className="m-0 line-clamp-4 text-body text-foreground/90">{cardTitle(card)}</p>
       <span className="flex-1" />
       <div className="flex min-w-0 items-center gap-1.5">
-        <span className="size-[7px] shrink-0 rounded-full" style={{ backgroundColor: colour }} />
+        <span className="size-session-dot shrink-0 rounded-full" style={{ backgroundColor: colour }} />
         <span className="shrink-0 text-caption font-medium" style={{ color: colour }}>
           {statusLabel(status)}
         </span>

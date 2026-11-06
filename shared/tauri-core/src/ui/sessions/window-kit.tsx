@@ -18,7 +18,7 @@ export const PRESS_DOWN = 'cursor-pointer select-none transition-[scale] duratio
  * with near black words; secondary is ink 9% (15% hovered). Hover eases over 0.12 s; disabled dims to 0.4.
  */
 export function CardButton({ title, symbol, primary = false, disabled, onPress }: { title: string; symbol?: SFSymbolName; primary?: boolean; disabled?: boolean; onPress: () => void }) {
-  const look = primary ? 'bg-[#F5F6F8]/[0.92] text-[#0B0C0E] hover:bg-[#F5F6F8]' : 'bg-ink/[0.09] text-ink hover:bg-ink/15';
+  const look = primary ? 'bg-island-primary-fill/[0.92] text-island-primary-text hover:bg-island-primary-fill' : 'bg-ink/[0.09] text-ink hover:bg-ink/15';
   return (
     <Pressable
       className={`${PRESS_DOWN} inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-button font-medium transition-colors duration-[120ms] ease-out disabled:opacity-40 ${look}`}
@@ -35,7 +35,7 @@ export function CardButton({ title, symbol, primary = false, disabled, onPress }
 export function CloseButton({ onPress, label = 'Close' }: { onPress: () => void; label?: string }) {
   return (
     <Pressable
-      className={`${PRESS_DOWN} grid size-[26px] shrink-0 place-items-center rounded-full text-muted transition-colors duration-[120ms] ease-out hover:bg-ink/[0.12] hover:text-foreground`}
+      className={`${PRESS_DOWN} grid size-session-close shrink-0 place-items-center rounded-full text-muted transition-colors duration-[120ms] ease-out hover:bg-ink/[0.12] hover:text-foreground`}
       onClick={onPress}
       title={label}
       aria-label={label}
@@ -67,7 +67,7 @@ export function FilterChip({ title, chosen, count, onPress }: { title: string; c
 /** `Keycap`: one key, 11 medium, at least 18 square, radius 4 on the keycap fill. */
 export function Keycap({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-key border border-control-edge bg-keycap px-1.5 text-caption font-medium text-foreground">{children}</span>
+    <span className="inline-flex h-session-keycap min-w-session-keycap items-center justify-center rounded-key border border-control-edge bg-keycap px-1.5 text-caption font-medium text-foreground">{children}</span>
   );
 }
 
@@ -80,7 +80,7 @@ export function CardHeader({ mark, title, subtitle, accessory, onClose }: { mark
     <div className="flex min-w-0 items-center gap-2.5" data-tauri-drag-region>
       <span className="grid size-7 shrink-0 place-items-center">{mark}</span>
       <div className="pointer-events-none flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="line-clamp-2 font-display text-[22px] font-semibold leading-tight text-foreground">{title}</span>
+        <span className="line-clamp-2 font-display text-session-card-title font-semibold leading-tight text-foreground">{title}</span>
         {subtitle !== undefined && <span className="truncate text-footnote text-muted">{subtitle}</span>}
       </div>
       {accessory}
@@ -92,8 +92,8 @@ export function CardHeader({ mark, title, subtitle, accessory, onClose }: { mark
 /** `LiveSection`: an uppercased title 10 semibold over its content on the section fill, radius 16. */
 export function LiveSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-[7px]">
-      <h3 className="m-0 pl-1 text-micro font-semibold uppercase tracking-[0.8px] text-ink/40">{title}</h3>
+    <section className="flex flex-col gap-session-section-title">
+      <h3 className="m-0 pl-1 text-micro font-semibold uppercase tracking-session-label text-ink/40">{title}</h3>
       <div className="w-full rounded-island border border-ink/[0.035] bg-[var(--mx-section)] p-3">{children}</div>
     </section>
   );
@@ -116,13 +116,13 @@ export function HeldStrip({ calls, card }: { calls: HeldCalls; card: HeldCard })
     setSaid(outcome.kind === 'failed' ? outcome.why : outcome.kind === 'cancelled' ? HeldLines.cancelled : undefined);
   }
   return (
-    <div className="flex flex-col gap-2.5 rounded-island border bg-surface p-3" style={{ borderColor: 'rgb(255 159 10 / 0.62)' }}>
+    <div className="flex flex-col gap-2.5 rounded-island border-(length:--mx-session-surface-edge) border-amber/[0.62] bg-surface p-3">
       <div className="flex min-w-0 items-center gap-2">
         <BrandLogo agent={card.agent} name={card.who} size={22} />
         <span className="shrink-0 text-body font-semibold text-ink">{card.who}</span>
         <span className="truncate text-body text-ink-secondary">{card.why ?? 'is waiting on you'}</span>
       </div>
-      <code className="line-clamp-2 w-full break-all rounded-[8px] bg-ink-faint-fill p-2 font-['DM_Mono',ui-monospace,Consolas,monospace] text-footnote text-ink" title={card.what}>
+      <code className="line-clamp-2 w-full break-all rounded-session-command bg-ink-faint-fill p-2 font-mono text-footnote text-ink" title={card.what}>
         {card.what}
       </code>
       {card.impact !== undefined && <HeldImpactLines impact={card.impact} />}

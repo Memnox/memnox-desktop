@@ -114,7 +114,7 @@ export function Launcher({
 /** `NotchSymbol`: an SF Symbol at 22 medium in its 25 frame, white 85% unless tinted. */
 export function NotchSymbol({ name, tint = TINT.plain }: { name: SFSymbolName; tint?: string }) {
   return (
-    <span className="grid size-[25px] place-items-center" style={{ color: tint }}>
+    <span className="grid size-session-tile-symbol place-items-center" style={{ color: tint }}>
       {/* Keyed, so mute and unmute swap with a 150 ms fade as the Mac replaces one speaker with the other. */}
       <span key={name} className="grid animate-[fade-in_150ms_ease-out]">
         <SFSymbol name={name} size={22} weight="medium" />
@@ -132,12 +132,10 @@ export function NotchTile({ title, caption, mark, lit = false, order, onPress }:
   const [bounces, setBounces] = useState(0);
   return (
     <Pressable
-      className={`${notchPress(false)} motion-arrive flex min-w-0 animate-[notch-in_400ms_cubic-bezier(0.3,1.3,0.6,1)_both] flex-col items-center justify-center gap-1.5 border px-1.5`}
+      className={`${notchPress(false)} motion-arrive flex min-w-0 animate-[notch-in_400ms_cubic-bezier(0.3,1.3,0.6,1)_both] flex-col items-center justify-center gap-1.5 border px-1.5 ${lit ? 'border-white/55 bg-white/12' : 'border-white/[0.04] bg-white/[0.045]'}`}
       style={{
         height: TILE.height,
         borderRadius: TILE.radius,
-        backgroundColor: `rgb(255 255 255 / ${lit ? 0.12 : 0.045})`,
-        borderColor: `rgb(255 255 255 / ${lit ? 0.55 : 0.04})`,
         animationDelay: `${80 + order * 25}ms`,
       }}
       onClick={() => {
@@ -148,7 +146,7 @@ export function NotchTile({ title, caption, mark, lit = false, order, onPress }:
       title={title}
       aria-pressed={lit}
     >
-      <span key={bounces} className={`grid size-[25px] place-items-center ${bounces > 0 ? 'animate-[symbol-bounce_300ms_ease-out]' : ''}`}>
+      <span key={bounces} className={`grid size-session-tile-symbol place-items-center ${bounces > 0 ? 'animate-[symbol-bounce_300ms_ease-out]' : ''}`}>
         {mark}
       </span>
       <FitLine text={title} className="text-caption font-medium text-white" />

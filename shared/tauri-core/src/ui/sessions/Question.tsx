@@ -60,7 +60,7 @@ export function Question({ questions, onAnswered }: { questions: AgentQuestions;
           </div>
           <span className="min-w-1.5 flex-1" />
           {item.header !== undefined && (
-            <span className="max-w-[160px] shrink-0 truncate rounded-full bg-amber/16 px-2 py-1 text-caption font-semibold text-amber">{item.header}</span>
+            <span className="min-w-0 truncate rounded-full bg-amber/16 px-2 py-1 text-caption font-semibold text-amber">{item.header}</span>
           )}
           {position !== undefined && <span className="tabular shrink-0 text-footnote text-white/[0.62]">{position}</span>}
         </div>
@@ -99,13 +99,13 @@ function Choice({ option, index, multi, ticked, onPress }: { option: QuestionOpt
       title={key === undefined ? option.label : `Press ${key}`}
       aria-pressed={multi ? ticked : undefined}
     >
-      <span className="grid size-[22px] shrink-0 place-items-center">
+      <span className="grid size-session-choice-number shrink-0 place-items-center">
         {multi ? (
           <span className={ticked ? 'text-amber' : 'text-white/[0.62]'}>
             <SFSymbol name={ticked ? 'checkmark.circle.fill' : 'circle'} size={15} />
           </span>
         ) : (
-          <span className="tabular grid size-[22px] place-items-center rounded-control bg-white/10 text-caption font-semibold text-white/[0.92]">{index + 1}</span>
+          <span className="tabular grid size-session-choice-number place-items-center rounded-control bg-white/10 text-caption font-semibold text-white/[0.92]">{index + 1}</span>
         )}
       </span>
       <span className="flex min-w-0 flex-col gap-0.5">

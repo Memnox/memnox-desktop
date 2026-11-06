@@ -10,6 +10,7 @@ import {
   isActive,
   isAnswering,
   mentions,
+  statusTint,
   type Exchange,
   type HeldCalls,
   type HistoryKeeper,
@@ -17,6 +18,7 @@ import {
 } from '../../core';
 import { BrandLogo, Input, IslandButton, LogoMark, Pressable, PulseDot, SFSymbol, ShimmerText } from '../kit';
 import { FilterChip, HeldStrip, Keycap, PRESS_DOWN } from './window-kit';
+import { SIDE_SHAPE, SIDE_TAB } from './session-metrics';
 import './sessions.css';
 import { SidePanelLines } from '../../core/domain/island-lines';
 
@@ -31,9 +33,9 @@ type SideFilter = 'all' | 'needs-you' | 'working' | 'history';
 const FILTER_TITLE: Record<SideFilter, string> = { all: 'All', 'needs-you': 'Needs you', working: 'Working', history: 'History' };
 /** How long "Clear all?" waits for the second press before it puts itself back. */
 const CONFIRM_CLEAR_MS = 3_000;
-/** The flare where the panel meets the screen's left edge, and its right side's radius. */
-const FLARE = 14;
-const RADIUS = 22;
+const { flare: FLARE, radius: RADIUS, padding: PADDING } = SIDE_SHAPE;
+/** The 7 dot an exchange still answering breathes. */
+const SIDE_DOT = 7;
 
 export function SidePanel({
   calls,
@@ -93,7 +95,7 @@ export function SidePanel({
   return (
     <div className="relative h-full w-full overflow-hidden font-sans text-ink">
       <SideShape />
-      <div className="relative flex h-full animate-[fade-in_200ms_ease-out_120ms_both] flex-col gap-2.5 px-2.5" style={{ paddingTop: FLARE + 10, paddingBottom: FLARE + 10, paddingRight: 10 }}>
+      <div className="relative flex h-full animate-[fade-in_200ms_ease-out_120ms_both] flex-col gap-2.5 px-2.5" style={{ paddingTop: FLARE + PADDING, paddingBottom: FLARE + PADDING }}>
         <SideSearch query={query} onQuery={setQuery} pinned={pinned} onPin={onPin} onSearching={onSearching} />
         <div className="flex items-center gap-1.5 px-0.5">
           <FilterChip title={FILTER_TITLE.all} chosen={shown === 'all'} onPress={() => setFilter('all')} />
@@ -103,14 +105,14 @@ export function SidePanel({
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto pb-2 [scrollbar-width:none]">
           {shows('needs-you') && needsYou.length > 0 && (
-            <Section title="Needs you" count={needsYou.length} dot="#FF9F0A">
+            <Section title="Needs you" count={needsYou.length} dot={statusTint('waiting-on-you')}>
               {needsYou.map((card) => (
                 <HeldStrip key={card.subject} calls={calls} card={card} />
               ))}
             </Section>
           )}
           {shows('working') && working.length > 0 && (
-            <Section title="Working now" count={working.length} dot="#30D158">
+            <Section title="Working now" count={working.length} dot={statusTint('working')}>
               {working.map((card) => (
                 <WorkingRow key={card.sessionId} card={card} now={now} onOpen={() => onOpenSession(card)} />
               ))}
@@ -135,24 +137,12 @@ export function SidePanel({
   );
 }
 
-/** The tab the panel folds into, as the Mac's `SideMotion`: a sliver at rest, fuller under the pointer. */
-export const SIDE_TAB = {
-  resting: { width: 6, height: 64 },
-  hovering: { width: 12, height: 96 },
-  /** How far past the tab the pointer still counts as on it, since the edge is easy to overshoot. */
-  slop: 8,
-  /** Long enough that sweeping past the edge to reach a scroll bar does not open it. */
-  dwellMs: 250,
-  /** How long the pointer may be away from the open panel before it folds back into the tab. */
-  graceMs: 450,
-} as const;
-
 /** The folded tab at the middle of the left edge, swelling with a spring and faintly rimmed so it is findable. */
 export function SideTab({ hovering }: { hovering: boolean }) {
   const size = hovering ? SIDE_TAB.hovering : SIDE_TAB.resting;
   return (
     <span
-      className="absolute left-0 top-1/2 -translate-y-1/2 bg-panel ring-[0.5px] ring-ink/[0.22] transition-[width,height,border-radius] duration-300 [transition-timing-function:cubic-bezier(0.3,1.6,0.5,1)]"
+      className="absolute left-0 top-1/2 -translate-y-1/2 bg-panel inset-ring-(length:--mx-session-tab-edge) inset-ring-ink/[0.22] transition-[width,height,border-radius] duration-300 [transition-timing-function:cubic-bezier(0.3,1.6,0.5,1)]"
       style={{ width: size.width, height: size.height, borderRadius: `0 ${size.width}px ${size.width}px 0` }}
       aria-hidden
     />
@@ -213,8 +203,8 @@ function SideSearch({ query, onQuery, pinned, onPin, onSearching }: { query: str
 /** A section's heading: a 6 dot where it has a colour, the title 12 semibold at half ink, and its count. */
 function Section({ title, count, dot, children }: { title: string; count?: number; dot?: string; children: React.ReactNode }) {
   return (
-    <section className="flex flex-col">
-      <h3 className="m-0 flex items-center gap-1.5 px-2 pb-1 pt-2 text-footnote font-semibold text-ink-tertiary">
+    <section className="flex flex-col gap-0.5">
+      <h3 className="m-0 flex items-center gap-1.5 px-2 pb-1 text-footnote font-semibold text-ink-tertiary">
         {dot !== undefined && <span className="size-1.5 rounded-full" style={{ backgroundColor: dot }} />}
         {title}
         {count !== undefined && <span className="tabular">{count}</span>}
@@ -227,9 +217,9 @@ function Section({ title, count, dot, children }: { title: string; count?: numbe
 /** A session working now: its logo, what it is on, and the arrow to its window on hover. */
 function WorkingRow({ card, now, onOpen }: { card: SessionCard; now: number; onOpen: () => void }) {
   return (
-    <Pressable className={`${PRESS_DOWN} group flex min-h-11 w-full min-w-0 items-center gap-2.5 rounded-card px-2 py-[7px] text-left hover:bg-ink/[0.06]`} onClick={onOpen} title="Go to this session">
+    <Pressable className={`${PRESS_DOWN} group flex min-h-11 w-full min-w-0 items-center gap-2.5 rounded-card px-2 py-session-side-row-y text-left hover:bg-ink/[0.06]`} onClick={onOpen} title="Go to this session">
       <BrandLogo agent={card.agent} name={card.agentName} size={26} />
-      <span className="flex min-w-0 flex-1 flex-col">
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-body font-semibold text-ink">{cardTitle(card)}</span>
         {card.thinking ? <ShimmerText className="!text-caption !font-normal">{cardSubtitle(card, now)}</ShimmerText> : <span className="truncate text-caption text-muted">{cardSubtitle(card, now)}</span>}
       </span>
@@ -247,20 +237,20 @@ function ExchangeRow({ exchange, now, opened, inline, onOpen, onAskAgain }: { ex
   const detail = exchangeDetail(exchange, now);
   return (
     <div className={`group flex flex-col rounded-card ${opened ? 'bg-ink/10' : 'hover:bg-ink/[0.06]'}`}>
-      <Pressable className={`${PRESS_DOWN} flex min-h-11 w-full min-w-0 items-center gap-2.5 px-2 py-[7px] text-left`} onClick={onOpen} aria-expanded={opened}>
-        <span className="grid size-[22px] shrink-0 place-items-center rounded-full text-white" style={{ backgroundColor: failed ? 'rgb(255 69 58 / 0.85)' : '#3B82F7' }}>
+      <Pressable className={`${PRESS_DOWN} flex min-h-11 w-full min-w-0 items-center gap-2.5 px-2 py-session-side-row-y text-left`} onClick={onOpen} aria-expanded={opened}>
+        <span className={`grid size-session-side-mark shrink-0 place-items-center rounded-full text-white ${failed ? 'bg-red/85' : 'bg-primary'}`}>
           {failed ? <span className="text-caption font-bold leading-none">!</span> : <LogoMark size={12} />}
         </span>
-        <span className="flex min-w-0 flex-1 flex-col">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-body font-semibold text-ink">{exchange.question}</span>
           {answering ? (
             <ShimmerText className="!text-caption !font-normal">{detail}</ShimmerText>
           ) : (
-            <span className={`truncate text-caption ${failed ? 'text-[#C0213A] dark:text-[#F77C86]' : 'text-muted'}`}>{detail}</span>
+            <span className={`truncate text-caption ${failed ? 'text-session-failure' : 'text-muted'}`}>{detail}</span>
           )}
         </span>
-        {answering && <PulseDot colour="#3B82F7" size={7} />}
-        {failed && <span className="size-[7px] shrink-0 rounded-full bg-red group-hover:hidden" />}
+        {answering && <PulseDot colour="var(--color-primary)" size={SIDE_DOT} />}
+        {failed && <span className="size-session-dot shrink-0 rounded-full bg-red group-hover:hidden" />}
         {failed && (
           <span className="hidden shrink-0 group-hover:inline-flex" onClick={(event) => event.stopPropagation()}>
             <IslandButton className="!px-2.5 !py-1 !text-caption" onClick={onAskAgain}>
@@ -270,7 +260,7 @@ function ExchangeRow({ exchange, now, opened, inline, onOpen, onAskAgain }: { ex
           </span>
         )}
       </Pressable>
-      {opened && inline && exchange.answer !== '' && <p className="m-0 select-text whitespace-pre-wrap px-2 pb-2.5 pl-[42px] text-body text-ink-primary">{exchange.answer}</p>}
+      {opened && inline && exchange.answer !== '' && <p className="m-0 select-text whitespace-pre-wrap px-2 pb-2.5 pl-session-side-answer-indent text-body text-ink-primary">{exchange.answer}</p>}
     </div>
   );
 }
@@ -296,15 +286,17 @@ function SideFooter({ talkKeys, canClear, onClear }: { talkKeys: readonly string
     return () => clearTimeout(back);
   }, [confirming]);
   return (
-    <div className="flex items-center gap-[3px] p-1.5">
-      {talkKeys.map((key) => (
-        <Keycap key={key}>{key}</Keycap>
-      ))}
-      <span className="pl-1.5 text-footnote text-ink-secondary">to ask</span>
+    <div className="flex items-center gap-1.5 px-1.5">
+      <span className="flex items-center gap-session-keycap-gap">
+        {talkKeys.map((key) => (
+          <Keycap key={key}>{key}</Keycap>
+        ))}
+      </span>
+      <span className="text-footnote text-ink-secondary">to ask</span>
       <span className="flex-1" />
       {canClear && (
         <Pressable
-          className={`${PRESS_DOWN} text-footnote font-medium ${confirming ? 'text-[#C0213A] dark:text-[#F77C86]' : 'text-ink-secondary hover:text-ink'}`}
+          className={`${PRESS_DOWN} text-footnote font-medium ${confirming ? 'text-session-failure' : 'text-ink-secondary hover:text-ink'}`}
           onClick={() => {
             if (!confirming) return setConfirming(true);
             setConfirming(false);

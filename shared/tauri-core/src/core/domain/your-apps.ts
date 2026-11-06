@@ -68,6 +68,15 @@ export const YourAppsLayout = {
 } as const;
 
 /** Every word on the page that is not built from a tool, as the Mac's page writes it. */
+/** A card's presses named for its app, so a screen reader hears which app each one acts on. */
+export const YourAppsNamed = {
+  source: (order: string) => `Source ${order}`,
+  disconnect: (name: string) => `Disconnect ${name}`,
+  anotherAccount: (name: string) => `Sign in to ${name} with another account`,
+  signInAgain: (name: string) => `Sign in to ${name} again`,
+  connect: (name: string) => `Connect ${name}`,
+} as const;
+
 export const YourAppsLines = {
   checkAgain: 'Check again',
   searchAll: 'Search every app you can connect',

@@ -1,4 +1,3 @@
-import { hashOf } from "./arms-node";
 
 /**
  * The brain silhouette the ARMS map is drawn on, as plain arithmetic: a side
@@ -112,11 +111,6 @@ export function project(point: Vec3, yaw: number, pitch: number): Projected {
   const reach = LAYER_AT.apps * BASE.rx * 1.2;
   const depth = Math.min(1, Math.max(0, (z2 + reach) / (reach * 2)));
   return { x: x1 * scale, y: y2 * scale, scale, depth };
-}
-
-/** A stable number from 0 to 1 for an id and a salt, so a place never changes between loads. */
-export function unitOf(id: string, salt: string): number {
-  return hashOf(`${salt}:${id}`) / 0x1_0000_0000;
 }
 
 /** The widest the drawing reaches, in brain units, which Fit measures against. */

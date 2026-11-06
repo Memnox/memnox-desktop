@@ -1,7 +1,9 @@
 import type { MemoryItemView, ProjectGrantView, ProjectView } from '@memnox/core/wire';
 import {
   ArrowUpRight,
+  Building2,
   CalendarDays,
+  Check,
   ChevronRight,
   Circle,
   CircleCheck,
@@ -44,7 +46,7 @@ import {
 } from '../../../core/domain/project-context';
 import { rowCaption } from '../../../core/domain/memory-lines';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
-import { draftOf, everywhereLine, grantLine, pressLine, projectRules, projectStanding, rulesLine, sessionsLine, sharedBy } from '../../../core/domain/project-lines';
+import { draftOf, everywhereLine, FROM_ORGANIZATION, grantLine, pressLine, ProjectPageLines, projectNote, projectRules, projectStanding, rulesLine, sessionsLine, sharedBy } from '../../../core/domain/project-lines';
 import { ALL_CATEGORIES, settledCategory } from '../../../core/domain/catalog';
 import {
   AGENTS_SHARED_LINE,
@@ -91,6 +93,7 @@ import {
   shownToolCards,
   SKILLS_CARRIED_TITLE,
   TEAM_TITLE,
+  PROJECT_TOOLS_SHOWN,
   TEAM_TOOLS_SHOWN,
   teamLine,
   toolCategoryCounts,
@@ -103,15 +106,14 @@ import {
   type ToolAction,
   type ToolCategory,
 } from '../../../core/domain/project-sidebar';
-import { CatalogCard, CatalogLayout, CatalogSearch, CategoryRail } from '../catalog';
+import { CatalogCard, CatalogLayout, CategoryRail } from '../catalog';
 import { groupCountLine, ruleGroups } from '../../../core/domain/rule-words';
 import { EFFECT_WORDS, effectTone } from '../../../core/domain/studio-lines';
 import { BrandLogo } from '../../kit/logos';
-import { KitButton, PageTitle, Spinner } from '../../settings/kit';
+import { PageTitle } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { GoLink } from './HomePage';
-import { OrganizationBadge, projectNote } from './ProjectInspector';
-import { CardGrid, EmptyState, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
+import { Button, CardGrid, EmptyState, Note, Panel, PRESS_DIP, Pressable, ReadFailed, Row, SearchInput, Section, Spinner, StatusWord } from '../../kit';
 
 /**
  * One project's own pages, the main area beside the sidebar it swaps in: Overview, Agents, Memory, and What its AI may
@@ -124,8 +126,8 @@ export function ProjectPages({ parts, project, page, go }: { parts: SettingsPart
   const info = projectPageInfo(page);
   const body = (
     <div className="flex flex-col gap-6">
-      {/* Tools is left off for now, so a route to it shows the Overview, which holds its folder. */}
-      {(page === 'overview' || page === 'tools') && <Overview parts={parts} project={project} go={go} />}
+      {page === 'tools' && PROJECT_TOOLS_SHOWN && <Tools parts={parts} project={project} go={go} />}
+      {(page === 'overview' || (page === 'tools' && !PROJECT_TOOLS_SHOWN)) && <Overview parts={parts} project={project} go={go} />}
       {page === 'agents' && <Agents parts={parts} project={project} go={go} />}
       {page === 'memory' && <ProjectMemory parts={parts} project={project} go={go} />}
       {page === 'autonomy' && <Autonomy parts={parts} project={project} go={go} />}
@@ -165,9 +167,22 @@ function Muted({ children }: { children: ReactNode }) {
 function NoteBanner({ text }: { text: string | undefined }) {
   if (text === undefined) return null;
   return (
-    <p role="status" className="w-full rounded-xl border border-panel-edge bg-card px-4 py-3 text-footnote text-foreground">
+    <Note roomy className="w-full">
       {text}
-    </p>
+    </Note>
+  );
+}
+
+/** The glyph before the organization's word, footnote sized as the word is. */
+const ORGANIZATION_GLYPH = 12;
+
+/** The badge a project the organization shares carries in place of its standing, as the Mac's `OrganizationBadge`. */
+export function OrganizationBadge() {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-panel-edge px-2 py-1 text-footnote font-medium whitespace-nowrap text-muted">
+      <Building2 size={ORGANIZATION_GLYPH} aria-hidden />
+      {FROM_ORGANIZATION}
+    </span>
   );
 }
 
@@ -176,7 +191,7 @@ export function AgentLogos({ agents, names = {} }: { agents: readonly string[]; 
   return (
     <span className="flex -space-x-1.5">
       {agents.map((kind) => (
-        <BrandLogo key={kind} agent={kind} name={names[kind] ?? agentLabel(kind)} size={20} className="ring-2 ring-card" />
+        <BrandLogo key={kind} agent={kind} name={names[kind] ?? agentLabel(kind)} size={STACKED_LOGO} className="ring-2 ring-card" />
       ))}
     </span>
   );
@@ -192,16 +207,16 @@ function ReachBadge({ reach, open }: { reach: ItemReach; open?: (() => void) | u
   const className = `inline-flex shrink-0 items-center gap-0.5 rounded-full px-2.5 py-0.5 text-label font-medium whitespace-nowrap ${look}`;
   if (reach === 'every-project' && open !== undefined) {
     return (
-      <button type="button" title={`${REACH_HINT[reach]}. Opens that page.`} aria-label={REACH_WORD[reach]} onClick={open} className={`mx-focus cursor-pointer ${className}`}>
-        <Icon size={10} strokeWidth={2.5} aria-hidden />
+      <Pressable title={ProjectPageLines.opensPage(REACH_HINT[reach])} aria-label={REACH_WORD[reach]} onClick={open} className={`mx-focus cursor-pointer ${PRESS_DIP} ${className}`}>
+        <Icon size={REACH_GLYPH} strokeWidth={REACH_STROKE} aria-hidden />
         {REACH_WORD[reach]}
-        <ArrowUpRight size={10} strokeWidth={2.5} aria-hidden />
-      </button>
+        <ArrowUpRight size={REACH_GLYPH} strokeWidth={REACH_STROKE} aria-hidden />
+      </Pressable>
     );
   }
   return (
     <span title={REACH_HINT[reach]} aria-label={REACH_WORD[reach]} className={className}>
-      <Icon size={10} strokeWidth={2.5} aria-hidden />
+      <Icon size={REACH_GLYPH} strokeWidth={REACH_STROKE} aria-hidden />
       {REACH_WORD[reach]}
     </span>
   );
@@ -210,9 +225,9 @@ function ReachBadge({ reach, open }: { reach: ItemReach; open?: (() => void) | u
 /** The way to Memnox Cloud for whatever this computer only reads. */
 function CloudLink({ parts, project, children = OPEN_IN_CLOUD, wide = false }: { parts: SettingsParts; project: ProjectView; children?: string; wide?: boolean }) {
   return (
-    <KitButton icon={ExternalLink} wide={wide} className="self-start" title={cloudProjectLink(project)} onClick={() => parts.host.openPage(cloudProjectLink(project))}>
+    <Button icon={ExternalLink} wide={wide} className="self-start" title={cloudProjectLink(project)} onClick={() => parts.host.openPage(cloudProjectLink(project))}>
       {children}
-    </KitButton>
+    </Button>
   );
 }
 
@@ -274,14 +289,14 @@ function Overview({ parts, project, go }: { parts: SettingsParts; project: Proje
                 onClick={() => go(projectRoute(project.id, step.page))}
                 leading={
                   step.done ? (
-                    <CircleCheck size={16} fill="currentColor" className="text-success [&>path]:stroke-card" aria-label="Done" />
+                    <CircleCheck size={READY_GLYPH} fill="currentColor" className="text-success [&>path]:stroke-card" aria-label={ProjectPageLines.done} />
                   ) : (
-                    <Circle size={16} className="text-faint" aria-label="To do" />
+                    <Circle size={READY_GLYPH} className="text-faint" aria-label={ProjectPageLines.toDo} />
                   )
                 }
                 title={step.title}
                 caption={step.detail}
-                trailing={<ChevronRight size={12} strokeWidth={2.5} className="text-faint" aria-hidden />}
+                trailing={<ChevronRight size={CHEVRON_GLYPH} strokeWidth={REACH_STROKE} className="text-faint" aria-hidden />}
               />
             ))}
           </Panel>
@@ -342,6 +357,21 @@ const CAN_USE_ICONS: Record<CanUseKind, LucideIcon> = { agents: Cpu, skills: Spa
 /** The Mac's ProjectCanUse lays its parts out no narrower than this. */
 const CAN_USE_MIN = 180;
 
+/** Logos overlapping on a card, and an agent's beside its row. */
+const STACKED_LOGO = 20;
+const AGENT_LOGO = 24;
+
+/** The reach badge's glyphs, as small as its 11 point word, drawn heavy so they read. */
+const REACH_GLYPH = 10;
+const REACH_STROKE = 2.5;
+
+/** A ready step's mark, its row's chevron, a tile's glyph, a tool's glyph and the result line's mark. */
+const READY_GLYPH = 16;
+const CHEVRON_GLYPH = 12;
+const TILE_GLYPH = 14;
+const TOOL_GLYPH = 15;
+const RESULT_GLYPH = 12;
+
 /**
  * What its AI can use, as Memnox Cloud's Overview draws it: a part each for its agents, skills and apps, every part
  * saying what its word means while it is empty, and a press on one opens the page that holds it.
@@ -372,14 +402,13 @@ function CanUsePartTile({ part, open, go }: { part: CanUsePart; open: Route | un
   const Icon = CAN_USE_ICONS[part.kind];
   const more = moreLine(part);
   return (
-    <button
-      type="button"
+    <Pressable
       onClick={() => open !== undefined && go(open)}
-      className="mx-focus flex h-full cursor-pointer flex-col items-stretch gap-2 rounded-xl border border-panel-edge bg-card p-4 text-left"
+      className={`mx-focus flex h-full cursor-pointer flex-col items-stretch gap-2 rounded-card border border-panel-edge bg-card p-4 text-left ${PRESS_DIP}`}
     >
       <span className="flex items-center gap-2">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-hover text-foreground">
-          <Icon size={14} aria-hidden />
+        <span className="flex size-control shrink-0 items-center justify-center rounded-control bg-hover text-foreground">
+          <Icon size={TILE_GLYPH} aria-hidden />
         </span>
         <span className="text-body-sm font-medium text-foreground">{part.title}</span>
         {part.counted && <span className="text-body-sm tabular-nums text-muted">{part.names.length}</span>}
@@ -399,7 +428,7 @@ function CanUsePartTile({ part, open, go }: { part: CanUsePart; open: Route | un
           {more !== undefined && <span className="text-footnote text-muted">{more}</span>}
         </span>
       )}
-    </button>
+    </Pressable>
   );
 }
 
@@ -439,6 +468,8 @@ function Folder({ parts, project }: { parts: SettingsParts; project: ProjectView
   const [applied, setApplied] = useState<Applied | undefined>(undefined);
   const busy = projects.busy === project.id || projects.busy === project.path;
   const organization = sharedBy(project);
+  // As on the Mac, the last Apply that found nothing to change keeps the button saying so until it is pressed again.
+  const current = applied?.outcome.kind === 'up-to-date';
   const apply = () => {
     setApplied(undefined);
     void projects.apply(project.id).then((outcome) => setApplied({ outcome, at: Date.now() }));
@@ -458,14 +489,13 @@ function Folder({ parts, project }: { parts: SettingsParts; project: ProjectView
         ) : (
           <>
             {project.declared ? (
-              <KitButton kind="primary" icon={busy ? undefined : Play} disabled={busy} onClick={apply} title="Hands this project’s setup to its agents">
-                {busy && <Spinner />}
-                {busy ? 'Applying' : 'Apply'}
-              </KitButton>
+              <Button kind="primary" icon={current ? Check : Play} busy={busy} onClick={apply} title={current ? ProjectPageLines.upToDateHint : ProjectPageLines.applyHint}>
+                {busy ? ProjectPageLines.applying : current ? ProjectPageLines.upToDate : ProjectPageLines.apply}
+              </Button>
             ) : (
-              <KitButton kind="primary" icon={Save} disabled={busy} onClick={save}>
-                {busy ? 'Saving' : 'Save as project'}
-              </KitButton>
+              <Button kind="primary" icon={Save} disabled={busy} onClick={save}>
+                {busy ? ProjectPageLines.saving : ProjectPageLines.saveAsProject}
+              </Button>
             )}
             {project.declared && applied !== undefined ? <ApplyResultLine applied={applied} keyTitle={words.keyTitle} /> : <Muted>{pressLine(project.declared)}</Muted>}
           </>
@@ -477,17 +507,23 @@ function Folder({ parts, project }: { parts: SettingsParts; project: ProjectView
   );
 }
 
-/** What the last Apply came to: a tick for a change, amber for what waits on the island, red for a refusal, with its time. */
+/** Each way an Apply ends wears the Mac's `ApplyResultLine` mark: its glyph and its colour. */
+const APPLY_LOOK: Record<ProjectOutcome['kind'], { icon: LucideIcon; tint: string }> = {
+  done: { icon: CircleCheck, tint: 'text-success' },
+  proposed: { icon: Hand, tint: 'text-warm' },
+  'up-to-date': { icon: Check, tint: 'text-muted' },
+  failed: { icon: TriangleAlert, tint: 'text-destructive' },
+};
+
+/** What the last Apply came to: a tick for a change, amber for what waits on the island, grey when nothing changed, red for a refusal, with its time. */
 function ApplyResultLine({ applied, keyTitle }: { applied: Applied; keyTitle: string }) {
   const { outcome, at } = applied;
-  const look: { icon: LucideIcon; tint: string } =
-    outcome.kind === 'failed' ? { icon: TriangleAlert, tint: 'text-destructive' } : outcome.kind === 'proposed' ? { icon: Hand, tint: 'text-warm' } : { icon: CircleCheck, tint: 'text-success' };
-  const Icon = look.icon;
+  const { icon: Icon, tint } = APPLY_LOOK[outcome.kind];
   const time = new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   return (
-    <p role="status" className={`flex items-start gap-1.5 text-footnote select-text ${look.tint}`}>
-      <Icon size={12} className="mt-0.5 shrink-0" aria-hidden />
-      <span>{`${projectNote(outcome, keyTitle)} · ${time}`}</span>
+    <p role="status" className={`flex items-start gap-1.5 text-footnote select-text ${tint}`}>
+      <Icon size={RESULT_GLYPH} className="mt-0.5 shrink-0" aria-hidden />
+      <span>{ProjectPageLines.at(projectNote(outcome, keyTitle), time)}</span>
     </p>
   );
 }
@@ -508,7 +544,8 @@ const TOOL_ICONS: Record<ToolCategory, LucideIcon> = {
  * per tool saying what is linked, its add action on the card itself. Adding a server writes the project's manifest
  * through the daemon; connecting an app happens on Connectors, once for every project. Left off for now, so nothing opens it.
  */
-function Tools({ parts, project, go, said }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void; said: (note: string) => void }) {
+function Tools({ parts, project, go }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void }) {
+  const [said, setSaid] = useState<string | undefined>(undefined);
   const { account, hub, projects, support, tools, words } = parts;
   useObserved(account, hub, projects, support, tools);
   const joined = showsTeam(project, account.isSignedIn);
@@ -530,15 +567,16 @@ function Tools({ parts, project, go, said }: { parts: SettingsParts; project: Pr
   const act = (action: ToolAction) => {
     if (action.kind === 'connect') return go({ destination: 'mcp', tab: 'apps' });
     const draft = draftOf(project);
-    void projects.put(project.path, { ...draft, servers: [...(draft.servers ?? []), action.server] }).then((outcome) => said(projectNote(outcome, words.keyTitle)));
+    void projects.put(project.path, { ...draft, servers: [...(draft.servers ?? []), action.server] }).then((outcome) => setSaid(projectNote(outcome, words.keyTitle)));
   };
   return (
     <div className="flex flex-col gap-5">
+      {said !== undefined && <Note>{said}</Note>}
       <ReadOnly parts={parts} project={project} />
-      <CatalogLayout rail={<CategoryRail categories={categories} total={cards.length} chosen={shelf} choose={setCategory} allTitle="All tools" />}>
-        <CatalogSearch value={query} placeholder="Search tools" showing={shown.length} total={cards.length} onChange={setQuery} />
+      <CatalogLayout rail={<CategoryRail categories={categories} total={cards.length} chosen={shelf} choose={setCategory}  allTitle={ProjectPageLines.allTools} />}>
+        <SearchInput value={query} placeholder={ProjectPageLines.searchTools} count={{ shown: shown.length, total: cards.length }} onChange={setQuery} />
         {shown.length === 0 ? (
-          <EmptyState icon={Plug} title="No tools here" body={query.trim() === '' ? 'Add the places this project lives: its apps, documents and repositories.' : 'Nothing matches that search. Try fewer words.'} />
+          <EmptyState icon={Plug} title={ProjectPageLines.noTools} body={query.trim() === '' ? ProjectPageLines.noToolsBody : ProjectPageLines.noToolsMatch} />
         ) : (
           <CardGrid>
             {shown.map((card) => (
@@ -553,7 +591,7 @@ function Tools({ parts, project, go, said }: { parts: SettingsParts; project: Pr
           <CloudLink parts={parts} project={project} />
         </div>
       )}
-      {editableHere(project) && <p className="text-footnote text-muted">Adding a server writes it into the project’s .memnox/project.toml. Its AI is given it once you apply the project, signed on the island.</p>}
+      {editableHere(project) && <p className="text-footnote text-muted">{ProjectPageLines.serverNote}</p>}
     </div>
   );
 }
@@ -574,14 +612,14 @@ function ToolCard({ card, busy, act, reach, openShared }: { card: ProjectToolCar
   const action = card.action;
   return (
     <CatalogCard
-      icon={<Icon size={15} aria-hidden />}
+      icon={<Icon size={TOOL_GLYPH} aria-hidden />}
       title={card.name}
       line={card.line}
       badges={
         <>
           <span className="inline-flex items-center rounded-full border border-panel-edge px-2 py-px text-label font-medium text-muted">{card.what}</span>
-          {card.linked && card.ready && <StatusWord tone="good">Linked</StatusWord>}
-          {card.linked && !card.ready && <StatusWord tone="attention">Missing here</StatusWord>}
+          {card.linked && card.ready && <StatusWord tone="good">{ProjectPageLines.linked}</StatusWord>}
+          {card.linked && !card.ready && <StatusWord tone="attention">{ProjectPageLines.missingHere}</StatusWord>}
           {reach !== undefined && <ReachBadge reach={reach} open={openShared} />}
         </>
       }
@@ -589,9 +627,9 @@ function ToolCard({ card, busy, act, reach, openShared }: { card: ProjectToolCar
         ? {}
         : {
             action: (
-              <KitButton kind={action.kind === 'add-server' ? 'primary' : 'secondary'} icon={Plus} disabled={action.kind === 'add-server' && busy} onClick={() => act(action)}>
-                {action.kind === 'add-server' ? 'Add' : 'Connect'}
-              </KitButton>
+              <Button kind={action.kind === 'add-server' ? 'primary' : 'secondary'} icon={Plus} disabled={action.kind === 'add-server' && busy} onClick={() => act(action)}>
+                {action.kind === 'add-server' ? ProjectPageLines.add : ProjectPageLines.connect}
+              </Button>
             ),
           })}
     />
@@ -656,7 +694,7 @@ function ProjectMemory({ parts, project, go }: { parts: SettingsParts; project: 
       <Section title={MEMORY_HERE_TITLE}>
         {learned.items === undefined ? (
           memory.unreadable.facts ? (
-            <ReadFailed what="what was learned" retry={() => void memory.refreshEverything()} />
+            <ReadFailed what={ProjectPageLines.whatWasLearned} retry={() => void memory.refreshEverything()} />
           ) : (
             <Spinner />
           )
@@ -691,10 +729,10 @@ function AgentRows({ agents, marked }: { agents: readonly AgentOnProject[]; mark
       {agents.map((agent) => (
         <Row
           key={agent.kind}
-          leading={<BrandLogo agent={agent.kind} name={agent.name} size={24} />}
+          leading={<BrandLogo agent={agent.kind} name={agent.name} size={AGENT_LOGO} />}
           title={agent.name}
           caption={agent.line}
-          {...(marked ? { trailing: agent.seen ? <StatusWord tone="good">Worked here</StatusWord> : <StatusWord tone="quiet">Not seen here</StatusWord> } : {})}
+          {...(marked ? { trailing: agent.seen ? <StatusWord tone="good">{ProjectPageLines.workedHere}</StatusWord> : <StatusWord tone="quiet">{ProjectPageLines.notSeenHere}</StatusWord> } : {})}
         />
       ))}
     </Panel>
@@ -730,7 +768,7 @@ function RulesHere({ parts, project, open }: { parts: SettingsParts; project: Pr
   useEffect(() => void studio.refresh(), []);
   const view = studio.rules;
   if (view === undefined) {
-    return <Section title={RULES_HERE_TITLE}>{studio.unreadable ? <ReadFailed what="the rules" retry={() => void studio.refresh()} /> : <Spinner />}</Section>;
+    return <Section title={RULES_HERE_TITLE}>{studio.unreadable ? <ReadFailed what={ProjectPageLines.theRules} retry={() => void studio.refresh()} /> : <Spinner />}</Section>;
   }
   const { here, everywhere } = projectRules(view.rules, project);
   const groups = ruleGroups(here);
@@ -781,7 +819,7 @@ function Grants({ project, grants, empty }: { project: ProjectView; grants: read
           trailing={
             <>
               <ReachBadge reach="only-here" />
-              {grant.inHub ? <AgentLogos agents={grant.agents} /> : <StatusWord tone="attention">Not in the hub</StatusWord>}
+              {grant.inHub ? <AgentLogos agents={grant.agents} /> : <StatusWord tone="attention">{ProjectPageLines.notInHub}</StatusWord>}
             </>
           }
         />

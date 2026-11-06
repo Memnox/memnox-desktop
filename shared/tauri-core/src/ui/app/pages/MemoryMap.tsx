@@ -5,7 +5,7 @@ import { MEMORY_LINK, MEMORY_MAP_NODE, MEMORY_MAP_PX, carriedWith, memoryMap, wa
 import { kindWord, sourceKindLabel, statusWord } from '../../../core/domain/memory-lines';
 import { EFFECT_WORDS, effectTone, isEffect } from '../../../core/domain/studio-lines';
 import { SurfaceCanvas, type EdgeInk } from '../surface/SurfaceCanvas';
-import type { Tone } from '../widgets';
+import type { Tone } from '../../kit';
 
 /** Each tone as the ink a mark wears, the same colours the pills use. */
 const TONE_INK: Record<Tone, string> = {
@@ -76,7 +76,7 @@ function Mark({ node, selected }: { node: MemoryMapNode; selected: boolean }) {
     case MEMORY_MAP_NODE.RULE:
       return <RuleCard node={node} selected={selected} />;
     case MEMORY_MAP_NODE.SOURCE:
-      return <SourceDisc node={node} selected={selected} />;
+      return <SourceDisc selected={selected} />;
   }
 }
 
@@ -136,7 +136,7 @@ function RuleCard({ node, selected }: { node: MemoryMapNode; selected: boolean }
 }
 
 /** A source is a disc with its name hung below, since it is a place rather than a sentence. */
-function SourceDisc({ node, selected }: { node: MemoryMapNode; selected: boolean }) {
+function SourceDisc({ selected }: { selected: boolean }) {
   return (
     <span
       className={`flex items-center justify-center rounded-full border bg-background shadow-[0_8px_24px_rgb(0_0_0/0.1)] transition-colors ${selected ? PICKED : 'border-panel-edge hover:border-foreground'}`}

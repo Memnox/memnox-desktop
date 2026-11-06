@@ -50,6 +50,18 @@ export const TodayPageLines = {
   press: (key: string) => `Press ${key}`,
 };
 
+/** Today's words that are not on the Mac's table: the inspector's fallback title, the labels and the notes a press leaves. */
+export const TodayNotes = {
+  details: 'Details',
+  notForward: (reason: string) => `Memnox could not bring it forward: ${reason}.`,
+  rowLabel: (number: number, title: string, agent: string, state: string) => `${number}. ${title}, from ${agent}, ${state}`,
+  choiceLabel: (title: string, recommended: boolean, signedWith: string | undefined) =>
+    `${title}${recommended ? ', recommended' : ''}${signedWith === undefined ? '' : `, signed with ${signedWith}`}`,
+  answered: 'Answered.',
+  answeredElsewhere: 'Somebody answered this first, and that answer stands.',
+  cancelled: 'Nothing was sent, so it still waits.',
+};
+
 /** How a yes to a held call is signed, as the Mac's `HeldSigning.line` says it with this platform's key. */
 export function heldSigningLine(touchID: boolean, actionDigest: string | undefined, keyTitle: string): string {
   if (!touchID) return 'Inside its own repository, so a yes needs no signature';

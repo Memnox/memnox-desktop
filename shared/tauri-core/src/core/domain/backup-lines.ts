@@ -29,3 +29,32 @@ export function restoreWaitsLine(keyTitle: string): string {
 
 /** The ledger rides along only to a computer that has none, which the switch says before it is turned on. */
 export const LEDGER_LINE = 'It is only ever put back on a computer that has no ledger of its own.';
+
+/** The Backup page's own words, as the Mac's BackupPage says them. */
+export const BackupLines = {
+  makeTitle: 'Make a backup',
+  makeDetail: 'Rules, the MCP Hub, skills, projects and memory, sealed under a passphrase. No secret is ever put in it.',
+  passphrase: 'Passphrase',
+  again: 'The same passphrase again',
+  includeLedger: 'Include the ledger',
+  sealing: 'Sealing',
+  create: 'Create backup',
+  made: (when: string) => `Made ${when}`,
+  copy: 'Copy',
+  copied: 'Copied',
+  save: 'Save as a file',
+  keepApart: 'Keep the passphrase somewhere apart from the file. Without it nobody, Memnox included, can open this backup.',
+  restoreTitle: 'Put a backup back',
+  restoreDetail: (keyTitle: string) => `Choose the file and type its passphrase. Memnox reads what it holds and asks for your signature with ${keyTitle} on the island before it puts anything back.`,
+  chooseFile: 'Choose a file',
+  noFile: 'No file chosen',
+  itsPassphrase: 'Its passphrase',
+  chooseFirst: 'Choose the backup file first.',
+  reading: 'Reading',
+  restore: 'Restore',
+  madeAt: (when: string, summary: string) => `Made ${when}: ${summary}`,
+  passphraseHint: `At least ${SHORTEST_PASSPHRASE} characters`,
+} as const;
+
+/** What a backup file is chosen as: the plain text archive the runtime seals. */
+export const ARCHIVE_ACCEPT = '.txt,text/plain';

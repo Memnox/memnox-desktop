@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { projectRoute, type Route, type WidthClass } from '../../../core/domain/destinations';
 import { folderProblem } from '../../../core/domain/launch-lines';
 import { insideProject } from '../../../core/domain/shell-lines';
-import { counted, foldersToOpen, FROM_ORGANIZATION, OPEN_LINE, projectCard, projectStanding } from '../../../core/domain/project-lines';
+import { foldersToOpen, FROM_ORGANIZATION, OPEN_LINE, projectCard, projectNote, ProjectsPageLines, projectStanding } from '../../../core/domain/project-lines';
 import {
   ADD_TITLE,
   CHOOSE_TITLE,
@@ -23,13 +23,10 @@ import {
 } from '../../../core/domain/project-context';
 import { workspacesFrom, type SeenWorkspace } from '../../../core/domain/workspaces';
 import { ago, SEPARATOR } from '../../../core/domain/session-text';
-import { BrandLogo } from '../../kit/logos';
-import { KitButton, KitField, SearchField, Spinner } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { GoLink } from './HomePage';
 import { DiscoverPage } from './DiscoverPage';
 import { MemoryPage, MemorySourcesPage } from './MemoryPage';
-import { OrganizationBadge, projectNote } from './ProjectInspector';
 import {
   cloudProjectLink,
   editableHere,
@@ -43,11 +40,15 @@ import {
   renameHeading,
   renameProblem,
 } from '../../../core/domain/project-sidebar';
-import { AgentLogos } from './ProjectPages';
+import { AgentLogos, OrganizationBadge } from './ProjectPages';
 import { SkillsPage } from './SkillsPage';
-import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, Section, StatTile, StatusWord } from '../widgets';
+import { Inspector } from '../widgets';
 import { usePicked } from '../inspector-host';
 import { useShellChoices } from '../shell-choices';
+import { BrandLogo, Button, Card, CardGrid, EmptyState, ErrorLine, Field, IconButton, Input, Menu, MenuItem, MenuSeparator, Note, Panel, PRESS_DIP, Pressable, ReadFailed, Row, SearchInput, Section, Spinner, StatTile, StatusWord } from '../../kit';
+
+/** Where a seen repository's sessions are listed. */
+const SESSIONS_ROUTE: Route = { destination: 'agents', tab: 'list' };
 
 /**
  * Projects as the runtime keeps them, with what each gives the agents opened in it. A runtime too old to
@@ -103,7 +104,7 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
   const [adding, setAdding] = useState<string | undefined>(undefined);
   const { chooseProject } = useShellChoices();
   const all = projects.projects;
-  if (all === undefined) return projects.unreadable ? <ReadFailed what="the projects" retry={() => void projects.refresh()} /> : <Spinner />;
+  if (all === undefined) return projects.unreadable ? <ReadFailed what={ProjectsPageLines.theProjects} retry={() => void projects.refresh()} /> : <Spinner />;
   // Every project shows here: the list is where a person picks one, so nothing narrows it.
   const list = matching(recent(all), query);
   const seen = workspacesFrom(sessions.state.cards, Date.now());
@@ -141,14 +142,14 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
-        {all.length > 0 && <p className="text-footnote text-muted">{`${counted(all.length, 'project', 'projects')}, most recently active first.`}</p>}
+        {all.length > 0 && <p className="text-footnote text-muted">{ProjectsPageLines.countLine(all.length)}</p>}
         <span className="min-w-2 flex-1" />
         {all.length >= SEARCH_FROM && (
-          <div className="w-full max-w-[240px]">
-            <SearchField value={query} placeholder={SEARCH_PROMPT} onChange={setQuery} />
+          <div className="w-full" style={{ maxWidth: PROJECT_SEARCH_WIDTH }}>
+            <SearchInput value={query} placeholder={SEARCH_PROMPT} onChange={setQuery} />
           </div>
         )}
-        <KitButton
+        <Button
           kind={all.length === 0 ? 'primary' : 'secondary'}
           icon={FolderPlus}
           disabled={busy}
@@ -156,19 +157,15 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
           title={OPEN_LINE}
           {...(parts.host.pickProjectFolder === undefined ? { 'aria-expanded': opening } : {})}
         >
-          {adding === undefined ? CHOOSE_TITLE : 'Adding'}
-        </KitButton>
+          {adding === undefined ? CHOOSE_TITLE : ProjectsPageLines.adding}
+        </Button>
       </div>
       {opening && <OpenFolderForm busy={busy} cancel={() => setOpening(false)} open={add} />}
-      {note !== undefined && (
-        <p role="status" className="rounded-xl border border-panel-edge bg-card px-4 py-3 text-footnote text-foreground">
-          {note}
-        </p>
-      )}
+      {note !== undefined && <Note roomy>{note}</Note>}
       {all.length === 0 ? (
         <EmptyState icon={FolderPlus} title={EMPTY_TITLE} body={EMPTY_LINE} />
       ) : list.length === 0 ? (
-        <EmptyState icon={Search} title="No project matches that." body="Try another word, or clear the search." />
+        <EmptyState icon={Search} title={ProjectsPageLines.noMatch} body={ProjectsPageLines.noMatchBody} />
       ) : (
         <CardGrid min={PROJECT_CARD_MIN}>
           {list.map((each) => (
@@ -184,6 +181,16 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
 /** The Mac's Projects grid lays its cards out no narrower than this. */
 const PROJECT_CARD_MIN = 280;
 
+/** The search beside Choose a folder stays this narrow, so the count keeps its line. */
+const PROJECT_SEARCH_WIDTH = 240;
+
+/** A folder glyph beside a name, as the button glyphs are. */
+const FOLDER_GLYPH = 14;
+
+/** The logos of a seen repository, overlapping, and of an agent in its overview. */
+const SEEN_LOGO = 20;
+const OVERVIEW_LOGO = 24;
+
 /** The folders the agents already worked in that are not projects yet, each made one with a single press. */
 function Suggestions({ folders, busy, adding, add }: { folders: readonly SeenWorkspace[]; busy: boolean; adding: string | undefined; add: (folder: string) => void }) {
   return (
@@ -193,15 +200,15 @@ function Suggestions({ folders, busy, adding, add }: { folders: readonly SeenWor
         {folders.map((each) => (
           <Row
             key={each.path}
-            leading={<Folder size={14} className="text-muted" aria-hidden />}
+            leading={<Folder size={FOLDER_GLYPH} className="text-muted" aria-hidden />}
             title={each.name}
-            caption={<span title={each.path}>{[each.path, each.lastActive === undefined ? undefined : `Active ${each.lastActive}`].filter((part) => part !== undefined).join(SEPARATOR)}</span>}
+            caption={<span title={each.path}>{[each.path, each.lastActive === undefined ? undefined : ProjectsPageLines.active(each.lastActive)].filter((part) => part !== undefined).join(SEPARATOR)}</span>}
             trailing={
               <>
                 <AgentLogos agents={each.agents.map((agent) => agent.kind)} />
-                <KitButton icon={Plus} disabled={busy} onClick={() => add(each.path)} aria-label={`Add ${each.name} as a project`}>
-                  {adding === each.path ? 'Adding' : ADD_TITLE}
-                </KitButton>
+                <Button icon={Plus} disabled={busy} onClick={() => add(each.path)} aria-label={ProjectsPageLines.addAsProject(each.name)}>
+                  {adding === each.path ? ProjectsPageLines.adding : ADD_TITLE}
+                </Button>
               </>
             }
           />
@@ -245,31 +252,29 @@ function ProjectCard({ parts, project, pulse, pick, said }: { parts: SettingsPar
     }
     setRenaming(undefined);
   };
-  const item = 'mx-focus flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-body-sm text-foreground hover:bg-hover disabled:cursor-default disabled:text-faint disabled:hover:bg-transparent';
   if (renaming !== undefined) {
     return (
-      <article className="flex flex-col gap-3 rounded-xl border border-primary bg-card p-4">
+      <Card as="article" chosen className="flex flex-col gap-3">
         <p className="text-footnote font-medium text-muted">{renameHeading(project)}</p>
-        <KitField value={renaming} placeholder={NAME_PROMPT} onChange={setRenaming} onSubmit={save} autoFocus />
+        <Input value={renaming} placeholder={NAME_PROMPT} onValue={setRenaming} onSubmit={save} autoFocus />
         <div className="flex gap-2">
-          <KitButton kind="primary" disabled={projects.busy !== undefined || renameProblem(renaming, project) !== undefined} onClick={save}>
-            Save
-          </KitButton>
-          <KitButton onClick={() => setRenaming(undefined)}>Cancel</KitButton>
+          <Button kind="primary" disabled={projects.busy !== undefined || renameProblem(renaming, project) !== undefined} onClick={save}>
+            {ProjectsPageLines.save}
+          </Button>
+          <Button onClick={() => setRenaming(undefined)}>{ProjectsPageLines.cancel}</Button>
         </div>
-      </article>
+      </Card>
     );
   }
   return (
-    <article className="relative flex flex-col rounded-xl border border-panel-edge bg-card transition-colors hover:bg-hover">
-      <button
-        type="button"
+    <article className="relative flex flex-col rounded-card border border-panel-edge bg-card transition-colors hover:bg-hover">
+      <Pressable
         onClick={pick}
         aria-label={[project.name, editable ? standing.word : FROM_ORGANIZATION, working, waiting, pulse.lastActivity].filter((part) => part !== undefined).join(', ')}
-        className="mx-focus flex cursor-pointer flex-col gap-3 rounded-xl p-4 text-left"
+        className={`mx-focus flex cursor-pointer flex-col gap-3 rounded-card p-4 text-left ${PRESS_DIP}`}
       >
         <span className="flex items-center gap-2">
-          <Folder size={14} className="shrink-0 text-muted" aria-hidden />
+          <Folder size={FOLDER_GLYPH} className="shrink-0 text-muted" aria-hidden />
           <span className="min-w-0 truncate text-body font-semibold text-foreground">{card.name}</span>
           <span className="min-w-1.5 flex-1" />
           {editable ? <StatusWord tone={standing.tone}>{standing.word}</StatusWord> : <OrganizationBadge />}
@@ -294,47 +299,37 @@ function ProjectCard({ parts, project, pulse, pick, said }: { parts: SettingsPar
           <span className="min-w-2 flex-1" />
           <AgentLogos agents={project.agents} />
         </span>
-      </button>
+      </Pressable>
       <div className="absolute top-3 right-3">
-        <button
-          type="button"
-          aria-label={`More for ${project.name}`}
-          title={`More for ${project.name}`}
-          aria-haspopup="menu"
-          aria-expanded={menu}
-          onClick={() => setMenu(!menu)}
-          className="mx-focus grid size-6 cursor-pointer place-items-center rounded-md text-muted"
-        >
-          <Ellipsis size={14} strokeWidth={2.5} aria-hidden />
-        </button>
+        <IconButton icon={Ellipsis} size="xs" iconSize={FOLDER_GLYPH} label={ProjectsPageLines.more(project.name)} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)} />
         {menu && (
-          <div role="menu" className="absolute top-7 right-0 z-20 flex w-60 flex-col rounded-lg border border-panel-edge bg-card p-1 shadow-[0_12px_32px_rgb(0_0_0/0.16)]" onMouseLeave={() => setMenu(false)}>
+          <Menu className="absolute top-7 right-0 z-20 w-60" onMouseLeave={() => setMenu(false)}>
             {editable ? (
               <>
-                <button type="button" role="menuitem" className={item} onClick={() => (setMenu(false), setRenaming(project.name))}>
-                  <Pencil size={14} aria-hidden />
+                <MenuItem onPress={() => (setMenu(false), setRenaming(project.name))}>
+                  <Pencil size={FOLDER_GLYPH} aria-hidden />
                   {RENAME_TITLE}
-                </button>
-                <div className="my-1 h-px bg-panel-edge" role="separator" />
-                <button type="button" role="menuitem" className={item} disabled>
-                  <Trash2 size={14} aria-hidden />
+                </MenuItem>
+                <MenuSeparator />
+                <MenuItem disabled>
+                  <Trash2 size={FOLDER_GLYPH} aria-hidden />
                   {REMOVE_TITLE}
-                </button>
+                </MenuItem>
                 <p className="px-2.5 pb-1.5 text-footnote text-muted">{REMOVE_LINE}</p>
               </>
             ) : (
               <>
-                <button type="button" role="menuitem" className={item} onClick={() => (setMenu(false), parts.host.openPage(cloudProjectLink(project)))}>
-                  <Pencil size={14} aria-hidden />
+                <MenuItem onPress={() => (setMenu(false), parts.host.openPage(cloudProjectLink(project)))}>
+                  <Pencil size={FOLDER_GLYPH} aria-hidden />
                   {RENAME_IN_CLOUD}
-                </button>
-                <button type="button" role="menuitem" className={item} onClick={() => (setMenu(false), parts.host.openPage(cloudProjectLink(project)))}>
-                  <Trash2 size={14} aria-hidden />
+                </MenuItem>
+                <MenuItem onPress={() => (setMenu(false), parts.host.openPage(cloudProjectLink(project)))}>
+                  <Trash2 size={FOLDER_GLYPH} aria-hidden />
                   {REMOVE_IN_CLOUD}
-                </button>
+                </MenuItem>
               </>
             )}
-          </div>
+          </Menu>
         )}
       </div>
     </article>
@@ -351,31 +346,19 @@ function OpenFolderForm({ busy, cancel, open }: { busy: boolean; cancel: () => v
     if (wrong === undefined) open(folder);
   };
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-panel-edge bg-card p-4">
-      <label className="flex flex-col gap-1.5">
-        <span className="text-footnote font-medium text-muted">Its folder, from the top of the drive</span>
-        <input
-          className="h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 font-mono text-footnote text-foreground outline-none placeholder:text-faint focus:border-primary"
-          value={folder}
-          placeholder="/home/you/code/project"
-          onChange={(event) => setFolder(event.target.value)}
-          onKeyDown={(event) => event.key === 'Enter' && go()}
-          autoFocus
-        />
-      </label>
-      {problem !== undefined && (
-        <p role="alert" className="text-footnote text-destructive">
-          {problem}
-        </p>
-      )}
+    <Card className="flex flex-col gap-2">
+      <Field label={ProjectsPageLines.folderLabel}>
+        <Input wide mono value={folder} placeholder={ProjectsPageLines.folderPlaceholder} onValue={setFolder} onSubmit={go} autoFocus />
+      </Field>
+      {problem !== undefined && <ErrorLine>{problem}</ErrorLine>}
       <p className="text-footnote text-muted">{OPEN_LINE}</p>
       <div className="flex gap-2">
-        <KitButton kind="primary" icon={FolderOpen} disabled={busy} onClick={go}>
-          {busy ? 'Adding' : 'Add'}
-        </KitButton>
-        <KitButton onClick={cancel}>Cancel</KitButton>
+        <Button kind="primary" icon={FolderOpen} disabled={busy} onClick={go}>
+          {busy ? ProjectsPageLines.adding : ProjectsPageLines.add}
+        </Button>
+        <Button onClick={cancel}>{ProjectsPageLines.cancel}</Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -392,7 +375,7 @@ function SeenTab({ parts, width, go }: { parts: SettingsParts; width: WidthClass
   const picked = workspaces.find((each) => each.path === chosen);
 
   if (workspaces.length === 0) {
-    return <EmptyState icon={Folder} title="No projects yet" body="A project appears once an agent works in a repository on this computer, with every agent that has worked there." />;
+    return <EmptyState icon={Folder} title={ProjectsPageLines.noProjects} body={ProjectsPageLines.noProjectsBody} />;
   }
   return (
     <div className="flex min-h-0">
@@ -414,26 +397,25 @@ function SeenTab({ parts, width, go }: { parts: SettingsParts; width: WidthClass
 
 function WorkspaceCard({ workspace, chosen, pick }: { workspace: SeenWorkspace; chosen: boolean; pick: () => void }) {
   return (
-    <button
-      type="button"
+    <Pressable
       onClick={pick}
       aria-pressed={chosen}
-      className={`mx-focus flex cursor-pointer flex-col gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:bg-hover ${chosen ? 'border-primary' : 'border-panel-edge'}`}
+      className={`mx-focus flex cursor-pointer flex-col gap-3 rounded-card border bg-card p-4 text-left hover:bg-hover ${PRESS_DIP} ${chosen ? 'border-primary' : 'border-panel-edge'}`}
     >
       <div className="flex items-center gap-2">
-        <Folder size={14} className="text-muted" aria-hidden />
+        <Folder size={FOLDER_GLYPH} className="text-muted" aria-hidden />
         <span className="truncate text-body font-semibold text-foreground">{workspace.name}</span>
       </div>
-      <span className="truncate font-mono text-micro text-muted">{workspace.path}</span>
+      <span className="truncate font-code text-micro text-muted">{workspace.path}</span>
       <div className="flex items-center justify-between gap-2">
         <span className="flex -space-x-1.5">
           {workspace.agents.map((agent) => (
-            <BrandLogo key={agent.kind} agent={agent.kind} name={agent.name} size={20} className="ring-2 ring-card" />
+            <BrandLogo key={agent.kind} agent={agent.kind} name={agent.name} size={SEEN_LOGO} className="ring-2 ring-card" />
           ))}
         </span>
-        <span className="text-footnote text-muted">{workspace.lastActive === undefined ? '' : `Active ${workspace.lastActive}`}</span>
+        <span className="text-footnote text-muted">{workspace.lastActive === undefined ? '' : ProjectsPageLines.active(workspace.lastActive)}</span>
       </div>
-    </button>
+    </Pressable>
   );
 }
 
@@ -441,21 +423,21 @@ function WorkspaceOverview({ workspace, go }: { workspace: SeenWorkspace; go: (r
   return (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-2 gap-2.5">
-        <StatTile value={workspace.agents.length} label={workspace.agents.length === 1 ? 'Agent' : 'Agents'} />
-        <StatTile value={workspace.sessions} label={workspace.sessions === 1 ? 'Session' : 'Sessions'} />
+        <StatTile value={workspace.agents.length} label={ProjectsPageLines.agents(workspace.agents.length)} />
+        <StatTile value={workspace.sessions} label={ProjectsPageLines.sessions(workspace.sessions)} />
       </div>
-      <Section title="Agents that worked here">
+      <Section title={ProjectsPageLines.agentsHere}>
         <div className="flex flex-col gap-2">
           {workspace.agents.map((agent) => (
             <div key={agent.kind} className="flex items-center gap-2.5">
-              <BrandLogo agent={agent.kind} name={agent.name} size={24} />
+              <BrandLogo agent={agent.kind} name={agent.name} size={OVERVIEW_LOGO} />
               <span className="text-body text-foreground">{agent.name}</span>
             </div>
           ))}
         </div>
       </Section>
-      <GoLink onClick={() => go({ destination: 'agents', tab: 'list' })}>Its sessions</GoLink>
-      <p className="text-footnote text-muted">{`Last active ${ago(workspace.lastActiveAt, Date.now()) ?? 'a while ago'}.`}</p>
+      <GoLink onClick={() => go(SESSIONS_ROUTE)}>{ProjectsPageLines.itsSessions}</GoLink>
+      <p className="text-footnote text-muted">{ProjectsPageLines.lastActive(ago(workspace.lastActiveAt, Date.now()))}</p>
     </div>
   );
 }

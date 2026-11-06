@@ -6,6 +6,7 @@ import {
   LAYERS_EMPTY,
   PLAN_CONFIRM,
   keepList,
+  LayersPageLines,
   layerCards,
   planDiff,
   planSummary,
@@ -15,10 +16,11 @@ import {
   type MemoryLayersPlan,
   type PlanDiffMark,
 } from '../../../core/domain/memory-layers-lines';
-import { KitButton, SelectMenu } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { Dialog } from './SkillDialogs';
-import { EmptyState, ReadFailed, Section } from '../widgets';
+import { Button, Card, ConfirmDialog, Dialog, EmptyState, Note, ReadFailed, Section, Select, Textarea } from '../../kit';
+
+/** The keep list shows four lines before it scrolls, enough for the usual few. */
+const KEEP_ROWS = 4;
 
 /**
  * Memory as three layers any agent reads, numbered as the long term stack, ported from the Mac's Layers view: 1
@@ -40,8 +42,8 @@ export function MemoryLayersView({ parts, project: picked }: { parts: SettingsPa
 
   const view = memory.layers;
   if (view === undefined) {
-    if (memory.layersUnreadable) return <ReadFailed what="the memory layers" retry={() => void memory.refreshLayers()} />;
-    return <p className="text-body-sm text-muted">Reading the memory layers.</p>;
+    if (memory.layersUnreadable) return <ReadFailed what={LayersPageLines.theLayers} retry={() => void memory.refreshLayers()} />;
+    return <p className="text-body-sm text-muted">{LayersPageLines.reading}</p>;
   }
   const project = view.projects.find((each) => each.path === chosen) ?? view.projects[0];
   const value = valueLines(view.value);
@@ -62,11 +64,7 @@ export function MemoryLayersView({ parts, project: picked }: { parts: SettingsPa
 
   return (
     <div className="flex flex-col gap-7">
-      {note !== undefined && (
-        <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
-          {note}
-        </p>
-      )}
+      {note !== undefined && <Note>{note}</Note>}
       {value.length > 0 && (
         <div className="flex flex-wrap gap-8">
           {value.map((line) => (
@@ -84,8 +82,8 @@ export function MemoryLayersView({ parts, project: picked }: { parts: SettingsPa
         <>
           {view.projects.length > 1 && (
             <div className="w-full max-w-[320px]">
-              <SelectMenu
-                label="Project"
+              <Select
+                label={LayersPageLines.project}
                 value={project.path}
                 options={view.projects.map((each) => ({ value: each.path, label: each.name }))}
                 onChange={(path) => {
@@ -96,11 +94,11 @@ export function MemoryLayersView({ parts, project: picked }: { parts: SettingsPa
             </div>
           )}
           <Section
-            title="Long-term memory"
+            title={LayersPageLines.longTerm}
             trailing={
-              <KitButton kind="primary" disabled={busy} onClick={preview}>
-                Preview the map
-              </KitButton>
+              <Button kind="primary" disabled={busy} onClick={preview}>
+                {LayersPageLines.previewMap}
+              </Button>
             }
           >
             <div className="flex flex-col gap-2">
@@ -109,8 +107,8 @@ export function MemoryLayersView({ parts, project: picked }: { parts: SettingsPa
               ))}
             </div>
           </Section>
-          <Section title="Short-term memory">
-            <div className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
+          <Section title={LayersPageLines.shortTerm}>
+            <Card className="flex flex-col gap-3">
               {memory.sessionCost !== undefined && (
                 <div className="flex flex-col gap-1.5">
                   {sessionCostLines(memory.sessionCost).map((line) => (
@@ -123,19 +121,14 @@ export function MemoryLayersView({ parts, project: picked }: { parts: SettingsPa
               )}
               <label className="flex flex-col gap-1.5">
                 <span className="text-meta font-medium text-muted">{KEEP_TITLE}</span>
-                <textarea
-                  value={typed}
-                  onChange={(event) => setKeep(event.target.value)}
-                  rows={4}
-                  className="mx-field w-full resize-y rounded-lg border border-field-edge bg-field px-3 py-2 text-body-sm text-foreground outline-none"
-                />
+                <Textarea value={typed} onValue={setKeep} rows={KEEP_ROWS} className="resize-y" />
               </label>
               <div>
-                <KitButton disabled={busy} onClick={preview}>
-                  Preview with this list
-                </KitButton>
+                <Button disabled={busy} onClick={preview}>
+                  {LayersPageLines.previewList}
+                </Button>
               </div>
-            </div>
+            </Card>
           </Section>
         </>
       )}
@@ -159,11 +152,7 @@ export function MemoryLayersView({ parts, project: picked }: { parts: SettingsPa
 /** One numbered layer: its number in a badge, the file, what it is for, and how it stands. */
 function LayerCardView({ card }: { card: LayerCard }) {
   return (
-    <div
-      className="flex items-center gap-3 rounded-xl border border-panel-edge bg-card p-4"
-      role="group"
-      aria-label={`Layer ${card.number}, ${card.file}, ${card.role}. ${card.state}`}
-    >
+    <div className="flex items-center gap-3 rounded-card border border-panel-edge bg-card p-4" role="group" aria-label={LayersPageLines.layerLabel(card.number, card.file, card.role, card.state)}>
       <span
         aria-hidden
         className={`grid size-[26px] shrink-0 place-items-center rounded-full text-body-sm font-semibold tabular-nums ${
@@ -197,37 +186,20 @@ function PlanDialog({ plan, busy, cancel, confirm }: { plan: MemoryLayersPlan; b
   const summary = planSummary(plan);
   const changed = plan.files.some((file) => file.changed);
   if (confirming) {
-    return (
-      <Dialog
-        title={PLAN_CONFIRM.title}
-        close={() => setConfirming(false)}
-        footer={
-          <>
-            <span className="flex-1" />
-            <KitButton onClick={() => setConfirming(false)}>Cancel</KitButton>
-            <KitButton kind="primary" disabled={busy} onClick={confirm}>
-              {PLAN_CONFIRM.confirm}
-            </KitButton>
-          </>
-        }
-      >
-        <p className="text-body-sm text-foreground">{summary}</p>
-        <p className="text-body-sm text-muted">{PLAN_CONFIRM.detail}</p>
-      </Dialog>
-    );
+    // The Mac asks with its console confirm, in blue since writing the map takes nothing away.
+    return <ConfirmDialog icon={Layers} tone="neutral" title={PLAN_CONFIRM.title} message={summary} detail={PLAN_CONFIRM.detail} confirm={PLAN_CONFIRM.confirm} busy={busy} cancel={() => setConfirming(false)} act={confirm} />;
   }
   return (
     <Dialog
-      title="The new memory map"
+      title={LayersPageLines.mapTitle}
       step={summary}
       close={cancel}
-      footer={
+      actions={
         <>
           <span className="flex-1" />
-          <KitButton onClick={cancel}>Cancel</KitButton>
-          <KitButton kind="primary" disabled={busy || !changed} onClick={() => setConfirming(true)}>
-            Confirm
-          </KitButton>
+          <Button kind="primary" disabled={busy || !changed} onClick={() => setConfirming(true)}>
+            {LayersPageLines.confirm}
+          </Button>
         </>
       }
     >
@@ -235,7 +207,7 @@ function PlanDialog({ plan, busy, cancel, confirm }: { plan: MemoryLayersPlan; b
         <div key={file.path} className="flex flex-col gap-1.5">
           <p className={`font-code text-meta font-medium ${file.changed ? 'text-foreground' : 'text-faint'}`}>{file.path}</p>
           {file.changed && (
-            <div className="overflow-hidden rounded-md border border-panel-edge bg-field py-1.5">
+            <div className="overflow-hidden rounded-control border border-panel-edge bg-field py-1.5">
               {planDiff(file.before, file.after).map((line) => (
                 <div key={line.index} className={`flex gap-2 px-2 font-code text-meta ${TINT[line.mark]}`}>
                   <span className={MARK_TINT[line.mark]} aria-hidden>

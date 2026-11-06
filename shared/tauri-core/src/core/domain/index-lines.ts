@@ -168,3 +168,47 @@ function listed(items: readonly string[]): string {
   if (items.length <= 1) return items.join('');
   return `${items.slice(0, -1).join(', ')} and ${items.at(-1) ?? ''}`;
 }
+
+/** The Discover page's own words. */
+export const DiscoverLines = {
+  kinds: [
+    { id: 'all', title: 'Everything' },
+    { id: 'skill', title: 'Skills' },
+    { id: 'rule_pack', title: 'Rule packs' },
+  ] as const satisfies readonly { id: IndexKindFilter; title: string }[],
+  readWhat: 'the community index',
+  search: 'Search skills and rule packs',
+  refreshHelp: 'Read the index again now',
+  refresh: 'Refresh',
+  kind: 'Kind',
+  everyCategory: 'Every category',
+  emptyTitle: 'Nothing in the index matches',
+  emptyBody: 'Try fewer words, another kind or every category, or read the index again with Refresh.',
+  sourceTitle: 'Where listings come from',
+  marketplace: 'Memnox marketplace',
+  named: 'An index you named',
+  addressPlaceholder: 'https://example.com/index.json',
+  propose: 'Propose this index',
+  proposeWaits: (keyTitle: string) => `Another index decides what can be installed here, so naming one waits on the island for your signature with ${keyTitle}.`,
+  useMarketplace: 'Use the Memnox marketplace',
+  unsafe: 'Marked unsafe',
+  view: 'View listing',
+  back: 'Discover',
+  publisher: 'Publisher',
+  category: 'Category',
+  license: 'License',
+  agents: 'Agents',
+  here: 'Here',
+  noneGiven: 'None given',
+  needs: 'What it needs',
+  versions: 'Versions',
+  newest: 'The newest version not marked unsafe',
+  latest: 'Latest',
+  yankedCaption: 'Marked unsafe since it was published, so it is never installed',
+  unsafeWord: 'Unsafe',
+  installing: 'Installing',
+  install: (version: string) => `Install ${version}`,
+  nothingToInstall: 'Every version is marked unsafe, so there is nothing to install',
+  digestNote: 'The runtime checks what it downloads against the digest below before it writes anything.',
+  digest: 'Digest',
+} as const;

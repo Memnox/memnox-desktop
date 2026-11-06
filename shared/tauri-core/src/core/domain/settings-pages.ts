@@ -45,6 +45,11 @@ const INFO: Record<SettingsPage, Omit<SettingsPageInfo, 'page'>> = {
   help: { title: 'Help', subtitle: 'Rules, a quick test, and what happened for support.' },
 };
 
+/** The Settings window's own words beyond its pages' titles. */
+export const SettingsWindowLines = {
+  search: 'Search settings',
+} as const;
+
 export interface SettingsGroup {
   /** Absent for the overview, which stands alone above the groups. */
   readonly title: string | undefined;

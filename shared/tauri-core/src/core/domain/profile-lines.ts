@@ -83,3 +83,41 @@ export function applyWhereLine(project: string): string {
 function counted(count: number, one: string, many: string): string {
   return count === 1 ? `1 ${one}` : `${count} ${many}`;
 }
+
+/** The Profiles page's own words. */
+export const ProfilesLines = {
+  readWhat: 'the profiles',
+  create: 'New profile',
+  intro: (keyTitle: string) => `A profile gives nothing until you apply it. Applying it waits for your signature with ${keyTitle} on the island, once for each piece.`,
+  emptyTitle: 'No profiles yet',
+  emptyBody: 'Bundle the skills, servers and rule pack one kind of work needs, such as Backend Engineering, and apply it to any agent in one go.',
+  skills: (names: readonly string[]) => `Skills: ${names.join(', ')}`,
+  servers: (names: readonly string[]) => `Servers: ${names.join(', ')}`,
+  apply: 'Apply',
+  edit: 'Edit',
+  remove: 'Remove',
+  removeNamed: (name: string) => `Remove ${name}`,
+  cancel: 'Cancel',
+  removeStays: 'What it already gave stays where it was given.',
+  agent: 'Agent',
+  repository: 'Repository, optional',
+  repositoryPlaceholder: '/home/you/code/project',
+  yourProjects: 'Your projects',
+  applying: 'Applying',
+  applyTo: (agent: string | undefined) => `Apply to ${agent ?? 'the agent'}`,
+  editNamed: (name: string) => `Edit ${name}`,
+  keep: 'Keep profile',
+  saveChanges: 'Save changes',
+  name: 'Name',
+  namePlaceholder: 'Backend Engineering',
+  nameStays: 'The name stays, since a new name would keep a second profile beside this one.',
+  description: 'What it is for, optional',
+  descriptionPlaceholder: 'Reviews, release notes and the local database',
+  hubSkills: 'Skills from the Skills Hub',
+  noSkills: 'The Skills Hub holds no skill yet.',
+  hubServers: 'Servers from the MCP Hub',
+  noServers: 'The MCP Hub holds no server yet.',
+  rulePack: 'Rule pack',
+  noRulePack: 'No rule pack',
+  packOption: (name: string, rules: number) => `${name}, ${rules === 1 ? '1 rule' : `${rules} rules`}`,
+} as const;

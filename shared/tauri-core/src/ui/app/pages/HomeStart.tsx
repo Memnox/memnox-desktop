@@ -22,9 +22,18 @@ import {
   type HomeStep,
 } from '../../../core/domain/home-steps';
 import { HomeStartLines } from '../../../core/domain/home-page-lines';
-import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { Dialog } from './SkillDialogs';
+import { Button, ConfirmDialog, PRESS_DIP, Pressable } from '../../kit';
+
+/** The two tracks sit side by side once each has this much room, as the Mac's grid does. */
+const TRACK_MIN = 280;
+
+/** A step's tick or ring, as the button glyphs are, the tick drawn a little heavy. */
+const STEP_GLYPH = 14;
+const STEP_TICK_STROKE = 2.4;
+
+/** The clock on a waiting step, a point under the step's own glyphs. */
+const WAITING_GLYPH = 13;
 
 /**
  * Home's getting started steps, drawn the way the Mac's `HomeStart` and the cloud console's home draw the ladder:
@@ -74,9 +83,9 @@ export function HomeStart({ parts, go, actions, mode }: { parts: SettingsParts; 
     else go(STEP_ROUTE[step.id]);
   };
   const hide = (
-    <KitButton onClick={toggle} title={hidden ? HomeStartLines.showHelp : HomeStartLines.hideHelp}>
+    <Button onClick={toggle} title={hidden ? HomeStartLines.showHelp : HomeStartLines.hideHelp}>
       {hidden ? HomeStartLines.show : HomeStartLines.hide}
-    </KitButton>
+    </Button>
   );
 
   if (hidden) {
@@ -103,7 +112,7 @@ export function HomeStart({ parts, go, actions, mode }: { parts: SettingsParts; 
       {setup.waiting.map((step) => (
         <WaitingRung key={step.id} step={step} />
       ))}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+      <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${TRACK_MIN}px, 1fr))` }}>
         {TRACKS.map((track) => {
           const steps = restOf(setup, track);
           if (steps.length === 0) return null;
@@ -114,16 +123,15 @@ export function HomeStart({ parts, go, actions, mode }: { parts: SettingsParts; 
               <ul className="flex flex-col gap-1.5 pt-1">
                 {steps.map((step) => (
                   <li key={step.id}>
-                    <button
-                      type="button"
+                    <Pressable
                       title={step.value}
                       aria-label={HomeStartLines.step(step.title, step.done)}
                       onClick={() => press(step)}
-                      className="mx-focus flex cursor-pointer items-start gap-2 text-left text-body-sm"
+                      className={`mx-focus flex cursor-pointer items-start gap-2 text-left text-body-sm ${PRESS_DIP}`}
                     >
-                      {step.done ? <Check size={14} strokeWidth={2.4} className="mt-0.5 shrink-0 text-primary" aria-hidden /> : <Circle size={14} className="mt-0.5 shrink-0 text-faint" aria-hidden />}
+                      {step.done ? <Check size={STEP_GLYPH} strokeWidth={STEP_TICK_STROKE} className="mt-0.5 shrink-0 text-primary" aria-hidden /> : <Circle size={STEP_GLYPH} className="mt-0.5 shrink-0 text-faint" aria-hidden />}
                       <span className={step.done ? 'text-muted' : 'text-foreground'}>{step.title}</span>
-                    </button>
+                    </Pressable>
                   </li>
                 ))}
               </ul>
@@ -143,37 +151,27 @@ export function HomeStart({ parts, go, actions, mode }: { parts: SettingsParts; 
         </dl>
       )}
       {confirming && (
-        <Dialog
+        // The Mac asks with its console confirm, in blue since stopping takes nothing away, reading first as the aside.
+        <ConfirmDialog
+          icon={Hand}
+          tone="neutral"
           title={HomeEnforce.title}
-          close={() => setConfirming(false)}
-          footer={
-            <>
-              <KitButton
-                onClick={() => {
-                  setConfirming(false);
-                  go(STEP_ROUTE.enforce);
-                }}
-              >
-                {HomeEnforce.readFirst}
-              </KitButton>
-              <span className="flex-1" />
-              <KitButton onClick={() => setConfirming(false)}>{HomeStartLines.cancel}</KitButton>
-              <KitButton
-                kind="primary"
-                icon={Hand}
-                onClick={() => {
-                  setConfirming(false);
-                  void home.enforce();
-                }}
-              >
-                {HomeEnforce.confirm}
-              </KitButton>
-            </>
-          }
-        >
-          <p className="text-body-sm text-foreground">{HomeEnforce.message}</p>
-          <p className="text-body-sm text-muted">{HomeEnforce.detail}</p>
-        </Dialog>
+          message={HomeEnforce.message}
+          detail={HomeEnforce.detail}
+          confirm={HomeEnforce.confirm}
+          aside={{
+            label: HomeEnforce.readFirst,
+            act: () => {
+              setConfirming(false);
+              go(STEP_ROUTE.enforce);
+            },
+          }}
+          cancel={() => setConfirming(false)}
+          act={() => {
+            setConfirming(false);
+            void home.enforce();
+          }}
+        />
       )}
     </section>
   );
@@ -198,15 +196,15 @@ function StepsDone({ setup }: { setup: HomeSetup }) {
 /** The one thing to do now, and the only part of the block with a filled press, as the cloud's Do this next rung. */
 function NextRung({ step, busy, press }: { step: HomeStep; busy: boolean; press: (step: HomeStep) => void }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-primary/30 bg-primary/5 p-4">
+    <div className="flex flex-col gap-1.5 rounded-card border border-primary/30 bg-primary/5 p-4">
       <p className="font-code text-label font-medium tracking-[0.16em] text-primary">{HomeStartLines.doThisNext}</p>
       <p className="text-base font-medium text-foreground">{step.title}</p>
       <p className="text-body-sm text-muted">{step.value}</p>
       <p className="pt-1 text-body-sm text-foreground select-text">{step.how}</p>
       <div className="pt-1.5">
-        <KitButton kind="primary" trailing={ArrowRight} disabled={busy} onClick={() => press(step)}>
+        <Button kind="primary" trailing={ArrowRight} disabled={busy} onClick={() => press(step)}>
           {step.action}
-        </KitButton>
+        </Button>
       </div>
     </div>
   );
@@ -215,8 +213,8 @@ function NextRung({ step, busy, press }: { step: HomeStep; busy: boolean; press:
 /** A step nobody can hurry, drawn quietly as a state rather than a task: no accent and no press. */
 function WaitingRung({ step }: { step: HomeStep }) {
   return (
-    <div className="flex items-start gap-2 rounded-xl border border-panel-edge p-4">
-      <Clock size={13} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+    <div className="flex items-start gap-2 rounded-card border border-panel-edge p-4">
+      <Clock size={WAITING_GLYPH} className="mt-0.5 shrink-0 text-muted" aria-hidden />
       <div className="flex flex-col gap-1">
         <p className="font-code text-label font-medium text-muted">{WAITING_LABEL}</p>
         <p className="text-body-sm font-medium text-foreground">{step.title}</p>

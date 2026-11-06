@@ -23,9 +23,8 @@ import {
 import { ago } from '../../../core/domain/session-text';
 import { EFFECT_WORDS, effectTone, isEffect } from '../../../core/domain/studio-lines';
 import { BrandLogo } from '../../kit/logos';
-import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { EmptyState, Panel, ReadFailed, Row, Section, StatTile, StatusWord } from '../widgets';
+import { Button, EmptyState, Panel, ReadFailed, Row, Section, StatTile, StatusWord } from '../../kit';
 
 const TABS = [
   { id: 'overview', title: 'Overview' },
@@ -140,13 +139,13 @@ function EditControls({ parts, project, busy, said }: { parts: SettingsParts; pr
     <>
       <div className="flex flex-wrap gap-2">
         {project.declared ? (
-          <KitButton kind="primary" icon={Play} disabled={busy} onClick={() => void projects.apply(project.id).then((outcome) => said(projectNote(outcome, words.keyTitle)))}>
+          <Button kind="primary" icon={Play} disabled={busy} onClick={() => void projects.apply(project.id).then((outcome) => said(projectNote(outcome, words.keyTitle)))}>
             {busy ? 'Applying' : 'Apply'}
-          </KitButton>
+          </Button>
         ) : (
-          <KitButton kind="primary" icon={Save} disabled={busy} onClick={() => void projects.put(project.path, draftOf(project)).then((outcome) => said(projectNote(outcome, words.keyTitle)))}>
+          <Button kind="primary" icon={Save} disabled={busy} onClick={() => void projects.put(project.path, draftOf(project)).then((outcome) => said(projectNote(outcome, words.keyTitle)))}>
             {busy ? 'Saving' : 'Save as project'}
-          </KitButton>
+          </Button>
         )}
       </div>
       <p className="text-footnote text-muted">

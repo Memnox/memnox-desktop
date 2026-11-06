@@ -188,18 +188,6 @@ export function memoryChoices<P extends Pick<ProjectView, 'id' | 'name' | 'lastA
   ];
 }
 
-/** The choice's title, all projects again when the project picked is gone. */
-export function choiceTitle(choice: MemoryProjectChoice, projects: readonly Pick<ProjectView, 'id' | 'name'>[]): string {
-  switch (choice.kind) {
-    case 'all':
-      return ALL_MEMORY_TITLE;
-    case 'shared':
-      return SHARED_MEMORY_TITLE;
-    case 'project':
-      return projects.find((each) => each.id === choice.id)?.name ?? ALL_MEMORY_TITLE;
-  }
-}
-
 /** The facts the filter leaves on screen; a project that is gone shows everything rather than nothing. */
 export function shownMemory<T extends Pick<MemoryItemView, 'project'>>(items: readonly T[], choice: MemoryProjectChoice, projects: readonly Place[]): T[] {
   switch (choice.kind) {

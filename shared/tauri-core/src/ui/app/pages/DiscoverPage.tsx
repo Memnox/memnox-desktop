@@ -5,6 +5,7 @@ import { SETTING_SOURCE, type IndexOutcome, type IndexSourceOutcome } from '../.
 import type { WidthClass } from '../../../core/domain/destinations';
 import {
   canInstall,
+  DiscoverLines,
   categoriesOf,
   INDEX_ADDRESS_WANTED,
   inCategory,
@@ -21,20 +22,18 @@ import {
   supportedAgentsLine,
   warningsCountLine,
   yankedLine,
-  type IndexKindFilter,
 } from '../../../core/domain/index-lines';
-import { KitButton, KitField, SearchField } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { CardGrid, EmptyState, Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
-import { AgentLogos } from '../../kit/logos';
 import { Facts } from './SkillsPage';
+import { AgentLogos, Button, Card, CardGrid, Chip, ChipGroup, EmptyState, Input, Note, Panel, ReadFailed, Row, SearchInput, Section, StatusWord } from '../../kit';
 
-const KINDS: readonly { id: IndexKindFilter; title: string }[] = [
-  { id: 'all', title: 'Everything' },
-  { id: 'skill', title: 'Skills' },
-  { id: 'rule_pack', title: 'Rule packs' },
-];
+/** Words go to the runtime this long after the last key, so each key is not a request. */
+const SEARCH_REST_MS = 250;
+
+/** The Mac's search, between 180 and 320 wide, and the address field no wider than 360. */
+const SEARCH = { least: 180, most: 320 } as const;
+const ADDRESS_WIDTH = 360;
 
 /**
  * The community index under the Skills Hub. Install never makes anything live: the runtime checks the
@@ -54,18 +53,14 @@ export function DiscoverPage({ parts, width }: { parts: SettingsParts; width: Wi
   // Words go to the runtime a moment after the last key, so each key is not a request.
   useEffect(() => {
     if (query === index.filter.query) return;
-    const handle = setTimeout(() => void index.refresh({ ...index.filter, query }), 250);
+    const handle = setTimeout(() => void index.refresh({ ...index.filter, query }), SEARCH_REST_MS);
     return () => clearTimeout(handle);
   }, [query]);
 
   const view = index.index;
-  if (view === undefined) return index.unreadable ? <ReadFailed what="the community index" retry={() => void index.refresh()} /> : null;
+  if (view === undefined) return index.unreadable ? <ReadFailed what={DiscoverLines.readWhat} retry={() => void index.refresh()} /> : null;
   const picked = view.entries.find((entry) => entry.id === opened);
-  const status = note !== undefined && (
-    <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
-      {note}
-    </p>
-  );
+  const status = note !== undefined && <Note>{note}</Note>;
   if (picked !== undefined) {
     return (
       <>
@@ -80,16 +75,16 @@ export function DiscoverPage({ parts, width }: { parts: SettingsParts; width: Wi
     <div className="flex flex-col gap-5">
       {status}
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="w-full max-w-[320px] min-w-[180px] flex-1">
-          <SearchField value={query} placeholder="Search skills and rule packs" onChange={setQuery} />
+        <div className="w-full flex-1" style={{ maxWidth: SEARCH.most, minWidth: SEARCH.least }}>
+          <SearchInput value={query} placeholder={DiscoverLines.search} onChange={setQuery} />
         </div>
         <span className="flex-1" />
-        <KitButton icon={RefreshCw} disabled={index.busy === 'refresh'} onClick={() => void index.refresh(index.filter, true)} title="Read the index again now">
-          Refresh
-        </KitButton>
+        <Button icon={RefreshCw} disabled={index.busy === 'refresh'} onClick={() => void index.refresh(index.filter, true)} title={DiscoverLines.refreshHelp}>
+          {DiscoverLines.refresh}
+        </Button>
       </div>
-      <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Kind">
-        {KINDS.map((kind) => (
+      <ChipGroup label={DiscoverLines.kind}>
+        {DiscoverLines.kinds.map((kind) => (
           <Chip key={kind.id} on={index.filter.kind === kind.id} pick={() => void index.refresh({ ...index.filter, kind: kind.id })}>
             {kind.title}
           </Chip>
@@ -97,7 +92,7 @@ export function DiscoverPage({ parts, width }: { parts: SettingsParts; width: Wi
         {categories.length > 0 && <span aria-hidden className="mx-1 h-4 w-px bg-panel-edge" />}
         {categories.length > 0 && (
           <Chip on={category === undefined} pick={() => setCategory(undefined)}>
-            Every category
+            {DiscoverLines.everyCategory}
           </Chip>
         )}
         {categories.map((each) => (
@@ -105,10 +100,10 @@ export function DiscoverPage({ parts, width }: { parts: SettingsParts; width: Wi
             {each}
           </Chip>
         ))}
-      </div>
+      </ChipGroup>
       <p className="text-footnote text-muted">{indexStateLine(view, Date.now())}</p>
       {shown.length === 0 ? (
-        <EmptyState icon={Store} title="Nothing in the index matches" body="Try fewer words, another kind or every category, or read the index again with Refresh." />
+        <EmptyState icon={Store} title={DiscoverLines.emptyTitle} body={DiscoverLines.emptyBody} />
       ) : (
         <CardGrid>
           {shown.map((entry) => (
@@ -137,21 +132,21 @@ function ListingsSource({ parts, view, said }: { parts: SettingsParts; view: Com
     });
   };
   return (
-    <Section title="Where listings come from" trailing={view.marketplace ? <StatusWord tone="good">Memnox marketplace</StatusWord> : <StatusWord tone="attention">An index you named</StatusWord>}>
-      <div className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-3.5">
+    <Section title={DiscoverLines.sourceTitle} trailing={view.marketplace ? <StatusWord tone="good">{DiscoverLines.marketplace}</StatusWord> : <StatusWord tone="attention">{DiscoverLines.named}</StatusWord>}>
+      <div className="flex flex-col gap-3 rounded-card border border-panel-edge bg-card p-3.5">
         <p className="text-footnote text-foreground">{indexSourceLine(view)}</p>
         <div className="flex flex-wrap items-center gap-2">
-          <KitField value={address} placeholder="https://example.com/index.json" onChange={setAddress} onSubmit={propose} className="max-w-[360px] flex-1" />
-          <KitButton icon={Globe} disabled={!usable || busy} onClick={propose}>
-            Propose this index
-          </KitButton>
+          <Input value={address} placeholder={DiscoverLines.addressPlaceholder} onValue={setAddress} onSubmit={propose} className="flex-1" style={{ maxWidth: ADDRESS_WIDTH }} />
+          <Button icon={Globe} disabled={!usable || busy} onClick={propose}>
+            {DiscoverLines.propose}
+          </Button>
         </div>
         {typed && !usable && <p className="text-footnote text-warm">{INDEX_ADDRESS_WANTED}</p>}
-        <p className="text-footnote text-muted">{`Another index decides what can be installed here, so naming one waits on the island for your signature with ${parts.words.keyTitle}.`}</p>
+        <p className="text-footnote text-muted">{DiscoverLines.proposeWaits(parts.words.keyTitle)}</p>
         <div>
-          <KitButton disabled={view.marketplace || busy} onClick={() => void index.setSource().then(said)}>
-            Use the Memnox marketplace
-          </KitButton>
+          <Button disabled={view.marketplace || busy} onClick={() => void index.setSource().then(said)}>
+            {DiscoverLines.useMarketplace}
+          </Button>
         </div>
       </div>
     </Section>
@@ -173,7 +168,7 @@ function Needs({ needs }: { needs: IndexNeedsView | undefined }) {
               {group.title} <span className="font-normal text-muted">{group.caption}</span>
             </dt>
             {group.items.map((item) => (
-              <dd key={item} className="font-mono text-micro break-all text-foreground">
+              <dd key={item} className="font-code text-micro break-all text-foreground">
                 {item}
               </dd>
             ))}
@@ -202,41 +197,27 @@ function Warnings({ warnings }: { warnings: readonly string[] }) {
   );
 }
 
-function Chip({ on, pick, children }: { on: boolean; pick: () => void; children: string }) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={on}
-      onClick={pick}
-      className={`mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm ${on ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function ListingCard({ entry, view }: { entry: IndexEntryView; view: () => void }) {
   const installed = installedLine(entry);
   const warnings = warningsCountLine(entry.warnings);
   return (
-    <article className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
+    <Card as="article" className="flex flex-col gap-3">
       <div className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate text-headline font-semibold text-foreground">{entry.name}</span>
         <span className="truncate text-footnote text-muted">{`${indexKindWord(entry.kind)} · ${publisherLine(entry.publisher)}`}</span>
       </div>
       <p className="line-clamp-2 text-footnote text-foreground">{entry.description}</p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        {entry.unsafe ? <StatusWord tone="bad">Marked unsafe</StatusWord> : <span className="text-footnote text-muted">{latestLine(entry)}</span>}
+        {entry.unsafe ? <StatusWord tone="bad">{DiscoverLines.unsafe}</StatusWord> : <span className="text-footnote text-muted">{latestLine(entry)}</span>}
         {installed !== undefined && <StatusWord tone="good">{installed}</StatusWord>}
         <AgentsLine agents={entry.agents} />
       </div>
       <p className="truncate text-footnote text-muted">{needsSummaryLine(entry.needs)}</p>
       {warnings !== undefined && <StatusWord tone="attention">{warnings}</StatusWord>}
       <div className="flex flex-wrap gap-2 border-t border-panel-edge pt-3">
-        <KitButton onClick={view}>View listing</KitButton>
+        <Button onClick={view}>{DiscoverLines.view}</Button>
       </div>
-    </article>
+    </Card>
   );
 }
 
@@ -259,9 +240,9 @@ function Listing({ parts, entry, width, back, said }: { parts: SettingsParts; en
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-2.5">
-        <KitButton icon={ArrowLeft} onClick={back}>
-          Discover
-        </KitButton>
+        <Button icon={ArrowLeft} onClick={back}>
+          {DiscoverLines.back}
+        </Button>
         <span className="min-w-0 flex-1 truncate text-headline font-semibold text-foreground">{entry.name}</span>
         <span className="text-footnote text-muted">{indexKindWord(entry.kind)}</span>
       </div>
@@ -270,43 +251,43 @@ function Listing({ parts, entry, width, back, said }: { parts: SettingsParts; en
           <p className="text-body text-foreground">{entry.description}</p>
           <Facts
             facts={[
-              ['Publisher', entry.publisher.name],
-              ['Category', entry.category ?? 'None given'],
-              ['License', entry.license ?? 'None given'],
-              ['Agents', <AgentsLine agents={entry.agents} className="" />],
-              ...(installed === undefined ? [] : [['Here', installed] as const]),
+              [DiscoverLines.publisher, entry.publisher.name],
+              [DiscoverLines.category, entry.category ?? DiscoverLines.noneGiven],
+              [DiscoverLines.license, entry.license ?? DiscoverLines.noneGiven],
+              [DiscoverLines.agents, <AgentsLine agents={entry.agents} className="" />],
+              ...(installed === undefined ? [] : [[DiscoverLines.here, installed] as const]),
             ]}
           />
-          <Section title="What it needs">
+          <Section title={DiscoverLines.needs}>
             <Needs needs={entry.needs} />
           </Section>
-          <Section title="Versions">
+          <Section title={DiscoverLines.versions}>
             <Panel>
-              {entry.latest !== undefined && <Row title={`v${entry.latest.version}`} caption="The newest version not marked unsafe" trailing={<StatusWord tone="good">Latest</StatusWord>} />}
+              {entry.latest !== undefined && <Row title={`v${entry.latest.version}`} caption={DiscoverLines.newest} trailing={<StatusWord tone="good">{DiscoverLines.latest}</StatusWord>} />}
               {entry.yanked.map((version) => (
-                <Row key={version} title={`v${version}`} caption="Marked unsafe since it was published, so it is never installed" trailing={<StatusWord tone="bad">Unsafe</StatusWord>} />
+                <Row key={version} title={`v${version}`} caption={DiscoverLines.yankedCaption} trailing={<StatusWord tone="bad">{DiscoverLines.unsafeWord}</StatusWord>} />
               ))}
             </Panel>
             {yanked !== undefined && <p className="text-footnote text-muted">{yanked}</p>}
           </Section>
         </div>
         <div className="flex min-w-0 flex-col gap-6">
-          <div className="flex flex-col gap-2.5 rounded-xl border border-panel-edge bg-card p-3.5">
+          <div className="flex flex-col gap-2.5 rounded-card border border-panel-edge bg-card p-3.5">
             <Warnings warnings={entry.warnings} />
             <p className="text-footnote text-muted">{needsSummaryLine(entry.needs)}</p>
             {canInstall(entry) ? (
               <div>
-                <KitButton kind="primary" icon={Download} disabled={index.busy === entry.name} onClick={() => void index.install(entry.name, entry.latest?.version).then(said)}>
-                  {index.busy === entry.name ? 'Installing' : `Install ${latestLine(entry)}`}
-                </KitButton>
+                <Button kind="primary" icon={Download} disabled={index.busy === entry.name} onClick={() => void index.install(entry.name, entry.latest?.version).then(said)}>
+                  {index.busy === entry.name ? DiscoverLines.installing : DiscoverLines.install(latestLine(entry))}
+                </Button>
               </div>
             ) : (
-              <StatusWord tone="bad">Every version is marked unsafe, so there is nothing to install</StatusWord>
+              <StatusWord tone="bad">{DiscoverLines.nothingToInstall}</StatusWord>
             )}
             <p className="text-footnote text-muted">{installWaitsLine(entry.kind, parts.words.keyTitle)}</p>
-            <p className="text-footnote text-muted">The runtime checks what it downloads against the digest below before it writes anything.</p>
+            <p className="text-footnote text-muted">{DiscoverLines.digestNote}</p>
           </div>
-          {entry.latest !== undefined && <Facts facts={[['Digest', entry.latest.digest]]} mono />}
+          {entry.latest !== undefined && <Facts facts={[[DiscoverLines.digest, entry.latest.digest]]} mono />}
         </div>
       </div>
     </div>

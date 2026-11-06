@@ -3,19 +3,40 @@ import { CircleCheck, Clock, Fingerprint, Folder, KeyRound, Plug, Plus, RefreshC
 import { useEffect, useState, type ReactNode } from 'react';
 import { McpHub, type HubOutcome, type McpPress } from '../../../core/application/mcp-hub';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
-import { agentLabel, agentsOnce, BRING_IN, BRINGING_IN, SERVER_CARD_MIN, pressLine, transportWord, usedBy, agentsLine, callsLine, fromOrganization, headerLines, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
+import { agentLabel, agentsOnce, McpHubPageLines, BRING_IN, BRINGING_IN, SERVER_CARD_MIN, pressLine, transportWord, usedBy, callsLine, fromOrganization, headerLines, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
 import { ago } from '../../../core/domain/session-text';
-import { BrandLogo } from '../../kit/logos';
-import { KitButton, SearchField, Spinner } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { YourAppsPage } from '../../settings/pages/YourAppsPage';
 import { AddServerDialog } from './AddServerDialog';
-import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
+import { Inspector, ScopeChip } from '../widgets';
 import { serverScope } from '../../../core/domain/scope-lines';
 import { GoLink } from './HomePage';
 import { usePicked } from '../inspector-host';
 import { useShellChoices } from '../shell-choices';
 import { inScope, NO_ORGANIZATION_ITEMS, ORGANIZATION_READ_ONLY } from '../../../core/domain/shell-lines';
+import { BrandLogo, Button, CardGrid, Checkbox, EmptyState, Input, Note, Panel, Pressable, ReadFailed, Row, SearchInput, Section, Spinner, StatusWord, TruncatedText } from '../../kit';
+
+/** The Mac's server search: between 180 and 320 wide. */
+const SEARCH = { least: 180, most: 320 } as const;
+
+/** A spinner beside 12 point words, smaller than a button's. */
+const SMALL_SPINNER = 10;
+
+/** Logos stacked on a card or heading a column, and the plug standing in for one. */
+const SMALL_LOGO = 18;
+
+/** An agent's logo at the head of a detail row. */
+const ROW_LOGO = 22;
+
+/** A key or a glyph at the head of a row, and the one beside a press's outcome. */
+const ROW_GLYPH = 16;
+const PRESS_GLYPH = 13;
+
+/** The folder glyph on a project chip, as small as its words. */
+const CHIP_GLYPH = 11;
+
+/** A secret's field is as wide as a token's start needs. */
+const SECRET_FIELD = 192;
 
 /**
  * The MCP Hub: servers set up once and given to the agents the person chooses. Every config is written
@@ -37,14 +58,10 @@ export function McpHubPage({ parts, tab, width, go }: { parts: SettingsParts; ta
 
   if (tab === 'apps') return <YourAppsPage parts={parts} />;
   const view = hub.hub;
-  if (view === undefined) return hub.unreadable ? <ReadFailed what="the MCP Hub" retry={() => void hub.refresh()} /> : null;
+  if (view === undefined) return hub.unreadable ? <ReadFailed what={McpHubPageLines.readWhat} retry={() => void hub.refresh()} /> : null;
   return (
     <>
-      {note !== undefined && (
-        <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
-          {note}
-        </p>
-      )}
+      {note !== undefined && <Note>{note}</Note>}
       {tab === 'clients' && <Clients parts={parts} view={view} said={said} workspaces={workspaces} />}
       {tab === 'secrets' && <Secrets parts={parts} view={view} said={said} />}
       {(tab === 'servers' || tab === undefined) && <Servers parts={parts} view={view} width={width} said={said} noted={setNote} workspaces={workspaces} />}
@@ -53,7 +70,7 @@ export function McpHubPage({ parts, tab, width, go }: { parts: SettingsParts; ta
 }
 
 function noteOf(outcome: HubOutcome, keyTitle: string): string {
-  if (outcome.kind === 'proposed') return `Waiting for you on the island: confirm it with ${keyTitle} and the runtime writes it.`;
+  if (outcome.kind === 'proposed') return McpHubPageLines.waiting(keyTitle);
   if (outcome.kind === 'failed') return outcome.why;
   return outcome.note;
 }
@@ -72,25 +89,25 @@ function Servers({ parts, view, width, said, noted, workspaces }: { parts: Setti
     <div className="flex min-h-0">
       <div className="flex min-w-0 flex-1 flex-col gap-5">
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="w-full max-w-[320px] min-w-[180px] flex-1">
-            <SearchField value={query} placeholder="Search servers" onChange={setQuery} />
+          <div className="w-full flex-1" style={{ maxWidth: SEARCH.most, minWidth: SEARCH.least }}>
+            <SearchInput value={query} placeholder={McpHubPageLines.search} onChange={setQuery} />
           </div>
           <span className="flex-1" />
-          <KitButton icon={RefreshCw} disabled={hub.busy === 'sync'} onClick={() => void hub.sync().then(said)} title="Write what the hub gives each agent into its config again">
-            Sync
-          </KitButton>
-          <KitButton kind="primary" icon={Plus} onClick={() => setAdding(true)}>
-            Add server
-          </KitButton>
+          <Button icon={RefreshCw} disabled={hub.busy === 'sync'} onClick={() => void hub.sync().then(said)} title={McpHubPageLines.syncHelp}>
+            {McpHubPageLines.sync}
+          </Button>
+          <Button kind="primary" icon={Plus} onClick={() => setAdding(true)}>
+            {McpHubPageLines.add}
+          </Button>
         </div>
         {connected && scope === 'organization' && <p className="text-footnote text-muted">{scoped.length === 0 ? NO_ORGANIZATION_ITEMS : ORGANIZATION_READ_ONLY}</p>}
         {scoped.length === 0 ? (
           scope !== 'organization' && (
           <EmptyState
             icon={Plug}
-            title="No servers in the hub yet"
-            body="Add a server once and give it to any agent, or bring in one an agent already has from Found on this computer below."
-            action={<KitButton kind="primary" icon={Plus} onClick={() => setAdding(true)}>Add server</KitButton>}
+            title={McpHubPageLines.emptyTitle}
+            body={McpHubPageLines.emptyBody}
+            action={<Button kind="primary" icon={Plus} onClick={() => setAdding(true)}>{McpHubPageLines.add}</Button>}
           />
           )
         ) : (
@@ -139,7 +156,7 @@ function ServerCard({ parts, server, chosen, pick, said }: { parts: SettingsPart
         }
       }}
       aria-pressed={chosen}
-      className={`mx-focus flex cursor-pointer flex-col gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:bg-hover ${chosen ? 'border-primary' : 'border-panel-edge'}`}
+      className={`mx-focus flex cursor-pointer flex-col gap-3 rounded-card border bg-card p-4 text-left transition-colors hover:bg-hover ${chosen ? 'border-primary' : 'border-panel-edge'}`}
     >
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex items-baseline gap-2">
@@ -151,29 +168,28 @@ function ServerCard({ parts, server, chosen, pick, said }: { parts: SettingsPart
       </div>
       <div className="border-t border-panel-edge" />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        {missing.length > 0 ? <StatusWord tone="bad">Needs a secret</StatusWord> : <StatusWord tone={words.tone}>{words.word}</StatusWord>}
+        {missing.length > 0 ? <StatusWord tone="bad">{McpHubPageLines.needsSecret}</StatusWord> : <StatusWord tone={words.tone}>{words.word}</StatusWord>}
         <span className="whitespace-nowrap text-meta text-faint">{toolsLine(health.tools?.length ?? server.toolCount)}</span>
         <span className="flex-1" />
-        <button
-          type="button"
+        <Pressable
           disabled={testing}
-          title="Starts the server once and asks what it offers"
+          title={McpHubPageLines.testHelp}
           onClick={(event) => {
             event.stopPropagation();
             void hub.test(server.name).then(said);
           }}
           className="mx-focus inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-primary hover:underline disabled:cursor-default disabled:no-underline"
         >
-          {testing && <Spinner size={10} />}
-          {testing ? 'Testing' : 'Test'}
-        </button>
+          {testing && <Spinner size={SMALL_SPINNER} />}
+          {testing ? McpHubPageLines.testing : McpHubPageLines.test}
+        </Pressable>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="flex min-w-0 flex-1 items-center gap-2">
           {agents.length > 0 && (
             <span className="flex shrink-0 -space-x-1.5" aria-hidden>
               {agents.slice(0, LOGOS_SHOWN).map((agent) => (
-                <BrandLogo key={agent} agent={agent} name={agentLabel(agent)} size={18} className="ring-2 ring-card" />
+                <BrandLogo key={agent} agent={agent} name={agentLabel(agent)} size={SMALL_LOGO} className="ring-2 ring-card" />
               ))}
             </span>
           )}
@@ -181,7 +197,7 @@ function ServerCard({ parts, server, chosen, pick, said }: { parts: SettingsPart
             {usedBy(server)}
           </span>
         </span>
-        {server.governed ? <StatusWord tone="good">Governed</StatusWord> : <StatusWord tone="attention">Not governed</StatusWord>}
+        {server.governed ? <StatusWord tone="good">{McpHubPageLines.governed}</StatusWord> : <StatusWord tone="attention">{McpHubPageLines.notGoverned}</StatusWord>}
         <ScopeChip scope={serverScope(server)} />
       </div>
       {(server.projects ?? []).length > 0 && (
@@ -193,13 +209,11 @@ function ServerCard({ parts, server, chosen, pick, said }: { parts: SettingsPart
   );
 }
 
-/** A line in mono cut in its middle, so both ends of a long command or address read. */
+/** A line in mono cut in its middle, as the Mac cuts it, so both ends of a long command or address read. */
 function MiddleCutLine({ text, title }: { text: string; title: string }) {
-  const half = Math.ceil(text.length / 2);
   return (
-    <span title={title} className="flex min-w-0 font-code text-footnote text-muted">
-      <span className="truncate">{text.slice(0, half)}</span>
-      <span className="shrink-0 whitespace-pre">{text.slice(half)}</span>
+    <span title={title} className="block min-w-0 overflow-hidden font-code text-footnote text-muted">
+      <TruncatedText middle text={text} />
     </span>
   );
 }
@@ -209,8 +223,8 @@ function PressLine({ press, keyTitle }: { press: McpPress | undefined; keyTitle:
   if (press?.kind === 'working')
     return (
       <span className="flex items-center gap-1.5 text-meta text-muted">
-        <Spinner size={10} />
-        Asking the runtime
+        <Spinner size={SMALL_SPINNER} />
+        {McpHubPageLines.asking}
       </span>
     );
   const line = pressLine(press, keyTitle);
@@ -219,7 +233,7 @@ function PressLine({ press, keyTitle }: { press: McpPress | undefined; keyTitle:
   const ink = line.tone === 'good' ? 'text-success' : line.tone === 'bad' ? 'text-destructive' : 'text-muted';
   return (
     <span role="status" className={`flex items-start gap-1.5 text-meta select-text ${ink}`}>
-      <Icon size={13} className="mt-0.5 shrink-0" aria-hidden />
+      <Icon size={PRESS_GLYPH} className="mt-0.5 shrink-0" aria-hidden />
       <span className="min-w-0 break-words">{line.text}</span>
     </span>
   );
@@ -234,15 +248,15 @@ function ServerDetail({ parts, view, server, said, removed, workspaces }: { part
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <StatusWord tone={missing.length > 0 ? 'bad' : words.tone}>{missing.length > 0 ? `Needs ${missing.join(', ')}` : words.word}</StatusWord>
-        {health.checkedAt !== undefined && <span className="text-footnote text-muted">{`Tested ${ago(health.checkedAt, Date.now()) ?? 'just now'}`}</span>}
+        <StatusWord tone={missing.length > 0 ? 'bad' : words.tone}>{missing.length > 0 ? McpHubPageLines.needs(missing) : words.word}</StatusWord>
+        {health.checkedAt !== undefined && <span className="text-footnote text-muted">{McpHubPageLines.tested(ago(health.checkedAt, Date.now()))}</span>}
         {health.error !== undefined && <span className="text-footnote break-words text-destructive">{health.error}</span>}
-        <span className="font-mono text-micro break-all text-muted">{[launchLine(server), ...(server.args ?? [])].join(' ')}</span>
+        <span className="font-code text-micro break-all text-muted">{[launchLine(server), ...(server.args ?? [])].join(' ')}</span>
         <span className="text-footnote text-muted">{callsLine(server.callsThisWeek)}</span>
       </div>
-      <KitButton disabled={hub.busy === server.name} onClick={() => void hub.test(server.name).then(said)}>
-        {hub.busy === server.name ? 'Testing' : 'Test connection'}
-      </KitButton>
+      <Button disabled={hub.busy === server.name} onClick={() => void hub.test(server.name).then(said)}>
+        {hub.busy === server.name ? McpHubPageLines.testing : McpHubPageLines.testConnection}
+      </Button>
 
       {fromOrganization(server) ? (
         <Section title="Agents">
@@ -250,7 +264,7 @@ function ServerDetail({ parts, view, server, said, removed, workspaces }: { part
           {server.agents.length > 0 && (
             <Panel>
               {[...new Set(server.agents)].map((agent) => (
-                <Row key={agent} leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />} title={agentLabel(agent)} caption={reachCaption(server, agent)} trailing={<ProjectChips server={server} agent={agent} />} />
+                <Row key={agent} leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={ROW_LOGO} />} title={agentLabel(agent)} caption={reachCaption(server, agent)} trailing={<ProjectChips server={server} agent={agent} />} />
               ))}
             </Panel>
           )}
@@ -268,22 +282,22 @@ function ServerDetail({ parts, view, server, said, removed, workspaces }: { part
               return (
                 <div key={agent}>
                   <Row
-                    leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={22} />}
+                    leading={<BrandLogo agent={agent} name={agentLabel(agent)} size={ROW_LOGO} />}
                     title={agentLabel(agent)}
                     caption={reachCaption(server, agent)}
                     trailing={
                       <>
                         <ProjectChips server={server} agent={agent} />
                         {reach === 'projects' && <GoLink onClick={workspaces}>{WORKSPACES_LINK}</GoLink>}
-                        <KitButton
+                        <Button
                           disabled={press?.kind === 'working'}
                           onClick={() => {
                             hub.clear(pair);
                             void hub.assign(server.name, agent, !on).then(said);
                           }}
                         >
-                          {on ? 'Take away' : reach === 'projects' ? GIVE_EVERYWHERE : 'Give'}
-                        </KitButton>
+                          {on ? McpHubPageLines.takeAway : reach === 'projects' ? GIVE_EVERYWHERE : McpHubPageLines.give}
+                        </Button>
                       </>
                     }
                   />
@@ -296,44 +310,44 @@ function ServerDetail({ parts, view, server, said, removed, workspaces }: { part
               );
             })}
           </Panel>
-          <p className="text-footnote text-muted">{`Giving a server to an agent waits for your signature with ${parts.words.keyTitle}. Taking it away happens at once.`}</p>
+          <p className="text-footnote text-muted">{McpHubPageLines.givingWaits(parts.words.keyTitle)}</p>
           {(server.projects ?? []).length > 0 && <p className="text-footnote text-muted">{PROJECT_ONLY_LINE}</p>}
         </Section>
       )}
 
       {(server.headerNames ?? []).length > 0 && (
-        <Section title="Headers">
+        <Section title={McpHubPageLines.headers}>
           <Panel>
             {headerLines(server).map((header) => (
               <Row
                 key={header.name}
-                title={<span className="font-mono">{header.name}</span>}
-                trailing={header.held === undefined ? undefined : <StatusWord tone={header.held ? 'good' : 'bad'}>{header.held ? 'Secret kept by this computer' : 'Secret not set'}</StatusWord>}
+                title={<span className="font-code">{header.name}</span>}
+                trailing={header.held === undefined ? undefined : <StatusWord tone={header.held ? 'good' : 'bad'}>{header.held ? McpHubPageLines.secretKept : McpHubPageLines.secretNotSet}</StatusWord>}
               />
             ))}
           </Panel>
-          <p className="text-footnote text-muted">Sent with every call to the server. Only the names are shown here, never the values.</p>
+          <p className="text-footnote text-muted">{McpHubPageLines.headersNote}</p>
         </Section>
       )}
 
       {Object.keys(server.secretsHeld).length > 0 && (
-        <Section title="Credentials">
+        <Section title={McpHubPageLines.credentials}>
           <Panel>
             {Object.entries(server.secretsHeld).map(([name, held]) => (
-              <Row key={name} leading={<KeyRound size={16} className="text-muted" />} title={name} trailing={<StatusWord tone={held ? 'good' : 'bad'}>{held ? 'Kept by this computer' : 'Not set'}</StatusWord>} />
+              <Row key={name} leading={<KeyRound size={ROW_GLYPH} className="text-muted" />} title={name} trailing={<StatusWord tone={held ? 'good' : 'bad'}>{held ? McpHubPageLines.keptHere : McpHubPageLines.notSet}</StatusWord>} />
             ))}
           </Panel>
-          <p className="text-footnote text-muted">A secret is never shown again. Replace one under Secrets.</p>
+          <p className="text-footnote text-muted">{McpHubPageLines.credentialsNote}</p>
         </Section>
       )}
 
-      <Section title="Tools">
+      <Section title={McpHubPageLines.tools}>
         {tools.length === 0 ? (
-          <p className="text-footnote text-muted">Test the connection to list what this server can do.</p>
+          <p className="text-footnote text-muted">{McpHubPageLines.noTools}</p>
         ) : (
           <Panel>
             {tools.map((tool) => (
-              <Row key={tool.name} title={<span className="font-mono">{tool.name}</span>} caption={tool.description} />
+              <Row key={tool.name} title={<span className="font-code">{tool.name}</span>} caption={tool.description} />
             ))}
           </Panel>
         )}
@@ -342,7 +356,7 @@ function ServerDetail({ parts, view, server, said, removed, workspaces }: { part
       {/* Set apart at the end, away from the routine controls; an organization's server is removed in Memnox Cloud. */}
       {!fromOrganization(server) && (
         <div className="border-t border-panel-edge pt-4">
-          <KitButton
+          <Button
             disabled={hub.busy === server.name}
             onClick={() =>
               void hub.removeServer(server.name).then((outcome) => {
@@ -351,8 +365,8 @@ function ServerDetail({ parts, view, server, said, removed, workspaces }: { part
               })
             }
           >
-            Remove from every agent
-          </KitButton>
+            {McpHubPageLines.removeEverywhere}
+          </Button>
         </div>
       )}
     </div>
@@ -364,22 +378,22 @@ function Found({ parts, view, said }: { parts: SettingsParts; view: McpHubView; 
   const { hub } = parts;
   if (view.found.length === 0) return null;
   return (
-    <Section title={`Found on this computer · ${view.found.length}`}>
+    <Section title={McpHubPageLines.found(view.found.length)}>
       <Panel>
         {view.found.map((entry) => (
           <div key={`${entry.path}/${entry.name}`}>
           <Row
-            leading={entry.agent === undefined ? <Plug size={18} className="text-muted" /> : <BrandLogo agent={entry.agent} name={agentLabel(entry.agent)} size={22} />}
+            leading={entry.agent === undefined ? <Plug size={SMALL_LOGO} className="text-muted" /> : <BrandLogo agent={entry.agent} name={agentLabel(entry.agent)} size={ROW_LOGO} />}
             title={entry.name}
-            caption={`${entry.agent === undefined ? 'Shared by several agents' : agentLabel(entry.agent)} · ${entry.path}`}
+            caption={`${entry.agent === undefined ? McpHubPageLines.shared : agentLabel(entry.agent)} · ${entry.path}`}
             trailing={
               entry.agent === undefined ? (
-                <span className="text-footnote text-muted">A repository’s own file</span>
+                <span className="text-footnote text-muted">{McpHubPageLines.repositoryFile}</span>
               ) : (
-                <KitButton disabled={hub.press(McpHub.found(entry.name, entry.agent))?.kind === 'working'} onClick={() => entry.agent !== undefined && void hub.importServer(entry.agent, entry.name).then(said)}>
-                  {hub.press(McpHub.found(entry.name, entry.agent))?.kind === 'working' && <Spinner size={10} />}
+                <Button disabled={hub.press(McpHub.found(entry.name, entry.agent))?.kind === 'working'} onClick={() => entry.agent !== undefined && void hub.importServer(entry.agent, entry.name).then(said)}>
+                  {hub.press(McpHub.found(entry.name, entry.agent))?.kind === 'working' && <Spinner size={SMALL_SPINNER} />}
                   {hub.press(McpHub.found(entry.name, entry.agent))?.kind === 'working' ? BRINGING_IN : BRING_IN}
-                </KitButton>
+                </Button>
               )
             }
           />
@@ -391,7 +405,7 @@ function Found({ parts, view, said }: { parts: SettingsParts; view: McpHubView; 
           </div>
         ))}
       </Panel>
-      <p className="text-footnote text-muted">Bringing a server in puts it behind Memnox, so every call it makes is ruled on and recorded.</p>
+      <p className="text-footnote text-muted">{McpHubPageLines.bringingNote}</p>
     </Section>
   );
 }
@@ -401,14 +415,14 @@ function Drift({ view }: { view: McpHubView }) {
   const entries = [...view.drifted, ...view.skipped];
   if (entries.length === 0) return null;
   return (
-    <Section title="Left as they are">
+    <Section title={McpHubPageLines.leftAlone}>
       <Panel>
         {entries.map((entry) => (
           <Row
             key={`${entry.path}/${entry.name}/${entry.kind ?? entry.reason ?? ''}`}
             title={entry.name}
-            caption={`${entry.agent === undefined ? '' : `${agentLabel(entry.agent)} · `}${entry.reason ?? (entry.kind === 'removed' ? 'You removed the line the hub wrote, so it is not put back.' : 'You changed the line the hub wrote, so the hub leaves it alone.')}`}
-            trailing={<StatusWord tone="attention">Yours now</StatusWord>}
+            caption={`${entry.agent === undefined ? '' : `${agentLabel(entry.agent)} · `}${entry.reason ?? (entry.kind === 'removed' ? McpHubPageLines.removedLine : McpHubPageLines.changedLine)}`}
+            trailing={<StatusWord tone="attention">{McpHubPageLines.yoursNow}</StatusWord>}
           />
         ))}
       </Panel>
@@ -420,20 +434,20 @@ function Drift({ view }: { view: McpHubView }) {
 function Clients({ parts, view, said, workspaces }: { parts: SettingsParts; view: McpHubView; said: (outcome: HubOutcome) => void; workspaces: () => void }) {
   const { hub } = parts;
   if (view.servers.length === 0 || view.agents.length === 0) {
-    return <EmptyState icon={Plug} title="Nothing to give yet" body="Once the hub holds a server and an agent with an MCP config is found, who has what is set here." />;
+    return <EmptyState icon={Plug} title={McpHubPageLines.nothingTitle} body={McpHubPageLines.nothingBody} />;
   }
   const inProjects = view.servers.some((server) => (server.projects ?? []).length > 0);
   return (
     <>
-      <div className="overflow-x-auto rounded-xl border border-panel-edge">
+      <div className="overflow-x-auto rounded-card border border-panel-edge">
         <table className="w-full border-collapse text-body">
           <thead>
             <tr className="bg-card">
-              <th scope="col" className="px-3.5 py-2.5 text-left text-footnote font-semibold text-muted">Server</th>
+              <th scope="col" className="px-3.5 py-2.5 text-left text-footnote font-semibold text-muted">{McpHubPageLines.server}</th>
               {view.agents.map(({ agent }) => (
                 <th key={agent} scope="col" className="px-3 py-2.5 text-footnote font-semibold whitespace-nowrap text-muted">
                   <span className="inline-flex items-center gap-1.5">
-                    <BrandLogo agent={agent} name={agentLabel(agent)} size={18} />
+                    <BrandLogo agent={agent} name={agentLabel(agent)} size={SMALL_LOGO} />
                     {agentLabel(agent)}
                   </span>
                 </th>
@@ -453,18 +467,16 @@ function Clients({ parts, view, said, workspaces }: { parts: SettingsParts; view
                     return (
                       <td key={agent} className="px-3 py-2.5 text-center">
                         <span className="inline-flex items-center gap-1.5">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={false}
                             disabled={fromOrganization(server) || hub.busy === `${server.name}/${agent}`}
                             title={fromOrganization(server) ? ORGANIZATION_LINE : GIVE_EVERYWHERE}
-                            aria-label={`${GIVE_EVERYWHERE}: ${server.name} for ${agentLabel(agent)}`}
-                            className="size-4 cursor-pointer accent-[var(--color-primary)]"
-                            onChange={() => void hub.assign(server.name, agent, true).then(said)}
+                            label={`${GIVE_EVERYWHERE}: ${McpHubPageLines.serverFor(server.name, agentLabel(agent))}`}
+                            onToggle={() => void hub.assign(server.name, agent, true).then(said)}
                           />
-                          <button type="button" title={help} aria-label={help} className="mx-focus inline-flex cursor-pointer items-center gap-1.5" onClick={workspaces}>
+                          <Pressable title={help} aria-label={help} className="mx-focus inline-flex cursor-pointer items-center gap-1.5" onClick={workspaces}>
                             <ProjectChips server={server} agent={agent} />
-                          </button>
+                          </Pressable>
                         </span>
                       </td>
                     );
@@ -472,14 +484,12 @@ function Clients({ parts, view, said, workspaces }: { parts: SettingsParts; view
                   return (
                     <td key={agent} className="px-3 py-2.5 text-center">
                       <span className="inline-flex items-center gap-1.5">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={on}
                           disabled={fromOrganization(server) || hub.busy === `${server.name}/${agent}`}
                           title={fromOrganization(server) ? ORGANIZATION_LINE : undefined}
-                          aria-label={`${server.name} for ${agentLabel(agent)}`}
-                          className="size-4 cursor-pointer accent-[var(--color-primary)]"
-                          onChange={() => void hub.assign(server.name, agent, !on).then(said)}
+                          label={McpHubPageLines.serverFor(server.name, agentLabel(agent))}
+                          onToggle={() => void hub.assign(server.name, agent, !on).then(said)}
                         />
                         <ProjectChips server={server} agent={agent} />
                       </span>
@@ -505,8 +515,8 @@ function Clients({ parts, view, said, workspaces }: { parts: SettingsParts; view
 function ProjectChip({ agent, name, path }: { agent: string; name: string; path: string }) {
   const help = projectHelp(agent, path);
   return (
-    <span title={help} aria-label={help} className="inline-flex max-w-40 items-center gap-1 rounded-md border border-panel-edge bg-hover px-1.5 py-0.5 text-micro text-muted">
-      <Folder size={11} aria-hidden className="shrink-0" />
+    <span title={help} aria-label={help} className="inline-flex max-w-40 items-center gap-1 rounded-control border border-panel-edge bg-hover px-1.5 py-0.5 text-micro text-muted">
+      <Folder size={CHIP_GLYPH} aria-hidden className="shrink-0" />
       <span className="truncate">{name}</span>
     </span>
   );
@@ -529,7 +539,7 @@ function ProjectChips({ server, agent }: { server: McpHubServerView; agent: stri
 function Secrets({ parts, view, said }: { parts: SettingsParts; view: McpHubView; said: (outcome: HubOutcome) => void }) {
   const secrets = secretsAcross(view.servers);
   if (secrets.length === 0) {
-    return <EmptyState icon={KeyRound} title="No secrets yet" body="When a server needs a token, mark it as a secret while adding the server. Its value stays with this computer and no agent's config ever holds it." />;
+    return <EmptyState icon={KeyRound} title={McpHubPageLines.noSecretsTitle} body={McpHubPageLines.noSecretsBody} />;
   }
   return (
     <Panel>
@@ -553,29 +563,21 @@ function SecretRow({ name, held, usedBy, parts, said }: { name: string; held: bo
   };
   const trailing: ReactNode = editing ? (
     <span className="flex items-center gap-2">
-      <input
-        type="password"
-        autoComplete="off"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        onKeyDown={(event) => event.key === 'Enter' && value !== '' && save()}
-        aria-label={`The value of ${name}`}
-        className="h-8 w-48 mx-field rounded-lg border border-field-edge bg-field px-2.5 text-body text-foreground outline-none focus:border-primary"
-      />
-      <KitButton kind="primary" disabled={value === '' || hub.busy === name} onClick={save}>
-        Keep
-      </KitButton>
+      <Input type="password" autoComplete="off" width={SECRET_FIELD} value={value} onValue={setValue} onSubmit={() => value !== '' && save()} aria-label={McpHubPageLines.valueOf(name)} />
+      <Button kind="primary" disabled={value === '' || hub.busy === name} onClick={save}>
+        {McpHubPageLines.keep}
+      </Button>
     </span>
   ) : (
     <span className="flex items-center gap-2">
-      <StatusWord tone={held ? 'good' : 'bad'}>{held ? 'Kept' : 'Not set'}</StatusWord>
-      <KitButton onClick={() => setEditing(true)}>{held ? 'Replace' : 'Set'}</KitButton>
+      <StatusWord tone={held ? 'good' : 'bad'}>{held ? McpHubPageLines.kept : McpHubPageLines.notSet}</StatusWord>
+      <Button onClick={() => setEditing(true)}>{held ? McpHubPageLines.replace : McpHubPageLines.set}</Button>
       {held && (
-        <KitButton disabled={hub.busy === name} onClick={() => void hub.removeSecret(name).then(said)}>
-          Remove
-        </KitButton>
+        <Button disabled={hub.busy === name} onClick={() => void hub.removeSecret(name).then(said)}>
+          {McpHubPageLines.remove}
+        </Button>
       )}
     </span>
   );
-  return <Row leading={<KeyRound size={16} className="text-muted" />} title={name} caption={`Used by ${usedBy.join(', ')}`} trailing={trailing} />;
+  return <Row leading={<KeyRound size={ROW_GLYPH} className="text-muted" />} title={name} caption={McpHubPageLines.usedBy(usedBy)} trailing={trailing} />;
 }

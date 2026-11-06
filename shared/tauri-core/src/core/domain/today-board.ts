@@ -28,23 +28,8 @@ export type TodaySection = 'needs-you' | 'next' | 'working';
 
 export const TODAY_SECTIONS: readonly TodaySection[] = ['needs-you', 'next', 'working'];
 
-export const TODAY_SECTION_TITLE: Record<TodaySection, string> = {
-  'needs-you': 'Needs you, most urgent first',
-  next: 'Next',
-  working: 'Working now',
-};
-
 /** The tabs across Today. */
 export type TodayTab = 'overview' | 'done' | 'handoffs' | 'log';
-
-export const TODAY_TABS: readonly TodayTab[] = ['overview', 'done', 'handoffs', 'log'];
-
-export const TODAY_TAB_TITLE: Record<TodayTab, string> = {
-  overview: 'Overview',
-  done: 'Done today',
-  handoffs: 'Handoffs',
-  log: 'Log',
-};
 
 /** What an item came from, which decides how urgent it is and what can be done about it. */
 export type TodayKind =

@@ -91,3 +91,28 @@ export function heldReads(reads: LocalArmsReads, home: MemoryHomeFilter, status:
       return workspace === undefined ? {} : { workspace };
   }
 }
+
+/** The brain map's own controls and card, in the words the Mac's brain says them. */
+export const ArmsLines = {
+  motion: 'Motion',
+  motionSpeed: 'Motion speed',
+  speed: (speed: number) => `${speed}x`,
+  replay: 'Replay the opening',
+  view: 'View',
+  search: 'Search the brain',
+  searchPlaceholder: 'SEARCH THE BRAIN',
+  closeSearch: 'Close the search',
+  noMatches: 'NO MATCHES',
+  matches: (count: number) => `${count} ${count === 1 ? 'MATCH' : 'MATCHES'} · ENTER OPENS`,
+  zoomOut: 'Zoom out',
+  fit: 'Fit',
+  zoomIn: 'Zoom in',
+  showArea: 'Show only this area',
+  close: 'Close',
+  holds: (count: number) => `Holds ${count}`,
+  linked: 'Linked',
+  openSkills: 'Open My Skills',
+  openRules: 'Open Rules',
+  openConnectors: 'Open Connectors',
+  andMore: (count: number) => `and ${count} more`,
+} as const;

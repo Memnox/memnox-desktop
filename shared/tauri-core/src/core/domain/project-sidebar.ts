@@ -146,6 +146,9 @@ export interface ToolSources {
  */
 export const TEAM_TOOLS_SHOWN = false;
 
+/** The project's Tools page is left off for now, so a route to it shows the Overview, which holds its folder. */
+export const PROJECT_TOOLS_SHOWN = false;
+
 const TEAM_SHELVES: readonly ToolCategory[] = ['channels', 'meetings', 'tickets'];
 
 /** An empty shelf offers the apps people usually keep there, so a project that is not code still knows where to start. */

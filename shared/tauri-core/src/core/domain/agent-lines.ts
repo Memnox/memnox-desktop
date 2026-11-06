@@ -226,3 +226,55 @@ function listed(names: readonly string[]): string {
 function counted(count: number, one: string, many: string): string {
   return count === 1 ? `1 ${one}` : `${count} ${many}`;
 }
+
+/** The Agents list's own words. */
+export const AgentListLines = {
+  readWhat: 'the agents',
+  emptyTitle: 'No agents found yet',
+  emptyBody: 'Install Claude Code, Codex, Cursor or another agent and it appears here.',
+  show: 'Show',
+  needsYou: 'Needs you',
+  protectHelp: 'Puts every agent found on this computer under Memnox the way setup does',
+  protecting: 'Protecting',
+  protect: 'Protect',
+  servers: (names: readonly string[]) => `Servers: ${names.join(', ')}`,
+  skills: (names: readonly string[]) => `Skills: ${names.join(', ')}`,
+  resumeHelp: (keyTitle: string) => `Lets it carry on once you confirm with ${keyTitle}`,
+  resume: 'Resume',
+  pauseHelp: 'Holds everything it tries until you resume it',
+  pauseNamed: (name: string) => `Pause ${name}`,
+  pause: 'Pause',
+  launchHelp: 'Opens it in a new terminal in a folder you choose',
+  launch: 'Launch',
+  openIn: 'Open it in',
+  folder: 'The folder it opens in',
+  folderPlaceholder: '/home/you/code/project',
+  chooseHelp: "Pick the folder in the system's own dialog",
+  choose: 'Choose',
+  workspaces: 'Your workspaces',
+  withProfile: 'With a profile',
+  noProfile: 'No profile',
+  profileWaits: 'What the profile gives waits for your signature on the island as the agent opens.',
+  opening: 'Opening',
+  openTerminal: 'Open a terminal',
+  cancel: 'Cancel',
+} as const;
+
+/** The Sessions tab's own words. */
+export const SessionsTabLines = {
+  needsYou: 'Needs you',
+  running: 'Running',
+  idle: 'Idle',
+  finished: 'Finished',
+  grouped: (title: string, count: number) => `${title} · ${count}`,
+  emptyTitle: 'No sessions yet',
+  emptyBody: 'When an agent on this computer starts working, its session shows here with what it is doing and what it touched.',
+  status: 'Status',
+  workingOn: 'Working on',
+  repository: 'Repository',
+  runningIn: 'Running in',
+  started: 'Started',
+  lastActive: 'Last active',
+  actions: 'Actions',
+  openLive: 'Open its live window',
+} as const;

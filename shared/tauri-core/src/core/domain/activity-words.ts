@@ -70,3 +70,41 @@ function project(folders: string[]): string | undefined {
 function host(target: string): string {
   return /^[a-z][a-z0-9+.-]*:\/\/([^/?#]+)/i.exec(target)?.[1] ?? target;
 }
+
+/** The Activity page's own words. */
+export const ActivityLines = {
+  kinds: [
+    { value: '', label: 'Everything' },
+    { value: 'command', label: 'Commands' },
+    { value: 'file', label: 'Files' },
+    { value: 'mcp', label: 'MCP tools' },
+    { value: 'tool', label: 'Other tools' },
+  ],
+  search: 'Search actions and targets',
+  decided: 'Decided',
+  any: 'Any',
+  kind: 'Kind',
+  noRecord: 'The runtime did not hand over a record.',
+  copied: 'Copied the signed record of what this view shows. memnox verify checks it.',
+  copyRecord: 'Copy signed record',
+  refresh: 'Refresh',
+  readWhat: 'the activity',
+  emptyTitle: 'Nothing here yet',
+  emptyBody: 'What your agents do on this computer appears here as it happens, with what your rules decided.',
+  reading: 'Reading',
+  older: 'Show older',
+  why: 'Why',
+  failedExit: (code: number) => `Failed, exit ${code}`,
+  instead: (alternative: string) => `Instead: ${alternative}`,
+  theRule: 'The rule',
+  changedSince: 'It has changed since.',
+  changeRule: 'Change this rule',
+  actedFor: 'Who it acted for',
+  known: 'What was known',
+  decidedIt: 'Decided it',
+  ledUp: 'What led up to it',
+  happened: 'What happened',
+  ranAs: 'Ran as',
+  exit: 'Exit',
+  approvedBy: 'Approved by',
+} as const;

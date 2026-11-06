@@ -1,24 +1,28 @@
 import type { SessionCard } from '@memnox/core/wire';
 import { Bot } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import type { WidthClass } from '../../../core/domain/destinations';
 import { ago, cardStatus, cardTitle, repositoryName } from '../../../core/domain/session-text';
 import { statusLabel, type SessionStatus } from '../../../core/domain/session-status';
-import { BrandLogo } from '../../kit/logos';
-import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { ToolsPage } from '../../settings/pages/ToolsPage';
 import { AgentListTab } from './AgentListTab';
-import { EmptyState, Inspector, Panel, Row, Section, StatusWord, type Tone } from '../widgets';
+import { Inspector } from '../widgets';
 import { usePicked } from '../inspector-host';
+import { SessionsTabLines } from '../../../core/domain/agent-lines';
+import { BrandLogo, Button, EmptyState, Panel, Row, Section, StatusWord, type Tone } from '../../kit';
 
 /** The order the groups are read in: what needs the person, then what runs, then what is done. */
 const GROUPS: readonly { title: string; holds: readonly SessionStatus[] }[] = [
-  { title: 'Needs you', holds: ['needs-you', 'waiting-on-you', 'paused'] },
-  { title: 'Running', holds: ['working', 'thinking'] },
-  { title: 'Idle', holds: ['quiet'] },
-  { title: 'Finished', holds: ['ended'] },
+  { title: SessionsTabLines.needsYou, holds: ['needs-you', 'waiting-on-you', 'paused'] },
+  { title: SessionsTabLines.running, holds: ['working', 'thinking'] },
+  { title: SessionsTabLines.idle, holds: ['quiet'] },
+  { title: SessionsTabLines.finished, holds: ['ended'] },
 ];
+
+/** An agent's logo at the head of its row, and larger at the head of its details. */
+const ROW_LOGO = 28;
+const DETAIL_LOGO = 36;
 
 export function toneOf(status: SessionStatus): Tone {
   if (status === 'paused') return 'bad';
@@ -45,7 +49,7 @@ function SessionsTab({ parts, width }: { parts: SettingsParts; width: WidthClass
   const picked = cards.find((card) => card.sessionId === chosen);
 
   if (cards.length === 0) {
-    return <EmptyState icon={Bot} title="No sessions yet" body="When an agent on this computer starts working, its session shows here with what it is doing and what it touched." />;
+    return <EmptyState icon={Bot} title={SessionsTabLines.emptyTitle} body={SessionsTabLines.emptyBody} />;
   }
   return (
     <div className="flex min-h-0 gap-0">
@@ -54,7 +58,7 @@ function SessionsTab({ parts, width }: { parts: SettingsParts; width: WidthClass
           const held = cards.filter((card) => group.holds.includes(cardStatus(card)));
           if (held.length === 0) return null;
           return (
-            <Section key={group.title} title={`${group.title} · ${held.length}`}>
+            <Section key={group.title} title={SessionsTabLines.grouped(group.title, held.length)}>
               <Panel>
                 {held.map((card) => (
                   <SessionRow key={card.sessionId} card={card} chosen={card.sessionId === chosen} pick={() => choose(card.sessionId)} />
@@ -78,7 +82,7 @@ function SessionRow({ card, chosen, pick }: { card: SessionCard; chosen: boolean
   return (
     <Row
       chosen={chosen}
-      leading={<BrandLogo agent={card.agent} name={card.agentName} size={28} />}
+      leading={<BrandLogo agent={card.agent} name={card.agentName} size={ROW_LOGO} />}
       title={cardTitle(card)}
       caption={[card.agentName, repositoryName(card.repository), ago(card.lastActive, Date.now())].filter((part) => part !== undefined).join(' · ')}
       trailing={<StatusWord tone={toneOf(status)}>{statusLabel(status)}</StatusWord>}
@@ -90,18 +94,18 @@ function SessionRow({ card, chosen, pick }: { card: SessionCard; chosen: boolean
 function SessionDetail({ card, open }: { card: SessionCard; open: () => void }) {
   const status = cardStatus(card);
   const facts: [string, string | undefined][] = [
-    ['Status', statusLabel(status)],
-    ['Working on', card.focus ?? card.task],
-    ['Repository', repositoryName(card.repository)],
-    ['Running in', card.where ?? card.runningIn],
-    ['Started', ago(card.startedAt, Date.now())],
-    ['Last active', ago(card.lastActive, Date.now())],
-    ['Actions', card.actions === undefined ? undefined : String(card.actions)],
+    [SessionsTabLines.status, statusLabel(status)],
+    [SessionsTabLines.workingOn, card.focus ?? card.task],
+    [SessionsTabLines.repository, repositoryName(card.repository)],
+    [SessionsTabLines.runningIn, card.where ?? card.runningIn],
+    [SessionsTabLines.started, ago(card.startedAt, Date.now())],
+    [SessionsTabLines.lastActive, ago(card.lastActive, Date.now())],
+    [SessionsTabLines.actions, card.actions === undefined ? undefined : String(card.actions)],
   ];
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <BrandLogo agent={card.agent} name={card.agentName} size={36} />
+        <BrandLogo agent={card.agent} name={card.agentName} size={DETAIL_LOGO} />
         <div className="flex min-w-0 flex-col">
           <span className="truncate text-body font-semibold text-foreground">{cardTitle(card)}</span>
           <StatusWord tone={toneOf(status)}>{statusLabel(status)}</StatusWord>
@@ -117,9 +121,9 @@ function SessionDetail({ card, open }: { card: SessionCard; open: () => void }) 
             </div>
           ))}
       </dl>
-      <KitButton kind="primary" onClick={open}>
-        Open its live window
-      </KitButton>
+      <Button kind="primary" onClick={open}>
+        {SessionsTabLines.openLive}
+      </Button>
     </div>
   );
 }

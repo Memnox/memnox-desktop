@@ -2,9 +2,9 @@ import type { SkillCalibration, SkillView } from '@memnox/core/wire';
 import { useEffect, useState } from 'react';
 import type { SkillOutcome } from '../../../core/application/skills';
 import { calibrateHint, careCounts, lineDiff, noteLine, suggestionTitle, type DiffMark } from '../../../core/domain/skill-care-lines';
-import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { Section } from '../widgets';
+import { SkillCarePageLines } from '../../../core/domain/skill-care-page-lines';
+import { Button, Input, Section } from '../../kit';
 
 const MARK: Record<DiffMark, { sign: string; className: string }> = {
   same: { sign: ' ', className: 'text-muted' },
@@ -36,11 +36,11 @@ export function SkillCareSection({ parts, skill, said }: { parts: SettingsParts;
     void care.note(skill.name, words).then(said);
   };
   return (
-    <Section title="Use and fixes">
+    <Section title={SkillCarePageLines.title}>
       <div className="flex flex-col gap-3">
         <p className="text-body-sm text-foreground">{careCounts(stats)}</p>
-        {stats !== undefined && stats.recentFailures.length > 0 && <Listed title="Recent failures" lines={stats.recentFailures} />}
-        {stats !== undefined && stats.notes.length > 0 && <Listed title="Fix backlog" lines={stats.notes} />}
+        {stats !== undefined && stats.recentFailures.length > 0 && <Listed title={SkillCarePageLines.failures} lines={stats.recentFailures} />}
+        {stats !== undefined && stats.notes.length > 0 && <Listed title={SkillCarePageLines.backlog} lines={stats.notes} />}
         <form
           className="flex items-center gap-2"
           onSubmit={(event) => {
@@ -48,21 +48,15 @@ export function SkillCareSection({ parts, skill, said }: { parts: SettingsParts;
             note();
           }}
         >
-          <input
-            value={typed}
-            onChange={(event) => setTyped(event.target.value)}
-            placeholder="Note a fix, such as read the staged diff first"
-            aria-label="Note a fix"
-            className="mx-field h-9 min-w-0 flex-1 rounded-md border border-field-edge bg-field px-3 text-body-sm text-foreground placeholder:text-faint"
-          />
-          <KitButton type="submit" disabled={noteLine(typed) === undefined || care.busy !== undefined}>
-            Note
-          </KitButton>
+          <Input className="flex-1" value={typed} onValue={setTyped} placeholder={SkillCarePageLines.notePlaceholder} aria-label={SkillCarePageLines.noteLabel} />
+          <Button type="submit" disabled={noteLine(typed) === undefined || care.busy !== undefined}>
+            {SkillCarePageLines.note}
+          </Button>
         </form>
         <div className="flex flex-wrap items-center gap-2">
-          <KitButton disabled={care.busy !== undefined} onClick={() => void care.calibrate(skill.name).then(said)}>
-            Calibrate
-          </KitButton>
+          <Button disabled={care.busy !== undefined} onClick={() => void care.calibrate(skill.name).then(said)}>
+            {SkillCarePageLines.calibrate}
+          </Button>
           {hint !== undefined && <span className="text-meta text-faint">{hint}</span>}
         </div>
         {calibration !== undefined && (
@@ -91,7 +85,7 @@ function Suggestion({ calibration, current, busy, accept, dismiss }: { calibrati
   return (
     <div className="flex flex-col gap-2.5">
       <p className="text-body-sm font-semibold text-foreground">{suggestionTitle(calibration, current)}</p>
-      <pre className="max-h-[320px] overflow-auto rounded-xl border border-panel-edge bg-card py-2 font-code text-meta">
+      <pre className="max-h-[320px] overflow-auto rounded-card border border-panel-edge bg-card py-2 font-code text-meta">
         {lineDiff(calibration.before, calibration.after).map((line) => (
           <div key={line.index} className={`flex gap-3 px-3 whitespace-pre-wrap ${MARK[line.mark].className}`}>
             <span aria-hidden className="select-none">
@@ -103,10 +97,10 @@ function Suggestion({ calibration, current, busy, accept, dismiss }: { calibrati
         ))}
       </pre>
       <div className="flex gap-2">
-        <KitButton kind="primary" disabled={busy} onClick={accept}>
-          Accept
-        </KitButton>
-        <KitButton onClick={dismiss}>Dismiss</KitButton>
+        <Button kind="primary" disabled={busy} onClick={accept}>
+          {SkillCarePageLines.accept}
+        </Button>
+        <Button onClick={dismiss}>{SkillCarePageLines.dismiss}</Button>
       </div>
     </div>
   );

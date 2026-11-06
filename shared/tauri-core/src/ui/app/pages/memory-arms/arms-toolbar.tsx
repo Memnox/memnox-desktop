@@ -1,7 +1,8 @@
 
 import { Minus, Plus, RotateCcw, Search } from "lucide-react";
 
-import { Switch } from "../../../settings/kit";
+import { Pressable, Slider, Switch } from "../../../kit";
+import { ArmsLines } from "../../../../core/domain/memory-brain-lines";
 
 import type { ArmsMode } from "../../../../core/domain/memory-arms/arms-scene";
 
@@ -15,6 +16,9 @@ export const SPEED = { least: 0.25, most: 2, step: 0.25 } as const;
 
 const CHIP = "flex items-center gap-1 rounded-xl border border-panel-edge bg-card/95 p-1 backdrop-blur";
 const ICON_BUTTON = "rounded-lg p-1.5 text-muted transition-colors hover:bg-hover hover:text-foreground";
+
+/** The key that opens the search, shown on its button as the Mac's brain shows it. */
+const SEARCH_KEY = "/";
 
 type ToolbarProps = {
   mode: ArmsMode;
@@ -41,30 +45,28 @@ export function ArmsToolbar(props: ToolbarProps) {
       className="pointer-events-none flex flex-wrap items-center justify-end gap-2 [&>*]:pointer-events-auto"
     >
       <div className={`${CHIP} px-2`}>
-        <Switch on={props.motion && !props.reduced} label="Motion" disabled={props.reduced} onChange={props.onMotion} />
-        <span className="text-meta text-muted">Motion</span>
-        <input
-          type="range"
-          aria-label="Motion speed"
+        <Switch on={props.motion && !props.reduced} label={ArmsLines.motion} disabled={props.reduced} onChange={props.onMotion} />
+        <span className="text-meta text-muted">{ArmsLines.motion}</span>
+        <Slider
+          label={ArmsLines.motionSpeed}
           min={SPEED.least}
           max={SPEED.most}
           step={SPEED.step}
           value={props.speed}
           disabled={!props.motion || props.reduced}
-          onChange={(event) => props.onSpeed(Number(event.target.value))}
-          className="w-20 accent-[var(--color-primary)] disabled:opacity-40"
+          onValue={props.onSpeed}
+          className="w-20"
         />
-        <span className="w-8 text-meta tabular-nums text-muted">{props.speed}x</span>
-        <button type="button" aria-label="Replay the opening" onClick={props.onReplay} className={ICON_BUTTON}>
+        <span className="w-8 text-meta tabular-nums text-muted">{ArmsLines.speed(props.speed)}</span>
+        <Pressable aria-label={ArmsLines.replay} onClick={props.onReplay} className={ICON_BUTTON}>
           <RotateCcw className="size-4" aria-hidden />
-        </button>
+        </Pressable>
       </div>
 
-      <div className={CHIP} role="radiogroup" aria-label="View">
+      <div className={CHIP} role="radiogroup" aria-label={ArmsLines.view}>
         {MODES.map((each) => (
-          <button
+          <Pressable
             key={each.mode}
-            type="button"
             role="radio"
             aria-checked={props.mode === each.mode}
             onClick={() => props.onMode(each.mode)}
@@ -73,27 +75,27 @@ export function ArmsToolbar(props: ToolbarProps) {
             }`}
           >
             {each.label}
-          </button>
+          </Pressable>
         ))}
       </div>
 
       <div className={CHIP}>
-        <button type="button" aria-label="Search the brain" onClick={props.onSearch} className={`${ICON_BUTTON} flex items-center gap-1.5`}>
+        <Pressable aria-label={ArmsLines.search} onClick={props.onSearch} className={`${ICON_BUTTON} flex items-center gap-1.5`}>
           <Search className="size-4" aria-hidden />
-          <kbd className="rounded border border-panel-edge px-1.5 text-label text-muted">/</kbd>
-        </button>
+          <kbd className="rounded border border-panel-edge px-1.5 text-label text-muted">{SEARCH_KEY}</kbd>
+        </Pressable>
       </div>
 
       <div className={CHIP}>
-        <button type="button" aria-label="Zoom out" onClick={props.onZoomOut} className={ICON_BUTTON}>
+        <Pressable aria-label={ArmsLines.zoomOut} onClick={props.onZoomOut} className={ICON_BUTTON}>
           <Minus className="size-4" aria-hidden />
-        </button>
-        <button type="button" onClick={props.onFit} className="rounded-lg px-2 py-1 text-meta font-medium text-muted hover:bg-hover hover:text-foreground">
-          Fit
-        </button>
-        <button type="button" aria-label="Zoom in" onClick={props.onZoomIn} className={ICON_BUTTON}>
+        </Pressable>
+        <Pressable onClick={props.onFit} className="rounded-lg px-2 py-1 text-meta font-medium text-muted hover:bg-hover hover:text-foreground">
+          {ArmsLines.fit}
+        </Pressable>
+        <Pressable aria-label={ArmsLines.zoomIn} onClick={props.onZoomIn} className={ICON_BUTTON}>
           <Plus className="size-4" aria-hidden />
-        </button>
+        </Pressable>
       </div>
     </div>
   );

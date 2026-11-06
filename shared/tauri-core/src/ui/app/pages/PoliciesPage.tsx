@@ -1,8 +1,7 @@
-import { AppWindow, ArrowRight, ChevronRight, List, Box, Cloud, Database, Download, FileText, GitBranch, GitPullRequest, Globe, HardDrive, KeyRound, Layers, MessageSquare, Package, Plus, Puzzle, Route, Search, Send, Settings, ShieldAlert, ShieldCheck, Sparkles, SquareTerminal, Undo2, Upload, UserCheck, UserCog, Workflow, Asterisk, type LucideIcon } from 'lucide-react';
+import { AppWindow, ArrowRight, ChevronRight, List, Box, Cloud, Database, Download, FileText, GitBranch, GitPullRequest, Globe, HardDrive, KeyRound, Layers, MessageSquare, Plus, Puzzle, Route, Search, Send, Settings, ShieldAlert, ShieldCheck, Sparkles, SquareTerminal, Undo2, Upload, UserCheck, UserCog, Workflow, Asterisk, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { RuleDraftInput, StudioOutcome } from '../../../core/application/studio';
 import type { WidthClass } from '../../../core/domain/destinations';
-import { canInstall, installWaitsLine, latestLine, publisherLine } from '../../../core/domain/index-lines';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
 import { almostLine, autopilotLine, draftSentence, EFFECT_WORDS, effectTone, exportedCount, NOTHING_TO_EXPORT, packCopiedLine, packSavedLine, isEffect, weekLine, type Effect } from '../../../core/domain/studio-lines';
 import { RULE_BUILDER, RULE_DETAIL, RULE_DIALOG, RULE_EXAMPLES, ruleCaption, ruleDetailSentence, ruleFacts } from '../../../core/domain/rule-dialog-lines';
@@ -16,15 +15,31 @@ import type { PolicyRuleView } from '@memnox/core/wire';
 import { AgentLogos, ToolMark } from '../../kit/logos';
 import { fieldWords, ruleDocument, ruleText, RULES_FILE, tableOfDraft, tableOfRule, type RuleAlternative, type RuleTable } from '../../../core/domain/rule-toml';
 import { CodeBlock } from '../code-block';
-import { ConsoleChip, DataClassChips, EFFECT_ICONS, RULE_CODE_FIELD, RULE_FIELD, RuleDialog, RuleEffectChoice, RuleField, RuleHint, RulePreview } from './rule-dialog-parts';
-import { CatalogCard, CatalogLayout, CatalogSearch, CategoryRail, PageTabs } from '../catalog';
-import { KitButton } from '../../settings/kit';
+import { DataClassChips, EFFECT_ICONS, RuleDialog, RuleEffectChoice, RuleField, RuleHint, RulePreview } from './rule-dialog-parts';
+import { CatalogLayout, CategoryRail } from '../catalog';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord, CardGrid } from '../widgets';
+import { Inspector, ScopeChip } from '../widgets';
 import { ruleScope } from '../../../core/domain/scope-lines';
 import { usePicked } from '../inspector-host';
 import { useShellChoices } from '../shell-choices';
 import { inScope, NO_ORGANIZATION_ITEMS, ORGANIZATION_READ_ONLY } from '../../../core/domain/shell-lines';
+import { Button, CardGrid, Chip, CountTabs, EmptyState, ErrorLine, FilePicker, Input, Note, Panel, PRESS_DIP, Pressable, ReadFailed, Row, SearchInput, Section, Select, SelectOverlay, StatusWord } from '../../kit';
+
+/** The Mac's ready rule cards: none narrower than 240, 16 apart. */
+const READY_CARD = { min: 240, gap: 16 } as const;
+
+/** The pointer card's arrow, a step larger than its 13 point title. */
+const POINTER_ARROW = 16;
+
+/** A band's effect glyph and the fold's chevron, 12 at a semibold weight, as the Mac draws them. */
+const SMALL_GLYPH = 12;
+const SMALL_STROKE = 2.4;
+
+/** The list glyph beside the action field and a legend's glyph, each the size of the words beside it. */
+const KNOWN_GLYPH = 14;
+
+/** What the system's file chooser offers when a pack is opened without the app's own dialog. */
+const RULE_PACK_FILES = '.toml,text/plain';
 
 /** The glyph for a kind of act, as the Mac's `RuleSymbols.mark` draws one where no product's logo fits. */
 const MARK_ICONS: Record<RuleMark, LucideIcon> = {
@@ -97,22 +112,22 @@ export function PoliciesPage({ parts, width }: { parts: SettingsParts; width: Wi
   return (
     <div className="flex min-h-0">
       <div className="flex min-w-0 flex-1 flex-col gap-6">
-        <PageTabs label="Protection settings" tabs={PROTECTION_TABS.map((each) => ({ ...each, count: counts[each.id] }))} chosen={tab} choose={(id) => setTab(id as ProtectionTab)} />
-        {note !== undefined && <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote">{note}</p>}
+        <CountTabs label="Protection settings" tabs={PROTECTION_TABS.map((each) => ({ ...each, count: counts[each.id] }))} chosen={tab} choose={(id) => setTab(id as ProtectionTab)} />
+        {note !== undefined && <Note>{note}</Note>}
         {tab === 'readyMade' && <ReadyMadeRules parts={parts} groups={groups} inForce={view.rules} picked={picked} setPicked={setPicked} orgOnly={orgOnly} open={choose} />}
         {tab === 'allRules' && (
           <>
             <div className="flex flex-wrap items-center gap-3">
               <p className="min-w-0 flex-1 text-footnote text-muted">{PROTECTION.allIntro}</p>
-              <KitButton kind="primary" icon={Plus} onClick={() => setBuilding({ effect: 'ask' })}>
+              <Button kind="primary" icon={Plus} onClick={() => setBuilding({ effect: 'ask' })}>
                 {PROTECTION.propose}
-              </KitButton>
+              </Button>
             </div>
             <PointerCard title={PROTECTION.simplerTitle} note={PROTECTION.simplerNote} open={() => setTab('readyMade')} />
             <EffectLegend stacked={width === 'narrow' || width === 'compact'} />
             {scoped.length === 0 && <PointerCard title={PROTECTION.startTitle} note={PROTECTION.startNote} open={() => setTab('readyMade')} />}
             <Section title={PROTECTION.rulesInForce} trailing={<div className="flex flex-wrap items-center gap-2"><PackButtons parts={parts} said={said} /></div>}>
-              <PageTabs label="Show rules that" tabs={inForceTabs(scoped)} chosen={filter} choose={(id) => setFilter(id as EffectTab)} />
+              <CountTabs label="Show rules that" tabs={inForceTabs(scoped)} chosen={filter} choose={(id) => setFilter(id as EffectTab)} />
               {view.problems.length > 0 && (
                 <div role="alert" className="flex flex-col gap-1 rounded-xl border border-panel-edge bg-card px-4 py-3">
                   {view.problems.map((problem) => (
@@ -186,18 +201,18 @@ function ReadyMadeRules({ parts, groups, inForce, picked, setPicked, orgOnly, op
       <CatalogLayout rail={<CategoryRail categories={categories} total={total} chosen={kind} choose={setCategory} allTitle={PROTECTION.allRules} />}>
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <CatalogSearch value={query} placeholder={PROTECTION.search} showing={shown.length} total={pool.length} onChange={setQuery} />
+            <SearchInput value={query} placeholder={PROTECTION.search} count={{ shown: shown.length, total: pool.length }} onChange={setQuery} />
           </div>
           {!orgOnly && left.length > 0 && (
-            <KitButton icon={Sparkles} disabled={busy} title={PROTECTION.starterHelp} onClick={() => setPicked(pickingSuggested(left, picked, inForce))}>
+            <Button icon={Sparkles} disabled={busy} title={PROTECTION.starterHelp} onClick={() => setPicked(pickingSuggested(left, picked, inForce))}>
               {group === undefined ? PROTECTION.starter : PROTECTION.everySuggestion}
-            </KitButton>
+            </Button>
           )}
         </div>
         {shown.length === 0 ? (
           <EmptyState icon={Search} title={PROTECTION.noneMatchTitle} body={PROTECTION.noneMatchDetail} />
         ) : (
-          <CardGrid min={240} gap={16}>
+          <CardGrid min={READY_CARD.min} gap={READY_CARD.gap}>
             {shown.map((rule) => {
               const live = readyInForce(rule, inForce);
               return (
@@ -237,6 +252,8 @@ const ACTION_ICONS: Record<ActionGlyph, LucideIcon> = {
 
 /** The side of a ready card's squares, and the share of it the glyph and the logo take, as the Mac's card draws them. */
 const MARK_SIDE = 28;
+/** The Mac's corner of a square, 8 on a side of 36, scaled to the side drawn. */
+const MARK_CORNER_SHARE = 8 / 36;
 const GLYPH_SHARE = 0.42;
 const LOGO_SHARE = 0.78;
 
@@ -245,8 +262,7 @@ const LOGO_SHARE = 0.78;
  * ringed in the card's colour, a product's own logo on white or a glyph for a kind of act.
  */
 function RuleMarks({ marks, actions, side = MARK_SIDE }: { marks: readonly RuleMark[]; actions: readonly string[]; side?: number }) {
-  // The Mac's corner of a square, 8 on a side of 36, scaled to the side drawn.
-  const radius = (side * 8) / 36;
+  const radius = side * MARK_CORNER_SHARE;
   const tiles = markTiles(marks, actions);
   return (
     <span className="flex shrink-0 items-center" aria-hidden>
@@ -297,9 +313,9 @@ function ReadyCard({ rule, inForce, picked, disabled, pick, open }: { rule: Read
           <EffectSegments label={rule.title} value={value} suggested={rule.effect} disabled={disabled} pick={pick} />
         </div>
         {open !== undefined && (
-          <button type="button" onClick={open} className="mx-focus h-7 shrink-0 cursor-pointer text-meta text-primary" title={disabled ? 'This rule is changed where it came from' : 'Open the rule in force'}>
+          <Pressable onClick={open} className="mx-focus h-7 shrink-0 cursor-pointer text-meta text-primary" title={disabled ? PROTECTION.changedAtSource : PROTECTION.openInForce}>
             {PROTECTION.details}
-          </button>
+          </Pressable>
         )}
       </div>
     </div>
@@ -319,9 +335,8 @@ function EffectSegments({ label, value, suggested, disabled, pick }: { label: st
     <div className={disabled ? 'opacity-50' : ''}>
       <div role="radiogroup" aria-label={label} className="grid grid-cols-3 gap-1 rounded-lg border border-panel-edge p-0.5">
         {effects.map((effect) => (
-          <button
+          <Pressable
             key={effect}
-            type="button"
             role="radio"
             aria-checked={value === effect}
             disabled={disabled}
@@ -329,7 +344,7 @@ function EffectSegments({ label, value, suggested, disabled, pick }: { label: st
             className={`mx-focus h-7 cursor-pointer rounded-md text-meta font-medium disabled:cursor-default ${value === effect ? chosenClass[effect] : 'text-muted hover:text-foreground'}`}
           >
             {EFFECT_WORDS[effect].title}
-          </button>
+          </Pressable>
         ))}
       </div>
       <div aria-hidden className="mt-1 grid min-h-4 grid-cols-3 gap-1">
@@ -351,12 +366,12 @@ function ChangesBar({ count, busy, undo, review }: { count: number; busy: boolea
         <p className="min-w-0 flex-1 text-body-sm">
           <span className="font-medium text-foreground">{changeCountLine(count)}</span> <span className="text-muted">{PROTECTION.notSaved}</span>
         </p>
-        <KitButton icon={Undo2} disabled={busy} onClick={undo}>
+        <Button icon={Undo2} disabled={busy} onClick={undo}>
           {PROTECTION.undo}
-        </KitButton>
-        <KitButton kind="primary" disabled={busy} onClick={review}>
+        </Button>
+        <Button kind="primary" disabled={busy} onClick={review}>
           {PROTECTION.review}
-        </KitButton>
+        </Button>
       </div>
     </div>
   );
@@ -406,7 +421,7 @@ function ReviewAndSave({ parts, changes, close, saved }: { parts: SettingsParts;
       </Panel>
       {taken.length > 0 && <p className="text-footnote text-muted">{PROTECTION.retaken}</p>}
       <RulePreview code={toml ?? ''} copy={host.copy} />
-      {problem !== undefined && <p role="alert" className="text-footnote text-destructive">{problem}</p>}
+      {problem !== undefined && <ErrorLine>{problem}</ErrorLine>}
     </RuleDialog>
   );
 }
@@ -417,13 +432,13 @@ const REVIEW_MARK_SIDE = 28;
 /** A card that is a press to the tab that answers the question better, as the console's pointer cards link. */
 function PointerCard({ title, note, open }: { title: string; note: string; open: () => void }) {
   return (
-    <button type="button" onClick={open} className="mx-focus flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-panel-edge bg-card px-4 py-3 text-left hover:border-muted">
+    <Pressable onClick={open} className={`mx-focus flex cursor-pointer items-center justify-between gap-4 rounded-card border border-panel-edge bg-card px-4 py-3 text-left hover:border-muted ${PRESS_DIP}`}>
       <span className="min-w-0">
         <span className="block text-body-sm font-medium text-foreground">{title}</span>
         <span className="block text-meta text-muted">{note}</span>
       </span>
-      <ArrowRight size={16} className="shrink-0 text-muted" aria-hidden />
-    </button>
+      <ArrowRight size={POINTER_ARROW} className="shrink-0 text-muted" aria-hidden />
+    </Pressable>
   );
 }
 
@@ -438,7 +453,7 @@ function EffectLegend({ stacked }: { stacked: boolean }) {
         const Icon = EFFECT_ICONS[effect];
         return (
           <li key={effect} className="flex items-start gap-2 rounded-xl border border-panel-edge bg-card px-4 py-3">
-            <Icon size={14} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+            <Icon size={KNOWN_GLYPH} className="mt-0.5 shrink-0 text-muted" aria-hidden />
             <span className="min-w-0">
               <span className="block text-body-sm font-medium text-foreground">{EFFECT_WORDS[effect].title}</span>
               <span className="block text-meta text-muted">{EFFECT_WORDS[effect].says}</span>
@@ -497,7 +512,7 @@ function EffectBand({ effect }: { effect: Effect }) {
   const Icon = EFFECT_ICONS[effect];
   return (
     <div className={`flex min-h-[30px] w-full items-center gap-1.5 rounded-md px-2 ${BAND_TINT[effect]}`}>
-      <Icon size={12} strokeWidth={2.4} aria-hidden />
+      <Icon size={SMALL_GLYPH} strokeWidth={SMALL_STROKE} aria-hidden />
       <span className="text-body-sm font-medium">{EFFECT_WORDS[effect].title}</span>
     </div>
   );
@@ -550,21 +565,20 @@ function RuleDetail({ rule, alike, open, remove, busy }: { rule: PolicyRuleView;
           <div className="flex flex-col items-start gap-1">
             <span className="text-meta text-muted">{groupCountLine(alike.length)}</span>
             {alike.map((each) => (
-              <button
+              <Pressable
                 key={each.name}
-                type="button"
                 aria-pressed={each.name === rule.name}
                 onClick={() => open(each.name)}
                 className={`mx-focus cursor-pointer text-left text-body-sm ${each.name === rule.name ? 'font-medium text-foreground' : 'text-primary'}`}
               >
                 {each.name}
-              </button>
+              </Pressable>
             ))}
           </div>
         )}
         <details key={rule.name} className="group">
           <summary className="mx-focus flex cursor-pointer list-none items-center gap-1.5 text-body-sm font-medium text-foreground select-none">
-            <ChevronRight size={12} strokeWidth={2.4} className="text-muted transition-transform group-open:rotate-90" aria-hidden />
+            <ChevronRight size={SMALL_GLYPH} strokeWidth={SMALL_STROKE} className="text-muted transition-transform group-open:rotate-90" aria-hidden />
             {RULE_DETAIL.asWritten}
           </summary>
           <div className="flex flex-col gap-3 pt-2">
@@ -576,9 +590,9 @@ function RuleDetail({ rule, alike, open, remove, busy }: { rule: PolicyRuleView;
         <FactList facts={ruleFacts(rule, moment)} />
         {rule.editable ? (
           <div className="flex flex-col items-start gap-2">
-            <KitButton disabled={busy} onClick={() => remove(rule.name)}>
+            <Button disabled={busy} onClick={() => remove(rule.name)}>
               {rule.effect === 'allow' ? RULE_DETAIL.remove : RULE_DETAIL.proposeRemoving}
-            </KitButton>
+            </Button>
             {rule.effect !== 'allow' && <p className="text-footnote text-muted">{RULE_DETAIL.removeNote}</p>}
           </div>
         ) : (
@@ -640,45 +654,31 @@ function RuleBuilder({ parts, start, close, said }: { parts: SettingsParts; star
       if (outcome.kind === 'failed') return setProblem(outcome.why);
       close();
     });
-  const code = (placeholder: string, value: string, set: (next: string) => void, label: string) => (
-    <input className={RULE_CODE_FIELD} placeholder={placeholder} value={value} onChange={(event) => set(event.target.value)} aria-label={label} />
-  );
+  const code = (placeholder: string, value: string, set: (next: string) => void, label: string) => <Input wide mono placeholder={placeholder} value={value} onValue={set} aria-label={label} />;
   return (
     <RuleDialog title={RULE_BUILDER.title} description={RULE_DIALOG.proposeDescription(words.keyTitle)} proposing={sending} canPropose={canPropose} close={close} propose={propose}>
       <RuleField label={RULE_BUILDER.action}>
         <div className="flex items-center gap-1.5">
-          <input ref={first} className={RULE_CODE_FIELD} placeholder={RULE_BUILDER.actionPlaceholder} value={action} onChange={(event) => setAction(event.target.value)} aria-label={RULE_BUILDER.action} />
+          <Input ref={first} wide mono placeholder={RULE_BUILDER.actionPlaceholder} value={action} onValue={setAction} aria-label={RULE_BUILDER.action} />
           {known.length > 0 && (
-            <label className="relative grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg text-muted hover:bg-hover hover:text-foreground" title={RULE_BUILDER.knownHelp}>
-              <List size={14} aria-hidden />
-              <select className="absolute inset-0 cursor-pointer opacity-0" value="" onChange={(event) => event.target.value !== '' && setAction(event.target.value)} aria-label={RULE_BUILDER.knownActions}>
-                <option value="" />
-                {known.map((each) => (
-                  <option key={each} value={each}>
-                    {each}
-                  </option>
-                ))}
-              </select>
+            <label className="relative grid size-field shrink-0 cursor-pointer place-items-center rounded-control text-muted hover:bg-hover" title={RULE_BUILDER.knownHelp}>
+              <List size={KNOWN_GLYPH} aria-hidden />
+              <SelectOverlay value="" blank options={known.map((each) => ({ value: each, label: each }))} label={RULE_BUILDER.knownActions} onValue={(picked) => picked !== '' && setAction(picked)} />
             </label>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          <span className="flex h-8 items-center text-meta text-muted">{RULE_BUILDER.tryOne}</span>
+          <span className="flex h-control items-center text-meta text-muted">{RULE_BUILDER.tryOne}</span>
           {RULE_EXAMPLES.map((example) => (
-            <ConsoleChip key={example.action} title={example.title} chosen={action.trim() === example.action} choose={() => setAction(example.action)} />
+            <Chip key={example.action} role="toggle" on={action.trim() === example.action} pick={() => setAction(example.action)}>
+              {example.title}
+            </Chip>
           ))}
         </div>
       </RuleField>
       <RuleEffectChoice chosen={effect} choose={setEffect} />
       <RuleField label={RULE_BUILDER.agent} optional>
-        <select className={RULE_FIELD} value={agent} onChange={(event) => setAgent(event.target.value)} aria-label={RULE_BUILDER.agent}>
-          <option value="">{RULE_BUILDER.anyAgent}</option>
-          {agents.map((each) => (
-            <option key={each} value={each}>
-              {agentLabel(each)}
-            </option>
-          ))}
-        </select>
+        <Select look="field" wide value={agent} none={RULE_BUILDER.anyAgent} options={agents.map((each) => ({ value: each, label: agentLabel(each) }))} onChange={setAgent} label={RULE_BUILDER.agent} />
       </RuleField>
       <RuleField label={RULE_BUILDER.targets} optional hint={RULE_BUILDER.targetsHint}>
         {code(RULE_BUILDER.targetsPlaceholder, targets, setTargets, RULE_BUILDER.targets)}
@@ -702,17 +702,17 @@ function RuleBuilder({ parts, start, close, said }: { parts: SettingsParts; star
       {effect === 'deny' && (
         <RuleField label={RULE_BUILDER.instead} optional hint={RULE_BUILDER.insteadHint}>
           {code(RULE_BUILDER.insteadAction, insteadAction, setInsteadAction, RULE_BUILDER.insteadActionLabel)}
-          <input className={RULE_FIELD} placeholder={RULE_BUILDER.insteadNote} value={insteadNote} onChange={(event) => setInsteadNote(event.target.value)} aria-label={RULE_BUILDER.insteadNoteLabel} />
+          <Input wide placeholder={RULE_BUILDER.insteadNote} value={insteadNote} onValue={setInsteadNote} aria-label={RULE_BUILDER.insteadNoteLabel} />
         </RuleField>
       )}
       <RuleField label={RULE_BUILDER.why} optional>
-        <input className={RULE_FIELD} placeholder={RULE_BUILDER.whyPlaceholder} value={reason} onChange={(event) => setReason(event.target.value)} aria-label="Why" />
+        <Input wide placeholder={RULE_BUILDER.whyPlaceholder} value={reason} onValue={setReason} aria-label={RULE_BUILDER.why} />
       </RuleField>
-      <p className="rounded-xl bg-hover p-3 text-body-sm font-medium text-foreground" aria-label={RULE_BUILDER.readBack(sentence)}>
+      <p className="rounded-card bg-hover p-3 text-body-sm font-medium text-foreground" aria-label={RULE_BUILDER.readBack(sentence)}>
         {sentence}
       </p>
       <RulePreview code={ruleText(table)} copy={host.copy} />
-      {problem !== undefined && <p role="alert" className="text-footnote text-destructive">{problem}</p>}
+      {problem !== undefined && <ErrorLine>{problem}</ErrorLine>}
     </RuleDialog>
   );
 }
@@ -750,9 +750,9 @@ function HandOver({ parts, said }: { parts: SettingsParts; said: (outcome: Studi
                 title={`${ready.action}, said yes ${ready.approvals} times`}
                 caption={ready.because}
                 trailing={
-                  <KitButton kind="primary" disabled={home.handingOver} onClick={() => void home.handOver(ready, words.keyTitle)}>
+                  <Button kind="primary" disabled={home.handingOver} onClick={() => void home.handOver(ready, words.keyTitle)}>
                     {home.handingOver ? PROTECTION.proposing : PROTECTION.stopAsking}
-                  </KitButton>
+                  </Button>
                 }
               />
             ))}
@@ -763,11 +763,11 @@ function HandOver({ parts, said }: { parts: SettingsParts; said: (outcome: Studi
               <Row
                 key={grant.id}
                 title={grant.says}
-                caption={`The autopilot answers this until ${new Date(grant.until).toLocaleDateString()}`}
+                caption={PROTECTION.answersUntil(new Date(grant.until).toLocaleDateString())}
                 trailing={
-                  <KitButton disabled={studio.busy === grant.id} onClick={() => void studio.revoke(grant.id).then(said)}>
+                  <Button disabled={studio.busy === grant.id} onClick={() => void studio.revoke(grant.id).then(said)}>
                     {PROTECTION.takeBack}
-                  </KitButton>
+                  </Button>
                 }
               />
             ))}
@@ -775,42 +775,6 @@ function HandOver({ parts, said }: { parts: SettingsParts; said: (outcome: Studi
         )}
       </Section>
     </>
-  );
-}
-
-/** Rule packs from the community index, beside import and export; installing proposes each rule, signed on its own. */
-function IndexPacks({ parts, said }: { parts: SettingsParts; said: (note: string) => void }) {
-  const { index, words } = parts;
-  useObserved(index);
-  useEffect(() => {
-    void index.readPacks();
-  }, []);
-  const packs = index.packs;
-  if (packs === undefined || packs.length === 0) return null;
-  return (
-    <Section title="Rule packs from the community index">
-      <CardGrid>
-        {packs.map((pack) => (
-          <CatalogCard
-            key={pack.id}
-            icon={<Package size={15} aria-hidden />}
-            title={pack.name}
-            line={`${pack.description} · ${publisherLine(pack.publisher)}`}
-            badges={canInstall(pack) ? <StatusWord tone="quiet">{latestLine(pack)}</StatusWord> : <StatusWord tone="bad">Marked unsafe</StatusWord>}
-            {...(canInstall(pack)
-              ? {
-                  action: (
-                    <KitButton icon={Download} disabled={index.busy === pack.name} onClick={() => void index.install(pack.name, pack.latest?.version).then((outcome) => said(outcome.kind === 'failed' ? outcome.why : outcome.note))}>
-                      Install
-                    </KitButton>
-                  ),
-                }
-              : {})}
-          />
-        ))}
-      </CardGrid>
-      <p className="text-footnote text-muted">{installWaitsLine('rule_pack', words.keyTitle)}</p>
-    </Section>
   );
 }
 
@@ -838,21 +802,18 @@ function PackButtons({ parts, said }: { parts: SettingsParts; said: (outcome: St
   };
   return (
     <>
-      <KitButton icon={Download} title="Save the rules set on this computer as a TOML file" onClick={() => void exportPack()}>
-        Export
-      </KitButton>
-      <KitButton icon={Upload} disabled={studio.busy === 'pack'} title="Propose every rule in a TOML file, each signed on its own" onClick={() => void importPack()}>
-        Import
-      </KitButton>
-      <input
+      <Button icon={Download} title={PROTECTION.exportHelp} onClick={() => void exportPack()}>
+        {PROTECTION.export}
+      </Button>
+      <Button icon={Upload} disabled={studio.busy === 'pack'} title={PROTECTION.importHelp} onClick={() => void importPack()}>
+        {PROTECTION.import}
+      </Button>
+      <FilePicker
         ref={picker}
-        type="file"
-        accept=".toml,text/plain"
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
+        accept={RULE_PACK_FILES}
+        onFile={(file) => {
           if (file !== undefined) void file.text().then((toml) => studio.importPack(toml)).then(said);
-          event.target.value = '';
+          if (picker.current !== null) picker.current.value = '';
         }}
       />
     </>

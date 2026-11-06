@@ -198,3 +198,17 @@ export function workspaceGraphLine(graph: { source: string; fallback?: string; w
   if (graph.truncated) parts.push('cut at the most the cloud draws at once');
   return parts.length === 0 ? undefined : `${parts.join(', ')}.`;
 }
+
+/** The layers view's own words, as the Mac's Layers view says them. */
+export const LayersPageLines = {
+  theLayers: 'the memory layers',
+  reading: 'Reading the memory layers.',
+  project: 'Project',
+  longTerm: 'Long-term memory',
+  previewMap: 'Preview the map',
+  shortTerm: 'Short-term memory',
+  previewList: 'Preview with this list',
+  layerLabel: (number: number, file: string, role: string, state: string) => `Layer ${number}, ${file}, ${role}. ${state}`,
+  mapTitle: 'The new memory map',
+  confirm: 'Confirm',
+} as const;

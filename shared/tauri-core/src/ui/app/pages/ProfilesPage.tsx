@@ -3,12 +3,11 @@ import { Layers, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ProfileOutcome } from '../../../core/application/profiles';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
-import { applyWhereLine, choiceNames, packChangeLine, profileContents, profileDraftFrom, profileFormOf, type ProfileForm } from '../../../core/domain/profile-lines';
-import { KitButton } from '../../settings/kit';
+import { applyWhereLine, choiceNames, ProfilesLines, packChangeLine, profileContents, profileDraftFrom, profileFormOf, type ProfileForm } from '../../../core/domain/profile-lines';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { CardGrid, EmptyState, ReadFailed, ScopeChip, StatusWord } from '../widgets';
+import { ScopeChip } from '../widgets';
 import { PROFILE_SCOPE } from '../../../core/domain/scope-lines';
-import { Dialog, Labelled } from './SkillDialogs';
+import { Button, Card, CardGrid, Checkbox, Dialog, EmptyState, ErrorLine, Field, Input, Note, ReadFailed, Select, StatusWord } from '../../kit';
 
 /**
  * Profiles under Workspaces: a named bundle of skills, servers and a rule pack. Keeping one gives nothing;
@@ -30,25 +29,21 @@ export function ProfilesPage({ parts }: { parts: SettingsParts }) {
   const said = (outcome: ProfileOutcome) => setNote(outcome.kind === 'failed' ? outcome.why : outcome.note);
 
   const list = profiles.profiles;
-  if (list === undefined) return profiles.unreadable ? <ReadFailed what="the profiles" retry={() => void profiles.refresh()} /> : null;
+  if (list === undefined) return profiles.unreadable ? <ReadFailed what={ProfilesLines.readWhat} retry={() => void profiles.refresh()} /> : null;
   const create = (
-    <KitButton kind="primary" icon={Plus} onClick={() => setCreating(true)}>
-      New profile
-    </KitButton>
+    <Button kind="primary" icon={Plus} onClick={() => setCreating(true)}>
+      {ProfilesLines.create}
+    </Button>
   );
   return (
     <div className="flex flex-col gap-5">
-      {note !== undefined && (
-        <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
-          {note}
-        </p>
-      )}
+      {note !== undefined && <Note>{note}</Note>}
       <div className="flex items-center justify-between gap-3">
-        <p className="text-footnote text-muted">{`A profile gives nothing until you apply it. Applying it waits for your signature with ${parts.words.keyTitle} on the island, once for each piece.`}</p>
+        <p className="text-footnote text-muted">{ProfilesLines.intro(parts.words.keyTitle)}</p>
         {create}
       </div>
       {list.length === 0 ? (
-        <EmptyState icon={Layers} title="No profiles yet" body="Bundle the skills, servers and rule pack one kind of work needs, such as Backend Engineering, and apply it to any agent in one go." action={create} />
+        <EmptyState icon={Layers} title={ProfilesLines.emptyTitle} body={ProfilesLines.emptyBody} action={create} />
       ) : (
         <CardGrid>
           {list.map((profile) => (
@@ -68,7 +63,7 @@ function ProfileCard({ parts, profile, said }: { parts: SettingsParts; profile: 
   const [editing, setEditing] = useState(false);
   const busy = profiles.busy === profile.id || profiles.busy === profile.name;
   return (
-    <article className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
+    <Card as="article" className="flex flex-col gap-3">
       <div className="flex items-start gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-headline font-semibold text-foreground">{profile.name}</span>
@@ -77,8 +72,8 @@ function ProfileCard({ parts, profile, said }: { parts: SettingsParts; profile: 
         <ScopeChip scope={PROFILE_SCOPE} />
       </div>
       {profile.description !== undefined && <p className="line-clamp-2 text-footnote text-foreground">{profile.description}</p>}
-      {profile.skills.length > 0 && <p className="truncate text-footnote text-muted">{`Skills: ${profile.skills.join(', ')}`}</p>}
-      {profile.mcpServers.length > 0 && <p className="truncate text-footnote text-muted">{`Servers: ${profile.mcpServers.join(', ')}`}</p>}
+      {profile.skills.length > 0 && <p className="truncate text-footnote text-muted">{ProfilesLines.skills(profile.skills)}</p>}
+      {profile.mcpServers.length > 0 && <p className="truncate text-footnote text-muted">{ProfilesLines.servers(profile.mcpServers)}</p>}
       {profile.missing.map((missing) => (
         <StatusWord key={missing} tone="attention">
           {missing}
@@ -86,27 +81,27 @@ function ProfileCard({ parts, profile, said }: { parts: SettingsParts; profile: 
       ))}
       <div className="flex flex-wrap gap-2 border-t border-panel-edge pt-3">
         {!applying && (
-          <KitButton icon={Play} onClick={() => setApplying(true)}>
-            Apply
-          </KitButton>
+          <Button icon={Play} onClick={() => setApplying(true)}>
+            {ProfilesLines.apply}
+          </Button>
         )}
-        <KitButton icon={Pencil} onClick={() => setEditing(true)}>
-          Edit
-        </KitButton>
+        <Button icon={Pencil} onClick={() => setEditing(true)}>
+          {ProfilesLines.edit}
+        </Button>
         {removing ? (
           <>
-            <KitButton kind="primary" icon={Trash2} disabled={busy} onClick={() => void profiles.remove(profile.id).then(said)}>
-              {`Remove ${profile.name}`}
-            </KitButton>
-            <KitButton onClick={() => setRemoving(false)}>Cancel</KitButton>
+            <Button kind="primary" icon={Trash2} disabled={busy} onClick={() => void profiles.remove(profile.id).then(said)}>
+              {ProfilesLines.removeNamed(profile.name)}
+            </Button>
+            <Button onClick={() => setRemoving(false)}>{ProfilesLines.cancel}</Button>
           </>
         ) : (
-          <KitButton icon={Trash2} onClick={() => setRemoving(true)}>
-            Remove
-          </KitButton>
+          <Button icon={Trash2} onClick={() => setRemoving(true)}>
+            {ProfilesLines.remove}
+          </Button>
         )}
       </div>
-      {removing && <p className="text-footnote text-muted">What it already gave stays where it was given.</p>}
+      {removing && <p className="text-footnote text-muted">{ProfilesLines.removeStays}</p>}
       {applying && (
         <ApplyForm
           parts={parts}
@@ -121,7 +116,7 @@ function ProfileCard({ parts, profile, said }: { parts: SettingsParts; profile: 
         />
       )}
       {editing && <ProfileDialog parts={parts} editing={profile} close={() => setEditing(false)} said={said} />}
-    </article>
+    </Card>
   );
 }
 
@@ -132,43 +127,30 @@ function ApplyForm({ parts, busy, cancel, apply }: { parts: SettingsParts; busy:
   const [agent, setAgent] = useState(agents[0]?.agent ?? '');
   const [project, setProject] = useState('');
   const folders = projects.projects ?? [];
-  const field = 'h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-footnote text-foreground outline-none placeholder:text-faint focus:border-primary';
   return (
     <div className="flex flex-col gap-2.5 border-t border-panel-edge pt-3">
-      <Labelled label="Agent">
-        <select className={field} value={agent} onChange={(event) => setAgent(event.target.value)}>
-          {agents.map((each) => (
-            <option key={each.agent} value={each.agent}>
-              {each.label}
-            </option>
-          ))}
-        </select>
-      </Labelled>
-      <Labelled label="Repository, optional">
-        <input className={`${field} font-mono`} value={project} placeholder="/home/you/code/project" onChange={(event) => setProject(event.target.value)} />
-      </Labelled>
+      <Field label={ProfilesLines.agent}>
+        <Select look="field" wide value={agent} options={agents.map((each) => ({ value: each.agent, label: each.label }))} onChange={setAgent} label={ProfilesLines.agent} />
+      </Field>
+      <Field label={ProfilesLines.repository}>
+        <Input wide mono value={project} placeholder={ProfilesLines.repositoryPlaceholder} onValue={setProject} />
+      </Field>
       {folders.length > 0 && (
-        <div className="flex flex-wrap gap-1.5" aria-label="Your projects">
+        <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]" role="group" aria-label={ProfilesLines.yourProjects}>
           {folders.map((each) => (
-            <button
-              key={each.id}
-              type="button"
-              title={each.path}
-              aria-pressed={project === each.path}
-              onClick={() => setProject(project === each.path ? '' : each.path)}
-              className={`mx-focus cursor-pointer rounded-full border px-2.5 py-1 text-footnote ${project === each.path ? 'border-primary text-foreground' : 'border-panel-edge text-muted hover:bg-hover'}`}
-            >
+            // The Mac marks the chosen project as its primary button, the rest secondary.
+            <Button key={each.id} kind={project === each.path ? 'primary' : 'secondary'} title={each.path} aria-pressed={project === each.path} onClick={() => setProject(project === each.path ? '' : each.path)}>
               {each.name}
-            </button>
+            </Button>
           ))}
         </div>
       )}
       <p className="text-footnote text-muted">{applyWhereLine(project)}</p>
       <div className="flex gap-2">
-        <KitButton kind="primary" icon={Play} disabled={busy || agent === ''} onClick={() => apply(agent, project)}>
-          {busy ? 'Applying' : `Apply to ${agent === '' ? 'the agent' : agentLabel(agent)}`}
-        </KitButton>
-        <KitButton onClick={cancel}>Cancel</KitButton>
+        <Button kind="primary" icon={Play} disabled={busy || agent === ''} onClick={() => apply(agent, project)}>
+          {busy ? ProfilesLines.applying : ProfilesLines.applyTo(agent === '' ? undefined : agentLabel(agent))}
+        </Button>
+        <Button onClick={cancel}>{ProfilesLines.cancel}</Button>
       </div>
     </div>
   );
@@ -208,55 +190,50 @@ function ProfileDialog({ parts, editing, close, said }: { parts: SettingsParts; 
     said(outcome);
     close();
   };
-  const field = 'h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-body text-foreground outline-none placeholder:text-faint focus:border-primary';
   const skillNames = choiceNames((skills.hub?.skills ?? []).map((skill) => skill.name), editing === undefined ? new Set() : new Set(editing.skills));
   const serverNames = choiceNames((hub.hub?.servers ?? []).map((server) => server.name), editing === undefined ? new Set() : new Set(editing.mcpServers));
   const packChange = editing === undefined ? undefined : packChangeLine(editing.rulePack, form, packs);
   return (
     <Dialog
-      title={editing === undefined ? 'New profile' : `Edit ${editing.name}`}
+      title={editing === undefined ? ProfilesLines.create : ProfilesLines.editNamed(editing.name)}
       close={close}
-      footer={
+      actions={
         <>
           <span className="flex-1" />
-          <KitButton kind="primary" disabled={profiles.busy !== undefined} onClick={() => void save()}>
-            {editing === undefined ? 'Keep profile' : 'Save changes'}
-          </KitButton>
+          <Button kind="primary" disabled={profiles.busy !== undefined} onClick={() => void save()}>
+            {editing === undefined ? ProfilesLines.keep : ProfilesLines.saveChanges}
+          </Button>
         </>
       }
     >
-      <Labelled label="Name">
-        <input ref={editing === undefined ? first : undefined} className={field} value={form.name} readOnly={editing !== undefined} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Backend Engineering" />
-      </Labelled>
-      {editing !== undefined && <p className="text-footnote text-muted">The name stays, since a new name would keep a second profile beside this one.</p>}
-      <Labelled label="What it is for, optional">
-        <input ref={editing === undefined ? undefined : first} className={field} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Reviews, release notes and the local database" />
-      </Labelled>
-      <Choices title="Skills from the Skills Hub" empty="The Skills Hub holds no skill yet." names={skillNames} chosen={form.skills} toggle={(name) => toggle('skills', name)} />
-      <Choices title="Servers from the MCP Hub" empty="The MCP Hub holds no server yet." names={serverNames} chosen={form.servers} toggle={(name) => toggle('servers', name)} />
-      <Labelled label="Rule pack">
-        <select className={field} value={form.pack} onChange={(event) => {
+      <Field label={ProfilesLines.name} help={editing === undefined ? undefined : ProfilesLines.nameStays}>
+        <Input ref={editing === undefined ? first : undefined} wide value={form.name} readOnly={editing !== undefined} onValue={(name) => setForm({ ...form, name })} placeholder={ProfilesLines.namePlaceholder} />
+      </Field>
+      <Field label={ProfilesLines.description}>
+        <Input ref={editing === undefined ? undefined : first} wide value={form.description} onValue={(description) => setForm({ ...form, description })} placeholder={ProfilesLines.descriptionPlaceholder} />
+      </Field>
+      <Choices title={ProfilesLines.hubSkills} empty={ProfilesLines.noSkills} names={skillNames} chosen={form.skills} toggle={(name) => toggle('skills', name)} />
+      <Choices title={ProfilesLines.hubServers} empty={ProfilesLines.noServers} names={serverNames} chosen={form.servers} toggle={(name) => toggle('servers', name)} />
+      <Field label={ProfilesLines.rulePack} help={packChange}>
+        <Select
+          look="field"
+          wide
+          value={form.pack}
+          none={ProfilesLines.noRulePack}
+          options={packs.map((pack) => ({ value: pack.id, label: ProfilesLines.packOption(pack.name, pack.ruleCount) }))}
+          label={ProfilesLines.rulePack}
+          onChange={(pack) => {
             chosePack.current = true;
-            setForm({ ...form, pack: event.target.value });
-          }}>
-          <option value="">No rule pack</option>
-          {packs.map((pack) => (
-            <option key={pack.id} value={pack.id}>
-              {`${pack.name}, ${pack.ruleCount === 1 ? '1 rule' : `${pack.ruleCount} rules`}`}
-            </option>
-          ))}
-        </select>
-      </Labelled>
-      {packChange !== undefined && <p className="text-footnote text-muted">{packChange}</p>}
-      {problem !== undefined && (
-        <p role="alert" className="text-footnote text-destructive">
-          {problem}
-        </p>
-      )}
+            setForm({ ...form, pack });
+          }}
+        />
+      </Field>
+      {problem !== undefined && <ErrorLine>{problem}</ErrorLine>}
     </Dialog>
   );
 }
 
+/** The names a hub holds, each ticked into the profile or not. */
 function Choices({ title, empty, names, chosen, toggle }: { title: string; empty: string; names: readonly string[]; chosen: ReadonlySet<string>; toggle: (name: string) => void }) {
   return (
     <fieldset className="flex flex-col gap-1.5">
@@ -266,10 +243,9 @@ function Choices({ title, empty, names, chosen, toggle }: { title: string; empty
       ) : (
         <div className="flex flex-wrap gap-x-4 gap-y-1.5">
           {names.map((name) => (
-            <label key={name} className="flex cursor-pointer items-center gap-2 text-body text-foreground">
-              <input type="checkbox" checked={chosen.has(name)} onChange={() => toggle(name)} />
+            <Checkbox key={name} checked={chosen.has(name)} onToggle={() => toggle(name)}>
               {name}
-            </label>
+            </Checkbox>
           ))}
         </div>
       )}

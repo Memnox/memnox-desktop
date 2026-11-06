@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { StudioOutcome } from '../../../core/application/studio';
 import {
   AGENT_FILTER_TITLES,
+  AgentListLines,
   afterProtect,
   actionTarget,
   agentFigures,
@@ -29,15 +30,22 @@ import { folderProblem } from '../../../core/domain/launch-lines';
 import { ago } from '../../../core/domain/session-text';
 import { workspacesFrom } from '../../../core/domain/workspaces';
 import { EFFECT_WORDS, activityLine, effectTone, isEffect } from '../../../core/domain/studio-lines';
-import { BrandLogo } from '../../kit/logos';
-import { KitButton, Spinner } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { CardGrid, EmptyState, ReadFailed, StatusWord, type Tone } from '../widgets';
 import { useShellChoices } from '../shell-choices';
 import { withCurrent } from '../../../core/domain/shell-lines';
+import { BrandLogo, Button, CardGrid, Chip, ChipGroup, EmptyState, ErrorLine, Field, Input, Note, ReadFailed, Select, StatusWord, type Tone } from '../../kit';
 
 /** The narrowest a card reads well at, its name, pill and numbers on their lines, as the Mac's grid sets it. */
 const CARD_WIDTH = 300;
+
+/** The strip's shield and the logos beside it, as large as its 13 point words read. */
+const STRIP_GLYPH = 16;
+
+/** The card's own logo, the Mac's 30 point mark at its head. */
+const CARD_LOGO = 30;
+
+/** A Protect outcome's glyph, a point over its 12 point line. */
+const RESULT_GLYPH = 13;
 
 const FIGURE_INK: Record<Tone, string> = {
   good: 'text-success',
@@ -92,13 +100,13 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
     });
   };
 
-  if (list === undefined) return agents.unreadable ? <ReadFailed what="the agents" retry={() => void agents.refresh()} /> : null;
-  const noteLine = note !== undefined && <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote">{note}</p>;
+  if (list === undefined) return agents.unreadable ? <ReadFailed what={AgentListLines.readWhat} retry={() => void agents.refresh()} /> : null;
+  const noteLine = note !== undefined && <Note>{note}</Note>;
   if (list.length === 0) {
     return (
       <div className="flex flex-col gap-6">
         {noteLine}
-        <EmptyState icon={Bot} title="No agents found yet" body="Install Claude Code, Codex, Cursor or another agent and it appears here." />
+        <EmptyState icon={Bot} title={AgentListLines.emptyTitle} body={AgentListLines.emptyBody} />
       </div>
     );
   }
@@ -108,22 +116,24 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
   return (
     <div className="flex flex-col gap-6">
       {noteLine}
-      <div className="flex items-center gap-3 max-[639px]:flex-col max-[639px]:items-start">
+      <div className="flex items-center gap-3 max-narrow:flex-col max-narrow:items-start">
         <span className="min-w-0 flex-1 truncate text-body-sm text-muted">{agentsSummary(list)}</span>
-        <div role="group" aria-label="Show" className="flex flex-wrap gap-1.5">
+        <ChipGroup label={AgentListLines.show} role="group">
           {offered.map((each) => (
-            <FilterChip key={each} title={AGENT_FILTER_TITLES[each]} count={filterCount(list, each)} chosen={filter === each} choose={() => setFilter(each)} />
+            <Chip key={each} role="toggle" count={filterCount(list, each)} on={filter === each} pick={() => setFilter(each)}>
+              {AGENT_FILTER_TITLES[each]}
+            </Chip>
           ))}
-        </div>
+        </ChipGroup>
       </div>
       {open !== undefined && (
-        <section aria-label="Needs you" className="flex items-center gap-3 rounded-xl border border-warm/45 bg-warm/[0.08] px-4 py-3">
-          <ShieldAlert size={16} className="shrink-0 text-warm" aria-hidden />
+        <section aria-label={AgentListLines.needsYou} className="flex items-center gap-3 rounded-card border border-warm/45 bg-warm/[0.08] px-4 py-3">
+          <ShieldAlert size={STRIP_GLYPH} className="shrink-0 text-warm" aria-hidden />
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="flex items-center gap-1.5">
               <span className="flex gap-0.5" aria-hidden>
                 {outside.map((kind) => (
-                  <BrandLogo key={kind} agent={kind} name={kind} size={16} />
+                  <BrandLogo key={kind} agent={kind} name={kind} size={STRIP_GLYPH} />
                 ))}
               </span>
               <span className="text-body-sm font-semibold text-foreground">{open}</span>
@@ -173,27 +183,11 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
   );
 }
 
-/** The console's filter, as the Mac's `FilterChip`: 32 tall, bordered, the chosen one washed in its blue, a count beside it. */
-function FilterChip({ title, count, chosen, choose }: { title: string; count: number; chosen: boolean; choose: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={chosen}
-      onClick={choose}
-      className={`mx-focus inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-body-sm ${chosen ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`}
-    >
-      {title}
-      {count > 0 && <span className="text-meta font-medium text-muted tabular-nums">{count}</span>}
-    </button>
-  );
-}
-
 function ProtectButton({ busy, press }: { busy: boolean; press: () => void }) {
   return (
-    <KitButton kind="primary" disabled={busy} onClick={press} title="Puts every agent found on this computer under Memnox the way setup does">
-      {busy && <Spinner />}
-      {busy ? 'Protecting' : 'Protect'}
-    </KitButton>
+    <Button kind="primary" busy={busy} onClick={press} title={AgentListLines.protectHelp}>
+      {busy ? AgentListLines.protecting : AgentListLines.protect}
+    </Button>
   );
 }
 
@@ -203,7 +197,7 @@ function ProtectResultLine({ result }: { result: ProtectResult }) {
   const when = result.at === undefined ? '' : ` · ${new Date(result.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
   return (
     <span className={`flex items-start gap-1.5 text-meta select-text ${result.held ? 'text-success' : 'text-warm'}`}>
-      <Icon size={13} className="mt-px shrink-0" aria-hidden />
+      <Icon size={RESULT_GLYPH} className="mt-px shrink-0" aria-hidden />
       <span>{`${result.line}${when}`}</span>
     </span>
   );
@@ -243,9 +237,9 @@ function AgentCard({
   const chips = skillChips(agent.skills, SKILL_CHIPS);
   const press = agentPress(agent);
   return (
-    <article aria-label={agent.name} className={`flex h-full flex-col gap-3 rounded-xl border bg-card p-4 ${agent.status === 'unprotected' ? 'border-warm/55' : 'border-panel-edge'}`}>
+    <article aria-label={agent.name} className={`flex h-full flex-col gap-3 rounded-card border bg-card p-4 ${agent.status === 'unprotected' ? 'border-warm/55' : 'border-panel-edge'}`}>
       <header className="flex items-center gap-2.5">
-        <BrandLogo agent={agent.kind} name={agent.name} size={30} />
+        <BrandLogo agent={agent.kind} name={agent.name} size={CARD_LOGO} />
         <span className="min-w-0 flex-1 truncate text-headline font-semibold text-foreground">{agent.name}</span>
         <StatusWord tone={standing.tone}>{standing.word}</StatusWord>
       </header>
@@ -266,11 +260,11 @@ function AgentCard({
       </div>
       {agent.mcpServers.length > 0 && (
         <span className="truncate text-footnote text-muted" title={agent.mcpServers.join(', ')}>
-          {`Servers: ${agent.mcpServers.join(', ')}`}
+          {AgentListLines.servers(agent.mcpServers)}
         </span>
       )}
       {chips.shown.length > 0 && (
-        <div className="flex min-w-0 gap-1.5 overflow-hidden" title={agent.skills.join(', ')} aria-label={`Skills: ${agent.skills.join(', ')}`}>
+        <div className="flex min-w-0 gap-1.5 overflow-hidden" title={agent.skills.join(', ')} aria-label={AgentListLines.skills(agent.skills)}>
           {chips.shown.map((name) => (
             <SkillChip key={name} text={name} />
           ))}
@@ -289,19 +283,19 @@ function AgentCard({
         {press === 'protect' ? (
           <ProtectButton busy={protecting} press={protect} />
         ) : press === 'resume' ? (
-          <KitButton icon={Play} disabled={busy} onClick={resume} title={`Lets it carry on once you confirm with ${keyTitle}`}>
-            Resume
-          </KitButton>
+          <Button icon={Play} disabled={busy} onClick={resume} title={AgentListLines.resumeHelp(keyTitle)}>
+            {AgentListLines.resume}
+          </Button>
         ) : (
-          <KitButton icon={Pause} disabled={busy} onClick={pause} title="Holds everything it tries until you resume it" aria-label={`Pause ${agent.name}`}>
-            Pause
-          </KitButton>
+          <Button icon={Pause} disabled={busy} onClick={pause} title={AgentListLines.pauseHelp} aria-label={AgentListLines.pauseNamed(agent.name)}>
+            {AgentListLines.pause}
+          </Button>
         )}
         <span className="flex-1" />
         {agent.launchable && !launchOpen && (
-          <KitButton icon={SquareTerminal} onClick={openLaunch} title="Opens it in a new terminal in a folder you choose">
-            Launch
-          </KitButton>
+          <Button icon={SquareTerminal} onClick={openLaunch} title={AgentListLines.launchHelp}>
+            {AgentListLines.launch}
+          </Button>
         )}
       </footer>
       {result !== undefined && <ProtectResultLine result={result} />}
@@ -312,7 +306,7 @@ function AgentCard({
 
 /** A skill's name in a small bordered capsule, cut rather than wrapped. */
 function SkillChip({ text }: { text: string }) {
-  return <span className="inline-flex h-5 min-w-0 shrink items-center truncate rounded-md border border-panel-edge bg-hover px-1.5 text-label font-medium text-muted">{text}</span>;
+  return <span className="inline-flex h-5 min-w-0 shrink items-center truncate rounded-control border border-panel-edge bg-hover px-1.5 text-label font-medium text-muted">{text}</span>;
 }
 
 /** One thing it did lately: the target by its last parts on top, the operation and how long ago under it, and its pill. */
@@ -327,7 +321,7 @@ function RecentRow({ action }: { action: AgentAction }) {
           <bdi dir="ltr">{target ?? action.operation}</bdi>
         </span>
         <span className="flex min-w-0 gap-1.5 text-label text-muted">
-          {target !== undefined && <span className="truncate font-mono">{action.operation}</span>}
+          {target !== undefined && <span className="truncate font-code">{action.operation}</span>}
           {when !== undefined && <span className="shrink-0">{when}</span>}
         </span>
       </div>
@@ -362,21 +356,13 @@ function LaunchForm({
   };
   return (
     <div className="flex flex-col gap-2 border-t border-panel-edge pt-3">
-      <span className="text-footnote font-medium text-muted">Open it in</span>
+      <span className="text-footnote font-medium text-muted">{AgentListLines.openIn}</span>
       <div className="flex items-center gap-2">
-        <input
-          className="h-9 min-w-0 flex-1 mx-field rounded-lg border border-field-edge bg-field px-3 text-footnote text-foreground outline-none placeholder:text-faint focus:border-primary"
-          value={folder}
-          aria-label="The folder it opens in"
-          placeholder="/home/you/code/project"
-          onChange={(event) => setFolder(event.target.value)}
-          onKeyDown={(event) => event.key === 'Enter' && go()}
-          autoFocus
-        />
+        <Input className="flex-1" value={folder} aria-label={AgentListLines.folder} placeholder={AgentListLines.folderPlaceholder} onValue={setFolder} onSubmit={go} autoFocus />
         {pick !== undefined && (
-          <KitButton
+          <Button
             icon={Folder}
-            title="Pick the folder in the system's own dialog"
+            title={AgentListLines.chooseHelp}
             onClick={() =>
               void pick().then((chosen) => {
                 if (chosen === undefined) return;
@@ -385,47 +371,30 @@ function LaunchForm({
               })
             }
           >
-            Choose
-          </KitButton>
+            {AgentListLines.choose}
+          </Button>
         )}
       </div>
       {folders.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto" aria-label="Your workspaces">
+        <div className="flex gap-1.5 overflow-x-auto" aria-label={AgentListLines.workspaces}>
           {folders.map((each) => (
-            <KitButton key={each.path} kind={folder === each.path ? 'primary' : 'secondary'} title={each.path} aria-pressed={folder === each.path} onClick={() => setFolder(each.path)}>
+            <Button key={each.path} kind={folder === each.path ? 'primary' : 'secondary'} title={each.path} aria-pressed={folder === each.path} onClick={() => setFolder(each.path)}>
               {each.name}
-            </KitButton>
+            </Button>
           ))}
         </div>
       )}
       {profiles.length > 0 && (
-        <label className="flex flex-col gap-1.5">
-          <span className="text-footnote font-medium text-muted">With a profile</span>
-          <select
-            className="h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-footnote text-foreground outline-none focus:border-primary"
-            value={profile}
-            onChange={(event) => setProfile(event.target.value)}
-          >
-            <option value="">No profile</option>
-            {profiles.map((each) => (
-              <option key={each.id} value={each.id}>
-                {each.name}
-              </option>
-            ))}
-          </select>
-          {profile !== '' && <span className="text-footnote text-muted">What the profile gives waits for your signature on the island as the agent opens.</span>}
-        </label>
+        <Field label={AgentListLines.withProfile} help={profile === '' ? undefined : AgentListLines.profileWaits}>
+          <Select look="field" wide value={profile} none={AgentListLines.noProfile} options={profiles.map((each) => ({ value: each.id, label: each.name }))} onChange={setProfile} label={AgentListLines.withProfile} />
+        </Field>
       )}
-      {problem !== undefined && (
-        <p role="alert" className="text-footnote text-destructive">
-          {problem}
-        </p>
-      )}
+      {problem !== undefined && <ErrorLine>{problem}</ErrorLine>}
       <div className="flex gap-2">
-        <KitButton kind="primary" icon={SquareTerminal} disabled={busy} onClick={go}>
-          {busy ? 'Opening' : 'Open a terminal'}
-        </KitButton>
-        <KitButton onClick={cancel}>Cancel</KitButton>
+        <Button kind="primary" icon={SquareTerminal} disabled={busy} onClick={go}>
+          {busy ? AgentListLines.opening : AgentListLines.openTerminal}
+        </Button>
+        <Button onClick={cancel}>{AgentListLines.cancel}</Button>
       </div>
     </div>
   );

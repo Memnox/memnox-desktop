@@ -1,6 +1,7 @@
 
 import type { ArmsModel, ArmsSector } from "../../../../core/domain/memory-arms/arms-model";
 import { ARMS_INK } from "../../../../core/domain/memory-arms/arms-ink";
+import { Pressable } from "../../../kit";
 
 /** The four layers from the core out, each with the mark the canvas draws it in. */
 const LAYERS = [
@@ -79,8 +80,7 @@ export function SectorList({
     <ul className="flex flex-wrap gap-1.5">
       {sectors.map((each) => (
         <li key={each.key}>
-          <button
-            type="button"
+          <Pressable
             aria-pressed={sector === each.key}
             onClick={() => onSector(sector === each.key ? undefined : each.key)}
             className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-meta transition-colors ${
@@ -90,7 +90,7 @@ export function SectorList({
             <span className="size-2 rounded-full" style={{ background: each.ink }} aria-hidden />
             {each.label}
             <span className="tabular-nums">{each.count}</span>
-          </button>
+          </Pressable>
         </li>
       ))}
     </ul>

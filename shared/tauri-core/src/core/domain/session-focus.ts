@@ -141,11 +141,6 @@ export function choosePane(panes: readonly TerminalPane[], host: DisplayHost, te
   return { why: `${inFolder.length} tabs in ${terminal} are in its folder, so which one is the session's cannot be told` };
 }
 
-/** The Claude Code extension's conversation id is a UUID, the only id that opens its conversation rather than a new one. */
-export function isConversationId(id: string | undefined): boolean {
-  return id !== undefined && /^[0-9a-f-]{36}$/i.test(id);
-}
-
 /** The schemes an agent's own desktop app answers on, the only links an APP display may open. */
 const APP_SCHEMES: readonly string[] = ['claude', 'codex', 'cursor', 'vscode', 'windsurf'];
 

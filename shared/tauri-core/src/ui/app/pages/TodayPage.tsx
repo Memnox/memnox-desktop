@@ -5,7 +5,7 @@ import type { Route, WidthClass } from '../../../core/domain/destinations';
 import type { HeldCard } from '../../../core/domain/held-card';
 import { briefItems, HOME_BRIEF_NONE, HOME_BRIEF_TITLE, homeBrief, type HomeBriefBlock } from '../../../core/domain/home-brief';
 import { HomeLines } from '../../../core/domain/home-lines';
-import { heldSigningLine, TodayPageLines } from '../../../core/domain/home-page-lines';
+import { heldSigningLine, TodayNotes, TodayPageLines } from '../../../core/domain/home-page-lines';
 import {
   age,
   choiceFor,
@@ -29,11 +29,11 @@ import {
   type TodayState,
 } from '../../../core/domain/today-board';
 import { AgentName, BrandLogo } from '../../kit/logos';
-import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { bringForward } from '../../sessions/open-session';
-import { Inspector, StatusWord, type Tone } from '../widgets';
+import { Inspector } from '../widgets';
 import { GoLink } from './HomePage';
+import { Button, IconButton, PRESS_DIP, Pressable, StatusWord, type Tone } from '../../kit';
 
 /** The window reads the clock this often, so ages and the synced time stay true while it is open. */
 const CLOCK_MS = 15_000;
@@ -60,12 +60,22 @@ const MARK_TEXT: Record<Tone, string> = {
  * names whole, so the widths are written out here and a test holds them to `TODAY_TABLE`. */
 const TABLE_COLUMNS = 'grid-cols-[28px_minmax(0,1fr)_170px_72px_118px]';
 
+/** Where Activity opens, under Governance as the Mac places it. */
+const ACTIVITY_ROUTE: Route = { destination: 'governance', tab: 'activity' };
+
+/** `StateMark`'s glyph is caption sized and heavy, so it reads beside 12 point words. */
+const STATE_GLYPH = 11;
+const STATE_STROKE = 2.6;
+
+/** The fingerprint on a choice that signs, as small as its keycap's letter. */
+const SIGNED_GLYPH = 12;
+
 /** A state as a mark in its colour beside its word, the Mac's `StateMark`, used on every work table. */
 export function StateMark({ state }: { state: TodayState }) {
   const { icon: Icon, tone } = STATE_MARK[state];
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5">
-      <Icon size={11} strokeWidth={2.6} className={`shrink-0 ${MARK_TEXT[tone]}`} aria-hidden />
+      <Icon size={STATE_GLYPH} strokeWidth={STATE_STROKE} className={`shrink-0 ${MARK_TEXT[tone]}`} aria-hidden />
       <span className="truncate text-meta font-medium text-foreground">{TODAY_STATE_LABEL[state]}</span>
     </span>
   );
@@ -194,11 +204,11 @@ export function TodayPage({
       case 'find-in-app': {
         const card = sessions.state.cards.find((each) => each.sessionId === item.sessionId);
         const shown = await bringForward(card?.host);
-        if (shown.reason !== undefined) setNote(`Memnox could not bring it forward: ${shown.reason}.`);
+        if (shown.reason !== undefined) setNote(TodayNotes.notForward(shown.reason));
         return;
       }
       case 'open-activity':
-        go({ destination: 'governance', tab: 'activity' });
+        go(ACTIVITY_ROUTE);
         return;
     }
   };
@@ -242,9 +252,9 @@ export function TodayPage({
               <div className="flex min-h-7 items-center justify-between gap-3">
                 <h2 className="text-base font-medium text-foreground">{held.length === 0 ? HOME_BRIEF_TITLE[block] : `${HOME_BRIEF_TITLE[block]} · ${held.length}`}</h2>
                 <span className="flex items-center gap-2">
-                  {block === 'today' && <GoLink onClick={() => go({ destination: 'governance', tab: 'activity' })}>{TodayPageLines.activity}</GoLink>}
+                  {block === 'today' && <GoLink onClick={() => go(ACTIVITY_ROUTE)}>{TodayPageLines.activity}</GoLink>}
                   {held.length > 0 && (
-                    <KitButton onClick={() => setHidden((now) => (folded ? new Set([...now].filter((each) => each !== block)) : new Set([...now, block])))}>{folded ? TodayPageLines.show : TodayPageLines.hide}</KitButton>
+                    <Button onClick={() => setHidden((now) => (folded ? new Set([...now].filter((each) => each !== block)) : new Set([...now, block])))}>{folded ? TodayPageLines.show : TodayPageLines.hide}</Button>
                   )}
                 </span>
               </div>
@@ -262,7 +272,7 @@ export function TodayPage({
         {trail}
       </div>
       {opened !== undefined && (
-        <Inspector title={position(opened.id, items) ?? 'Details'} width={width} close={() => setOpen(undefined)}>
+        <Inspector title={position(opened.id, items) ?? TodayNotes.details} width={width} close={() => setOpen(undefined)}>
           <Detail
             item={opened}
             card={cardOf(opened)}
@@ -313,8 +323,8 @@ function useHeldFeed({ calls }: SettingsParts): void {
 /** The numbered table: what, with its muted line under it, who it is from, how long ago, and its state. */
 function Table({ items, all, now, open, pick }: { items: readonly TodayItem[]; all: readonly TodayItem[]; now: number; open: string | undefined; pick: (id: string) => void }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-panel-edge bg-card">
-      <div className={`grid ${TABLE_COLUMNS} h-[34px] items-center gap-3 border-b border-panel-edge px-4 text-label font-medium text-faint max-[639px]:hidden`} aria-hidden>
+    <div className="overflow-hidden rounded-card border border-panel-edge bg-card">
+      <div className={`grid ${TABLE_COLUMNS} h-[34px] items-center gap-3 border-b border-panel-edge px-4 text-label font-medium text-faint max-narrow:hidden`} aria-hidden>
         {TodayPageLines.columns.map((title, index) => (
           <span key={index} className="truncate">
             {title}
@@ -327,28 +337,28 @@ function Table({ items, all, now, open, pick }: { items: readonly TodayItem[]; a
           const line = under(item);
           const chosen = item.id === open;
           return (
-            <button
+            <Pressable
               key={item.id}
-              type="button"
               aria-pressed={chosen}
-              aria-label={`${number}. ${item.title}, from ${item.agentName}, ${TODAY_STATE_LABEL[item.state]}`}
+              aria-label={TodayNotes.rowLabel(number, item.title, item.agentName, TODAY_STATE_LABEL[item.state])}
               onClick={() => pick(item.id)}
-              className={`mx-focus grid w-full cursor-pointer ${TABLE_COLUMNS} items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-hover max-[639px]:grid-cols-[2rem_minmax(0,1fr)] ${chosen ? 'bg-active' : ''}`}
+              className={`mx-focus grid w-full cursor-pointer ${TABLE_COLUMNS} items-center gap-3 px-4 py-3 text-left hover:bg-hover max-narrow:grid-cols-[2rem_minmax(0,1fr)] ${PRESS_DIP} ${chosen ? 'bg-active' : ''}`}
             >
               <span className="font-code text-label text-faint">{number}</span>
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate text-body-sm font-medium text-foreground">{item.title}</span>
                 {line !== undefined && <span className="truncate text-meta text-muted">{line}</span>}
               </span>
-              <span className="flex min-w-0 items-center gap-1.5 max-[639px]:hidden">
+              <span className="flex min-w-0 items-center gap-1.5 max-narrow:hidden">
+                {/* Written out, as the widths are, so the test holds the logo to TODAY_TABLE.logo. */}
                 <BrandLogo agent={item.agent ?? 'memnox'} name={item.agentName} size={20} />
                 <span className="truncate text-meta text-foreground">{item.agentName}</span>
               </span>
-              <span className="font-code text-label text-muted max-[639px]:hidden">{age(item.since, now) ?? ''}</span>
-              <span className="min-w-0 max-[639px]:hidden">
+              <span className="font-code text-label text-muted max-narrow:hidden">{age(item.since, now) ?? ''}</span>
+              <span className="min-w-0 max-narrow:hidden">
                 <StateMark state={item.state} />
               </span>
-            </button>
+            </Pressable>
           );
         })}
       </div>
@@ -433,42 +443,36 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function StepButton({ label, disabled, onClick, up = false }: { label: string; disabled: boolean; onClick: () => void; up?: boolean }) {
-  const Icon = up ? ChevronUp : ChevronDown;
-  return (
-    <button type="button" aria-label={label} title={label} disabled={disabled} onClick={onClick} className="mx-focus grid size-8 cursor-pointer place-items-center rounded-md text-muted hover:bg-hover disabled:cursor-default disabled:opacity-35">
-      <Icon size={12} strokeWidth={2.4} />
-    </button>
-  );
+  return <IconButton icon={up ? ChevronUp : ChevronDown} label={label} disabled={disabled} onClick={onClick} />;
 }
 
 /** One choice: its letter on a key, its words, the key that signs where the allow is signed, and the recommendation marked. */
 function ChoiceRow({ choice, signed, keyTitle, disabled, press }: { choice: TodayChoice; signed: boolean; keyTitle: string; disabled: boolean; press: () => void }) {
   return (
-    <button
-      type="button"
+    <Pressable
       disabled={disabled}
       onClick={press}
       title={TodayPageLines.press(choice.key)}
-      aria-label={`${choice.title}${choice.recommended ? ', recommended' : ''}${signed ? `, signed with ${keyTitle}` : ''}`}
-      className={`mx-focus flex h-9 cursor-pointer items-center gap-2.5 rounded-md border bg-card px-2.5 text-left hover:bg-hover disabled:cursor-default disabled:opacity-50 ${choice.recommended ? 'border-primary' : 'border-panel-edge'}`}
+      aria-label={TodayNotes.choiceLabel(choice.title, choice.recommended, signed ? keyTitle : undefined)}
+      className={`mx-focus flex h-field cursor-pointer items-center gap-2.5 rounded-control border bg-card px-2.5 text-left hover:bg-hover disabled:cursor-default disabled:opacity-50 ${PRESS_DIP} ${choice.recommended ? 'border-primary' : 'border-panel-edge'}`}
     >
-      <span className="grid size-[22px] place-items-center rounded-md border border-panel-edge bg-keycap font-code text-label font-medium text-muted">{choice.key}</span>
+      <span className="grid size-[22px] place-items-center rounded-control border border-panel-edge bg-keycap font-code text-label font-medium text-muted">{choice.key}</span>
       <span className="text-body-sm font-medium text-foreground">{choice.title}</span>
-      {signed && <Fingerprint size={12} className="text-muted" aria-hidden />}
+      {signed && <Fingerprint size={SIGNED_GLYPH} className="text-muted" aria-hidden />}
       <span className="flex-1" />
       {choice.recommended && <StatusWord tone="good">{TodayPageLines.recommended}</StatusWord>}
-    </button>
+    </Pressable>
   );
 }
 
 function outcomeNote(outcome: HeldOutcome): string {
   switch (outcome.kind) {
     case 'answered':
-      return 'Answered.';
+      return TodayNotes.answered;
     case 'answered-elsewhere':
-      return 'Somebody answered this first, and that answer stands.';
+      return TodayNotes.answeredElsewhere;
     case 'cancelled':
-      return 'Nothing was sent, so it still waits.';
+      return TodayNotes.cancelled;
     case 'failed':
       return outcome.why;
   }

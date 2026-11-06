@@ -13,7 +13,7 @@ import { homeMode, modeBadge } from '../../../core/domain/home-steps';
 import { HomePageLines } from '../../../core/domain/home-page-lines';
 import { HomeStart } from './HomeStart';
 import { TodayPage } from './TodayPage';
-import { Panel, ReadFailed, Row, Section, StatusWord } from '../widgets';
+import { Panel, PRESS_DIP, Pressable, ReadFailed, Row, Section, StatusWord } from '../../kit';
 
 const RECENT_SESSIONS = 5;
 
@@ -66,7 +66,7 @@ export function HomePage({ parts, width, go }: { parts: SettingsParts; width: Wi
             {recent.map((card) => (
               <Row
                 key={card.sessionId}
-                leading={<BrandLogo agent={card.agent} name={card.agentName} size={26} />}
+                leading={<BrandLogo agent={card.agent} name={card.agentName} size={CARD_LOGO} />}
                 title={cardTitle(card)}
                 caption={[card.agentName, inLine(projectName(card.repository, projects.projects ?? [])), ago(card.lastActive, Date.now())].filter((part) => part !== undefined).join(SEPARATOR)}
                 onClick={() => host.openLive?.(card.sessionId)}
@@ -90,11 +90,19 @@ function Standing({ mode, read, away }: { mode: ReturnType<typeof homeMode>; rea
   return null;
 }
 
+/** An agent's logo on a waiting row, as large as the row's two lines. */
+const CARD_LOGO = 26;
+
+/** `GoLink`'s arrow is micro sized and semibold, smaller than its 12 point words. */
+const GO_ARROW = 10;
+const GO_ARROW_STROKE = 2.5;
+
+/** `GoLink`: a quiet link to another place in the window, 12 medium in the brand blue with an arrow after it. */
 export function GoLink({ onClick, children }: { onClick: () => void; children: string }) {
   return (
-    <button type="button" className="mx-focus inline-flex cursor-pointer items-center gap-1 self-start text-footnote font-medium text-primary hover:underline" onClick={onClick}>
+    <Pressable className={`mx-focus inline-flex w-fit cursor-pointer items-center gap-1 self-start text-footnote font-medium text-primary ${PRESS_DIP}`} onClick={onClick}>
       {children}
-      <ArrowRight size={12} />
-    </button>
+      <ArrowRight size={GO_ARROW} strokeWidth={GO_ARROW_STROKE} aria-hidden />
+    </Pressable>
   );
 }

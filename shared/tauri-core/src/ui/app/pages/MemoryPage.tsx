@@ -16,6 +16,7 @@ import {
   evidenceTarget,
   filePressLine,
   keyLine,
+  MemoryPageLines,
   kindWord,
   memoryViewOf,
   lastReadLine,
@@ -33,7 +34,6 @@ import {
 } from '../../../core/domain/memory-lines';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
 import { BrandLogo } from '../../kit/logos';
-import { KitButton, SearchField, SelectMenu } from '../../settings/kit';
 import { choiceKey, choiceOfKey, memoryChoices, memoryOwner, MEMORY_CHOICE_KEY, MEMORY_EVERYWHERE_NOTE, shownMemory, type MemoryProjectChoice } from '../../../core/domain/project-context';
 import { SEPARATOR } from '../../../core/domain/session-text';
 import { useShellChoices } from '../shell-choices';
@@ -43,15 +43,28 @@ import { AddMemorySourceDialog } from './MemorySourceDialog';
 import { MemoryBrain } from './MemoryBrain';
 import { homeFilterOf, MEMORY_HOME_FILTERS, MEMORY_HOME_KEY, type MemoryHomeFilter } from '../../../core/domain/memory-brain-lines';
 import { MemoryLayersView } from './MemoryLayers';
-import { CardGrid, EmptyState, Inspector, Panel, ReadFailed, Row, ScopeChip, Section, StatusWord } from '../widgets';
+import { Inspector, ScopeChip } from '../widgets';
 import { memoryScope } from '../../../core/domain/scope-lines';
 import { useInspectorHost, usePicked } from '../inspector-host';
-
-const CHIP = 'mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm';
-const chip = (on: boolean) => `${CHIP} ${on ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`;
+import { Button, Card, CardGrid, Chip, ChipGroup, EmptyState, ErrorLine, Note, Panel, PRESS_DIP, Pressable, ReadFailed, Row, SearchInput, Section, Select, StatusWord } from '../../kit';
 
 /** How long typing rests before the search is asked, so each key is not a request. */
 const SEARCH_REST_MS = 300;
+
+/** The project filter's width, the Mac's `KitMenu` width, so a long project name is cut rather than pushing the chips. */
+const PROJECT_FILTER_WIDTH = 200;
+
+/** The agent's logo before an origin line, as tall as the line. */
+const ORIGIN_LOGO = 16;
+
+/** A passage's file or link glyph, a point over the footnote beside it. */
+const EVIDENCE_GLYPH = 13;
+
+/** The book on a source card, a point over its 15 title. */
+const SOURCE_GLYPH = 16;
+
+/** Where the sources link leads: the Sources tab under Connected tools. */
+const SOURCES_ROUTE: Route = { destination: 'workspaces', tab: 'sources' };
 
 /** A press's outcome as the line under it says it. */
 export function memoryNote(outcome: MemoryOutcome): string {
@@ -81,10 +94,10 @@ export function MemoryPage({ parts, tab, width, go }: { parts: SettingsParts; /*
   const brainShown = useCallback((items: readonly MemoryItemView[]) => shownMemory(items, projectChoice, projects.projects ?? []), [choiceKey(projectChoice), projects.projects]);
   const projectFilter =
     localProjects.length === 0 ? null : (
-      <SelectMenu
+      <Select
         value={choiceKey(projectChoice)}
-        label="Whose memory"
-        width={200}
+        label={MemoryPageLines.whoseMemory}
+        width={PROJECT_FILTER_WIDTH}
         options={memoryChoices(localProjects).map((each) => ({ value: choiceKey(each.choice), label: each.title }))}
         onChange={(key) => chooseProject(choiceOfKey(key))}
       />
@@ -129,51 +142,49 @@ export function MemoryPage({ parts, tab, width, go }: { parts: SettingsParts; /*
       if (outcome.kind !== 'failed') after();
     });
 
-  const noteLine =
-    note === undefined ? null : (
-      <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
-        {note}
-      </p>
-    );
-  const searching = query.trim() !== '';
-  const statusRow = !searching ? (
-    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Status">
-      {MEMORY_FILTERS.map((each) => (
-        <button key={each.status} type="button" className={chip(status === each.status)} aria-pressed={status === each.status} onClick={() => setStatus(each.status)}>
-          {each.label}
-        </button>
-      ))}
-    </div>
-  ) : (
+  const noteLine = note === undefined ? null : <Note>{note}</Note>;
+  const searchLine = (
     <p className="text-footnote text-muted">
-      {memory.search === undefined ? 'Searching every status for these words.' : `${searchModeLine(memory.search.mode)}, over every status.`}
+      {memory.search === undefined ? MemoryPageLines.searchingAll : MemoryPageLines.searchingMode(searchModeLine(memory.search.mode))}
       {memory.search?.note !== undefined && <span className="block">{memory.search.note}</span>}
     </p>
   );
-  // Whose a fact is matters only once there is an organization beside the person.
-  const scopeRow = connected && (
-    <div className="flex gap-1.5" role="group" aria-label="Scope">
-      <button type="button" className={chip(scope === undefined)} aria-pressed={scope === undefined} onClick={() => setScope(undefined)}>
-        Both
-      </button>
-      {MEMORY_SCOPES.map((each) => (
-        <button key={each.scope} type="button" className={chip(scope === each.scope)} aria-pressed={scope === each.scope} onClick={() => setScope(each.scope)}>
+  const statusChips = (
+    <ChipGroup label={MemoryPageLines.status} role="group">
+      {MEMORY_FILTERS.map((each) => (
+        <Chip key={each.status} role="toggle" on={status === each.status} pick={() => setStatus(each.status)}>
           {each.label}
-        </button>
+        </Chip>
       ))}
-    </div>
+    </ChipGroup>
   );
+  const scopeChips = (
+    <ChipGroup label={MemoryPageLines.scope} role="group">
+      <Chip role="toggle" on={scope === undefined} pick={() => setScope(undefined)}>
+        {MemoryPageLines.both}
+      </Chip>
+      {MEMORY_SCOPES.map((each) => (
+        <Chip key={each.scope} role="toggle" on={scope === each.scope} pick={() => setScope(each.scope)}>
+          {each.label}
+        </Chip>
+      ))}
+    </ChipGroup>
+  );
+  const searching = query.trim() !== '';
+  const statusRow = searching ? searchLine : statusChips;
+  // Whose a fact is matters only once there is an organization beside the person.
+  const scopeRow = connected && scopeChips;
 
   if (view === 'graph') {
     // Only the brain draws the workspace, so only the brain has the chips for whose memory it draws.
     const homeRow = (
-      <div className="flex gap-1.5" role="group" aria-label="Whose memory">
+      <ChipGroup label={MemoryPageLines.whoseMemory} role="group">
         {MEMORY_HOME_FILTERS.map((each) => (
-          <button key={each.filter} type="button" className={chip(home === each.filter)} aria-pressed={home === each.filter} onClick={() => chooseHome(each.filter)}>
+          <Chip key={each.filter} role="toggle" on={home === each.filter} pick={() => chooseHome(each.filter)}>
             {each.label}
-          </button>
+          </Chip>
         ))}
-      </div>
+      </ChipGroup>
     );
     const more = listed === undefined ? undefined : moreLine(listed.more);
     return (
@@ -195,7 +206,7 @@ export function MemoryPage({ parts, tab, width, go }: { parts: SettingsParts; /*
               {scopeRow}
             </div>
             {noteLine}
-            {memory.unreadable.facts && <ReadFailed what="what was learned" retry={() => void memory.show(memory.filter)} />}
+            {memory.unreadable.facts && <ReadFailed what={MemoryPageLines.whatWasLearned} retry={() => void memory.show(memory.filter)} />}
           </>
         }
         foot={
@@ -218,51 +229,22 @@ export function MemoryPage({ parts, tab, width, go }: { parts: SettingsParts; /*
   return (
     <div className="flex min-h-0">
       <div className="flex min-w-0 flex-1 flex-col gap-7">
-        {note !== undefined && (
-          <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
-            {note}
-          </p>
-        )}
-        <Section title="What your agents know">
+        {noteLine}
+        <Section title={MemoryPageLines.knowTitle}>
           {/* The search, the project, the status and the scope on one row where they fit, in the Mac's order. */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="w-full max-w-[300px] min-w-[180px] flex-1">
-              <SearchField value={query} placeholder="Search memory" onChange={setQuery} />
+              <SearchInput value={query} placeholder={MemoryPageLines.searchPlaceholder} onChange={setQuery} />
             </div>
             {projectFilter}
-            {query.trim() === '' ? (
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Status">
-                {MEMORY_FILTERS.map((each) => (
-                  <button key={each.status} type="button" className={chip(status === each.status)} aria-pressed={status === each.status} onClick={() => setStatus(each.status)}>
-                    {each.label}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="text-footnote text-muted">
-                {memory.search === undefined ? 'Searching every status for these words.' : `${searchModeLine(memory.search.mode)}, over every status.`}
-                {memory.search?.note !== undefined && <span className="block">{memory.search.note}</span>}
-              </p>
-            )}
+            {statusRow}
             <span className="flex-1" />
-            {/* Whose a fact is matters only once there is an organization beside the person. */}
-            {connected && (
-              <div className="flex gap-1.5" role="group" aria-label="Scope">
-                <button type="button" className={chip(scope === undefined)} aria-pressed={scope === undefined} onClick={() => setScope(undefined)}>
-                  Both
-                </button>
-                {MEMORY_SCOPES.map((each) => (
-                  <button key={each.scope} type="button" className={chip(scope === each.scope)} aria-pressed={scope === each.scope} onClick={() => setScope(each.scope)}>
-                    {each.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            {scopeRow}
           </div>
-          {memory.unreadable.facts && <ReadFailed what="what was learned" retry={() => void memory.show(memory.filter)} />}
+          {memory.unreadable.facts && <ReadFailed what={MemoryPageLines.whatWasLearned} retry={() => void memory.show(memory.filter)} />}
           {projectChoice.kind === 'shared' && <p className="text-footnote text-muted">{MEMORY_EVERYWHERE_NOTE}</p>}
           {listed !== undefined && narrowed.length === 0 && (
-            <EmptyState icon={Brain} title={query.trim() === '' ? `Nothing ${statusWord(status).word.toLowerCase()} here` : 'Nothing learned says that'} body={FACTS_EMPTY_DETAIL} />
+            <EmptyState icon={Brain} title={searching ? MemoryPageLines.nothingSays : MemoryPageLines.nothingHere(statusWord(status).word)} body={FACTS_EMPTY_DETAIL} />
           )}
           {narrowed.length > 0 && (
             <Panel>
@@ -276,7 +258,7 @@ export function MemoryPage({ parts, tab, width, go }: { parts: SettingsParts; /*
                   trailing={
                     <>
                       <ScopeChip scope={memoryScope(item)} />
-                      {item.tainted && <StatusWord tone="attention">Untrusted source</StatusWord>}
+                      {item.tainted && <StatusWord tone="attention">{MemoryPageLines.untrusted}</StatusWord>}
                       <StatusWord tone={statusWord(item.status).tone}>{statusWord(item.status).word}</StatusWord>
                     </>
                   }
@@ -300,10 +282,9 @@ export function MemoryPage({ parts, tab, width, go }: { parts: SettingsParts; /*
 /** Where the files went: a quiet line that takes the person to them under Connected tools. */
 function SourcesLink({ go }: { go: (route: Route) => void }) {
   return (
-    <button type="button" onClick={() => go({ destination: 'workspaces', tab: 'sources' })} className="mx-focus inline-flex w-fit cursor-pointer items-center gap-1.5 text-footnote text-primary hover:underline">
-      <Library size={14} aria-hidden />
+    <Button kind="link" size="small" icon={Library} onClick={() => go(SOURCES_ROUTE)}>
       {SOURCES_LINK}
-    </button>
+    </Button>
   );
 }
 
@@ -320,25 +301,25 @@ function FactDetail({ parts, item, forget }: { parts: SettingsParts; item: Memor
         <StatusWord tone={statusWord(item.status).tone}>{statusWord(item.status).word}</StatusWord>
         {item.tainted && <StatusWord tone="attention">{TAINTED_LINE}</StatusWord>}
       </div>
-      {item.rule !== undefined && <p className="text-footnote text-foreground">{`What it governs: ${item.rule.sentence}`}</p>}
+      {item.rule !== undefined && <p className="text-footnote text-foreground">{MemoryPageLines.governs(item.rule.sentence)}</p>}
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-footnote">
-        <dt className="text-muted">About</dt>
+        <dt className="text-muted">{MemoryPageLines.about}</dt>
         <dd className="min-w-0 break-words text-foreground">{item.subject}</dd>
-        <dt className="text-muted">Kept</dt>
-        <dd className="text-foreground">{item.scope === 'project' ? `With the project${item.project === undefined ? '' : ` ${item.project}`}` : 'In your personal memory'}</dd>
-        <dt className="text-muted">From</dt>
+        <dt className="text-muted">{MemoryPageLines.kept}</dt>
+        <dd className="text-foreground">{item.scope === 'project' ? MemoryPageLines.keptWithProject(item.project) : MemoryPageLines.keptPersonal}</dd>
+        <dt className="text-muted">{MemoryPageLines.from}</dt>
         <dd className="text-foreground">
           <OriginLine item={item} />
         </dd>
         {confidence !== undefined && (
           <>
-            <dt className="text-muted">Extractor</dt>
+            <dt className="text-muted">{MemoryPageLines.extractor}</dt>
             <dd className="text-foreground">{confidence}</dd>
           </>
         )}
         {decided !== undefined && (
           <>
-            <dt className="text-muted">Settled</dt>
+            <dt className="text-muted">{MemoryPageLines.settled}</dt>
             <dd className="text-foreground">{decided}</dd>
           </>
         )}
@@ -347,16 +328,16 @@ function FactDetail({ parts, item, forget }: { parts: SettingsParts; item: Memor
       <div className="flex flex-wrap items-center gap-2 border-t border-panel-edge pt-3">
         {sure ? (
           <>
-            <span className="flex-1 text-footnote text-muted">Forgetting deletes it and its evidence for good.</span>
-            <KitButton onClick={() => setSure(false)}>Keep it</KitButton>
-            <KitButton icon={Trash2} disabled={memory.busy === item.id} onClick={forget}>
-              Forget
-            </KitButton>
+            <span className="flex-1 text-footnote text-muted">{MemoryPageLines.forgetWarning}</span>
+            <Button onClick={() => setSure(false)}>{MemoryPageLines.keepIt}</Button>
+            <Button icon={Trash2} disabled={memory.busy === item.id} onClick={forget}>
+              {MemoryPageLines.forget}
+            </Button>
           </>
         ) : (
-          <KitButton icon={Trash2} onClick={() => setSure(true)}>
-            Forget
-          </KitButton>
+          <Button icon={Trash2} onClick={() => setSure(true)}>
+            {MemoryPageLines.forget}
+          </Button>
         )}
       </div>
     </div>
@@ -368,7 +349,7 @@ export function OriginLine({ item, className }: { item: Pick<MemoryItemView, 'or
   const agent = item.origin === 'agent' ? item.suggestedBy : undefined;
   return (
     <span className={`inline-flex items-center gap-1.5 ${className ?? ''}`}>
-      {agent !== undefined && <BrandLogo agent={agent} name={agentLabel(agent)} size={16} />}
+      {agent !== undefined && <BrandLogo agent={agent} name={agentLabel(agent)} size={ORIGIN_LOGO} />}
       {originLine(item)}
     </span>
   );
@@ -380,31 +361,30 @@ export function OriginLine({ item, className }: { item: Pick<MemoryItemView, 'or
  */
 export function Evidence({ parts, evidence }: { parts: SettingsParts; evidence: readonly MemoryEvidenceView[] }) {
   const [pressed, setPressed] = useState<{ ref: string; opened: boolean } | undefined>(undefined);
-  if (evidence.length === 0) return <p className="text-footnote text-muted">No evidence: an agent suggested it without citing a passage.</p>;
+  if (evidence.length === 0) return <p className="text-footnote text-muted">{MemoryPageLines.noEvidence}</p>;
   const targetOf = (each: MemoryEvidenceView) => evidenceTarget(each, parts.memory.sources ?? []);
   const press = (each: MemoryEvidenceView) => {
     const target = targetOf(each);
     if (target.kind === 'link') return parts.host.openPage(target.url);
     void openOrCopy(parts.host, target.path).then((opened) => setPressed({ ref: each.ref, opened }));
   };
-  const titleOf = (target: ReturnType<typeof targetOf>) => (target.kind === 'link' ? target.url : `Open ${target.path}`);
+  const titleOf = (target: ReturnType<typeof targetOf>) => (target.kind === 'link' ? target.url : MemoryPageLines.openPath(target.path));
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-footnote font-medium text-muted">Evidence</span>
+      <span className="text-footnote font-medium text-muted">{MemoryPageLines.evidence}</span>
       <ul className="flex flex-col gap-1">
         {evidence.map((each) => (
           <li key={`${each.source}:${each.ref}`}>
-            <button
-              type="button"
+            <Pressable
               onClick={() => press(each)}
               title={titleOf(targetOf(each))}
-              className="mx-focus flex w-full cursor-pointer items-start gap-2 rounded-md px-1.5 py-1 text-left text-footnote hover:bg-hover"
+              className={`mx-focus flex w-full cursor-pointer items-start gap-2 rounded-control px-1.5 py-1 text-left text-footnote hover:bg-hover ${PRESS_DIP}`}
             >
-              {each.url === undefined ? <FileText size={13} className="mt-0.5 shrink-0 text-muted" aria-hidden /> : <Link2 size={13} className="mt-0.5 shrink-0 text-muted" aria-hidden />}
+              {each.url === undefined ? <FileText size={EVIDENCE_GLYPH} className="mt-0.5 shrink-0 text-muted" aria-hidden /> : <Link2 size={EVIDENCE_GLYPH} className="mt-0.5 shrink-0 text-muted" aria-hidden />}
               <span className={`min-w-0 flex-1 break-words ${each.stale ? 'text-muted line-through decoration-faint' : 'text-primary'}`}>{evidenceLine(each)}</span>
-              {each.stale && <StatusWord tone="quiet">Stale</StatusWord>}
+              {each.stale && <StatusWord tone="quiet">{MemoryPageLines.stale}</StatusWord>}
               {pressed !== undefined && pressed.ref === each.ref && <span className="shrink-0 text-muted">{filePressLine(pressed.opened)}</span>}
-            </button>
+            </Pressable>
           </li>
         ))}
       </ul>
@@ -429,10 +409,10 @@ function BrainNode({ parts, id, forget }: { parts: SettingsParts; id: string; fo
   if (evidence !== undefined) {
     return (
       <div className="flex flex-col gap-4">
-        <p className="text-meta text-muted">{`In ${evidence.source}`}</p>
+        <p className="text-meta text-muted">{MemoryPageLines.inSource(evidence.source)}</p>
         <Evidence parts={parts} evidence={[evidence]} />
         <div className="flex flex-col gap-1.5">
-          <span className="text-label font-medium tracking-[0.14em] text-muted uppercase">Facts citing it</span>
+          <span className="text-label font-medium tracking-[0.14em] text-muted uppercase">{MemoryPageLines.factsCiting}</span>
           <Panel>
             {citing.map((item) => (
               <Row key={item.id} title={item.statement} caption={statusWord(item.status).word} onClick={() => setOpen(LOCAL_ARMS_IDS.fact(item.id))} />
@@ -448,13 +428,13 @@ function BrainNode({ parts, id, forget }: { parts: SettingsParts; id: string; fo
     <div className="flex flex-col gap-2">
       {node.statement !== undefined && <p className="whitespace-pre-wrap text-body-sm text-foreground">{node.statement}</p>}
       {node.excerpt !== undefined && <p className="whitespace-pre-wrap text-body-sm text-muted">{node.excerpt}</p>}
-      {node.saidBy !== undefined && <p className="text-meta text-muted">{`Said by ${node.saidBy}`}</p>}
-      {node.status === 'candidate' && <StatusWord tone="attention">Not confirmed by anybody yet</StatusWord>}
+      {node.saidBy !== undefined && <p className="text-meta text-muted">{MemoryPageLines.saidBy(node.saidBy)}</p>}
+      {node.status === 'candidate' && <StatusWord tone="attention">{MemoryPageLines.notConfirmed}</StatusWord>}
       {node.untrusted === true && <StatusWord tone="attention">{TAINTED_LINE}</StatusWord>}
       {node.href !== undefined && (
-        <button type="button" className="mx-focus w-fit cursor-pointer text-body-sm font-medium text-primary hover:underline" onClick={() => parts.host.openPage(node.href as string)}>
-          Open where it lives
-        </button>
+        <Button kind="link" onClick={() => parts.host.openPage(node.href as string)}>
+          {MemoryPageLines.openWhereItLives}
+        </Button>
       )}
     </div>
   );
@@ -469,11 +449,7 @@ export function MemorySourcesPage({ parts }: { parts: SettingsParts }) {
   useEffect(() => void parts.memory.refreshSources(), []);
   return (
     <div className="flex flex-col gap-5">
-      {note !== undefined && (
-        <p role="status" className="rounded-lg border border-panel-edge bg-card px-3.5 py-2.5 text-footnote text-foreground">
-          {note}
-        </p>
-      )}
+      {note !== undefined && <Note>{note}</Note>}
       <MemorySources parts={parts} said={setNote} />
     </div>
   );
@@ -485,18 +461,18 @@ function MemorySources({ parts, said }: { parts: SettingsParts; said: (note: str
   const [adding, setAdding] = useState(false);
   const list = memory.sources;
   const add = (
-    <KitButton kind="primary" icon={Plus} onClick={() => setAdding(true)}>
-      Add source
-    </KitButton>
+    <Button kind="primary" icon={Plus} onClick={() => setAdding(true)}>
+      {MemoryPageLines.addSource}
+    </Button>
   );
   return (
-    <Section title="Memory sources" trailing={list !== undefined && list.length > 0 ? add : undefined}>
-      {memory.unreadable.sources && <ReadFailed what="the memory sources" retry={() => void memory.refreshSources()} />}
+    <Section title={MemoryPageLines.sourcesTitle} trailing={list !== undefined && list.length > 0 ? add : undefined}>
+      {memory.unreadable.sources && <ReadFailed what={MemoryPageLines.theSources} retry={() => void memory.refreshSources()} />}
       {list !== undefined && list.length === 0 && (
         <EmptyState
           icon={BookOpen}
-          title="No memory sources yet"
-          body="Point Memnox at an Obsidian vault, a folder of notes, your agents' instruction files, a Notion export, Supermemory or an MCP memory server. Your own agent reads it, and you confirm what it finds."
+          title={MemoryPageLines.noSources}
+          body={MemoryPageLines.noSourcesBody}
           action={add}
         />
       )}
@@ -523,9 +499,9 @@ function SourceCard({ parts, source, said }: { parts: SettingsParts; source: Mem
   const read = memory.lastRead(source.id);
   const busy = memory.busy === source.id;
   return (
-    <article className="flex flex-col gap-2 rounded-xl border border-panel-edge bg-card p-4">
+    <Card as="article" className="flex flex-col gap-2">
       <header className="flex items-center gap-2">
-        <BookOpen size={16} className="text-muted" aria-hidden />
+        <BookOpen size={SOURCE_GLYPH} className="text-muted" aria-hidden />
         <span className="min-w-0 flex-1 truncate text-body font-semibold text-foreground">{source.name}</span>
         <span className="text-footnote text-muted">{sourceKindLabel(source.kind)}</span>
       </header>
@@ -536,30 +512,26 @@ function SourceCard({ parts, source, said }: { parts: SettingsParts; source: Mem
       <span className="text-footnote text-foreground">{sourceCountsLine(source.counts)}</span>
       <span className="text-footnote text-muted">{lastReadLine(source, Date.now())}</span>
       {key !== undefined && <span className={`text-footnote ${source.keyHeld === true ? 'text-muted' : 'text-warm'}`}>{key}</span>}
-      {source.lastError !== undefined && (
-        <p role="alert" className="text-footnote text-destructive">
-          {`The last read failed: ${source.lastError}`}
-        </p>
-      )}
+      {source.lastError !== undefined && <ErrorLine>{MemoryPageLines.lastReadFailed(source.lastError)}</ErrorLine>}
       {read !== undefined && <p className="text-footnote text-foreground">{readSummaryLine(read)}</p>}
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
-        <KitButton icon={RefreshCw} disabled={busy} onClick={() => void memory.readNow(source.id).then((outcome) => outcome.kind === 'failed' && said(outcome.why))}>
-          {busy ? 'Reading' : 'Read now'}
-        </KitButton>
+        <Button icon={RefreshCw} disabled={busy} onClick={() => void memory.readNow(source.id).then((outcome) => outcome.kind === 'failed' && said(outcome.why))}>
+          {busy ? MemoryPageLines.reading : MemoryPageLines.readNow}
+        </Button>
         <span className="flex-1" />
         {sure ? (
           <>
-            <KitButton onClick={() => setSure(false)}>Keep</KitButton>
-            <KitButton kind="primary" icon={Trash2} disabled={busy} onClick={() => void memory.removeSource(source.id).then((outcome) => said(memoryNote(outcome)))}>
-              Remove
-            </KitButton>
+            <Button onClick={() => setSure(false)}>{MemoryPageLines.keep}</Button>
+            <Button kind="primary" icon={Trash2} disabled={busy} onClick={() => void memory.removeSource(source.id).then((outcome) => said(memoryNote(outcome)))}>
+              {MemoryPageLines.remove}
+            </Button>
           </>
         ) : (
-          <KitButton icon={Trash2} onClick={() => setSure(true)}>
-            Remove
-          </KitButton>
+          <Button icon={Trash2} onClick={() => setSure(true)}>
+            {MemoryPageLines.remove}
+          </Button>
         )}
       </div>
-    </article>
+    </Card>
   );
 }

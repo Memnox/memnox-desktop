@@ -1,40 +1,17 @@
 import type { FoundSkillView, SkillView, SkillsHubView } from '@memnox/core/wire';
-import { Trash2, X, type LucideIcon } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SkillOutcome } from '../../../core/application/skills';
-import { assignedNote, assignmentChanges, compatibilityLine, conversionLosses, draftFrom, type SkillForm } from '../../../core/domain/skills-lines';
+import { assignedNote, assignmentChanges, compatibilityLine, conversionLosses, draftFrom, SkillSheetLines, type SkillForm } from '../../../core/domain/skills-lines';
 import { FOUND_UNREADABLE, homeOf, instructionsFile, shortPath, skillDocument } from '../../../core/domain/skill-search';
-import { BrandLogo } from '../../kit/logos';
-import { MiddleCut } from '../../kit/MiddleCut';
 import { MarkdownText } from '../../cards/MarkdownText';
-import { KitButton, Spinner } from '../../settings/kit';
 import type { SettingsParts } from '../../settings/parts';
+import { KitLines } from '../../../core/domain/kit-lines';
+import { BrandLogo, Button, Checkbox, Dialog, ErrorLine, Field, Input, MiddleCut, Spinner, Textarea } from '../../kit';
 
-/** A dialog over the page, closed by its X, Escape, or a press outside it. */
-export function Dialog({ title, step, close, footer, children }: { title: string; step?: string; close: () => void; footer: ReactNode; children: ReactNode }) {
-  useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
-    };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, [close]);
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-[8vh]" role="presentation" onMouseDown={close}>
-      <div role="dialog" aria-modal="true" aria-label={title} className="flex w-full max-w-[560px] flex-col rounded-xl border border-panel-edge bg-card shadow-[0_24px_60px_rgb(0_0_0/0.18)]" onMouseDown={(event) => event.stopPropagation()}>
-        <header className="flex items-center gap-3 border-b border-panel-edge px-5 py-3.5">
-          <span className="flex-1 text-lg font-semibold">{title}</span>
-          {step !== undefined && <span className="text-footnote text-muted">{step}</span>}
-          <button type="button" aria-label="Close" onClick={close} className="mx-focus grid size-7 cursor-pointer place-items-center rounded-md text-muted hover:bg-hover">
-            <X size={15} />
-          </button>
-        </header>
-        <div className="flex flex-col gap-4 px-5 py-5">{children}</div>
-        <footer className="flex items-center gap-2 border-t border-panel-edge px-5 py-3.5">{footer}</footer>
-      </div>
-    </div>
-  );
-}
+/** `SheetLayout`: an agent's logo in the assign list, the version column, and the instructions editor's height. */
+const AGENT_LOGO = 20;
+const VERSION_WIDTH = 120;
+const INSTRUCTIONS_HEIGHT = 160;
 
 /**
  * Who a skill is given to, checked per agent with what each keeps of it. Before Continue the dialog says
@@ -64,23 +41,22 @@ export function AssignSkillDialog({ parts, view, skill, close, said }: { parts: 
   const nothing = changes.give.length === 0 && changes.take.length === 0;
   return (
     <Dialog
-      title="Assign skill to agents"
-      step={reviewing ? 'What changes' : skill.name}
+      title={SkillSheetLines.assignTitle}
+      step={reviewing ? SkillSheetLines.whatChanges : skill.name}
       close={close}
-      footer={
+      actions={
         <>
-          <KitButton onClick={close}>Cancel</KitButton>
-          {reviewing && <KitButton onClick={() => setReviewing(false)}>Back</KitButton>}
+          {reviewing && <Button onClick={() => setReviewing(false)}>{SkillSheetLines.back}</Button>}
           <span className="flex-1" />
-          <KitButton kind="primary" disabled={nothing || sending} onClick={() => (reviewing || losses.length === 0 ? void send() : setReviewing(true))}>
-            Continue
-          </KitButton>
+          <Button kind="primary" disabled={nothing || sending} onClick={() => (reviewing || losses.length === 0 ? void send() : setReviewing(true))}>
+            {SkillSheetLines.continue}
+          </Button>
         </>
       }
     >
       {reviewing ? (
         <>
-          <p className="text-footnote text-muted">Each agent keeps skills in its own format, and these lose something on the way.</p>
+          <p className="text-footnote text-muted">{SkillSheetLines.losesIntro}</p>
           {losses.map((each) => (
             <div key={each.label} className="flex flex-col gap-1">
               <span className="text-body font-medium text-foreground">{each.label}</span>
@@ -93,24 +69,27 @@ export function AssignSkillDialog({ parts, view, skill, close, said }: { parts: 
           ))}
         </>
       ) : (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col">
           {agents.map((agent) => {
             const compatibility = compatibilityOf(agent.agent);
             const takes = compatibility === undefined || compatibility.supported;
             return (
-              <label key={agent.agent} className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 ${takes ? 'cursor-pointer hover:bg-hover' : 'opacity-55'}`}>
-                <input type="checkbox" checked={chosen.has(agent.agent)} disabled={!takes} onChange={() => toggle(agent.agent)} />
-                <BrandLogo agent={agent.agent} name={agent.label} size={20} />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="text-body text-foreground">{agent.label}</span>
-                  <span className="text-footnote text-muted">{compatibility === undefined ? 'Takes it as written' : compatibilityLine(compatibility)}</span>
-                </span>
-              </label>
+              <div key={agent.agent} className={`py-1 ${takes ? '' : 'opacity-55'}`}>
+                <Checkbox checked={chosen.has(agent.agent)} disabled={!takes} onToggle={() => toggle(agent.agent)}>
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <BrandLogo agent={agent.agent} name={agent.label} size={AGENT_LOGO} />
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="text-body text-foreground">{agent.label}</span>
+                      <span className="text-footnote text-muted">{compatibility === undefined ? SkillSheetLines.asWritten : compatibilityLine(compatibility)}</span>
+                    </span>
+                  </span>
+                </Checkbox>
+              </div>
             );
           })}
         </div>
       )}
-      <p className="text-footnote text-muted">{`Giving a skill to an agent waits for your signature with ${words.keyTitle} on the island. Taking it away happens at once.`}</p>
+      <p className="text-footnote text-muted">{SkillSheetLines.givingWaits(words.keyTitle)}</p>
     </Dialog>
   );
 }
@@ -124,7 +103,7 @@ export function NewSkillDialog({ parts, close, said }: { parts: SettingsParts; c
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const first = useRef<HTMLInputElement>(null);
   useEffect(() => first.current?.focus(), []);
-  const set = (name: keyof SkillForm) => (event: { target: { value: string } }) => setForm({ ...form, [name]: event.target.value });
+  const set = (name: keyof SkillForm) => (value: string) => setForm({ ...form, [name]: value });
   const save = async () => {
     const draft = draftFrom(form);
     if (typeof draft === 'string') {
@@ -139,59 +118,44 @@ export function NewSkillDialog({ parts, close, said }: { parts: SettingsParts; c
     said(outcome);
     close();
   };
-  const field = 'h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-body text-foreground outline-none placeholder:text-faint focus:border-primary';
   return (
     <Dialog
-      title="New skill"
+      title={SkillSheetLines.newTitle}
       close={close}
-      footer={
+      actions={
         <>
-          <KitButton onClick={close}>Cancel</KitButton>
           <span className="flex-1" />
-          <KitButton kind="primary" disabled={skills.busy !== undefined} onClick={() => void save()}>
-            Add skill
-          </KitButton>
+          <Button kind="primary" disabled={skills.busy !== undefined} onClick={() => void save()}>
+            {SkillSheetLines.addSkill}
+          </Button>
         </>
       }
     >
-      <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
-        <Labelled label="Name">
-          <input ref={first} className={field} value={form.name} onChange={set('name')} placeholder="release-notes" />
-        </Labelled>
-        <Labelled label="Version">
-          <input className={field} value={form.version} onChange={set('version')} />
-        </Labelled>
+      <div className="grid gap-3" style={{ gridTemplateColumns: `minmax(0,1fr) ${VERSION_WIDTH}px` }}>
+        <Field label={SkillSheetLines.name}>
+          <Input ref={first} wide value={form.name} onValue={set('name')} placeholder={SkillSheetLines.namePlaceholder} />
+        </Field>
+        <Field label={SkillSheetLines.version}>
+          <Input wide value={form.version} onValue={set('version')} aria-label={SkillSheetLines.version} />
+        </Field>
       </div>
-      <Labelled label="What it is for">
-        <input className={field} value={form.description} onChange={set('description')} placeholder="Drafts release notes from merged pull requests" />
-      </Labelled>
-      <Labelled label="Category, optional">
-        <input className={field} value={form.category} onChange={set('category')} placeholder="Writing" />
-      </Labelled>
-      <Labelled label="Instructions">
-        <textarea className={`${field} h-40 py-2 font-mono text-footnote`} value={form.instructions} onChange={set('instructions')} placeholder="What the agent does when this skill applies, step by step." />
-      </Labelled>
-      <Labelled label="Agent tools it needs, separated by commas">
-        <input className={`${field} font-mono`} value={form.tools} onChange={set('tools')} placeholder="Read, Bash" />
-      </Labelled>
-      <Labelled label="Commands it runs, separated by commas">
-        <input className={`${field} font-mono`} value={form.commands} onChange={set('commands')} placeholder="gh, git" />
-      </Labelled>
-      {problem !== undefined && (
-        <p role="alert" className="text-footnote text-destructive">
-          {problem}
-        </p>
-      )}
+      <Field label={SkillSheetLines.purpose}>
+        <Input wide value={form.description} onValue={set('description')} placeholder={SkillSheetLines.purposePlaceholder} />
+      </Field>
+      <Field label={SkillSheetLines.category}>
+        <Input wide value={form.category} onValue={set('category')} placeholder={SkillSheetLines.categoryPlaceholder} />
+      </Field>
+      <Field label={SkillSheetLines.instructions}>
+        <Textarea mono className="text-footnote" style={{ height: INSTRUCTIONS_HEIGHT }} value={form.instructions} onValue={set('instructions')} placeholder={SkillSheetLines.instructionsPlaceholder} />
+      </Field>
+      <Field label={SkillSheetLines.tools}>
+        <Input wide mono className="text-footnote" value={form.tools} onValue={set('tools')} placeholder={SkillSheetLines.toolsPlaceholder} />
+      </Field>
+      <Field label={SkillSheetLines.commands}>
+        <Input wide mono className="text-footnote" value={form.commands} onValue={set('commands')} placeholder={SkillSheetLines.commandsPlaceholder} />
+      </Field>
+      {problem !== undefined && <ErrorLine>{problem}</ErrorLine>}
     </Dialog>
-  );
-}
-
-export function Labelled({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-footnote font-medium text-muted">{label}</span>
-      {children}
-    </label>
   );
 }
 
@@ -213,11 +177,11 @@ export function FoundSkillDialog({ parts, found, label, importing, close, said }
       title={found.name}
       step={label}
       close={close}
-      footer={
+      cancel={KitLines.close}
+      actions={
         <>
-          <KitButton onClick={close}>Close</KitButton>
           <span className="flex-1" />
-          <KitButton
+          <Button
             kind="primary"
             disabled={skills.busy !== undefined || importing}
             onClick={() => {
@@ -225,13 +189,13 @@ export function FoundSkillDialog({ parts, found, label, importing, close, said }
               close();
             }}
           >
-            Import
-          </KitButton>
+            {SkillSheetLines.import}
+          </Button>
         </>
       }
     >
       <span className="block min-w-0 overflow-hidden text-muted select-text">
-        <MiddleCut text={shortPath(file, homeOf(file))} className="font-mono text-label" />
+        <MiddleCut text={shortPath(file, homeOf(file))} className="font-code text-label" />
       </span>
       {document !== undefined ? (
         <>
@@ -256,40 +220,5 @@ export function FoundSkillDialog({ parts, found, label, importing, close, said }
         <Spinner />
       )}
     </Dialog>
-  );
-}
-
-/**
- * The console's confirm, as the Mac's `ConsoleConfirm`: a tinted icon, the question and what it costs, then Cancel and
- * the press itself side by side, in red where it cannot be undone.
- */
-export function ConfirmDialog({ icon: Icon = Trash2, title, message, confirm, busy = false, cancel, act }: { icon?: LucideIcon; title: string; message: string; confirm: string; busy?: boolean; cancel: () => void; act: () => void }) {
-  useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') cancel();
-    };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, [cancel]);
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4 backdrop-blur-[8px]" role="presentation" onMouseDown={cancel}>
-      <div role="alertdialog" aria-modal="true" aria-label={title} className="flex w-[440px] max-w-full flex-col gap-4 rounded-xl border border-panel-edge bg-card p-7 shadow-[0_24px_60px_rgb(0_0_0/0.18)]" onMouseDown={(event) => event.stopPropagation()}>
-        <span className="grid size-12 place-items-center rounded-xl bg-destructive/[0.16] text-destructive" aria-hidden>
-          <Icon size={20} strokeWidth={2} />
-        </span>
-        <div className="flex flex-col gap-2 text-body-sm">
-          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-          <p className="text-muted">{message}</p>
-        </div>
-        <div className="flex gap-2 pt-1.5">
-          <KitButton className="flex-1" onClick={cancel}>
-            Cancel
-          </KitButton>
-          <button type="button" autoFocus disabled={busy} onClick={act} className="mx-focus flex h-8 flex-1 cursor-pointer items-center justify-center rounded-md bg-destructive text-body-sm font-medium text-white disabled:opacity-45">
-            {confirm}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

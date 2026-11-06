@@ -4,21 +4,23 @@ import { useEffect, useState } from 'react';
 import type { HeldOutcome } from '../../../core/application/held-calls';
 import type { HeldCard } from '../../../core/domain/held-card';
 import type { HeldAnswer } from '../../../core/domain/call-label';
-import { BrandLogo } from '../../kit/logos';
 import { HeldImpactLines } from '../../cards/HeldImpact';
-import { KitButton, Switch } from '../../settings/kit';
 import { NOTICES_ASKED_KEY, NOTICES_DENIED, NOTICES_DETAIL, NOTICES_KEY, NOTICES_TITLE } from '../../../core/domain/held-notices';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
 import { ActivityPage } from './ActivityPage';
 import { LearnPage } from './LearnPage';
 import { PoliciesPage } from './PoliciesPage';
-import { EmptyState, StatusWord } from '../widgets';
 import { projectNameOfPlace } from '../../../core/domain/project-context';
 import { heldFacts, NOTHING_WAITING, NOTHING_WAITING_DETAIL, waitingLine } from '../../../core/domain/approvals-lines';
+import { GovernanceLines } from '../../../core/domain/governance-lines';
+import { BrandLogo, Button, EmptyState, StatusWord, Switch } from '../../kit';
 
 /** How long the window waits before opening the live feed again after the daemon went away. */
 const RECONNECT_MS = 2_000;
+
+/** The asking agent's logo at the head of its card. */
+const CARD_LOGO = 26;
 
 export function GovernancePage({ parts, tab, width, go }: { parts: SettingsParts; tab: string | undefined; width: WidthClass; go: (route: Route) => void }) {
   if (tab === 'policies') return <PoliciesPage parts={parts} width={width} />;
@@ -70,11 +72,11 @@ function Approvals({ parts }: { parts: SettingsParts }) {
           <p className="text-footnote text-muted">{waitingLine(waiting.length)}</p>
           <div className="flex flex-col gap-3">
             {waiting.map(({ card, subject }) => (
-              <article key={subject} aria-label={`${card.who} asks first`} className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
+              <article key={subject} aria-label={GovernanceLines.asks(card.who)} className="flex flex-col gap-3 rounded-card border border-panel-edge bg-card p-4">
                 <header className="flex items-center gap-2.5">
-                  <BrandLogo agent={card.agent} name={card.who} size={26} />
+                  <BrandLogo agent={card.agent} name={card.who} size={CARD_LOGO} />
                   <span className="min-w-0 flex-1 truncate text-body font-semibold text-foreground">{card.who}</span>
-                  <StatusWord tone="attention">Asks first</StatusWord>
+                  <StatusWord tone="attention">{GovernanceLines.asksFirst}</StatusWord>
                 </header>
                 <p className="text-body text-foreground select-text">{card.what}</p>
                 {/* What the held action could affect, under what it does, as the Mac's card shows it. */}
@@ -85,17 +87,17 @@ function Approvals({ parts }: { parts: SettingsParts }) {
                   ))}
                 </dl>
                 <div className="flex items-center gap-2">
-                  <KitButton kind="primary" disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.ONCE)}>
-                    Allow once
-                  </KitButton>
-                  <KitButton disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.SESSION)}>
-                    Allow this session
-                  </KitButton>
+                  <Button kind="primary" disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.ONCE)}>
+                    {GovernanceLines.allowOnce}
+                  </Button>
+                  <Button disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.SESSION)}>
+                    {GovernanceLines.allowSession}
+                  </Button>
                   {/* Set apart from the yeses, so a refusal is never pressed by a slip. */}
                   <span className="min-w-5 flex-1" />
-                  <KitButton disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.DENY)}>
-                    Deny
-                  </KitButton>
+                  <Button disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.DENY)}>
+                    {GovernanceLines.deny}
+                  </Button>
                 </div>
                 {notes[subject] !== undefined && <p className="text-footnote text-muted">{notes[subject]}</p>}
               </article>
@@ -113,16 +115,16 @@ function Approvals({ parts }: { parts: SettingsParts }) {
  */
 function NoticesSwitch({ parts }: { parts: SettingsParts }) {
   const { host } = parts;
-  const [on, setOn] = useState(() => localStorage.getItem(NOTICES_KEY) !== 'false');
+  const [on, setOn] = useState(() => localStorage.getItem(NOTICES_KEY) !== String(false));
   const [denied, setDenied] = useState(false);
   useEffect(() => {
-    if (on && host.notices !== undefined) void host.notices(false).then((granted) => setDenied(!granted && localStorage.getItem(NOTICES_ASKED_KEY) === 'true'));
+    if (on && host.notices !== undefined) void host.notices(false).then((granted) => setDenied(!granted && localStorage.getItem(NOTICES_ASKED_KEY) === String(true)));
   }, [on]);
   const change = (next: boolean) => {
     localStorage.setItem(NOTICES_KEY, String(next));
     setOn(next);
     if (!next || host.notices === undefined) return;
-    localStorage.setItem(NOTICES_ASKED_KEY, 'true');
+    localStorage.setItem(NOTICES_ASKED_KEY, String(true));
     void host.notices(true).then((granted) => setDenied(!granted));
   };
   return (
@@ -156,11 +158,11 @@ function Fact({ name, value }: { name: string; value: string }) {
 function outcomeNote(outcome: HeldOutcome): string {
   switch (outcome.kind) {
     case 'answered':
-      return 'Answered.';
+      return GovernanceLines.answered;
     case 'answered-elsewhere':
-      return 'Somebody answered this first, and that answer stands.';
+      return GovernanceLines.answeredElsewhere;
     case 'cancelled':
-      return 'Nothing was sent, so it still waits.';
+      return GovernanceLines.cancelled;
     case 'failed':
       return outcome.why;
   }

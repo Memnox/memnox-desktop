@@ -1,5 +1,5 @@
 import { CircleAlert, FileText, Folder, KeyRound } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   addedSources,
   addingLine,
@@ -23,12 +23,16 @@ import {
   type ImportResult,
 } from '../../../core/domain/memory-import';
 import { MEMORY_SCOPES, moreLine, SOURCE_KINDS, emptySourceForm, sourceFormProblem, type SourceForm } from '../../../core/domain/memory-lines';
-import { KitButton, SelectMenu, Spinner } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { StatusWord } from '../widgets';
-import { Dialog } from './SkillDialogs';
+import { KitLines } from '../../../core/domain/kit-lines';
+import { Button, Chip, Dialog, ErrorLine, Field, Input, Select, Spinner, StatusWord, Textarea, TruncatedText } from '../../kit';
 
-const FIELD = 'h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-footnote text-foreground outline-none placeholder:text-faint focus:border-primary';
+/** The warning beside a path that will not do, a point over its footnote. */
+const CHECK_GLYPH = 13;
+
+/** The file glyph beside what will be read, as the button glyphs are. */
+const PREVIEW_GLYPH = 14;
+
 /** The most lines the path field grows to before it scrolls, enough to see a few chosen files. */
 const PATH_LINES = 4;
 /** A pause after typing before the disk is looked at, so a path is not walked at every key. */
@@ -146,20 +150,18 @@ export function AddMemorySourceDialog({ parts, close, said }: { parts: SettingsP
     stage.kind === 'form' ? (
       <>
         <span className="flex-1 text-footnote text-muted">{ImportLines.formFooter}</span>
-        <KitButton onClick={close}>Cancel</KitButton>
-        <KitButton kind="primary" disabled={blocked} onClick={send}>
-          Add
-        </KitButton>
+        <Button kind="primary" disabled={blocked} onClick={send}>
+          {ImportLines.add}
+        </Button>
       </>
     ) : stage.kind === 'working' ? (
       <>
         <span className="flex-1 text-footnote text-muted">{ImportLines.workingFooter}</span>
-        <KitButton onClick={close}>Close</KitButton>
       </>
     ) : (
       <>
         <span className="flex-1" />
-        <KitButton
+        <Button
           onClick={() => {
             setForm({ ...emptySourceForm(form.kind), scope: form.scope });
             setProblem(undefined);
@@ -167,15 +169,15 @@ export function AddMemorySourceDialog({ parts, close, said }: { parts: SettingsP
           }}
         >
           {ImportLines.addAnother}
-        </KitButton>
-        <KitButton kind="primary" onClick={close}>
+        </Button>
+        <Button kind="primary" onClick={close}>
           {ImportLines.done}
-        </KitButton>
+        </Button>
       </>
     );
 
   return (
-    <Dialog title="Add a memory source" close={close} footer={footer}>
+    <Dialog title={ImportLines.title} close={close} cancel={stage.kind === 'form' ? KitLines.cancel : stage.kind === 'working' ? KitLines.close : null} actions={footer}>
       {stage.kind === 'working' && <ImportWorking line={stage.line} />}
       {stage.kind === 'finished' && <ImportFinished results={stage.results} />}
       {stage.kind === 'form' && (
@@ -192,22 +194,18 @@ export function AddMemorySourceDialog({ parts, close, said }: { parts: SettingsP
           {files && <PathField parts={parts} form={form} home={home} check={check} set={(location) => setForm({ ...form, location })} />}
           {place === 'secret' && <SupermemoryKey parts={parts} secret={form.secret} setSecret={(secret) => setForm({ ...form, secret })} />}
           {place === 'server' && <HubServerPick parts={parts} form={form} set={(change) => setForm({ ...form, ...change })} />}
-          <Labelled label="Name it, or leave it to be named for you">
-            <input className={FIELD} value={form.name} placeholder="Team notes" onChange={(event) => setForm({ ...form, name: event.target.value })} />
-          </Labelled>
-          <Labelled label="Keep what it teaches">
-            <SelectMenu
-              label="Keep what it teaches"
+          <Field label={ImportLines.nameLabel}>
+            <Input wide value={form.name} placeholder={ImportLines.namePlaceholder} onValue={(name) => setForm({ ...form, name })} />
+          </Field>
+          <Field label={ImportLines.keepLabel}>
+            <Select
+              label={ImportLines.keepLabel}
               value={form.scope}
-              options={MEMORY_SCOPES.map((each) => ({ value: each.scope, label: each.scope === 'personal' ? 'In my personal memory' : 'With the project' }))}
+              options={MEMORY_SCOPES.map((each) => ({ value: each.scope, label: each.scope === 'personal' ? ImportLines.keepPersonal : ImportLines.keepProject }))}
               onChange={(scope) => setForm({ ...form, scope })}
             />
-          </Labelled>
-          {problem !== undefined && (
-            <p role="alert" className="text-footnote text-destructive">
-              {problem}
-            </p>
-          )}
+          </Field>
+          {problem !== undefined && <ErrorLine>{problem}</ErrorLine>}
         </>
       )}
     </Dialog>
@@ -217,18 +215,11 @@ export function AddMemorySourceDialog({ parts, close, said }: { parts: SettingsP
 /** Two rows of three, as the Mac lays the six kinds so they fit the sheet's width. */
 function Kinds({ form, choose }: { form: SourceForm; choose: (kind: SourceForm['kind'], keepsPath: boolean) => void }) {
   return (
-    <div className="grid w-fit grid-cols-[repeat(3,auto)] justify-items-start gap-1.5" role="radiogroup" aria-label="Kind of source">
+    <div className="grid w-fit grid-cols-[repeat(3,auto)] justify-items-start gap-1.5" role="radiogroup" aria-label={ImportLines.kindsLabel}>
       {SOURCE_KINDS.map((each) => (
-        <button
-          key={each.kind}
-          type="button"
-          role="radio"
-          aria-checked={form.kind === each.kind}
-          onClick={() => choose(each.kind, each.place === 'folder' || each.place === 'repository')}
-          className={`mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm ${form.kind === each.kind ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`}
-        >
+        <Chip key={each.kind} role="radio" on={form.kind === each.kind} pick={() => choose(each.kind, each.place === 'folder' || each.place === 'repository')}>
           {each.label}
-        </button>
+        </Chip>
       ))}
     </div>
   );
@@ -266,20 +257,12 @@ function PathField({ parts, form, home, check, set }: { parts: SettingsParts; fo
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-footnote font-medium text-muted">{label}</span>
-      <div ref={zone} className={`flex items-start gap-2 rounded-lg transition-[padding] ${dropping ? 'bg-primary/[0.08] p-1' : ''}`}>
-        <textarea
-          className={`${FIELD} h-auto resize-none py-2 font-mono leading-5`}
-          rows={lines}
-          value={form.location}
-          placeholder={placeholder(form.kind, home)}
-          aria-label={label}
-          autoFocus
-          onChange={(event) => set(event.target.value)}
-        />
+      <div ref={zone} className={`flex items-start gap-2 rounded-control transition-[padding] ${dropping ? 'bg-primary/[0.08] p-1' : ''}`}>
+        <Textarea mono className="resize-none leading-5" rows={lines} value={form.location} placeholder={placeholder(form.kind, home)} aria-label={label} autoFocus onValue={set} />
         {host.memorySourceDisk !== undefined && (
-          <KitButton icon={Folder} title={panelMessage(form.kind)} onClick={() => void choose()}>
+          <Button icon={Folder} title={panelMessage(form.kind)} onClick={() => void choose()}>
             {ImportLines.choose}
-          </KitButton>
+          </Button>
         )}
       </div>
       <span className="text-footnote text-muted">{ImportLines.dropHint}</span>
@@ -296,7 +279,7 @@ function ImportCheckView({ check }: { check: ImportCheck }) {
   if (check.kind === 'problem') {
     return (
       <span className="flex items-start gap-1.5 text-footnote text-destructive">
-        <CircleAlert size={13} className="mt-0.5 shrink-0" aria-hidden />
+        <CircleAlert size={CHECK_GLYPH} className="mt-0.5 shrink-0" aria-hidden />
         <span className="min-w-0 break-words">{check.why}</span>
       </span>
     );
@@ -304,28 +287,17 @@ function ImportCheckView({ check }: { check: ImportCheck }) {
   const { preview } = check;
   const more = moreLine(preview.more);
   return (
-    <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-background p-3">
+    <div className="flex flex-col gap-1.5 rounded-control border border-border bg-background p-3">
       <span className="flex items-center gap-1.5 text-body-sm font-medium text-foreground">
-        <FileText size={14} className="shrink-0 text-muted" aria-hidden />
+        <FileText size={PREVIEW_GLYPH} className="shrink-0 text-muted" aria-hidden />
         {preview.headline}
       </span>
       {preview.names.map((name) => (
-        <MiddleCut key={name} text={name} />
+        <TruncatedText key={name} middle text={name} className="font-code text-meta text-muted" />
       ))}
       {more !== undefined && <span className="text-footnote text-muted">{more}</span>}
       {preview.note !== undefined && <span className="text-footnote text-muted">{preview.note}</span>}
     </div>
-  );
-}
-
-/** One name in mono cut in its middle, so both ends of a long path read. */
-function MiddleCut({ text }: { text: string }) {
-  const half = Math.ceil(text.length / 2);
-  return (
-    <span title={text} className="flex min-w-0 font-code text-meta text-muted">
-      <span className="truncate">{text.slice(0, half)}</span>
-      <span className="shrink-0 whitespace-pre">{text.slice(half)}</span>
-    </span>
   );
 }
 
@@ -364,15 +336,6 @@ function ImportFinished({ results }: { results: readonly ImportResult[] }) {
   );
 }
 
-function Labelled({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-footnote font-medium text-muted">{label}</span>
-      {children}
-    </label>
-  );
-}
-
 /** The secret's name goes with the source; the key itself goes once into the hub's store and is cleared here. */
 function SupermemoryKey({ parts, secret, setSecret }: { parts: SettingsParts; secret: string; setSecret: (secret: string) => void }) {
   const { hub } = parts;
@@ -386,24 +349,24 @@ function SupermemoryKey({ parts, secret, setSecret }: { parts: SettingsParts; se
     setKey('');
     void hub.setSecret(name, value).then((outcome) => {
       if (outcome.kind === 'failed') setNote(outcome.why);
-      else if (outcome.kind === 'proposed') setNote('Waiting for your signature on the island before the key is kept.');
-      else setNote(`${name} is kept by this computer now.`);
+      else if (outcome.kind === 'proposed') setNote(ImportLines.keyWaiting);
+      else setNote(ImportLines.keyKept(name));
     });
   };
   return (
     <>
-      <Labelled label="The name of the secret that holds the key">
-        <input className={`${FIELD} font-mono`} value={secret} onChange={(event) => setSecret(event.target.value)} />
-      </Labelled>
+      <Field label={ImportLines.secretName}>
+        <Input wide mono value={secret} onValue={setSecret} />
+      </Field>
       <div className="flex flex-col gap-1.5">
-        <span className="text-footnote font-medium text-muted">Set the key</span>
+        <span className="text-footnote font-medium text-muted">{ImportLines.setKey}</span>
         <div className="flex gap-2">
-          <input className={FIELD} type="password" autoComplete="off" value={key} placeholder="Paste the Supermemory key" aria-label="Set the key" onChange={(event) => setKey(event.target.value)} />
-          <KitButton icon={KeyRound} disabled={key === '' || secret.trim() === '' || hub.busy === secret.trim()} onClick={save}>
-            Set the key
-          </KitButton>
+          <Input wide type="password" autoComplete="off" value={key} placeholder={ImportLines.keyPlaceholder} aria-label={ImportLines.setKey} onValue={setKey} />
+          <Button icon={KeyRound} disabled={key === '' || secret.trim() === '' || hub.busy === secret.trim()} onClick={save}>
+            {ImportLines.setKey}
+          </Button>
         </div>
-        <span className="text-footnote text-muted">{note ?? 'Kept by this computer’s own store with the MCP Hub’s secrets. The source keeps only its name, and it is read as untrusted.'}</span>
+        <span className="text-footnote text-muted">{note ?? ImportLines.keyNote}</span>
       </div>
     </>
   );
@@ -415,28 +378,29 @@ function HubServerPick({ parts, form, set }: { parts: SettingsParts; form: Sourc
   const server = servers.find((each) => each.name === form.server);
   const tools = server?.tools ?? [];
   if (servers.length === 0) {
-    return <p className="text-footnote text-muted">{parts.hub.hub === undefined ? 'Reading the MCP Hub.' : 'The MCP Hub on this computer has no servers yet. Add the memory server there first.'}</p>;
+    return <p className="text-footnote text-muted">{parts.hub.hub === undefined ? ImportLines.readingHub : ImportLines.noHubServers}</p>;
   }
   return (
     <>
-      <Labelled label="The hub server">
-        <SelectMenu
-          label="The hub server"
+      <Field label={ImportLines.hubServer}>
+        <Select
+          label={ImportLines.hubServer}
           value={form.server}
-          options={[{ value: '', label: 'Choose a server' }, ...servers.map((each) => ({ value: each.name, label: each.name }))]}
+          none={ImportLines.chooseServer}
+          options={servers.map((each) => ({ value: each.name, label: each.name }))}
           onChange={(name) => set({ server: name, tool: '' })}
         />
-      </Labelled>
+      </Field>
       {server !== undefined && (
-        <Labelled label="The tool that reads its memory">
+        <Field label={ImportLines.hubTool}>
           {tools.length > 0 ? (
-            <SelectMenu label="The tool that reads its memory" value={form.tool} options={[{ value: '', label: 'Choose a tool' }, ...tools.map((each) => ({ value: each.name, label: each.name }))]} onChange={(tool) => set({ tool })} />
+            <Select label={ImportLines.hubTool} value={form.tool} none={ImportLines.chooseTool} options={tools.map((each) => ({ value: each.name, label: each.name }))} onChange={(tool) => set({ tool })} />
           ) : (
-            <input className={`${FIELD} font-mono`} value={form.tool} placeholder="search_memory" onChange={(event) => set({ tool: event.target.value })} />
+            <Input wide mono value={form.tool} placeholder={ImportLines.toolPlaceholder} onValue={(tool) => set({ tool })} />
           )}
-        </Labelled>
+        </Field>
       )}
-      <span className="text-footnote text-muted">A server outside your own files is read as untrusted.</span>
+      <span className="text-footnote text-muted">{ImportLines.serverUntrusted}</span>
     </>
   );
 }

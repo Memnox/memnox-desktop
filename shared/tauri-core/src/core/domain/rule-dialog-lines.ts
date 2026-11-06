@@ -14,6 +14,7 @@ export const RULE_DIALOG = {
   propose: 'Propose',
   proposing: 'Proposing',
   cancel: 'Cancel',
+  dataItCarries: 'Data it carries',
   whenTried: 'When an agent tries it',
   recommended: 'Suggested',
   preview: 'The rule',

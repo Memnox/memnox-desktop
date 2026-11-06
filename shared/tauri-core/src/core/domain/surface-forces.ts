@@ -21,7 +21,6 @@ export type Forces = {
 };
 
 export const FORCES: Forces = { repel: 1, link: 1, gather: 1 };
-export const FORCE_RANGE = { min: 0.2, max: 2.4 } as const;
 
 /** One body the simulation moves, which is a node and how fast it is going. */
 export type Body = { id: string; x: number; y: number; vx: number; vy: number };

@@ -7,7 +7,8 @@ import { systemName, type MemoryMapEdge, type MemoryMapNode } from "../../../../
 import { faceInk, initialsFor, profileOf } from "../../../../core/domain/memory-arms/arms-faces";
 import type { ArmsItem, ArmsModel } from "../../../../core/domain/memory-arms/arms-model";
 import { AgentName } from "../../../kit/logos";
-import { StatusWord } from "../../widgets";
+import { Pressable, StatusWord } from "../../../kit";
+import { ArmsLines } from "../../../../core/domain/memory-brain-lines";
 import { markUrl } from "./arms-support";
 import { kindWord } from "./arms-tooltip";
 
@@ -19,6 +20,11 @@ export type ArmsApp = { slug: string; name: string };
 
 /** The most names a list in the modal shows before it says how many more there are. */
 const MOST_LISTED = 12;
+
+/** Where the card's foot leads for a skill, a rule and an application. */
+const SKILLS_ROUTE: Route = { destination: "workspaces", tab: "skills" };
+const RULES_ROUTE: Route = { destination: "governance", tab: "policies" };
+const CONNECTORS_ROUTE: Route = { destination: "mcp", tab: "apps" };
 
 const LINK = "text-body-sm font-medium text-primary hover:underline";
 const QUIET = "h-8 rounded-lg border border-panel-edge px-3 text-meta font-medium text-foreground transition-colors hover:bg-hover";
@@ -75,14 +81,14 @@ export function ArmsCard({
   const footer = (
     <>
       {item.hub === true && item.core !== true && area !== undefined && (
-        <button type="button" onClick={() => onSector(area.key)} className={QUIET}>
-          Show only this area
-        </button>
+        <Pressable onClick={() => onSector(area.key)} className={QUIET}>
+          {ArmsLines.showArea}
+        </Pressable>
       )}
       {go !== undefined && <FooterLink item={item} go={go} />}
-      <button type="button" onClick={onClose} className={`${QUIET} ml-auto`}>
-        Close
-      </button>
+      <Pressable onClick={onClose} className={`${QUIET} ml-auto`}>
+        {ArmsLines.close}
+      </Pressable>
     </>
   );
 
@@ -96,9 +102,9 @@ export function ArmsCard({
             <h2 className="mt-0.5 break-words text-body font-semibold leading-snug text-foreground">{item.label}</h2>
           </div>
         </div>
-        <button type="button" aria-label="Close" onClick={onClose} className="shrink-0 rounded-lg p-1 text-muted hover:bg-hover hover:text-foreground">
+        <Pressable aria-label={ArmsLines.close} onClick={onClose} className="shrink-0 rounded-lg p-1 text-muted hover:bg-hover hover:text-foreground">
           <X className="size-4" aria-hidden />
-        </button>
+        </Pressable>
       </header>
       <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-3">
         {person && item.nodeId !== undefined ? (
@@ -112,8 +118,8 @@ export function ArmsCard({
         ) : (
           <Body item={item} model={model} skills={skills} rules={rules} apps={apps} nodeCard={nodeCard} />
         )}
-        {held.length > 0 && <ItemList title={`Holds ${held.length}`} items={held} onOpen={onOpen} />}
-        {!person && linked.length > 0 && <ItemList title="Linked" items={linked} onOpen={onOpen} />}
+        {held.length > 0 && <ItemList title={ArmsLines.holds(held.length)} items={held} onOpen={onOpen} />}
+        {!person && linked.length > 0 && <ItemList title={ArmsLines.linked} items={linked} onOpen={onOpen} />}
       </div>
       <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-panel-edge px-4 py-3">{footer}</footer>
     </div>
@@ -140,13 +146,13 @@ function Mark({ item, ink }: { item: ArmsItem; ink: string | undefined }) {
 
 function FooterLink({ item, go }: { item: ArmsItem; go: (route: Route) => void }) {
   const place = (title: string, route: Route) => (
-    <button type="button" onClick={() => go(route)} className={LINK}>
+    <Pressable onClick={() => go(route)} className={LINK}>
       {title}
-    </button>
+    </Pressable>
   );
-  if (item.core === true || item.layer === "skill") return place("Open My Skills", { destination: "workspaces", tab: "skills" });
-  if (item.layer === "rule") return place("Open Rules", { destination: "governance", tab: "policies" });
-  if (item.layer === "app") return place("Open Connectors", { destination: "mcp", tab: "apps" });
+  if (item.core === true || item.layer === "skill") return place(ArmsLines.openSkills, SKILLS_ROUTE);
+  if (item.layer === "rule") return place(ArmsLines.openRules, RULES_ROUTE);
+  if (item.layer === "app") return place(ArmsLines.openConnectors, CONNECTORS_ROUTE);
   return null;
 }
 
@@ -295,17 +301,13 @@ function ItemList({ title, items, onOpen }: { title: string; items: readonly Arm
       <ul className="flex flex-col gap-1">
         {items.slice(0, MOST_LISTED).map((each) => (
           <li key={each.id}>
-            <button
-              type="button"
-              onClick={() => onOpen(each)}
-              className="w-full truncate rounded-lg px-2 py-1 text-left text-body-sm text-foreground transition-colors hover:bg-hover"
-            >
+            <Pressable onClick={() => onOpen(each)} className="w-full truncate rounded-lg px-2 py-1 text-left text-body-sm text-foreground transition-colors hover:bg-hover">
               {each.label}
-            </button>
+            </Pressable>
           </li>
         ))}
       </ul>
-      {more > 0 && <p className="px-2 text-label text-muted">and {more} more</p>}
+      {more > 0 && <p className="px-2 text-label text-muted">{ArmsLines.andMore(more)}</p>}
     </section>
   );
 }

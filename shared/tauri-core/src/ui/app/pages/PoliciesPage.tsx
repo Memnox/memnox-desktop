@@ -1,19 +1,22 @@
-import { AppWindow, ArrowRight, Ban, Box, Check, CircleHelp, Cloud, Database, Download, FileText, GitBranch, GitPullRequest, Globe, HardDrive, KeyRound, Layers, MessageSquare, Package, Plus, Puzzle, Route, Search, Send, Settings, ShieldAlert, ShieldCheck, Sparkles, SquareTerminal, Undo2, Upload, UserCheck, UserCog, Workflow, Asterisk, type LucideIcon } from 'lucide-react';
+import { AppWindow, ArrowRight, ChevronRight, List, Box, Cloud, Database, Download, FileText, GitBranch, GitPullRequest, Globe, HardDrive, KeyRound, Layers, MessageSquare, Package, Plus, Puzzle, Route, Search, Send, Settings, ShieldAlert, ShieldCheck, Sparkles, SquareTerminal, Undo2, Upload, UserCheck, UserCog, Workflow, Asterisk, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { RuleDraftInput, StudioOutcome } from '../../../core/application/studio';
 import type { WidthClass } from '../../../core/domain/destinations';
 import { canInstall, installWaitsLine, latestLine, publisherLine } from '../../../core/domain/index-lines';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
-import { almostLine, autopilotLine, draftSentence, EFFECT_WORDS, effectTone, exportedCount, NOTHING_TO_EXPORT, packCopiedLine, packSavedLine, sourceWords, weekLine, type Effect } from '../../../core/domain/studio-lines';
+import { almostLine, autopilotLine, draftSentence, EFFECT_WORDS, effectTone, exportedCount, NOTHING_TO_EXPORT, packCopiedLine, packSavedLine, isEffect, weekLine, type Effect } from '../../../core/domain/studio-lines';
+import { RULE_BUILDER, RULE_DETAIL, RULE_DIALOG, RULE_EXAMPLES, ruleCaption, ruleDetailSentence, ruleFacts } from '../../../core/domain/rule-dialog-lines';
 import { ALL_CATEGORIES, settledCategory } from '../../../core/domain/catalog';
-import { effectTabs, onTab, ruleCards, type EffectTab, type RuleCard } from '../../../core/domain/rule-catalog';
+import { onTab, ruleCards, type EffectTab, type RuleCard } from '../../../core/domain/rule-catalog';
 import { MARK_OVERLAP_SHARE, markTiles, type ActionGlyph, type RuleMark } from '../../../core/domain/ready-rule-library';
 import { READY_EFFECTS, readyGroups, readyInForce, shownGroups, starterRules, type ReadyRule } from '../../../core/domain/ready-rules';
-import { groupCountLine, ruleAsWritten } from '../../../core/domain/rule-words';
-import { canChange, changeCountLine, changeLine, changesToml, currentEffect, flatRules, pickingSuggested, PROTECTION, PROTECTION_TABS, readyBadge, readyChanges, removals, type ProtectionTab, type ReadyChange } from '../../../core/domain/protection-lines';
+import { groupCountLine, ruleAsWritten, ruleWords } from '../../../core/domain/rule-words';
+import { canChange, changeCountLine, changeLine, changesToml, currentEffect, flatRules, inForceTabs, pickingSuggested, PROTECTION, PROTECTION_TABS, readyBadge, readyChanges, removals, type ProtectionTab, type ReadyChange } from '../../../core/domain/protection-lines';
 import type { PolicyRuleView } from '@memnox/core/wire';
-import { ToolMark } from '../../kit/logos';
-import { RULES_FILE } from '../../../core/domain/rule-toml';
+import { AgentLogos, ToolMark } from '../../kit/logos';
+import { fieldWords, ruleDocument, ruleText, RULES_FILE, tableOfDraft, tableOfRule, type RuleAlternative, type RuleTable } from '../../../core/domain/rule-toml';
+import { CodeBlock } from '../code-block';
+import { ConsoleChip, DataClassChips, EFFECT_ICONS, RULE_CODE_FIELD, RULE_FIELD, RuleDialog, RuleEffectChoice, RuleField, RuleHint, RulePreview } from './rule-dialog-parts';
 import { CatalogCard, CatalogLayout, CatalogSearch, CategoryRail, PageTabs } from '../catalog';
 import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
@@ -55,8 +58,6 @@ const MARK_ICONS: Record<RuleMark, LucideIcon> = {
   heroku: AppWindow,
 };
 
-/** Each effect wears the console's glyph for it. */
-const EFFECT_ICONS: Record<Effect, LucideIcon> = { allow: Check, ask: CircleHelp, deny: Ban };
 
 /**
  * Protection settings, laid out as the console's: Ready-made rules, All rules and Autonomy as tabs with counts,
@@ -89,8 +90,9 @@ export function PoliciesPage({ parts, width }: { parts: SettingsParts; width: Wi
   const ready = flatRules(groups);
   const changes = readyChanges(picked, ready, view.rules);
   const cards = ruleCards(scoped, []);
-  // A ready-made card's Details names its rule in force, which may sit on a card gathered under another name.
-  const inspected = cards.find((card) => card.rule !== undefined && (card.id === chosen || card.rules.some((rule) => rule.name === chosen)));
+  // The details are one rule's, by name, as the Mac's; the rules that read the same are those on its card.
+  const inspected = view.rules.find((rule) => rule.name === chosen);
+  const alike = inspected === undefined ? [] : (cards.find((card) => card.rules.includes(inspected))?.rules ?? [inspected]);
   const counts: Record<ProtectionTab, number> = { readyMade: ready.length, allRules: scoped.length, autonomy: studio.progress?.ready.length ?? 0 };
   return (
     <div className="flex min-h-0">
@@ -107,14 +109,14 @@ export function PoliciesPage({ parts, width }: { parts: SettingsParts; width: Wi
               </KitButton>
             </div>
             <PointerCard title={PROTECTION.simplerTitle} note={PROTECTION.simplerNote} open={() => setTab('readyMade')} />
-            <EffectLegend />
+            <EffectLegend stacked={width === 'narrow' || width === 'compact'} />
             {scoped.length === 0 && <PointerCard title={PROTECTION.startTitle} note={PROTECTION.startNote} open={() => setTab('readyMade')} />}
             <Section title={PROTECTION.rulesInForce} trailing={<div className="flex flex-wrap items-center gap-2"><PackButtons parts={parts} said={said} /></div>}>
-              <PageTabs label="Show rules that" tabs={effectTabs(cards).map((each) => (each.id === 'all' ? { ...each, title: PROTECTION.allTab } : each))} chosen={filter} choose={(id) => setFilter(id as EffectTab)} />
+              <PageTabs label="Show rules that" tabs={inForceTabs(scoped)} chosen={filter} choose={(id) => setFilter(id as EffectTab)} />
               {view.problems.length > 0 && (
                 <div role="alert" className="flex flex-col gap-1 rounded-xl border border-panel-edge bg-card px-4 py-3">
                   {view.problems.map((problem) => (
-                    <StatusWord key={problem.file} tone="bad">{`${problem.file}: ${problem.issues.join(' ')}`}</StatusWord>
+                    <p key={problem.file} className="text-footnote font-medium text-destructive">{`${problem.file}: ${problem.issues.join(' ')}`}</p>
                   ))}
                 </div>
               )}
@@ -130,11 +132,13 @@ export function PoliciesPage({ parts, width }: { parts: SettingsParts; width: Wi
         )}
       </div>
       {inspected !== undefined && (
-        <Inspector title={inspected.title} width={width} close={() => choose(undefined)} item={inspected.id}>
+        <Inspector title={inspected.name} width={width} close={() => choose(undefined)} item={inspected.name}>
           <RuleDetail
-            card={inspected}
-            remove={(name) => void studio.remove(name).then((outcome) => (said(outcome), outcome.kind === 'done' && inspected.rules.length === 1 && choose(undefined)))}
-            busy={(name) => studio.busy === name}
+            rule={inspected}
+            alike={alike}
+            open={choose}
+            remove={(name) => void studio.remove(name).then((outcome) => (said(outcome), outcome.kind === 'done' && choose(undefined)))}
+            busy={studio.busy === inspected.name}
           />
         </Inspector>
       )}
@@ -193,7 +197,7 @@ function ReadyMadeRules({ parts, groups, inForce, picked, setPicked, orgOnly, op
         {shown.length === 0 ? (
           <EmptyState icon={Search} title={PROTECTION.noneMatchTitle} body={PROTECTION.noneMatchDetail} />
         ) : (
-          <CardGrid>
+          <CardGrid min={240} gap={16}>
             {shown.map((rule) => {
               const live = readyInForce(rule, inForce);
               return (
@@ -235,15 +239,15 @@ const ACTION_ICONS: Record<ActionGlyph, LucideIcon> = {
 const MARK_SIDE = 28;
 const GLYPH_SHARE = 0.42;
 const LOGO_SHARE = 0.78;
-/** The Mac's corner of a square, 8 on a side of 36, scaled to the side drawn. */
-const MARK_RADIUS = (MARK_SIDE * 8) / 36;
 
 /**
  * What a rule is about, as the Mac's `RuleMarks` stacks it: up to four squares, each tucked under the one before it and
  * ringed in the card's colour, a product's own logo on white or a glyph for a kind of act.
  */
-function RuleMarks({ rule }: { rule: ReadyRule }) {
-  const tiles = markTiles(rule.marks, rule.actions);
+function RuleMarks({ marks, actions, side = MARK_SIDE }: { marks: readonly RuleMark[]; actions: readonly string[]; side?: number }) {
+  // The Mac's corner of a square, 8 on a side of 36, scaled to the side drawn.
+  const radius = (side * 8) / 36;
+  const tiles = markTiles(marks, actions);
   return (
     <span className="flex shrink-0 items-center" aria-hidden>
       {tiles.map((tile, at) => {
@@ -252,9 +256,9 @@ function RuleMarks({ rule }: { rule: ReadyRule }) {
           <span
             key={tile.kind === 'logo' ? tile.toolkit : tile.kind === 'mark' ? tile.mark : tile.glyph}
             className={`grid shrink-0 place-items-center border border-border text-muted ${tile.kind === 'logo' ? 'bg-white' : 'bg-background'}`}
-            style={{ width: MARK_SIDE, height: MARK_SIDE, borderRadius: MARK_RADIUS, marginLeft: at === 0 ? 0 : -MARK_SIDE * MARK_OVERLAP_SHARE, boxShadow: '0 0 0 2px var(--color-card)', zIndex: tiles.length - at }}
+            style={{ width: side, height: side, borderRadius: radius, marginLeft: at === 0 ? 0 : -side * MARK_OVERLAP_SHARE, boxShadow: '0 0 0 2px var(--color-card)', zIndex: tiles.length - at }}
           >
-            {tile.kind === 'logo' ? <ToolMark toolkit={tile.toolkit} size={Math.round(MARK_SIDE * LOGO_SHARE)} /> : Icon !== undefined && <Icon size={Math.round(MARK_SIDE * GLYPH_SHARE)} />}
+            {tile.kind === 'logo' ? <ToolMark toolkit={tile.toolkit} size={Math.round(side * LOGO_SHARE)} /> : Icon !== undefined && <Icon size={Math.round(side * GLYPH_SHARE)} />}
           </span>
         );
       })}
@@ -272,7 +276,7 @@ function ReadyCard({ rule, inForce, picked, disabled, pick, open }: { rule: Read
   return (
     <div className={`flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-left ${picked === undefined ? 'border-panel-edge' : 'border-primary'}`} aria-label={`${rule.title}, ${badge.word}`}>
       <div className="flex items-start gap-2">
-        <RuleMarks rule={rule} />
+        <RuleMarks marks={rule.marks} actions={rule.actions} />
         <span className="flex-1" />
         <div className="flex flex-col items-end gap-0.5">
           <StatusWord tone={badge.tone}>{badge.word}</StatusWord>
@@ -360,7 +364,7 @@ function ChangesBar({ count, busy, undo, review }: { count: number; busy: boolea
 
 /** Review and save, as the Mac's: each change from and to, and the rules as the runtime reads them. Saving takes out each changed rule first, then proposes every new table in one import, each still waiting for its own signature on the island. */
 function ReviewAndSave({ parts, changes, close, saved }: { parts: SettingsParts; changes: readonly ReadyChange[]; close: () => void; saved: (outcome: StudioOutcome) => void }) {
-  const { studio, words } = parts;
+  const { studio, words, host } = parts;
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const taken = removals(changes);
@@ -378,36 +382,37 @@ function ReviewAndSave({ parts, changes, close, saved }: { parts: SettingsParts;
     saved(outcome);
   };
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-[8vh]" role="presentation" onMouseDown={close}>
-      <div role="dialog" aria-modal="true" aria-label={PROTECTION.review} className="flex w-full max-w-[560px] flex-col rounded-xl border border-panel-edge bg-card shadow-[0_24px_60px_rgb(0_0_0/0.18)]" onMouseDown={(event) => event.stopPropagation()}>
-        <header className="flex flex-col gap-1 border-b border-panel-edge px-5 py-3.5">
-          <span className="text-lg font-semibold">{PROTECTION.review}</span>
-          <span className="text-footnote text-muted">{PROTECTION.reviewDescription(words.keyTitle)}</span>
-        </header>
-        <div className="flex flex-col gap-4 px-5 py-5">
-          <p className="text-meta text-muted">{`${changeCountLine(changes.length)}. ${PROTECTION.previewed}`}</p>
-          <Panel>
-            {changes.map((change) => (
-              <Row key={change.rule.id} title={change.rule.title} caption={changeLine(change)} trailing={<StatusWord tone={effectTone(change.to)}>{EFFECT_WORDS[change.to].title}</StatusWord>} />
-            ))}
-          </Panel>
-          {taken.length > 0 && <p className="text-meta text-muted">{PROTECTION.retaken}</p>}
-          <details>
-            <summary className="mx-focus cursor-pointer text-footnote text-muted">{RULES_FILE}</summary>
-            <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-hover p-3 font-mono text-micro">{toml ?? ''}</pre>
-          </details>
-          {problem !== undefined && <p role="alert" className="text-footnote text-destructive">{problem}</p>}
-        </div>
-        <footer className="flex items-center justify-end gap-2 border-t border-panel-edge px-5 py-3.5">
-          <KitButton onClick={close}>Cancel</KitButton>
-          <KitButton kind="primary" disabled={sending || changes.length === 0 || studio.busy !== undefined} onClick={() => void save()}>
-            {sending ? PROTECTION.saving : PROTECTION.save}
-          </KitButton>
-        </footer>
-      </div>
-    </div>
+    <RuleDialog
+      title={PROTECTION.review}
+      description={PROTECTION.reviewDescription(words.keyTitle)}
+      confirm={{ idle: PROTECTION.save, busy: PROTECTION.saving }}
+      proposing={sending}
+      canPropose={studio.busy === undefined && changes.length > 0}
+      close={close}
+      propose={() => void save()}
+    >
+      <p className="text-footnote text-muted">{`${changeCountLine(changes.length)}. ${PROTECTION.previewed}`}</p>
+      <Panel>
+        {changes.map((change) => (
+          <div key={change.rule.id} className="flex items-center gap-3 px-4 py-3">
+            <RuleMarks marks={change.rule.marks.slice(0, 1)} actions={change.rule.actions.slice(0, 1)} side={REVIEW_MARK_SIDE} />
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="text-body-sm font-medium text-foreground">{change.rule.title}</span>
+              <span className="text-footnote text-muted">{changeLine(change)}</span>
+            </span>
+            <StatusWord tone={effectTone(change.to)}>{EFFECT_WORDS[change.to].title}</StatusWord>
+          </div>
+        ))}
+      </Panel>
+      {taken.length > 0 && <p className="text-footnote text-muted">{PROTECTION.retaken}</p>}
+      <RulePreview code={toml ?? ''} copy={host.copy} />
+      {problem !== undefined && <p role="alert" className="text-footnote text-destructive">{problem}</p>}
+    </RuleDialog>
   );
 }
+
+/** The side of a review row's one mark, as the Mac's review sheet draws it. */
+const REVIEW_MARK_SIDE = 28;
 
 /** A card that is a press to the tab that answers the question better, as the console's pointer cards link. */
 function PointerCard({ title, note, open }: { title: string; note: string; open: () => void }) {
@@ -422,15 +427,18 @@ function PointerCard({ title, note, open }: { title: string; note: string; open:
   );
 }
 
-/** The three effects said once over the rules, so every word below is already explained. */
-function EffectLegend() {
+/**
+ * The three effects said once over the rules, so every word below is already explained: three across on a wide or
+ * medium window, one under another on a narrow or compact one, as the Mac's legend stacks.
+ */
+function EffectLegend({ stacked }: { stacked: boolean }) {
   return (
-    <ul className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2">
+    <ul className={stacked ? 'flex flex-col gap-1.5' : 'grid grid-cols-3 items-stretch gap-1.5'}>
       {(Object.keys(EFFECT_WORDS) as Effect[]).map((effect) => {
         const Icon = EFFECT_ICONS[effect];
         return (
-          <li key={effect} className="flex items-start gap-2.5 rounded-xl border border-panel-edge bg-card px-4 py-3">
-            <Icon size={16} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+          <li key={effect} className="flex items-start gap-2 rounded-xl border border-panel-edge bg-card px-4 py-3">
+            <Icon size={14} className="mt-0.5 shrink-0 text-muted" aria-hidden />
             <span className="min-w-0">
               <span className="block text-body-sm font-medium text-foreground">{EFFECT_WORDS[effect].title}</span>
               <span className="block text-meta text-muted">{EFFECT_WORDS[effect].says}</span>
@@ -455,9 +463,9 @@ function RulesInForce({ cards, filtered, chosen, pick }: { cards: readonly RuleC
           <Row
             key={card.id}
             title={card.title}
-            caption={card.line}
-            chosen={card.id === chosen}
-            onClick={() => pick(card.id)}
+            caption={ruleCaption(card.rule?.match.agents, card.line, agentLabel)}
+            chosen={card.rules.some((rule) => rule.name === chosen)}
+            onClick={() => pick(card.rules[0]?.name ?? card.id)}
             trailing={
               <>
                 {count !== undefined && <span className="inline-flex items-center rounded-full bg-hover px-2 py-px text-label font-medium text-muted">{count}</span>}
@@ -478,131 +486,234 @@ function noteOf(outcome: StudioOutcome, keyTitle: string): string {
   return outcome.note;
 }
 
-/** A card's rules in plain words first, then each one as written, with where it came from and how it is removed. */
-function RuleDetail({ card, remove, busy }: { card: RuleCard; remove: (name: string) => void; busy: (name: string) => boolean }) {
-  const count = groupCountLine(card.rules.length);
+/** An effect as the panel's full width band, as the Mac's: its glyph 12 and its word in the effect's colour on its own tint. */
+const BAND_TINT: Record<Effect, string> = {
+  allow: 'text-success bg-[color-mix(in_oklab,var(--mx-success)_12%,transparent)]',
+  ask: 'text-warm bg-[color-mix(in_oklab,var(--mx-warm)_14%,transparent)]',
+  deny: 'text-destructive bg-[color-mix(in_oklab,var(--mx-destructive)_12%,transparent)]',
+};
+
+function EffectBand({ effect }: { effect: Effect }) {
+  const Icon = EFFECT_ICONS[effect];
   return (
-    <div className="flex flex-col gap-5">
-      <p className="text-headline font-semibold text-foreground">{card.title}</p>
-      <span className="flex flex-wrap items-center gap-2">
-        {card.rule !== undefined && <ScopeChip scope={ruleScope(card.rule)} />}
-        <StatusWord tone={effectTone(card.effect)}>{EFFECT_WORDS[card.effect].says}</StatusWord>
-        {count !== undefined && <span className="text-footnote text-muted">{count}</span>}
-      </span>
-      <p className="text-body text-foreground">{card.line}</p>
-      {card.rules.map((rule) => (
-        <details key={rule.name} className="flex flex-col gap-3 border-t border-panel-edge pt-3" open={card.rules.length === 1}>
-          <summary className="mx-focus cursor-pointer text-footnote text-muted">{card.rules.length === 1 ? 'The rule as written' : rule.name}</summary>
-          <div className="flex flex-col gap-3 pt-2">
-            <p className="text-footnote text-foreground">{rule.sentence}</p>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-footnote">
-              {ruleAsWritten(rule).map((each) => (
-                <div key={each.field} className="contents">
-                  <dt className="text-muted">{each.field}</dt>
-                  <dd className="font-mono break-all text-foreground">{each.values}</dd>
-                </div>
-              ))}
-              <dt className="text-muted">From</dt>
-              <dd className="text-foreground">{sourceWords(rule)}</dd>
-              {rule.until !== undefined && (
-                <>
-                  <dt className="text-muted">Until</dt>
-                  <dd className="text-foreground">{new Date(rule.until).toLocaleString()}</dd>
-                </>
-              )}
-            </dl>
-            {rule.editable ? (
-              <div>
-                <KitButton disabled={busy(rule.name)} onClick={() => remove(rule.name)}>
-                  {rule.effect === 'allow' ? 'Remove' : 'Propose removing it'}
-                </KitButton>
-                {rule.effect !== 'allow' && <p className="pt-2 text-footnote text-muted">Removing a rule that asks or refuses lets agents do more, so it waits for your signature.</p>}
-              </div>
-            ) : (
-              <p className="text-footnote text-muted">This rule is not one set on this computer, so it is changed where it came from.</p>
-            )}
-          </div>
-        </details>
-      ))}
+    <div className={`flex min-h-[30px] w-full items-center gap-1.5 rounded-md px-2 ${BAND_TINT[effect]}`}>
+      <Icon size={12} strokeWidth={2.4} aria-hidden />
+      <span className="text-body-sm font-medium">{EFFECT_WORDS[effect].title}</span>
     </div>
   );
 }
 
-/** When, then, and scope, read back as a sentence before it is proposed; the TOML is there for those who want it. */
+/** Label and value as the Mac's FactList sets them: a grid, 16 across and 8 down, all in 12, the label muted. */
+function FactList({ facts, agents = {} }: { facts: readonly [string, string][]; agents?: Readonly<Record<string, readonly string[]>> }) {
+  return (
+    <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-2 text-meta">
+      {facts.map(([label, value]) => (
+        <div key={label} className="contents">
+          <dt className="text-muted">{label}</dt>
+          <dd className="flex min-w-0 items-center gap-1.5 break-words text-foreground select-text">
+            {agents[label] !== undefined && agents[label].length > 0 && <AgentLogos agents={agents[label].map((agent) => ({ agent, name: agentLabel(agent) }))} />}
+            {value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** How the details write a moment, the day and the time, as the Mac's abbreviated date with a short time. */
+const moment = (iso: string): string => {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+};
+
+/**
+ * One rule whole, as the Mac's rule panel: its effect as a band, its plain title, why it exists, the rules that say
+ * the same, the rule as written behind a disclosure, its other fields, and Remove where it is this computer's own.
+ */
+function RuleDetail({ rule, alike, open, remove, busy }: { rule: PolicyRuleView; alike: readonly PolicyRuleView[]; open: (name: string) => void; remove: (name: string) => void; busy: boolean }) {
+  const words = ruleWords(rule);
+  const effect = isEffect(rule.effect) ? rule.effect : undefined;
+  const sentence = effect === undefined ? rule.sentence : ruleDetailSentence({ actions: rule.match.actions, effect, ...(rule.match.agents === undefined ? {} : { agents: rule.match.agents }), ...(rule.match.targets === undefined ? {} : { targets: rule.match.targets }) }, agentLabel);
+  return (
+    <div className="flex flex-col">
+      <div className="flex flex-col gap-3 pb-4">
+        {effect !== undefined && <EffectBand effect={effect} />}
+        <h3 className="text-lg font-semibold text-foreground select-text">{words.title}</h3>
+      </div>
+      <div className="h-px bg-panel-edge" />
+      <div className="flex flex-col gap-5 pt-4">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-meta text-muted">{RULE_DETAIL.why}</span>
+          <span className="text-body-sm text-foreground select-text">{ruleCaption(rule.match.agents, words.why, agentLabel)}</span>
+        </div>
+        {alike.length > 1 && (
+          <div className="flex flex-col items-start gap-1">
+            <span className="text-meta text-muted">{groupCountLine(alike.length)}</span>
+            {alike.map((each) => (
+              <button
+                key={each.name}
+                type="button"
+                aria-pressed={each.name === rule.name}
+                onClick={() => open(each.name)}
+                className={`mx-focus cursor-pointer text-left text-body-sm ${each.name === rule.name ? 'font-medium text-foreground' : 'text-primary'}`}
+              >
+                {each.name}
+              </button>
+            ))}
+          </div>
+        )}
+        <details key={rule.name} className="group">
+          <summary className="mx-focus flex cursor-pointer list-none items-center gap-1.5 text-body-sm font-medium text-foreground select-none">
+            <ChevronRight size={12} strokeWidth={2.4} className="text-muted transition-transform group-open:rotate-90" aria-hidden />
+            {RULE_DETAIL.asWritten}
+          </summary>
+          <div className="flex flex-col gap-3 pt-2">
+            <p className="text-body-sm leading-relaxed text-foreground select-text">{sentence}</p>
+            <FactList facts={ruleAsWritten(rule).map((each) => [each.field, each.values])} agents={{ [RULE_DETAIL.agents]: rule.match.agents ?? [] }} />
+            <CodeBlock code={ruleText(tableOfRule(rule))} label={RULES_FILE} />
+          </div>
+        </details>
+        <FactList facts={ruleFacts(rule, moment)} />
+        {rule.editable ? (
+          <div className="flex flex-col items-start gap-2">
+            <KitButton disabled={busy} onClick={() => remove(rule.name)}>
+              {rule.effect === 'allow' ? RULE_DETAIL.remove : RULE_DETAIL.proposeRemoving}
+            </KitButton>
+            {rule.effect !== 'allow' && <p className="text-footnote text-muted">{RULE_DETAIL.removeNote}</p>}
+          </div>
+        ) : (
+          <p className="text-footnote text-muted">{RULE_DETAIL.elsewhere}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Proposing a rule is a decision, so it is a dialog laid out as the Mac's: the action, what happens when an agent
+ * tries it, then what narrows it, read back as a sentence and shown as the TOML the runtime reads. A rule naming the
+ * data it carries or a way round goes up as that TOML, since a draft alone cannot carry either.
+ */
 function RuleBuilder({ parts, start, close, said }: { parts: SettingsParts; start: Partial<RuleDraftInput>; close: () => void; said: (outcome: StudioOutcome) => void }) {
-  const { studio, hub } = parts;
+  const { studio, hub, words, host } = parts;
   const [effect, setEffect] = useState<Effect>((start.effect as Effect | undefined) ?? 'ask');
   const [action, setAction] = useState(start.action ?? '');
   const [agent, setAgent] = useState('');
-  const [target, setTarget] = useState('');
+  const [targets, setTargets] = useState('');
+  const [carries, setCarries] = useState('');
+  const [classes, setClasses] = useState('');
   const [branch, setBranch] = useState('');
   const [folder, setFolder] = useState('');
+  const [insteadAction, setInsteadAction] = useState('');
+  const [insteadNote, setInsteadNote] = useState('');
   const [reason, setReason] = useState('');
+  // Why the runtime refused the last proposal, said in the dialog since the page behind it is covered.
+  const [problem, setProblem] = useState<string | undefined>(undefined);
   const first = useRef<HTMLInputElement>(null);
   useEffect(() => first.current?.focus(), []);
   const agents = hub.hub?.agents.map((each) => each.agent) ?? [];
   const known = [...new Set((studio.rules?.rules ?? []).flatMap((rule) => rule.match.actions))].sort();
-  const list = (value: string) => (value.trim() === '' ? undefined : [value.trim()]);
-  const draft: RuleDraftInput = {
+  const why = reason.trim();
+  const optional = <K extends string>(key: K, values: string[] | undefined) => (values === undefined ? {} : ({ [key]: values } as Record<K, string[]>));
+  const draft = {
     effect,
     action: action.trim(),
-    reason: reason.trim() === '' ? `you chose to ${effect} this` : reason.trim(),
-    ...(list(agent) === undefined ? {} : { agents: list(agent) }),
-    ...(list(target) === undefined ? {} : { targets: list(target) }),
-    ...(list(branch) === undefined ? {} : { branches: list(branch) }),
-    ...(list(folder) === undefined ? {} : { workingDirectories: list(folder) }),
+    reason: why === '' ? `you chose to ${effect} this` : why,
+    ...optional('branches', fieldWords(branch)),
+    ...optional('targets', fieldWords(targets)),
+    ...optional('agents', agent === '' ? undefined : [agent]),
+    ...optional('workingDirectories', fieldWords(folder)),
+    ...optional('classes', fieldWords(classes)),
   } as RuleDraftInput;
-  const field = 'h-9 w-full mx-field rounded-lg border border-field-edge bg-field px-3 text-body text-foreground outline-none placeholder:text-faint focus:border-primary';
+  const way = { action: insteadAction.trim(), note: insteadNote.trim() };
+  const alternative: RuleAlternative | undefined = effect === 'deny' && way.action !== '' && way.note !== '' ? way : undefined;
+  // One half of the way round named without the other, which the runtime would refuse.
+  const halfAnAlternative = effect === 'deny' && (way.action === '') !== (way.note === '');
+  const table: RuleTable = { ...tableOfDraft(draft, fieldWords(carries)), ...(alternative === undefined ? {} : { alternative }) };
+  const asFile = fieldWords(carries) !== undefined || alternative !== undefined;
+  const sending = studio.busy === 'propose' || studio.busy === 'pack';
+  const canPropose = draft.action !== '' && !halfAnAlternative && studio.busy === undefined;
+  const sentence = draftSentence(draft, agentLabel);
+  const propose = () =>
+    void (asFile ? studio.importPack(ruleDocument([ruleText(table)])) : studio.propose(draft)).then((outcome) => {
+      said(outcome);
+      if (outcome.kind === 'failed') return setProblem(outcome.why);
+      close();
+    });
+  const code = (placeholder: string, value: string, set: (next: string) => void, label: string) => (
+    <input className={RULE_CODE_FIELD} placeholder={placeholder} value={value} onChange={(event) => set(event.target.value)} aria-label={label} />
+  );
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-[8vh]" role="presentation" onMouseDown={close}>
-      <div role="dialog" aria-modal="true" aria-label={PROTECTION.propose} className="flex w-full max-w-[560px] flex-col rounded-xl border border-panel-edge bg-card shadow-[0_24px_60px_rgb(0_0_0/0.18)]" onMouseDown={(event) => event.stopPropagation()}>
-        <header className="border-b border-panel-edge px-5 py-3.5 text-lg font-semibold">{PROTECTION.propose}</header>
-        <div className="flex flex-col gap-4 px-5 py-5">
-          <fieldset className="flex flex-col gap-2">
-            <legend className="pb-1.5 text-footnote font-semibold text-muted">When</legend>
-            <select className={field} value={agent} onChange={(event) => setAgent(event.target.value)} aria-label="Which agent">
-              <option value="">Any agent</option>
-              {agents.map((each) => (
-                <option key={each} value={each}>
-                  {agentLabel(each)}
-                </option>
-              ))}
-            </select>
-            <input ref={first} list="known-actions" className={`${field} font-mono`} placeholder="git.push" value={action} onChange={(event) => setAction(event.target.value)} aria-label="The action" />
-            <datalist id="known-actions">{known.map((each) => <option key={each} value={each} />)}</datalist>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <input className={field} placeholder="On, optional" value={target} onChange={(event) => setTarget(event.target.value)} aria-label="Target" />
-              <input className={field} placeholder="Branch, optional" value={branch} onChange={(event) => setBranch(event.target.value)} aria-label="Branch" />
-              <input className={field} placeholder="Folder, optional" value={folder} onChange={(event) => setFolder(event.target.value)} aria-label="Folder" />
-            </div>
-          </fieldset>
-          <fieldset className="flex flex-col gap-2">
-            <legend className="pb-1.5 text-footnote font-semibold text-muted">Then</legend>
-            <div role="radiogroup" className="grid grid-cols-3 gap-2">
-              {(Object.keys(EFFECT_WORDS) as Effect[]).map((each) => (
-                <button key={each} type="button" role="radio" aria-checked={effect === each} onClick={() => setEffect(each)} className={`mx-focus cursor-pointer rounded-xl border px-3 py-2.5 text-left ${effect === each ? 'border-primary bg-hover' : 'border-panel-edge hover:bg-hover'}`}>
-                  <StatusWord tone={effectTone(each)}>{EFFECT_WORDS[each].title}</StatusWord>
-                  <span className="block pt-1 text-micro text-muted">{EFFECT_WORDS[each].says}</span>
-                </button>
-              ))}
-            </div>
-            <input className={field} placeholder="Why, in your words" value={reason} onChange={(event) => setReason(event.target.value)} aria-label="Why" />
-          </fieldset>
-          <p className="rounded-lg bg-hover px-3.5 py-3 text-body text-foreground">{draftSentence(draft, agentLabel)}</p>
-          <details>
-            <summary className="mx-focus cursor-pointer text-footnote text-muted">Show the rule as written</summary>
-            <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-hover p-3 font-mono text-micro">{JSON.stringify(draft, null, 2)}</pre>
-          </details>
+    <RuleDialog title={RULE_BUILDER.title} description={RULE_DIALOG.proposeDescription(words.keyTitle)} proposing={sending} canPropose={canPropose} close={close} propose={propose}>
+      <RuleField label={RULE_BUILDER.action}>
+        <div className="flex items-center gap-1.5">
+          <input ref={first} className={RULE_CODE_FIELD} placeholder={RULE_BUILDER.actionPlaceholder} value={action} onChange={(event) => setAction(event.target.value)} aria-label={RULE_BUILDER.action} />
+          {known.length > 0 && (
+            <label className="relative grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg text-muted hover:bg-hover hover:text-foreground" title={RULE_BUILDER.knownHelp}>
+              <List size={14} aria-hidden />
+              <select className="absolute inset-0 cursor-pointer opacity-0" value="" onChange={(event) => event.target.value !== '' && setAction(event.target.value)} aria-label={RULE_BUILDER.knownActions}>
+                <option value="" />
+                {known.map((each) => (
+                  <option key={each} value={each}>
+                    {each}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
-        <footer className="flex items-center gap-2 border-t border-panel-edge px-5 py-3.5">
-          <span className="flex-1 text-footnote text-muted">{`It goes in force when you sign it with ${parts.words.keyTitle}.`}</span>
-          <KitButton onClick={close}>Cancel</KitButton>
-          <KitButton kind="primary" disabled={action.trim() === '' || studio.busy !== undefined} onClick={() => void studio.propose(draft).then((outcome) => (said(outcome), outcome.kind !== 'failed' && close()))}>
-            Propose
-          </KitButton>
-        </footer>
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <span className="flex h-8 items-center text-meta text-muted">{RULE_BUILDER.tryOne}</span>
+          {RULE_EXAMPLES.map((example) => (
+            <ConsoleChip key={example.action} title={example.title} chosen={action.trim() === example.action} choose={() => setAction(example.action)} />
+          ))}
+        </div>
+      </RuleField>
+      <RuleEffectChoice chosen={effect} choose={setEffect} />
+      <RuleField label={RULE_BUILDER.agent} optional>
+        <select className={RULE_FIELD} value={agent} onChange={(event) => setAgent(event.target.value)} aria-label={RULE_BUILDER.agent}>
+          <option value="">{RULE_BUILDER.anyAgent}</option>
+          {agents.map((each) => (
+            <option key={each} value={each}>
+              {agentLabel(each)}
+            </option>
+          ))}
+        </select>
+      </RuleField>
+      <RuleField label={RULE_BUILDER.targets} optional hint={RULE_BUILDER.targetsHint}>
+        {code(RULE_BUILDER.targetsPlaceholder, targets, setTargets, RULE_BUILDER.targets)}
+      </RuleField>
+      <RuleField label={RULE_BUILDER.carries} optional>
+        {code(RULE_BUILDER.carriesPlaceholder, carries, setCarries, RULE_BUILDER.carries)}
+        <RuleHint text={RULE_BUILDER.carriesHint} />
+        <DataClassChips text={carries} setText={setCarries} />
+      </RuleField>
+      <RuleField label={RULE_BUILDER.classes} optional hint={RULE_BUILDER.classesHint}>
+        {code(RULE_BUILDER.classesPlaceholder, classes, setClasses, RULE_BUILDER.classes)}
+      </RuleField>
+      <div className="grid grid-cols-2 items-start gap-2">
+        <RuleField label={RULE_BUILDER.branch} optional>
+          {code(RULE_BUILDER.branchPlaceholder, branch, setBranch, RULE_BUILDER.branch)}
+        </RuleField>
+        <RuleField label={RULE_BUILDER.folder} optional>
+          {code(RULE_BUILDER.folderPlaceholder, folder, setFolder, RULE_BUILDER.folder)}
+        </RuleField>
       </div>
-    </div>
+      {effect === 'deny' && (
+        <RuleField label={RULE_BUILDER.instead} optional hint={RULE_BUILDER.insteadHint}>
+          {code(RULE_BUILDER.insteadAction, insteadAction, setInsteadAction, RULE_BUILDER.insteadActionLabel)}
+          <input className={RULE_FIELD} placeholder={RULE_BUILDER.insteadNote} value={insteadNote} onChange={(event) => setInsteadNote(event.target.value)} aria-label={RULE_BUILDER.insteadNoteLabel} />
+        </RuleField>
+      )}
+      <RuleField label={RULE_BUILDER.why} optional>
+        <input className={RULE_FIELD} placeholder={RULE_BUILDER.whyPlaceholder} value={reason} onChange={(event) => setReason(event.target.value)} aria-label="Why" />
+      </RuleField>
+      <p className="rounded-xl bg-hover p-3 text-body-sm font-medium text-foreground" aria-label={RULE_BUILDER.readBack(sentence)}>
+        {sentence}
+      </p>
+      <RulePreview code={ruleText(table)} copy={host.copy} />
+      {problem !== undefined && <p role="alert" className="text-footnote text-destructive">{problem}</p>}
+    </RuleDialog>
   );
 }
 
@@ -727,10 +838,10 @@ function PackButtons({ parts, said }: { parts: SettingsParts; said: (outcome: St
   };
   return (
     <>
-      <KitButton icon={Download} onClick={() => void exportPack()}>
+      <KitButton icon={Download} title="Save the rules set on this computer as a TOML file" onClick={() => void exportPack()}>
         Export
       </KitButton>
-      <KitButton icon={Upload} onClick={() => void importPack()}>
+      <KitButton icon={Upload} disabled={studio.busy === 'pack'} title="Propose every rule in a TOML file, each signed on its own" onClick={() => void importPack()}>
         Import
       </KitButton>
       <input

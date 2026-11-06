@@ -156,3 +156,9 @@ export function removals(changes: readonly ReadyChange[]): string[] {
 export function changesToml(changes: readonly ReadyChange[]): string | undefined {
   return readyToml(changes.map((change) => ({ rule: change.rule, effect: change.to })));
 }
+
+/** All, then Allow, Ask and Deny over the rules in force, each counting rules rather than rows, as the Mac counts them. */
+export function inForceTabs(rules: readonly Pick<PolicyRuleView, 'effect'>[]): { id: 'all' | Effect; title: string; count: number }[] {
+  const of = (effect: Effect) => rules.filter((rule) => rule.effect === effect).length;
+  return [{ id: 'all', title: PROTECTION.allTab, count: rules.length }, ...(Object.keys(EFFECT_WORDS) as Effect[]).map((effect) => ({ id: effect, title: EFFECT_WORDS[effect].title, count: of(effect) }))];
+}

@@ -212,7 +212,7 @@ export function ruleAsWritten(rule: Pick<PolicyRuleView, 'match'>): { field: str
     ['Agents', rule.match.agents],
     ['Folders', rule.match.workingDirectories],
     ['Branches', rule.match.branches],
-    ['Kinds', rule.match.classes],
+    ['Kinds of call', rule.match.classes],
   ];
   return fields.filter((field): field is [string, readonly string[]] => field[1] !== undefined && field[1].length > 0).map(([field, values]) => ({ field, values: values.join(', ') }));
 }

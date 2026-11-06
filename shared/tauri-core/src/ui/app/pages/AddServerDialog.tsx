@@ -1,7 +1,7 @@
 import { Minus, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import type { HubOutcome, HubServerDraft } from '../../../core/application/mcp-hub';
-import { agentLabel, headerProblem, headersOf, isCredentialHeader, remoteAddressProblem, serverNameFrom, splitCommand, type HeaderRow } from '../../../core/domain/mcp-hub-lines';
+import type { HubServerDraft } from '../../../core/application/mcp-hub';
+import { addedLine, agentLabel, COMMAND_HINT, headerProblem, headersOf, isCredentialHeader, remoteAddressProblem, serverNameFrom, splitCommand, type HeaderRow } from '../../../core/domain/mcp-hub-lines';
 import { BrandLogo } from '../../kit/logos';
 import { KitButton } from '../../settings/kit';
 import type { SettingsParts } from '../../settings/parts';
@@ -19,7 +19,7 @@ const STEPS = ['Server', 'Variables', 'Agents'] as const;
  * this computer's own store and the server is written with only its name, so no agent's config holds it. A remote
  * server's header kept as a secret goes the same way, sent as `memnox-secret:<name>` for the proxy to fill in.
  */
-export function AddServerDialog({ parts, agents, close, said }: { parts: SettingsParts; agents: readonly string[]; close: () => void; said: (outcome: HubOutcome) => void }) {
+export function AddServerDialog({ parts, agents, close, noted }: { parts: SettingsParts; agents: readonly string[]; close: () => void; noted: (line: string | undefined) => void }) {
   const { hub } = parts;
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
@@ -32,6 +32,7 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
   const [given, setGiven] = useState<ReadonlySet<string>>(new Set());
   const [advanced, setAdvanced] = useState(false);
   const [problem, setProblem] = useState<string | undefined>(undefined);
+  const [working, setWorking] = useState(false);
   const first = useRef<HTMLInputElement>(null);
   useEffect(() => first.current?.focus(), []);
 
@@ -63,6 +64,12 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
       setProblem(server);
       return;
     }
+    setWorking(true);
+    await put(server);
+    setWorking(false);
+  };
+
+  const put = async (server: HubServerDraft) => {
     // Secrets first, so the server never starts without its credential.
     const headerSecrets = remote ? Object.entries(headersOf(server.name, headers).secrets) : [];
     for (const [secret, value] of headerSecrets) {
@@ -84,9 +91,11 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
       setProblem(outcome.why);
       return;
     }
-    said(outcome);
     // Each agent is asked for once the person has signed the server in, one signature each.
-    hub.giveOnceAdded(server.name, [...given]);
+    const chosen = agents.filter((agent) => given.has(agent));
+    hub.giveOnceAdded(server.name, chosen);
+    // What waits, what will run in place of an install, and who is asked next, said on the page the dialog leaves.
+    noted(addedLine(hub.press(server.name), server.name, chosen, parts.words.keyTitle));
     close();
   };
 
@@ -121,9 +130,12 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
                   <input className={field} value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://mcp.example.com/mcp" />
                 </Labelled>
               ) : (
-                <Labelled label="Command">
-                  <input className={`${field} font-mono`} value={launch} onChange={(event) => setLaunch(event.target.value)} placeholder="npx -y @modelcontextprotocol/server-github" />
-                </Labelled>
+                <>
+                  <Labelled label="Command">
+                    <input className={`${field} font-mono`} value={launch} onChange={(event) => setLaunch(event.target.value)} placeholder="npx -y @modelcontextprotocol/server-github" />
+                  </Labelled>
+                  <p className="text-footnote text-muted">{COMMAND_HINT}</p>
+                </>
               )}
               {remote && <HeaderRows rows={headers} change={setHeaders} field={field} />}
               {remote && <p className="text-footnote text-muted">Memnox stands in front of a remote server, so every call to it is ruled on and recorded. Plain http is only for one on this computer.</p>}
@@ -209,7 +221,8 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
           )}
         </div>
 
-        <footer className="flex items-center gap-2 border-t border-panel-edge px-5 py-3.5">
+        <footer className="flex items-center gap-2 border-t border-panel-edge px-5 py-3">
+          <KitButton onClick={close}>Cancel</KitButton>
           {step > 0 && <KitButton onClick={() => setStep(step - 1)}>Back</KitButton>}
           <span className="flex-1" />
           {step < STEPS.length - 1 ? (
@@ -217,7 +230,7 @@ export function AddServerDialog({ parts, agents, close, said }: { parts: Setting
               Continue
             </KitButton>
           ) : (
-            <KitButton kind="primary" disabled={hub.busy !== undefined} onClick={() => void finish()}>
+            <KitButton kind="primary" disabled={working || hub.busy !== undefined} onClick={() => void finish()}>
               Add server
             </KitButton>
           )}

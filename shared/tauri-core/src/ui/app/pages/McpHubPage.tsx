@@ -3,10 +3,10 @@ import { CircleCheck, Clock, Fingerprint, Folder, KeyRound, Plug, Plus, RefreshC
 import { useEffect, useState, type ReactNode } from 'react';
 import { McpHub, type HubOutcome, type McpPress } from '../../../core/application/mcp-hub';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
-import { agentLabel, agentsOnce, pressLine, transportWord, usedBy, agentsLine, callsLine, fromOrganization, headerLines, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
+import { agentLabel, agentsOnce, BRING_IN, BRINGING_IN, SERVER_CARD_MIN, pressLine, transportWord, usedBy, agentsLine, callsLine, fromOrganization, headerLines, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
 import { ago } from '../../../core/domain/session-text';
 import { BrandLogo } from '../../kit/logos';
-import { KitButton, SearchField } from '../../settings/kit';
+import { KitButton, SearchField, Spinner } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { YourAppsPage } from '../../settings/pages/YourAppsPage';
 import { AddServerDialog } from './AddServerDialog';
@@ -47,7 +47,7 @@ export function McpHubPage({ parts, tab, width, go }: { parts: SettingsParts; ta
       )}
       {tab === 'clients' && <Clients parts={parts} view={view} said={said} workspaces={workspaces} />}
       {tab === 'secrets' && <Secrets parts={parts} view={view} said={said} />}
-      {(tab === 'servers' || tab === undefined) && <Servers parts={parts} view={view} width={width} said={said} workspaces={workspaces} />}
+      {(tab === 'servers' || tab === undefined) && <Servers parts={parts} view={view} width={width} said={said} noted={setNote} workspaces={workspaces} />}
     </>
   );
 }
@@ -58,7 +58,7 @@ function noteOf(outcome: HubOutcome, keyTitle: string): string {
   return outcome.note;
 }
 
-function Servers({ parts, view, width, said, workspaces }: { parts: SettingsParts; view: McpHubView; width: WidthClass; said: (outcome: HubOutcome) => void; workspaces: () => void }) {
+function Servers({ parts, view, width, said, noted, workspaces }: { parts: SettingsParts; view: McpHubView; width: WidthClass; said: (outcome: HubOutcome) => void; noted: (line: string | undefined) => void; workspaces: () => void }) {
   const { hub } = parts;
   const [query, setQuery] = useState('');
   const [chosen, choose] = usePicked();
@@ -94,7 +94,7 @@ function Servers({ parts, view, width, said, workspaces }: { parts: SettingsPart
           />
           )
         ) : (
-          <CardGrid>
+          <CardGrid min={SERVER_CARD_MIN}>
             {shown.map((server) => (
               <ServerCard key={server.name} parts={parts} server={server} chosen={server.name === chosen} pick={() => choose(server.name)} said={said} />
             ))}
@@ -108,7 +108,7 @@ function Servers({ parts, view, width, said, workspaces }: { parts: SettingsPart
           <ServerDetail parts={parts} view={view} server={picked} said={said} removed={() => choose(undefined)} workspaces={workspaces} />
         </Inspector>
       )}
-      {adding && <AddServerDialog parts={parts} agents={view.agents.map((each) => each.agent)} close={() => setAdding(false)} said={said} />}
+      {adding && <AddServerDialog parts={parts} agents={view.agents.map((each) => each.agent)} close={() => setAdding(false)} noted={noted} />}
     </div>
   );
 }
@@ -147,12 +147,12 @@ function ServerCard({ parts, server, chosen, pick, said }: { parts: SettingsPart
           <StatusWord tone="quiet">{transportWord(server)}</StatusWord>
         </div>
         <MiddleCutLine text={launchLine(server)} title={[launchLine(server), ...(server.args ?? [])].join(' ')} />
-        {server.description !== undefined && <span className="line-clamp-2 text-footnote text-muted">{server.description}</span>}
+        {server.description !== undefined && <span className="truncate text-footnote text-muted">{server.description}</span>}
       </div>
       <div className="border-t border-panel-edge" />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         {missing.length > 0 ? <StatusWord tone="bad">Needs a secret</StatusWord> : <StatusWord tone={words.tone}>{words.word}</StatusWord>}
-        <span className="text-footnote text-muted">{toolsLine(health.tools?.length ?? server.toolCount)}</span>
+        <span className="whitespace-nowrap text-meta text-faint">{toolsLine(health.tools?.length ?? server.toolCount)}</span>
         <span className="flex-1" />
         <button
           type="button"
@@ -162,8 +162,9 @@ function ServerCard({ parts, server, chosen, pick, said }: { parts: SettingsPart
             event.stopPropagation();
             void hub.test(server.name).then(said);
           }}
-          className="mx-focus cursor-pointer text-footnote font-medium text-primary hover:underline disabled:cursor-default disabled:text-muted disabled:no-underline"
+          className="mx-focus inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-primary hover:underline disabled:cursor-default disabled:no-underline"
         >
+          {testing && <Spinner size={10} />}
           {testing ? 'Testing' : 'Test'}
         </button>
       </div>
@@ -176,7 +177,7 @@ function ServerCard({ parts, server, chosen, pick, said }: { parts: SettingsPart
               ))}
             </span>
           )}
-          <span className="truncate text-footnote text-muted" title={usedBy(server)}>
+          <span className={`truncate text-meta ${agents.length === 0 ? 'text-faint' : 'text-muted'}`} title={usedBy(server)}>
             {usedBy(server)}
           </span>
         </span>
@@ -196,7 +197,7 @@ function ServerCard({ parts, server, chosen, pick, said }: { parts: SettingsPart
 function MiddleCutLine({ text, title }: { text: string; title: string }) {
   const half = Math.ceil(text.length / 2);
   return (
-    <span title={title} className="flex min-w-0 font-code text-micro text-muted">
+    <span title={title} className="flex min-w-0 font-code text-footnote text-muted">
       <span className="truncate">{text.slice(0, half)}</span>
       <span className="shrink-0 whitespace-pre">{text.slice(half)}</span>
     </span>
@@ -205,13 +206,19 @@ function MiddleCutLine({ text, title }: { text: string; title: string }) {
 
 /** Where the last press on one row stands, in that row: asking the runtime, the island it waits on, or what it came to. */
 function PressLine({ press, keyTitle }: { press: McpPress | undefined; keyTitle: string }) {
-  if (press?.kind === 'working') return <span className="text-footnote text-muted">Asking the runtime</span>;
+  if (press?.kind === 'working')
+    return (
+      <span className="flex items-center gap-1.5 text-meta text-muted">
+        <Spinner size={10} />
+        Asking the runtime
+      </span>
+    );
   const line = pressLine(press, keyTitle);
   if (line === undefined) return null;
   const Icon = press?.kind === 'waiting' ? Fingerprint : line.tone === 'good' ? CircleCheck : line.tone === 'bad' ? TriangleAlert : Clock;
   const ink = line.tone === 'good' ? 'text-success' : line.tone === 'bad' ? 'text-destructive' : 'text-muted';
   return (
-    <span role="status" className={`flex items-start gap-1.5 text-footnote select-text ${ink}`}>
+    <span role="status" className={`flex items-start gap-1.5 text-meta select-text ${ink}`}>
       <Icon size={13} className="mt-0.5 shrink-0" aria-hidden />
       <span className="min-w-0 break-words">{line.text}</span>
     </span>
@@ -370,7 +377,8 @@ function Found({ parts, view, said }: { parts: SettingsParts; view: McpHubView; 
                 <span className="text-footnote text-muted">A repository’s own file</span>
               ) : (
                 <KitButton disabled={hub.press(McpHub.found(entry.name, entry.agent))?.kind === 'working'} onClick={() => entry.agent !== undefined && void hub.importServer(entry.agent, entry.name).then(said)}>
-                  Bring into the hub
+                  {hub.press(McpHub.found(entry.name, entry.agent))?.kind === 'working' && <Spinner size={10} />}
+                  {hub.press(McpHub.found(entry.name, entry.agent))?.kind === 'working' ? BRINGING_IN : BRING_IN}
                 </KitButton>
               )
             }

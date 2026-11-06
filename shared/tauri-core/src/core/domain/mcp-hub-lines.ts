@@ -275,3 +275,27 @@ export function pressLine(press: { kind: 'working' } | { kind: 'waiting'; note: 
       return { text: press.why, tone: 'bad' };
   }
 }
+
+/** What the page says after a server is added, as the Mac's `McpHubLines.added`: who it waits on, what will run, and who is asked next. */
+export function addedLine(press: Parameters<typeof pressLine>[0], server: string, agents: readonly string[], keyTitle: string): string | undefined {
+  if (press?.kind !== 'waiting') return pressLine(press, keyTitle)?.text;
+  const parts = [`${server} waits for ${keyTitle} on the island`];
+  if (press.note !== undefined && press.note !== '') parts.push(press.note.endsWith('.') ? press.note.slice(0, -1) : press.note);
+  const names = agents.map(agentLabel);
+  const last = names.at(-1);
+  if (last !== undefined) {
+    const who = names.length === 1 ? last : `${names.slice(0, -1).join(', ')} and ${last}`;
+    parts.push(`Once it is signed, giving it to ${who} asks for ${keyTitle} again`);
+  }
+  return `${parts.join('. ')}.`;
+}
+
+/** Under the Command field, as the Mac's Add a server sheet says it. */
+export const COMMAND_HINT = 'The command that starts it. An install such as pip install or npm install is fine too: Memnox starts it with the runner that installs it.';
+
+/** A found server's button while it is brought in, and before. */
+export const BRING_IN = 'Bring into the hub';
+export const BRINGING_IN = 'Bringing in';
+
+/** The narrowest a server card reads well at, the Mac's `McpServersLayout.cardWidth`. */
+export const SERVER_CARD_MIN = 300;

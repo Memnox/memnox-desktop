@@ -222,3 +222,15 @@ describe('what each row of the hub says', () => {
     expect(hub.press(pair)).toBeUndefined();
   });
 });
+
+describe('the line after Add server', () => {
+  it('says who it waits on and who is asked next, as the Mac does', async () => {
+    const { addedLine, COMMAND_HINT } = await import('../src/core/domain/mcp-hub-lines');
+    expect(addedLine({ kind: 'waiting', note: 'It runs uvx mcp-server-git.' }, 'git', ['claude-code', 'claude-code'], 'Windows Hello')).toBe(
+      'git waits for Windows Hello on the island. It runs uvx mcp-server-git. Once it is signed, giving it to Claude Code and Claude Code asks for Windows Hello again.',
+    );
+    expect(addedLine({ kind: 'waiting', note: undefined }, 'git', [], 'Windows Hello')).toBe('git waits for Windows Hello on the island.');
+    expect(addedLine({ kind: 'done', line: 'git is in the hub.' }, 'git', [], 'Windows Hello')).toBe('git is in the hub.');
+    expect(COMMAND_HINT).toContain('Memnox starts it with the runner that installs it.');
+  });
+});

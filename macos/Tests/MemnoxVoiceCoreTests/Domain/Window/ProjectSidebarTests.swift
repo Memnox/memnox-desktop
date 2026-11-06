@@ -11,6 +11,17 @@ final class ProjectSidebarTests: XCTestCase {
         XCTAssertFalse(ProjectSidebar.pages.contains { $0.title.contains("Code") })
     }
 
+    func testSaysWhatEachPageIsForInTheWordsTheWindowsAndLinuxAppUses() {
+        XCTAssertEqual(ProjectPage.overview.summary, "What this project is, what it still needs, and what it learned lately.")
+    }
+
+    func testOpensTheSharedMySkillsFromTheOverviewsSkillsPart() {
+        // The Overview's Skills part is ProjectCanUseTarget.shared(.skills), which lands on My Skills outside the project.
+        let skills = Sidebar.rows.first { $0.id == .skills }
+        XCTAssertEqual(skills.flatMap { Sidebar.target($0, supports: everything) }, WindowRoute(.workspaces, tab: "skills"))
+        XCTAssertEqual(ProjectCanUseTarget.shared(.skills).title, "Skills")
+    }
+
     func testOpensOnTheOverviewAndKnowsWhereTheWindowIs() {
         let route = ProjectSidebar.route("prj_1")
         XCTAssertEqual(ProjectSidebar.place(of: route), ProjectPlace(id: "prj_1", page: .overview))

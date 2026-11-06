@@ -390,7 +390,8 @@ export function canUse(project: Pick<ProjectView, 'agents' | 'skills' | 'servers
         ? 'Written know how its AI follows, such as how your team reviews work or writes an update.'
         : 'Written know how its AI follows, such as how you review work or write an update.',
       counted: true,
-      target: { kind: 'page', page: 'agents' },
+      // The shared My Skills, which narrows to the project the switcher holds, as on the Mac.
+      target: { kind: 'shared', row: 'skills' },
     },
     { kind: 'apps', title: 'Apps', names: apps, empty: 'None yet.', what: 'Tools its AI can reach and act in, such as Linear, a database or a design tool.', counted: true, target: { kind: 'shared', row: 'connectors' } },
   ];

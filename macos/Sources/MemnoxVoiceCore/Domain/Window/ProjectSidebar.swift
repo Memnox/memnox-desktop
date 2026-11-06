@@ -24,7 +24,7 @@ public enum ProjectPage: String, CaseIterable, Sendable {
     /// One line under the page's title saying what it is for.
     public var summary: String {
         switch self {
-        case .overview: "What this project is, and what it learned lately."
+        case .overview: "What this project is, what it still needs, and what it learned lately."
         case .tools: "Where this project\u{2019}s work happens, and what its agents learn from."
         case .agents: "The agents that work in this project, and what each is given."
         case .memory: "What its agents learned in this project, and what they know in every project."

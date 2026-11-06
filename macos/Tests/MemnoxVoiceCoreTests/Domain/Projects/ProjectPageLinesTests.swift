@@ -57,7 +57,7 @@ final class ProjectPageLinesTests: XCTestCase {
     func testSaysWhatItsAIUsesWithNoPeopleWhileAlone() {
         let alone = ProjectPageLines.canUse(project(servers: [ProjectGrantView(name: "github", inHub: true, agents: [])]), joined: false)
         XCTAssertEqual(alone.map(\.title), ["AI agents", "Skills", "Apps"])
-        XCTAssertEqual(alone.map(\.target), [.page(.agents), .page(.rules), .shared(.connectors)])
+        XCTAssertEqual(alone.map(\.target), [.page(.agents), .shared(.skills), .shared(.connectors)])
         XCTAssertEqual(alone[1].names, ["review-checklist", "gone"])
         XCTAssertEqual(alone[2].names, ["github"])
         XCTAssertFalse(alone.contains { $0.empty.contains("people") || $0.what.contains("team") })

@@ -98,6 +98,7 @@ describe('the sidebar a project swaps in', () => {
     expect(empty.map((card) => card.name)).toEqual(['Add documents', 'Add an app']);
     expect(empty.find((card) => card.name === 'Add an app')?.action).toEqual({ kind: 'connect' });
     expect(projectPageInfo('tools').summary).toBe('Where this project’s work happens, and what its agents learn from.');
+    expect(projectPageInfo('overview').summary).toBe('What this project is, what it still needs, and what it learned lately.');
     const shared = projectToolCards(project({ scope: 'organization', organization }), { hub: ['postgres'], connections: [] });
     expect(shared.some((card) => card.action?.kind === 'add-server')).toBe(false);
   });
@@ -173,7 +174,7 @@ describe('What its AI can use', () => {
     expect(alone.map((part) => `${part.title} ${part.names.join(',')}`)).toEqual(['AI agents Claude Code', 'Skills review', 'Apps linear']);
     expect(alone.map((part) => part.target)).toEqual([
       { kind: 'page', page: 'agents' },
-      { kind: 'page', page: 'agents' },
+      { kind: 'shared', row: 'skills' },
       { kind: 'shared', row: 'connectors' },
     ]);
     expect(alone.some((part) => /people|team/.test(`${part.empty} ${part.what}`))).toBe(false);

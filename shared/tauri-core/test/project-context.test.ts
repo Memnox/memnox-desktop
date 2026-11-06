@@ -98,6 +98,9 @@ describe('what belongs to one project and what is shared', () => {
     expect(links.map((each) => each.title)).toEqual(['Protection settings', 'Skills', 'MCP servers', 'Connectors', 'Memory', 'AI agents']);
     expect(links[0]?.hint).toBe('3 rules hold here and in every project');
     expect(links[1]?.hint).toBe('1 skill its agents carry in every project');
+    // The Overview's Skills part opens this link, the shared My Skills, rather than one of the project's own pages.
+    expect(links[1]?.route).toEqual({ destination: 'workspaces', tab: 'skills' });
+    expect(links[4]?.route).toEqual({ destination: 'workspaces', tab: 'map' });
     expect(links[2]?.count).toBeUndefined();
     expect(shared({}, () => false).map((each) => each.title)).toEqual(['Connectors', 'AI agents']);
     expect(SHARED_SHOWN).toBe(false);

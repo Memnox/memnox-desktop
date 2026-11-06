@@ -208,7 +208,7 @@ public enum ProjectPageLines {
             ProjectCanUsePart(kind: .skills, title: "Skills", names: skills, empty: "None yet.",
                               what: team ? "Written know how its AI follows, such as how your team reviews work or writes an update."
                                   : "Written know how its AI follows, such as how you review work or write an update.",
-                              target: .page(.rules)),
+                              target: .shared(.skills)),
             ProjectCanUsePart(kind: .apps, title: "Apps", names: apps, empty: "None yet.",
                               what: "Tools its AI can reach and act in, such as Linear, a database or a design tool.",
                               target: .shared(.connectors)),

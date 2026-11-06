@@ -21,6 +21,7 @@ import {
   type HomeStanding,
   type HomeStep,
 } from '../../../core/domain/home-steps';
+import { HomeStartLines } from '../../../core/domain/home-page-lines';
 import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { Dialog } from './SkillDialogs';
@@ -73,14 +74,14 @@ export function HomeStart({ parts, go, actions, mode }: { parts: SettingsParts; 
     else go(STEP_ROUTE[step.id]);
   };
   const hide = (
-    <KitButton onClick={toggle} title={hidden ? 'Show the steps again' : 'Fold these steps to one line until you want them again'}>
-      {hidden ? 'Show' : 'Hide'}
+    <KitButton onClick={toggle} title={hidden ? HomeStartLines.showHelp : HomeStartLines.hideHelp}>
+      {hidden ? HomeStartLines.show : HomeStartLines.hide}
     </KitButton>
   );
 
   if (hidden) {
     return (
-      <section aria-label="What to do next, hidden" className="flex items-center gap-3 rounded-xl border border-panel-edge bg-card px-5 py-3">
+      <section aria-label={HomeStartLines.hiddenLabel} className="flex items-center gap-3 rounded-xl border border-panel-edge bg-card px-5 py-3">
         <span className="flex-1 text-body-sm font-medium text-foreground">{STAGE_LABEL[setup.stage]}</span>
         <StepsDone setup={setup} />
         {hide}
@@ -88,7 +89,7 @@ export function HomeStart({ parts, go, actions, mode }: { parts: SettingsParts; 
     );
   }
   return (
-    <section aria-label="What to do next" className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-5">
+    <section aria-label={HomeStartLines.label} className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-5">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-3">
           <h2 className="flex-1 text-base font-medium text-foreground">{STAGE_LABEL[setup.stage]}</h2>
@@ -102,7 +103,7 @@ export function HomeStart({ parts, go, actions, mode }: { parts: SettingsParts; 
       {setup.waiting.map((step) => (
         <WaitingRung key={step.id} step={step} />
       ))}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
         {TRACKS.map((track) => {
           const steps = restOf(setup, track);
           if (steps.length === 0) return null;
@@ -116,7 +117,7 @@ export function HomeStart({ parts, go, actions, mode }: { parts: SettingsParts; 
                     <button
                       type="button"
                       title={step.value}
-                      aria-label={`${step.title}, ${step.done ? 'done' : 'not yet'}`}
+                      aria-label={HomeStartLines.step(step.title, step.done)}
                       onClick={() => press(step)}
                       className="mx-focus flex cursor-pointer items-start gap-2 text-left text-body-sm"
                     >
@@ -131,11 +132,12 @@ export function HomeStart({ parts, go, actions, mode }: { parts: SettingsParts; 
         })}
       </div>
       {setup.standing.length > 0 && (
-        <dl className="flex flex-wrap gap-x-6 gap-y-2 border-t border-panel-edge pt-3">
+        <dl className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-panel-edge pt-2">
+          {/* The label first and its count after it, as the Mac's Standing reads. */}
           {setup.standing.map((count) => (
-            <div key={count.label} className="flex items-baseline gap-1.5">
-              <dd className="text-body-sm font-semibold text-foreground tabular-nums">{count.count}</dd>
+            <div key={count.label} className="flex items-baseline gap-1">
               <dt className="text-meta text-muted">{count.label}</dt>
+              <dd className="font-code text-body-sm font-medium text-foreground tabular-nums">{count.count}</dd>
             </div>
           ))}
         </dl>
@@ -155,7 +157,7 @@ export function HomeStart({ parts, go, actions, mode }: { parts: SettingsParts; 
                 {HomeEnforce.readFirst}
               </KitButton>
               <span className="flex-1" />
-              <KitButton onClick={() => setConfirming(false)}>Cancel</KitButton>
+              <KitButton onClick={() => setConfirming(false)}>{HomeStartLines.cancel}</KitButton>
               <KitButton
                 kind="primary"
                 icon={Hand}
@@ -183,7 +185,7 @@ function StepsDone({ setup }: { setup: HomeSetup }) {
   const radius = 6;
   const round = 2 * Math.PI * radius;
   return (
-    <span className="flex items-center gap-1.5" aria-label={`${setup.completed} of ${setup.steps.length} steps done`}>
+    <span className="flex items-center gap-1.5" aria-label={HomeStartLines.stepsDone(setup.completed, setup.steps.length)}>
       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden className="-rotate-90">
         <circle cx="7" cy="7" r={radius} fill="none" stroke="var(--color-panel-edge)" strokeWidth="2" />
         <circle cx="7" cy="7" r={radius} fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeDasharray={`${round * share} ${round}`} />
@@ -197,7 +199,7 @@ function StepsDone({ setup }: { setup: HomeSetup }) {
 function NextRung({ step, busy, press }: { step: HomeStep; busy: boolean; press: (step: HomeStep) => void }) {
   return (
     <div className="flex flex-col gap-1.5 rounded-xl border border-primary/30 bg-primary/5 p-4">
-      <p className="font-code text-label font-medium tracking-[0.16em] text-primary uppercase">Do this next</p>
+      <p className="font-code text-label font-medium tracking-[0.16em] text-primary">{HomeStartLines.doThisNext}</p>
       <p className="text-base font-medium text-foreground">{step.title}</p>
       <p className="text-body-sm text-muted">{step.value}</p>
       <p className="pt-1 text-body-sm text-foreground select-text">{step.how}</p>

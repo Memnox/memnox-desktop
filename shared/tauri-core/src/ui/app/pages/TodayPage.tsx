@@ -1,10 +1,11 @@
-import { ChevronDown, ChevronUp, Fingerprint } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleArrowRight, CircleCheck, CircleDashed, CircleX, Fingerprint, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { HeldOutcome } from '../../../core/application/held-calls';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
 import type { HeldCard } from '../../../core/domain/held-card';
 import { briefItems, HOME_BRIEF_NONE, HOME_BRIEF_TITLE, homeBrief, type HomeBriefBlock } from '../../../core/domain/home-brief';
 import { HomeLines } from '../../../core/domain/home-lines';
+import { heldSigningLine, TodayPageLines } from '../../../core/domain/home-page-lines';
 import {
   age,
   choiceFor,
@@ -31,7 +32,7 @@ import { AgentName, BrandLogo } from '../../kit/logos';
 import { KitButton } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { bringForward } from '../../sessions/open-session';
-import { EmptyState, Inspector, StatusWord, type Tone } from '../widgets';
+import { Inspector, StatusWord, type Tone } from '../widgets';
 import { GoLink } from './HomePage';
 
 /** The window reads the clock this often, so ages and the synced time stay true while it is open. */
@@ -39,13 +40,36 @@ const CLOCK_MS = 15_000;
 /** How long the window waits before opening the live feed again after the daemon went away. */
 const RECONNECT_MS = 2_000;
 
-const STATE_TONE: Record<TodayState, Tone> = {
-  'needs-you': 'attention',
-  stopped: 'bad',
-  working: 'good',
-  'up-next': 'quiet',
-  done: 'good',
+/** Each state's mark and colour, as the Mac's `StateMark` draws them, so the colour is never all that says it. */
+const STATE_MARK: Record<TodayState, { icon: LucideIcon; tone: Tone }> = {
+  'needs-you': { icon: TriangleAlert, tone: 'attention' },
+  stopped: { icon: CircleX, tone: 'bad' },
+  working: { icon: CircleDashed, tone: 'good' },
+  'up-next': { icon: CircleArrowRight, tone: 'quiet' },
+  done: { icon: CircleCheck, tone: 'good' },
 };
+
+const MARK_TEXT: Record<Tone, string> = {
+  good: 'text-success',
+  attention: 'text-warm',
+  bad: 'text-destructive',
+  quiet: 'text-muted',
+};
+
+/** The Mac's `WorkTable` widths: the number, From, When and State, with What taking what is left. Tailwind reads class
+ * names whole, so the widths are written out here and a test holds them to `TODAY_TABLE`. */
+const TABLE_COLUMNS = 'grid-cols-[28px_minmax(0,1fr)_170px_72px_118px]';
+
+/** A state as a mark in its colour beside its word, the Mac's `StateMark`, used on every work table. */
+export function StateMark({ state }: { state: TodayState }) {
+  const { icon: Icon, tone } = STATE_MARK[state];
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <Icon size={11} strokeWidth={2.6} className={`shrink-0 ${MARK_TEXT[tone]}`} aria-hidden />
+      <span className="truncate text-meta font-medium text-foreground">{TODAY_STATE_LABEL[state]}</span>
+    </span>
+  );
+}
 
 /**
  * What Today showed, drawn on Home below `lead` as the console's home brief: waiting on you, working now, today, ready
@@ -196,11 +220,11 @@ export function TodayPage({
   const shownUrgent = everyUrgent ? needYou.length : Math.min(needYou.length, URGENT_SHOWN);
   return (
     <div ref={page} tabIndex={-1} onKeyDown={keys} className="flex min-h-0 outline-none">
-      <div className="flex min-w-0 flex-1 flex-col gap-7">
+      <div className="flex min-w-0 flex-1 flex-col gap-6">
         {lead}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-panel-edge bg-card px-4 py-2.5 text-body-sm text-muted">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-panel-edge bg-hover px-4 py-2.5 text-meta text-muted">
           <span className={needYou.length === 0 ? 'invisible' : ''}>
-            <StatusWord tone={needYou.length === 0 ? 'good' : 'attention'}>{needYou.length === 0 ? TODAY_STATE_LABEL.done : TODAY_STATE_LABEL['needs-you']}</StatusWord>
+            <StateMark state={needYou.length === 0 ? 'done' : 'needs-you'} />
           </span>
           <span className="text-foreground">{stripLine(needYou.length, shownUrgent)}</span>
           {waitsLine(needYou) !== undefined && <span>{waitsLine(needYou)}</span>}
@@ -217,10 +241,10 @@ export function TodayPage({
             <section key={block} className="flex flex-col gap-2.5">
               <div className="flex min-h-7 items-center justify-between gap-3">
                 <h2 className="text-base font-medium text-foreground">{held.length === 0 ? HOME_BRIEF_TITLE[block] : `${HOME_BRIEF_TITLE[block]} · ${held.length}`}</h2>
-                <span className="flex items-center gap-3">
-                  {block === 'today' && <GoLink onClick={() => go({ destination: 'governance', tab: 'activity' })}>Activity</GoLink>}
+                <span className="flex items-center gap-2">
+                  {block === 'today' && <GoLink onClick={() => go({ destination: 'governance', tab: 'activity' })}>{TodayPageLines.activity}</GoLink>}
                   {held.length > 0 && (
-                    <KitButton onClick={() => setHidden((now) => (folded ? new Set([...now].filter((each) => each !== block)) : new Set([...now, block])))}>{folded ? 'Show' : 'Hide'}</KitButton>
+                    <KitButton onClick={() => setHidden((now) => (folded ? new Set([...now].filter((each) => each !== block)) : new Set([...now, block])))}>{folded ? TodayPageLines.show : TodayPageLines.hide}</KitButton>
                   )}
                 </span>
               </div>
@@ -229,7 +253,7 @@ export function TodayPage({
               ) : (
                 !folded && <Table items={shown} all={items} now={now} open={open} pick={moveTo} />
               )}
-              {!folded && cut && <GoLink onClick={() => setEveryUrgent(true)}>{`Show all ${held.length}`}</GoLink>}
+              {!folded && cut && <GoLink onClick={() => setEveryUrgent(true)}>{TodayPageLines.showAll(held.length)}</GoLink>}
               {block === 'today' && today !== undefined && <p className="text-footnote text-muted">{HomeLines.today(today)}</p>}
               {block === 'waiting' && waitingFoot}
             </section>
@@ -290,12 +314,12 @@ function useHeldFeed({ calls }: SettingsParts): void {
 function Table({ items, all, now, open, pick }: { items: readonly TodayItem[]; all: readonly TodayItem[]; now: number; open: string | undefined; pick: (id: string) => void }) {
   return (
     <div className="overflow-hidden rounded-xl border border-panel-edge bg-card">
-      <div className="grid grid-cols-[2rem_minmax(0,1fr)_9rem_4.5rem_6.5rem] gap-3 border-b border-panel-edge px-4 py-2 text-label font-medium tracking-[0.14em] text-faint uppercase max-[639px]:hidden">
-        <span />
-        <span>What</span>
-        <span>From</span>
-        <span>When</span>
-        <span>State</span>
+      <div className={`grid ${TABLE_COLUMNS} h-[34px] items-center gap-3 border-b border-panel-edge px-4 text-label font-medium text-faint max-[639px]:hidden`} aria-hidden>
+        {TodayPageLines.columns.map((title, index) => (
+          <span key={index} className="truncate">
+            {title}
+          </span>
+        ))}
       </div>
       <div className="divide-y divide-panel-edge">
         {items.map((item) => {
@@ -309,7 +333,7 @@ function Table({ items, all, now, open, pick }: { items: readonly TodayItem[]; a
               aria-pressed={chosen}
               aria-label={`${number}. ${item.title}, from ${item.agentName}, ${TODAY_STATE_LABEL[item.state]}`}
               onClick={() => pick(item.id)}
-              className={`mx-focus grid w-full cursor-pointer grid-cols-[2rem_minmax(0,1fr)_9rem_4.5rem_6.5rem] items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-hover max-[639px]:grid-cols-[2rem_minmax(0,1fr)] ${chosen ? 'bg-active' : ''}`}
+              className={`mx-focus grid w-full cursor-pointer ${TABLE_COLUMNS} items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-hover max-[639px]:grid-cols-[2rem_minmax(0,1fr)] ${chosen ? 'bg-active' : ''}`}
             >
               <span className="font-code text-label text-faint">{number}</span>
               <span className="flex min-w-0 flex-col gap-0.5">
@@ -317,12 +341,12 @@ function Table({ items, all, now, open, pick }: { items: readonly TodayItem[]; a
                 {line !== undefined && <span className="truncate text-meta text-muted">{line}</span>}
               </span>
               <span className="flex min-w-0 items-center gap-1.5 max-[639px]:hidden">
-                <BrandLogo agent={item.agent ?? 'memnox'} name={item.agentName} size={18} />
+                <BrandLogo agent={item.agent ?? 'memnox'} name={item.agentName} size={20} />
                 <span className="truncate text-meta text-foreground">{item.agentName}</span>
               </span>
               <span className="font-code text-label text-muted max-[639px]:hidden">{age(item.since, now) ?? ''}</span>
-              <span className="max-[639px]:hidden">
-                <StatusWord tone={STATE_TONE[item.state]}>{TODAY_STATE_LABEL[item.state]}</StatusWord>
+              <span className="min-w-0 max-[639px]:hidden">
+                <StateMark state={item.state} />
               </span>
             </button>
           );
@@ -355,25 +379,25 @@ function Detail({
   press: (choice: TodayChoice) => void;
 }) {
   const facts: [string, ReactNode][] = [
-    ['From', <AgentName agent={item.agent ?? 'memnox'} name={item.agentName} />],
-    ['Waiting', waited(item.since, now)],
+    [TodayPageLines.from, <AgentName agent={item.agent ?? 'memnox'} name={item.agentName} />],
+    [TodayPageLines.waiting, waited(item.since, now)],
   ];
-  if (item.project !== undefined) facts.push(['Project', item.project]);
-  if (item.detail !== undefined) facts.push(['About', item.detail]);
-  if (item.kind.kind === 'held' && card !== undefined) facts.push(['Signed', signedLine(card, keyTitle)]);
+  if (item.project !== undefined) facts.push([TodayPageLines.project, item.project]);
+  if (item.detail !== undefined) facts.push([TodayPageLines.about, item.detail]);
+  if (item.kind.kind === 'held' && card !== undefined) facts.push([TodayPageLines.signed, heldSigningLine(card.touchID, card.actionDigest, keyTitle)]);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-1.5">
-        <StepButton label="The item above" disabled={first} onClick={() => move(-1)} up />
-        <StepButton label="The item below" disabled={last} onClick={() => move(1)} />
+        <StepButton label={TodayPageLines.above} disabled={first} onClick={() => move(-1)} up />
+        <StepButton label={TodayPageLines.below} disabled={last} onClick={() => move(1)} />
         <span className="flex-1" />
-        <span className="text-label text-faint">Up and Down move, a letter decides, Escape closes</span>
+        <span className="text-label text-faint">{TodayPageLines.keys}</span>
       </div>
       <h3 className="text-lg font-semibold break-words text-foreground select-text">{item.title}</h3>
       <span>
-        <StatusWord tone={STATE_TONE[item.state]}>{TODAY_STATE_LABEL[item.state]}</StatusWord>
+        <StateMark state={item.state} />
       </span>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-body-sm">
+      <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 text-meta">
         {facts.map(([name, value]) => (
           <div key={name} className="contents">
             <dt className="text-muted">{name}</dt>
@@ -381,10 +405,10 @@ function Detail({
           </div>
         ))}
       </dl>
-      <Block title="RECOMMENDATION">
+      <Block title={TodayPageLines.recommendation}>
         <p className={`text-body-sm ${item.recommendation === undefined ? 'text-muted' : 'text-foreground'}`}>{item.recommendation ?? NO_RECOMMENDATION}</p>
       </Block>
-      <Block title="DECIDE">
+      <Block title={TodayPageLines.decide}>
         {item.choices.length === 0 ? (
           <p className="text-body-sm text-muted">{NO_CHOICES}</p>
         ) : (
@@ -411,8 +435,8 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 function StepButton({ label, disabled, onClick, up = false }: { label: string; disabled: boolean; onClick: () => void; up?: boolean }) {
   const Icon = up ? ChevronUp : ChevronDown;
   return (
-    <button type="button" aria-label={label} title={label} disabled={disabled} onClick={onClick} className="mx-focus grid size-7 cursor-pointer place-items-center rounded-md text-muted hover:bg-hover disabled:cursor-default disabled:opacity-35">
-      <Icon size={14} strokeWidth={2.4} />
+    <button type="button" aria-label={label} title={label} disabled={disabled} onClick={onClick} className="mx-focus grid size-8 cursor-pointer place-items-center rounded-md text-muted hover:bg-hover disabled:cursor-default disabled:opacity-35">
+      <Icon size={12} strokeWidth={2.4} />
     </button>
   );
 }
@@ -424,24 +448,17 @@ function ChoiceRow({ choice, signed, keyTitle, disabled, press }: { choice: Toda
       type="button"
       disabled={disabled}
       onClick={press}
-      title={`Press ${choice.key}`}
+      title={TodayPageLines.press(choice.key)}
       aria-label={`${choice.title}${choice.recommended ? ', recommended' : ''}${signed ? `, signed with ${keyTitle}` : ''}`}
       className={`mx-focus flex h-9 cursor-pointer items-center gap-2.5 rounded-md border bg-card px-2.5 text-left hover:bg-hover disabled:cursor-default disabled:opacity-50 ${choice.recommended ? 'border-primary' : 'border-panel-edge'}`}
     >
       <span className="grid size-[22px] place-items-center rounded-md border border-panel-edge bg-keycap font-code text-label font-medium text-muted">{choice.key}</span>
       <span className="text-body-sm font-medium text-foreground">{choice.title}</span>
-      {signed && <Fingerprint size={14} className="text-muted" aria-hidden />}
+      {signed && <Fingerprint size={12} className="text-muted" aria-hidden />}
       <span className="flex-1" />
-      {choice.recommended && <StatusWord tone="good">Recommended</StatusWord>}
+      {choice.recommended && <StatusWord tone="good">{TodayPageLines.recommended}</StatusWord>}
     </button>
   );
-}
-
-/** How a yes to this call is signed, as the Approvals page says it. */
-function signedLine(card: HeldCard, keyTitle: string): string {
-  if (!card.touchID) return 'Inside its own repository, so a yes needs no signature';
-  if (card.actionDigest === undefined) return `A yes is signed with ${keyTitle}`;
-  return `A yes is signed with ${keyTitle} over exactly this call, so one changed since is refused`;
 }
 
 function outcomeNote(outcome: HeldOutcome): string {

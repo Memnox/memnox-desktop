@@ -1,12 +1,12 @@
 import { HOLD_ANSWER } from '@memnox/core/wire';
-import { Bell, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { HeldOutcome } from '../../../core/application/held-calls';
 import type { HeldCard } from '../../../core/domain/held-card';
 import type { HeldAnswer } from '../../../core/domain/call-label';
 import { BrandLogo } from '../../kit/logos';
 import { HeldImpactLines } from '../../cards/HeldImpact';
-import { KitButton, SwitchRow } from '../../settings/kit';
+import { KitButton, Switch } from '../../settings/kit';
 import { NOTICES_ASKED_KEY, NOTICES_DENIED, NOTICES_DETAIL, NOTICES_KEY, NOTICES_TITLE } from '../../../core/domain/held-notices';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
@@ -15,6 +15,7 @@ import { LearnPage } from './LearnPage';
 import { PoliciesPage } from './PoliciesPage';
 import { EmptyState, StatusWord } from '../widgets';
 import { projectNameOfPlace } from '../../../core/domain/project-context';
+import { heldFacts, NOTHING_WAITING, NOTHING_WAITING_DETAIL, waitingLine } from '../../../core/domain/approvals-lines';
 
 /** How long the window waits before opening the live feed again after the daemon went away. */
 const RECONNECT_MS = 2_000;
@@ -59,55 +60,49 @@ function Approvals({ parts }: { parts: SettingsParts }) {
     setNotes((now) => ({ ...now, [card.subject]: outcomeNote(outcome) }));
   };
 
-  if (waiting.length === 0) {
-    return (
-      <div className="flex flex-col gap-3">
-        <NoticesSwitch parts={parts} />
-        <EmptyState
-          icon={ShieldCheck}
-          title="Nothing is waiting on you"
-          body={calls.state.connected ? 'When an agent asks before doing something your rules hold, it waits here and on the island.' : 'Memnox is reaching the runtime. Anything held will show here as soon as it answers.'}
-        />
-      </div>
-    );
-  }
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-6">
       <NoticesSwitch parts={parts} />
-      <p className="text-footnote text-muted">{`${waiting.length} waiting, oldest first.`}</p>
-      {waiting.map(({ card, subject }) => (
-        <article key={subject} className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
-          <header className="flex items-center gap-2.5">
-            <BrandLogo agent={card.agent} name={card.who} size={26} />
-            <span className="flex-1 text-body font-semibold text-foreground">{card.who}</span>
-            <StatusWord tone="attention">Asks first</StatusWord>
-          </header>
-          <p className="text-body text-foreground">{card.what}</p>
-          {/* What the held action could affect, under what it does, as the Mac's card shows it. */}
-          {card.impact !== undefined && <HeldImpactLines impact={card.impact} />}
-          {/* Project, then why, then how it is signed, in the Mac's order. */}
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-meta">
-            {projectNameOfPlace(card.place, projects.projects ?? []) !== undefined && <Fact name="Project" value={projectNameOfPlace(card.place, projects.projects ?? []) ?? ''} />}
-            {card.why !== undefined && <Fact name="Why it asks" value={card.why} />}
-            {card.task !== undefined && <Fact name="Task" value={card.task} />}
-            <Fact name="Signed" value={signedFact(card, words.keyTitle)} />
-          </dl>
-          <div className="flex flex-wrap items-center gap-2">
-            <KitButton kind="primary" disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.ONCE)}>
-              Allow once
-            </KitButton>
-            <KitButton disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.SESSION)}>
-              Allow this session
-            </KitButton>
-            {/* Set apart from the yeses, so a refusal is never pressed by a slip. */}
-            <span className="flex-1" />
-            <KitButton disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.DENY)}>
-              Deny
-            </KitButton>
+      {waiting.length === 0 ? (
+        <EmptyState icon={ShieldCheck} title={NOTHING_WAITING} body={NOTHING_WAITING_DETAIL} />
+      ) : (
+        <>
+          <p className="text-footnote text-muted">{waitingLine(waiting.length)}</p>
+          <div className="flex flex-col gap-3">
+            {waiting.map(({ card, subject }) => (
+              <article key={subject} aria-label={`${card.who} asks first`} className="flex flex-col gap-3 rounded-xl border border-panel-edge bg-card p-4">
+                <header className="flex items-center gap-2.5">
+                  <BrandLogo agent={card.agent} name={card.who} size={26} />
+                  <span className="min-w-0 flex-1 truncate text-body font-semibold text-foreground">{card.who}</span>
+                  <StatusWord tone="attention">Asks first</StatusWord>
+                </header>
+                <p className="text-body text-foreground select-text">{card.what}</p>
+                {/* What the held action could affect, under what it does, as the Mac's card shows it. */}
+                {card.impact !== undefined && <HeldImpactLines impact={card.impact} />}
+                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-meta">
+                  {heldFacts(card, projectNameOfPlace(card.place, projects.projects ?? []), words.keyTitle).map(([name, value]) => (
+                    <Fact key={name} name={name} value={value} />
+                  ))}
+                </dl>
+                <div className="flex items-center gap-2">
+                  <KitButton kind="primary" disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.ONCE)}>
+                    Allow once
+                  </KitButton>
+                  <KitButton disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.SESSION)}>
+                    Allow this session
+                  </KitButton>
+                  {/* Set apart from the yeses, so a refusal is never pressed by a slip. */}
+                  <span className="min-w-5 flex-1" />
+                  <KitButton disabled={calls.state.answering} onClick={() => void answer(card, HOLD_ANSWER.DENY)}>
+                    Deny
+                  </KitButton>
+                </div>
+                {notes[subject] !== undefined && <p className="text-footnote text-muted">{notes[subject]}</p>}
+              </article>
+            ))}
           </div>
-          {notes[subject] !== undefined && <p className="text-footnote text-muted">{notes[subject]}</p>}
-        </article>
-      ))}
+        </>
+      )}
     </div>
   );
 }
@@ -131,9 +126,20 @@ function NoticesSwitch({ parts }: { parts: SettingsParts }) {
     void host.notices(true).then((granted) => setDenied(!granted));
   };
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-panel-edge bg-card px-4 py-3">
-      <SwitchRow icon={Bell} title={NOTICES_TITLE} caption={NOTICES_DETAIL} on={on} onChange={change} />
-      {on && denied && <StatusWord tone="attention">{NOTICES_DENIED}</StatusWord>}
+    <div className="flex flex-col gap-1">
+      {/* Plain on the page, as the Mac's toggle sits, rather than in a card of its own. */}
+      <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-body font-medium text-foreground">{NOTICES_TITLE}</span>
+          <span className="text-footnote text-muted">{NOTICES_DETAIL}</span>
+        </div>
+        <Switch on={on} label={NOTICES_TITLE} onChange={change} />
+      </div>
+      {on && denied && (
+        <div>
+          <StatusWord tone="attention">{NOTICES_DENIED}</StatusWord>
+        </div>
+      )}
     </div>
   );
 }
@@ -145,13 +151,6 @@ function Fact({ name, value }: { name: string; value: string }) {
       <dd className="min-w-0 break-words text-foreground">{value}</dd>
     </>
   );
-}
-
-/** How a yes to this call is signed, and whether the signature covers exactly the call shown. */
-function signedFact(card: HeldCard, keyTitle: string): string {
-  if (!card.touchID) return 'Inside its own repository, so a yes needs no signature';
-  if (card.actionDigest === undefined) return `A yes is signed with ${keyTitle}`;
-  return `A yes is signed with ${keyTitle} over exactly this call, so one changed since is refused`;
 }
 
 function outcomeNote(outcome: HeldOutcome): string {

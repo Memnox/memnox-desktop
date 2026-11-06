@@ -1,13 +1,11 @@
 import type { ActivityFilter, DecisionView } from '@memnox/core/wire';
-import { ArrowUp, Copy, FileText, History } from 'lucide-react';
+import { ArrowUp, Copy, History } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
 import { agentNameOf, missedRowsLine, newRowsLine, type ShownActivity } from '../../../core/domain/live-activity';
 import { ago } from '../../../core/domain/session-text';
-import { filePressLine } from '../../../core/domain/memory-lines';
-import { activityLine, answeredWords, decisionFiles, EFFECT_WORDS, effectTone, isEffect, sourceWords } from '../../../core/domain/studio-lines';
+import { activityLine, answeredWords, EFFECT_WORDS, effectTone, isEffect, sourceWords } from '../../../core/domain/studio-lines';
 import { BrandLogo } from '../../kit/logos';
-import { openOrCopy, type SettingsHost } from '../../settings/host';
 import { KitButton, SearchField } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { useInspectorHost } from '../inspector-host';
@@ -62,22 +60,25 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
   const chip = (on: boolean) => `mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm ${on ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`;
   return (
     <div className="flex min-h-0">
-      <div className="flex min-w-0 flex-1 flex-col gap-4">
-        <div ref={top} aria-hidden className="h-px" />
-        {activity.waiting > 0 && (
-          <div className="sticky top-2 z-10 flex justify-center">
-            <KitButton
-              kind="primary"
-              icon={ArrowUp}
-              onClick={() => {
-                top.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                activity.showWaiting();
-              }}
-            >
-              {newRowsLine(activity.waiting)}
-            </KitButton>
-          </div>
-        )}
+      <div className="flex min-w-0 flex-1 flex-col gap-6">
+        {/* The pill floats over the top of the list, as the Mac's overlay does, rather than pushing the toolbar down. */}
+        <div className="sticky top-0 z-10 -mb-6 flex h-0 justify-center overflow-visible">
+          {activity.waiting > 0 && (
+            <div className="pt-2">
+              <KitButton
+                kind="primary"
+                icon={ArrowUp}
+                onClick={() => {
+                  top.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  activity.showWaiting();
+                }}
+              >
+                {newRowsLine(activity.waiting)}
+              </KitButton>
+            </div>
+          )}
+        </div>
+        <div ref={top} aria-hidden className="h-0" />
         <div className="flex flex-wrap items-center gap-2">
           <div className="w-full max-w-[280px] min-w-[160px] flex-1">
             <SearchField value={text} placeholder="Search actions and targets" onChange={setText} />
@@ -92,7 +93,7 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
               </button>
             ))}
           </div>
-          <select value={kind} onChange={(event) => setKind(event.target.value)} aria-label="Kind" className="h-8 mx-field rounded-lg border border-field-edge bg-field px-2.5 text-footnote text-foreground">
+          <select value={kind} onChange={(event) => setKind(event.target.value)} aria-label="Kind" className="h-8 max-w-[150px] mx-field rounded-lg border border-field-edge bg-field px-2.5 text-footnote text-foreground">
             {KINDS.map((each) => (
               <option key={each.id} value={each.id}>
                 {each.title}
@@ -141,7 +142,7 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
       </div>
       {activity.decision !== undefined && (
         <Inspector title="Why" width={width} close={() => activity.close()} item={activity.decision.row.id}>
-          <DecisionDetail key={activity.decision.row.id} view={activity.decision} host={host} change={() => go({ destination: 'governance', tab: 'policies' })} />
+          <DecisionDetail key={activity.decision.row.id} view={activity.decision} change={() => go({ destination: 'governance', tab: 'policies' })} />
         </Inspector>
       )}
     </div>
@@ -168,9 +169,8 @@ function ActivityRowView({ row, name, chosen, open }: { row: ShownActivity; name
   );
 }
 
-function DecisionDetail({ view, host, change }: { view: DecisionView; host: SettingsHost; change: () => void }) {
+function DecisionDetail({ view, change }: { view: DecisionView; change: () => void }) {
   const { row } = view;
-  const files = decisionFiles(view);
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
@@ -213,9 +213,8 @@ function DecisionDetail({ view, host, change }: { view: DecisionView; host: Sett
           </Panel>
         </Section>
       )}
-      {files.length > 0 && <LocalFiles host={host} files={files} />}
       <Section title="What happened">
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-footnote">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-meta">
           <dt className="text-muted">Ran as</dt>
           <dd className="text-foreground">{view.trace.mode}</dd>
           {view.trace.exitCode !== undefined && (
@@ -232,26 +231,6 @@ function DecisionDetail({ view, host, change }: { view: DecisionView; host: Sett
           )}
         </dl>
       </Section>
-    </div>
-  );
-}
-
-/** The files a decision names, each opened in its own app, or its whole path copied when it is gone or is not a document. */
-function LocalFiles({ host, files }: { host: SettingsHost; files: readonly { title: string; path: string }[] }) {
-  const [pressed, setPressed] = useState<{ path: string; opened: boolean } | undefined>(undefined);
-  return (
-    <div className="flex flex-col gap-1.5">
-      {files.map((file) => (
-        <div key={file.title} className="flex min-w-0 flex-wrap items-center gap-2">
-          <KitButton icon={FileText} onClick={() => void openOrCopy(host, file.path).then((opened) => setPressed({ path: file.path, opened }))}>
-            {file.title}
-          </KitButton>
-          <span className="min-w-0 truncate font-mono text-footnote text-muted" title={file.path}>
-            {file.path}
-          </span>
-          {pressed !== undefined && pressed.path === file.path && <span className="text-footnote text-muted">{filePressLine(pressed.opened)}</span>}
-        </div>
-      ))}
     </div>
   );
 }

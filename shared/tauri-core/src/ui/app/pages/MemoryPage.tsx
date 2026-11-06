@@ -1,5 +1,5 @@
 import type { MemoryEvidenceView, MemoryItemView, MemorySourceView } from '@memnox/core/wire';
-import { BookOpen, Brain, FileText, Layers, Link2, List, Network, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { BookOpen, Brain, Library, FileText, Link2, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { MemoryOutcome } from '../../../core/application/memory';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
@@ -8,13 +8,16 @@ import {
   MEMORY_FILTERS,
   MEMORY_SCOPES,
   confidenceLine,
+  FACTS_EMPTY_DETAIL,
+  rowCaption,
+  SOURCES_LINK,
   decidedLine,
   evidenceLine,
   evidenceTarget,
   filePressLine,
   keyLine,
   kindWord,
-  memoryViewShown,
+  memoryViewOf,
   lastReadLine,
   moreLine,
   originLine,
@@ -27,12 +30,13 @@ import {
   trustWord,
   type MemoryScopeName,
   type MemoryStatusName,
-  type MemoryView,
 } from '../../../core/domain/memory-lines';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
 import { BrandLogo } from '../../kit/logos';
 import { KitButton, SearchField, SelectMenu } from '../../settings/kit';
-import { choiceKey, choiceOfKey, memoryChoices, memoryOwner, MEMORY_CHOICE_KEY, shownMemory, type MemoryProjectChoice } from '../../../core/domain/project-context';
+import { choiceKey, choiceOfKey, memoryChoices, memoryOwner, MEMORY_CHOICE_KEY, MEMORY_EVERYWHERE_NOTE, shownMemory, type MemoryProjectChoice } from '../../../core/domain/project-context';
+import { SEPARATOR } from '../../../core/domain/session-text';
+import { useShellChoices } from '../shell-choices';
 import { openOrCopy } from '../../settings/host';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AddMemorySourceDialog } from './MemorySourceDialog';
@@ -44,13 +48,6 @@ import { useInspectorHost, usePicked } from '../inspector-host';
 
 const CHIP = 'mx-focus cursor-pointer inline-flex h-8 items-center rounded-lg border px-3 text-body-sm';
 const chip = (on: boolean) => `${CHIP} ${on ? 'border-primary/45 bg-primary/[0.07] font-medium text-foreground' : 'border-panel-edge bg-card text-muted hover:bg-hover hover:text-foreground'}`;
-
-/** How memory is shown on its one page: drawn as the map it opens on, read as the list, or as the three layers any agent reads. */
-const VIEWS: readonly { view: MemoryView; label: string; icon: typeof List; needs?: string }[] = [
-  { view: 'graph', label: 'Graph', icon: Network },
-  { view: 'list', label: 'List', icon: List },
-  { view: 'layers', label: 'Layers', icon: Layers, needs: 'memory-layers' },
-];
 
 /** How long typing rests before the search is asked, so each key is not a request. */
 const SEARCH_REST_MS = 300;
@@ -64,7 +61,7 @@ export function memoryNote(outcome: MemoryOutcome): string {
  * What this computer learned, read three ways from one record: the list by status and scope, one fact with
  * the evidence it was read from, and the sources it came out of. A statement is shown whole, as written.
  */
-export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: WidthClass; go?: (route: Route) => void }) {
+export function MemoryPage({ parts, tab, width, go }: { parts: SettingsParts; /** The Memory row's tab: the map, the list or the layers. */ tab: string | undefined; width: WidthClass; go?: (route: Route) => void }) {
   const { memory, support, projects } = parts;
   useObserved(memory, support, projects);
   // Which project's memory shows, remembered between openings: every project's, what no project owns, or one project's.
@@ -91,36 +88,15 @@ export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: 
         onChange={(key) => chooseProject(choiceOfKey(key))}
       />
     );
+  const { connected } = useShellChoices();
   const [status, setStatus] = useState<MemoryStatusName>('verified');
   const [scope, setScope] = useState<MemoryScopeName | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [chosen, choose] = usePicked();
   const linked = useInspectorHost().item;
   const [note, setNote] = useState<string | undefined>(undefined);
-  const [chosenView, show] = useState<MemoryView | undefined>(undefined);
-  const views = VIEWS.filter((each) => each.needs === undefined || support.supports(each.needs) === true);
-  // The one switch on the page, above the map and beside the list's search, so neither is drawn twice.
-  const view = memoryViewShown(
-    chosenView,
-    views.map((each) => each.view),
-    linked !== undefined,
-  );
-  const switcher = (
-    <div className="inline-flex items-center gap-1 rounded-lg border border-panel-edge bg-card p-1" role="group" aria-label="Show memory as">
-      {views.map((each) => (
-        <button
-          key={each.view}
-          type="button"
-          aria-pressed={view === each.view}
-          onClick={() => show(each.view)}
-          className={`mx-focus inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-3 text-body-sm transition-colors ${view === each.view ? 'bg-active font-medium text-foreground' : 'text-muted hover:text-foreground'}`}
-        >
-          <each.icon size={14} aria-hidden />
-          {each.label}
-        </button>
-      ))}
-    </div>
-  );
+  // The row's strip is the only switch between the map, the list and the layers, as on the Mac.
+  const view = memoryViewOf(tab);
   useEffect(() => {
     void memory.refreshSources();
     // An item a link names reopens whatever its status became, on the list that now holds it.
@@ -137,6 +113,8 @@ export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: 
   }, [status, scope, query]);
 
   const listed = memory.facts;
+  // The facts the project filter leaves, which the list draws.
+  const narrowed = listed === undefined ? [] : shownMemory(listed.items, projectChoice, localProjects);
   const picked = listed?.items.find((item) => item.id === chosen);
   const forget = (id: string, after: () => void) =>
     void memory.forget(id).then((outcome) => {
@@ -152,10 +130,7 @@ export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: 
             {note}
           </p>
         )}
-        <div className="flex flex-wrap items-center gap-2">
-          {switcher}
-          {view === 'graph' && projectFilter}
-        </div>
+        {view === 'graph' && projectFilter !== null && <div className="flex flex-wrap items-center gap-2">{projectFilter}</div>}
         {view === 'graph' ? (
           <MemoryBrain
             parts={parts}
@@ -166,6 +141,7 @@ export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: 
         ) : (
           <MemoryLayersView parts={parts} {...(chosenProject === undefined ? {} : { project: chosenProject.path })} />
         )}
+        {view === 'graph' && go !== undefined && <SourcesLink go={go} />}
       </div>
     );
   }
@@ -178,62 +154,57 @@ export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: 
           </p>
         )}
         <Section title="What your agents know">
-          <div className="flex flex-wrap items-center gap-2">
+          {/* The search, the project, the status and the scope on one row where they fit, in the Mac's order. */}
+          <div className="flex flex-wrap items-center gap-3">
             <div className="w-full max-w-[300px] min-w-[180px] flex-1">
               <SearchField value={query} placeholder="Search memory" onChange={setQuery} />
             </div>
-            <span className="flex-1" />
             {projectFilter}
-            {switcher}
-            <div className="flex gap-1.5" role="group" aria-label="Scope">
-              <button type="button" className={chip(scope === undefined)} aria-pressed={scope === undefined} onClick={() => setScope(undefined)}>
-                Both
-              </button>
-              {MEMORY_SCOPES.map((each) => (
-                <button key={each.scope} type="button" className={chip(scope === each.scope)} aria-pressed={scope === each.scope} onClick={() => setScope(each.scope)}>
-                  {each.label}
+            {query.trim() === '' ? (
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Status">
+                {MEMORY_FILTERS.map((each) => (
+                  <button key={each.status} type="button" className={chip(status === each.status)} aria-pressed={status === each.status} onClick={() => setStatus(each.status)}>
+                    {each.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-footnote text-muted">
+                {memory.search === undefined ? 'Searching every status for these words.' : `${searchModeLine(memory.search.mode)}, over every status.`}
+                {memory.search?.note !== undefined && <span className="block">{memory.search.note}</span>}
+              </p>
+            )}
+            <span className="flex-1" />
+            {/* Whose a fact is matters only once there is an organization beside the person. */}
+            {connected && (
+              <div className="flex gap-1.5" role="group" aria-label="Scope">
+                <button type="button" className={chip(scope === undefined)} aria-pressed={scope === undefined} onClick={() => setScope(undefined)}>
+                  Both
                 </button>
-              ))}
-            </div>
+                {MEMORY_SCOPES.map((each) => (
+                  <button key={each.scope} type="button" className={chip(scope === each.scope)} aria-pressed={scope === each.scope} onClick={() => setScope(each.scope)}>
+                    {each.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          {query.trim() === '' ? (
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Status">
-              {MEMORY_FILTERS.map((each) => (
-                <button key={each.status} type="button" className={chip(status === each.status)} aria-pressed={status === each.status} onClick={() => setStatus(each.status)}>
-                  {each.label}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="text-footnote text-muted">
-              {memory.search === undefined ? 'Searching every status for these words.' : `${searchModeLine(memory.search.mode)}, over every status.`}
-              {memory.search?.note !== undefined && <span className="block">{memory.search.note}</span>}
-            </p>
-          )}
           {memory.unreadable.facts && <ReadFailed what="what was learned" retry={() => void memory.show(memory.filter)} />}
-          {listed !== undefined && listed.items.length === 0 && (
-            <EmptyState icon={Brain} title={query.trim() === '' ? `Nothing ${statusWord(status).word.toLowerCase()} here` : 'Nothing learned says that'} body="Add a source below and Memnox reads it with your own agent. What it finds waits in Learn until you confirm it." />
+          {projectChoice.kind === 'shared' && <p className="text-footnote text-muted">{MEMORY_EVERYWHERE_NOTE}</p>}
+          {listed !== undefined && narrowed.length === 0 && (
+            <EmptyState icon={Brain} title={query.trim() === '' ? `Nothing ${statusWord(status).word.toLowerCase()} here` : 'Nothing learned says that'} body={FACTS_EMPTY_DETAIL} />
           )}
-          {projectChoice.kind === 'shared' && <p className="text-footnote text-muted">Facts that belong to no one project, so the agents in every project read them.</p>}
-          {listed !== undefined && listed.items.length > 0 && shownMemory(listed.items, projectChoice, localProjects).length === 0 && (
-            <EmptyState icon={Brain} title="Nothing here for this project" body="Pick All projects to see everything, or another project." />
-          )}
-          {listed !== undefined && listed.items.length > 0 && (
+          {narrowed.length > 0 && (
             <Panel>
-              {shownMemory(listed.items, projectChoice, localProjects).map((item) => (
+              {narrowed.map((item) => (
                 <Row
                   key={item.id}
                   chosen={item.id === chosen}
                   onClick={() => choose(item.id)}
                   title={<span className="whitespace-pre-wrap">{item.statement}</span>}
-                  caption={`${kindWord(item.kind)} · ${item.evidence.length === 1 ? '1 piece of evidence' : `${item.evidence.length} pieces of evidence`}`}
+                  caption={[rowCaption(item), memoryOwner(item, localProjects)].join(SEPARATOR)}
                   trailing={
                     <>
-                      {localProjects.length > 0 && (
-                        <span className="inline-flex max-w-[160px] items-center truncate rounded-full border border-panel-edge px-2 py-px text-label font-medium text-muted" title={memoryOwner(item, localProjects)}>
-                          {memoryOwner(item, localProjects)}
-                        </span>
-                      )}
                       <ScopeChip scope={memoryScope(item)} />
                       {item.tainted && <StatusWord tone="attention">Untrusted source</StatusWord>}
                       <StatusWord tone={statusWord(item.status).tone}>{statusWord(item.status).word}</StatusWord>
@@ -245,6 +216,7 @@ export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: 
           )}
           {listed !== undefined && moreLine(listed.more) !== undefined && <p className="text-footnote text-muted">{moreLine(listed.more)}</p>}
         </Section>
+        {go !== undefined && <SourcesLink go={go} />}
       </div>
       {picked !== undefined && (
         <Inspector title={kindWord(picked.kind)} width={width} close={() => choose(undefined)} item={picked.id}>
@@ -252,6 +224,16 @@ export function MemoryPage({ parts, width, go }: { parts: SettingsParts; width: 
         </Inspector>
       )}
     </div>
+  );
+}
+
+/** Where the files went: a quiet line that takes the person to them under Connected tools. */
+function SourcesLink({ go }: { go: (route: Route) => void }) {
+  return (
+    <button type="button" onClick={() => go({ destination: 'workspaces', tab: 'sources' })} className="mx-focus inline-flex w-fit cursor-pointer items-center gap-1.5 text-footnote text-primary hover:underline">
+      <Library size={14} aria-hidden />
+      {SOURCES_LINK}
+    </button>
   );
 }
 

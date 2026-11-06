@@ -2,7 +2,7 @@ import type { MemoryEvidenceView, MemoryItemView, MemoryReadSummary, MemorySearc
 import { isAbsoluteFolder } from './launch-lines';
 import { agentLabel } from './mcp-hub-lines';
 import { counted } from './project-lines';
-import { ago } from './session-text';
+import { ago, SEPARATOR } from './session-text';
 
 /**
  * Memory as a person reads it. A statement is shown as it was written, never trimmed or reworded, and a
@@ -51,7 +51,7 @@ export function kindWord(kind: MemoryItemView['kind']): string {
 /** The kinds the Add source dialog offers, each with what its location is. */
 export const SOURCE_KINDS: readonly { kind: MemorySourceKindName; label: string; place: 'folder' | 'repository' | 'secret' | 'server' }[] = [
   { kind: 'obsidian', label: 'Obsidian vault', place: 'folder' },
-  { kind: 'markdown', label: 'Markdown folder', place: 'folder' },
+  { kind: 'markdown', label: 'Markdown files', place: 'folder' },
   { kind: 'instructions', label: 'Agent instruction files', place: 'repository' },
   { kind: 'notion-export', label: 'Notion export', place: 'folder' },
   { kind: 'supermemory', label: 'Supermemory', place: 'secret' },
@@ -247,14 +247,24 @@ export function sourceInputOf(form: SourceForm): MemorySourceInput {
   };
 }
 
+/** A fact's caption on the list: its kind, whose it is kept as and how much evidence it has, as the Mac's `rowCaption`. */
+export function rowCaption(item: Pick<MemoryItemView, 'kind' | 'scope' | 'evidence'>): string {
+  const scope = item.scope === 'project' ? 'Project' : 'Personal';
+  const evidence = item.evidence.length === 1 ? '1 piece of evidence' : `${item.evidence.length} pieces of evidence`;
+  return [kindWord(item.kind), scope, evidence].join(SEPARATOR);
+}
+
+/** What the empty list says under its title, pointing at the files rather than at a section on another page. */
+export const FACTS_EMPTY_DETAIL = 'Add a file under Connected tools and Memnox reads it with your own agent. What it finds waits in Learn until you confirm it.';
+/** The quiet link at the foot of the list and the map to where memory's files are managed. */
+export const SOURCES_LINK = 'Add or manage files under Connected tools';
+
 /** How memory is drawn: the graph of it, the list, or the three layers any agent reads. */
 export type MemoryView = 'graph' | 'list' | 'layers';
 
-/**
- * Which view the one Memory page draws: the map when it opens, the view the person switched to after that, and the
- * list for a popped out item, where its details are drawn. A view this runtime does not offer falls back to the map.
- */
-export function memoryViewShown(chosen: MemoryView | undefined, offered: readonly MemoryView[], linked: boolean): MemoryView {
-  if (chosen !== undefined && offered.includes(chosen)) return chosen;
-  return linked ? 'list' : 'graph';
+/** The view each tab of the Memory row draws, the map for any tab not named, as the Mac's `MemoryView` maps them. */
+export function memoryViewOf(tab: string | undefined): MemoryView {
+  if (tab === 'memory') return 'list';
+  if (tab === 'layers') return 'layers';
+  return 'graph';
 }

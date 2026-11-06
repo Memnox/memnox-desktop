@@ -137,8 +137,10 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
     key: '3',
     tabs: [
       { id: 'projects', title: 'Projects', group: 'projects', summary: 'Your projects, with the skills, tools, memory and rules each one carries.' },
-      // One page for memory, opening on the map of what the agents know and reach, with the list one switch away.
-      { id: 'memory', title: 'Memory', group: 'knowledge', summary: 'What your agents know and everything they reach, drawn as one map, with every fact and its evidence one switch away.', needs: 'memory-facts' },
+      // The agents and all they reach as one map, its own page so it is one press from the sidebar, as on the Mac.
+      { id: 'map', title: 'Map', group: 'knowledge', summary: 'Your agents and everything they reach, drawn as one map of what they know and use.', needs: 'memory-facts' },
+      { id: 'memory', title: 'Memory', group: 'knowledge', summary: 'What your agents know, each fact with the evidence it was read from, and the sources it came out of.', needs: 'memory-facts' },
+      { id: 'layers', title: 'Layers', group: 'knowledge', summary: 'MEMORY.md, the router and the skills each project keeps, as the three layers any agent reads.', needs: 'memory-layers' },
       { id: 'sources', title: 'Files', group: 'knowledge', summary: "Where your agents' memory is read from: notes, instruction files, exports and memory servers.", needs: 'memory-facts' },
       { id: 'skills', title: 'My Skills', group: 'skills', summary: 'The skills you keep, and the agents each one is given to.', needs: 'skills-hub' },
       { id: 'assigned', title: 'Assigned', group: 'skills', summary: 'Which skills each agent carries.', needs: 'skills-hub' },
@@ -246,6 +248,8 @@ export interface SidebarRow {
   readonly symbol: SidebarSymbol;
   /** The first is where a press goes; every one lights the row and stands as a tab on its page. */
   readonly pages: readonly Route[];
+  /** A tab's word where the row says it differently from the tab's own title, by the tab's id. */
+  readonly titles?: Readonly<Record<string, string>>;
 }
 
 /** One heading of the sidebar and its rows. */
@@ -262,11 +266,8 @@ export const WAITING_HINT = 'What your agents are waiting on you for';
 /** Activity stands beside Needs your attention, as in Memnox Cloud, since what happened is read as often as what waits. */
 export const ACTIVITY_ROUTE: Route = { destination: 'governance', tab: 'activity' };
 
-/** The Memory row's one page, which opens on the map and holds the list behind a switch. */
-export const MEMORY_ROUTE: Route = { destination: 'workspaces', tab: 'memory' };
-
-/** Tabs that were folded into another, so an old link to one still lands on the page that holds it now. */
-const FOLDED_TABS: Readonly<Record<string, string>> = { 'workspaces/map': 'memory' };
+/** Where the Memory row lands: the map, with the list and the layers beside it in the row's strip. */
+export const MEMORY_ROUTE: Route = { destination: 'workspaces', tab: 'map' };
 
 /** The rows above every heading, in the console's order: Home, the projects everything else is for, what waits, and what happened. */
 export const SIDEBAR_TOP: readonly SidebarRow[] = [
@@ -297,7 +298,13 @@ export const SIDEBAR_SECTIONS: readonly SidebarSection[] = [
         ],
       },
       { title: 'Protection settings', symbol: 'checkmark.shield', pages: [{ destination: 'governance', tab: 'policies' }] },
-      { title: 'Memory', symbol: 'brain', pages: [MEMORY_ROUTE] },
+      // One row for memory, opening on the map, with the list and the layers as its tabs, so the strip is its only switch.
+      {
+        title: 'Memory',
+        symbol: 'brain',
+        pages: [MEMORY_ROUTE, { destination: 'workspaces', tab: 'memory' }, { destination: 'workspaces', tab: 'layers' }],
+        titles: { memory: 'List' },
+      },
       // A row of its own, as the console keeps one, since a page behind another row's tab is one nobody finds.
       { title: 'Skills', symbol: 'sparkles', pages: [{ destination: 'workspaces', tab: 'skills' }, { destination: 'workspaces', tab: 'assigned' }] },
       {
@@ -328,17 +335,17 @@ export interface SidebarPage {
 }
 
 /** A page the runtime answers now, or undefined; a destination with no tabs is a page of its own. */
-function pageOf(route: Route, supports: Supports): SidebarPage | undefined {
+function pageOf(route: Route, supports: Supports, titles: SidebarRow['titles']): SidebarPage | undefined {
   const info = destinationInfo(route.destination);
   if (route.tab === undefined) return info.tabs.length === 0 ? { route, title: info.title, summary: info.subtitle } : undefined;
   const tab = visibleTabs(route.destination, supports).find((each) => each.id === route.tab);
-  return tab === undefined ? undefined : { route, title: tab.title, summary: tab.summary };
+  return tab === undefined ? undefined : { route, title: titles?.[tab.id] ?? tab.title, summary: tab.summary };
 }
 
 /** A row's pages the runtime answers now, in the row's order; a row with none is not drawn. */
 export function shownPages(row: SidebarRow, supports: Supports): readonly SidebarPage[] {
   return row.pages.flatMap((route) => {
-    const page = pageOf(route, supports);
+    const page = pageOf(route, supports, row.titles);
     return page === undefined ? [] : [page];
   });
 }
@@ -378,7 +385,9 @@ const TAB_SYMBOLS: Record<string, SidebarSymbol> = {
   sessions: 'bubble.left.and.text.bubble.right',
   computer: 'desktopcomputer',
   projects: 'folder',
+  map: 'brain',
   memory: 'brain',
+  layers: 'brain',
   skills: 'sparkles',
   servers: 'server.rack',
   apps: 'globe',
@@ -466,8 +475,7 @@ export function settled(route: Route, supports: Supports): Route {
   if (route.destination === 'today') return { destination: 'home' };
   const tabs = visibleTabs(route.destination, supports);
   if (tabs.length === 0) return { destination: route.destination };
-  const named = FOLDED_TABS[`${route.destination}/${route.tab ?? ''}`] ?? route.tab;
-  const tab = tabs.find((each) => each.id === named) ?? tabs[0];
+  const tab = tabs.find((each) => each.id === route.tab) ?? tabs[0];
   // A project stays open only on the projects tab, which is the list its Back row returns to.
   const project = tab?.id === PROJECTS_ROUTE.tab ? route.project : undefined;
   return { destination: route.destination, tab: tab?.id, ...(project === undefined ? {} : { project }) };

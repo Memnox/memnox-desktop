@@ -40,7 +40,8 @@ describe('the palette', () => {
     const titles = commands(() => true).map((each) => each.title);
     expect(titles).toEqual(expect.arrayContaining(['Memory', 'Files', 'Activity', 'Protection settings']));
     expect(titles).not.toContain('Sources');
-    expect(titles).not.toContain('Map');
+    // The Memory row's three tabs are each a command, as in the Mac's palette.
+    expect(titles).toEqual(expect.arrayContaining(['Map', 'Layers']));
   });
 
   it('lists the number key beside each destination', () => {

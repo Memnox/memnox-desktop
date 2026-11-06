@@ -25,7 +25,10 @@ import {
   sourceInputOf,
   statusWord,
   trustWord,
-  memoryViewShown,
+  memoryViewOf,
+  rowCaption,
+  FACTS_EMPTY_DETAIL,
+  SOURCES_LINK,
 } from '../src/core/domain/memory-lines';
 import { ScriptedDaemon } from './doubles';
 
@@ -249,14 +252,18 @@ describe('a press on evidence', () => {
   });
 });
 
-describe('the one Memory page', () => {
-  it('opens on the map, keeps the view switched to, and opens a linked item on the list', () => {
-    const offered = ['graph', 'list', 'layers'] as const;
-    expect(memoryViewShown(undefined, offered, false)).toBe('graph');
-    expect(memoryViewShown('list', offered, false)).toBe('list');
-    expect(memoryViewShown('layers', offered, false)).toBe('layers');
-    expect(memoryViewShown('layers', ['graph', 'list'], false)).toBe('graph');
-    expect(memoryViewShown(undefined, offered, true)).toBe('list');
-    expect(memoryViewShown('graph', offered, true)).toBe('graph');
+describe('the Memory row', () => {
+  it('draws the map, the list or the layers by the tab the strip chose, the map for any other', () => {
+    expect(memoryViewOf('map')).toBe('graph');
+    expect(memoryViewOf('memory')).toBe('list');
+    expect(memoryViewOf('layers')).toBe('layers');
+    expect(memoryViewOf(undefined)).toBe('graph');
+  });
+
+  it('captions a fact and points at the files in the Mac’s words', () => {
+    const item = { kind: 'fact', scope: 'personal', evidence: [{}] } as unknown as MemoryItemView;
+    expect(rowCaption(item)).toBe('Fact · Personal · 1 piece of evidence');
+    expect(SOURCES_LINK).toBe('Add or manage files under Connected tools');
+    expect(FACTS_EMPTY_DETAIL).toBe('Add a file under Connected tools and Memnox reads it with your own agent. What it finds waits in Learn until you confirm it.');
   });
 });

@@ -14,6 +14,7 @@ import {
   rowTabs,
   shownPages,
   shownRows,
+  SIDEBAR_ROWS,
   SIDEBAR_SECTIONS,
   SIDEBAR_TOP,
   RouteHistory,
@@ -40,7 +41,7 @@ describe('the window’s destinations', () => {
 
   it('shows memory and the Skills Hub only where the runtime keeps them, and never profiles, which Memnox Cloud keeps', () => {
     expect(visibleTabs('workspaces', nothingNew).map((tab) => tab.id)).toEqual(['projects']);
-    expect(visibleTabs('workspaces', everything).map((tab) => tab.id)).toEqual(['projects', 'memory', 'sources', 'skills']);
+    expect(visibleTabs('workspaces', everything).map((tab) => tab.id)).toEqual(['projects', 'map', 'memory', 'layers', 'sources', 'skills']);
   });
 
   it('leaves the local network and personal sync off Settings for now, even where the runtime answers them', () => {
@@ -171,9 +172,15 @@ describe('what the daemon answers', () => {
     expect(rowOf({ destination: 'workspaces', tab: 'memory' })?.title).toBe('Memory');
   });
 
-  it('folds Map into Memory, so an old Map link lands on the one Memory page', () => {
-    expect(settled({ destination: 'workspaces', tab: 'map' }, everything)).toEqual({ destination: 'workspaces', tab: 'memory' });
-    expect(SIDEBAR_SECTIONS.flatMap((section) => section.rows).filter((row) => row.title === 'Map')).toEqual([]);
+  it('makes the map, the list and the layers one Memory row that opens on the map, as the Mac does', () => {
+    const memory = SIDEBAR_ROWS.find((row) => row.title === 'Memory');
+    expect(memory === undefined ? undefined : shownPages(memory, everything)[0]?.route).toEqual({ destination: 'workspaces', tab: 'map' });
+    expect(rowTabs({ destination: 'workspaces', tab: 'memory' }, everything).map((page) => page.title)).toEqual(['Map', 'List', 'Layers']);
+    expect(rowOf({ destination: 'workspaces', tab: 'layers' })?.title).toBe('Memory');
+    // Without the layers the strip still offers the map and the list.
+    const noLayers: Supports = (method) => method !== 'memory-layers';
+    expect(rowTabs({ destination: 'workspaces', tab: 'map' }, noLayers).map((page) => page.title)).toEqual(['Map', 'List']);
+    expect(settled({ destination: 'workspaces', tab: 'map' }, everything)).toEqual({ destination: 'workspaces', tab: 'map' });
   });
 
   it('carries an open project through a link, history and settling, and only on the projects tab', () => {
@@ -196,7 +203,6 @@ describe('what the daemon answers', () => {
     expect(rowOf({ destination: 'workspaces', tab: 'skills' })?.title).toBe('Skills');
     expect(rowTabs({ destination: 'agents', tab: 'list' }, everything).map((page) => page.title)).toEqual(['Agents', 'On this computer']);
     // A row with one page shows no tabs, and a row whose other pages the runtime does not answer shows none either.
-    expect(rowTabs({ destination: 'workspaces', tab: 'memory' }, everything)).toEqual([]);
     expect(rowTabs({ destination: 'governance', tab: 'policies' }, everything)).toEqual([]);
     expect(rowTabs({ destination: 'governance', tab: 'approvals' }, nothingNew)).toEqual([]);
   });
@@ -213,6 +219,7 @@ describe('what the daemon answers', () => {
 
   it('heads a page with its own title, Settings with its tree, and Home and Today with nothing', () => {
     expect(paneHeading({ destination: 'workspaces', tab: 'memory' }, everything)).toEqual({ kind: 'page', title: 'Memory', subtitle: expect.stringContaining('What your agents know') });
+    expect(paneHeading({ destination: 'workspaces', tab: 'map' }, everything)).toEqual({ kind: 'page', title: 'Memory', subtitle: 'Your agents and everything they reach, drawn as one map of what they know and use.' });
     expect(paneHeading({ destination: 'governance', tab: 'activity' }, everything)).toEqual({ kind: 'page', title: 'Activity', subtitle: expect.stringContaining('What your agents did') });
     expect(paneHeading({ destination: 'governance', tab: 'policies' }, everything)).toEqual({ kind: 'page', title: 'Protection settings', subtitle: 'For each thing your AI might do, choose Allow, Ask or Deny. Nothing changes until you save and the change is approved.' });
     expect(paneHeading({ destination: 'settings', tab: 'voice' }, everything)).toEqual({ kind: 'sub-nav', title: 'Settings' });

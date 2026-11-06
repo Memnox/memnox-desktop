@@ -39,7 +39,7 @@ export function paintLabels(engine: ArmsEngine, open: Open): void {
     const matched = props.matches.has(item.id);
     if (!hovered && alpha < 0.3) return;
     const piece = item.hub !== true && item.layer === "memory";
-    if (piece && !hovered && !matched && lit < 0.05 && zoom < PIECE_NAMES_FROM) return;
+    if (piece && !props.allLabels && !hovered && !matched && lit < 0.05 && zoom < PIECE_NAMES_FROM) return;
     const x = engine.sx[at]!;
     const y = engine.sy[at]!;
     if (x < -40 || y < -40 || x > engine.width + 40 || y > engine.height + 40) return;
@@ -52,7 +52,7 @@ export function paintLabels(engine: ArmsEngine, open: Open): void {
     const weight =
       (item.core === true ? WEIGHT.core : item.hub === true ? WEIGHT.hub + (item.holds ?? 0) : item.layer === "app" ? WEIGHT.app : item.layer === "skill" ? WEIGHT.skill : item.layer === "rule" ? WEIGHT.rule : WEIGHT.piece) +
       (lit > 0.05 || matched ? WEIGHT.lit : 0);
-    boxes.push({ id: item.id, left: x - width / 2, top, width, height: LINE_HEIGHT, weight, ...(hovered ? { always: true } : {}) });
+    boxes.push({ id: item.id, left: x - width / 2, top, width, height: LINE_HEIGHT, weight, ...(hovered || props.allLabels ? { always: true } : {}) });
     texts.set(item.id, { text, font, x, top, ink: item.hub === true || lit > 0.05 ? ARMS_INK.ink : ARMS_INK.muted, alpha: hovered ? 1 : Math.max(alpha, lit) });
   });
   const shown = placeLabels(boxes);

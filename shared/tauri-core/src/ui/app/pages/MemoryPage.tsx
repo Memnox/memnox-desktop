@@ -40,7 +40,7 @@ import { useShellChoices } from '../shell-choices';
 import { openOrCopy } from '../../settings/host';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AddMemorySourceDialog } from './MemorySourceDialog';
-import { MemoryBrain } from './MemoryBrain';
+import { MemoryBrain, WorkspaceFoot } from './MemoryBrain';
 import { homeFilterOf, MEMORY_HOME_FILTERS, MEMORY_HOME_KEY, type MemoryHomeFilter } from '../../../core/domain/memory-brain-lines';
 import { MemoryLayersView } from './MemoryLayers';
 import { Inspector, ScopeChip } from '../widgets';
@@ -212,6 +212,7 @@ export function MemoryPage({ parts, tab, width, go }: { parts: SettingsParts; /*
         foot={
           <>
             {more !== undefined && <p className="text-footnote text-muted">{more}</p>}
+            <WorkspaceFoot parts={parts} home={home} {...(go === undefined ? {} : { go })} />
             {go !== undefined && <SourcesLink go={go} />}
           </>
         }

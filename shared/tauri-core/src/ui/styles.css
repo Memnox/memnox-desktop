@@ -448,6 +448,9 @@ html.mx-window .mx-field-within:focus-within {
   --radius-key: 4px;
   --radius-island: 16px;
   --radius-command: 10px;
+  /* OnboardingKit's card, and the app tile on Where your agents run. */
+  --radius-setup: 16px;
+  --radius-tile: 14px;
 
   /* SwiftUI's springs as the nearest CSS curves; the island's own size moves on a real spring in JS. */
   --ease-press: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -665,6 +668,46 @@ body {
   /* A sheet over the page, as the Mac's: 560 wide, at most 720 tall. */
   --container-sheet: 560px;
   --max-height-sheet: 720px;
+}
+
+/*
+ * The brain's own measures, Memnox.Console.Brain and MapMetrics in the Mac's MemoryMapView.swift, as Tailwind names;
+ * test/memory-brain-foot.test.ts holds them to the Swift. The colours are the console's dark, which `.mx-brain` sets.
+ */
+@theme {
+  --text-brain-headline: 34px;
+  --text-brain-numeral: 26px;
+  --text-brain-overline: 11px;
+  --text-brain-caption: 10px;
+  --text-brain-mode: 24px;
+  /* Memnox.Console.headingTracking and titleTracking, and the deck's own spacing of its capitals. */
+  --tracking-heading: 1.98px;
+  --tracking-title: -0.48px;
+  --tracking-deck: 1.4px;
+  --tracking-deck-detail: 1.2px;
+  /* The legend and the growth card, the heading, the search capsule, the tour's deck and its play button, rail and knob. */
+  --spacing-brain-card: 240px;
+  --spacing-brain-heading: 380px;
+  --spacing-brain-seek: 360px;
+  --spacing-brain-seek-top: 72px;
+  --spacing-brain-deck: 560px;
+  --spacing-brain-play: 34px;
+  --spacing-brain-rail: 18px;
+  --spacing-brain-knob: 11px;
+  --spacing-brain-tick: 9px;
+  --spacing-brain-bar: 3px;
+  /* MapButton's square, the speed slider, the divider between the view controls, and the drawn tick box. */
+  --spacing-map-button: 26px;
+  --spacing-map-slider: 84px;
+  --spacing-map-divider: 16px;
+  --spacing-map-box: 14px;
+  /* MapMetrics' shadow under every panel over the brain. */
+  --shadow-brain-panel: 0 8px 24px rgb(0 0 0 / 0.3);
+}
+
+/* A panel lets a little of the brain through, BrainPanel.fill; inline, so it reads the card of the brain it sits on. */
+@theme inline {
+  --color-brain-panel: color-mix(in srgb, var(--mx-card) 88%, transparent);
 }
 
 /* The tray panel, the tool page, the floating cards and the scan screen. */

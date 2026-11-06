@@ -4,10 +4,12 @@ import { Search, X } from "lucide-react";
 import { Input, Pressable } from "../../../kit";
 import { ArmsLines } from "../../../../core/domain/memory-brain-lines";
 
+/** The magnifier and the close mark, at the size of the capsule's meta words. */
+const SEEK_GLYPH = 13;
+
 /**
- * The brain's search, a capsule in the middle of the canvas as Rubric draws
- * it: typing dims everything the words do not match and rings what they do,
- * the count says how many, and Enter opens the first.
+ * The brain's search, a capsule centred over the brain as the Mac's `BrainSeek` draws it: typing dims everything the
+ * words do not match and rings what they do, the count says how many, Enter opens the best and Escape puts it away.
  */
 export function ArmsSearch({
   query,
@@ -27,10 +29,10 @@ export function ArmsSearch({
   const asked = query.trim() !== "";
 
   return (
-    <div onPointerDown={(event) => event.stopPropagation()} className="pointer-events-none absolute inset-x-0 top-20 z-300 flex justify-center px-4">
-      <div className="pointer-events-auto flex w-full max-w-md flex-col items-center gap-1.5">
-        <label className="flex w-full items-center gap-2 rounded-full border border-panel-edge bg-card/95 px-4 py-2 shadow-[0_24px_60px_rgb(0_0_0/0.45)] backdrop-blur">
-          <Search className="size-4 shrink-0 text-muted" aria-hidden />
+    <div onPointerDown={(event) => event.stopPropagation()} className="pointer-events-none absolute inset-x-0 top-brain-seek-top z-300 flex justify-center px-4">
+      <div className="pointer-events-auto flex flex-col items-center gap-1.5">
+        <label className="flex h-control w-brain-seek max-w-full items-center gap-2 rounded-full border border-panel-edge bg-brain-panel px-3">
+          <Search size={SEEK_GLYPH} className="shrink-0 text-muted" aria-hidden />
           <Input
             ref={input}
             look="bare"
@@ -46,14 +48,14 @@ export function ArmsSearch({
               }
             }}
             placeholder={ArmsLines.searchPlaceholder}
-            className="flex-1 text-body-sm tracking-wide text-foreground placeholder:text-label placeholder:font-semibold placeholder:tracking-[0.2em] placeholder:text-muted focus:outline-none"
+            className="min-w-0 flex-1 font-code text-meta font-medium tracking-heading text-foreground placeholder:text-faint focus:outline-none"
           />
-          <Pressable aria-label={ArmsLines.closeSearch} onClick={onClose} className="rounded-full p-0.5 text-muted hover:text-foreground">
-            <X className="size-4" aria-hidden />
+          <Pressable aria-label={ArmsLines.closeSearch} onClick={onClose} className="shrink-0 cursor-pointer text-muted">
+            <X size={SEEK_GLYPH} aria-hidden />
           </Pressable>
         </label>
         {asked && (
-          <p aria-live="polite" className="rounded-full bg-card/90 px-3 py-0.5 text-label font-semibold tracking-[0.18em] text-muted">
+          <p aria-live="polite" className={`font-code text-brain-caption font-medium tracking-heading ${matches > 0 ? "text-muted" : "text-faint"}`}>
             {matches === 0 ? ArmsLines.noMatches : ArmsLines.matches(matches)}
           </p>
         )}

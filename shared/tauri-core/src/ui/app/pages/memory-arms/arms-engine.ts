@@ -5,7 +5,8 @@ import { approach, easeInOutCubic, OPENING, PARTICLE, springAtRest, springStep, 
 import { paintFrame } from "./arms-paint";
 import { markUrl } from "./arms-support";
 import { blend, makeDots, place, sectorOfPoint, type ArmsMode, type Dots, type View } from "../../../../core/domain/memory-arms/arms-scene";
-import { REACH, type Projected, type Vec2 } from "../../../../core/domain/memory-arms/arms-shape";
+import { brainPoint, layerOfPoint, REACH, type Projected, type Vec2 } from "../../../../core/domain/memory-arms/arms-shape";
+import { ASSEMBLED, isAssembled, opened, poseAt, tourSeed, tourSeconds, type TourClock, type TourPose } from "../../../../core/domain/memory-arms/arms-tour";
 import type { Pen } from "./arms-draw";
 
 /**
@@ -22,6 +23,10 @@ export type EngineProps = {
   sector: string | undefined;
   selected: string | undefined;
   matches: ReadonlySet<string>;
+  /** Every name drawn whatever the zoom, the legend's Show all labels. */
+  allLabels: boolean;
+  /** The tour's clock while it runs, which poses every layer from one playhead. */
+  tour: TourClock | undefined;
 };
 
 export type Particle = { item: number; app: number; start: number; trail: number[] };
@@ -54,6 +59,10 @@ const LIGHT_RATE = 7;
 /** Dots per screen pixel of drawing, between a floor and a ceiling, so a big screen is not sparse. */
 const DOTS = { fewest: 1400, most: 3600, pixelsEach: 260 } as const;
 const DUST_SEED = 7;
+/** Where the 3D view rests and turns back to on Center. */
+const RESTING_VIEW: View = { yaw: -0.5, pitch: 0.25 };
+/** Flying to a mark draws at least this close, where its name and its neighbours' are written, the Mac's `flyZoom`. */
+const FLY_ZOOM = 1.6;
 
 export class ArmsEngine {
   readonly canvas: HTMLCanvasElement;
@@ -73,7 +82,11 @@ export class ArmsEngine {
   moved = false;
   index = new Map<string, number>();
   images = new Map<string, HTMLImageElement>();
-  props: EngineProps = { mode: "brain", motion: true, speed: 1, reduced: false, sector: undefined, selected: undefined, matches: new Set() };
+  props: EngineProps = { mode: "brain", motion: true, speed: 1, reduced: false, sector: undefined, selected: undefined, matches: new Set(), allLabels: false, tour: undefined };
+  /** Told whenever the zoom it is headed for changes, so the zoom buttons know when they are at an end. */
+  onZoom: ((k: number) => void) | undefined = undefined;
+  /** The tour's pose this frame, assembled while no tour runs. */
+  pose: TourPose = ASSEMBLED;
 
   width = 0;
   height = 0;
@@ -87,7 +100,7 @@ export class ArmsEngine {
   fade = 1;
   cam = { x: { value: 0, velocity: 0 } as Spring, y: { value: 0, velocity: 0 } as Spring, k: { value: 1, velocity: 0 } as Spring };
   target = { x: 0, y: 0, k: 1 };
-  view: View = { yaw: -0.5, pitch: 0.25 };
+  view: View = { ...RESTING_VIEW };
   spin = { yaw: 0, pitch: 0 };
   dragging = false;
   hover = -1;
@@ -209,10 +222,29 @@ export class ArmsEngine {
 
   /** One point's place on screen under the current morph and camera. */
   at(theta: number, f: number, phi: number, line: Vec2): Projected {
-    const to = place(this.props.mode, theta, f, phi, line, this.view);
-    const p = this.morph >= 1 || this.props.reduced ? to : blend(place(this.from, theta, f, phi, line, this.view), to, this.eased);
-    const scale = this.unit * this.cam.k.value;
+    const view = this.turned;
+    const to = place(this.props.mode, theta, f, phi, line, view);
+    const p = this.morph >= 1 || this.props.reduced ? to : blend(place(this.from, theta, f, phi, line, view), to, this.eased);
+    // The tour pushes in and stands back about the middle of the canvas, over wherever the camera is.
+    const scale = this.unit * this.cam.k.value * (this.props.mode === "timeline" ? 1 : this.pose.zoom);
     return { x: this.width / 2 + (p.x - this.cam.x.value) * scale, y: this.height / 2 - (p.y - this.cam.y.value) * scale, scale: p.scale, depth: p.depth };
+  }
+
+  /** The 3D view with the tour's turntable on top. */
+  private get turned(): View {
+    return this.pose.turn === 0 ? this.view : { yaw: this.view.yaw + this.pose.turn, pitch: this.view.pitch };
+  }
+
+  /**
+   * One item's place with its assembly opened by the tour, as the Mac opens the flat spot before it is projected: the
+   * flat spot is opened, then read back as an angle and a share so the 3D view turns it as it turns everything else.
+   */
+  atItem(item: ArmsItem, index: number, line: Vec2): Projected {
+    if (isAssembled(this.pose) || this.props.mode === "timeline") return this.at(item.theta, item.f, item.phi, line);
+    const sector = item.layer === "memory" && item.sector !== undefined ? this.model.sectors.find((each) => each.key === item.sector) : undefined;
+    const flat = opened(brainPoint(item.theta, item.f), item.layer, sector === undefined ? undefined : { x: sector.x, y: sector.y }, tourSeed(index), this.pose);
+    const back = layerOfPoint(flat);
+    return this.at(back.theta, back.f, item.phi, line);
   }
 
   /** How much of the timeline is showing, from 0 to 1, which the labels crossfade on. */
@@ -234,6 +266,34 @@ export class ArmsEngine {
     this.frameNodes(false);
   }
 
+  /** Center stands the 3D brain back up at its resting tilt and fits the view again, the Mac's C. */
+  center(): void {
+    this.view = { ...RESTING_VIEW };
+    this.spin = { yaw: 0, pitch: 0 };
+    this.fit();
+  }
+
+  /**
+   * The arrows walk the marks in turn, the Mac's arrows: the next is hovered and the camera flies to it, close
+   * enough to read its name. Answers the mark now hovered.
+   */
+  walk(step: number): ArmsItem | undefined {
+    const count = this.model.items.length;
+    if (count === 0) return undefined;
+    const here = this.hover >= 0 ? this.hover : step > 0 ? -1 : 0;
+    const next = (((here + step) % count) + count) % count;
+    this.setHover(next);
+    const item = this.model.items[next]!;
+    if (this.props.mode !== "orbs") {
+      this.moved = true;
+      const at = this.world(item);
+      this.target = { x: at.x, y: at.y, k: Math.max(this.target.k, FLY_ZOOM) };
+      this.onZoom?.(this.target.k);
+    }
+    this.wake();
+    return item;
+  }
+
   /** Where one item stands in the current view before the camera, in brain units. */
   world(item: ArmsItem): Vec2 {
     const line = this.timeline.places.get(item.id) ?? { x: 0, y: 0 };
@@ -244,6 +304,7 @@ export class ArmsEngine {
   private frameNodes(snap: boolean): void {
     if (this.width === 0) return;
     this.target = fitTo(this.model.items.map((item) => this.world(item)), { width: this.width, height: this.height, unit: this.unit });
+    this.onZoom?.(this.target.k);
     if (snap && this.opening === 0) {
       this.cam.x = { value: this.target.x, velocity: 0 };
       this.cam.y = { value: this.target.y, velocity: 0 };
@@ -263,6 +324,7 @@ export class ArmsEngine {
       this.target.y = wy + (about.y - this.height / 2) / (scale * k);
     }
     this.target.k = k;
+    this.onZoom?.(k);
     this.wake();
   }
 
@@ -389,6 +451,7 @@ export class ArmsEngine {
     this.stop();
     this.onHover = undefined;
     this.onFrame = undefined;
+    this.onZoom = undefined;
     for (const image of this.images.values()) image.onload = null;
   }
 
@@ -404,7 +467,9 @@ export class ArmsEngine {
 
   /** Moves every clock and spring on by one frame, and says whether anything is still moving. */
   private advance(dt: number): boolean {
-    const { motion, reduced, speed, mode, selected } = this.props;
+    const { motion, reduced, speed, mode, selected, tour } = this.props;
+    this.pose = tour === undefined || reduced ? ASSEMBLED : poseAt(tourSeconds(tour, Date.now()));
+    const touring = tour !== undefined && tour.held === undefined && !reduced;
     // A picked node holds the brain still, so it and its card stay where the person clicked.
     const live = motion && !reduced && selected === undefined;
     const paced = dt * speed;
@@ -440,7 +505,7 @@ export class ArmsEngine {
     const lighting = this.ease(dt);
     this.particles = this.particles.filter((each) => this.elapsed - each.start < PARTICLE.life);
     if (this.fade < 1) this.fade = Math.min(1, this.fade + dt / FADE_SECONDS);
-    return sliding || this.fade < 1 || live || this.opening < openingEnd || this.morph < 1 || settling || orbiting || lighting || this.particles.length > 0;
+    return touring || sliding || this.fade < 1 || live || this.opening < openingEnd || this.morph < 1 || settling || orbiting || lighting || this.particles.length > 0;
   }
 
   /** Eases each item's light and each sector's, and says whether any is still on its way. */

@@ -1,46 +1,48 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Box, CirclePlay, Film, Search } from "lucide-react";
 
 import type { Route } from "../../../../core/domain/destinations";
 import { anchorCard } from "../../../../core/domain/memory-arms/arms-anchor";
+import { ZOOM } from "../../../../core/domain/memory-arms/arms-fit";
 import { timelineFrame } from "../../../../core/domain/memory-arms/arms-lanes";
+import { drawnModel, drawnStats, legendRows, type LegendLayer } from "../../../../core/domain/memory-arms/arms-legend";
 import { linksOf } from "../../../../core/domain/memory-arms/arms-links";
 import { armsModel, firstMatch, matching, type ArmsInput, type ArmsItem } from "../../../../core/domain/memory-arms/arms-model";
 import type { MemoryMap } from "../../../../core/domain/memory-arms/arms-node";
-import type { ArmsMode } from "../../../../core/domain/memory-arms/arms-scene";
+import { ARMS_MODES, type ArmsMode } from "../../../../core/domain/memory-arms/arms-scene";
+import { scrubTour, toggleTour, type TourClock } from "../../../../core/domain/memory-arms/arms-tour";
 import { ArmsCard, type ArmsRule, type ArmsSkill } from "./arms-detail";
 import type { ArmsEngine, EngineProps, Hovered } from "./arms-engine";
-import { ArmsLegend, SectorList } from "./arms-legend";
+import { BrainGrowth, BrainHints, BrainPill, MapZoom, QuietCard, TourDeck } from "./arms-foot";
+import { BrainLegend } from "./arms-legend";
 import { ArmsSearch } from "./arms-search";
 import { ArmsStage } from "./arms-stage";
 import { ArmsToolbar } from "./arms-toolbar";
 import { ArmsTooltip } from "./arms-tooltip";
-import { BRAIN_HEADING, brainStats, inViewLine } from "../../../../core/domain/memory-brain-lines";
+import { BRAIN_HEADING, BRAIN_KEYS, BRAIN_SPEED, BrainFootLines, inViewLine } from "../../../../core/domain/memory-brain-lines";
 import { usePrefersReducedMotion } from "./use-reduced-motion";
 import "./arms.css";
 
-const ZOOM_STEP = 1.3;
+/** How far a zoom button or the plus and minus keys zoom, the Mac's `MapMetrics.pressZoom`. */
+const PRESS_ZOOM = 1.2;
+/** The zoom buttons are out of reach this near an end, so a rounding at the bound never leaves one live. */
+const ZOOM_END = 1.001;
 
-/** A key the brain answers while no field has it, so typing a slash into a search box stays the person's. */
-function useBrainKey(key: string, act: (() => void) | null): void {
-  useEffect(() => {
-    if (act === null) return;
-    const press = (event: KeyboardEvent) => {
-      const target = event.target;
-      if (target instanceof HTMLElement && (target.isContentEditable || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return;
-      if (event.key !== key || event.metaKey || event.ctrlKey || event.altKey) return;
-      event.preventDefault();
-      act();
-    };
-    window.addEventListener("keydown", press);
-    return () => window.removeEventListener("keydown", press);
-  }, [key, act]);
+/** Whether a key went to a field rather than to the brain, so typing a slash into a search box stays the person's. */
+function typing(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && (target.isContentEditable || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement);
+}
+
+/** Whether Space or Return belongs to the control that has the focus, so a focused chip or button is pressed rather than the brain. */
+function pressing(event: KeyboardEvent): boolean {
+  return (event.key === " " || event.key === "Enter") && event.target instanceof HTMLElement && event.target.closest("button, a, [role='button']") !== null;
 }
 
 /**
- * Memory drawn as the brain, ported from the cloud console's ARMS map: the instruction files and the skills at the
- * centre, each area of memory a packed cluster round its own hub, the rules in force on a gold ring, and the apps and
- * servers that feed it outside. A pick opens a card beside its mark that follows it, with the brain still live behind;
- * the search is a capsule in the middle. Everything it draws is a read the daemon answered.
+ * Memory drawn as the brain, ported from the cloud console's ARMS map and laid over as the Mac's `MemoryMapView` lays
+ * it: the bar and the view's controls along the top, the heading and its counts, then the legend, Search, Replay,
+ * Cinema and Tour, how full the brain is and the zoom along the foot, with the hints under them. Cinema puts every
+ * overlay away until Escape, and the tour takes the brain apart and puts it back on a loop with its deck in their place.
  */
 export function ArmsView({
   map,
@@ -49,7 +51,9 @@ export function ArmsView({
   rules,
   go,
   nodeCard,
-  aside,
+  sourceAreas,
+  growth,
+  attention,
   bar,
   foot,
 }: {
@@ -60,8 +64,12 @@ export function ArmsView({
   go?: (route: Route) => void;
   /** The memory page's own details for a node it knows, a fact or a document. */
   nodeCard: (nodeId: string, onClose: () => void) => ReactNode;
-  /** A line under the legend saying what the picture stands on, where it is not whole and live. */
-  aside?: string;
+  /** Each listed source's area, which SOURCES counts while the area is drawn. */
+  sourceAreas: readonly (string | undefined)[];
+  /** How much of what was learned is verified, for the growth card. */
+  growth: { verified: number; total: number };
+  /** The record's nodes that need attention, which Only what needs attention keeps. */
+  attention: ReadonlySet<string>;
   /** The page's filters, laid along the top left as the Mac lays them, with the view's controls to their right. */
   bar?: ReactNode;
   /** The page's own lines under the heading's counts. */
@@ -70,30 +78,39 @@ export function ArmsView({
   const reduced = usePrefersReducedMotion();
   const [mode, setMode] = useState<ArmsMode>("brain");
   const [motion, setMotion] = useState(true);
-  const [speed, setSpeed] = useState(1);
+  const [speed, setSpeed] = useState<number>(BRAIN_SPEED.normal);
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState<string | undefined>(undefined);
   const [picked, setPicked] = useState<ArmsItem | undefined>(undefined);
   const [searching, setSearching] = useState(false);
   const [hovered, setHovered] = useState<Hovered | undefined>(undefined);
+  const [hiddenAreas, setHiddenAreas] = useState<ReadonlySet<string>>(new Set());
+  const [hiddenLayers, setHiddenLayers] = useState<ReadonlySet<LegendLayer>>(new Set());
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const [allLabels, setAllLabels] = useState(false);
+  const [cinema, setCinema] = useState(false);
+  const [tour, setTour] = useState<TourClock | undefined>(undefined);
+  const [zoom, setZoom] = useState(1);
   const engine = useRef<ArmsEngine | undefined>(undefined);
 
-  const model = useMemo(() => armsModel(input), [input]);
+  // Laid out from the whole record, so taking an area off never moves what stays.
+  const whole = useMemo(() => armsModel(input), [input]);
+  const cut = useMemo(
+    () => ({ areas: hiddenAreas, layers: hiddenLayers, ...(attentionOnly ? { attention } : {}) }),
+    [hiddenAreas, hiddenLayers, attentionOnly, attention],
+  );
+  const model = useMemo(() => drawnModel(whole, map, cut), [whole, map, cut]);
+  const rows = useMemo(() => legendRows(whole), [whole]);
   const links = useMemo(() => linksOf(model, map.edges), [model, map.edges]);
   const timeline = useMemo(() => timelineFrame(model.items, model.sectors), [model]);
   const matches = useMemo(() => matching(model.items, query), [model, query]);
   const arrivals = useArrivals(map);
+  // The idle life runs in Cinema whatever the switch says, as the Mac's does.
   const props = useMemo<EngineProps>(
-    () => ({ mode, motion, speed, reduced, sector, selected: picked?.id, matches }),
-    [mode, motion, speed, reduced, sector, picked, matches],
+    () => ({ mode, motion: motion || cinema, speed, reduced, sector, selected: picked?.id, matches, allLabels, tour }),
+    [mode, motion, cinema, speed, reduced, sector, picked, matches, allLabels, tour],
   );
 
-  useBrainKey("/", useCallback(() => setSearching(true), []));
-  useBrainKey("ArrowLeft", useCallback(() => engine.current?.panBy(-1, 0), []));
-  useBrainKey("ArrowRight", useCallback(() => engine.current?.panBy(1, 0), []));
-  useBrainKey("ArrowUp", useCallback(() => engine.current?.panBy(0, -1), []));
-  useBrainKey("ArrowDown", useCallback(() => engine.current?.panBy(0, 1), []));
-  useBrainKey("Escape", useMemo(() => (picked === undefined ? null : () => setPicked(undefined)), [picked]));
   const { card, pointer, place } = useAnchoredCard(engine, picked);
   useEffect(() => {
     if (picked !== undefined && !model.items.some((item) => item.id === picked.id)) setPicked(undefined);
@@ -107,8 +124,69 @@ export function ArmsView({
     const found = firstMatch(model.items, matches);
     if (found !== undefined) setPicked(found);
   };
-  const stats = useMemo(() => brainStats(map, input.apps.length), [map, input.apps]);
+  const zoomBy = (factor: number): void => {
+    const made = engine.current;
+    made?.zoomBy(factor, { x: made.width / 2, y: made.height / 2 });
+  };
+  const startTour = (): void => {
+    if (reduced) return;
+    setPicked(undefined);
+    setTour({ started: Date.now() });
+    engine.current?.fit();
+  };
+  const leaveTour = (): void => setTour(undefined);
+  const enterCinema = (): void => {
+    setCinema(true);
+    engine.current?.fit();
+  };
+  const replay = (): void => engine.current?.replay();
+  const toggle = <Value,>(set: (change: (was: ReadonlySet<Value>) => ReadonlySet<Value>) => void, value: Value): void =>
+    set((was) => {
+      const next = new Set(was);
+      if (!next.delete(value)) next.add(value);
+      return next;
+    });
+
+  useBrainKeys({
+    picked: picked !== undefined,
+    touring: tour !== undefined,
+    cinema,
+    lit: sector !== undefined,
+    close: () => setPicked(undefined),
+    leaveTour,
+    leaveCinema: () => setCinema(false),
+    unlight: () => setSector(undefined),
+    space: () => (tour === undefined ? setMotion((was) => !was) : setTour((was) => (was === undefined ? was : toggleTour(was, Date.now())))),
+    search: () => setSearching(true),
+    fit: () => engine.current?.fit(),
+    center: () => engine.current?.center(),
+    replay,
+    tour: () => (tour === undefined ? startTour() : leaveTour()),
+    motion: () => setMotion((was) => !was),
+    view: (index) => {
+      const next = ARMS_MODES[index];
+      if (next !== undefined) setMode(next);
+    },
+    zoom: zoomBy,
+    open: () => {
+      const made = engine.current;
+      const item = made?.model.items[made.hover];
+      if (item !== undefined) setPicked(item);
+    },
+    walk: (step) => engine.current?.walk(step),
+  });
+
+  const stats = useMemo(() => drawnStats(model, map, sourceAreas, cut), [model, map, sourceAreas, cut]);
+  const quiet = !whole.empty && model.empty ? (attentionOnly ? BrainFootLines.nothingNeedsYou : BrainFootLines.everythingHidden) : undefined;
   const frame = { width: engine.current?.width ?? 0, height: engine.current?.height ?? 0 };
+  const overlays = !cinema && tour === undefined;
+  const tourCounts = {
+    skills: rows.layers.find((row) => row.layer === "skill")?.count ?? 0,
+    areas: model.sectors.length,
+    rules: rows.layers.find((row) => row.layer === "rule")?.count ?? 0,
+    applications: rows.layers.find((row) => row.layer === "app")?.count ?? 0,
+    marks: model.items.length,
+  };
 
   return (
     <div className="mx-brain absolute inset-0 overflow-hidden rounded-xl border border-panel-edge">
@@ -120,7 +198,9 @@ export function ArmsView({
         arrivals={arrivals}
         onEngine={(made) => {
           engine.current = made;
-          if (made !== undefined) made.onFrame = () => place.current();
+          if (made === undefined) return;
+          made.onFrame = () => place.current();
+          made.onZoom = setZoom;
         }}
         onPick={(item) => {
           setPicked(item);
@@ -130,51 +210,89 @@ export function ArmsView({
         onSector={setSector}
         onHover={setHovered}
       />
-      {model.empty && <EmptyBrain />}
+      {whole.empty && <EmptyBrain />}
+      {overlays && quiet !== undefined && (
+        <div className="pointer-events-none absolute inset-0 z-200 flex items-center justify-center p-8">
+          <QuietCard line={quiet} />
+        </div>
+      )}
       {hovered !== undefined && hovered.item.id !== picked?.id && <ArmsTooltip hovered={hovered} model={model} links={links} frame={frame} />}
-      {searching && <ArmsSearch query={query} onQuery={setQuery} matches={matches.size} onOpen={openFirst} onClose={closeSearch} />}
-      {/* The bar and the view's controls along the top, then the heading and its counts, as the Mac's overlays stand. */}
-      <div className="pointer-events-none absolute inset-x-4 top-4 z-300 flex flex-col gap-3">
-        <div className="flex items-start gap-2">
-          <div onPointerDown={(event) => event.stopPropagation()} className="pointer-events-auto flex min-w-0 flex-col gap-1.5">
-            {bar}
+      {searching && !cinema && <ArmsSearch query={query} onQuery={setQuery} matches={matches.size} onOpen={openFirst} onClose={closeSearch} />}
+      {overlays && (
+        /* The bar and the view's controls along the top, then the heading and its counts, as the Mac's overlays stand. */
+        <div className="pointer-events-none absolute inset-x-4 top-4 z-300 flex flex-col gap-3">
+          <div className="flex items-start gap-2">
+            <div onPointerDown={(event) => event.stopPropagation()} className="pointer-events-auto flex min-w-0 flex-col gap-1.5">
+              {bar}
+            </div>
+            <span className="min-w-2 flex-1" />
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <p className="font-code text-brain-overline text-muted">{inViewLine(model.items.length)}</p>
+              <ArmsToolbar mode={mode} onMode={setMode} motion={motion} onMotion={setMotion} speed={speed} onSpeed={setSpeed} reduced={reduced} />
+            </div>
           </div>
-          <span className="min-w-2 flex-1" />
-          <div className="flex shrink-0 flex-col items-end gap-1.5">
-            <p className="font-mono text-caption text-muted">{inViewLine(model.items.length)}</p>
-            <ArmsToolbar
-        mode={mode}
-        onMode={setMode}
-        motion={motion}
-        onMotion={setMotion}
-        speed={speed}
-        onSpeed={setSpeed}
-        reduced={reduced}
-        onSearch={() => setSearching(true)}
-        onZoomOut={() => engine.current?.zoomBy(1 / ZOOM_STEP)}
-        onFit={() => engine.current?.fit()}
-        onZoomIn={() => engine.current?.zoomBy(ZOOM_STEP)}
-        onReplay={() => engine.current?.replay()}
+          <BrainHeading stats={stats} foot={foot} />
+        </div>
+      )}
+      {overlays && !whole.empty && (
+        /* The legend, the four pills, how full the brain is and the zoom along the foot, with the hints between. */
+        <div className="pointer-events-none absolute inset-x-4 bottom-4 z-300 flex flex-col gap-2">
+          <div className="flex items-end gap-3">
+            <div className="pointer-events-auto">
+              <BrainLegend
+                areas={rows.areas}
+                layers={rows.layers}
+                hiddenAreas={hiddenAreas}
+                hiddenLayers={hiddenLayers}
+                lit={sector}
+                onLight={(key) => setSector((was) => (was === key ? undefined : key))}
+                onArea={(key) => toggle(setHiddenAreas, key)}
+                onLayer={(layer) => toggle(setHiddenLayers, layer)}
+                attentionOnly={attentionOnly}
+                onAttention={() => setAttentionOnly((was) => !was)}
+                allLabels={allLabels}
+                onAllLabels={() => setAllLabels((was) => !was)}
+              />
+            </div>
+            <span className="min-w-2 flex-1" />
+            <div onPointerDown={(event) => event.stopPropagation()} className="pointer-events-auto flex items-center gap-1.5">
+              <BrainPill icon={Search} title={BrainFootLines.search} help={BrainFootLines.searchHelp} onPress={() => setSearching(true)} />
+              <BrainPill icon={CirclePlay} title={BrainFootLines.replay} help={BrainFootLines.replayHelp} onPress={replay} />
+              <BrainPill icon={Film} title={BrainFootLines.cinema} help={BrainFootLines.cinemaHelp} onPress={enterCinema} />
+              <BrainPill icon={Box} title={BrainFootLines.tour} help={reduced ? BrainFootLines.tourStill : BrainFootLines.tourHelp} enabled={!reduced} onPress={startTour} />
+            </div>
+            <span className="min-w-2 flex-1" />
+            <div onPointerDown={(event) => event.stopPropagation()} className="pointer-events-auto flex flex-col items-end gap-2">
+              {growth.total > 0 && <BrainGrowth verified={growth.verified} total={growth.total} />}
+              <MapZoom
+                canOut={zoom > ZOOM.least * ZOOM_END}
+                canIn={zoom < ZOOM.most / ZOOM_END}
+                onOut={() => zoomBy(1 / PRESS_ZOOM)}
+                onFit={() => engine.current?.fit()}
+                onIn={() => zoomBy(PRESS_ZOOM)}
+              />
+            </div>
+          </div>
+          <BrainHints orbs={mode === "orbs"} />
+        </div>
+      )}
+      {tour !== undefined && (
+        <div className="pointer-events-none absolute inset-x-4 bottom-4 z-300 flex justify-center">
+          <div className="pointer-events-auto">
+            <TourDeck
+              clock={tour}
+              counts={tourCounts}
+              onToggle={() => setTour((was) => (was === undefined ? was : toggleTour(was, Date.now())))}
+              onScrub={(seconds) => setTour((was) => (was === undefined ? was : scrubTour(was, seconds, Date.now())))}
+              onLeave={leaveTour}
             />
           </div>
         </div>
-        <BrainHeading stats={stats} foot={foot} />
-      </div>
-      {model.sectors.length > 1 && (
-        <div onPointerDown={(event) => event.stopPropagation()} className="absolute inset-x-0 bottom-4 z-300 flex justify-center px-40 max-[900px]:px-4">
-          <SectorList sectors={model.sectors} sector={sector} onSector={setSector} />
-        </div>
       )}
-      {!model.empty && (
-        <details onPointerDown={(event) => event.stopPropagation()} className="absolute bottom-4 left-4 z-300 max-w-72 rounded-xl border border-panel-edge bg-card/95 p-3 text-meta backdrop-blur">
-          <summary className="mx-focus cursor-pointer list-none font-medium text-muted select-none">Legend</summary>
-          <div className="flex flex-col gap-3 pt-3">
-            <ArmsLegend model={model} sector={sector} onSector={setSector} />
-            {aside !== undefined && <p className="text-label leading-relaxed text-muted">{aside}</p>}
-          </div>
-        </details>
+      {cinema && (
+        <p className="pointer-events-none absolute inset-x-4 bottom-4 z-300 text-center font-code text-brain-caption text-faint">{BrainFootLines.leaveCinema}</p>
       )}
-      {picked !== undefined && (
+      {picked !== undefined && !cinema && (
         /* Placed by the engine's frame rather than by React, so it follows its mark without a render per frame. */
         <div
           ref={card}
@@ -205,6 +323,74 @@ export function ArmsView({
       )}
     </div>
   );
+}
+
+type BrainKeyActions = {
+  picked: boolean;
+  touring: boolean;
+  cinema: boolean;
+  lit: boolean;
+  close: () => void;
+  leaveTour: () => void;
+  leaveCinema: () => void;
+  unlight: () => void;
+  space: () => void;
+  search: () => void;
+  fit: () => void;
+  center: () => void;
+  replay: () => void;
+  tour: () => void;
+  motion: () => void;
+  view: (index: number) => void;
+  zoom: (factor: number) => void;
+  open: () => void;
+  walk: (step: number) => void;
+};
+
+/**
+ * The Mac's keys over the brain, while no field has the cursor: F or 0 fits and C centers, R replays, T tours, M and
+ * the space bar turn Motion, one to three pick the view, slash searches, plus and minus zoom, Return opens the mark
+ * walked to and the arrows walk the marks. Escape puts away the card, then the tour, then Cinema, then the lit area.
+ */
+function useBrainKeys(actions: BrainKeyActions): void {
+  const latest = useRef(actions);
+  latest.current = actions;
+  useEffect(() => {
+    const press = (event: KeyboardEvent) => {
+      if (typing(event.target) || pressing(event) || event.metaKey || event.ctrlKey || event.altKey) return;
+      const act = latest.current;
+      const handled = (): void => event.preventDefault();
+      if (event.key === "Escape") {
+        if (act.picked) act.close();
+        else if (act.touring) act.leaveTour();
+        else if (act.cinema) act.leaveCinema();
+        else if (act.lit) act.unlight();
+        else return;
+        return handled();
+      }
+      if (event.key === " ") {
+        act.space();
+        return handled();
+      }
+      const key = event.key.toLowerCase();
+      if (key === BRAIN_KEYS.search) act.search();
+      else if (key === BRAIN_KEYS.fit.toLowerCase() || key === "0") act.fit();
+      else if (key === BRAIN_KEYS.center.toLowerCase()) act.center();
+      else if (key === BRAIN_KEYS.replay.toLowerCase()) act.replay();
+      else if (key === BRAIN_KEYS.tour.toLowerCase()) act.tour();
+      else if (key === BRAIN_KEYS.motion.toLowerCase()) act.motion();
+      else if (key === "1" || key === "2" || key === "3") act.view(Number(key) - 1);
+      else if (key === "+" || key === "=") act.zoom(PRESS_ZOOM);
+      else if (key === "-") act.zoom(1 / PRESS_ZOOM);
+      else if (event.key === "Enter") act.open();
+      else if (event.key === "ArrowRight" || event.key === "ArrowDown") act.walk(1);
+      else if (event.key === "ArrowLeft" || event.key === "ArrowUp") act.walk(-1);
+      else return;
+      handled();
+    };
+    window.addEventListener("keydown", press);
+    return () => window.removeEventListener("keydown", press);
+  }, []);
 }
 
 /** What a read again brought, as item ids for the engine to send travelling in; the first read lights nothing. */
@@ -271,18 +457,18 @@ function useAnchoredCard(engine: { readonly current: ArmsEngine | undefined }, p
   return { card, pointer, place };
 }
 
-/** The heading over the brain's top left: what it is, the two line title, its counts and the page's own lines. */
+/** The heading over the brain's top left, the Mac's `BrainHeading`: what it is, the two line title, its counts and the page's own lines. */
 function BrainHeading({ stats, foot }: { stats: { memories: number; sources: number; connections: number }; foot: ReactNode }) {
   const stat = (count: number, caption: string) => (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[26px] leading-none font-semibold tabular-nums text-foreground">{count}</span>
-      <span className="font-mono text-micro font-medium tracking-[0.18em] text-faint">{caption}</span>
+      <span className="text-brain-numeral leading-none font-semibold tabular-nums text-foreground">{count}</span>
+      <span className="font-code text-brain-caption font-medium tracking-heading text-faint">{caption}</span>
     </div>
   );
   return (
-    <div className="flex max-w-[380px] flex-col gap-2">
-      <p className="font-mono text-caption font-medium tracking-[0.18em] text-muted">{BRAIN_HEADING.overline}</p>
-      <h2 className="text-[34px] leading-[1.1] font-semibold tracking-[-0.014em]">
+    <div className="flex max-w-(--spacing-brain-heading) flex-col gap-2">
+      <p className="font-code text-brain-overline font-medium tracking-heading text-muted">{BRAIN_HEADING.overline}</p>
+      <h2 className="text-brain-headline leading-tight font-semibold tracking-title">
         <span className="block text-foreground">{BRAIN_HEADING.title}</span>
         <span className="block text-faint">{BRAIN_HEADING.titleQuiet}</span>
       </h2>

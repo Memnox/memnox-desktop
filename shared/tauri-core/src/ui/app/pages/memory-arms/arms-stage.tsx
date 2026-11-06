@@ -130,6 +130,8 @@ export function ArmsStage({
           onSector(undefined);
         }
       }}
+      // A double click fits the whole brain again, as the hint under the foot says.
+      onDoubleClick={() => engine.current?.fit()}
       onPointerLeave={() => engine.current?.setHover(-1)}
       onPointerCancel={() => {
         gesture.current = { ...gesture.current, down: false };

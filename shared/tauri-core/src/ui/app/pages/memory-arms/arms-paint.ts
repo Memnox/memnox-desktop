@@ -144,7 +144,7 @@ function placeItems(engine: ArmsEngine, open: Open): void {
   for (let at = 0; at < model.items.length; at += 1) {
     const item = model.items[at]!;
     const line = engine.timeline.places.get(item.id) ?? ORIGIN;
-    const p = engine.at(item.theta, item.f, item.phi, line);
+    const p = engine.atItem(item, at, line);
     const grown = growth(engine, open, at);
     const parent = item.parent === undefined ? undefined : engine.index.get(item.parent);
     /* Parents come before their children in the model, so a parent's place is already this frame's. */

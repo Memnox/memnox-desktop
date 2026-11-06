@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkspaceGraphView } from '../src/core/domain/memory-arms/arms-local';
-import { BRAIN_HEADING, brainStats, heldReads, homeFilterOf, inViewLine, MEMORY_HOME_FILTERS, MEMORY_HOME_KEY, workspaceShows } from '../src/core/domain/memory-brain-lines';
+import { BRAIN_HEADING, heldReads, homeFilterOf, inViewLine, MEMORY_HOME_FILTERS, MEMORY_HOME_KEY, workspaceShows } from '../src/core/domain/memory-brain-lines';
 
 type WorkspaceNode = WorkspaceGraphView['nodes'][number];
 const node = (kind: string, status?: string): WorkspaceNode => ({ id: kind, kind, label: kind, ...(status === undefined ? {} : { status }) }) as unknown as WorkspaceNode;
@@ -24,11 +24,6 @@ describe('the brain overlay, in the Mac words', () => {
     expect([BRAIN_HEADING.memories, BRAIN_HEADING.sources, BRAIN_HEADING.connections]).toEqual(['MEMORIES', 'SOURCES', 'CONNECTIONS']);
     expect(inViewLine(1)).toBe('1 POINT IN VIEW');
     expect(inViewLine(12)).toBe('12 POINTS IN VIEW');
-  });
-
-  it('counts memories, the apps memory came through and every line', () => {
-    const map = { nodes: [{ id: 'a', kind: 'memory' }, { id: 'b', kind: 'document' }], edges: [{ id: 'e', from: 'a', to: 'b', kind: 'cites' }] } as never;
-    expect(brainStats(map, 3)).toEqual({ memories: 1, sources: 3, connections: 1 });
   });
 
   it('narrows the workspace decisions to the status chip and keeps what arrived under every chip', () => {

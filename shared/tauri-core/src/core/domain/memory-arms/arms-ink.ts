@@ -27,3 +27,6 @@ const SECTOR_HUES = ["#4C8DFF", "#F5C542", "#2DD4BF", "#FF8A3D", "#4ADE80", "#F4
 export function sectorInk(index: number): string {
   return SECTOR_HUES[index % SECTOR_HUES.length]!;
 }
+
+/** The legend's dot for each outer layer, ArmsInk's skills, rules and applications on the Mac. */
+export const LAYER_INK = { skill: "#FDFDFD", rule: "#F5B942", app: "#5AA9FF" } as const;

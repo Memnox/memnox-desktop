@@ -1,24 +1,16 @@
+import { Brain, CalendarRange, Hexagon, Pause, Sparkles, type LucideIcon } from "lucide-react";
 
-import { Minus, Plus, RotateCcw, Search } from "lucide-react";
-
-import { Pressable, Slider, Switch } from "../../../kit";
-import { ArmsLines } from "../../../../core/domain/memory-brain-lines";
-
+import { Pressable, Slider } from "../../../kit";
+import { BRAIN_SPEED, BRAIN_VIEWS, BrainViewLines } from "../../../../core/domain/memory-brain-lines";
 import type { ArmsMode } from "../../../../core/domain/memory-arms/arms-scene";
+import { MapButton, MAP_PANEL } from "./arms-foot";
 
-const MODES: readonly { mode: ArmsMode; label: string }[] = [
-  { mode: "brain", label: "Brain map" },
-  { mode: "orbs", label: "3D orbs" },
-  { mode: "timeline", label: "Timeline" },
-];
-
-export const SPEED = { least: 0.25, most: 2, step: 0.25 } as const;
-
-const CHIP = "flex items-center gap-1 rounded-xl border border-panel-edge bg-card/95 p-1 backdrop-blur";
-const ICON_BUTTON = "rounded-lg p-1.5 text-muted transition-colors hover:bg-hover hover:text-foreground";
-
-/** The key that opens the search, shown on its button as the Mac's brain shows it. */
-const SEARCH_KEY = "/";
+/** Each view's mark, the nearest to the Mac's `brain`, `circle.hexagongrid` and `calendar.day.timeline.left`. */
+const VIEW_ICON: Record<ArmsMode, LucideIcon> = { brain: Brain, orbs: Hexagon, timeline: CalendarRange };
+/** KitLabel's console glyph, Memnox.TextSize.callout. */
+const VIEW_GLYPH = 14;
+/** The speed slider moves without notches, as the Mac's does. */
+const SPEED_STEP = 0.05;
 
 type ToolbarProps = {
   mode: ArmsMode;
@@ -27,76 +19,55 @@ type ToolbarProps = {
   onMotion: (on: boolean) => void;
   speed: number;
   onSpeed: (speed: number) => void;
-  /** Motion is calm fades only here, whatever the switch says. */
+  /** Reduce Motion is on, so nothing moves on its own and there is no speed to set. */
   reduced: boolean;
-  /** Opens the search capsule in the middle of the brain. */
-  onSearch: () => void;
-  onZoomOut: () => void;
-  onFit: () => void;
-  onZoomIn: () => void;
-  onReplay: () => void;
 };
 
-/** The ARMS map's own controls, top right under the count in view, as the Mac stacks them: motion and its speed, the view, the search button, and the zoom. */
+/** The view's own controls along the top right, the Mac's `BrainViewControls`: the three views, then Motion with its speed. */
 export function ArmsToolbar(props: ToolbarProps) {
   return (
     <div
+      role="group"
+      aria-label={BrainViewLines.label}
       onPointerDown={(event) => event.stopPropagation()}
-      className="pointer-events-none flex flex-wrap items-center justify-end gap-2 [&>*]:pointer-events-auto"
+      className={`pointer-events-auto flex items-center gap-1 p-1 ${MAP_PANEL} rounded-control`}
     >
-      <div className={`${CHIP} px-2`}>
-        <Switch on={props.motion && !props.reduced} label={ArmsLines.motion} disabled={props.reduced} onChange={props.onMotion} />
-        <span className="text-meta text-muted">{ArmsLines.motion}</span>
-        <Slider
-          label={ArmsLines.motionSpeed}
-          min={SPEED.least}
-          max={SPEED.most}
-          step={SPEED.step}
-          value={props.speed}
-          disabled={!props.motion || props.reduced}
-          onValue={props.onSpeed}
-          className="w-20"
-        />
-        <span className="w-8 text-meta tabular-nums text-muted">{ArmsLines.speed(props.speed)}</span>
-        <Pressable aria-label={ArmsLines.replay} onClick={props.onReplay} className={ICON_BUTTON}>
-          <RotateCcw className="size-4" aria-hidden />
-        </Pressable>
-      </div>
-
-      <div className={CHIP} role="radiogroup" aria-label={ArmsLines.view}>
-        {MODES.map((each) => (
+      {BRAIN_VIEWS.map((each) => {
+        const on = props.mode === each.mode;
+        const Icon = VIEW_ICON[each.mode];
+        return (
           <Pressable
             key={each.mode}
-            role="radio"
-            aria-checked={props.mode === each.mode}
+            aria-pressed={on}
             onClick={() => props.onMode(each.mode)}
-            className={`rounded-lg px-2.5 py-1 text-meta font-medium transition-colors ${
-              props.mode === each.mode ? "bg-hover text-foreground" : "text-muted hover:text-foreground"
-            }`}
+            className={`flex h-map-button cursor-pointer items-center gap-1.5 rounded-control px-2 text-meta ${on ? "bg-active font-medium text-foreground" : "text-muted"}`}
           >
-            {each.label}
+            <Icon size={VIEW_GLYPH} aria-hidden />
+            {each.title}
           </Pressable>
-        ))}
-      </div>
-
-      <div className={CHIP}>
-        <Pressable aria-label={ArmsLines.search} onClick={props.onSearch} className={`${ICON_BUTTON} flex items-center gap-1.5`}>
-          <Search className="size-4" aria-hidden />
-          <kbd className="rounded border border-panel-edge px-1.5 text-label text-muted">{SEARCH_KEY}</kbd>
-        </Pressable>
-      </div>
-
-      <div className={CHIP}>
-        <Pressable aria-label={ArmsLines.zoomOut} onClick={props.onZoomOut} className={ICON_BUTTON}>
-          <Minus className="size-4" aria-hidden />
-        </Pressable>
-        <Pressable onClick={props.onFit} className="rounded-lg px-2 py-1 text-meta font-medium text-muted hover:bg-hover hover:text-foreground">
-          {ArmsLines.fit}
-        </Pressable>
-        <Pressable aria-label={ArmsLines.zoomIn} onClick={props.onZoomIn} className={ICON_BUTTON}>
-          <Plus className="size-4" aria-hidden />
-        </Pressable>
-      </div>
+        );
+      })}
+      {!props.reduced && (
+        <>
+          <Rule />
+          <MapButton icon={props.motion ? Sparkles : Pause} label={BrainViewLines.motion(props.motion)} on={props.motion} onPress={() => props.onMotion(!props.motion)} />
+          <Slider
+            label={BrainViewLines.motionSpeed}
+            min={BRAIN_SPEED.slowest}
+            max={BRAIN_SPEED.quickest}
+            step={SPEED_STEP}
+            value={props.speed}
+            disabled={!props.motion}
+            onValue={props.onSpeed}
+            className="w-map-slider"
+          />
+        </>
+      )}
     </div>
   );
+}
+
+/** The hairline between groups of the view's controls. */
+function Rule() {
+  return <span aria-hidden className="h-map-divider w-px bg-panel-edge" />;
 }

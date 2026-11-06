@@ -107,8 +107,8 @@ import {
   type ToolCategory,
 } from '../../../core/domain/project-sidebar';
 import { CatalogCard, CatalogLayout, CategoryRail } from '../catalog';
-import { groupCountLine, ruleGroups } from '../../../core/domain/rule-words';
-import { EFFECT_WORDS, effectTone } from '../../../core/domain/studio-lines';
+import { plainCaption, plainCountLine, plainGroups } from '../../../core/domain/plain-rules';
+import { EFFECT_WORDS, effectTone, isEffect } from '../../../core/domain/studio-lines';
 import { BrandLogo } from '../../kit/logos';
 import { PageTitle } from '../../settings/kit';
 import { useObserved, type SettingsParts } from '../../settings/parts';
@@ -274,7 +274,7 @@ function useProjectMemory(parts: SettingsParts, project: ProjectView) {
 function Overview({ parts, project, go }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void }) {
   const { account } = parts;
   useObserved(account);
-  const team = showsTeam(project, account.isSignedIn);
+  const team = showsTeam(project, account.isJoined);
   const counts = useReadyCounts(parts, project);
   const steps = readySteps(counts);
   return (
@@ -548,7 +548,7 @@ function Tools({ parts, project, go }: { parts: SettingsParts; project: ProjectV
   const [said, setSaid] = useState<string | undefined>(undefined);
   const { account, hub, projects, support, tools, words } = parts;
   useObserved(account, hub, projects, support, tools);
-  const joined = showsTeam(project, account.isSignedIn);
+  const joined = account.isJoined;
   const hubAnswers = support.supports('mcp-hub') === true;
   useEffect(() => {
     if (hubAnswers && hub.hub === undefined) void hub.refresh();
@@ -771,7 +771,8 @@ function RulesHere({ parts, project, open }: { parts: SettingsParts; project: Pr
     return <Section title={RULES_HERE_TITLE}>{studio.unreadable ? <ReadFailed what={ProjectPageLines.theRules} retry={() => void studio.refresh()} /> : <Spinner />}</Section>;
   }
   const { here, everywhere } = projectRules(view.rules, project);
-  const groups = ruleGroups(here);
+  // Grouped as the Mac's PlainRules, so rules for different agents stay separate rows.
+  const groups = plainGroups(here).flatMap((group) => (isEffect(group.effect) ? [{ ...group, effect: group.effect }] : []));
   return (
     <Section title={RULES_HERE_TITLE}>
       {groups.length === 0 ? (
@@ -779,12 +780,12 @@ function RulesHere({ parts, project, open }: { parts: SettingsParts; project: Pr
       ) : (
         <Panel>
           {groups.map((group) => {
-            const count = groupCountLine(group.rules.length);
+            const count = plainCountLine(group.rules.length);
             return (
               <Row
-                key={`${group.effect}:${group.title}`}
-                title={group.title}
-                caption={group.why === '' ? rulesLine(project.rules) : group.why}
+                key={group.rules[0]?.name ?? group.plain.title}
+                title={group.plain.title}
+                caption={plainCaption(group.plain) ?? rulesLine(project.rules)}
                 trailing={
                   <>
                     {count !== undefined && <span className="text-footnote text-muted">{count}</span>}

@@ -22,6 +22,7 @@ import {
   renameProblem,
   showReady,
   showsTeam,
+  joinedToWorkspace,
   shownToolCards,
   teamLine,
   toolCategory,
@@ -171,6 +172,12 @@ describe('Agents', () => {
 });
 
 describe('Your team', () => {
+  it('counts this computer joined by the person’s sign in or its own, as the Mac does', () => {
+    expect(joinedToWorkspace(false, false)).toBe(false);
+    expect(joinedToWorkspace(true, false)).toBe(true);
+    expect(joinedToWorkspace(false, true)).toBe(true);
+  });
+
   it('shows only once this computer is signed in or the organization shares the project', () => {
     const shared = project({ scope: 'organization', organization });
     expect(showsTeam(project(), false)).toBe(false);

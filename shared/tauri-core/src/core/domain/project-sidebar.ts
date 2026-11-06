@@ -346,6 +346,14 @@ export function projectAgents(project: Pick<ProjectView, 'agents' | 'agentsSeen'
 }
 
 /**
+ * Whether this computer is joined to a Memnox Cloud workspace, as the Mac's `SignedInReading` reads it: the person's
+ * own sign in, or this computer's connection on its own, since a machine joined by `memnox login` is joined too.
+ */
+export function joinedToWorkspace(personSignedIn: boolean, machineSignedIn: boolean): boolean {
+  return personSignedIn || machineSignedIn;
+}
+
+/**
  * Whether the project's pages show its people and what Memnox Cloud adds, which only a computer joined to a workspace
  * or a project the organization shares has; the desktop otherwise belongs to one person.
  */

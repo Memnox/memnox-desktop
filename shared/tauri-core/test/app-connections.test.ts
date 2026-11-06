@@ -144,3 +144,31 @@ describe('app connections', () => {
     expect(connectionStatusWord({ connected: false })).toBe('Not signed in');
   });
 });
+
+describe('app connections and Memnox Cloud', () => {
+  it('marks the page signed out when the catalogue says connecting waits on a sign in', async () => {
+    const { apps } = over({ 'toolkits-search': (request) => [{ id: request.id, ok: true, toolkits: [], connectState: 'sign-in-needed' }] });
+    apps.search('');
+    await settled();
+    expect(apps.state.signInNeeded).toBe(true);
+  });
+
+  it('reads the list again rather than opening a sign in for an app already working', async () => {
+    const { daemon, apps, tools } = over({
+      'voice-agents': (request) => [{ id: request.id, ok: true, voiceAgents: [] }],
+      'connections-list': (request) => [{ id: request.id, ok: true, connections: [{ toolkit: 'notion', connected: true }] }],
+    });
+    await tools.refresh();
+    await apps.connect('notion');
+    expect(daemon.sent('connections-sign-in')).toEqual([]);
+    expect(apps.state.notice).toBeUndefined();
+  });
+
+  it('holds a refusal on the card it came from', async () => {
+    const { apps } = over({ 'connections-sign-out': (request) => [{ id: request.id, ok: false, error: 'Slack is not connected' }] });
+    await apps.disconnect('slack');
+    expect(apps.state.notice).toEqual({ toolkit: 'slack', title: 'Could not disconnect Slack', words: 'Slack is not connected.' });
+    apps.dismissNote();
+    expect(apps.state.notice).toBeUndefined();
+  });
+});

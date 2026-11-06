@@ -163,10 +163,22 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
       return () => clearTimeout(handle);
     }),
     tools,
-    apps: new AppConnections(link, ids, tools, (url) => host.openPage(url), sleep, (ms, fire) => {
-      const handle = setTimeout(fire, ms);
-      return () => clearTimeout(handle);
-    }),
+    apps: new AppConnections(
+      link,
+      ids,
+      tools,
+      (url) => host.openPage(url),
+      sleep,
+      (ms, fire) => {
+        const handle = setTimeout(fire, ms);
+        return () => clearTimeout(handle);
+      },
+      // The Account page's own sign in, as the Mac's Connect starts it, carrying this computer in on the same approval.
+      async () => {
+        if (!account.person.isSignedIn) await account.start();
+        return account.person.isSignedIn;
+      },
+    ),
     servers: new ServerPairing(
       relay.pairer,
       () => host.computerName() ?? 'This computer',

@@ -1,5 +1,6 @@
 import { DAEMON_METHOD, type DaemonRequest, type DaemonResponse, type ToolConnection } from '@memnox/core/wire';
 import { toolkitName } from '../domain/tool-brand';
+import { failedNote, isSettled, opensSignIn, SIGN_IN_STOPPED, type YourAppNote } from '../domain/your-apps';
 import { Observed, type Sleep } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
@@ -22,6 +23,12 @@ export interface AppConnectionsState {
   /** Why the catalogue could not be searched, in the daemon's words. */
   readonly searchNote: string | undefined;
   readonly searching: boolean;
+  /** What did not work, held on the card it came from as the Mac's `YourAppNote`, until the next press or a close. */
+  readonly notice: YourAppNote | undefined;
+  /** True while the daemon says connecting waits on a Memnox Cloud sign in, so the page and Connect offer it. */
+  readonly signInNeeded: boolean;
+  /** True while the Memnox Cloud sign in this page started is under way. */
+  readonly signingIn: boolean;
 }
 
 /** Said when the daemon does not answer at all. */
@@ -49,6 +56,9 @@ export class AppConnections extends Observed {
     found: [],
     searchNote: undefined,
     searching: false,
+    notice: undefined,
+    signInNeeded: false,
+    signingIn: false,
   };
   private cancelSearch: (() => void) | undefined;
   /** Bumped by every search, so an answer that a newer search overtook is dropped. */
@@ -64,6 +74,8 @@ export class AppConnections extends Observed {
     private readonly sleep: Sleep,
     /** The search after typing pauses waits on this, handed in since the core has no clock of its own. */
     private readonly timer: Timer,
+    /** The app's own Memnox Cloud sign in, which carries the daemon in on the same approval; true once the daemon holds the person. */
+    private readonly signInFirst: () => Promise<boolean> = async () => false,
   ) {
     super();
   }
@@ -80,30 +92,89 @@ export class AppConnections extends Observed {
     this.cancelSearch = this.timer(TYPING_PAUSE_MS, () => void this.lookUp(query, turn));
   }
 
-  /** Starts the tool's own sign in; again opens a fresh one for a tool that already has one, to use another account. */
+  /** The person closed the note, so it goes until something else does not work. */
+  dismissNote(): void {
+    this.set({ note: undefined, notice: undefined });
+  }
+
+  /**
+   * Starts the tool's own sign in; again opens a fresh one for a tool that already has one, to use another account.
+   * Where the daemon said a Memnox Cloud sign in comes first, that is started instead and the tool follows once it
+   * lands. A press on a tool already working opens nothing and reads the list again, so its card shows it connected.
+   */
   async connect(toolkit: string, again = false): Promise<void> {
-    if (this.current.busy !== undefined) return;
-    this.set({ busy: toolkit, note: undefined });
-    const response = await this.ask({ id: this.ids.next(), method: DAEMON_METHOD.CONNECTIONS_SIGN_IN, toolkit, ...(again ? { again: true } : {}) });
-    this.set({ busy: undefined });
-    if (response === undefined) return this.set({ note: UNREACHABLE });
-    if (!response.ok || response.signIn === undefined) return this.set({ note: refusal(response) });
+    if (this.current.busy !== undefined || this.current.signingIn) return;
+    this.set({ note: undefined, notice: undefined });
+    if (!opensSignIn(toolkit, again, this.tools.state.connections)) return this.readAgain(toolkit);
+    if (this.current.signInNeeded && !(await this.signInToCloud())) return;
+    let response = await this.signIn(toolkit, again);
+    // The daemon knew it before this page did, so the sign in starts now and the press carries on after it.
+    if (response?.ok === false && response.connectState === 'sign-in-needed') {
+      this.set({ signInNeeded: true });
+      if (!(await this.signInToCloud())) return;
+      response = await this.signIn(toolkit, again);
+    }
+    if (response === undefined) return this.fail('connect', toolkit, UNREACHABLE);
+    if (!response.ok && response.connectState === 'sign-in-needed') return this.fail('cloud-sign-in', toolkit, refusal(response));
+    if (!response.ok || response.signIn === undefined) {
+      // The daemon refuses a second press on a tool that works; once the list shows it working, nothing failed.
+      if (!again) {
+        await this.readAgain(toolkit);
+        if (isSettled(toolkit, this.tools.state.connections)) return;
+      }
+      return this.fail('connect', toolkit, refusal(response));
+    }
     // The daemon opens the page itself over this computer's socket; only a server's answer is left to open here.
     if (!response.signIn.opened) {
-      if (!response.signIn.url.startsWith('https://')) return this.set({ note: `The browser would not open the ${toolkitName(toolkit)} sign in` });
+      if (!response.signIn.url.startsWith('https://')) return this.fail('connect', toolkit, `The browser would not open the ${toolkitName(toolkit)} sign in`);
       this.open(response.signIn.url);
     }
     await this.watch(toolkit);
   }
 
+  /** The page's own Sign in button: the app's Memnox Cloud sign in, after which the catalogue is asked again. */
+  async signInForApps(): Promise<void> {
+    if (this.current.signingIn) return;
+    this.set({ note: undefined, notice: undefined });
+    await this.signInToCloud();
+  }
+
+  /** Runs the Memnox Cloud sign in once, true when the daemon now holds the person; the catalogue is asked again either way. */
+  private async signInToCloud(): Promise<boolean> {
+    this.set({ signingIn: true });
+    const done = await this.signInFirst().catch(() => false);
+    this.set({ signingIn: false, ...(done ? { signInNeeded: false } : {}) });
+    if (!done) this.fail('cloud-sign-in', undefined, SIGN_IN_STOPPED);
+    this.search(this.current.query);
+    return done;
+  }
+
+  private async signIn(toolkit: string, again: boolean): Promise<DaemonResponse | undefined> {
+    this.set({ busy: toolkit });
+    const response = await this.ask({ id: this.ids.next(), method: DAEMON_METHOD.CONNECTIONS_SIGN_IN, toolkit, ...(again ? { again: true } : {}) });
+    this.set({ busy: undefined });
+    return response;
+  }
+
+  /** Reads the list once more with the tool's card waiting, so a press that changed nothing still settles it. */
+  private async readAgain(toolkit: string): Promise<void> {
+    this.set({ busy: toolkit });
+    await this.tools.refresh();
+    this.set({ busy: undefined });
+  }
+
+  private fail(act: Parameters<typeof failedNote>[0], toolkit: string | undefined, said: string): void {
+    this.set({ note: said, notice: failedNote(act, toolkit, said) });
+  }
+
   /** Takes the tool's sign in away and shows the list the daemon answers with. */
   async disconnect(toolkit: string): Promise<void> {
     if (this.current.busy !== undefined) return;
-    this.set({ busy: toolkit, note: undefined });
+    this.set({ busy: toolkit, note: undefined, notice: undefined });
     const response = await this.ask({ id: this.ids.next(), method: DAEMON_METHOD.CONNECTIONS_SIGN_OUT, toolkit });
     this.set({ busy: undefined });
-    if (response === undefined) return this.set({ note: UNREACHABLE });
-    if (!response.ok || response.connections === undefined) return this.set({ note: refusal(response) });
+    if (response === undefined) return this.fail('disconnect', toolkit, UNREACHABLE);
+    if (!response.ok || response.connections === undefined) return this.fail('disconnect', toolkit, refusal(response));
     this.tools.useConnections(response.connections);
   }
 
@@ -127,7 +198,7 @@ export class AppConnections extends Observed {
     if (turn !== this.searchTurn) return;
     if (response === undefined) return this.set({ found: [], searchNote: UNREACHABLE, searching: false });
     if (!response.ok || response.toolkits === undefined) return this.set({ found: [], searchNote: refusal(response), searching: false });
-    this.set({ found: response.toolkits, searchNote: undefined, searching: false });
+    this.set({ found: response.toolkits, searchNote: undefined, searching: false, signInNeeded: response.connectState === 'sign-in-needed' });
   }
 
   private ask(request: DaemonRequest): Promise<DaemonResponse | undefined> {

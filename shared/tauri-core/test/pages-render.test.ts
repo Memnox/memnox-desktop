@@ -268,3 +268,23 @@ describe('the Jobs tab', () => {
     expect((html.match(/No agent behind it yet/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('with the runtime away', () => {
+  it('never says all clear on Home, Needs your attention, On this computer or the sidebar, and opens Connection instead', async () => {
+    const { PREFERENCE } = await import('../src/core/application/preferences');
+    const { RuntimeStatus } = await import('../src/ui/app/AppShell');
+    memory.set(PREFERENCE.setupDone, 'true');
+    const parts = await partsOver(gone);
+    await parts.tools.refresh();
+    const drawn = ['home/', 'governance/approvals', 'agents/computer'].map((name) => [name, renderToString(createElement('div', null, pageNamed(name).draw(parts)))] as const);
+    drawn.push(['sidebar', renderToString(createElement(RuntimeStatus, { parts, rail: false }))]);
+    for (const [name, html] of drawn) {
+      for (const clear of ['Nothing is waiting', 'Nothing needs you', 'No agents found', 'Runtime running']) expect(html, `${name} says ${clear}`).not.toContain(clear);
+    }
+    expect(drawn.find(([name]) => name === 'home/')?.[1]).toContain('Open Connection');
+    expect(drawn.find(([name]) => name === 'governance/approvals')?.[1]).toContain('The Memnox service is not answering');
+    expect(drawn.find(([name]) => name === 'agents/computer')?.[1]).toContain('Open Connection');
+    expect(drawn.find(([name]) => name === 'sidebar')?.[1]).toContain('Runtime not answering');
+    memory.delete(PREFERENCE.setupDone);
+  });
+});

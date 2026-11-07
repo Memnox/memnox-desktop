@@ -36,6 +36,7 @@ export const ShellLines = {
   runtimeUp: 'Runtime running',
   runtimeDown: 'Runtime not answering',
   runtimeReaching: 'Reaching the runtime',
+  runtimeDownHint: 'Open Connection, where Check again starts the Memnox service',
   demoBadge: 'Demo data',
   demoLabel: 'Demo data: nothing here is real',
   demoHint: 'Everything in this window comes from the demo fixture, and nothing reaches Memnox or your accounts.',

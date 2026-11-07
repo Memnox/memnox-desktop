@@ -98,6 +98,7 @@ import { SubNavFrame } from './SubNav';
 import './shell.css';
 import { IconButton, Popover, Pressable, ReadFailed, SearchInput, SFSymbol, SideDrawer, StatusWord, Tabs, TruncatedText } from '../kit';
 import { ShellLines } from '../../core/domain/shell-lines';
+import { CONNECTION_PAGE } from '../../core/domain/runtime-away';
 
 /** The Mac's SF Symbols as lucide draws the nearest of each, so the two sidebars wear the same icons. */
 const ICONS: Record<SidebarSymbol, LucideIcon> = {
@@ -743,21 +744,30 @@ function NavItem({ icon: Icon, title, hint, rail, chosen, onClick, count }: { ic
 }
 
 /** The runtime's standing at the sidebar's foot, read off the home the window already keeps. */
-function RuntimeStatus({ parts, rail }: { parts: SettingsParts; rail: boolean }) {
-  const { home } = parts;
+export function RuntimeStatus({ parts, rail }: { parts: SettingsParts; rail: boolean }) {
+  const { home, host } = parts;
   useObserved(home);
-  const up = home.home !== undefined;
+  // The last read decides, since a home kept from an earlier read outlives a runtime that stopped since.
+  const up = !home.unavailable && home.home !== undefined;
+  // Away opens Connection, where Check again starts the service, so a stopped runtime is one press from running.
+  const fix = home.unavailable ? () => host.openSettings(CONNECTION_PAGE) : undefined;
   const words = up ? ShellLines.runtimeUp : home.unavailable ? ShellLines.runtimeDown : ShellLines.runtimeReaching;
   if (rail) {
     return (
-      <span title={words} className="grid h-sidebar-row w-sidebar-rail-row place-items-center">
+      <Pressable title={fix === undefined ? words : ShellLines.runtimeDownHint} disabled={fix === undefined} onClick={fix} className="grid h-sidebar-row w-sidebar-rail-row place-items-center">
         <span aria-label={words} className={`size-2 rounded-full ${up ? 'bg-success' : home.unavailable ? 'bg-destructive' : 'bg-faint'}`} />
-      </span>
+      </Pressable>
     );
   }
   return (
     <div className="flex min-h-sidebar-row items-center px-1.5">
-      <StatusWord tone={up ? 'good' : home.unavailable ? 'bad' : 'quiet'}>{words}</StatusWord>
+      {fix === undefined ? (
+        <StatusWord tone={up ? 'good' : 'quiet'}>{words}</StatusWord>
+      ) : (
+        <Pressable title={ShellLines.runtimeDownHint} onClick={fix} className="mx-focus cursor-pointer">
+          <StatusWord tone="bad">{words}</StatusWord>
+        </Pressable>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { HOLD_ANSWER } from '@memnox/core/wire';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, TriangleAlert } from 'lucide-react';
+import { CONNECTION_PAGE, RuntimeAwayLines } from '../../../core/domain/runtime-away';
 import { useEffect, useState } from 'react';
 import { HeldImpactLines } from '../../cards/HeldImpact';
 import { NOTICES_ASKED_KEY, NOTICES_DENIED, NOTICES_DETAIL, NOTICES_KEY, NOTICES_TITLE } from '../../../core/domain/held-notices';
@@ -37,8 +38,8 @@ export function GovernancePage({ parts, tab, width, go }: { parts: SettingsParts
  * it ended is said on the island's card; the card here leaves once the answer stands.
  */
 function Approvals({ parts }: { parts: SettingsParts }) {
-  const { calls, words, projects, support, work, workspaceAgents } = parts;
-  useObserved(calls, projects, work, workspaceAgents, support);
+  const { calls, words, projects, support, work, workspaceAgents, home, host } = parts;
+  useObserved(calls, projects, work, workspaceAgents, support, home);
   const offersWork = support.supports('agent-work') === true;
   useEffect(() => {
     // The projects name where each call waits, so a person with several sees which one it is in.
@@ -49,6 +50,10 @@ function Approvals({ parts }: { parts: SettingsParts }) {
     if (offersWork) void work.refresh();
   }, [offersWork]);
   useEffect(() => parts.host.onLiveWork?.((changed) => work.heard(changed)), []);
+  // Whether the runtime answers, so an empty page never says all clear while nothing could reach it.
+  useEffect(() => {
+    void home.refresh();
+  }, []);
   useEffect(() => {
     let open = true;
     const loop = async () => {
@@ -70,7 +75,17 @@ function Approvals({ parts }: { parts: SettingsParts }) {
     <div className="flex flex-col gap-6">
       <NoticesSwitch parts={parts} />
       {waiting.length === 0 ? (
-        !workWaits && <EmptyState icon={ShieldCheck} title={NOTHING_WAITING} body={NOTHING_WAITING_DETAIL} />
+        !workWaits &&
+        (home.unavailable ? (
+          <EmptyState
+            icon={TriangleAlert}
+            title={RuntimeAwayLines.title}
+            body={RuntimeAwayLines.approvals}
+            action={<Button onClick={() => host.openSettings(CONNECTION_PAGE)}>{RuntimeAwayLines.openConnection}</Button>}
+          />
+        ) : (
+          <EmptyState icon={ShieldCheck} title={NOTHING_WAITING} body={NOTHING_WAITING_DETAIL} />
+        ))
       ) : (
         <>
           <p className="text-footnote text-muted">{waitingLine(waiting.length)}</p>

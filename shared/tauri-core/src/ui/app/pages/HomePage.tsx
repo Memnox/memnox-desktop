@@ -1,3 +1,4 @@
+import { CONNECTION_PAGE, RuntimeAwayLines } from '../../../core/domain/runtime-away';
 import { ArrowRight } from 'lucide-react';
 import { useEffect } from 'react';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
@@ -51,7 +52,12 @@ export function HomePage({ parts, width, go }: { parts: SettingsParts; width: Wi
         <Standing mode={homeMode(view?.mode)} read={view !== undefined} away={home.unavailable} />
       </header>
 
-      {home.unavailable && view === undefined && <ReadFailed what={HomePageLines.readFailed} retry={() => void home.refresh()} />}
+      {home.unavailable && (
+        <div className="flex flex-col gap-2">
+          <ReadFailed what={HomePageLines.readFailed} retry={() => void home.refresh()} />
+          <GoLink onClick={() => host.openSettings(CONNECTION_PAGE)}>{RuntimeAwayLines.openConnection}</GoLink>
+        </div>
+      )}
 
       {/* The getting started steps, as the cloud console's home lists them, above the blocks until every one is done. */}
       <HomeStart parts={parts} go={go} actions={view?.today.actions ?? 0} mode={homeMode(view?.mode)} />
@@ -84,6 +90,8 @@ export function HomePage({ parts, width, go }: { parts: SettingsParts; width: Wi
 
 /** The mode the runtime reported, as the Mac's badge beside the greeting says it, or whether the runtime answers at all. */
 function Standing({ mode, read, away }: { mode: ReturnType<typeof homeMode>; read: boolean; away: boolean }) {
+  // The last read decides, since a home kept from before outlives a runtime that stopped since.
+  if (away) return <StatusWord tone="bad">{HomePageLines.away}</StatusWord>;
   if (mode !== undefined) return <StatusWord tone={mode === 'enforce' ? 'good' : 'attention'}>{modeBadge(mode)}</StatusWord>;
   if (read) return <StatusWord tone="good">{HomePageLines.protecting}</StatusWord>;
   if (away) return <StatusWord tone="bad">{HomePageLines.away}</StatusWord>;

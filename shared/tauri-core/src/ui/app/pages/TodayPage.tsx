@@ -236,6 +236,9 @@ export function TodayPage({
     <div ref={page} tabIndex={-1} onKeyDown={keys} className="flex min-h-0 outline-none">
       <div className="flex min-w-0 flex-1 flex-col gap-6">
         {lead}
+        {/* With the runtime away an empty block would read as all clear, so the strip and the blocks wait for it. */}
+        {!home.unavailable && (
+        <>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-panel-edge bg-hover px-4 py-2.5 text-meta text-muted">
           <span className={needYou.length === 0 ? 'invisible' : ''}>
             <StateMark state={needYou.length === 0 ? 'done' : 'needs-you'} />
@@ -273,6 +276,8 @@ export function TodayPage({
             </section>
           );
         })}
+        </>
+        )}
         {trail}
       </div>
       {opened !== undefined && (

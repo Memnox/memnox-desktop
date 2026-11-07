@@ -35,7 +35,8 @@ export function OverviewPage({ parts, go }: { parts: SettingsParts; go: (page: S
   useEffect(() => host.onHomeStale?.(() => home.refreshSoon()), []);
   const finished = preferences.setupDone;
   const name = preferences.name;
-  const blocks = home.home === undefined && home.unavailable ? <OverviewNumbers parts={parts} /> : home.home !== undefined ? <HomeBlocks parts={parts} view={home.home} /> : null;
+  // The last read decides, so a home kept from before never says nothing waits while the runtime is away.
+  const blocks = home.unavailable ? <OverviewNumbers parts={parts} /> : home.home !== undefined ? <HomeBlocks parts={parts} view={home.home} /> : null;
   return (
     <>
       <header className="flex flex-col gap-1">

@@ -13,6 +13,7 @@ import { LocalNetwork } from '../../core/application/local-network';
 import { Memory } from '../../core/application/memory';
 import { PersonalSync } from '../../core/application/personal-sync';
 import { Profiles } from '../../core/application/profiles';
+import { AgentWorkDesk } from '../../core/application/agent-work';
 import { Activity, Agents, Studio } from '../../core/application/studio';
 import { Sessions } from '../../core/application/sessions';
 import { SkillsHub } from '../../core/application/skills';
@@ -99,6 +100,8 @@ export interface SettingsParts {
   readonly index: CommunityIndex;
   /** Named bundles of skills, servers and a rule pack, applied through signed proposals. */
   readonly profiles: Profiles;
+  /** Agent work joined to tracker issues, each press an unsigned steer the daemon decides. */
+  readonly work: AgentWorkDesk;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -146,6 +149,7 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     sync: new PersonalSync(link, ids),
     index: new CommunityIndex(link, ids, platformWords(host.platform).keyTitle),
     profiles: new Profiles(link, ids, platformWords(host.platform).keyTitle),
+    work: new AgentWorkDesk(link, ids),
     host,
     words: platformWords(host.platform),
     setup,

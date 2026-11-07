@@ -27,6 +27,7 @@ import {
   type ProtectResult,
 } from '../../../core/domain/agent-lines';
 import { folderProblem } from '../../../core/domain/launch-lines';
+import { AgentProfileCards } from './AgentProfileCards';
 import { ago } from '../../../core/domain/session-text';
 import { workspacesFrom } from '../../../core/domain/workspaces';
 import { EFFECT_WORDS, activityLine, effectTone, isEffect } from '../../../core/domain/studio-lines';
@@ -126,6 +127,7 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
   return (
     <div className="flex flex-col gap-6">
       {noteLine}
+      {offersProfiles && <AgentProfileCards parts={parts} />}
       <div className="flex items-center gap-3 max-narrow:flex-col max-narrow:items-start">
         <span className="min-w-0 flex-1 truncate text-body-sm text-muted">{agentsSummary(list)}</span>
         <ChipGroup label={AgentListLines.show} role="group">

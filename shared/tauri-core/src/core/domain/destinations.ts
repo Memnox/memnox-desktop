@@ -126,6 +126,7 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
     key: '2',
     tabs: [
       { id: 'list', title: 'Agents', group: 'agents', summary: 'The agents on this computer and what each can reach.', needs: 'agents' },
+      { id: 'work', title: 'Work', group: 'agents', summary: 'Which agent carries which issue, where it stands, and what waits on you.', needs: 'agent-work' },
       { id: 'sessions', title: 'Sessions', group: 'agents', summary: 'What each agent is doing: what needs you, what runs, and what is done.' },
       { id: 'computer', title: 'On this computer', group: 'computer', summary: 'The agents on this computer and the apps Memnox can act in as you.' },
     ],
@@ -293,6 +294,7 @@ export const SIDEBAR_SECTIONS: readonly SidebarSection[] = [
         symbol: 'cpu',
         pages: [
           { destination: 'agents', tab: 'list' },
+          { destination: 'agents', tab: 'work' },
           { destination: 'agents', tab: 'sessions' },
           { destination: 'agents', tab: 'computer' },
         ],

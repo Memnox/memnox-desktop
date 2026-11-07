@@ -45,6 +45,8 @@ const NOTHING: Record<string, Partial<DaemonResponse>> = {
   rules: { policyRules: { rules: [], problems: [], missing: [] } },
   'rule-packs': { rulePacks: [] },
   activity: { activity: { rows: [] } },
+  'memory-learn': { memoryLearn: { items: [], more: 0 } },
+  'memory-sources': { memorySources: [] },
 };
 
 /** A daemon that knows every method and holds nothing. */
@@ -165,6 +167,8 @@ beforeAll(async () => {
       parts.projects.refresh(),
       parts.home.refresh(),
       parts.studio.refresh(),
+      parts.memory.refreshLearn(),
+      parts.memory.refreshSources(),
       ...['agents', 'profiles', 'templates', 'agent-work', 'projects', 'skills-hub', 'mcp-hub', 'rules', 'activity', 'memory-facts', 'memory-layers'].map(async (method) => parts.support.supports(method)),
     ]);
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -193,6 +197,8 @@ describe('every page draws', () => {
         }
       }
       expect(failed).toEqual([]);
+      // Learn and Secrets are reached from Memory and from a server needing a secret, so both are among those drawn.
+      expect(pages.map((page) => page.name)).toEqual(expect.arrayContaining(['governance/learn', 'mcp/secrets']));
       // Only a tab left off the window, which no route reaches, may draw nothing once its first reads answered.
       expect(blank.filter((name) => !LEFT_OFF.includes(name))).toEqual([]);
       expect(pages.length).toBeGreaterThan(30);

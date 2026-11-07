@@ -27,7 +27,6 @@ const CARD_LOGO = 26;
 export function GovernancePage({ parts, tab, width, go }: { parts: SettingsParts; tab: string | undefined; width: WidthClass; go: (route: Route) => void }) {
   if (tab === 'policies') return <PoliciesPage parts={parts} width={width} />;
   if (tab === 'activity') return <ActivityPage parts={parts} width={width} go={go} />;
-  // Learn is left off for now, so its route settles on Approvals; the page stays for when it comes back.
   if (tab === 'learn') return <LearnPage parts={parts} />;
   return <Approvals parts={parts} />;
 }

@@ -43,7 +43,7 @@ describe('the window’s destinations', () => {
 
   it('hides a tab until the daemon answers the method it reads', () => {
     expect(visibleTabs('mcp', nothingNew).map((tab) => tab.id)).toEqual(['apps']);
-    expect(visibleTabs('mcp', everything).map((tab) => tab.id)).toEqual(['servers', 'apps']);
+    expect(visibleTabs('mcp', everything).map((tab) => tab.id)).toEqual(['servers', 'secrets', 'apps']);
   });
 
   it('shows memory and the Skills Hub only where the runtime keeps them, and never profiles, which Memnox Cloud keeps', () => {
@@ -58,9 +58,11 @@ describe('the window’s destinations', () => {
   });
 
   it('leaves Learn, Clients, Secrets, Assigned and Sessions off for now, an old link settling on the first tab shown', () => {
-    expect(LEFT_OFF).toEqual(['governance/learn', 'mcp/clients', 'mcp/secrets', 'workspaces/assigned', 'agents/sessions', 'settings/sync']);
-    expect(settled({ destination: 'governance', tab: 'learn' }, everything)).toEqual({ destination: 'governance', tab: 'approvals' });
-    expect(settled({ destination: 'mcp', tab: 'secrets' }, everything)).toEqual({ destination: 'mcp', tab: 'servers' });
+    expect(LEFT_OFF).toEqual(['mcp/clients', 'workspaces/assigned', 'agents/sessions', 'settings/sync']);
+    // Learn and Secrets are shown, since Memory sends people to Learn and a server needing a secret is fixed under Secrets.
+    expect(settled({ destination: 'governance', tab: 'learn' }, everything)).toEqual({ destination: 'governance', tab: 'learn' });
+    expect(settled({ destination: 'mcp', tab: 'secrets' }, everything)).toEqual({ destination: 'mcp', tab: 'secrets' });
+    expect(settled({ destination: 'mcp', tab: 'clients' }, everything)).toEqual({ destination: 'mcp', tab: 'servers' });
     expect(settled({ destination: 'workspaces', tab: 'assigned' }, everything)).toEqual({ destination: 'workspaces', tab: 'projects' });
     expect(settled({ destination: 'agents', tab: 'sessions' }, everything)).toEqual({ destination: 'agents', tab: 'list' });
   });
@@ -171,7 +173,7 @@ describe('what the daemon answers', () => {
     expect(rowOf({ destination: 'governance', tab: 'activity' })?.title).toBe('Activity');
     expect(rowOf({ destination: 'mcp', tab: 'servers' })?.title).toBe('MCP servers');
     // Servers and My Skills stand alone now that Clients, Secrets and Assigned are left off, so neither row shows tabs.
-    expect(rowTabs({ destination: 'mcp', tab: 'servers' }, everything)).toEqual([]);
+    expect(rowTabs({ destination: 'mcp', tab: 'servers' }, everything).map((page) => page.title)).toEqual(['Servers', 'Secrets']);
     expect(rowTabs({ destination: 'workspaces', tab: 'skills' }, everything)).toEqual([]);
     expect(visibleTabs('workspaces', everything).map((tab) => tab.id)).not.toContain('discover');
     expect(rowTabs({ destination: 'mcp', tab: 'apps' }, everything)).toEqual([]);

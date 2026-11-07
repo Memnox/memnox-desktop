@@ -455,10 +455,11 @@ export function destinationInfo(id: Destination): DestinationInfo {
 
 /**
  * Tabs left off for now, by destination and tab, so the window stays straightforward while a person finds their way:
- * Learn, the hub's Clients and Secrets, Assigned skills, Sessions and Personal sync. An old link to one settles on the
+ * the hub's Clients, Assigned skills, Sessions and Personal sync. Learn and Secrets are shown, since Memory sends
+ * people to Learn and a server needing a secret is fixed only under Secrets. An old link to one settles on the
  * first tab its destination still shows. Mirrors `leftOff` in the Mac's `Destinations`.
  */
-export const LEFT_OFF: readonly string[] = ['governance/learn', 'mcp/clients', 'mcp/secrets', 'workspaces/assigned', 'agents/sessions', 'settings/sync'];
+export const LEFT_OFF: readonly string[] = ['mcp/clients', 'workspaces/assigned', 'agents/sessions', 'settings/sync'];
 
 /** The tabs shown now: those needing nothing, and those whose method the daemon answered, less those left off. */
 export function visibleTabs(id: Destination, supports: Supports): readonly TabInfo[] {

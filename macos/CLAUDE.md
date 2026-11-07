@@ -7,8 +7,9 @@ verbatim copy of `memnox-runtime/VISION.md`.
 
 ## What this app is allowed to be
 
-**A face, a voice and a Touch ID button over the daemon, and nothing else.** No policy, no
-model call and no rule lives here: the daemon decides, the person's own agent CLI thinks,
+**A face, a voice and a Touch ID button over the daemon, and over Memnox Cloud when the person
+signs in, and nothing else.** No policy, no model call and no rule lives here: the daemon or
+the cloud decides, the person's own agent thinks,
 and this app shows, speaks, listens and signs. If a change needs this app to know what is
 allowed, it belongs in `memnox-runtime`.
 

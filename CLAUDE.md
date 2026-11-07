@@ -6,8 +6,10 @@ them. `VISION.md` is a verbatim copy of `memnox-runtime/VISION.md`.
 
 ## What every desktop app is allowed to be
 
-**A face, a voice and a signing key over the daemon, and nothing else.** No policy, no model call
-and no rule lives in any of them: the daemon decides, the person's own agent CLI thinks, and the
+**A face, a voice and a signing key over the daemon, and over Memnox Cloud when the person signs in,
+and nothing else.** The daemon reaches the agents on this computer; the cloud reaches the ones
+hosted elsewhere, inside SaaS products or built in no code tools. No policy, no model call
+and no rule lives in any of them: the daemon or the cloud decides, the person's own agent thinks, and the
 app shows, speaks, listens and signs. A change that needs an app to know what is allowed belongs
 in `memnox-runtime`.
 

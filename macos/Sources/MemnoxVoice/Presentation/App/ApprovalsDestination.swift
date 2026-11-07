@@ -22,8 +22,11 @@ struct ApprovalsDestination: View {
             if let work { WorkNeedingYou(screen: work, names: WorkNames(profiles)) }
             if let workspace { WorkspaceHandoffs(screen: workspace) }
             if waiting.isEmpty {
-                EmptyState(symbol: "checkmark.shield", title: "Nothing is waiting on you",
-                           detail: "When an agent asks before doing something your rules hold, it waits here and on the island.")
+                if let home = SettingsWindow.shared.home {
+                    NothingWaiting(home: home)
+                } else {
+                    NothingWaiting.empty
+                }
             } else {
                 Text("\(waiting.count) waiting, oldest first.")
                     .font(Memnox.Console.sans(Memnox.TextSize.footnote))
@@ -37,6 +40,12 @@ struct ApprovalsDestination: View {
                 }
             }
         }
+        .task { await readWork() }
+    }
+
+    // Read here as well, so a handoff waits on this page even when the agents list was never opened.
+    private func readWork() async {
+        await work?.desk.refresh()
     }
 
     /// The same three steps the island's buttons take, so its bookkeeping and Touch ID sheet behave as for a tap there.
@@ -124,6 +133,26 @@ private struct NoticesSwitch: View {
             if notifier.on, notifier.refused {
                 StatusWord(.attention, HeldNotices.denied)
             }
+        }
+    }
+}
+
+/// Nothing waits, said only while the runtime answers: with the runtime away nothing could reach this page, so it
+/// says that instead and opens Connection, where Check again starts it.
+private struct NothingWaiting: View {
+    @ObservedObject var home: HomeModel
+
+    static let empty = EmptyState(symbol: "checkmark.shield", title: "Nothing is waiting on you",
+                                  detail: "When an agent asks before doing something your rules hold, it waits here and on the island.")
+
+    var body: some View {
+        if home.unavailable {
+            EmptyState(symbol: "exclamationmark.triangle", title: "The Memnox service is not answering",
+                       detail: "Nothing an agent asks can reach you until it runs again.")
+            Button("Open Connection", systemImage: "arrow.up.forward") { AppWindow.shared.shell.go(WindowRoute(.settings, tab: "connection")) }
+                .buttonStyle(KitButton(kind: .secondary))
+        } else {
+            Self.empty
         }
     }
 }

@@ -75,7 +75,7 @@ struct AppSidebar: View {
             .scrollIndicators(.never)
             VStack(alignment: rail ? .center : .leading, spacing: Memnox.Spacing.xxSmall) {
                 if let home {
-                    RuntimeStanding(home: home, rail: rail)
+                    RuntimeStanding(home: home, rail: rail) { shell.go(WindowRoute(.settings, tab: "connection")) }
                 } else {
                     RuntimeWord(tone: .quiet, words: RuntimeStanding.reaching, rail: rail)
                 }
@@ -452,13 +452,20 @@ private struct RuntimeStanding: View {
     @ObservedObject var home: HomeModel
     let rail: Bool
 
+    /// Opens Connection, where Check again installs or starts the service, so a runtime that stopped is one press away.
+    let fix: () -> Void
+
     static let reaching = "Reaching the runtime"
 
     var body: some View {
-        if home.home != nil {
+        // The last read decides, since the home kept from an earlier read outlives a runtime that stopped since.
+        if home.unavailable {
+            Button(action: fix) { RuntimeWord(tone: .bad, words: "Runtime not answering", rail: rail) }
+                .buttonStyle(.plain)
+                .pointingHand()
+                .help("Open Connection, where Check again starts the Memnox service")
+        } else if home.home != nil {
             RuntimeWord(tone: .good, words: "Runtime running", rail: rail)
-        } else if home.unavailable {
-            RuntimeWord(tone: .bad, words: "Runtime not answering", rail: rail)
         } else {
             RuntimeWord(tone: .quiet, words: Self.reaching, rail: rail)
         }

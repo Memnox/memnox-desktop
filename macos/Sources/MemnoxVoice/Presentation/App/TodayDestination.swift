@@ -67,8 +67,11 @@ struct TodayDestination<Lead: View, WaitingFoot: View, Trail: View>: View {
                 lead
                 strip(blocks.first { $0.block == .waiting }?.items ?? [], now: now)
                 notes
-                ForEach(blocks, id: \.block) { each in
-                    block(each.block, each.items, all: items, now: now)
+                // With the runtime away an empty block would read as all clear, so the blocks wait for it to answer.
+                if home?.unavailable != true {
+                    ForEach(blocks, id: \.block) { each in
+                        block(each.block, each.items, all: items, now: now)
+                    }
                 }
                 trail
             }

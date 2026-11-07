@@ -43,7 +43,7 @@ private struct HomeAtAGlance: View {
         let view = home.home
         TodayDestination(shell: shell, island: island, home: home, agents: shell.agents, activity: shell.todayActivity, width: width) {
             header(view)
-            if home.unavailable, view == nil { ReadFailed(what: "the runtime", retry: home.refresh) }
+            if home.unavailable { ReadFailed(what: "the runtime", retry: home.refresh) }
             // The getting started steps, as the cloud console's home lists them, above the blocks until every one is done.
             HomeStart(shell: shell, tools: menu.tools, menu: menu, home: home, actions: view?.today.actions ?? 0,
                       mode: view.flatMap { HomeMode(rawValue: $0.mode) })
@@ -89,12 +89,13 @@ private struct HomeAtAGlance: View {
     }
 
     @ViewBuilder private func standing(_ view: DaemonHome?) -> some View {
-        if let view, let mode = HomeMode(rawValue: view.mode) {
+        // The last read decides, since a home kept from before outlives a runtime that stopped since.
+        if home.unavailable {
+            StatusWord(.bad, "The runtime is not answering")
+        } else if let view, let mode = HomeMode(rawValue: view.mode) {
             StatusWord(mode == .enforce ? .good : .attention, mode.badge)
         } else if view != nil {
             StatusWord(.good, "Runtime protecting this Mac")
-        } else if home.unavailable {
-            StatusWord(.bad, "The runtime is not answering")
         }
     }
 

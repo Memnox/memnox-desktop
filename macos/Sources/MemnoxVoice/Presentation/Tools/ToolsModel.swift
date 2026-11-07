@@ -281,8 +281,15 @@ final class ToolsModel: ObservableObject {
     /// The featured tools not connected yet, offered with Connect, which a Memnox Cloud sign in comes before.
     var suggested: [String] { FeaturedToolkits.suggested(excluding: connections) }
 
+    /// Set when the agents could not be read, so the page says the service is away rather than that nothing is installed.
+    @Published private(set) var agentsNote: String?
+
     private func apply(_ answer: VoiceAgentsAnswer) {
-        guard case .agents(let all) = answer else { return }
+        guard case .agents(let all) = answer else {
+            agentsNote = Self.unreachable
+            return
+        }
+        agentsNote = nil
         agents = all.filter(\.installed).sorted { $0.chosen && !$1.chosen }
     }
 

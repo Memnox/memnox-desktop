@@ -13,8 +13,15 @@ struct ToolsPage: View {
         VStack(alignment: .leading, spacing: SettingsMetrics.pageSpacing) {
             SettingsCard(title: "Agents") {
                 if tools.agents.isEmpty {
-                    SettingsRow(symbol: "terminal", title: tools.loading ? "Looking for agents" : "No agents found",
-                                caption: tools.loading ? nil : "Install Claude Code, Codex or Cursor and Memnox finds it.")
+                    if let away = tools.agentsNote, !tools.loading {
+                        SettingsRow(symbol: "exclamationmark.triangle", title: away,
+                                    caption: "Open Connection in Settings, where Check again starts it.") {
+                            Button("Open Connection") { AppWindow.shared.shell.go(WindowRoute(.settings, tab: "connection")) }
+                        }
+                    } else {
+                        SettingsRow(symbol: "terminal", title: tools.loading ? "Looking for agents" : "No agents found",
+                                    caption: tools.loading ? nil : "Install Claude Code, Codex or Cursor and Memnox finds it.")
+                    }
                 } else {
                     ForEach(tools.agents) { agent in
                         if agent.id != tools.agents.first?.id { SettingsDivider() }

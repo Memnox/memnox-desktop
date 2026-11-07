@@ -108,3 +108,13 @@ export function orderedProfiles(profiles: readonly ProfileView[]): ProfileView[]
 }
 
 export const NO_AGENT = 'No agent behind it yet';
+
+/** The connections a card shows: every one not gone, then the gone ones, which say they are not found any more. */
+export function shownConnections(profile: Pick<ProfileView, 'connections'>): ProfileView['connections'] {
+  return [...profile.connections.filter((each) => each.status !== 'gone'), ...profile.connections.filter((each) => each.status === 'gone')];
+}
+
+/** The agent an Unbind names: its ledger key, else its kind, so a binding is taken off the agent it was put on. */
+export function connectionAgent(connection: ProfileView['connections'][number]): string | undefined {
+  return connection.agentId ?? connection.agentKind;
+}

@@ -1,5 +1,7 @@
 import { PROFILES_METHOD, type DaemonRequest, type DaemonResponse, type ProfileDraft, type ProfileView } from '@memnox/core/wire';
-import { profileAppliedLine, profileSavedLine } from '../domain/profile-lines';
+import type { ProfileTemplate } from '../domain/agent-wire';
+import { filled } from '../domain/agent-work-lines';
+import { boundLine, copiedLine, profileAppliedLine, profileSavedLine, unboundLine } from '../domain/profile-lines';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
@@ -13,6 +15,7 @@ export type ProfileOutcome = { kind: 'done'; note: string } | { kind: 'failed'; 
  */
 export class Profiles extends Observed {
   private list: readonly ProfileView[] | undefined;
+  private catalog: readonly ProfileTemplate[] | undefined;
   private failed = false;
   private busyWith: string | undefined;
 
@@ -30,6 +33,11 @@ export class Profiles extends Observed {
 
   get unreadable(): boolean {
     return this.failed;
+  }
+
+  /** The job descriptions with no agent behind them, undefined until read. */
+  get templates(): readonly ProfileTemplate[] | undefined {
+    return this.catalog;
   }
 
   /** The profile a press is still working on, so its controls can say so. */
@@ -51,6 +59,40 @@ export class Profiles extends Observed {
 
   remove(name: string): Promise<ProfileOutcome> {
     return this.change(name, { method: PROFILES_METHOD.PROFILE_REMOVE, profileName: name }, () => `${name} is forgotten. What it already gave stays where it was given.`);
+  }
+
+  /** Reads the catalog of job descriptions, which ships with the runtime and needs no account. */
+  async readTemplates(): Promise<void> {
+    const response = await this.ask({ method: PROFILES_METHOD.TEMPLATES });
+    if (response?.templates !== undefined) this.catalog = response.templates;
+    this.changed();
+  }
+
+  /** Puts an agent found here under a kept profile; its ledger key stays its own, so nothing it did is renamed. */
+  bind(profile: string, agent: string): Promise<ProfileOutcome> {
+    return this.change(profile, { method: PROFILES_METHOD.PROFILE_BIND, profileName: profile, agentId: agent }, () => boundLine(profile));
+  }
+
+  /** Takes the binding off, which puts the agent back on its own default profile. */
+  unbind(agent: string, from: string): Promise<ProfileOutcome> {
+    return this.change(from, { method: PROFILES_METHOD.PROFILE_UNBIND, agentId: agent }, () => unboundLine);
+  }
+
+  /** Keeps a job and binds an agent to it in one press, as Give it a job on an agent's card does. */
+  async putAndBind(draft: ProfileDraft, agent: string): Promise<ProfileOutcome> {
+    const kept = await this.put(draft);
+    if (kept.kind === 'failed') return kept;
+    return this.bind(draft.name, agent);
+  }
+
+  /** Copies a template's job into a new profile, with only the suggested skills the person took; no rule is applied. */
+  fromTemplate(template: string, name: string, skills: readonly string[]): Promise<ProfileOutcome> {
+    const named = filled(name);
+    return this.change(
+      template,
+      { method: PROFILES_METHOD.PROFILE_FROM_TEMPLATE, templateId: template, templateSkills: [...skills], ...(named === undefined ? {} : { profileName: named }) },
+      () => copiedLine(name),
+    );
   }
 
   /** Proposes the profile's servers, skills and rules for an agent, in a project or its home folder. */

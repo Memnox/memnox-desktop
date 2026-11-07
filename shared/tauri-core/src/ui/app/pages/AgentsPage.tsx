@@ -8,6 +8,7 @@ import { useObserved, type SettingsParts } from '../../settings/parts';
 import { ToolsPage } from '../../settings/pages/ToolsPage';
 import { AgentListTab } from './AgentListTab';
 import { WorkTab } from './WorkTab';
+import { JobsTab } from './JobsTab';
 import { Inspector } from '../widgets';
 import { usePicked } from '../inspector-host';
 import { SessionsTabLines } from '../../../core/domain/agent-lines';
@@ -36,6 +37,7 @@ export function AgentsPage({ parts, tab, width }: { parts: SettingsParts; tab: s
   if (tab === 'computer') return <ToolsPage parts={parts} />;
   if (tab === 'list') return <AgentListTab parts={parts} />;
   if (tab === 'work') return <WorkTab parts={parts} />;
+  if (tab === 'profiles') return <JobsTab parts={parts} />;
   return <SessionsTab parts={parts} width={width} />;
 }
 

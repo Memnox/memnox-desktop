@@ -38,6 +38,7 @@ import type { Pairer } from '../../core/application/ports/pairer';
 import type { HttpTransport, PersonCredentialStore } from '../../core/application/ports/workspace-inbox';
 import { ServerPairing } from '../../core/application/server-pairing';
 import { WorkspaceSignIn } from '../../core/application/workspace-sign-in';
+import { WorkspaceAgents } from '../../core/application/workspace-agents';
 import { SERVERS_CHANGED, TALKING_TO, TEAM_CHANGED } from '../relay-keys';
 import { onPreferenceChange, type SettingsHost } from './host';
 import { TeamAccount } from './team-account';
@@ -102,6 +103,8 @@ export interface SettingsParts {
   readonly profiles: Profiles;
   /** Agent work joined to tracker issues, each press an unsigned steer the daemon decides. */
   readonly work: AgentWorkDesk;
+  /** The workspace's agents and handoffs while the person is signed in to Memnox Cloud; nothing with no account. */
+  readonly workspaceAgents: WorkspaceAgents;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -150,6 +153,7 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     index: new CommunityIndex(link, ids, platformWords(host.platform).keyTitle),
     profiles: new Profiles(link, ids, platformWords(host.platform).keyTitle),
     work: new AgentWorkDesk(link, ids),
+    workspaceAgents: new WorkspaceAgents(new CloudInbox(relay.cloud), relay.credentials),
     host,
     words: platformWords(host.platform),
     setup,

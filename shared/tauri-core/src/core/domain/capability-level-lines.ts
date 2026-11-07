@@ -34,6 +34,8 @@ const SEAM_TITLES: Record<string, string> = {
   network: 'The network',
   browser: 'The browser',
   mcp: 'MCP tools',
+  // Memnox Cloud states enforcement as one level for everything an agent runs.
+  everything: 'Everything it runs',
 };
 
 /** One line of the strip: its title, its level, and its technical words for Advanced. */

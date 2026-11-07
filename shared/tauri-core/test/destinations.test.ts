@@ -201,7 +201,7 @@ describe('what the daemon answers', () => {
     expect(rowOf({ destination: 'home' })?.title).toBe('Home');
     expect(rowTabs({ destination: 'home' }, everything)).toEqual([]);
     expect(rowOf({ destination: 'workspaces', tab: 'skills' })?.title).toBe('Skills');
-    expect(rowTabs({ destination: 'agents', tab: 'list' }, everything).map((page) => page.title)).toEqual(['Agents', 'Work', 'On this computer']);
+    expect(rowTabs({ destination: 'agents', tab: 'list' }, everything).map((page) => page.title)).toEqual(['Agents', 'Jobs', 'Work', 'On this computer']);
     // A row with one page shows no tabs, and a row whose other pages the runtime does not answer shows none either.
     expect(rowTabs({ destination: 'governance', tab: 'policies' }, everything)).toEqual([]);
     expect(rowTabs({ destination: 'governance', tab: 'approvals' }, nothingNew)).toEqual([]);

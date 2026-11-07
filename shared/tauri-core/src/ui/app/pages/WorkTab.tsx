@@ -33,6 +33,8 @@ export function WorkTab({ parts }: { parts: SettingsParts }) {
     void work.refresh();
     void profiles.refresh();
   }, []);
+  // Each change the agent reports moves its card in place, with no read, as the island hears it.
+  useEffect(() => host.onLiveWork?.((changed) => work.heard(changed)), []);
   const [note, setNote] = useState<string | undefined>(undefined);
   const [starting, setStarting] = useState(false);
   const said = (outcome: WorkOutcome) => setNote(outcome.kind === 'done' ? outcome.note : outcome.why);
@@ -78,6 +80,28 @@ export function WorkTab({ parts }: { parts: SettingsParts }) {
   );
 }
 
+/** The local work waiting on the person, a handoff to answer or a done claim to check, for Needs your attention. */
+export function WorkNeedingYou({ parts }: { parts: SettingsParts }) {
+  const { work, profiles, host } = parts;
+  useObserved(work, profiles);
+  const [note, setNote] = useState<string | undefined>(undefined);
+  const waiting = openWork(work.work ?? []).filter(needsYou);
+  if (waiting.length === 0) return null;
+  const said = (outcome: WorkOutcome) => setNote(outcome.kind === 'done' ? outcome.note : outcome.why);
+  const names = new Map((profiles.profiles ?? []).map((each) => [each.id, each.name]));
+  return (
+    <Section title={`Agent work · ${waiting.length}`}>
+      {note !== undefined && <Note>{note}</Note>}
+      <div className="flex flex-col gap-3">
+        {waiting.map((each) => (
+          <WorkCard key={each.id} work={each} name={(id) => names.get(id)} busy={work.busy !== undefined} open={(url) => host.openPage(url)}
+            answer={(handoff, word) => void work.answer(handoff, word).then(said)} close={() => void work.close(each.id).then(said)} stop={() => void work.stop(each.id).then(said)} />
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 /** The issue an agent carries, its state and its latest word, opening the issue in its tracker where it has a link. */
 export function WorkLine({ work, open }: { work: AgentWork; open?: (url: string) => void }) {
   const link = workLink(work);
@@ -99,7 +123,7 @@ export function WorkLine({ work, open }: { work: AgentWork; open?: (url: string)
   );
 }
 
-function WorkCard({ work, name, busy, open, answer, close, stop }: {
+export function WorkCard({ work, name, busy, open, answer, close, stop }: {
   work: AgentWork;
   name: (id: string) => string | undefined;
   busy: boolean;

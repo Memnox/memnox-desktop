@@ -13,6 +13,10 @@ import { heldFacts, NOTHING_WAITING, NOTHING_WAITING_DETAIL, waitingLine } from 
 import { GovernanceLines } from '../../../core/domain/governance-lines';
 import { BrandLogo, Button, EmptyState, StatusWord, Switch } from '../../kit';
 import { handHeld, heldBusy } from '../held-hand';
+import { needsYou, openWork } from '../../../core/domain/agent-work-lines';
+import { waitingHandoffs } from '../../../core/domain/workspace-agents';
+import { WorkNeedingYou } from './WorkTab';
+import { WorkspaceHandoffs } from './WorkspaceAgents';
 
 /** How long the window waits before opening the live feed again after the daemon went away. */
 const RECONNECT_MS = 2_000;
@@ -34,12 +38,18 @@ export function GovernancePage({ parts, tab, width, go }: { parts: SettingsParts
  * it ended is said on the island's card; the card here leaves once the answer stands.
  */
 function Approvals({ parts }: { parts: SettingsParts }) {
-  const { calls, words, projects, support } = parts;
-  useObserved(calls, projects);
+  const { calls, words, projects, support, work, workspaceAgents } = parts;
+  useObserved(calls, projects, work, workspaceAgents, support);
+  const offersWork = support.supports('agent-work') === true;
   useEffect(() => {
     // The projects name where each call waits, so a person with several sees which one it is in.
     if (support.supports('projects') === true && projects.projects === undefined) void projects.refresh();
   }, []);
+  useEffect(() => {
+    // Handoffs and done claims wait here too, beside the held calls.
+    if (offersWork) void work.refresh();
+  }, [offersWork]);
+  useEffect(() => parts.host.onLiveWork?.((changed) => work.heard(changed)), []);
   useEffect(() => {
     let open = true;
     const loop = async () => {
@@ -55,12 +65,13 @@ function Approvals({ parts }: { parts: SettingsParts }) {
   }, []);
   const waiting = [...calls.state.waiting.newestFirst].reverse();
   const busy = heldBusy(calls.state);
+  const workWaits = (offersWork && openWork(work.work ?? []).some(needsYou)) || (workspaceAgents.signedIn && waitingHandoffs(workspaceAgents.remote).length > 0);
 
   return (
     <div className="flex flex-col gap-6">
       <NoticesSwitch parts={parts} />
       {waiting.length === 0 ? (
-        <EmptyState icon={ShieldCheck} title={NOTHING_WAITING} body={NOTHING_WAITING_DETAIL} />
+        !workWaits && <EmptyState icon={ShieldCheck} title={NOTHING_WAITING} body={NOTHING_WAITING_DETAIL} />
       ) : (
         <>
           <p className="text-footnote text-muted">{waitingLine(waiting.length)}</p>
@@ -98,6 +109,8 @@ function Approvals({ parts }: { parts: SettingsParts }) {
           </div>
         </>
       )}
+      {offersWork && <WorkNeedingYou parts={parts} />}
+      <WorkspaceHandoffs parts={parts} />
     </div>
   );
 }

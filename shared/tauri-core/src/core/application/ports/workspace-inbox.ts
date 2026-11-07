@@ -1,4 +1,5 @@
 import type { HoldAnswer } from '@memnox/core/wire';
+import type { CloudMyWork, CloudProfileView } from '../../domain/workspace-agents';
 import type { InboxAnswerReply, PersonCode, PersonToken, RegisteredDevice, WorkspaceCredential, WorkspaceHeldCall, WorkspaceRef } from '../../domain/workspace-wire';
 
 /** Where asking whether the person approved the code stands. */
@@ -46,6 +47,16 @@ export interface WorkspaceInbox {
   held(workspace: string, token: string): Promise<readonly WorkspaceHeldCall[]>;
   /** One answer; a yes carries the signature, a deny goes without one. */
   answer(call: string, workspace: string, answer: HoldAnswer, deviceId: string, signature: string | undefined, token: string): Promise<InboxAnswerReply>;
+}
+
+/**
+ * The workspace's agents for the person signed in: the jobs, the work they answer for and the handoffs that wait on
+ * them. The workspace decides who sees what; this only carries what it says, and an answer to a handoff is unsigned.
+ */
+export interface WorkspaceAgentsReader {
+  agentProfiles(workspace: string, token: string): Promise<readonly CloudProfileView[]>;
+  myAgentWork(workspace: string, token: string): Promise<CloudMyWork>;
+  answerHandoff(handoff: string, workspace: string, accept: boolean, token: string): Promise<void>;
 }
 
 /** Where the signed in person's credential is kept between launches; a bearer token, so the real one is the system's credential store. */

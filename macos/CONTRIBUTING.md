@@ -20,19 +20,19 @@ belongs in. Everyone taking part follows the [Code of Conduct](../CODE_OF_CONDUC
 
 ## Set up
 
-You need an Apple silicon Mac on macOS 14 or later, Xcode 26 or later, and a checkout of
-[memnox-runtime](https://github.com/Memnox/memnox-runtime) beside this one, cloned with
-`git clone https://github.com/Memnox/memnox.git memnox-runtime` or named by `MEMNOX_RUNTIME`, with its
-daemon running (`memnox daemon`). `bundle.sh` builds that checkout, so you also need Node 22 with
-`corepack enable`, and Rust from [rustup](https://rustup.rs) the first time, when the Noise framework is
-built. The framework has no Intel slice, so an Intel Mac cannot build the app. `signing-setup.sh` asks
+You need an Apple silicon Mac on macOS 14 or later and Xcode 26 or later, and nothing else to clone.
+From the repo root, `sh dev.sh` takes the Noise framework from the newest memnox-runtime release, builds
+and signs the app against the `memnox` published to npm, which the app installs on its first run, and
+opens it. To work on the runtime too, clone [memnox-runtime](https://github.com/Memnox/memnox-runtime)
+beside this repo or name it with `MEMNOX_RUNTIME`; then `bundle.sh` builds that checkout, which needs
+Node 22 with `corepack enable`, and Rust from [rustup](https://rustup.rs) builds the Noise framework there. The framework has no Intel slice, so an Intel Mac cannot build the app. `signing-setup.sh` asks
 for your login keychain password once. The app uses no Swift package, and none may be added: everything is Apple's own
 frameworks, plus the one Noise build the runtime makes, which `scripts/vendor-noise.sh` copies in
 (or builds with `rustup` and `cargo` when there is no build to copy).
 
 ```sh
 scripts/signing-setup.sh   # once: a local signing identity, so macOS keeps its permissions across builds
-scripts/vendor-noise.sh    # once: the Noise framework Package.swift needs, which git never holds
+scripts/vendor-noise.sh    # once: the Noise framework Package.swift needs, which git never holds, from the newest runtime release
 swift test                 # the core, headless; must pass before every commit
 ./scripts/bundle.sh        # builds and signs build/Memnox.app
 ```

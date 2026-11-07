@@ -109,14 +109,26 @@ The Mac app has its own pictures in [`macos/README.md`](macos/README.md).
 
 ## Build and test
 
-Each app builds against a [memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout beside
-this repo, in a folder named exactly `memnox-runtime`, or one named by `MEMNOX_RUNTIME`. The runtime's
-repository is called `memnox`, so name the folder when you clone it:
+One command builds and opens the app for the computer it runs on, on a Mac, on Linux, or in Git Bash
+on Windows, and skips every step already done, so it is also the command to run each day:
 
 ```sh
-git clone https://github.com/Memnox/memnox.git memnox-runtime
 git clone https://github.com/Memnox/memnox-desktop.git
+cd memnox-desktop && sh dev.sh
 ```
+
+This repo is the only clone it needs, since every app runs the newest published runtime. The app
+installs and starts `memnox` from npm on its first run, `pnpm wire` takes the wire from the
+`@memnox/core` on npm, and the Mac's Noise framework comes from the newest
+[memnox-runtime](https://github.com/Memnox/memnox-runtime) release. To work on the runtime too, clone
+it beside this repo, in a folder named exactly `memnox-runtime`, or name it with `MEMNOX_RUNTIME`, and
+every script builds and runs that checkout instead:
+
+```sh
+git clone https://github.com/Memnox/memnox-runtime.git
+```
+
+The steps `dev.sh` takes are below, for running one on its own.
 
 Every platform also needs Node 22 (`.nvmrc`) with `corepack enable`, which gives each repository the
 pnpm it pins: 9.15.4 here and 11 in the runtime. Node 25 and later need `npm install -g corepack` first.
@@ -156,7 +168,7 @@ says, and run every step below from Git Bash, since `pnpm wire` is a shell scrip
 
 ```sh
 cd shared/tauri-core
-pnpm wire                 # builds memnox-runtime's core and copies its wire into .runtime
+pnpm wire                 # the runtime's wire into .runtime, from npm or a checkout beside this repo
 pnpm install
 pnpm typecheck && pnpm test
 cargo test --workspace    # the key, the DER conversion, the Noise vectors, the daemon link, the voice

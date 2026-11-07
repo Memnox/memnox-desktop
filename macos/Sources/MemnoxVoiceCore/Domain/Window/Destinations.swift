@@ -161,6 +161,9 @@ public enum Destinations {
                         key: "2", tabs: [
                             TabInfo(id: "list", title: "Agents", group: .agents,
                                     summary: "The agents on this Mac and what each can reach.", needs: "agents"),
+                            TabInfo(id: "profiles", title: "Jobs", group: .agents,
+                                    summary: "What each agent is for, who answers for it, and the agents each job works through.",
+                                    needs: "profiles"),
                             TabInfo(id: "sessions", title: "Sessions", group: .agents,
                                     summary: "What each agent is doing: what needs you, what runs, and what is done."),
                             TabInfo(id: "computer", title: "On this computer", group: .computer,

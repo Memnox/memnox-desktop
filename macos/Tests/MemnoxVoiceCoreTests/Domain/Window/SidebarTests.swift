@@ -36,7 +36,7 @@ final class SidebarTests: XCTestCase {
 
     func testGathersTheAgentsAndThisComputerAsTabsOfAIAgentsWithSessionsLeftOff() {
         let agents = WindowRoute(.agents, tab: "list")
-        XCTAssertEqual(Sidebar.strip(for: agents, supports: everything).map(\.title), ["Agents", "On this computer"])
+        XCTAssertEqual(Sidebar.strip(for: agents, supports: everything).map(\.title), ["Agents", "Jobs", "On this computer"])
         // Sessions is left off for now, so a runtime older than the agents view lands on this computer.
         XCTAssertEqual(Sidebar.rows.first { $0.id == .agents }.flatMap { Sidebar.target($0, supports: nothingNew) },
                        WindowRoute(.agents, tab: "computer"))

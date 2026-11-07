@@ -14,6 +14,7 @@ public final class Profiles: @unchecked Sendable {
     private let keyTitle: String
     private let lock = NSLock()
     private var list: [ProfileView]?
+    private var catalog: [ProfileTemplate]?
     private var failed = false
     private var busyWith: String?
 
@@ -27,6 +28,9 @@ public final class Profiles: @unchecked Sendable {
     }
 
     public var profiles: [ProfileView]? { lock.withLock { list } }
+
+    /// The job descriptions with no agent behind them, nil until read.
+    public var templates: [ProfileTemplate]? { lock.withLock { catalog } }
 
     /// The last read failed, so the page says so rather than drawing no profiles.
     public var unreadable: Bool { lock.withLock { failed } }
@@ -54,6 +58,44 @@ public final class Profiles: @unchecked Sendable {
         var request = DaemonRequest(id: ids.next(), method: .profileRemove)
         request.profileName = name
         return await change(name, request) { _ in "\(name) is forgotten. What it already gave stays where it was given." }
+    }
+
+    /// Reads the catalog of job descriptions, which ships with the runtime and needs no account.
+    public func readTemplates() async {
+        let response = await ask(DaemonRequest(id: ids.next(), method: .templates))
+        lock.withLock { if let templates = response?.templates { catalog = templates } }
+        changed?()
+    }
+
+    /// Puts an agent found here under a kept profile; its ledger key stays its own, so nothing it did is renamed.
+    public func bind(_ profile: String, agent: String) async -> ProfileOutcome {
+        var request = DaemonRequest(id: ids.next(), method: .profileBind)
+        request.profileName = profile
+        request.agentId = agent
+        return await change(profile, request) { _ in "The agent now works under \(profile)." }
+    }
+
+    /// Takes the binding off, which puts the agent back on its own default profile.
+    public func unbind(agent: String, from profile: String) async -> ProfileOutcome {
+        var request = DaemonRequest(id: ids.next(), method: .profileUnbind)
+        request.agentId = agent
+        return await change(profile, request) { _ in "The agent is back on its own default, with no job." }
+    }
+
+    /// Keeps a job and binds an agent to it in one press, as Give it a job on an agent's card does.
+    public func putAndBind(_ draft: ProfileDraft, agent: String) async -> ProfileOutcome {
+        let kept = await put(draft)
+        guard case .done = kept else { return kept }
+        return await bind(draft.name, agent: agent)
+    }
+
+    /// Copies a template's job into a new profile, with only the suggested skills the person took; no rule is applied.
+    public func fromTemplate(_ template: String, named name: String, skills: [String]) async -> ProfileOutcome {
+        var request = DaemonRequest(id: ids.next(), method: .profileFromTemplate)
+        request.templateId = template
+        request.profileName = AgentWorkLines.filled(name)
+        request.templateSkills = skills
+        return await change(template, request) { _ in ProfileLines.copied(name) }
     }
 
     /// Proposes the profile's servers, skills and rules for an agent, in a project or its home folder.

@@ -28,50 +28,88 @@ final class ProfilesScreen: ObservableObject {
 
 private enum ProfilesLayout {
     static let cardWidth: CGFloat = 280
+    /// How faint a template is drawn, so a job with no agent behind it never reads as an agent at work.
+    static let templateOpacity = 0.75
 }
 
-/// Profiles under Workspaces: a named bundle of skills, servers and a rule pack. Keeping one gives nothing; applying it
-/// to an agent raises a proposal for each piece, and each waits for Touch ID on the island.
+/// The profile editor under AI agents: each job with who answers for it and the agents it works through, an agent's
+/// default offered a job, and the templates, which are jobs with no agent behind them. Keeping or binding one grants
+/// nothing; applying one raises a proposal for each piece, and each waits for Touch ID on the island.
 struct ProfilesDestination: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var screen: ProfilesScreen
     let width: WidthClass
     @State private var creating = false
+    /// The job being given to an agent's default, opened from Give it a job.
+    @State private var givingJob: ProfileView?
+    @State private var template: ProfileTemplate?
 
     var body: some View {
         page
             .task {
                 await screen.profiles.refresh()
+                await screen.profiles.readTemplates()
                 // The hubs and packs are what a profile is made from, and the agents and projects what it is applied to.
                 await shell.skills?.skills.refresh()
                 await shell.hub?.hub.refresh()
                 await shell.studio?.studio.readPacks()
                 await shell.projects?.projects.refresh()
+                await shell.agents?.agents.refresh()
+                openAsked()
             }
             .consoleSheet(isPresented: $creating) {
                 ProfileSheet(shell: shell, screen: screen) { creating = false }
             }
+            .consoleSheet(isPresented: Binding(get: { givingJob != nil }, set: { if !$0 { givingJob = nil } })) {
+                if let givingJob {
+                    ProfileSheet(shell: shell, screen: screen, jobFor: givingJob) { self.givingJob = nil }
+                }
+            }
+            .consoleSheet(isPresented: Binding(get: { template != nil }, set: { if !$0 { template = nil } })) {
+                if let template { TemplateSheet(screen: screen, template: template) { self.template = nil } }
+            }
+    }
+
+    /// Give it a job on an agent's card names the profile it was pressed on, opened here once it is read.
+    private func openAsked() {
+        guard let asked = shell.jobFor else { return }
+        shell.jobFor = nil
+        guard let profile = screen.profiles.profiles?.first(where: { $0.id == asked }) else { return }
+        if profile.isDefault { givingJob = profile }
     }
 
     @ViewBuilder private var page: some View {
         let profiles = screen.profiles
         if let list = profiles.profiles {
+            let kept = AgentProfileLines.ordered(list.filter { !$0.isDefault })
+            let defaults = list.filter(\.isDefault)
             ShellScroll(width: width) {
                 NoteBanner(text: screen.note)
                 HStack(alignment: .top, spacing: Memnox.Spacing.regular) {
-                    QuietLine("A profile gives nothing until you apply it. Applying it waits for your signature with Touch ID on the island, once for each piece.")
+                    QuietLine("A job gives nothing until you apply it. Applying it waits for your signature with Touch ID on the island, once for each piece.")
                     Spacer(minLength: Memnox.Spacing.medium)
-                    Button { creating = true } label: { Label("New profile", systemImage: "plus") }
+                    Button { creating = true } label: { Label("New job", systemImage: "plus") }
                         .buttonStyle(KitButton(kind: .primary))
                 }
-                if list.isEmpty {
-                    EmptyState(symbol: "square.stack.3d.up", title: "No profiles yet",
-                               detail: "Bundle the skills, servers and rule pack one kind of work needs, such as Backend Engineering, and apply it to any agent in one go.")
-                } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: ProfilesLayout.cardWidth), spacing: Memnox.Spacing.large)],
-                              spacing: Memnox.Spacing.large) {
-                        ForEach(list) { profile in
-                            ProfileCard(shell: shell, screen: screen, profile: profile)
+                if kept.isEmpty && defaults.isEmpty {
+                    EmptyState(symbol: "briefcase", title: "No jobs yet",
+                               detail: "Write what an agent is for, who answers for it and what it needs, or start from a template below.")
+                }
+                if !kept.isEmpty {
+                    ShellSection(title: "Jobs") { grid(kept) { ProfileCard(shell: shell, screen: screen, profile: $0) } }
+                }
+                if !defaults.isEmpty {
+                    ShellSection(title: "Agents with no job yet") {
+                        grid(defaults) { profile in
+                            AgentProfileCard(profile: profile, work: nil) { givingJob = $0 }
+                        }
+                    }
+                }
+                if let templates = profiles.templates, !templates.isEmpty {
+                    ShellSection(title: "Start from a template") {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: ProfilesLayout.cardWidth), spacing: Memnox.Spacing.large)],
+                                  spacing: Memnox.Spacing.large) {
+                            ForEach(templates) { each in TemplateCard(template: each) { template = each } }
                         }
                     }
                 }
@@ -82,6 +120,118 @@ struct ProfilesDestination: View {
             ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
+
+    private func grid<Card: View>(_ profiles: [ProfileView], @ViewBuilder card: @escaping (ProfileView) -> Card) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: ProfilesLayout.cardWidth), spacing: Memnox.Spacing.large)],
+                  spacing: Memnox.Spacing.large) {
+            ForEach(profiles) { card($0) }
+        }
+    }
+}
+
+/// A job description with no agent behind it, drawn grey with no activity and no numbers.
+private struct TemplateCard: View {
+    let template: ProfileTemplate
+    let use: () -> Void
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
+        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+            HStack(spacing: Memnox.Spacing.medium) {
+                Text(template.name)
+                    .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                    .foregroundStyle(Memnox.Console.foreground)
+                    .lineLimit(1)
+                Spacer(minLength: Memnox.Spacing.small)
+                StatusWord(.quiet, AgentProfileLines.noAgent)
+            }
+            Text(template.purpose)
+                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.Console.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button("Use this job", systemImage: "doc.on.doc", action: use).buttonStyle(KitButton(kind: .secondary))
+        }
+        .padding(Memnox.Spacing.xLarge)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Memnox.Console.card, in: shape)
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
+        .opacity(ProfilesLayout.templateOpacity)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(template.name), \(AgentProfileLines.noAgent)")
+    }
+}
+
+/// Copying a template: name the copy and tick the suggested skills to take. The suggested rules are shown in plain
+/// words for the person to write as rules later; none is applied by the copy.
+private struct TemplateSheet: View {
+    @ObservedObject var screen: ProfilesScreen
+    let template: ProfileTemplate
+    let close: () -> Void
+    @State private var name = ""
+    @State private var skills: Set<String> = []
+    @State private var problem: String?
+
+    var body: some View {
+        SkillSheetFrame(title: "Use \(template.name)") {
+            labelled("Name") { TextField(template.name, text: $name).kitField() }
+            labelled("What it is for") { QuietLine(template.purpose) }
+            if !template.responsibilities.isEmpty {
+                labelled("Responsibilities") { QuietLine(template.responsibilities.joined(separator: "\n")) }
+            }
+            if !template.suggestedSkills.isEmpty {
+                labelled("Suggested skills, each off until you take it") {
+                    VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
+                        ForEach(template.suggestedSkills, id: \.self) { skill in
+                            Toggle(skill, isOn: Binding(get: { skills.contains(skill) }, set: { on in
+                                if on { skills.insert(skill) } else { skills.remove(skill) }
+                            }))
+                            .toggleStyle(CheckboxStyle())
+                        }
+                    }
+                }
+            }
+            if !template.suggestedRules.isEmpty {
+                labelled("Suggested rules, none applied") {
+                    QuietLine(template.suggestedRules.joined(separator: "\n"))
+                }
+            }
+            QuietLine("The copy has no agent behind it yet. Bind one of your agents to it once it is kept.")
+            if let problem {
+                Text(problem)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.destructive)
+            }
+        } footer: {
+            Button("Cancel", action: close).buttonStyle(KitButton(kind: .secondary)).keyboardShortcut(.cancelAction)
+            Spacer(minLength: Memnox.Spacing.medium)
+            Button("Keep the job") {
+                Task {
+                    let outcome = await screen.profiles.fromTemplate(template.id, named: name.isEmpty ? template.name : name,
+                                                                     skills: template.suggestedSkills.filter(skills.contains))
+                    if case .failed(let why) = outcome {
+                        problem = why
+                        return
+                    }
+                    screen.said(outcome)
+                    close()
+                }
+            }
+            .buttonStyle(KitButton(kind: .primary))
+            .keyboardShortcut(.defaultAction)
+            .disabled(screen.profiles.busy != nil)
+        }
+    }
+}
+
+/// A form field under its label, as every sheet here lays them.
+private func labelled<Field: View>(_ label: String, @ViewBuilder field: () -> Field) -> some View {
+    VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+        Text(label)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+            .foregroundStyle(Memnox.Console.muted)
+        field()
+    }
 }
 
 private struct ProfileCard: View {
@@ -91,6 +241,7 @@ private struct ProfileCard: View {
     @State private var applying = false
     @State private var removing = false
     @State private var editing = false
+    @State private var binding = false
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
@@ -105,12 +256,16 @@ private struct ProfileCard: View {
                     Spacer(minLength: Memnox.Spacing.small)
                     ScopeChip(ScopeLines.profile)
                 }
-                Text(ProfileLines.contents(profile))
+                Text(AgentProfileLines.purpose(profile))
                     .font(Memnox.Console.sans(Memnox.TextSize.footnote))
                     .foregroundStyle(Memnox.Console.muted)
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
-            if let description = profile.description {
+            if let responsible = AgentProfileLines.responsible(profile) { muted(responsible) }
+            if !profile.responsibilities.isEmpty { muted(profile.responsibilities.joined(separator: ", ")) }
+            JobConnections(screen: screen, profile: profile)
+            muted(ProfileLines.contents(profile))
+            if let description = profile.description, description != profile.purpose {
                 Text(description)
                     .font(Memnox.Console.sans(Memnox.TextSize.footnote))
                     .foregroundStyle(Memnox.Console.foreground)
@@ -125,6 +280,9 @@ private struct ProfileCard: View {
                     Button("Apply", systemImage: "play") { applying = true }.buttonStyle(KitButton(kind: .secondary))
                 }
                 Button("Edit", systemImage: "pencil") { editing = true }.buttonStyle(KitButton(kind: .secondary))
+                if !binding {
+                    Button("Bind an agent", systemImage: "link") { binding = true }.buttonStyle(KitButton(kind: .secondary))
+                }
                 if removing {
                     Button("Remove \(profile.name)", systemImage: "trash") {
                         let id = profile.id
@@ -138,6 +296,16 @@ private struct ProfileCard: View {
                 }
             }
             if removing { QuietLine("What it already gave stays where it was given.") }
+            if binding {
+                BindForm(shell: shell, busy: busy) { binding = false } bind: { agent in
+                    let id = profile.id
+                    Task {
+                        let outcome = await screen.profiles.bind(id, agent: agent)
+                        screen.said(outcome)
+                        if case .done = outcome { binding = false }
+                    }
+                }
+            }
             if applying {
                 ApplyForm(shell: shell, busy: busy) { applying = false } apply: { agent, project in
                     let id = profile.id
@@ -166,6 +334,72 @@ private struct ProfileCard: View {
             .font(Memnox.Console.sans(Memnox.TextSize.footnote))
             .foregroundStyle(Memnox.Console.muted)
             .lineLimit(1)
+    }
+}
+
+/// The agents a job works through, each with its level and an Unbind press, and the strip of how sure Memnox is.
+private struct JobConnections: View {
+    @ObservedObject var screen: ProfilesScreen
+    let profile: ProfileView
+    @State private var levels = false
+
+    var body: some View {
+        if profile.hasAgent {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+                ForEach(AgentProfileLines.shownConnections(profile)) { connection in
+                    HStack(spacing: Memnox.Spacing.small) {
+                        ConnectionPill(connection: connection)
+                        Text(CapabilityLevelLines.status(connection))
+                            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(Memnox.Console.muted)
+                            .lineLimit(1)
+                        Spacer(minLength: Memnox.Spacing.small)
+                        if let agent = connection.agentId ?? connection.agentKind {
+                            Button("Unbind") {
+                                let id = profile.id
+                                Task { screen.said(await screen.profiles.unbind(agent: agent, from: id)) }
+                            }
+                            .buttonStyle(KitButton(kind: .secondary))
+                            .help("Puts the agent back on its own default, with no job")
+                            .disabled(screen.profiles.busy != nil)
+                        }
+                    }
+                }
+                DisclosureGroup("How sure Memnox is", isExpanded: $levels) { CapabilityStrip(levels: profile.levels) }
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote, .medium))
+                    .foregroundStyle(Memnox.Console.muted)
+            }
+        } else {
+            StatusWord(.quiet, AgentProfileLines.noAgent)
+        }
+    }
+}
+
+/// An agent found on this Mac to put under the job; its record keeps its own key, so nothing it did is renamed.
+private struct BindForm: View {
+    @ObservedObject var shell: AppShellModel
+    let busy: Bool
+    let cancel: () -> Void
+    let bind: (String) -> Void
+    @State private var agent = ""
+
+    var body: some View {
+        let found = shell.agents?.agents.agents ?? []
+        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+            ShellDivider()
+            if found.isEmpty {
+                QuietLine("No agent is found on this Mac yet. Install one and it appears here.")
+            } else {
+                ConsoleSelect(label: "Agent", selection: $agent, options: found.map { SelectOption(value: $0.kind, title: $0.name) })
+            }
+            HStack(spacing: Memnox.Spacing.medium) {
+                Button(busy ? "Binding" : "Bind", systemImage: "link") { bind(agent) }
+                    .buttonStyle(KitButton(kind: .primary))
+                    .disabled(busy || agent.isEmpty)
+                Button("Cancel", action: cancel).buttonStyle(KitButton(kind: .secondary))
+            }
+        }
+        .onAppear { if agent.isEmpty, let first = found.first { agent = first.kind } }
     }
 }
 
@@ -237,6 +471,8 @@ private struct ProfileSheet: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var screen: ProfilesScreen
     var editing: ProfileView?
+    /// An agent's default given a job: the job is kept and the agent bound to it in one press.
+    var jobFor: ProfileView?
     let close: () -> Void
     @State private var form = ProfileForm()
     @State private var problem: String?
@@ -246,16 +482,29 @@ private struct ProfileSheet: View {
         let packs = shell.studio?.studio.packs ?? []
         let skills = ProfileLines.choiceNames(shell.skills?.skills.hub?.skills.map(\.name) ?? [], kept: Set(editing?.skills ?? []))
         let servers = ProfileLines.choiceNames(shell.hub?.hub.hub?.servers.map(\.name) ?? [], kept: Set(editing?.mcpServers ?? []))
-        SkillSheetFrame(title: editing.map { "Edit \($0.name)" } ?? "New profile") {
+        SkillSheetFrame(title: editing.map { "Edit \($0.name)" } ?? jobFor.map { "Give \($0.name) a job" } ?? "New job") {
             if let editing {
                 labelled("Name") { Text(editing.name).font(Memnox.Console.sans(Memnox.TextSize.body)).foregroundStyle(Memnox.Console.foreground) }
                 QuietLine("The name stays, since a new name would keep a second profile beside this one.")
             } else {
                 labelled("Name") { TextField("Backend Engineering", text: $form.name).kitField() }
             }
-            labelled("What it is for, optional") {
-                TextField("Reviews, release notes and the local database", text: $form.description).kitField()
+            labelled("What it is for") {
+                TextField("Builds and changes code in the repositories it is given", text: $form.purpose).kitField()
             }
+            labelled("Role, optional") { TextField("developer", text: $form.role).kitField() }
+            labelled("Responsibilities, one a line") {
+                TextField("Run the tests before handing back", text: $form.responsibilities, axis: .vertical)
+                    .lineLimit(2...5)
+                    .kitField()
+            }
+            labelled("Instructions, optional") {
+                TextField("What it should always do", text: $form.instructions, axis: .vertical)
+                    .lineLimit(2...5)
+                    .kitField()
+            }
+            labelled("Who answers for it") { TextField("Your name", text: $form.responsiblePerson).kitField() }
+            QuietLine("The agent never holds that person's authority; what it asks goes to them first.")
             choices("Skills from the Skills Hub", empty: "The Skills Hub holds no skill yet.", names: skills, chosen: $form.skills)
             choices("Servers from the MCP Hub", empty: "The MCP Hub holds no server yet.", names: servers, chosen: $form.servers)
             labelled("Rule pack") {
@@ -276,16 +525,17 @@ private struct ProfileSheet: View {
         } footer: {
             Button("Cancel", action: close).buttonStyle(KitButton(kind: .secondary)).keyboardShortcut(.cancelAction)
             Spacer(minLength: Memnox.Spacing.medium)
-            Button(editing == nil ? "Keep profile" : "Save changes") { save(packs) }
+            Button(editing == nil ? (jobFor == nil ? "Keep job" : "Give it this job") : "Save changes") { save(packs) }
                 .buttonStyle(KitButton(kind: .primary))
                 .keyboardShortcut(.defaultAction)
                 .disabled(screen.profiles.busy != nil)
         }
         .onAppear {
             // Opened once with the profile as kept, so a redraw never undoes what the person changed.
-            guard !opened, let editing else { return }
+            guard !opened else { return }
             opened = true
-            form = ProfileLines.form(of: editing, packs: packs)
+            if let editing { form = ProfileLines.form(of: editing, packs: packs) }
+            if let jobFor { form = ProfileLines.job(for: jobFor) }
         }
     }
 
@@ -294,8 +544,14 @@ private struct ProfileSheet: View {
         case .failure(let missing):
             problem = missing.why
         case .success(let draft):
+            let agent = jobFor?.connections.first?.agentId ?? jobFor?.connections.first?.agentKind
             Task {
-                let outcome = await screen.profiles.put(draft, editing: editing != nil)
+                let outcome: ProfileOutcome
+                if let agent {
+                    outcome = await screen.profiles.putAndBind(draft, agent: agent)
+                } else {
+                    outcome = await screen.profiles.put(draft, editing: editing != nil)
+                }
                 if case .failed(let why) = outcome {
                     problem = why
                     return

@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -65,11 +65,14 @@ function inlineStyles(source: string): { line: number; body: string }[] {
   return found;
 }
 
+/** A source's path under ui/ as the lists above write it, with `/` on every platform. */
+const nameOf = (path: string): string => relative(ui, path).split(sep).join('/');
+
 describe('the base components', () => {
   it('are the only place a raw control is drawn', () => {
     const found: string[] = [];
     for (const path of sourcesUnder(ui, ['.tsx'])) {
-      const name = relative(ui, path);
+      const name = nameOf(path);
       const lines = readFileSync(path, 'utf8').split('\n');
       lines.forEach((line, at) => {
         for (const raw of RAW) {
@@ -85,7 +88,7 @@ describe('the base components', () => {
   it('hold every length and colour, so no page types its own', () => {
     const found: string[] = [];
     for (const path of sourcesUnder(ui, ['.tsx', '.ts'])) {
-      const name = relative(ui, path);
+      const name = nameOf(path);
       if (OWN_VALUES[name] !== undefined) continue;
       const source = readFileSync(path, 'utf8');
       source.split('\n').forEach((line, at) => {

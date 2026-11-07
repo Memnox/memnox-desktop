@@ -4,6 +4,7 @@ import { Profiles } from '../src/core/application/profiles';
 import { RequestIds } from '../src/core/application/request-ids';
 import { Agents } from '../src/core/application/studio';
 import { applyWhereLine, choiceNames, packChangeLine, profileAppliedLine, profileContents, profileDraftFrom, profileFormOf, profileSavedLine } from '../src/core/domain/profile-lines';
+import { NO_LEVELS } from '../src/core/domain/agent-wire';
 import { ScriptedDaemon } from './doubles';
 
 const backend: ProfileView = {
@@ -14,6 +15,10 @@ const backend: ProfileView = {
   rulePack: { name: 'Careful', rules: 6 },
   updatedAt: '2026-10-30T10:00:00Z',
   missing: [],
+  responsibilities: [],
+  projects: [],
+  connections: [],
+  levels: NO_LEVELS,
 };
 
 const packs = [{ id: 'careful', name: 'Careful', toml: '[[policies]]' }];

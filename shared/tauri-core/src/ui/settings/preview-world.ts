@@ -8,6 +8,7 @@ import type { Platform } from '../../core/domain/platform';
 import type { SettingsHost } from './host';
 import type { Pairer } from '../../core/application/ports/pairer';
 import type { HttpTransport, PersonCredentialStore } from '../../core/application/ports/workspace-inbox';
+import { NO_LEVELS } from '../../core/domain/agent-wire';
 import { Base64URL } from '../../core/domain/base64url';
 import type { PairedServer } from '../../core/domain/paired-machines';
 import type { WorkspaceCredential } from '../../core/domain/workspace-wire';
@@ -418,8 +419,8 @@ function indexAnswer(request: DaemonRequest): Partial<DaemonResponse> {
 
 /** Two profiles: one whole, one naming a server the MCP Hub no longer holds. */
 const previewProfiles: ProfileView[] = [
-  { id: 'backend-engineering', name: 'Backend Engineering', description: 'Reviews, release notes and the local database, with careful pushes', skills: ['release-notes', 'review-checklist'], mcpServers: ['github', 'postgres'], rulePack: { name: 'Careful', rules: 6 }, updatedAt: '2026-10-28T09:00:00Z', missing: [] },
-  { id: 'docs-writer', name: 'Docs writer', skills: ['release-notes'], mcpServers: ['figma'], updatedAt: '2026-10-21T09:00:00Z', missing: ['figma is no longer in the MCP Hub.'] },
+  { id: 'backend-engineering', name: 'Backend Engineering', description: 'Reviews, release notes and the local database, with careful pushes', skills: ['release-notes', 'review-checklist'], mcpServers: ['github', 'postgres'], rulePack: { name: 'Careful', rules: 6 }, updatedAt: '2026-10-28T09:00:00Z', missing: [], responsibilities: [], projects: [], connections: [], levels: NO_LEVELS },
+  { id: 'docs-writer', name: 'Docs writer', skills: ['release-notes'], mcpServers: ['figma'], updatedAt: '2026-10-21T09:00:00Z', missing: ['figma is no longer in the MCP Hub.'], responsibilities: [], projects: [], connections: [], levels: NO_LEVELS },
 ];
 
 function profileAnswer(request: DaemonRequest): Partial<DaemonResponse> {

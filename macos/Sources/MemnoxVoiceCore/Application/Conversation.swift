@@ -792,8 +792,8 @@ public final class Conversation {
                 if !isQuiet(event) { chimes?.play(.settled) }
                 face.show(.idle, caption: "answered elsewhere")
             }
-        // Live rows are for the window's screens, never said.
-        case .activity, .none:
+        // Live rows and work changes are for the window's screens, never said.
+        case .activity, .work, .none:
             break
         }
     }

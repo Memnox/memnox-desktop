@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { confirmationMessage, DAEMON_EVENT, DAEMON_METHOD, HOLD_ANSWER } from '@memnox/core/wire';
+import { heldConfirmation } from '../src/core/domain/held-confirmation';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
@@ -16,13 +17,28 @@ const vectors = JSON.parse(readFileSync(shared, 'utf8')) as Vectors;
 
 describe('the wire this app imports', () => {
   it('builds every confirmation in shared/vectors byte for byte', () => {
-    const confirms = vectors.messages.filter((vector) => vector.name.startsWith('confirm'));
+    const confirms = vectors.messages.filter((vector) => vector.name.startsWith('confirm') && vector.inputs['actionDigest'] === undefined);
     expect(confirms.length).toBeGreaterThan(0);
     for (const { inputs, message } of confirms) {
       const edited = inputs['edited'] ?? undefined;
       const editedTo = inputs['editedTo'] ?? undefined;
       expect(confirmationMessage(inputs['subject'] ?? '', inputs['answer'] ?? '', edited, editedTo)).toBe(message);
     }
+  });
+
+  it('signs a yes to a held call over the v4 words bound to its digest, byte for byte', () => {
+    const bound = vectors.messages.filter((vector) => vector.name === 'confirm-action');
+    expect(bound.length).toBe(1);
+    for (const { inputs, message } of bound) {
+      expect(heldConfirmation(inputs['subject'] ?? '', inputs['answer'] ?? '', inputs['actionDigest'] ?? undefined)).toBe(message);
+    }
+  });
+
+  it('falls back to the older words for a held call that carries no digest', () => {
+    const plain = vectors.messages.find((vector) => vector.name.startsWith('confirm') && vector.inputs['actionDigest'] === undefined && (vector.inputs['edited'] ?? undefined) === undefined);
+    expect(plain).toBeDefined();
+    if (plain === undefined) return;
+    expect(heldConfirmation(plain.inputs['subject'] ?? '', plain.inputs['answer'] ?? '', undefined)).toBe(plain.message);
   });
 
   it('is the same runtime as the vectors were written by', () => {

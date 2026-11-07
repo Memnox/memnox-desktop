@@ -1,0 +1,25 @@
+/** The words of the Computer pages, Connection, Permissions, Phones and Appearance, as the Mac's pages say them. */
+
+export const ComputerLines = {
+  allow: 'Allow',
+  checkAgain: 'Check again',
+  startAtSignIn: 'Start when you sign in',
+  startAtSignInDetail: 'So a call that waits on you is never missed because Memnox was closed.',
+  turnOff: 'Turn off',
+  turnOn: 'Turn on',
+  editor: 'Memnox in your editor',
+  service: 'Memnox service',
+  pairedPhones: 'Paired phones',
+  drive: 'Let it drive this computer',
+  stopDriving: 'Turn off to stop it',
+  tryAgain: 'Try again',
+  scan: 'Scan this with the Memnox app on your iPhone.',
+  copied: 'Copied',
+  copyLink: 'Copy link',
+  sameDigits: 'Approve if your iPhone shows the same digits.',
+  approve: 'Approve',
+  decline: 'Decline',
+  pairPhone: 'Pair a phone',
+  pairPhoneDetail: 'Optional. Answer your agents and talk to Memnox from your iPhone.',
+  keyTurnsOn: (keyTitle: string) => `${keyTitle} to turn on`,
+} as const;

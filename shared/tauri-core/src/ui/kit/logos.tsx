@@ -38,6 +38,11 @@ export function agentLogoUrl(agent: string | undefined): string | undefined {
   return file === undefined ? undefined : AGENT_FILES[file];
 }
 
+/** The logo by the agent's kind, else by the name it is shown under, since some rows carry an id the files do not know. */
+function logoOf(agent: string | undefined, name: string | undefined): string | undefined {
+  return agentLogoUrl(agent) ?? agentLogoUrl(name);
+}
+
 /** A tile rounds like an app icon, about a quarter of its side. */
 const CORNER_SHARE = 0.26;
 
@@ -46,7 +51,7 @@ const CORNER_SHARE = 0.26;
  * ink 14%. Without one, its initial at 46% of the side, semibold rounded, in its colour on the grey.
  */
 export function BrandLogo({ agent, name, size = 28, className }: { agent: string | undefined; name: string; size?: number; className?: string }) {
-  const url = agentLogoUrl(agent ?? name);
+  const url = logoOf(agent, name);
   return (
     <span
       className={`relative grid shrink-0 place-items-center overflow-hidden ${className ?? ''}`}
@@ -71,7 +76,7 @@ export function BrandLogo({ agent, name, size = 28, className }: { agent: string
  * and the tools grid draw an agent beside the apps.
  */
 export function AgentMark({ agent, name, size = 26 }: { agent: string | undefined; name: string; size?: number }) {
-  const url = agentLogoUrl(agent ?? name);
+  const url = logoOf(agent, name);
   return (
     <span className="grid shrink-0 place-items-center overflow-hidden" style={{ width: size, height: size, borderRadius: size * CORNER_SHARE, backgroundColor: agentColour(agent ?? name) }} role="img" aria-label={name}>
       {url !== undefined ? (
@@ -90,7 +95,7 @@ export function AgentMark({ agent, name, size = 26 }: { agent: string | undefine
  * apart, or its initial on its colour. The disc is light so every brand file reads on the black notch.
  */
 export function SessionDisc({ agent, name, size = 16, ring = 1.5 }: { agent: string | undefined; name?: string; size?: number; ring?: number }) {
-  const url = agentLogoUrl(agent);
+  const url = logoOf(agent, name);
   return (
     <span
       className="grid shrink-0 place-items-center overflow-hidden rounded-full"
@@ -104,6 +109,31 @@ export function SessionDisc({ agent, name, size = 16, ring = 1.5 }: { agent: str
           {agentInitial(name ?? agent ?? '')}
         </span>
       )}
+    </span>
+  );
+}
+
+/**
+ * `AgentName`: an agent's name inline in a line of text with its logo just before it, for the places a
+ * name sits in a sentence or a list rather than in a row of its own.
+ */
+export function AgentName({ agent, name, size = 14, className }: { agent: string | undefined; name: string; size?: number; className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 align-middle ${className ?? ''}`}>
+      <BrandLogo agent={agent} name={name} size={size} />
+      {name}
+    </span>
+  );
+}
+
+/** `AgentLogos`: several agents' logos overlapped in a row, ahead of a line that names them together. */
+export function AgentLogos({ agents, size = 16 }: { agents: readonly { agent: string; name: string }[]; size?: number }) {
+  if (agents.length === 0) return null;
+  return (
+    <span className="inline-flex shrink-0 -space-x-1 align-middle">
+      {agents.map((each) => (
+        <BrandLogo key={each.agent} agent={each.agent} name={each.name} size={size} className="ring-2 ring-card" />
+      ))}
     </span>
   );
 }

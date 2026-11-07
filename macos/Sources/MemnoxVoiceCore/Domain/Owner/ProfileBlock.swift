@@ -10,6 +10,11 @@ public enum ProfileBlock {
     /// nil when there is no block, or no closing marker, since cutting to the end of a hand edited file could take the
     /// person's own lines with it.
     public static func without(_ text: String) -> String? {
+        without(text, between: begin, and: end)
+    }
+
+    /// The same cut between any two markers, which is how the runtime's own PATH block comes out when it cannot.
+    public static func without(_ text: String, between begin: String, and end: String) -> String? {
         guard let opening = text.range(of: begin), let closing = text.range(of: end, range: opening.upperBound..<text.endIndex) else {
             return nil
         }

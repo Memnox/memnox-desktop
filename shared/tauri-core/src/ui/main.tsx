@@ -1,33 +1,38 @@
 import { StrictMode, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HeldCalls, ProposalCards, RequestIds, Setup, Signer, Talking, VoiceSettings, Wakefulness, type Timer } from '../core';
-import { TauriConfirmKey } from './adapters/tauri-confirm-key';
-import { TauriDaemonLink } from './adapters/tauri-daemon-link';
+import { confirmKey, daemonLink, runtime } from './adapters/demo';
+import { hearPresses } from './adapters/tauri-presses';
+import { Presses } from '../core/application/presses';
 import { islandRelay } from './relay-wiring';
 import { TauriPower } from './adapters/tauri-power';
-import { TauriRuntime } from './adapters/tauri-runtime';
 import { TauriSpeaker } from './adapters/tauri-speaker';
 import { islandExtras } from './tray/island-extras';
 import { DictationPolish, Mouth, VoicePreferences, VoiceTurns } from '../core';
 import { VoiceIsland } from './voice/VoiceIsland';
 import { voiceModels } from './voice/models';
 import { hintNames, localPreferences, TauriChimes, TauriEar, TauriTypist } from './voice/tauri-voice';
+import { VOICE_KEY_PREFIX } from '../core/application/voice-preferences';
 import { DictationWords } from '../core/application/voice-settings';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { AgentQuestions, Displays, HistoryKeeper, Sessions } from '../core';
 import { localHistory } from './sessions/history-store';
 import { ASK_AGAIN_EVENT, TauriPresenter } from './sessions/tauri-presenter';
 import { openSession, terminals } from './sessions/open-session';
 import { Preferences } from '../core/application/preferences';
+import { sessionHome } from '../core/application/agent-homes';
+import type { FoundHome } from '../core/domain/agent-homes';
 import type { VoiceChoices } from '../core/application/voice-preferences';
 import { firstName } from '../core/domain/setup-steps';
 import { displayCaption, keyCaption } from '../core/domain/caption-lines';
 import { platformOf } from '../core/domain/platform';
 import { DAEMON_EVENT } from '@memnox/core/wire';
+import { HeldCallNotices } from '../core/application/held-call-notices';
+import { tauriNotices } from './adapters/tauri-notices';
 import type { ConfirmKey } from '../core';
 import './styles.css';
+import { TAURI_COMMAND } from './adapters/tauri-commands';
 
 /** How long after the daemon closes the feed before it is opened again, long enough for a restart to finish. */
 const RECONNECT_MS = 2_000;
@@ -41,12 +46,12 @@ const timer: Timer = (ms, fire) => {
 
 /** The composition root: the one place the Tauri adapters meet the core. */
 const ids = new RequestIds();
-const link = new TauriDaemonLink();
+const link = daemonLink();
 let calls: HeldCalls | undefined;
 /** Set once the talking is built, so the key's prompt and a display under way show on the island's caption line. */
 let caption: (text: string | undefined) => void = () => undefined;
 const platform = platformOf(navigator.userAgent);
-const systemKey = new TauriConfirmKey();
+const systemKey = confirmKey();
 /** The system's key, with the caption saying what its prompt is for while it is up, as the Mac's "Touch ID to ...". */
 const key: ConfirmKey = {
   publicPoint: () => systemKey.publicPoint(),
@@ -62,13 +67,14 @@ const key: ConfirmKey = {
 const signer = new Signer(link, key, ids, (status) => calls?.keyChanged(status));
 // Paired servers and the team's inbox: `target` sends each request to the machine it belongs to.
 const relay = islandRelay({ local: link, ids, key, timer, store: localPreferences });
-calls = new HeldCalls(link, signer, ids, { timer, ...relay.heldOptions });
+// The island's feed is the one that hands live activity rows to the windows, so it alone asks for them.
+calls = new HeldCalls(link, signer, ids, { timer, ...relay.heldOptions, liveActivity: true });
 const heldCalls: HeldCalls = calls;
 // The voice: Kokoro behind a mouth that remembers what it said and honours the mute, the ear, the keys and the typist.
 const voicePreferences = new VoicePreferences(localPreferences);
 // Settings writes the switches in its own window, so a change there reaches this copy of them.
 window.addEventListener('storage', (event) => {
-  const key = event.key?.startsWith('memnox.voice.') === true ? (event.key.slice('memnox.voice.'.length) as keyof VoiceChoices) : undefined;
+  const key = event.key?.startsWith(VOICE_KEY_PREFIX) === true ? (event.key.slice(VOICE_KEY_PREFIX.length) as keyof VoiceChoices) : undefined;
   if (key !== undefined && key in voicePreferences.choices && (event.newValue === 'true' || event.newValue === 'false')) voicePreferences.set(key, event.newValue === 'true');
 });
 // The person's own choices, kept by Settings and the first run: their name, and whether the first run is done.
@@ -78,6 +84,9 @@ const dictationWords = new DictationWords(localPreferences);
 const chimes = new TauriChimes();
 const typist = new TauriTypist();
 const cards = new ProposalCards(relay.target, signer, speaker, ids);
+// What a press in the Memnox window raised, heard over a channel only that window can write to.
+const presses = new Presses((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+hearPresses((press) => presses.heard(press));
 const talking = new Talking(relay.target, speaker, signer, ids, {
   ...relay.talkingOptions,
   timer,
@@ -85,6 +94,7 @@ const talking = new Talking(relay.target, speaker, signer, ids, {
   chimes: { play: (cue) => voicePreferences.choices.chimes && chimes.play(cue) },
   lookingAt: () => typist.focus(),
   owner: () => firstName(personal.name),
+  presses,
 });
 caption = (text) => talking.captioned(text);
 relay.start({ calls: heldCalls, talking });
@@ -107,10 +117,10 @@ const voiceTurns = new VoiceTurns({
   corrected: (corrections) => corrections.forEach(({ heard, meant }) => dictationWords.addWord(heard, meant)),
   hints: hintNames,
   // The privacy switch read before each listen, since a denied one hands the app silence and not an error.
-  microphone: () => invoke<{ microphone: 'allowed' | 'denied' | 'none' | 'unknown' }>('permission_facts').then((facts) => facts.microphone),
+  microphone: () => invoke<{ microphone: 'allowed' | 'denied' | 'none' | 'unknown' }>(TAURI_COMMAND.permissionFacts).then((facts) => facts.microphone),
 });
 const wakefulness = new Wakefulness(link, new TauriPower(), ids);
-const setup = new Setup(link, new TauriRuntime(), ids, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+const setup = new Setup(link, runtime(), ids, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
 const voiceSettings = new VoiceSettings(link, ids);
 // What waits on the person is said in its turn and listened for; the rest goes straight to the talking.
 calls.observeEvents((event) => voiceTurns.arrived(event));
@@ -118,13 +128,21 @@ calls.observeEvents((event) => voiceTurns.arrived(event));
 const sessions = new Sessions(relay.target, ids, timer);
 const questions = new AgentQuestions(link, ids, timer, (subject) => talking.answeredByHand(subject));
 // LAUNCH and APP reach a tool only through its own documented controls, and Stay where I am keeps the person's window.
-const displays = new Displays(link, ids, new TauriPresenter(), { terminals, stayPut: () => voicePreferences.choices.stayPut });
+const displays = new Displays(link, ids, new TauriPresenter(), {
+  terminals,
+  stayPut: () => voicePreferences.choices.stayPut,
+  // The app picked under Where your agents run, read by the same rule the page shows.
+  sessionHome: () => sessionHome(localPreferences, () => invoke<FoundHome[]>(TAURI_COMMAND.agentHomes)),
+});
 calls.observeEvents((event) => {
   // "typing it in", "starting it" and the like while a display that takes a moment is carried out.
   const doing = event.kind === DAEMON_EVENT.SHOW ? displayCaption(event) : undefined;
   if (doing !== undefined) caption(doing);
   void displays.handle(event).finally(() => doing !== undefined && caption(undefined));
 });
+// A held call the island is not already showing is said by the system too, unless the person turned that off.
+const heldNotices = new HeldCallNotices(tauriNotices, localPreferences, () => document.visibilityState === 'visible');
+calls.observe(() => void heldNotices.changed(heldCalls.state));
 const history = new HistoryKeeper(localHistory, () => crypto.randomUUID());
 history.follow(talking);
 // The tray panel's rows, the pills under the island, the chimes for answers by hand and the diary.
@@ -139,10 +157,10 @@ const extras = islandExtras({
 });
 sessions.start();
 void listen<string>(ASK_AGAIN_EVENT, (event) => void talking.heard(event.payload, true));
-const openLive = (sessionId: string) => void invoke('open_live_session', { sessionId }).catch(() => undefined);
+const openLive = (sessionId: string) => void invoke(TAURI_COMMAND.openLiveSession, { sessionId }).catch(() => undefined);
 /** "Open in {app}": the session's own tab or editor first, by where the runtime noted it runs, and its live window when that fails. */
 const openOwnApp = (sessionId: string) => void openSession(sessionId, sessions.state.cards.find((card) => card.sessionId === sessionId)?.host);
-const openSettings = (page: string | null) => void invoke('open_settings', { page }).catch(() => undefined);
+const openSettings = (page: string | null) => void invoke(TAURI_COMMAND.openSettings, { page }).catch(() => undefined);
 
 /** Whether the side panel is up, which lights the history satellite and tile; it learns of a close however the panel went. */
 const side = (() => {
@@ -166,7 +184,7 @@ const side = (() => {
     /** Opens or closes the panel, as the Mac's `toggleSide`. */
     toggle() {
       const opening = !open;
-      void invoke('open_side', { open: opening }).catch(() => undefined);
+      void invoke(TAURI_COMMAND.openSide, { open: opening }).catch(() => undefined);
     },
   };
 })();
@@ -184,7 +202,7 @@ async function keepWatching(held: HeldCalls): Promise<never> {
 
 void keepWatching(calls);
 // A first launch opens the first run in its own window; after it, Settings is one press on the island away.
-if (!personal.setupDone) void invoke('open_onboarding').catch(() => undefined);
+if (!personal.setupDone) void invoke(TAURI_COMMAND.openOnboarding).catch(() => undefined);
 void wakefulness.check();
 setInterval(() => void wakefulness.check(), AWAKE_CHECK_MS);
 

@@ -19,7 +19,37 @@ final class AppConnectionsTests: XCTestCase {
         link.answers["toolkits-search"] = [try line(#"{"id":1,"ok":true,"toolkits":[{"slug":"notion","name":"Notion","logo":"https://logos.composio.dev/api/notion"}]}"#)]
         let answer = await apps.search("  notion ")
         XCTAssertEqual(link.sent.first?.query, "notion")
-        XCTAssertEqual(answer, .toolkits([ToolkitSummary(slug: "notion", name: "Notion", logo: "https://logos.composio.dev/api/notion")]))
+        XCTAssertEqual(answer, .toolkits([ToolkitSummary(slug: "notion", name: "Notion", logo: "https://logos.composio.dev/api/notion")],
+                                         signInNeeded: false))
+    }
+
+    func testCarriesTheConsoleCardsFieldsAndTheSignInStepFromTheCatalogue() async throws {
+        link.answers["toolkits-search"] = [try line(#"{"id":1,"ok":true,"connectState":"sign-in-needed","toolkits":[{"slug":"gmail","name":"Gmail","description":"Mail from Google.","categories":["Email","Communication"],"kind":"conversation","support":"partial"}]}"#)]
+        let answer = await apps.search("")
+        XCTAssertEqual(answer, .toolkits([ToolkitSummary(slug: "gmail", name: "Gmail", description: "Mail from Google.",
+                                                         categories: ["Email", "Communication"], kind: "conversation",
+                                                         support: "partial")], signInNeeded: true))
+    }
+
+    func testDecodesAToolkitFromAnOlderRuntimeAndAKindItDoesNotKnow() throws {
+        let json = #"[{"slug":"asana","name":"Asana"},{"slug":"odd","name":"Odd","kind":"gossip","support":"some"}]"#
+        let all = try JSONDecoder().decode([ToolkitSummary].self, from: Data(json.utf8))
+        XCTAssertNil(all[0].description)
+        XCTAssertNil(all[0].categories)
+        XCTAssertNil(all[1].toolkitKind)
+        XCTAssertNil(all[1].supportLevel)
+    }
+
+    func testTellsASignInNeededApartFromARefusal() async throws {
+        link.answers["connections-sign-in"] = [try line(#"{"id":1,"ok":false,"error":"Sign in to Memnox Cloud to connect your apps.","connectState":"sign-in-needed"}"#)]
+        let answer = await apps.signIn("notion")
+        XCTAssertEqual(answer, .signInNeeded("Sign in to Memnox Cloud to connect your apps."))
+    }
+
+    func testKeepsAStateItDoesNotKnowAsARefusal() async throws {
+        link.answers["connections-sign-in"] = [try line(#"{"id":1,"ok":false,"error":"No.","connectState":"later"}"#)]
+        let answer = await apps.signIn("notion")
+        XCTAssertEqual(answer, .refused("No."))
     }
 
     func testAsksForTheFirstPageWhenNothingIsTyped() async throws {

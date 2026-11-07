@@ -6,9 +6,10 @@ import Speech
 private let fallbackLanguage = "en-US"
 private let nanosecondsPerSecond: TimeInterval = 1_000_000_000
 
-/// The microphone, and only while a conversation runs, so the microphone light means something.
-/// Apple's echo cancellation runs on it, and only takes back out what this same engine plays, so
-/// while it is on the voice is played here too; other apps keep their volume, since ducking is held at its least.
+/// The microphone, and only while a conversation runs, so the microphone light means something. It never sets a
+/// device, a default or a volume, and follows whatever input macOS has chosen. Apple's echo cancellation runs on it
+/// only when the person turns it on in Settings, since on a Mac it reshapes every app's sound while it runs and can
+/// drop a Bluetooth headset into its call quality; then the voice is played here too, so it can be taken back out.
 final class AudioIO {
     /// Replaced after a failed start, since an engine whose output unit would not initialize keeps failing.
     private(set) var engine = AVAudioEngine() {
@@ -31,7 +32,7 @@ final class AudioIO {
     private static let bus: AVAudioNodeBus = 0
     /// The voice is one voice, so one channel.
     private static let voiceChannels: AVAudioChannelCount = 1
-    /// Turned off only by hand, for a headset whose own microphone misbehaves under voice processing.
+    /// Off unless the person turns it on, because voice processing changes the whole Mac's audio while it runs.
     static let echoCancellationKey = "echoCancellation"
     /// The voice's sentences while the microphone is open, played here so echo cancellation knows what to remove.
     private let speech = AVAudioPlayerNode()
@@ -42,7 +43,7 @@ final class AudioIO {
     private(set) var cancelsEcho = false
 
     private static var wantsEchoCancellation: Bool {
-        UserDefaults.standard.object(forKey: echoCancellationKey) as? Bool ?? true
+        UserDefaults.standard.bool(forKey: echoCancellationKey)
     }
 
     /// The microphone and speakers voice processing would not start on, so it is tried again once either changes.
@@ -54,7 +55,12 @@ final class AudioIO {
     /// Long enough for the first buffer of any microphone, and short enough that nobody notices the restart.
     private static let silentStartAfter: TimeInterval = 2.5
 
-    init() {
+    /// False for a microphone that only listens and never speaks, such as the one waiting for the name, since voice
+    /// processing runs nine channels through Apple's echo canceller all day for an echo that never comes.
+    private let cancelsEchoWhenItCan: Bool
+
+    init(cancellingEcho: Bool = true) {
+        cancelsEchoWhenItCan = cancellingEcho
         watchConfiguration(of: engine)
     }
 
@@ -88,7 +94,7 @@ final class AudioIO {
         guard !running else { return }
         let route = AudioRoute.current()
         do {
-            try begin(cancellingEcho: Self.wantsEchoCancellation && Self.failedOn != route)
+            try begin(cancellingEcho: cancelsEchoWhenItCan && Self.wantsEchoCancellation && Self.failedOn != route)
         } catch where cancelsEcho {
             // Once more on a fresh engine, which is what clears a voice processing unit left half set up.
             fresh()
@@ -164,9 +170,9 @@ final class AudioIO {
         guard running else { return }
         silentStartWatch?.cancel()
         silentStartWatch = nil
-        // Voice processing is left on for the next start, since switching it off and on rebuilds the audio unit
-        // every time the orb closes, and each rebuild is another chance for CoreAudio to call a unit that is gone.
-        tearDown(keepingVoiceProcessing: cancelsEcho)
+        // Voice processing is never left on once the microphone closes, since it keeps reshaping the Mac's audio; its
+        // engine is retired rather than freed, which is what keeps CoreAudio's late calls into the old unit safe.
+        if cancelsEcho || engine.inputNode.isVoiceProcessingEnabled { fresh() } else { tearDown() }
         running = false
         micLevel = 0
     }
@@ -585,20 +591,24 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
         case buffers([AVAudioPCMBuffer])
     }
 
+    /// A sentence the chosen voice could not render is asked for once more at its turn, when the engine is
+    /// free of the sentences fetched ahead of it, and is left unsaid rather than heard in another voice.
     private func enqueueEngine(_ sentence: String, with engine: VoiceEngine, said: @escaping () -> Void) {
-        enqueueClip(sentence, said: said) {
+        let fetch: () async -> Clip? = {
             do { return .data(try await engine.audio(for: sentence)) } catch {
                 // Cancelled means somebody talked over it, which is not a failure worth noting.
                 if (error as? URLError)?.code != .cancelled, !(error is CancellationError) {
-                    diary.note("\(engine.name) did not voice it, so the system voice does: \(error.localizedDescription)")
+                    diary.note("\(engine.name) did not voice it: \(error.localizedDescription)")
                 }
                 return nil
             }
         }
+        enqueueClip(sentence, said: said, again: fetch, fallsBack: false, sound: fetch)
     }
 
     /// Fetched at once, so the next sentence is ready while this one plays, and played in order.
-    private func enqueueClip(_ sentence: String, said: @escaping () -> Void, sound: @escaping () async -> Clip?) {
+    private func enqueueClip(_ sentence: String, said: @escaping () -> Void, again: (() async -> Clip?)? = nil,
+                             fallsBack: Bool = true, sound: @escaping () async -> Clip?) {
         let token = NSObject()
         let fetch = Task { await sound() }
         lock.lock()
@@ -613,8 +623,12 @@ final class Voice: NSObject, Speaker, AVSpeechSynthesizerDelegate, AVAudioPlayer
                 fetch.cancel()
                 return
             }
-            if let clip = await fetch.value, await self.play(clip, generation: generation) {
+            var clip = await fetch.value
+            if clip == nil, let again, self.inGeneration(generation) { clip = await again() }
+            if let clip, await self.play(clip, generation: generation) {
                 try? await Task.sleep(nanoseconds: UInt64(Self.breath * nanosecondsPerSecond))
+            } else if !fallsBack {
+                diary.note("left a sentence unsaid rather than say it in another voice")
             } else if self.inGeneration(generation) {
                 // Said here rather than queued, since a queued sentence would wait behind this one forever.
                 await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
@@ -937,10 +951,11 @@ final class Ears {
     var revising: ((String) -> Void)?
 
     /// The next thing said; with `holding`, everything said until it says the keys were let go, and `tail` after it,
-    /// so the last word is not cut off as the key comes up. `hints` are words this listen in particular may hear.
+    /// so the last word is not cut off as the key comes up. `hints` are words this listen in particular may hear, and
+    /// `dictating` asks the recognizer for its most accurate words rather than its quickest.
     func listen(
         through audio: AudioIO, waiting: TimeInterval, holding: (() -> Bool)? = nil,
-        tail: TimeInterval = 0, hints: [String] = []
+        tail: TimeInterval = 0, hints: [String] = [], dictating: Bool = false
     ) async -> String? {
         let hearing = self.hearing
         let revising = self.revising
@@ -963,7 +978,7 @@ final class Ears {
             ears.guessing = guessing
             lastWordAt = nil
             switch await ears.listen(through: audio, waiting: waiting, holding: holding, cut: holding == nil ? cut : nil,
-                                     tail: tail, hints: hints) {
+                                     tail: tail, hints: hints, dictating: dictating) {
             case .heard(let words):
                 misses = 0
                 lastWordAt = ears.lastWordAt

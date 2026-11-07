@@ -13,6 +13,8 @@ export interface Runtime {
   wired(): Promise<boolean>;
   /** `memnox setup --yes --no-probe`, `memnox daemon --install` or `memnox update --yes`; false when it failed. */
   run(step: RuntimeStep): Promise<boolean>;
+  /** Builds a runtime checkout before its service restarts, as the Mac's update does; a release has nothing to build. */
+  build?(): Promise<boolean>;
   /** Where this build gets `memnox`; a runtime that cannot say is npm, as a release is. */
   source?(): Promise<RuntimeSource>;
 }

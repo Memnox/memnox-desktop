@@ -9,8 +9,8 @@ const held: DaemonEvent = { kind: 'held', subject: 'apr_1', agent: 'claude-code'
 /** Which events are said, and which keep the microphone open; the Mac's own cases. */
 describe('announcing', () => {
   it('says what they asked for or what waits on them whatever the setting', () => {
-    for (const kind of ['watched', 'question', 'collision']) expect(isSaid(notice(kind), false)).toBe(true);
-    for (const kind of ['finished', 'committed', 'pushed', 'would-have', 'ended', 'something-newer']) {
+    for (const kind of ['watched', 'question', 'collision', 'message']) expect(isSaid(notice(kind), false)).toBe(true);
+    for (const kind of ['finished', 'committed', 'pushed', 'would-have', 'ended', 'together', 'something-newer']) {
       expect(isSaid(notice(kind), false)).toBe(false);
       expect(isSaid(notice(kind), true)).toBe(true);
     }
@@ -21,6 +21,8 @@ describe('announcing', () => {
     expect(awaitsAnswer(held)).toBe(true);
     expect(awaitsAnswer(notice('question'))).toBe(true);
     expect(awaitsAnswer(notice('asking'))).toBe(true);
+    expect(awaitsAnswer(notice('message'))).toBe(true);
+    expect(awaitsAnswer(notice('together'))).toBe(false);
     expect(awaitsAnswer(notice('watched'))).toBe(false);
     expect(awaitsAnswer(notice('finished'))).toBe(false);
   });
@@ -41,6 +43,7 @@ describe('turn taking', () => {
     expect(endOfSpeechPause('Yes.')).toBe(SPEECH_PAUSE.shortReply);
     expect(endOfSpeechPause('can you open')).toBe(SPEECH_PAUSE.stillThinking);
     expect(endOfSpeechPause('what changed in the repo and')).toBe(SPEECH_PAUSE.stillThinking);
+    expect(endOfSpeechPause('start a new session within')).toBe(SPEECH_PAUSE.stillThinking);
     expect(endOfSpeechPause('What changed today?')).toBe(SPEECH_PAUSE.finished);
     expect(endOfSpeechPause('show me sessions')).toBe(SPEECH_PAUSE.unmarked);
   });

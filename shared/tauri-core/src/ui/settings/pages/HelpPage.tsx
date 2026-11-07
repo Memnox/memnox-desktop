@@ -1,7 +1,9 @@
 import { ClipboardCopy, ShieldHalf, Volume2 } from 'lucide-react';
 import { overviewSteps } from '../../../core/domain/setup-steps';
-import { KitButton, SettingsCard, SettingsDivider, SettingsRow, useCopied } from '../kit';
+import { SettingsCard, SettingsDivider, SettingsRow, useCopied } from '../kit';
 import type { SettingsParts } from '../parts';
+import { Button } from '../../kit';
+import { HelpPageLines } from '../../../core/domain/help-page-lines';
 
 /**
  * Where this computer stands, for support: each setup step and why one is still open, the daemon's
@@ -26,16 +28,16 @@ export function HelpPage({ parts }: { parts: SettingsParts }) {
   const [copied, copy] = useCopied((text) => host.copyWhatHappened?.(text) ?? host.copy(text));
   return (
     <SettingsCard>
-      <SettingsRow icon={ShieldHalf} title="Say a rule" caption={'Turns a sentence like “never deploy on Fridays” into a rule.'}>
-        <KitButton onClick={() => host.talk('rule')}>Say a rule</KitButton>
+      <SettingsRow icon={ShieldHalf} title={HelpPageLines.sayRule} caption={HelpPageLines.sayRuleCaption}>
+        <Button onClick={() => host.talk('rule')}>{HelpPageLines.sayRule}</Button>
       </SettingsRow>
       <SettingsDivider />
-      <SettingsRow icon={Volume2} title="Say something" caption="Checks that Memnox hears and answers you.">
-        <KitButton onClick={() => void host.voices.test()}>Try it</KitButton>
+      <SettingsRow icon={Volume2} title={HelpPageLines.saySomething} caption={HelpPageLines.saySomethingCaption}>
+        <Button onClick={() => void host.voices.test()}>{HelpPageLines.tryIt}</Button>
       </SettingsRow>
       <SettingsDivider />
-      <SettingsRow icon={ClipboardCopy} title="Copy what happened" caption="Puts the recent steps on your clipboard to send to support.">
-        <KitButton onClick={() => copy(whatHappened(parts))}>{copied ? 'Copied' : 'Copy'}</KitButton>
+      <SettingsRow icon={ClipboardCopy} title={HelpPageLines.copyWhat} caption={HelpPageLines.copyWhatCaption}>
+        <Button onClick={() => copy(whatHappened(parts))}>{copied ? HelpPageLines.copied : HelpPageLines.copy}</Button>
       </SettingsRow>
     </SettingsCard>
   );

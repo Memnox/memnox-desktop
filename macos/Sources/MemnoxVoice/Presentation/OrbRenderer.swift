@@ -86,10 +86,12 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
     /// Frames a second: every frame only while the sphere moves, since at rest it breathes too slowly to need them.
     private enum Pace {
         static let moving = 60
-        static let resting = 20
+        static let resting = 10
         /// On a small, busy or hot Mac, where the agents need the machine more than the orb does.
         static let lightMoving = 30
-        static let lightResting = 12
+        static let lightResting = 6
+        /// Nobody can see it: covered, hidden or ordered out, which is most of the day, so a frame now and then is enough.
+        static let unseen = 1
         /// The easings above were tuned one step per frame at this rate, so a slower frame takes several steps.
         static let tuned: Double = 60
         /// A frame after a long stall catches up at most this many steps rather than jumping.
@@ -114,9 +116,12 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
 
     /// Read every frame: the loudness to follow, and the state that decides how it moves.
     var loudness: () -> Float = { 0 }
-    var state: VoiceState = .idle
+    var state: VoiceState = .idle { didSet { if state != oldValue { wake() } } }
     /// Set while a call waits on the person, so the orb keeps bouncing until somebody answers.
-    var waiting = false
+    var waiting = false { didSet { if waiting != oldValue { wake() } } }
+    /// The view drawn into, held weakly so a change can ask for full frames at once rather than at the next slow frame.
+    private weak var view: MTKView?
+    private var occlusionWatch: (any NSObjectProtocol)?
     private var bounce: Float = 0
     /// The gesture under way and when it began; a new one replaces it rather than stacking.
     private var gesture: (reaction: Reaction, at: CFTimeInterval)?
@@ -124,6 +129,14 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
     /// Starts a short gesture over whatever the voice state is doing.
     func react(_ reaction: Reaction) {
         gesture = (reaction, CACurrentMediaTime())
+        wake()
+    }
+
+    /// Full frames at once, for a change that has to move the sphere now.
+    private func wake() {
+        guard let view else { return }
+        let frames = MachinePace.light ? Pace.lightMoving : Pace.moving
+        if view.preferredFramesPerSecond != frames { view.preferredFramesPerSecond = frames }
     }
 
     init?(view: MTKView) {
@@ -150,6 +163,18 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
         self.pipeline = pipeline
         super.init()
         view.device = device
+        self.view = view
+        // Shown again after being covered or ordered out, it picks up its pace at once rather than at the next slow frame.
+        occlusionWatch = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let self, let window = note.object as? NSWindow, window === self.view?.window else { return }
+            MainActor.assumeIsolated { self.wake() }
+        }
+    }
+
+    deinit {
+        if let occlusionWatch { NotificationCenter.default.removeObserver(occlusionWatch) }
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
@@ -236,7 +261,10 @@ final class OrbRenderer: NSObject, MTKViewDelegate {
         let resting = (state == .idle || state == .needsYou) && gesture == nil && !waiting
             && bounce < Pace.still && onsets.isEmpty
         let light = MachinePace.light
-        let frames = resting ? (light ? Pace.lightResting : Pace.resting) : (light ? Pace.lightMoving : Pace.moving)
+        let seen = view.window.map { $0.isVisible && $0.occlusionState.contains(.visible) } ?? false
+            && !view.isHiddenOrHasHiddenAncestor
+        let frames = resting && !seen ? Pace.unseen
+            : resting ? (light ? Pace.lightResting : Pace.resting) : (light ? Pace.lightMoving : Pace.moving)
         if view.preferredFramesPerSecond != frames { view.preferredFramesPerSecond = frames }
     }
 

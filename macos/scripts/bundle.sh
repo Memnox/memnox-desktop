@@ -5,8 +5,11 @@
 # Where the app gets the Memnox runtime is chosen here and written into its Info.plist:
 #   ./scripts/bundle.sh                              the runtime checkout beside this one, built first
 #   MEMNOX_RUNTIME_SOURCE=npm ./scripts/bundle.sh    the package published to npm, for a release
-# MEMNOX_RUNTIME_DIR names the checkout when it is not ../../memnox-runtime, beside memnox-desktop.
+# MEMNOX_RUNTIME_DIR names the checkout when it is not ../../memnox-runtime, beside memnox-desktop,
+# and MEMNOX_RUNTIME, which every other script reads, is taken when it is unset.
 set -e
+# The Noise framework, the bundled Node and the voice's Python are all arm64, so an Intel Mac stops here rather than at a link error.
+[ "$(uname -m)" = arm64 ] || { echo "the Mac app builds on Apple silicon only, and this Mac is $(uname -m)" >&2; exit 1; }
 cd "$(dirname "$0")/.."
 
 SOURCE="${MEMNOX_RUNTIME_SOURCE:-local}"
@@ -16,7 +19,14 @@ case "$SOURCE" in
 esac
 
 if [ "$SOURCE" = local ]; then
-  RUNTIME_DIR="$(cd "${MEMNOX_RUNTIME_DIR:-../../memnox-runtime}" && pwd)"
+  RUNTIME_DIR="${MEMNOX_RUNTIME_DIR:-${MEMNOX_RUNTIME:-../../memnox-runtime}}"
+  if [ ! -f "$RUNTIME_DIR/package.json" ]; then
+    echo "no memnox-runtime checkout at $RUNTIME_DIR; clone it beside this repo with" >&2
+    echo "  git clone https://github.com/Memnox/memnox.git memnox-runtime" >&2
+    echo "or set MEMNOX_RUNTIME to where it is, or build against npm with MEMNOX_RUNTIME_SOURCE=npm" >&2
+    exit 1
+  fi
+  RUNTIME_DIR="$(cd "$RUNTIME_DIR" && pwd)"
   echo "Building the local runtime in $RUNTIME_DIR"
   (cd "$RUNTIME_DIR" && pnpm install --frozen-lockfile && pnpm build)
 fi
@@ -51,6 +61,14 @@ mkdir -p "$APP/Contents/Resources/Sounds"
 cp Support/Sounds/*.wav "$APP/Contents/Resources/Sounds/"
 # The setup bed is AAC where the Mac that made it could encode one.
 cp Support/Sounds/*.m4a "$APP/Contents/Resources/Sounds/" 2>/dev/null || true
+# Inter and DM Mono under the OFL, shared with Windows and Linux, which the Memnox window registers to read in the console's type.
+FONTS=../shared/tauri-core/src/ui/fonts
+mkdir -p "$APP/Contents/Resources/Fonts"
+cp "$FONTS/inter-latin-opsz-normal.woff2" "$FONTS/dm-mono-latin-400-normal.woff2" "$FONTS/dm-mono-latin-500-normal.woff2" \
+  "$FONTS/OFL-Inter.txt" "$FONTS/OFL-DM-Mono.txt" "$APP/Contents/Resources/Fonts/"
+# The demo world, read only when the app is opened with MEMNOX_DEMO=1 or --demo, shared with Windows and Linux.
+mkdir -p "$APP/Contents/Resources/Demo"
+cp ../shared/demo/power-user.json "$APP/Contents/Resources/Demo/"
 KOKORO="$APP/Contents/Resources/kokoro"
 # Every build carries the voice, built here the first time, since an app without it speaks in the Mac's voice for
 # the minutes Kokoro takes to download, which sounds broken. MEMNOX_NO_VOICE=1 skips it for a quick build.

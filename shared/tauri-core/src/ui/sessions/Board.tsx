@@ -5,7 +5,9 @@ import { BrandLogo, SFSymbol } from '../kit';
 import { StepRow } from './LiveSession';
 import { CardButton, CardHeader, LiveSection } from './window-kit';
 import { islandWindow } from '../adapters/tauri-island-window';
+import { WALL } from './session-metrics';
 import './sessions.css';
+import { LiveSessionLines } from '../../core/domain/island-lines';
 
 /**
  * The card wall, the web twin of the Mac's `CardWall` of `SessionPopupView`s: every session lately as its
@@ -15,8 +17,7 @@ import './sessions.css';
 
 /** As many cards as the wall shows, the most recently active first. */
 const SHOWN_CARDS = 8;
-const CARD_WIDTH = 440;
-const GAP = 16;
+const { cardWidth: CARD_WIDTH, gap: GAP } = WALL;
 const REFRESH_MS = 2_000;
 /** Each card arrives this long after the one before it. */
 const STAGGER_MS = 90;
@@ -126,9 +127,13 @@ export function Board({ sessions, title, onWatch, onClose, initial }: { sessions
   );
 }
 
+/** A card's rough parts: its frame, up to three steps and three files at a row each, and the last thing said. */
+const ESTIMATE = { frame: 300, rowsShown: 3, row: 20, lastSaid: 60 } as const;
+
 /** A rough height, enough to lay each next card in the shortest column. */
 function estimate(view: SessionView): number {
-  return 300 + Math.min(3, view.steps.length) * 20 + Math.min(3, view.files.length) * 20 + (view.lastSaid === undefined ? 0 : 60);
+  const rows = Math.min(ESTIMATE.rowsShown, view.steps.length) + Math.min(ESTIMATE.rowsShown, view.files.length);
+  return ESTIMATE.frame + rows * ESTIMATE.row + (view.lastSaid === undefined ? 0 : ESTIMATE.lastSaid);
 }
 
 /**
@@ -142,12 +147,12 @@ export function SessionPopup({ view, order, onWatch, onClose, now = Date.now() }
   const lastAsk = readable(view.lastAsk);
   const context = viewContext(view, now);
   const latest = view.steps[view.steps.length - 1];
-  const line = view.paused !== undefined ? `Paused: ${view.paused}` : view.thinking ? 'Thinking through its answer' : latest?.text;
+  const line = view.paused !== undefined ? LiveSessionLines.paused(view.paused) : view.thinking ? LiveSessionLines.thinking : latest?.text;
   const conversation = (view.conversation ?? []).slice(-2);
   return (
     <article
-      className="motion-arrive group flex animate-[float-in_550ms_cubic-bezier(0.34,1.45,0.64,1)_both] flex-col gap-3 rounded-island border border-ink/[0.11] bg-surface p-5 text-foreground transition-colors duration-[250ms] ease-out hover:border-ink/16"
-      style={{ animationDelay: `${order * STAGGER_MS}ms`, boxShadow: '0 12px 60px rgb(0 0 0 / 0.5)', transformOrigin: 'top left' }}
+      className="motion-arrive group flex animate-[float-in_550ms_cubic-bezier(0.34,1.45,0.64,1)_both] flex-col gap-3 rounded-session-card border border-ink/[0.07] bg-(--mx-page) p-5 text-foreground shadow-session-card transition-colors duration-[250ms] ease-out hover:border-ink/16"
+      style={{ animationDelay: `${order * STAGGER_MS}ms`, transformOrigin: 'top left' }}
     >
       <CardHeader
         mark={<BrandLogo agent={view.agent} name={view.agentName} size={28} />}
@@ -155,21 +160,21 @@ export function SessionPopup({ view, order, onWatch, onClose, now = Date.now() }
         subtitle={viewPlace(view) ?? repositoryName(view.repository)}
         accessory={
           <span className="inline-flex shrink-0 items-center gap-1.5 text-caption font-medium" style={{ color: colour }}>
-            <span className="size-[7px] rounded-full" style={{ backgroundColor: colour }} />
+            <span className="size-session-dot rounded-full" style={{ backgroundColor: colour }} />
             {statusLabel(status)}
           </span>
         }
         onClose={onClose}
       />
-      <LiveSection title="About">
+      <LiveSection title={LiveSessionLines.about}>
         <div className="flex flex-col gap-1.5">
-          {task !== undefined ? <p className="m-0 line-clamp-3 text-callout font-medium text-foreground/[0.92]">{task}</p> : <p className="m-0 text-callout text-muted">No request recorded for this session yet</p>}
-          {lastAsk !== undefined && lastAsk !== task && <p className="m-0 line-clamp-2 text-footnote text-foreground/[0.62]">Latest ask: {lastAsk}</p>}
+          {task !== undefined ? <p className="m-0 line-clamp-3 text-callout font-medium text-foreground/[0.92]">{task}</p> : <p className="m-0 text-callout text-muted">{LiveSessionLines.noRequest}</p>}
+          {lastAsk !== undefined && lastAsk !== task && <p className="m-0 line-clamp-2 text-footnote text-foreground/[0.62]">{LiveSessionLines.latestAsk(lastAsk)}</p>}
           {context !== undefined && <p className="m-0 line-clamp-2 text-caption text-muted">{context}</p>}
         </div>
       </LiveSection>
       {line !== undefined && (
-        <div className="flex items-center gap-2 rounded-island border border-ink/[0.035] bg-[var(--mx-section)] px-3.5 py-[11px]">
+        <div className="flex items-center gap-2 rounded-island border border-ink/[0.035] bg-(--mx-section) px-3.5 py-session-now-y">
           <span className="grid shrink-0 text-primary">
             <SFSymbol name={view.thinking ? 'sparkles' : 'arrow.right.circle'} size={13} />
           </span>
@@ -177,16 +182,16 @@ export function SessionPopup({ view, order, onWatch, onClose, now = Date.now() }
         </div>
       )}
       {view.lastSaid !== undefined ? (
-        <LiveSection title="Where it stands">
+        <LiveSection title={LiveSessionLines.whereItStands}>
           <p className="m-0 line-clamp-4 text-callout text-foreground/[0.92]">{view.lastSaid}</p>
         </LiveSection>
       ) : (
         conversation.length > 0 && (
           <LiveSection title="Conversation">
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               {conversation.map((each, index) =>
                 each.who === 'person' ? (
-                  <span key={index} className="ml-[60px] line-clamp-3 self-end rounded-card px-[11px] py-[7px] text-body" style={{ backgroundColor: 'rgb(59 130 247 / 0.32)' }}>
+                  <span key={index} className="ml-session-bubble-indent line-clamp-3 self-end rounded-card bg-primary/[0.32] px-session-bubble-x py-session-bubble-y text-body">
                     {each.text}
                   </span>
                 ) : (
@@ -201,7 +206,7 @@ export function SessionPopup({ view, order, onWatch, onClose, now = Date.now() }
       )}
       {view.steps.length > 0 && (
         <LiveSection title="Latest steps">
-          <div className="flex flex-col gap-[5px]">
+          <div className="flex flex-col gap-session-step">
             {view.steps.slice(-3).map((step, index) => (
               <StepRow key={index} step={step} now={now} />
             ))}
@@ -216,9 +221,9 @@ export function SessionPopup({ view, order, onWatch, onClose, now = Date.now() }
                 <span className="min-w-0 flex-1 truncate font-mono text-footnote text-foreground/90" style={{ direction: 'rtl', textAlign: 'left' }}>
                   <bdi>{shortPath(file.path)}</bdi>
                 </span>
-                {file.added !== undefined && file.added > 0 && <span className="font-mono text-[11.5px] font-medium text-success">+{file.added}</span>}
+                {file.added !== undefined && file.added > 0 && <span className="font-mono text-session-code font-medium text-success">+{file.added}</span>}
                 {file.removed !== undefined && file.removed > 0 && (
-                  <span className="font-mono text-[11.5px] font-medium text-destructive">
+                  <span className="font-mono text-session-code font-medium text-destructive">
                     {'−'}
                     {file.removed}
                   </span>

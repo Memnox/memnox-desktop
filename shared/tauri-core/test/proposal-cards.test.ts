@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ProposalCards } from '../src/core/application/proposal-cards';
 import { RequestIds } from '../src/core/application/request-ids';
 import { Signer } from '../src/core/application/signer';
-import { accountWarning, afterRule, suggestedScope, typedAddresses } from '../src/core/domain/proposal-card';
+import { accountWarning, afterRule, shownProposal, suggestedScope, typedAddresses } from '../src/core/domain/proposal-card';
 import { held, PersonKey, RecordingSpeaker, registered, ScriptedDaemon } from './doubles';
 
 const rule: RuleDraft = {
@@ -82,8 +82,8 @@ describe('a rule on its card', () => {
     expect(cards.cards).toHaveLength(1);
   });
 
-  it('says the team needs a second admin', () => {
-    expect(afterRule({ id: 't', kind: 'team', label: 'Team' })).toContain('second admin');
+  it('says a team rule holds once an admin approves it', () => {
+    expect(afterRule({ id: 't', kind: 'team', label: 'Team' })).toContain('an admin approves');
   });
 });
 
@@ -147,5 +147,14 @@ describe('cards and the feed', () => {
     cards.show(proposal('prp_rule', { rule }));
     cards.remove('prp_rule');
     expect(cards.cards).toEqual([]);
+  });
+
+  it('shows what goes out in the person’s name before a rule, as the Mac’s settle does, the newest of each', () => {
+    const ruleCard = { kind: 'rule', subject: 'prp_rule', rule } as const;
+    const workCard = (subject: string) => ({ kind: 'work', subject, work: {} as WorkDraft }) as const;
+    expect(shownProposal([workCard('prp_a'), ruleCard])?.subject).toBe('prp_a');
+    expect(shownProposal([workCard('prp_a'), workCard('prp_b'), ruleCard])?.subject).toBe('prp_b');
+    expect(shownProposal([ruleCard])?.subject).toBe('prp_rule');
+    expect(shownProposal([])).toBeUndefined();
   });
 });

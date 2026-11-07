@@ -444,11 +444,11 @@ private struct AccountRow<Control: View>: View {
                     // Wraps rather than cuts off, since a full name and a workspace together can be long.
                     Text(title)
                         .font(.system(size: SettingsMetrics.rowTextSize))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .foregroundStyle(Memnox.Console.foreground)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(detail)
                         .font(.system(size: SettingsMetrics.captionSize))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: Memnox.Spacing.medium)
@@ -458,16 +458,16 @@ private struct AccountRow<Control: View>: View {
                 Text(code)
                     .font(.system(size: AccountLayout.codeSize, weight: .semibold, design: .monospaced))
                     .tracking(AccountLayout.codeTracking)
-                    .foregroundStyle(Memnox.Palette.ink)
+                    .foregroundStyle(Memnox.Console.ink)
                     .textSelection(.enabled)
                 Text(WorkspaceLines.enterCode(code))
-                    .font(Memnox.sans(Memnox.TextSize.caption))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                    .font(Memnox.Console.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(Memnox.Console.ink(Memnox.Ink.secondary))
             }
             if case .needs(let hint) = state {
                 Label(hint, systemImage: "exclamationmark.circle")
-                    .font(Memnox.sans(Memnox.TextSize.caption, .medium))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.primary))
+                    .font(Memnox.Console.sans(Memnox.TextSize.caption, .medium))
+                    .foregroundStyle(Memnox.Console.ink(Memnox.Ink.primary))
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             }

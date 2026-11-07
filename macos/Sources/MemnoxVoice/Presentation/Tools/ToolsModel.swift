@@ -13,8 +13,8 @@ final class ToolsModel: ObservableObject {
     /// True until the first read lands, so an empty list is not mistaken for none.
     @Published private(set) var loading = true
 
-    /// The daemon's own words for an add, sign in or disconnect it refused, shown on the Apps card until the next one.
-    @Published private(set) var actionNote: String?
+    /// What did not work, held on the card it came from until the next press, a fresh read or the person closes it.
+    @Published private(set) var note: YourAppNote?
     /// The tool being signed in to or disconnected, so its row waits rather than taking a second press.
     @Published private(set) var busy: String?
     /// The tool whose sign in is open in the browser, read again until it shows up.
@@ -25,6 +25,10 @@ final class ToolsModel: ObservableObject {
     @Published private(set) var found: [ToolkitSummary] = []
     @Published private(set) var searchNote: String?
     @Published private(set) var searching = false
+    /// True while the daemon says connecting waits on a Memnox Cloud sign in, so the page and Connect offer it.
+    @Published private(set) var signInNeeded = false
+    /// True while the Memnox Cloud sign in this page started is under way.
+    @Published private(set) var signingIn = false
 
     private let readAgents: () async -> VoiceAgentsAnswer
     private let readConnections: () async -> ConnectionsAnswer
@@ -35,6 +39,8 @@ final class ToolsModel: ObservableObject {
     private let open: (URL) -> Bool
     /// Makes one agent the one the voice answers through, as setup does, from its tile in the notch.
     private let chooseAgent: (String) async -> VoiceAgentsAnswer
+    /// The app's own Memnox Cloud sign in, which carries the daemon in on the same approval; true once the daemon holds the person.
+    private let signInFirst: () async -> Bool
     private var reading: Task<Void, Never>?
     private var looking: Task<Void, Never>?
     private var watching: Task<Void, Never>?
@@ -45,6 +51,12 @@ final class ToolsModel: ObservableObject {
     /// Long enough to let a word be finished before the catalogue is asked, short enough to feel live.
     private static let typingPause: UInt64 = 300_000_000
 
+    /// The note's words alone, for the notch and setup, which show one line rather than a card.
+    var actionNote: String? { note?.words }
+
+    /// The person closed the note, so it goes until something else does not work.
+    func dismissNote() { note = nil }
+
     init(
         readAgents: @escaping () async -> VoiceAgentsAnswer = { .unreachable },
         readConnections: @escaping () async -> ConnectionsAnswer = { .unreachable },
@@ -53,9 +65,11 @@ final class ToolsModel: ObservableObject {
         signOut: @escaping (String) async -> ConnectionsAnswer = { _ in .unreachable },
         watch: @escaping ([ToolConnection]) async -> ConnectionsAnswer = { _ in .unreachable },
         open: @escaping (URL) -> Bool = { _ in false },
-        chooseAgent: @escaping (String) async -> VoiceAgentsAnswer = { _ in .unreachable }
+        chooseAgent: @escaping (String) async -> VoiceAgentsAnswer = { _ in .unreachable },
+        signInFirst: @escaping () async -> Bool = { false }
     ) {
         self.chooseAgent = chooseAgent
+        self.signInFirst = signInFirst
         self.readAgents = readAgents
         self.readConnections = readConnections
         self.searchToolkits = searchToolkits
@@ -76,9 +90,10 @@ final class ToolsModel: ObservableObject {
             let answer = await searchToolkits(words)
             guard !Task.isCancelled else { return }
             switch answer {
-            case .toolkits(let all):
+            case .toolkits(let all, let needed):
                 found = all
                 searchNote = nil
+                signInNeeded = needed
             case .refused(let why):
                 found = []
                 searchNote = why
@@ -92,48 +107,99 @@ final class ToolsModel: ObservableObject {
 
     /// Starts the tool's own sign in; again opens a fresh one for a tool that already has one, to use another account.
     /// A press of Connect on any tool starts afresh, so one left unfinished in the browser never holds the others back.
+    /// Where the daemon said a Memnox Cloud sign in comes first, that is started instead and the tool follows once it lands.
+    /// A press on a tool already working opens nothing and reads the list again, so its card shows it connected.
     func connect(_ toolkit: String, again: Bool = false) {
         connecting?.cancel()
-        actionNote = nil
+        note = nil
         connecting = Task { [weak self] in
             guard let self else { return }
-            // No Memnox account is asked for: the daemon acts for the person at this Mac, so only the tool's own sign in opens.
+            guard YourAppPress.opensSignIn(toolkit, again: again, connections: connections) else {
+                await readAgain(toolkit)
+                return
+            }
+            if signInNeeded {
+                guard await signInToCloud() else { return }
+            }
             busy = toolkit
-            let answer = await signIn(toolkit, again)
+            var answer = await signIn(toolkit, again)
             busy = nil
             guard !Task.isCancelled else { return }
+            // The daemon knew it before this page did, so the sign in starts now and the press carries on after it.
+            if case .signInNeeded = answer {
+                signInNeeded = true
+                guard await signInToCloud() else { return }
+                busy = toolkit
+                answer = await signIn(toolkit, again)
+                busy = nil
+                guard !Task.isCancelled else { return }
+            }
             switch answer {
             case .started(let page):
                 // The daemon opens the page itself over this Mac's socket; only a server's answer is left to open here.
                 if !page.opened {
                     guard let url = URL(string: page.url), url.scheme == "https", open(url) else {
-                        actionNote = "The browser would not open the \(ToolkitName.of(toolkit)) sign in"
+                        note = .failed(.connect, toolkit: toolkit,
+                                       said: "The browser would not open the \(ToolkitName.of(toolkit)) sign in")
                         return
                     }
                 }
                 waitUntilSignedIn(toolkit)
             case .refused(let why):
-                actionNote = why
+                // The daemon refuses a second press on a tool that works; once the list shows it working, nothing failed.
+                if !again {
+                    await readAgain(toolkit)
+                    guard !Task.isCancelled, !YourAppPress.isSettled(toolkit, in: connections) else { return }
+                }
+                note = .failed(.connect, toolkit: toolkit, said: why)
+            case .signInNeeded(let why):
+                // Still not signed in after the sign in said it landed, so the daemon's own words are shown.
+                note = .failed(.cloudSignIn, toolkit: toolkit, said: why)
             case .unreachable:
-                actionNote = Self.unreachable
+                note = .failed(.connect, toolkit: toolkit, said: Self.unreachable)
             }
         }
+    }
+
+    /// The page's own Sign in button: the app's existing Memnox Cloud sign in, after which the catalogue is asked again.
+    func signInForApps() {
+        connecting?.cancel()
+        note = nil
+        connecting = Task { [weak self] in
+            _ = await self?.signInToCloud()
+        }
+    }
+
+    /// Runs the app's Memnox Cloud sign in once, true when the daemon now holds the person; asks the catalogue again so
+    /// the page drops the step, or keeps it where the sign in did not finish.
+    private func signInToCloud() async -> Bool {
+        signingIn = true
+        let done = await signInFirst()
+        signingIn = false
+        guard !Task.isCancelled else { return false }
+        if done {
+            signInNeeded = false
+        } else {
+            note = .failed(.cloudSignIn, toolkit: nil, said: YourApps.signInStopped)
+        }
+        search()
+        return done
     }
 
     /// The voice answers through this agent from now on; one that cannot answer says why under the tiles.
     func useForVoice(_ agent: VoiceAgentStatus) {
         guard busy == nil, !agent.chosen else { return }
         busy = agent.kind
-        actionNote = nil
+        note = nil
         Task { [weak self] in
             guard let self else { return }
             let answer = await chooseAgent(agent.kind)
             busy = nil
             apply(answer)
             if case .agents(let all) = answer, let now = all.first(where: { $0.kind == agent.kind }), !now.chosen {
-                actionNote = now.because ?? "\(agent.label) could not answer just now"
+                note = .failed(.voice, toolkit: nil, said: now.because ?? "\(agent.label) could not answer just now")
             } else if case .unreachable = answer {
-                actionNote = Self.unreachable
+                note = .failed(.voice, toolkit: nil, said: Self.unreachable)
             }
         }
     }
@@ -142,13 +208,21 @@ final class ToolsModel: ObservableObject {
     func disconnect(_ toolkit: String) {
         guard busy == nil else { return }
         busy = toolkit
-        actionNote = nil
+        note = nil
         Task { [weak self] in
             guard let self else { return }
             let answer = await signOut(toolkit)
             busy = nil
-            if case .connections = answer { apply(answer) } else { actionNote = Self.words(answer) }
+            if case .connections = answer { apply(answer) } else { note = .failed(.disconnect, toolkit: toolkit, said: Self.words(answer)) }
         }
+    }
+
+    /// Reads the connected apps once more with the tool's row waiting, so a press that changed nothing still settles it.
+    private func readAgain(_ toolkit: String) async {
+        busy = toolkit
+        let answer = await readConnections()
+        busy = nil
+        apply(answer)
     }
 
     /// Reads the list while the browser sign in finishes, so the tool turns up without a press of Check again.
@@ -172,8 +246,16 @@ final class ToolsModel: ObservableObject {
         }
     }
 
-    /// Reads both lists again; a read already under way is the one that answers.
+    /// Reads both lists again; a read already under way is the one that answers. A note from before is put away, since
+    /// the fresh list is what the page now says.
+    /// Reads again and returns once the read has landed, for a caller that counts what it finds.
+    func refreshed() async {
+        refresh()
+        await reading?.value
+    }
+
     func refresh() {
+        note = nil
         guard reading == nil else { return }
         reading = Task { [weak self] in
             guard let self else { return }
@@ -188,15 +270,15 @@ final class ToolsModel: ObservableObject {
 
     var connectedCount: Int { connections.filter(\.connected).count }
 
-    /// The person's own tools as the Your apps screen draws them, those on this Mac first.
-    var yourApps: [YourAppCard] { YourApps.yours(connections) }
+    /// The person's own tools as the Your apps screen draws them, those on this Mac first, described by the catalogue.
+    var yourApps: [YourAppCard] { YourApps.yours(connections, found: found) }
 
     /// The catalogue's cards for what was typed, or the featured tools where the catalogue could not be read.
     var offered: [YourAppCard] {
         YourApps.offered(found: found, searchFailed: searchNote != nil, query: query, connections: connections)
     }
 
-    /// The featured tools not connected yet, offered with Connect, which needs no Memnox account.
+    /// The featured tools not connected yet, offered with Connect, which a Memnox Cloud sign in comes before.
     var suggested: [String] { FeaturedToolkits.suggested(excluding: connections) }
 
     private func apply(_ answer: VoiceAgentsAnswer) {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { HeldCalls } from '../src/core/application/held-calls';
+import { HeldCalls } from '../src/core/application/held-calls';
+import { RequestIds } from '../src/core/application/request-ids';
+import { Signer } from '../src/core/application/signer';
 import { NO_KEY_LINE } from '../src/core/application/signer';
 import { ANOTHER_KEY_LINE } from '../src/core/domain/key-status';
 import { HandTimer, held, heldCallsOver, PersonKey, registered, ScriptedDaemon } from './doubles';
@@ -38,6 +40,17 @@ describe('what the island shows', () => {
     expect(daemon.sent('confirm')).toEqual([]);
   });
 
+  it('asks for live activity only when told to, so an older daemon or a plain window is never sent it', async () => {
+    const plain = new ScriptedDaemon(nothingWaits);
+    await heldCallsOver(plain, new PersonKey()).watch();
+    expect(plain.sent('subscribe')[0]?.subscribeActivity).toBeUndefined();
+
+    const island = new ScriptedDaemon(nothingWaits);
+    const ids = new RequestIds();
+    await new HeldCalls(island, new Signer(island, new PersonKey(), ids, () => undefined), ids, { liveActivity: true }).watch();
+    expect(island.sent('subscribe')[0]?.subscribeActivity).toBe(true);
+  });
+
   it('says the feed is closed when the daemon is down', async () => {
     const calls = heldCallsOver(new ScriptedDaemon(), new PersonKey());
     await calls.watch();
@@ -61,6 +74,20 @@ describe('answering a held call', () => {
     expect(key.signed[0]?.message).toBe('memnox-confirm:v1:hld_1:once');
     expect(daemon.sent('confirm')[0]).toMatchObject({ subject: 'hld_1', answer: 'once', signature: 'sig(memnox-confirm:v1:hld_1:once)' });
     expect(calls.state.waiting.count).toBe(0);
+  });
+
+  it('signs the v4 words over the call it was shown and sends its digest when the daemon gave one', async () => {
+    const { daemon, calls, key } = await waitingOn(held('hld_1', { actionDigest: 'e1b4' }));
+    expect(await calls.answer('hld_1', 'once')).toEqual({ kind: 'answered' });
+    expect(key.signed[0]?.message).toBe('memnox-confirm:v4:hld_1:once:e1b4');
+    expect(daemon.sent('confirm')[0]).toMatchObject({ subject: 'hld_1', answer: 'once', actionDigest: 'e1b4', signature: 'sig(memnox-confirm:v4:hld_1:once:e1b4)' });
+  });
+
+  it('sends the digest with a deny too, unsigned, so the daemon still knows which call was refused', async () => {
+    const { daemon, calls, key } = await waitingOn(held('hld_1', { actionDigest: 'e1b4' }));
+    await calls.answer('hld_1', 'deny');
+    expect(key.signed).toEqual([]);
+    expect(daemon.sent('confirm')[0]).toMatchObject({ answer: 'deny', actionDigest: 'e1b4' });
   });
 
   it('tells the person how far the yes reaches before they give it', async () => {

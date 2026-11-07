@@ -109,18 +109,6 @@ final class AgentHomesModel: ObservableObject {
     }
 }
 
-/// The step that asks where the agents run, then walks each chosen app through what it needs, one row at a time.
-struct AgentHomesStep: View {
-    @ObservedObject var flow: OnboardingFlow
-
-    var body: some View {
-        StepTitle(title: "Where you run your agents",
-                  detail: "Pick every app you use. Each needs a step or two so Memnox can start sessions, follow up and type there for you.")
-        Next(title: "Continue", flow: flow)
-        AgentHomesSetup()
-    }
-}
-
 /// The picker and each chosen app's checklist, shared by the first run and Settings.
 struct AgentHomesSetup: View {
     @ObservedObject private var model = AgentHomesModel.shared

@@ -20,6 +20,12 @@
   --mx-code-removed: rgb(13 13 13 / 0.5);
   --mx-menu-wash: rgb(255 255 255 / 0.68);
   --mx-menu-card: rgb(255 255 255 / 0.38);
+  --mx-ink-22: rgb(13 13 13 / 0.297);
+  --mx-ink-03: rgb(13 13 13 / 0.0405);
+  /* An unchanged line's tint, ink 20% at 9%. */
+  --mx-code-unchanged: rgb(13 13 13 / 0.0243);
+  /* LiveStyle.page: the live window's page, which every floating card stands on too. */
+  --mx-live-page: #ffffff;
 }
 
 :root[data-theme="dark"] {
@@ -40,6 +46,10 @@
   --mx-code-removed: rgb(255 255 255 / 0.5);
   --mx-menu-wash: rgb(0 0 0 / 0.42);
   --mx-menu-card: rgb(255 255 255 / 0.075);
+  --mx-ink-22: rgb(255 255 255 / 0.22);
+  --mx-ink-03: rgb(255 255 255 / 0.03);
+  --mx-code-unchanged: rgb(255 255 255 / 0.018);
+  --mx-live-page: #000000;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -61,6 +71,10 @@
     --mx-code-removed: rgb(255 255 255 / 0.5);
     --mx-menu-wash: rgb(0 0 0 / 0.42);
     --mx-menu-card: rgb(255 255 255 / 0.075);
+    --mx-ink-22: rgb(255 255 255 / 0.22);
+    --mx-ink-03: rgb(255 255 255 / 0.03);
+    --mx-code-unchanged: rgb(255 255 255 / 0.018);
+    --mx-live-page: #000000;
   }
 }
 

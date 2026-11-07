@@ -18,6 +18,8 @@ const SETTLE_MS = 1_000;
 const UNKNOWN_METHOD = 'no method';
 const NOT_INSTALLED = 'Memnox would not install, nor fetch the Node.js it runs on. Check you are online, or install Node.js from nodejs.org, then press Check again.';
 const NOT_PROTECTED = 'Memnox could not put your agents under it. Press the button again in a moment.';
+const NOT_RESTARTED = 'The Memnox service would not restart. In a terminal: memnox daemon --install';
+const BUSY = 'Memnox is busy with another step. Try again in a moment.';
 
 /**
  * Puts the Memnox runtime under the app with no terminal, ported from the Mac's `RuntimeInstaller`: finds
@@ -98,6 +100,10 @@ export class Setup {
   private async updateAndSettle(): Promise<RuntimeState> {
     this.update({ doing: 'Updating Memnox' });
     if (this.source.kind === 'local') {
+      // A checkout edited since its last build runs stale code, so it is built first; a failed build still restarts.
+      this.update({ doing: 'Building the local Memnox runtime' });
+      await this.runtime.build?.();
+      this.update({ doing: 'Restarting the Memnox service' });
       await this.runtime.run('start');
       return this.settle();
     }
@@ -121,6 +127,17 @@ export class Setup {
   private async updateNow(): Promise<RuntimeState> {
     this.source = (await this.runtime.source?.().catch(() => undefined)) ?? this.source;
     return this.done(await this.updateAndSettle());
+  }
+
+  /**
+   * Restarts the Memnox service on the newest runtime, as the Mac's `updateNow` does for a Protect the old service
+   * could not see through: undefined once it answers again, else why not, in words the person can act on.
+   */
+  async restartService(): Promise<string | undefined> {
+    if (this.running !== undefined) return BUSY;
+    if (!(await this.runtime.found())) return this.current.failed ?? NOT_RESTARTED;
+    await this.bringUpToDate();
+    return this.current.failed;
   }
 
   /** Puts the agents found here under Memnox, as the first run does; undefined when it went through, else why. */

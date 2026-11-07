@@ -1,0 +1,26 @@
+/*
+ * The brain is drawn on the console's dark ground in either appearance, as the Mac draws it, so everything laid over
+ * the canvas reads the console's dark tokens here whatever the window's own theme is.
+ */
+.mx-brain {
+  --mx-background: #030303;
+  --mx-surface: #030303;
+  --mx-card: #0f0f0f;
+  --mx-secondary: #0f0f0f;
+  --mx-border: #313131;
+  --mx-panel-edge: #313131;
+  --mx-control-edge: #313131;
+  --mx-field: #0f0f0f;
+  --mx-field-edge: #313131;
+  --mx-foreground: #fdfdfd;
+  --mx-ink: #fdfdfd;
+  --mx-muted: #adadad;
+  --mx-faint: #6b6b6b;
+  --mx-hover: #191919;
+  --mx-active: #1d1d1d;
+  --mx-keycap: #191919;
+  --mx-switch-knob: #9cd1fd;
+  color-scheme: dark;
+  background: #030303;
+  color: #fdfdfd;
+}

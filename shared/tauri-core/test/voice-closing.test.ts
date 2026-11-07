@@ -120,7 +120,8 @@ afterEach(() => {
 
 describe('the turns the voice takes', () => {
   it('sends the words so far as a guess at a pause, then the same words whole, and warms the brain first', async () => {
-    const { daemon, turns } = voiceOver([[{ kind: 'speech' }, { kind: 'words', text: 'is the build green?', final: true }, { wait: 60_000 }]], {
+    // The ear streams the words while they are said and hands over the final only once its own silence has passed.
+    const { daemon, turns } = voiceOver([[{ kind: 'speech' }, { kind: 'words', text: 'is the build green?', final: false }, { wait: 800 }, { kind: 'words', text: 'is the build green?', final: true }, { wait: 60_000 }]], {
       ask: (request) => chunks(request.id, 'It is.'),
       warm: (request) => [{ id: request.id, ok: true }],
     });

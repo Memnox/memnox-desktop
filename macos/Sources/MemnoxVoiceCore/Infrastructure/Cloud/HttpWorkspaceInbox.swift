@@ -63,7 +63,7 @@ public final class HttpWorkspaceInbox: WorkspaceInbox, @unchecked Sendable {
 
     public func held(in workspace: String, token: String) async throws -> [WorkspaceHeldCall] {
         // Recent settled calls come too, so a card can say who answered it; a cloud that ignores the query sends only open ones.
-        let listed: [LossyCall] = try await call("GET", "v1/workspaces/\(Self.segment(workspace))/me/held?\(Self.recent)", token: token)
+        let listed: [LossyCall] = try await call("GET", "v1/workspaces/\(Self.segment(workspace))/me/held-calls?\(Self.recent)", token: token)
         return listed.compactMap(\.call)
     }
 
@@ -82,7 +82,7 @@ public final class HttpWorkspaceInbox: WorkspaceInbox, @unchecked Sendable {
                        token: String) async throws -> InboxAnswerReply {
         var body = ["answer": answer.rawValue, "deviceId": deviceId]
         if let signature { body["signature"] = signature }
-        return try await self.call("POST", "v1/workspaces/\(Self.segment(workspace))/me/held/\(Self.segment(call))",
+        return try await self.call("POST", "v1/workspaces/\(Self.segment(workspace))/me/held-calls/\(Self.segment(call))/answer",
                                    body: body, token: token)
     }
 

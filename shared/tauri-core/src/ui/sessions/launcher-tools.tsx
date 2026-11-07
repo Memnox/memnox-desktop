@@ -2,12 +2,14 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { RequestIds, toolkitName } from '../../core';
 import { agentStatusWord, connectionStatusWord, Tools } from '../../core/application/tools';
-import { TauriDaemonLink } from '../adapters/tauri-daemon-link';
+import { daemonLink } from '../adapters/demo';
 import { AgentMark, ToolMark } from '../kit';
 import type { LauncherTool } from './Launcher';
+import { TAURI_COMMAND } from '../adapters/tauri-commands';
+import { LauncherLines } from '../../core/domain/island-lines';
 
 /** Said under the grid while no app is connected. */
-const NO_APPS = 'No apps connected yet. Ask Memnox to do something in Gmail, Slack or GitHub and it opens the sign in for you.';
+const NO_APPS = LauncherLines.noApps;
 
 /** A connected app picked on the Tools page, which opens it up close. */
 export interface PickedTool {
@@ -18,7 +20,7 @@ export interface PickedTool {
 /** The launcher's own read of the agents and apps, made once, so the island needs nothing more passed in. */
 let shared: Tools | undefined;
 function tools(): Tools {
-  shared ??= new Tools(new TauriDaemonLink(), new RequestIds());
+  shared ??= new Tools(daemonLink(), new RequestIds());
   return shared;
 }
 
@@ -39,7 +41,7 @@ export function useLauncherTools(on: boolean, onPick: (tool: PickedTool) => void
     setAsked(true);
     void source.refresh();
   }, [source, asked]);
-  if (state === undefined) return { tiles: [], note: undefined, caption: 'None yet' };
+  if (state === undefined) return { tiles: [], note: undefined, caption: LauncherLines.noneYet };
   const tiles: LauncherTool[] = [
     ...state.agents.map((agent) => ({
       id: `agent:${agent.kind}`,
@@ -47,7 +49,7 @@ export function useLauncherTools(on: boolean, onPick: (tool: PickedTool) => void
       caption: agentStatusWord(agent),
       mark: <AgentMark agent={agent.kind} name={agent.label} size={25} />,
       // An agent's own settings live on the Connected tools page, where it can be made the voice.
-      onPress: () => void invoke('open_settings', { page: 'tools' }).catch(() => undefined),
+      onPress: () => void invoke(TAURI_COMMAND.openSettings, { page: 'tools' }).catch(() => undefined),
     })),
     ...state.connections.map((app) => ({
       id: `app:${app.toolkit}`,
@@ -58,6 +60,6 @@ export function useLauncherTools(on: boolean, onPick: (tool: PickedTool) => void
     })),
   ];
   const connected = state.connections.filter((app) => app.connected).length;
-  const caption = state.reading ? 'Reading' : connected === 0 ? 'None yet' : `${connected} connected`;
+  const caption = state.reading ? LauncherLines.readingTools : connected === 0 ? LauncherLines.noneYet : LauncherLines.connected(connected);
   return { tiles, note: state.connections.length === 0 ? (state.connectionsNote ?? NO_APPS) : undefined, caption };
 }

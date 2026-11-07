@@ -138,4 +138,15 @@ final class EchoTests: XCTestCase {
         // Without words of theirs in the quiet, only what came from the pause on is theirs, as before.
         XCTAssertEqual(cutInWords(heard, pausedOn: pausedOn, spoken: spoken, spokeInQuiet: false), "to talk you said")
     }
+
+    func testTakesTheEndOfAWordItWasSayingWhenItPausedForItsOwnEcho() {
+        let spoken = "Claude Desktop runs Memnox, ComfyCloud and ImagineArt. Codex runs Memnox session, Node REPL and Computer Use."
+        XCTAssertEqual(withoutEcho("art Codex run", spoken: spoken), "")
+        XCTAssertFalse(isPersonAfterPause("art Codex run", spoken: spoken))
+        XCTAssertEqual(cutInWords("art Codex run", pausedOn: "", spoken: spoken, spokeInQuiet: false), "")
+    }
+
+    func testKeepsThePersonsShortWordThatOnlyEndsOneOfItsOwn() {
+        XCTAssertEqual(withoutEcho("now open the logs", spoken: "I know the logs are long."), "now open the logs")
+    }
 }

@@ -20,7 +20,7 @@ export function QuestionBubble({ question, from }: { question: ReactNode; from?:
           <span className="truncate">{from}</span>
         </span>
       )}
-      <div ref={box} className="max-h-[76px] overflow-y-auto rounded-[18px] bg-white/[0.07] px-4 py-3 text-headline font-medium text-white/[0.92] [scrollbar-width:none] select-text">
+      <div ref={box} className="max-h-card-bubble overflow-y-auto rounded-card-bubble bg-white/[0.07] px-4 py-3 text-headline font-medium text-white/[0.92] [scrollbar-width:none] select-text">
         {question}
       </div>
     </div>

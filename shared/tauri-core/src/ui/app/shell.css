@@ -1,0 +1,34 @@
+/*
+ * The Memnox window's own layout. Colours come from the console's tokens in ../styles.css; this file holds
+ * only what the layout needs: the card grid, the focus ring and the sub navigation's two shapes.
+ */
+
+/* As many columns as fit, never narrower than a card can be read at. */
+.mx-card-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+/* Keyboard focus is always visible; a pointer click does not paint it. */
+.mx-focus:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+/* Rows of a table become stacked cards on the narrowest windows. */
+@media (max-width: 639px) {
+  .mx-stack-narrow {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mx-app * {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

@@ -62,7 +62,7 @@ const LINUX_NO_MIC_GUIDE = [
 /** uinput is root only on most distributions, so the input group and a rule for it let Memnox type on Wayland. */
 const WAYLAND_TYPING_GUIDE = [
   'Open a terminal and run sudo usermod -aG input $USER, which lets Memnox type through uinput.',
-  'If your distribution keeps uinput for root, add KERNEL=="uinput", GROUP="input", MODE="0660" to /etc/udev/rules.d/60-memnox.rules.',
+  'The deb and rpm put uinput in the input group. From the AppImage, if your distribution keeps uinput for root, add KERNEL=="uinput", GROUP="input", MODE="0660" to /etc/udev/rules.d/60-memnox.rules.',
   'Sign out and back in, then press Check again.',
 ];
 

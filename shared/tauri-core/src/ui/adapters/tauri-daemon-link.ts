@@ -1,6 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { encode, type DaemonRequest, type DaemonResponse } from '@memnox/core/wire';
 import type { DaemonLink } from '../../core';
+import { TAURI_COMMAND } from './tauri-commands';
 
 /** The daemon over the Rust link: the request goes as the runtime encodes it, and each line comes back through a channel. */
 export class TauriDaemonLink implements DaemonLink {
@@ -14,7 +15,7 @@ export class TauriDaemonLink implements DaemonLink {
       queue.push(JSON.parse(line) as DaemonResponse);
       wake?.();
     };
-    invoke('daemon_stream', { request: encode(request).trimEnd(), lines })
+    invoke(TAURI_COMMAND.daemonStream, { request: encode(request).trimEnd(), lines })
       .catch((error: unknown) => {
         failure = error;
       })

@@ -1,23 +1,56 @@
-import { CircleAlert, Link, RotateCw, UserRoundX } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
-import type { AppConnections } from '../../../core/application/app-connections';
-import { catalogueCards, connectedCards, connectedSummary, resultCountLine, type CatalogueCard, type ConnectedCard, type YourConnection } from '../../../core/domain/your-apps';
-import { ToolMark } from '../../kit/logos';
-import { KitButton, SearchField, SettingsCard, SettingsRow, SettingsSection, Spinner } from '../kit';
+import { LayoutGrid, Plug, RotateCw, UserRoundPlus } from 'lucide-react';
+import { useEffect, useState, type CSSProperties } from 'react';
+import {
+  agentsLine,
+  categoriesOf,
+  countLine,
+  FEATURED_TOOLKITS,
+  inCategory,
+  narrowed,
+  offered,
+  ORDER_LEGEND,
+  orderChip,
+  reachLine,
+  recommended,
+  statusLine,
+  statusTone,
+  supportPill,
+  tabOf,
+  tabTitle,
+  YOUR_APPS_TABS,
+  YourAppDisconnect,
+  YourAppsLayout,
+  YourAppsLines,
+  YourAppsNamed,
+  yours,
+  type YourAppCard,
+  type YourAppNote,
+  type YourAppsTab,
+} from '../../../core/domain/your-apps';
+import { agentLabel } from '../../../core/domain/mcp-hub-lines';
+import { SettingsCard, SettingsRow } from '../kit';
 import { useObserved, type SettingsParts } from '../parts';
+import { Banner, BrandLogo, Button, ConfirmDialog, EmptyState, Pill, Pressable, SearchInput, Spinner, Tabs, ToolMark } from '../../kit';
 
-/** The mark on every card, a little larger than a row's tile so the grid reads as a shelf of apps. */
-const MARK_SIDE = 32;
-const GRID = 'grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2.5';
+const TONE_TEXT = { good: 'text-success', attention: 'text-warm', quiet: 'text-muted' } as const;
+const TONE_DOT = { good: 'bg-success', attention: 'bg-warm', quiet: 'bg-faint' } as const;
+/** The refresh glyph beside Check again, a point under the words. */
+const REFRESH_GLYPH = 13;
+/** The agents' logos are a line of small text tall, so they sit level with the words that name them. */
+const AGENT_LOGO = 16;
 
 /**
- * Your apps, as the Mac's page of the same name: the tools the person connected as themselves and the
- * ones this computer already reaches, then the catalogue searched for more, each one press from its own
- * sign in in the browser. The list is read again on focus, so a sign in finished there shows at once.
+ * Connectors, as the Mac's `YourAppsPage`: Connected, Recommended and All as tabs over a categories rail, one search
+ * and one grid of the console's cards. Connecting needs a Memnox Cloud account, so while the daemon says nobody is
+ * signed in the page leads with that step and Connect starts the app's own sign in. The list is read again on focus,
+ * so a sign in finished in the browser shows at once.
  */
 export function YourAppsPage({ parts }: { parts: SettingsParts }) {
   const { tools, apps } = parts;
   useObserved(tools, apps);
+  const [chosenTab, chooseTab] = useState<YourAppsTab | undefined>(undefined);
+  const [category, setCategory] = useState<string | undefined>(undefined);
+  const [leaving, setLeaving] = useState<YourAppCard | undefined>(undefined);
   useEffect(() => {
     void tools.refresh();
     apps.search(apps.state.query);
@@ -26,116 +59,235 @@ export function YourAppsPage({ parts }: { parts: SettingsParts }) {
     return () => window.removeEventListener('focus', again);
   }, []);
   const { connections, connectionsNote, reading } = tools.state;
-  const { busy, note, waitingFor, query, found, searchNote, searching } = apps.state;
-  const mine = connectedCards(connections as readonly YourConnection[], waitingFor);
-  const offered = catalogueCards(found, connections as readonly YourConnection[], waitingFor);
+  const { busy, notice, waitingFor, query, found, searchNote, signInNeeded, signingIn } = apps.state;
+  const mine = yours(connections, found);
+  const tab = tabOf(chosenTab, query, mine.length);
+  const pool = tab === 'connected' ? narrowed(mine, query) : tab === 'recommended' ? narrowed(recommended(found, connections), query) : offered(found, searchNote !== undefined, query, connections);
+  const categories = categoriesOf(pool);
+  const shown = pool.filter((each) => inCategory(each, category));
+  // A note that belongs to no card on screen is said over the grid, so it is never lost behind a tab or a category.
+  const pageNote = notice !== undefined && (notice.toolkit === undefined || !shown.some((each) => each.slug === notice.toolkit)) ? notice : undefined;
+  const search = (words: string) => {
+    // A category from one search means nothing in the next, as the console resets it.
+    setCategory(undefined);
+    apps.search(words);
+  };
+  const featured = new Set(FEATURED_TOOLKITS);
+
   return (
-    <>
-      <SettingsSection title="Connected" trailing={<span className="text-footnote text-muted">{reading ? 'Reading' : connectedSummary(mine)}</span>}>
-        {connectionsNote !== undefined && mine.length === 0 ? (
-          <SettingsCard>
-            <SettingsRow icon={UserRoundX} tint="var(--mx-warm)" title="Your apps are not showing" caption={connectionsNote} />
-          </SettingsCard>
-        ) : mine.length === 0 ? (
-          <SettingsCard>
-            <SettingsRow icon={Link} title={reading ? 'Reading your apps' : 'No apps connected yet'} caption="Search below for any tool you use and sign in to it in your browser." />
-          </SettingsCard>
-        ) : (
-          <div className={GRID}>
-            {mine.map((card) => (
-              <MineCard key={card.toolkit} card={card} apps={apps} />
-            ))}
-          </div>
-        )}
-      </SettingsSection>
-      {note !== undefined && (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center gap-3">
+        <Tabs
+          tabs={YOUR_APPS_TABS.map((each) => ({ id: each, title: tabTitle(each, mine.length) }))}
+          chosen={tab}
+          choose={(id) => {
+            chooseTab(id);
+            setCategory(undefined);
+          }}
+        />
+        <Pressable onClick={() => void tools.refresh()} className="mx-focus inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-body-sm text-muted hover:text-foreground">
+          <RotateCw size={REFRESH_GLYPH} aria-hidden />
+          {YourAppsLines.checkAgain}
+        </Pressable>
+      </div>
+      {signInNeeded && (
         <SettingsCard>
-          <SettingsRow icon={CircleAlert} tint="var(--mx-warm)" title="That did not work" caption={note} />
+          <SettingsRow icon={UserRoundPlus} tint="var(--color-primary)" title={YourAppsLines.signInTitle} caption={YourAppsLines.signInDetail}>
+            {signingIn && <Spinner />}
+            <Button kind="primary" disabled={signingIn} aria-label={YourAppsLines.signInTitle} onClick={() => void apps.signInForApps()}>
+              {YourAppsLines.signIn}
+            </Button>
+          </SettingsRow>
         </SettingsCard>
       )}
-      <SettingsSection title="Connect a tool" trailing={<span className="text-footnote text-muted">{resultCountLine({ query, count: found.length, searching, note: searchNote })}</span>}>
-        <SearchField value={query} placeholder="Search apps" onChange={(words) => apps.search(words)} />
-        {offered.length > 0 && (
-          <div className={GRID}>
-            {offered.map((card) => (
-              <CatalogueCardView key={card.slug} card={card} busy={busy} connect={() => void apps.connect(card.slug)} />
-            ))}
-          </div>
+      {pageNote !== undefined && <Banner title={pageNote.title} words={pageNote.words} dismiss={() => apps.dismissNote()} dismissLabel={YourAppsLines.close} />}
+      <div className="flex items-start" style={{ gap: YourAppsLayout.railSpacing }}>
+        {categories.length > 0 && (
+          <Rail
+            total={pool.length}
+            categories={categories.slice(0, YourAppsLayout.railLeading)}
+            chosen={category}
+            choose={setCategory}
+          />
         )}
-      </SettingsSection>
-      <div className="flex justify-end">
-        <KitButton icon={RotateCw} onClick={() => void tools.refresh()}>
-          Check again
-        </KitButton>
-      </div>
-    </>
-  );
-}
-
-/** One card: the mark, the name, one line, and what can be done at its foot. */
-function AppCard({ toolkit, name, line, children }: { toolkit: string; name: string; line: string; children?: ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-3 rounded-2xl bg-card p-4">
-      <div className="flex min-w-0 items-center gap-3">
-        <ToolMark toolkit={toolkit} size={MARK_SIDE} />
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate text-body font-medium text-foreground">{name}</span>
-          <span className="truncate text-footnote text-muted" title={line}>
-            {line}
-          </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-5">
+          <SearchInput value={query} placeholder={tab === 'all' ? YourAppsLines.searchAll : YourAppsLines.searchThese} onChange={search} count={{ shown: shown.length, total: pool.length }} />
+          {tab === 'all' && found.some((each) => each.source !== undefined) && <p className="m-0 text-meta text-faint">{ORDER_LEGEND}</p>}
+          {tab === 'all' && searchNote !== undefined && <p className="m-0 text-meta text-warm">{searchNote}</p>}
+          {shown.length === 0 ? (
+            tab === 'connected' && reading ? (
+              <EmptyState icon={LayoutGrid} title={YourAppsLines.reading} body={YourAppsLines.readingDetail} />
+            ) : tab === 'connected' && query.trim() === '' ? (
+              <EmptyState icon={LayoutGrid} title={YourAppsLines.noApps} body={connectionsNote ?? YourAppsLines.noAppsDetail} />
+            ) : (
+              <EmptyState icon={LayoutGrid} title={countLine(0, query)} body={tab === 'all' ? YourAppsLines.tryAnother : YourAppsLines.searchAllDetail} />
+            )
+          ) : (
+            <div className="grid items-stretch" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${YourAppsLayout.cardMinimum}px, 1fr))`, gap: YourAppsLayout.gridSpacing }}>
+              {shown.map((each) => (
+                <AppTile
+                  key={each.slug}
+                  card={each}
+                  recommended={featured.has(each.slug)}
+                  busy={busy === each.slug}
+                  waiting={waitingFor === each.slug}
+                  disabled={busy !== undefined || signingIn}
+                  signInFirst={signInNeeded}
+                  note={notice?.toolkit === each.slug ? notice : undefined}
+                  connect={() => void apps.connect(each.slug, each.standing === 'sign-in-again')}
+                  anotherAccount={() => void apps.connect(each.slug, true)}
+                  disconnect={() => setLeaving(each)}
+                  dismissNote={() => apps.dismissNote()}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
-      {children !== undefined && <div className="flex items-center justify-end gap-1.5">{children}</div>}
+      <p className="m-0 text-meta text-faint">{YourAppsLines.allowance}</p>
+      {leaving !== undefined && (
+        <ConfirmDialog
+          icon={Plug}
+          title={YourAppDisconnect.title(leaving.name)}
+          message={YourAppDisconnect.message(leaving.name)}
+          detail={YourAppDisconnect.detail(leaving.name)}
+          confirm={YourAppDisconnect.confirm}
+          cancel={() => setLeaving(undefined)}
+          act={() => {
+            const slug = leaving.slug;
+            setLeaving(undefined);
+            void apps.disconnect(slug);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-/** A tool the person has: Disconnect after asking first, Sign in again where it stopped working, nothing for a local one. */
-function MineCard({ card, apps }: { card: ConnectedCard; apps: AppConnections }) {
-  const [asking, setAsking] = useState(false);
-  const { busy } = apps.state;
-  if (asking) {
-    return (
-      <AppCard toolkit={card.toolkit} name={card.name} line="Memnox stops working in it for you until you connect it again.">
-        <KitButton onClick={() => setAsking(false)}>Cancel</KitButton>
-        <KitButton
-          kind="primary"
-          onClick={() => {
-            setAsking(false);
-            void apps.disconnect(card.toolkit);
-          }}
-        >
-          Disconnect
-        </KitButton>
-      </AppCard>
-    );
-  }
-  if (!card.canDisconnect) return <AppCard toolkit={card.toolkit} name={card.name} line={card.line} />;
+/** `CategoryRail`: the categories down the side with their counts, commonest first, the chosen one on the active fill. */
+function Rail({ total, categories, chosen, choose }: { total: number; categories: readonly { id: string; label: string; count: number }[]; chosen: string | undefined; choose: (id: string | undefined) => void }) {
+  const rows = [{ id: undefined, label: YourAppsLines.allToolkits, count: total }, ...categories];
   return (
-    <AppCard toolkit={card.toolkit} name={card.name} line={card.line}>
-      {busy === card.toolkit && <Spinner />}
-      {card.canSignInAgain && (
-        <KitButton kind="primary" disabled={busy !== undefined} onClick={() => void apps.connect(card.toolkit, true)}>
-          Sign in again
-        </KitButton>
-      )}
-      <KitButton disabled={busy !== undefined} onClick={() => setAsking(true)}>
-        Disconnect
-      </KitButton>
-    </AppCard>
+    <nav aria-label={YourAppsLines.categories} className="flex shrink-0 flex-col gap-0.5" style={{ width: YourAppsLayout.railWidth }}>
+      <p className="m-0 px-2.5 pb-1.5 font-code text-meta tracking-heading text-muted uppercase">{YourAppsLines.categories}</p>
+      {rows.map((row) => {
+        const on = row.id === chosen;
+        return (
+          <Pressable
+            key={row.id ?? ''}
+            onClick={() => choose(row.id)}
+            aria-current={on ? 'true' : undefined}
+            className={`mx-focus flex w-full cursor-pointer items-center gap-1.5 rounded-control px-2.5 py-1.5 text-left text-body-sm ${on ? 'bg-active font-medium text-foreground' : 'text-muted'}`}
+          >
+            <span className="min-w-0 flex-1 truncate">{row.label}</span>
+            <span className="shrink-0 font-code text-meta tabular-nums text-faint">{row.count}</span>
+          </Pressable>
+        );
+      })}
+    </nav>
   );
 }
 
-/** A tool from the catalogue: Connect when the person has not got it, its standing when they have. */
-function CatalogueCardView({ card, busy, connect }: { card: CatalogueCard; busy: string | undefined; connect: () => void }) {
+/**
+ * One tool's card in the console's connector look, as the Mac's `YourAppTile`: its logo, its name with the support
+ * pill and a Recommended pill, its kind, two lines of the provider's own words, where it stands in its colour, and its
+ * buttons at the foot.
+ */
+function AppTile({
+  card,
+  recommended: isRecommended,
+  busy,
+  waiting,
+  disabled,
+  signInFirst,
+  note,
+  connect,
+  anotherAccount,
+  disconnect,
+  dismissNote,
+}: {
+  card: YourAppCard;
+  recommended: boolean;
+  busy: boolean;
+  waiting: boolean;
+  disabled: boolean;
+  signInFirst: boolean;
+  note: YourAppNote | undefined;
+  connect: () => void;
+  anotherAccount: () => void;
+  disconnect: () => void;
+  dismissNote: () => void;
+}) {
+  const support = supportPill(card);
+  const order = orderChip(card);
+  const tone = statusTone(card, waiting);
+  const agents = agentsLine(card, agentLabel);
+  const pad: CSSProperties = { padding: YourAppsLayout.cardPadding };
   return (
-    <AppCard toolkit={card.slug} name={card.name} line={card.line}>
-      {busy === card.slug && <Spinner />}
-      {card.standing === 'new' && (
-        <KitButton kind="primary" disabled={busy !== undefined} aria-label={`Connect ${card.name}`} onClick={connect}>
-          Connect
-        </KitButton>
+    <article className="flex min-w-0 flex-col gap-3 rounded-card border border-panel-edge bg-card" style={pad}>
+      <div className="flex min-w-0 items-start gap-3">
+        <ToolMark toolkit={card.slug} size={YourAppsLayout.markSide} />
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="line-clamp-2 text-body-sm font-semibold text-foreground">{card.name}</span>
+          {(support !== undefined || isRecommended || order !== undefined) && (
+            <span className="flex flex-wrap gap-0.5">
+              {support !== undefined && <Pill tint={card.support === 'full' ? 'blue' : 'plain'}>{support}</Pill>}
+              {isRecommended && <Pill tint="blue">{YourAppsLines.recommended}</Pill>}
+              {order !== undefined && <Pill label={YourAppsNamed.source(order)}>{order}</Pill>}
+            </span>
+          )}
+          <span className="text-meta text-muted">{reachLine(card)}</span>
+        </div>
+      </div>
+      {card.description !== undefined && <p className="m-0 line-clamp-2 text-meta text-muted">{card.description}</p>}
+      <span className="flex items-center gap-1.5">
+        <span className={`size-1.5 shrink-0 rounded-full ${TONE_DOT[tone]}`} aria-hidden />
+        <span className={`text-meta font-medium ${TONE_TEXT[tone]}`}>{statusLine(card, waiting)}</span>
+      </span>
+      {agents !== undefined && (
+        <span className="flex items-start gap-1.5">
+          {card.uses.length > 0 && (
+            <span className="flex shrink-0 gap-0.5" aria-hidden>
+              {[...new Set(card.uses.map((use) => use.agent))].map((agent) => (
+                <BrandLogo key={agent} agent={agent} name={agentLabel(agent)} size={AGENT_LOGO} />
+              ))}
+            </span>
+          )}
+          <span className="text-meta text-muted">{agents}</span>
+        </span>
       )}
-    </AppCard>
+      <span className="flex-1" />
+      {note !== undefined && <Banner title={note.title} words={note.words} dismiss={dismissNote} dismissLabel={YourAppsLines.close} />}
+      <div className="flex items-center gap-2">
+        {card.standing === 'on-this-computer' && <span className="flex min-h-8 items-center text-meta text-faint">{YourAppsLines.onThisComputerFoot}</span>}
+        {card.standing === 'connected' && (
+          <>
+            <Button disabled={disabled} aria-label={YourAppsNamed.disconnect(card.name)} onClick={disconnect}>
+              {YourAppsLines.disconnect}
+            </Button>
+            <Pressable disabled={disabled} aria-label={YourAppsNamed.anotherAccount(card.name)} onClick={anotherAccount} className="mx-focus cursor-pointer text-meta text-muted hover:text-foreground disabled:cursor-default disabled:opacity-45">
+              {YourAppsLines.anotherAccount}
+            </Pressable>
+          </>
+        )}
+        {card.standing === 'sign-in-again' && (
+          <>
+            <Button kind="primary" wide disabled={disabled} aria-label={YourAppsNamed.signInAgain(card.name)} onClick={connect}>
+              {YourAppsLines.signInAgain}
+            </Button>
+            <Button disabled={disabled} aria-label={YourAppsNamed.disconnect(card.name)} onClick={disconnect}>
+              {YourAppsLines.disconnect}
+            </Button>
+          </>
+        )}
+        {card.standing === 'available' && (
+          <Button kind="primary" wide disabled={disabled} aria-label={signInFirst ? `${YourAppsLines.signInTitle} ${card.name}` : YourAppsNamed.connect(card.name)} onClick={connect}>
+            {signInFirst ? YourAppsLines.signInButton : YourAppsLines.connect}
+          </Button>
+        )}
+        {busy && <Spinner />}
+      </div>
+    </article>
   );
 }
+

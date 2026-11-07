@@ -14,7 +14,7 @@ public enum TypedCheck {
     }
 
     /// Case and spacing set aside, since a box may soft wrap, capitalise or turn two spaces into one.
-    private static func normal(_ text: String) -> String {
+    static func normal(_ text: String) -> String {
         text.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 }

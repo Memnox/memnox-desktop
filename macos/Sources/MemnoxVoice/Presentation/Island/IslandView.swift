@@ -74,14 +74,17 @@ struct IslandView: View {
             }
             .frame(width: size.width + 2 * Island.flare, height: size.height, alignment: .topLeading)
             .overlay(alignment: .top) {
-                if model.showsSatellites {
-                    IslandSatellites(model: model, islandWidth: size.width)
+                if model.showsSatellites || model.showsTalkSatellites {
+                    IslandSatellites(model: model, islandWidth: size.width, talking: model.showsTalkSatellites)
                         .padding(.top, Island.satelliteTop(model.notch))
+                        // A new set each time it changes, so the talking one slides out as the full one does.
+                        .id(model.showsTalkSatellites)
                         // They slide out from behind the island on their own; leaving, they only fade.
                         .transition(.opacity)
                 }
             }
             .animation(.spring(response: 0.36, dampingFraction: 0.8), value: model.showsSatellites)
+            .animation(.spring(response: 0.36, dampingFraction: 0.8), value: model.showsTalkSatellites)
             .modifier(ShakeEffect(times: CGFloat(model.shakes)))
             .modifier(HopEffect(times: CGFloat(model.hops)))
             // With Reduce Motion the hop and the shake are skipped; the card and the sound still say what happened.

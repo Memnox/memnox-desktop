@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { DELIVERY, wentIn, type DisplayHost } from '@memnox/core/wire';
 import { SessionFocus, type Shown } from '../../core';
 import { TauriTerminals } from './tauri-terminals';
+import { TAURI_COMMAND } from '../adapters/tauri-commands';
 
 /** Told to the island by the switcher once it has turned to the session, which the island then opens. */
 export const SESSION_TURNED_EVENT = 'session-turned';
@@ -22,6 +23,6 @@ export function bringForward(host: DisplayHost | undefined): Promise<Shown> {
 export async function openSession(sessionId: string, host: DisplayHost | undefined): Promise<Shown> {
   const shown = await focus.focus(host);
   if (wentIn(shown.answer)) return shown;
-  await invoke('open_live_session', { sessionId }).catch(() => undefined);
+  await invoke(TAURI_COMMAND.openLiveSession, { sessionId }).catch(() => undefined);
   return { answer: DELIVERY.FAILED, reason: `${shown.reason ?? 'its app would not come forward'}, so its live window is open instead` };
 }

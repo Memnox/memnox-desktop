@@ -4,9 +4,16 @@ import { groupedDigits } from '../../../core/domain/account-whole';
 import { ServerPairingLines } from '../../../core/domain/server-pairing-lines';
 import { WorkspaceLines } from '../../../core/domain/workspace-lines';
 import { DONE, needs, WAITING, type StepState } from '../../../core/domain/step-state';
-import { Digits, IconTile, KitButton, KitField, QuietLine, Spinner, Surface } from '../kit';
+import { Digits, IconTile, QuietLine, Surface } from '../kit';
 import { useObserved, type SettingsParts } from '../parts';
 import { SetupStep } from '../steps';
+import { Button, Input, Spinner } from '../../kit';
+import { RelayLines } from '../../../core/domain/relay-lines';
+
+/** What a pairing link looks like, shown in the field before one is pasted. */
+const PAIR_LINK_EXAMPLE = 'memnox://pair?d=...';
+/** The link field, wide enough to show that a whole link was pasted. */
+const LINK_FIELD_WIDTH = 320;
 
 /**
  * `SetupServerCard`: connecting to a server, the link pasted from memnox pair, the digits to type there, and each
@@ -30,15 +37,15 @@ export function ServerCard({ parts }: { parts: SettingsParts }) {
     <Surface>
       <SetupStep
         state={state}
-        title="Connect to a server"
-        detail="Optional. Talk to Memnox on a Linux server through the relay. Run memnox pair there and paste the link it prints."
+        title={RelayLines.connectServer}
+        detail={RelayLines.connectServerDetail}
         trailing={
           busy ? (
             <Spinner />
           ) : (
-            <KitButton disabled={link.trim() === ''} onClick={connect}>
-              Connect
-            </KitButton>
+            <Button disabled={link.trim() === ''} onClick={connect}>
+              {RelayLines.connect}
+            </Button>
           )
         }
         extra={
@@ -50,7 +57,7 @@ export function ServerCard({ parts }: { parts: SettingsParts }) {
                 <QuietLine>{ServerPairingLines.typeCode}</QuietLine>
               </div>
             )}
-            {!busy && <KitField value={link} placeholder="memnox://pair?d=..." onChange={setLink} onSubmit={connect} width={320} />}
+            {!busy && <Input value={link} placeholder={PAIR_LINK_EXAMPLE} onValue={setLink} onSubmit={connect} width={LINK_FIELD_WIDTH} />}
             {step.kind === 'connected' && <p className="text-caption font-semibold text-green">{ServerPairingLines.connected(step.name)}</p>}
             {servers.servers.length > 0 && (
               <div className="flex w-full flex-col gap-2">
@@ -76,8 +83,8 @@ function MachineRow({ parts, name, id }: { parts: SettingsParts; name: string; i
     <div className="flex w-full items-center gap-3">
       <span className="text-footnote font-semibold text-foreground">{name}</span>
       <span className="flex-1" />
-      {talking ? <span className="text-caption text-green">Talking to it</span> : <KitButton onClick={() => servers.talkTo(id)}>Talk to it</KitButton>}
-      {id !== undefined && <KitButton onClick={() => void servers.forget(id)}>Forget</KitButton>}
+      {talking ? <span className="text-caption text-green">{RelayLines.talking}</span> : <Button onClick={() => servers.talkTo(id)}>{RelayLines.talkTo}</Button>}
+      {id !== undefined && <Button onClick={() => void servers.forget(id)}>{RelayLines.forget}</Button>}
     </div>
   );
 }
@@ -91,24 +98,24 @@ export function TeamRow({ parts }: { parts: SettingsParts }) {
   const state: StepState = step.kind === 'signed-in' ? DONE : step.kind === 'failed' ? needs(step.why) : WAITING;
   const detail =
     step.kind === 'signed-in'
-      ? `Signed in as ${step.name}. Calls your workspace routes to you show on the island, and every yes asks for ${parts.words.keyTitle}.`
-      : `Answer the calls your workspace routes to you from the island, each yes signed with ${parts.words.keyTitle}.`;
+      ? RelayLines.signedInAs(step.name, parts.words.keyTitle)
+      : RelayLines.answerCalls(parts.words.keyTitle);
   const trailing =
     step.kind === 'starting' ? (
       <Spinner />
     ) : step.kind === 'showing-code' ? (
-      <KitButton onClick={() => team.cancel()}>Cancel</KitButton>
+      <Button onClick={() => team.cancel()}>{RelayLines.cancel}</Button>
     ) : step.kind === 'signed-in' ? (
-      <KitButton onClick={() => void team.signOut()}>Sign out</KitButton>
+      <Button onClick={() => void team.signOut()}>{RelayLines.signOut}</Button>
     ) : (
-      <KitButton kind="primary" onClick={() => void team.start()}>
-        {step.kind === 'failed' ? 'Try again' : 'Sign in'}
-      </KitButton>
+      <Button kind="primary" onClick={() => void team.start()}>
+        {step.kind === 'failed' ? RelayLines.tryAgain : RelayLines.signIn}
+      </Button>
     );
   return (
     <SetupStep
       state={state}
-      title="Your team's calls"
+      title={RelayLines.teamCalls}
       detail={detail}
       tile={<IconTile icon={Users} />}
       trailing={trailing}

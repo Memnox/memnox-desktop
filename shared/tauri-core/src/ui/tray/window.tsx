@@ -5,11 +5,12 @@ import { listen } from '@tauri-apps/api/event';
 import { RequestIds } from '../../core';
 import { Tools } from '../../core/application/tools';
 import type { MenuAction, ToolChip } from '../../core/domain/menu-panel';
-import { TauriDaemonLink } from '../adapters/tauri-daemon-link';
+import { daemonLink } from '../adapters/demo';
 import { WINDOW_EVENTS, type IslandStatus } from '../adapters/tauri-windows';
 import { TrayPanel, type TrayPanelState } from './TrayPanel';
 import '../styles.css';
 import '../cards/floating/floating.css';
+import { TAURI_COMMAND } from '../adapters/tauri-commands';
 
 /** How the talk key reads here, until the island says otherwise. */
 const TALK_KEYS = ['Ctrl', 'Alt', 'Space'];
@@ -49,7 +50,7 @@ function previewState(scene: string): TrayPanelState {
 
 if (preview === undefined) document.documentElement.dataset.solid = '';
 
-const tools = preview === undefined ? new Tools(new TauriDaemonLink(), new RequestIds()) : undefined;
+const tools = preview === undefined ? new Tools(daemonLink(), new RequestIds()) : undefined;
 
 /**
  * The tray panel's window: Rust shows it beside the tray icon and hides it on a click outside or Escape;
@@ -69,7 +70,7 @@ function TrayWindow() {
   // The solid wash goes only once Rust says glass is behind the window, since GNOME and Windows 10 give none.
   useEffect(() => {
     if (preview !== undefined) return;
-    void invoke<Glass>('glass_applied')
+    void invoke<Glass>(TAURI_COMMAND.glassApplied)
       .then((got) => {
         if (got === 'none') return;
         delete document.documentElement.dataset.solid;
@@ -86,7 +87,7 @@ function TrayWindow() {
       void tools?.refresh();
     });
     const told = listen<IslandStatus>(WINDOW_EVENTS.islandStatus, (event) => setStatus(event.payload));
-    const escape = (event: KeyboardEvent) => event.key === 'Escape' && void invoke('tray_panel_hide').catch(() => undefined);
+    const escape = (event: KeyboardEvent) => event.key === 'Escape' && void invoke(TAURI_COMMAND.trayPanelHide).catch(() => undefined);
     window.addEventListener('keydown', escape);
     void tools?.refresh();
     return () => {
@@ -102,7 +103,7 @@ function TrayWindow() {
     if (element === null || preview !== undefined) return;
     const fit = () => {
       const box = element.getBoundingClientRect();
-      void invoke('tray_panel_fit', { width: Math.ceil(box.width) + 2 * margin, height: Math.ceil(box.height) + 2 * margin }).catch(() => undefined);
+      void invoke(TAURI_COMMAND.trayPanelFit, { width: Math.ceil(box.width) + 2 * margin, height: Math.ceil(box.height) + 2 * margin }).catch(() => undefined);
     };
     const watcher = new ResizeObserver(fit);
     watcher.observe(element);
@@ -122,7 +123,7 @@ function TrayWindow() {
   function act(action: MenuAction) {
     if (preview !== undefined) return;
     if (action === 'mute') setStatus((now) => ({ ...now, muted: !now.muted }));
-    void invoke('tray_action', { action }).catch(() => undefined);
+    void invoke(TAURI_COMMAND.trayAction, { action }).catch(() => undefined);
   }
 
   return (

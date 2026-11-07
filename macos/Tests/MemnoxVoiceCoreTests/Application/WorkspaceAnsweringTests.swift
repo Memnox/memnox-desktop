@@ -12,8 +12,8 @@ final class WorkspaceAnsweringTests: XCTestCase {
     var key: PersonKey!
     var answering: WorkspaceAnswering!
 
-    private let heldRoute = "GET /v1/workspaces/ws_1/me/held"
-    private let answerRoute = "POST /v1/workspaces/ws_1/me/held/apr_1"
+    private let heldRoute = "GET /v1/workspaces/ws_1/me/held-calls"
+    private let answerRoute = "POST /v1/workspaces/ws_1/me/held-calls/apr_1/answer"
 
     override func setUp() {
         cloud = ScriptedTransport()
@@ -242,19 +242,19 @@ final class WorkspaceRoutingTests: XCTestCase {
     }
 
     private func showing(_ id: String) async {
-        cloud.answer("GET /v1/workspaces/ws_1/me/held", 200, "[\(heldJSON(id))]")
+        cloud.answer("GET /v1/workspaces/ws_1/me/held-calls", 200, "[\(heldJSON(id))]")
         for call in await answering.refresh().arrived { target.rememberWorkspace(subject: call.id) }
     }
 
     func testAYesOnAWorkspaceCallGoesThroughTheInboxAndNeverADaemon() async {
         await showing("apr_1")
-        cloud.answer("POST /v1/workspaces/ws_1/me/held/apr_1", 200, #"{"id":"apr_1","status":"answered","answer":"once","approvalsNeeded":0}"#)
+        cloud.answer("POST /v1/workspaces/ws_1/me/held-calls/apr_1/answer", 200, #"{"id":"apr_1","status":"answered","answer":"once","approvalsNeeded":0}"#)
 
         // Even a card that claims a tap would do is signed, since a teammate's call always reaches another machine.
         let outcome = await conversation.answerHeld("apr_1", .once, reason: "push to main", touchID: false)
 
         XCTAssertEqual(outcome, .answered)
-        XCTAssertEqual(cloud.sent("POST /v1/workspaces/ws_1/me/held/apr_1").count, 1)
+        XCTAssertEqual(cloud.sent("POST /v1/workspaces/ws_1/me/held-calls/apr_1/answer").count, 1)
         XCTAssertEqual(key.signed, ["memnox-confirm:v1:apr_1:once"])
         XCTAssertEqual(local.sent, [])
         XCTAssertEqual(server.sent, [])
@@ -262,12 +262,12 @@ final class WorkspaceRoutingTests: XCTestCase {
 
     func testADenyOnAWorkspaceCallGoesThroughTheInboxUnsigned() async {
         await showing("apr_1")
-        cloud.answer("POST /v1/workspaces/ws_1/me/held/apr_1", 200, #"{"id":"apr_1","status":"answered","answer":"deny","approvalsNeeded":0}"#)
+        cloud.answer("POST /v1/workspaces/ws_1/me/held-calls/apr_1/answer", 200, #"{"id":"apr_1","status":"answered","answer":"deny","approvalsNeeded":0}"#)
 
         let outcome = await conversation.answerHeld("apr_1", .deny, reason: "push to main")
 
         XCTAssertEqual(outcome, .answered)
-        XCTAssertNil(cloud.sent("POST /v1/workspaces/ws_1/me/held/apr_1").first?.body["signature"])
+        XCTAssertNil(cloud.sent("POST /v1/workspaces/ws_1/me/held-calls/apr_1/answer").first?.body["signature"])
         XCTAssertEqual(key.signed, [])
         XCTAssertEqual(local.sent, [])
         XCTAssertEqual(server.sent, [])
@@ -297,7 +297,7 @@ final class WorkspaceRoutingTests: XCTestCase {
         _ = await conversation.answerHeld("apr_local", .deny, reason: "push")
 
         XCTAssertEqual(local.sent.map(\.method), ["confirm"])
-        XCTAssertTrue(cloud.sent("POST /v1/workspaces/ws_1/me/held/apr_local").isEmpty)
+        XCTAssertTrue(cloud.sent("POST /v1/workspaces/ws_1/me/held-calls/apr_local/answer").isEmpty)
     }
 
     func testATeamCallIsAnnouncedAloudWithItsLabelAndSendsTheAnswerToTheIsland() async throws {
@@ -306,7 +306,7 @@ final class WorkspaceRoutingTests: XCTestCase {
         let chimes = RecordingChimes()
         let voice = Conversation(link: target, speaker: speaker, key: key, face: face, owner: MemoryOwner(nil), chimes: chimes,
                                  workspace: answering)
-        cloud.answer("GET /v1/workspaces/ws_1/me/held", 200, "[\(heldJSON("apr_1", ownerName: "Ana"))]")
+        cloud.answer("GET /v1/workspaces/ws_1/me/held-calls", 200, "[\(heldJSON("apr_1", ownerName: "Ana"))]")
         let arrived = await answering.refresh().arrived
         let call = try XCTUnwrap(arrived.first)
 
@@ -323,7 +323,7 @@ final class WorkspaceRoutingTests: XCTestCase {
         XCTAssertEqual(local.sent, [])
         XCTAssertEqual(server.sent, [])
         XCTAssertEqual(key.signed, [])
-        XCTAssertTrue(cloud.sent("POST /v1/workspaces/ws_1/me/held/apr_1").isEmpty)
+        XCTAssertTrue(cloud.sent("POST /v1/workspaces/ws_1/me/held-calls/apr_1/answer").isEmpty)
         XCTAssertTrue(voice.stillAsking("apr_1"))
     }
 
@@ -361,7 +361,7 @@ final class WorkspaceRoutingTests: XCTestCase {
         let voice = Conversation(link: target, speaker: speaker, key: key, face: RecordingFace(), owner: MemoryOwner(nil), workspace: answering)
         await showing("apr_1")
         await voice.announceTeam(try XCTUnwrap(answering.call("apr_1")))
-        cloud.answer("POST /v1/workspaces/ws_1/me/held/apr_1", 200, #"{"id":"apr_1","status":"answered","answer":"deny","approvalsNeeded":0}"#)
+        cloud.answer("POST /v1/workspaces/ws_1/me/held-calls/apr_1/answer", 200, #"{"id":"apr_1","status":"answered","answer":"deny","approvalsNeeded":0}"#)
 
         _ = await voice.answerHeld("apr_1", .deny, reason: "push")
 

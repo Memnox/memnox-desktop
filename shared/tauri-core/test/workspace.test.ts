@@ -48,7 +48,7 @@ class MemoryCredential implements PersonCredentialStore {
 
 const credential: WorkspaceCredential = { token: 'tok', tokenId: 'tk_1', personId: 'p_1', name: 'Sam', orgId: 'o_1', workspaces: ['ws_1'], deviceId: 'dev_1' };
 const call = (id: string, extra: Record<string, unknown> = {}) => ({ id, machineId: 'm_ci', machineLabel: 'ci', agent: 'Codex', operation: 'git push', target: 'origin main', reason: 'push to main', askedAt: `2026-10-18T10:00:0${id.slice(-1)}.000Z`, expiresAt: '2099-01-01T00:00:00.000Z', ownerName: 'Ana', ...extra });
-const HELD = 'GET v1/workspaces/ws_1/me/held?include=recent';
+const HELD = 'GET v1/workspaces/ws_1/me/held-calls?include=recent';
 
 describe('a teammate’s call', () => {
   it('reads leniently, is labelled with the machine and the team, and is said as a question', () => {
@@ -102,7 +102,7 @@ describe('signing in to the workspace', () => {
 
 describe('the workspace inbox', () => {
   function inbox(listed: () => unknown[], answer: Route = () => ({ status: 200, body: { id: 'hc_1', status: 'answered', approvalsNeeded: 1 } })) {
-    const cloud = new Cloud({ [HELD]: () => ({ status: 200, body: listed() }), 'POST v1/workspaces/ws_1/me/held/hc_1': answer });
+    const cloud = new Cloud({ [HELD]: () => ({ status: 200, body: listed() }), 'POST v1/workspaces/ws_1/me/held-calls/hc_1/answer': answer });
     const key = new PersonKey();
     const answering = new WorkspaceAnswering(new CloudInbox(cloud), new MemoryCredential(credential), key, () => Date.parse('2026-10-18T11:00:00.000Z'));
     return { cloud, key, answering };
@@ -167,7 +167,7 @@ describe('the workspace inbox', () => {
 describe('a teammate’s call on the island and by voice', () => {
   async function island() {
     const daemon = new ScriptedDaemon({ 'register-key': registered, confirm: (request) => [{ id: request.id, ok: true }], ask: (request) => [{ id: request.id, ok: true, chunk: { kind: 'done' } }] });
-    const cloud = new Cloud({ [HELD]: () => ({ status: 200, body: [call('hc_1')] }), 'POST v1/workspaces/ws_1/me/held/hc_1': () => ({ status: 200, body: { id: 'hc_1', status: 'answered', approvalsNeeded: 1 } }) });
+    const cloud = new Cloud({ [HELD]: () => ({ status: 200, body: [call('hc_1')] }), 'POST v1/workspaces/ws_1/me/held-calls/hc_1/answer': () => ({ status: 200, body: { id: 'hc_1', status: 'answered', approvalsNeeded: 1 } }) });
     const key = new PersonKey();
     const answering = new WorkspaceAnswering(new CloudInbox(cloud), new MemoryCredential(credential), key);
     await answering.refresh();

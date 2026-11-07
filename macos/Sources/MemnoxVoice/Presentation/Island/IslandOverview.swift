@@ -8,9 +8,10 @@ struct IslandOverview: View {
 
     private enum Layout {
         static let titleDotSpacing: CGFloat = 7
-        static let focusDotSide: CGFloat = 8
-        /// Lines the subtitle up under the title, past the dot and its gap.
-        static let subtitleIndent: CGFloat = focusDotSide + titleDotSpacing
+        /// The agent's logo before the focus card's title, a little taller than the title's line.
+        static let focusLogoSide: CGFloat = 16
+        /// Lines the subtitle up under the title, past the logo and its gap.
+        static let subtitleIndent: CGFloat = focusLogoSide + titleDotSpacing
         /// Clears the orb, which sits over the focus card's left side.
         static let focusTextLeading: CGFloat = 88
         static let focusTextTrailing: CGFloat = 14
@@ -40,7 +41,7 @@ struct IslandOverview: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     if let card = model.focusCard {
                         HStack(spacing: Layout.titleDotSpacing) {
-                            Circle().fill(IslandPalette.color(card.agent)).frame(width: Layout.focusDotSide, height: Layout.focusDotSide)
+                            AgentDisc(agent: card.agent, name: card.agentName, size: Layout.focusLogoSide)
                             Text(card.title)
                                 .font(Memnox.sans(Memnox.TextSize.body, .semibold))
                                 .foregroundStyle(Color.white)
@@ -258,13 +259,7 @@ struct SessionLogo: View {
     let card: SessionCard
     let size: CGFloat
 
-    /// The logo fills a little over half the disc, leaving a ring of colour around it.
-    private static let logoScale: CGFloat = 0.56
-
     var body: some View {
-        AgentLogo(kind: IslandPalette.kind(card.agent), name: card.agentName)
-            .frame(width: size * Self.logoScale, height: size * Self.logoScale)
-            .frame(width: size, height: size)
-            .background(Circle().fill(IslandPalette.color(card.agent)))
+        AgentDisc(agent: card.agent, name: card.agentName, size: size)
     }
 }

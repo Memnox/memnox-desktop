@@ -69,10 +69,8 @@ public final class Conversation {
     }
     /// When the person last said something, since an allow may only follow their own words.
     private var lastHeard: Date?
-    /// Rule proposals the person asked for by pressing hand over, so they reach the card rather than a decline.
-    private var handedOver = Set<String>()
-    /// The hand over still waiting on the daemon, whose proposal event may arrive before its answer does.
-    private var handingOver: Task<DaemonResponse?, Never>?
+    /// Proposals the person asked for by a press in this app's own window, so they reach the card or the key rather than a decline.
+    public let presses: Presses
     /// A phone's turn put together from its notices, so each one shows the whole of it so far.
     private var phoneConversation = PhoneConversation()
     /// The phone holding this Mac's voice, set the moment the daemon says the voice moved, so nothing an event raises is said here meanwhile.
@@ -199,6 +197,7 @@ public final class Conversation {
         self.quietLimit = quietLimit
         self.reconnectWait = reconnectWait
         self.now = now
+        self.presses = Presses(now: now)
         self.address = address
         self.name = name
         self.lookingAt = lookingAt
@@ -251,25 +250,23 @@ public final class Conversation {
     public func handOver(_ action: String) async -> HandOver {
         var request = newRequest(.handOver)
         request.action = action
-        let link = self.link
-        let asking = Task { try? await link.request(request) }
-        handingOver = asking
-        let response = await asking.value
-        if handingOver == asking { handingOver = nil }
-        guard let response else { return .unreachable }
-        if response.ok, let proposed = response.proposed {
-            handedOver.insert(proposed)
-            return .proposed(proposed)
-        }
+        // Through the window's own link, so the proposal it makes is pressed for even when its event comes first.
+        guard let response = try? await PressingLink(link: link, presses: presses).request(request) else { return .unreachable }
+        if response.ok, let proposed = response.proposed { return .proposed(proposed) }
         // A runtime from before the home answers a method it does not know with a bare ok and nothing else.
         return .refused(response.reason ?? response.error ?? "This Memnox is older than the app")
     }
 
-    /// Whether a proposal is the one a hand over asked for, waiting on one still in flight since its event can come first.
-    private func fromHandOver(_ subject: String) async -> Bool {
-        if handedOver.remove(subject) != nil { return true }
-        guard let pending = handingOver, let response = await pending.value else { return false }
-        return response.ok && response.proposed == subject
+    /// The person pressed Turn on stopping on Home: the daemon moves this machine to enforce, unsigned since that only
+    /// narrows. Nothing here can move it back to observe, which widens and stays at the terminal.
+    public func enforceMode() async -> EnforceOutcome {
+        guard let response = try? await link.request(newRequest(.modeEnforce)) else { return .unreachable }
+        if response.ok, let set = response.modeSet {
+            diary.note("mode \(set.was) to \(set.now)")
+            return .enforcing(set)
+        }
+        // A runtime from before the method answers it with a bare ok and nothing else.
+        return .refused(response.reason ?? response.error ?? "This Memnox is older than the app, so run memnox protect --enforce in a terminal")
     }
 
     /// Which agents can be the voice. A recheck asks every installed one again, which takes up to a minute and a half.
@@ -696,9 +693,9 @@ public final class Conversation {
                 return
             }
             // Only after the person spoke: an allow nobody asked for is left alone, not put to Touch ID.
-            // Or pressed for: hand over names exactly this proposal, so nothing else rides on the press.
+            // Or pressed for: the answer to a press in this app's window names exactly this proposal, so nothing else rides on it.
             let spoke = lastHeard.map { now().timeIntervalSince($0) < Self.answerWindow } ?? false
-            let pressed = await fromHandOver(event.subject)
+            let pressed = spoke ? false : await presses.take(event.subject)
             let asked = spoke || pressed
             if let team = event.teamAnswer, asked {
                 // The read back names the call, so the sheet waits until it has been said, as any proposal's does.
@@ -708,8 +705,10 @@ public final class Conversation {
                 // A rule waits on the card for where it holds; the sheet comes up only once a place is picked.
                 face.rule(subject: event.subject, rule)
                 if let phone = phoneFor(event) { await leaveForPhone(event, phone) }
-            } else if let work = event.work, asked {
-                // What goes out in their name waits on its card, read whole; the sheet comes up on Send.
+            } else if let work = event.work, asked || event.agentAsked == true {
+                // What goes out in their name waits on its card, read whole; the sheet comes up on Send. A working agent's
+                // ask waits there too although nobody spoke, since nothing goes before their own press and Touch ID.
+                if !asked { diary.note("\(event.subject) asked by \(event.agent), waiting on its card") }
                 face.work(subject: event.subject, work)
                 if let phone = phoneFor(event) { await leaveForPhone(event, phone) }
             } else if asked {
@@ -722,6 +721,9 @@ public final class Conversation {
                 // The read back says what the sensor is for, so the sheet waits until it has been said.
                 await untilQuiet()
                 await confirm(event)
+            } else if takenUp.contains(event.subject) {
+                // A second copy of one already on the sensor, so declining it would undo the yes being given.
+                diary.note("\(event.subject) arrived again while being confirmed")
             } else {
                 await decline(event)
             }
@@ -790,7 +792,8 @@ public final class Conversation {
                 if !isQuiet(event) { chimes?.play(.settled) }
                 face.show(.idle, caption: "answered elsewhere")
             }
-        case .none:
+        // Live rows are for the window's screens, never said.
+        case .activity, .none:
             break
         }
     }
@@ -1022,6 +1025,14 @@ public final class Conversation {
             await presenter.dismissAll()
         case .look:
             await look(event)
+        case .point:
+            // A ring over the screen that goes on the next click or key, so nothing waits on it and the brain says what it is.
+            guard let spot = event.point, await presenter.point(at: spot, label: event.title ?? "") else {
+                diary.note("could not point for \(event.subject)")
+                await shown(event, Typed(.failed, "that spot is on no display of this Mac"))
+                return
+            }
+            await shown(event, Typed(.typed))
         case .folder:
             let opener = event.title.flatMap(FolderOpener.init(rawValue:)) ?? .finder
             guard let path = event.host?.cwd, await presenter.openFolder(path, in: opener) else {
@@ -1062,9 +1073,10 @@ public final class Conversation {
         guard let presenter else { return }
         face.react(.glance)
         let app = event.title.flatMap { $0.isEmpty ? nil : $0 }
-        // A session's own tab is read by its terminal first, so its question is seen without Screen Recording.
-        var sight = await event.host.asyncMap { await presenter.readTab(of: $0) } ?? nil
-        if sight == nil { sight = await presenter.look(app: app) }
+        // A session's own tab is read by its terminal first, so its question is seen without Screen Recording, unless every display is wanted to point on.
+        let picture = event.lookPicture
+        var sight = picture == .screens ? nil : await event.host.asyncMap { await presenter.readTab(of: $0) } ?? nil
+        if sight == nil { sight = await presenter.look(app: app, picture: picture) }
         diary.note("looked at \(sight?.app ?? app ?? "the screen")\(sight?.image == nil ? " with no capture" : "")")
         var request = newRequest(.seen)
         request.subject = event.subject
@@ -1251,11 +1263,11 @@ public final class Conversation {
             return
         }
         if needsTouchID {
-            face.show(.needsYou, caption: caption("Touch ID to \(event.summary)"))
+            face.show(.needsYou, caption: caption(ProposalLines.caption(kind: event.proposalKind, summary: event.summary)))
             do {
                 signature = try await key.sign(
                     confirmationMessage(subject: event.subject, answer: ProposalAnswer.confirmed.rawValue),
-                    reason: event.summary
+                    reason: ProposalLines.prompt(kind: event.proposalKind, summary: event.summary)
                 )
                 answerKind = signature == nil ? .declined : .confirmed
             } catch {
@@ -1313,8 +1325,10 @@ public final class Conversation {
     }
 
     /// A held call answered with a button: a deny goes as it is, and an allow only with Touch ID over exactly
-    /// this call, unless the daemon placed it inside its repository, where a tap is the answer.
-    public func answerHeld(_ subject: String, _ answer: HoldAnswer, reason: String, touchID: Bool = true) async -> HeldOutcome {
+    /// this call, unless the daemon placed it inside its repository, where a tap is the answer. `actionDigest` is the
+    /// call as the card showed it, which a yes signs in the v4 words when the daemon gave one.
+    public func answerHeld(_ subject: String, _ answer: HoldAnswer, reason: String, touchID: Bool = true,
+                           actionDigest: String? = nil) async -> HeldOutcome {
         // A teammate's call has no rule on this Mac to relax, so from now on is a yes to this call there.
         if let workspace, workspace.owns(subject) {
             return await answerForTeam(workspace, subject, answer == .always ? .once : answer, reason: reason)
@@ -1322,8 +1336,10 @@ public final class Conversation {
         var request = newRequest(.confirm)
         request.subject = subject
         request.answer = answer.rawValue
+        // The digest of the call as shown goes with every answer, so the daemon refuses by name one that changed since.
+        request.actionDigest = actionDigest
         if answer != .deny, touchID || signsEveryYes(subject) {
-            switch await signature(subject, answer: answer.rawValue, reason: reason) {
+            switch await signature(subject, answer: answer.rawValue, actionDigest: actionDigest, reason: reason) {
             case .signed(let signature): request.signature = signature
             case .refused(let outcome): return outcome
             }
@@ -1416,7 +1432,7 @@ public final class Conversation {
         switch scope.scopeKind {
         case .machine: return "Very well. That rule is in force on this Mac."
         case .repository: return "Very well. That rule is in force in \(scope.label)."
-        case .team: return "Very well. I have offered that rule to the team. It holds everywhere once a second admin approves it."
+        case .team: return "Very well. I have offered that rule to the team. It holds everywhere once an admin approves it."
         case nil: return "Very well. That rule is in force."
         }
     }
@@ -1475,7 +1491,7 @@ public final class Conversation {
     /// Touch ID over this answer, asked only once the daemon trusts this Mac's key: a signature from any
     /// other key is refused after the fingerprint, which reads as the button doing nothing.
     private func signature(
-        _ subject: String, answer: String, edited: String? = nil, editedTo: String? = nil, reason: String
+        _ subject: String, answer: String, edited: String? = nil, editedTo: String? = nil, actionDigest: String? = nil, reason: String
     ) async -> Signing {
         // A press is a hand at this Mac, so only a phone holding the voice or driving takes it from Touch ID; a paired one still gets it.
         if let phone = phoneAnswers {
@@ -1489,7 +1505,10 @@ public final class Conversation {
             return .refused(.failed(Self.anotherKeyLine))
         }
         face.show(.needsYou, caption: caption("Touch ID to \(reason)"))
-        guard let signature = try? await key.sign(confirmationMessage(subject: subject, answer: answer, edited: edited, editedTo: editedTo), reason: reason) else {
+        // A held call's digest binds the yes to exactly the call shown; everything else signs the older words.
+        let message = actionDigest.map { actionConfirmationMessage(subject: subject, answer: answer, actionDigest: $0) }
+            ?? confirmationMessage(subject: subject, answer: answer, edited: edited, editedTo: editedTo)
+        guard let signature = try? await key.sign(message, reason: reason) else {
             face.show(.idle, caption: "")
             return .refused(.cancelled)
         }
@@ -1531,7 +1550,7 @@ public final class Conversation {
         request.answer = ProposalAnswer.declined.rawValue
         _ = try? await link.request(request)
         chimes?.play(.declined)
-        await say("Something proposed an allow you did not ask for. I have declined it.")
+        await say(ProposalLines.unasked(kind: event.proposalKind))
     }
 
     /// The app's part of the answer, sent once it is spoken, so a trace shows where the seconds went:

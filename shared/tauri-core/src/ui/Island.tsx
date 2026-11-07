@@ -25,6 +25,7 @@ import {
   STAND_IN_NOTCH,
   type FinishedCard,
   type HeldAnswer,
+  handedOutcome,
   type HeldCalls,
   type HeldOutcome,
   type IslandMode,
@@ -40,15 +41,14 @@ import {
 import { islandWindow, type HitArea } from './adapters/tauri-island-window';
 import { CONTENT_INSET, Empty, Finished, HeldCall, ProposalCard } from './Cards';
 import { loudness } from './island/loudness';
-import { IslandButton, IslandCard, IslandTab, NotchShape, Satellite, UnderPill, useSprings, type Movement } from './kit';
+import { IslandButton, IslandCard, IslandTab, type Movement, NotchShape, Pressable, Satellite, UnderPill, useSprings } from './kit';
 import { Orb, type OrbHandle } from './Orb';
 import { Settings } from './Settings';
 import { Hearing, useConversation, voiceFacts, VoicePills } from './Talk';
 import { PhoneTurn } from './voice/PhoneTurn';
 import { AnswerCard, IslandConversation } from './voice/Conversation';
-import { answeringTurn, isLongReply, type TurnWords } from '../core/domain/island-layout';
+import { shownProposal } from '../core/domain/proposal-card';
 import type { Exchange } from '../core';
-import { useLiveExchange } from './island/live-exchange';
 import { parseHistory } from '../core/domain/history';
 import { localHistory } from './sessions/history-store';
 import { showSummary } from './adapters/tauri-windows';
@@ -62,6 +62,7 @@ import { SessionLogo } from './sessions/parts';
 import { Question } from './sessions/Question';
 import { UnderIsland } from './cards/UnderIsland';
 import type { IslandExtras } from './tray/island-extras';
+import { CardLines, IslandLines, LauncherLines } from '../core/domain/island-lines';
 
 /** A working session as the closed island shows it: one logo beside the notch. */
 export interface WorkingSession {
@@ -142,9 +143,8 @@ const NO_SESSIONS: SessionsState = { cards: [], focusId: undefined, focused: und
 const RESTING_MODES: readonly IslandMode[] = ['peek', 'compact', 'empty', 'overview', 'session'];
 
 /** The talking modes share one content, so the island grows around the words instead of refading them. */
-function contentId(mode: IslandMode, active: boolean): string {
+function contentId(mode: IslandMode): string {
   if (mode === 'conversation' || mode === 'draft' || mode === 'rule') return 'conversation';
-  if (mode === 'answer' && active) return 'conversation';
   return mode;
 }
 
@@ -221,20 +221,6 @@ export function Island({
   const [countdown, setCountdown] = useState<number | undefined>(preview.countdown);
   // An exchange picked in the side panel, opened tall while nobody talks, as the Mac's `picked`.
   const [picked, setPicked] = useState<Exchange | undefined>(preview.picked);
-  // The answer under the question opened tall or put back by hand; undefined lets a long reply open itself.
-  const [expanded, setExpanded] = useState<boolean>();
-  // What the voice held when this time talking began, so a new press never shows the last reply.
-  const talkStart = useRef<TurnWords>();
-  const wasActive = useRef(false);
-  if (active !== wasActive.current) {
-    wasActive.current = active;
-    talkStart.current = active && preview.talk === undefined ? { phase: talk.phase, heard: talk.heard, reply: talk.reply } : undefined;
-  }
-  const answering = active && answeringTurn(talk, talkStart.current);
-  const turn = useLiveExchange(talk);
-  useEffect(() => {
-    if (!answering) setExpanded(undefined);
-  }, [answering, talk.heard]);
   const orb = useRef<OrbHandle>();
   const shape = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -242,8 +228,8 @@ export function Island({
   const lastActivity = useRef(performance.now());
   const onLeft = useRef(false);
 
-  // The latest proposal decides between the work and the rule screens; the newest is the one shown.
-  const proposal = proposals[proposals.length - 1];
+  // Something going out in the person's name comes before a rule, as on the Mac; the newest of each is the one shown.
+  const proposal = shownProposal(proposals);
   const settled = settle({
     ...RESTING,
     held: held.waiting.shown !== undefined || held.settled !== undefined,
@@ -257,8 +243,6 @@ export function Island({
     talking: active,
     // The person's own words open the hearing screen; what Memnox says is heard, so the orb stays up for it.
     ...(preview.talk !== undefined ? { wordsHeard: (talk.heard ?? '') !== '' } : voiceFacts(conversation, liveWords)),
-    answering,
-    answerTall: expanded ?? isLongReply(talk.reply),
     pickedAnswer: picked !== undefined,
     opened: opened || settingsOpen,
     working: working.length,
@@ -372,7 +356,7 @@ export function Island({
     return () => clearTimeout(wait);
   }, [hovering, active, mode, onSide, sideOpen, preview.hovering]);
 
-  // Open and untouched for a minute it puts itself away, counting the last ten seconds down as a shrinking line.
+  // Open and untouched for twenty seconds it puts itself away, counting the last ten seconds down as a shrinking line.
   useEffect(() => {
     if (!(opened || settingsOpen) || active || !countsDown(mode) || preview.countdown !== undefined) {
       if (preview.countdown === undefined) setCountdown(undefined);
@@ -382,7 +366,7 @@ export function Island({
       const left = idleCountdown(performance.now() - lastActivity.current);
       if (left.closes) close();
       else setCountdown(left.fraction);
-    }, 200);
+    }, COUNTDOWN_TICK_MS);
     return () => clearInterval(tick);
   }, [opened, settingsOpen, active, mode, preview.countdown]);
 
@@ -445,6 +429,21 @@ export function Island({
     orb.current?.react(outcome.kind === 'failed' ? 'stumble' : outcome.kind !== 'answered' ? 'settle' : choice === HOLD_ANSWER.DENY ? 'refused' : 'allowed');
   }
 
+  // A page's answer to a held call is pressed here, as the Mac's pages hand theirs to its island: the key is asked for,
+  // the island shakes on a failure and its card says who got there first, and the page hears how it ended.
+  const answeredRef = useRef(answered);
+  answeredRef.current = answered;
+  useEffect(() => {
+    if (previewing) return;
+    return islandWindow.onHeldHanded((subject, choice) => {
+      talking.answeredByHand(subject);
+      void calls.answer(subject, choice).then((outcome) => {
+        answeredRef.current(choice, outcome);
+        islandWindow.tellHeldAnswered(subject, handedOutcome(outcome));
+      });
+    });
+  }, [calls, talking, previewing]);
+
   function proposalAnswered(outcome: HeldOutcome, sent = false) {
     extras?.proposalAnswered(outcome, sent);
     if (outcome.kind === 'failed') {
@@ -457,39 +456,29 @@ export function Island({
   const orbState: OrbState = waiting ? 'needs-you' : talk.phase;
   const focusCard = sessionsState.cards.find((card) => card.sessionId === sessionsState.focusId) ?? sessionsState.cards[0];
   const title = interimSettings
-    ? 'Settings'
+    ? IslandLines.settings
     : islandTitle(mode, {
         session: focusCard === undefined ? undefined : cardTitle(focusCard),
-        launcher: launcherPage === 'tool' && pickedTool !== undefined ? toolkitName(pickedTool.toolkit) : launcherPage === 'tools' ? 'Tools' : 'Memnox',
+        launcher: launcherPage === 'tool' && pickedTool !== undefined ? toolkitName(pickedTool.toolkit) : launcherPage === 'tools' ? IslandLines.tools : IslandLines.memnox,
       });
   const launcherFacts: LauncherFacts = {
     working: working.length,
     toolsCaption: liveTools.caption,
     muted: mute?.on === true,
     historyOpen: sideOpen,
-    talkKey: 'Ctrl Alt Space',
-    ruleKey: 'Hold Ctrl Alt',
+    talkKey: LauncherLines.talkKey,
+    ruleKey: LauncherLines.ruleKey,
     ...launcher?.facts,
   };
-
-  /** The person's own turn: their question in the bubble, or their live words as they follow up, over the answer arriving. */
-  function turnView(tall: boolean): ReactNode {
-    if (turn === undefined) return null;
-    return (
-      <IslandConversation question={turn.question} live={conversation.turns.live} listening={conversation.turns.listening} className={CONTENT_INSET}>
-        <AnswerCard exchange={turn} live expanded={tall} onExpand={() => setExpanded(!tall)} onOpen={() => onOpenAnswer(turn)} thinking={talk.phase === 'thinking' && talk.caption !== undefined ? talk.caption : 'Thinking'} />
-      </IslandConversation>
-    );
-  }
 
   const content: ReactNode = (() => {
     switch (mode) {
       case 'peek':
-        return <TapTarget onTap={tapped} label="Talk to Memnox" />;
+        return <TapTarget onTap={tapped} label={CardLines.talk} />;
       case 'compact':
         return <Compact working={working} waitingOn={held.waiting.shown?.card.sessionId} onTap={tapped} notch={notch} />;
       case 'voice':
-        return <TapTarget onTap={tapped} label="Stop or keep listening" />;
+        return <TapTarget onTap={tapped} label={IslandLines.stopOrKeep} />;
       case 'hearing':
         return <Hearing state={talk} notch={notch} onTap={tapped} conversation={preview.talk !== undefined ? undefined : conversation} />;
       case 'held':
@@ -514,7 +503,6 @@ export function Island({
               <Settings voiceSettings={voiceSettings} setup={setup} />
             </IslandCard>
           );
-        if (active) return turnView(true);
         return picked === undefined ? null : (
           <IslandConversation question={picked.question} className={CONTENT_INSET}>
             <AnswerCard exchange={picked} onOpen={() => onOpenAnswer(picked)} />
@@ -589,7 +577,6 @@ export function Island({
         );
       // A phone's turn, shown like the person's own with the phone named, and no sound.
       case 'conversation':
-        if (active) return turnView(false);
         return conversation.turns.phone === undefined ? null : <PhoneTurn turn={conversation.turns.phone} />;
     }
   })();
@@ -619,7 +606,7 @@ export function Island({
         <div className="absolute" style={{ left: -ISLAND.pointerSlop, top: 0, width: shapeWidth + 2 * ISLAND.pointerSlop, height: moved.height + ISLAND.pointerSlop }} />
         <div className="absolute top-0" style={{ left: ISLAND.flare, width: moved.width, height: moved.height }}>
           <div className="absolute inset-0 overflow-hidden" style={{ borderRadius: `0 0 ${moved.radius}px ${moved.radius}px` }}>
-            <ContentSwap id={contentId(mode, active)}>{content}</ContentSwap>
+            <ContentSwap id={contentId(mode)}>{content}</ContentSwap>
             {header && (
               <IslandHeader
                 title={title}
@@ -647,7 +634,7 @@ export function Island({
           {countdown !== undefined && (
             <span
               className="pointer-events-none absolute h-0.5 -translate-x-1/2 rounded-full bg-white/35 transition-[width] duration-200 ease-linear"
-              style={{ left: moved.width / 2, top: moved.height - 4 - 1, width: 160 * countdown }}
+              style={{ left: moved.width / 2, top: moved.height - COUNTDOWN_BAR.lift - COUNTDOWN_BAR.thickness / 2, width: COUNTDOWN_BAR.width * countdown }}
             />
           )}
         </div>
@@ -666,7 +653,7 @@ export function Island({
         />
       )}
       <div className="pointer-events-none absolute inset-x-0 flex flex-col items-center" style={{ top: moved.height + ISLAND.pillGap }}>
-        <div ref={below} className="pointer-events-auto flex max-w-[560px] flex-col items-center gap-1.5">
+        <div ref={below} className="pointer-events-auto flex max-w-island flex-col items-center gap-1.5">
         {setupState.doing !== undefined && (
           <UnderPill symbol={<LoaderCircle size={11} strokeWidth={2.25} />} tone="neutral" spinning>
             {setupState.doing}
@@ -675,14 +662,14 @@ export function Island({
         {setupState.failed !== undefined && (
           <UnderPill symbol="exclamationmark.triangle.fill" tone="red">
             <span className="truncate">{setupState.failed}</span>
-            <IslandButton className="!px-2.5 !py-[3px] !text-caption" onClick={() => void setup.ensure()}>
-              Check again
+            <IslandButton onClick={() => void setup.ensure()}>
+              {IslandLines.checkAgain}
             </IslandButton>
           </UnderPill>
         )}
         {setupState.doing === undefined && setupState.failed === undefined && !held.connected && !previewing && (
           <UnderPill symbol="ellipsis" tone="neutral">
-            Waiting for Memnox to start
+            {IslandLines.waitingToStart}
           </UnderPill>
         )}
         {!previewing && <VoicePills conversation={conversation} />}
@@ -693,25 +680,43 @@ export function Island({
   );
 }
 
+/** How often the idle countdown is read, often enough that its bar shrinks smoothly. */
+const COUNTDOWN_TICK_MS = 200;
+
+/** `IslandView`'s countdown bar: 160 wide at full and 2 thick, centred 4 above the island's bottom edge. */
+const COUNTDOWN_BAR = { width: 160, thickness: 2, lift: 4 } as const;
+
+/** `ShakeEffect`: three swings each way over 0.42 s, 9 at most and dying away, drawn in 25 steps. */
+const SHAKE = { frames: 25, halfSwings: 6, reach: 9, durationMs: 420 } as const;
+
+/** `HopEffect`: a 5% swell and back over half a second. */
+const HOP = { swell: 1.05, durationMs: 500 } as const;
+
+/** How long the content that left takes to blur away, before the new content comes in. */
+const CONTENT_LEAVE_MS = 160;
+
+/** The header's left inset: past the orb when it sits in the row, else the island's own 18; and 16 kept beside the notch. */
+const HEADER_INSET = { pastOrb: 46, plain: 18, besideNotch: 16 } as const;
+
 /** Shakes the island side to side, for something refused or failed, as `ShakeEffect` does. */
 function shake(element: HTMLElement | null) {
   if (element === null || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const frames = Array.from({ length: 25 }, (_, step) => {
-    const p = step / 24;
-    return { translate: `${Math.sin(p * Math.PI * 6) * 9 * (1 - p)}px 0` };
+  const frames = Array.from({ length: SHAKE.frames }, (_, step) => {
+    const p = step / (SHAKE.frames - 1);
+    return { translate: `${Math.sin(p * Math.PI * SHAKE.halfSwings) * SHAKE.reach * (1 - p)}px 0` };
   });
-  element.animate(frames, { duration: 420, easing: 'linear' });
+  element.animate(frames, { duration: SHAKE.durationMs, easing: 'linear' });
 }
 
 /** A little swell and back hung from the top edge, for something that arrived, as `HopEffect` does. */
 function hop(element: HTMLElement | null) {
   if (element === null || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  element.animate([{ scale: '1' }, { scale: '1.05' }, { scale: '1' }], { duration: 500, easing: 'ease-in-out' });
+  element.animate([{ scale: '1' }, { scale: String(HOP.swell) }, { scale: '1' }], { duration: HOP.durationMs, easing: 'ease-in-out' });
 }
 
 /** The whole body as one tap, which starts listening or stops it. */
 function TapTarget({ onTap, label }: { onTap: () => void; label: string }) {
-  return <button type="button" className="absolute inset-0 cursor-pointer bg-transparent" onClick={onTap} aria-label={label} />;
+  return <Pressable className="absolute inset-0 cursor-pointer bg-transparent" onClick={onTap} aria-label={label} />;
 }
 
 /**
@@ -730,7 +735,7 @@ function ContentSwap({ id, children }: { id: string; children: ReactNode }) {
   });
   useEffect(() => {
     if (leaving === undefined) return;
-    const done = setTimeout(() => setLeaving(undefined), 160);
+    const done = setTimeout(() => setLeaving(undefined), CONTENT_LEAVE_MS);
     return () => clearTimeout(done);
   }, [leaving]);
   return (
@@ -753,15 +758,15 @@ function ContentSwap({ id, children }: { id: string; children: ReactNode }) {
  */
 function IslandHeader({ title, count, pastOrb, notch, back }: { title: string; count: number; pastOrb: boolean; notch: NotchGeometry; back?: () => void }) {
   return (
-    <div className="absolute inset-x-0 top-0 flex animate-header-in items-center gap-1.5" style={{ height: notch.height, paddingLeft: pastOrb ? 46 : 18 }}>
-      {back !== undefined && <IslandTab symbol="chevron.left" label="Back" onPress={back} />}
+    <div className="absolute inset-x-0 top-0 flex animate-header-in items-center gap-1.5" style={{ height: notch.height, paddingLeft: pastOrb ? HEADER_INSET.pastOrb : HEADER_INSET.plain }}>
+      {back !== undefined && <IslandTab symbol="chevron.left" label={IslandLines.back} onPress={back} />}
       <span key={title} className="min-w-0 animate-[content-in_350ms_cubic-bezier(0.25,1.1,0.4,1)_both] truncate text-headline font-semibold text-white" role="heading" aria-level={1}>
         {title}
       </span>
-      <span className="flex-1" style={{ minWidth: notch.width + 16 }} />
+      <span className="flex-1" style={{ minWidth: notch.width + HEADER_INSET.besideNotch }} />
       {/* Nothing at all when nothing works, since "0 working" reads like a fault. */}
-      <span className="tabular shrink-0 whitespace-nowrap pr-[18px] text-button font-medium text-white/55" style={{ opacity: count === 0 ? 0 : 1 }} aria-hidden={count === 0}>
-        {count === 1 ? '1 working' : `${count} working`}
+      <span className="tabular shrink-0 whitespace-nowrap pr-island-count-trailing text-button font-medium text-white/55" style={{ opacity: count === 0 ? 0 : 1 }} aria-hidden={count === 0}>
+        {IslandLines.working(count)}
       </span>
     </div>
   );
@@ -806,10 +811,10 @@ function Satellites({
       </div>
       <div className="absolute flex flex-col" style={{ top, left: left + width + SATELLITE.gap, gap }}>
         <span className="animate-satellite-right">
-          <Satellite symbol="gearshape" label="Settings" onPress={onSettings} />
+          <Satellite symbol="gearshape" label={IslandLines.settings} onPress={onSettings} />
         </span>
         <span className="animate-satellite-right [animation-delay:50ms]">
-          <Satellite symbol={mute?.on === true ? 'speaker.slash' : 'speaker.wave.2'} label={mute?.on === true ? 'Unmute the voice' : 'Mute the voice'} on={mute?.on === true} onPress={mute?.toggle} />
+          <Satellite symbol={mute?.on === true ? 'speaker.slash' : 'speaker.wave.2'} label={mute?.on === true ? IslandLines.unmute : IslandLines.mute} on={mute?.on === true} onPress={mute?.toggle} />
         </span>
       </div>
     </div>
@@ -827,7 +832,7 @@ const SHOWN_LOGOS = 3;
 function Compact({ working, waitingOn, onTap, notch }: { working: readonly WorkingSession[]; waitingOn: string | undefined; onTap: () => void; notch: NotchGeometry }) {
   const count = working.length;
   return (
-    <button type="button" className="absolute inset-x-0 top-0 flex cursor-pointer items-center justify-end bg-transparent pr-3" style={{ height: notch.height }} onClick={onTap} aria-label={count === 1 ? '1 agent working' : `${count} agents working`}>
+    <Pressable className="absolute inset-x-0 top-0 flex cursor-pointer items-center justify-end bg-transparent pr-3" style={{ height: notch.height }} onClick={onTap} aria-label={IslandLines.agentsWorking(count)}>
       <span className="flex items-center">
         {working.slice(0, SHOWN_LOGOS).map((session, index) => (
           <span
@@ -840,6 +845,6 @@ function Compact({ working, waitingOn, onTap, notch }: { working: readonly Worki
           </span>
         ))}
       </span>
-    </button>
+    </Pressable>
   );
 }

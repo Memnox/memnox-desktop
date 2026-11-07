@@ -40,14 +40,14 @@ class MemoryStore implements PreferenceStore {
 }
 
 describe('the Settings pages', () => {
-  it('lists twelve pages in the Mac sidebar order, the overview alone first', () => {
-    expect(SETTINGS_PAGES).toEqual(['overview', 'account', 'permissions', 'connection', 'phones', 'appearance', 'tools', 'apps', 'voice', 'listening', 'dictation', 'help']);
+  it('lists fifteen pages in the Mac sidebar order, the overview alone first', () => {
+    expect(SETTINGS_PAGES).toEqual(['overview', 'account', 'permissions', 'connection', 'phones', 'appearance', 'sync', 'tools', 'apps', 'voice', 'listening', 'dictation', 'help']);
     expect(SETTINGS_GROUPS[0]?.title).toBeUndefined();
     expect(SETTINGS_GROUPS.map((group) => group.title).slice(1)).toEqual(['You', 'This computer', 'Agents and tools', 'Voice', 'Support']);
   });
 
   it('filters by title or the line under it, and lists all for an empty search', () => {
-    expect(matchingPages('')).toHaveLength(12);
+    expect(matchingPages('')).toHaveLength(13);
     expect(matchingPages('phone')).toEqual(['phones']);
     expect(matchingPages('LISTENS')).toEqual(['listening']);
     expect(matchingPages('nothing like this')).toEqual([]);
@@ -235,6 +235,7 @@ describe('the one sign in', () => {
     expect(opened).toEqual(['https://console.memnox.com/device']);
     expect(daemon.sent('person-sign-in')[0]?.name).toBe('Desk');
     expect(account.whole).toEqual({ kind: 'signed-in', name: 'Sam', workspace: 'Acme' });
+    expect(account.isJoined).toBe(true);
   });
 
   it('calls a daemon that does not know the question too old, and one that is down unreachable', async () => {
@@ -270,10 +271,10 @@ describe('pairing a phone', () => {
     };
   }
 
-  function pairingOver(daemon: ScriptedDaemon, key = new PersonKey(), connected: boolean | undefined = true) {
+  function pairingOver(daemon: ScriptedDaemon, key = new PersonKey()) {
     const ids = new RequestIds();
     const link = heldOpen(daemon);
-    return { pairing: new PhonePairing(link, new Signer(link, key, ids), key, ids, async () => connected, () => 'Desk'), key };
+    return { pairing: new PhonePairing(link, new Signer(link, key, ids), key, ids, () => 'Desk'), key };
   }
 
   it('shows the QR, then the digits, and pairs once the key signs the pairing', async () => {
@@ -306,7 +307,7 @@ describe('pairing a phone', () => {
 
   it('asks the daemon for a pairing on a computer with no workspace, since none is needed', async () => {
     const daemon = new ScriptedDaemon();
-    const { pairing } = pairingOver(daemon, new PersonKey(), false);
+    const { pairing } = pairingOver(daemon);
     await pairing.pair();
     expect(daemon.requests.map((each) => each.method)).toEqual(['pair-begin']);
   });
@@ -376,6 +377,20 @@ describe('the home', () => {
     expect(daemon.sent('hand-over')[0]?.action).toBe('git push');
     expect(home.handOverNote).toBe('Pick where it holds on the island, then confirm with Windows Hello.');
     expect(home.home).toEqual(view);
+  });
+
+  it('restarts the service once at a time and says why it failed', async () => {
+    const daemon = new ScriptedDaemon({});
+    let restarts = 0;
+    let finish: (why: string | undefined) => void = () => undefined;
+    const home = new Home(daemon, new RequestIds(), async () => undefined, undefined, () => (restarts += 1, new Promise((done) => (finish = done))));
+    const first = home.restartService();
+    expect(home.restarting).toBe(true);
+    expect(await home.restartService()).toBeUndefined();
+    finish('The Memnox service would not restart. In a terminal: memnox daemon --install');
+    expect(await first).toBe('The Memnox service would not restart. In a terminal: memnox daemon --install');
+    expect(home.restarting).toBe(false);
+    expect(restarts).toBe(1);
   });
 });
 

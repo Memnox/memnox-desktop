@@ -52,6 +52,10 @@ public protocol Presenter: AnyObject {
     func openLink(_ url: URL) async -> Bool
     /// The window in front, or the named app's, captured with its controls; nil when nothing could be seen.
     func look(app: String?) async -> Sight?
+    /// The same, words first, with the picture the brain asked for beside them: the window's, or every display's.
+    func look(app: String?, picture: LookPicture?) async -> Sight?
+    /// A ring pulsing on the screen at a spot on one of the screen pictures, with a short label; false when it fits no display.
+    func point(at spot: ScreenSpot, label: String) async -> Bool
     /// The words in a session's own terminal tab, read by the terminal's scripting so no Screen Recording is
     /// needed and no other window is read in its place; nil when it is not in a tab that can be read.
     func readTab(of host: DisplayHost) async -> Sight?
@@ -93,6 +97,10 @@ extension Presenter {
     public func openLink(_ url: URL) async -> Bool { false }
 
     public func look(app: String?) async -> Sight? { nil }
+
+    public func look(app: String?, picture: LookPicture?) async -> Sight? { await look(app: app) }
+
+    public func point(at spot: ScreenSpot, label: String) async -> Bool { false }
 
     public func readTab(of host: DisplayHost) async -> Sight? { nil }
 

@@ -25,6 +25,7 @@ import { readingCaption } from '../domain/caption-lines';
 import { SIGN_IN_NOTICE } from '../domain/sign-in-notice';
 import { ANOTHER_KEY_LINE, type KeyStatus } from '../domain/key-status';
 import { EarlierAnswer } from '../domain/earlier-answer';
+import { proposalPrompt, unaskedLine } from '../domain/proposal-lines';
 import { quietHere } from '../domain/quiet';
 import { SentenceSplitter } from '../domain/sentence-splitter';
 import { correctedWords } from '../domain/corrections';
@@ -37,6 +38,7 @@ import type { Chimes } from './ports/chimes';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { Speaker } from './ports/speaker';
 import type { RequestIds } from './request-ids';
+import type { Presses } from './presses';
 import type { ProposalCards } from './proposal-cards';
 import type { Signer } from './signer';
 
@@ -81,6 +83,8 @@ export interface TalkingOptions {
   readonly signsEveryYes?: (subject: string) => boolean;
   /** A teammate's call answered by voice, so the island takes its card down as a button would. */
   readonly teamAnswered?: (subject: string, outcome: HeldOutcome) => void;
+  /** Proposals a press in the Memnox window raised, asked for as surely as words; without it only words ask. */
+  readonly presses?: Presses;
 }
 
 /** What the voice needs of the workspace's calls, the Mac's `WorkspaceAnswering` as the conversation sees it. */
@@ -389,7 +393,11 @@ export class Talking {
    */
   private async proposal(event: DaemonEvent): Promise<void> {
     if (quietHere(event, this.phoneHolds)) return;
-    const asked = this.lastHeard !== undefined && this.now() - this.lastHeard < ANSWER_WINDOW_MS;
+    const spoke = this.lastHeard !== undefined && this.now() - this.lastHeard < ANSWER_WINDOW_MS;
+    // Or pressed for: the answer to a press in the Memnox window names exactly this proposal, so nothing else rides on it.
+    const asked = spoke || (await this.options.presses?.take(event.subject)) === true;
+    // A second copy of one already at the key is left alone, since declining it would undo the yes being given.
+    if (!asked && this.takenUp.has(event.subject)) return;
     if (!asked) return this.decline(event);
     if (event.teamAnswer !== undefined) {
       // The read back names the call, so the prompt waits until it has been said, as any proposal's does.
@@ -411,7 +419,7 @@ export class Talking {
     let answer: ProposalAnswer = PROPOSAL_ANSWER.CONFIRMED;
     const request: DaemonRequest = { ...this.request(DAEMON_METHOD.CONFIRM), subject: event.subject };
     if (event.withinSession !== true || this.options.signsEveryYes?.(event.subject) === true) {
-      const signing = await this.signer.sign(event.subject, PROPOSAL_ANSWER.CONFIRMED, event.summary);
+      const signing = await this.signer.sign(event.subject, PROPOSAL_ANSWER.CONFIRMED, proposalPrompt(event));
       if (signing.kind === 'refused') return this.say(signing.why);
       if (signing.kind === 'signed') request.signature = signing.signature;
       else answer = PROPOSAL_ANSWER.DECLINED;
@@ -505,7 +513,7 @@ export class Talking {
   private async decline(event: DaemonEvent): Promise<void> {
     const request = { ...this.request(DAEMON_METHOD.CONFIRM), subject: event.subject, answer: PROPOSAL_ANSWER.DECLINED };
     await requestOnce(this.link, request).catch(() => undefined);
-    await this.say(LINES.unasked);
+    await this.say(unaskedLine(event));
   }
 
   /** Streams a turn into speech, sentence by sentence, and says how it ended. */

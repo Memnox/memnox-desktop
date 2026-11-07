@@ -439,6 +439,24 @@ pub fn runtime_wired() -> bool {
     home().is_some_and(|home| home.join(".memnox").join("kept.json").exists())
 }
 
+/// The line that builds a runtime checkout before its service restarts, as the Mac's update does, since a checkout
+/// edited since its last build runs stale code otherwise; a release has nothing to build.
+fn build_line(source: &Source) -> Option<String> {
+    match source {
+        Source::Local { checkout } => {
+            Some(format!("cd {} && pnpm build", quoted(Path::new(checkout))))
+        }
+        Source::Npm => None,
+    }
+}
+
+/// Builds a runtime checkout; true with nothing done for a release. A failed build still lets the restart run on
+/// the code that was there, so the caller carries on either way.
+#[tauri::command]
+pub async fn runtime_build() -> Result<bool, String> {
+    blocking(|| build_line(&source()).is_none_or(|line| shell(&line))).await
+}
+
 #[tauri::command]
 pub async fn runtime_run(step: Step) -> Result<bool, String> {
     blocking(move || {
@@ -456,6 +474,15 @@ mod tests {
         let step: Step = serde_json::from_str("\"update\"").unwrap();
         assert_eq!(step.words(), "update --yes");
         assert!(serde_json::from_str::<Step>("\"rm -rf ~\"").is_err());
+    }
+
+    #[test]
+    fn builds_only_a_checkout_before_a_restart() {
+        let checkout = Source::Local {
+            checkout: "/src/memnox-runtime".into(),
+        };
+        assert!(build_line(&checkout).is_some_and(|line| line.ends_with("&& pnpm build")));
+        assert_eq!(build_line(&Source::Npm), None);
     }
 
     #[test]

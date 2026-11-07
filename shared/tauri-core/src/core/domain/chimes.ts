@@ -7,11 +7,6 @@ import { DAEMON_EVENT, HOLD_ANSWER, type DaemonEvent } from '@memnox/core/wire';
  */
 export type Cue = 'listening' | 'sent' | 'held' | 'allowed' | 'declined' | 'done' | 'failed' | 'settled' | 'closed';
 
-export const CUES: readonly Cue[] = ['listening', 'sent', 'held', 'allowed', 'declined', 'done', 'failed', 'settled', 'closed'];
-
-/** Low enough that the ear and the recognizer never take a cue for the person talking, as the Mac's 0.35. */
-export const CHIME_VOLUME = 0.35;
-
 /**
  * The cue an event from the live feed plays, or none. A held call chimes as it arrives and a call
  * settled elsewhere purrs; a phone's events are left to the phone, so they make no sound here.

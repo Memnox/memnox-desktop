@@ -26,6 +26,13 @@ final class AnnouncingTests: XCTestCase {
         }
     }
 
+    func testSaysASessionFinishingOnItsOwnSettingWithoutTheRestOfTheNews() throws {
+        XCTAssertTrue(try notice("finished").isSaid(speakUp: false, sayFinished: true))
+        XCTAssertFalse(try notice("finished").isSaid(speakUp: false, sayFinished: false))
+        XCTAssertFalse(try notice("committed").isSaid(speakUp: false, sayFinished: true))
+        XCTAssertFalse(try notice("pushed").isSaid(speakUp: false, sayFinished: true))
+    }
+
     func testSaysEverythingThatIsNotANoticeEvenWithSpeakUpOff() throws {
         let held = try event(#"{"kind":"held","subject":"apr_1","agent":"claude-code","summary":"It wants to push.","at":"2026-10-01T00:00:00Z"}"#)
         XCTAssertTrue(held.isSaid(speakUp: false))

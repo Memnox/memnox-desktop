@@ -214,6 +214,7 @@ describe('the servers kept', () => {
     watcher.restore([server('m_box', 1, 'build-box')], 'm_box');
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(delivered).toEqual([['apr_1', 'build-box']]);
+    expect(feeds[0]?.sent('subscribe')[0]?.subscribeActivity).toBe(true);
     expect(target.serverNameFor('apr_1')).toBe('build-box');
     expect(target.target).toEqual({ kind: 'server', machineId: 'm_box', deviceId: 'dev_m_box', name: 'build-box' });
     expect(OWN_DEVICES.ids.has('dev_m_box')).toBe(true);

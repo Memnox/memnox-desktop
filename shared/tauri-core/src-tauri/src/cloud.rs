@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn only_the_clouds_own_api_paths_are_sent() {
         assert!(allowed("v1/me"));
-        assert!(allowed("v1/workspaces/ws_1/me/held?include=recent"));
+        assert!(allowed("v1/workspaces/ws_1/me/held-calls?include=recent"));
         assert!(!allowed("/v1/me"));
         assert!(!allowed("v1/../admin"));
         assert!(!allowed("https://evil.example/v1"));

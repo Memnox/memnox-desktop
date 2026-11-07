@@ -24,6 +24,19 @@ enum AXTree {
         static let depth = 80
         /// Enough elements for a long conversation, few enough that a huge page still answers in a moment.
         static let elements = 6_000
+        /// What a password field shows in place of its value, so a secret never leaves in the words.
+        static let masked = "[password field]"
+    }
+
+    /// How long a read of a window's words may run and how much of them is kept.
+    struct WordBudget: Sendable {
+        /// The walk stops here once it holds `least` characters, since a look is waited on.
+        var soft: Duration = .milliseconds(400)
+        /// And here whatever it holds, so a huge or hung tree never stalls the look.
+        var hard: Duration = .seconds(1)
+        var least = 1_500
+        /// Kept from the end, where a chat's latest answer and a terminal's last lines are.
+        var most = 8_000
     }
 
     /// Roles that only hold other controls, left out of the outline unless they carry a title.
@@ -52,20 +65,42 @@ enum AXTree {
         return lines.joined(separator: "\n")
     }
 
-    /// Every piece of text a window shows, joined in reading order, for reading back what an action left there
-    /// and for reading a window when Memnox may not record the screen.
-    static func text(of window: AXUIElement) -> String {
+    /// Every piece of text the app's front window shows, joined in reading order and bounded by the budget, read by
+    /// process from any thread so a long tree never holds up the main one; password fields are masked.
+    nonisolated static func text(ofFrontWindowOf pid: pid_t, budget: WordBudget = WordBudget()) -> String {
+        let app = AXUIElementCreateApplication(pid)
+        guard let window = element(app, kAXFocusedWindowAttribute) ?? element(app, kAXMainWindowAttribute) else { return "" }
+        var walk = WordWalk(budget: budget, started: .now)
+        collectText(window, depth: 0, walk: &walk)
+        return String(walk.found.joined(separator: "\n").suffix(budget.most))
+    }
+
+    /// Where a walk for words stands: what it found, how many elements it opened, and when it began.
+    private struct WordWalk {
+        let budget: WordBudget
+        let started: ContinuousClock.Instant
         var found: [String] = []
+        var characters = 0
         var visited = 0
-        collectText(window, depth: 0, visited: &visited, into: &found)
-        return found.joined(separator: "\n")
+
+        var spent: Bool {
+            let took = ContinuousClock.now - started
+            return visited >= Words.elements || took >= budget.hard || (took >= budget.soft && characters >= budget.least)
+        }
+
+        mutating func add(_ line: String) {
+            found.append(line)
+            characters += line.count
+        }
     }
 
     private static func walk(_ element: AXUIElement, depth: Int, into lines: inout [String]) {
         guard lines.count < Outline.lines, depth < Outline.depth else { return }
         let role = string(element, kAXRoleAttribute) ?? ""
         let label = [kAXTitleAttribute, kAXDescriptionAttribute].lazy.compactMap { string(element, $0) }.first { !$0.isEmpty }
-        let value = string(element, kAXValueAttribute).map { String($0.prefix(Outline.valueLength)) }
+        // A password field's value is never put in the outline, whatever it holds.
+        let secure = string(element, kAXSubroleAttribute) == kAXSecureTextFieldSubrole
+        let value = secure ? Words.masked : string(element, kAXValueAttribute).map { String($0.prefix(Outline.valueLength)) }
         let shown = !containers.contains(role) || label != nil
         if shown {
             let parts = [role.replacingOccurrences(of: "AX", with: ""), label.map { "\"\($0)\"" }, value.flatMap { $0.isEmpty ? nil : "= \($0)" }]
@@ -76,18 +111,22 @@ enum AXTree {
         }
     }
 
-    private static func collectText(_ element: AXUIElement, depth: Int, visited: inout Int, into found: inout [String]) {
-        guard depth < Words.depth, visited < Words.elements else { return }
-        visited += 1
+    nonisolated private static func collectText(_ element: AXUIElement, depth: Int, walk: inout WordWalk) {
+        guard depth < Words.depth, !walk.spent else { return }
+        walk.visited += 1
+        if string(element, kAXSubroleAttribute) == kAXSecureTextFieldSubrole {
+            walk.add(Words.masked)
+            return
+        }
         if let value = string(element, kAXValueAttribute), !value.isEmpty {
-            found.append(value)
+            walk.add(value)
         } else if string(element, kAXRoleAttribute) == kAXStaticTextRole,
                   let label = [kAXTitleAttribute, kAXDescriptionAttribute].lazy.compactMap({ string(element, $0) }).first(where: { !$0.isEmpty }) {
             // Web content often puts a line of text in its label rather than its value.
-            found.append(label)
+            walk.add(label)
         }
         for child in elements(element, kAXChildrenAttribute) ?? [] {
-            collectText(child, depth: depth + 1, visited: &visited, into: &found)
+            collectText(child, depth: depth + 1, walk: &walk)
         }
     }
 

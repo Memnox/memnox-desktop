@@ -12,6 +12,14 @@ final class DaemonProtocolTests: XCTestCase {
         XCTAssertEqual(text, "{\"id\":3,\"method\":\"ask\",\"said\":\"what is claude doing\"}\n")
     }
 
+    func testAsksForLiveActivityOnlyWhenTold() throws {
+        let plain = DaemonRequest(id: 4, method: .subscribe)
+        XCTAssertEqual(String(data: try encodeLine(plain), encoding: .utf8), "{\"id\":4,\"method\":\"subscribe\"}\n")
+        var asked = plain
+        asked.subscribeActivity = true
+        XCTAssertEqual(String(data: try encodeLine(asked), encoding: .utf8), "{\"id\":4,\"method\":\"subscribe\",\"subscribeActivity\":true}\n")
+    }
+
     func testDecodesWhatTheRuntimeWrites() throws {
         let event = try line(#"{"id":0,"ok":true,"event":{"kind":"held","subject":"apr_1","agent":"claude-code","summary":"claude-code wants to push","at":"2026-09-30T10:00:00.000Z","expiresAt":"2026-09-30T10:02:00.000Z"}}"#)
         XCTAssertEqual(event.event?.eventKind, .held)

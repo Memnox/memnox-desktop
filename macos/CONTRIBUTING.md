@@ -20,9 +20,13 @@ belongs in. Everyone taking part follows the [Code of Conduct](../CODE_OF_CONDUC
 
 ## Set up
 
-You need macOS 14 or later, Xcode 26 or later, and a checkout of
-[memnox-runtime](https://github.com/Memnox/memnox-runtime) beside this one, with its daemon running
-(`memnox daemon`). The app uses no Swift package, and none may be added: everything is Apple's own
+You need an Apple silicon Mac on macOS 14 or later, Xcode 26 or later, and a checkout of
+[memnox-runtime](https://github.com/Memnox/memnox-runtime) beside this one, cloned with
+`git clone https://github.com/Memnox/memnox.git memnox-runtime` or named by `MEMNOX_RUNTIME`, with its
+daemon running (`memnox daemon`). `bundle.sh` builds that checkout, so you also need Node 22 with
+`corepack enable`, and Rust from [rustup](https://rustup.rs) the first time, when the Noise framework is
+built. The framework has no Intel slice, so an Intel Mac cannot build the app. `signing-setup.sh` asks
+for your login keychain password once. The app uses no Swift package, and none may be added: everything is Apple's own
 frameworks, plus the one Noise build the runtime makes, which `scripts/vendor-noise.sh` copies in
 (or builds with `rustup` and `cargo` when there is no build to copy).
 

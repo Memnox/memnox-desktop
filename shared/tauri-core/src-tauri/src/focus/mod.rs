@@ -5,10 +5,12 @@
 //! itself, presses a key in it or reads its screen, so where no such control reaches, the answer says so.
 
 mod editor;
+mod homes;
 mod plan;
 mod process;
 mod terminals;
 
+use homes::Home;
 use plan::{Editor, Host, Shown};
 use terminals::{Pane, Terminal};
 
@@ -91,6 +93,25 @@ pub async fn launch_in_editor(editor: String, folder: String, request: String) -
 pub async fn open_app_links(links: Vec<String>) -> Shown {
     off_main(
         move || editor::open_app_links(&links),
+        Shown::failed("the app stopped answering"),
+    )
+    .await
+}
+
+/// The terminals and the editor here a session may open in, for Where your agents run.
+#[tauri::command]
+pub async fn agent_homes() -> Vec<homes::Found> {
+    off_main(homes::found, Vec::new()).await
+}
+
+/// A session started in the app the person picked, in the folder, running the runtime's line as it was sent.
+#[tauri::command]
+pub async fn launch_in_home(home: String, line: String, folder: String) -> Shown {
+    let Some(picked) = Home::named(&home) else {
+        return Shown::failed(format!("{home} is not an app Memnox opens a session in"));
+    };
+    off_main(
+        move || homes::launch(picked, &line, &folder),
         Shown::failed("the app stopped answering"),
     )
     .await

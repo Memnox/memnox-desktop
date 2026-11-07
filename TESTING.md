@@ -50,9 +50,9 @@ sudo apt install -y build-essential curl git libwebkit2gtk-4.1-dev libgtk-3-dev 
   libayatana-appindicator3-dev librsvg2-dev libgtk-layer-shell-dev libasound2-dev
 # Node 22 or newer, which the runtime needs and Ubuntu's own package is older than.
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && . ~/.nvm/nvm.sh && nvm install 22
-curl https://sh.rustup.rs -sSf | sh && npm install -g pnpm@9.15.4
-git clone git@github.com:Memnox/memnox.git memnox-runtime
-git clone git@github.com:Memnox/memnox-desktop.git
+curl https://sh.rustup.rs -sSf | sh && corepack enable
+git clone https://github.com/Memnox/memnox.git memnox-runtime
+git clone https://github.com/Memnox/memnox-desktop.git
 sudo install -m 644 memnox-desktop/linux/packaging/org.memnox.desktop.policy /usr/share/polkit-1/actions/
 cd memnox-desktop/shared/tauri-core && pnpm wire && pnpm install && pnpm tauri dev
 ```

@@ -47,7 +47,7 @@ struct DictationPage: View {
                 if store.dictionary.words.isEmpty {
                     Text("Names and words Memnox should spell your way, such as a teammate's name or ORB. Fixes you make right after dictating are learned here too.")
                         .font(.system(size: SettingsMetrics.captionSize))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, Memnox.Spacing.xLarge)
                         .padding(.bottom, Memnox.Spacing.large)
@@ -62,7 +62,7 @@ struct DictationPage: View {
                 if store.history.entries.isEmpty {
                     Text("What you dictate shows here, so a dictation that went nowhere can be copied again.")
                         .font(.system(size: SettingsMetrics.rowTextSize))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, Memnox.Spacing.xLarge)
                         .padding(.vertical, Memnox.Spacing.large)
@@ -109,11 +109,11 @@ struct DictationPage: View {
     private func wordRow(_ word: DictationWord) -> some View {
         HStack(spacing: Memnox.Spacing.small) {
             if let said = word.said {
-                Text(said).foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                Image(systemName: "arrow.right").foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
+                Text(said).foregroundStyle(Memnox.Console.ink(Memnox.Ink.secondary))
+                Image(systemName: "arrow.right").foregroundStyle(Memnox.Console.ink(Memnox.Ink.tertiary))
                     .accessibilityLabel("is written as")
             }
-            Text(word.written).foregroundStyle(Memnox.Palette.ink).lineLimit(1)
+            Text(word.written).foregroundStyle(Memnox.Console.ink).lineLimit(1)
             Spacer(minLength: 0)
             Button {
                 store.remove(word.id)
@@ -124,7 +124,7 @@ struct DictationPage: View {
             .help("Remove")
             .accessibilityLabel("Remove \(word.written)")
         }
-        .font(Memnox.sans(Memnox.TextSize.callout))
+        .font(Memnox.Console.sans(Memnox.TextSize.callout))
         .padding(.horizontal, Memnox.Spacing.xLarge)
         .padding(.vertical, Memnox.Spacing.medium)
     }
@@ -133,12 +133,12 @@ struct DictationPage: View {
         HStack(alignment: .top, spacing: Memnox.Spacing.small) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                 Text(entry.written)
-                    .font(Memnox.sans(Memnox.TextSize.callout))
-                    .foregroundStyle(Memnox.Palette.ink)
+                    .font(Memnox.Console.sans(Memnox.TextSize.callout))
+                    .foregroundStyle(Memnox.Console.ink)
                     .lineLimit(Layout.historyLines)
                 Text("\(entry.app ?? "An app"), \(entry.at.formatted(date: .omitted, time: .shortened))")
-                    .font(Memnox.sans(Memnox.TextSize.caption))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
+                    .font(Memnox.Console.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(Memnox.Console.ink(Memnox.Ink.tertiary))
             }
             Spacer(minLength: 0)
             Button("Copy") { PromptTyping.leaveOnClipboard(entry.written) }

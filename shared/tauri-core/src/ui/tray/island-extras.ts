@@ -9,8 +9,11 @@ import type { Chimes } from '../../core/application/ports/chimes';
 import type { PressEnd } from '../../core/domain/chimes';
 import { toolkitName } from '../../core/domain/tool-brand';
 import { movedOn, SIGN_IN_NOTICE } from '../../core/domain/sign-in-notice';
+import { TALK_EVENT } from '../adapters/tauri-commands';
 import { answerMenuOpened, forwardCards, onCardSession, onMenuAction, showScan } from '../adapters/tauri-windows';
+import { demoOn } from '../adapters/demo';
 import { openSession } from '../sessions/open-session';
+import { TAURI_COMMAND } from '../adapters/tauri-commands';
 
 /** How the talk key reads on Windows and Linux. */
 const TALK_KEYS = ['Ctrl', 'Alt', 'Space'];
@@ -20,6 +23,8 @@ const MACHINE = navigator.userAgent.includes('Windows') ? 'Windows' : 'Linux';
 export const COPY_WHAT_HAPPENED_EVENT = 'copy-what-happened';
 /** Told to every window when the stream changed what the home counts, which the Overview reads again. */
 export const HOME_STALE_EVENT = 'home-stale';
+/** Told to every window with the rows the ledger gained, which Activity and Home show without reading again. */
+export const LIVE_ACTIVITY_EVENT = 'live-activity';
 
 /** What the island's composition root hands in; everything the voice owns is optional. */
 export interface ExtrasParts {
@@ -62,6 +67,11 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
   const chiming = new Chiming(parts.chimes ?? { play: () => undefined }, () => notices.state.phoneVoice !== undefined);
 
   parts.calls.observeEvents((event) => {
+    // Live rows come once a second while anybody listens: handed to the windows, kept out of the diary and the home's reread.
+    if (event.kind === DAEMON_EVENT.ACTIVITY) {
+      void emit(LIVE_ACTIVITY_EVENT, { rows: event.activityRows ?? [], missed: event.activityMissed ?? 0 }).catch(() => undefined);
+      return;
+    }
     notices.handle(event);
     chiming.heard(event);
     diary.note(describe(event));
@@ -84,7 +94,7 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
   // through that tool's own controls, and the live window only when that cannot be done.
   onCardSession((ask) => {
     if (ask.watch) {
-      void invoke('open_live_session', { sessionId: ask.sessionId }).catch(() => undefined);
+      void invoke(TAURI_COMMAND.openLiveSession, { sessionId: ask.sessionId }).catch(() => undefined);
       return;
     }
     void openSession(ask.sessionId, ask.host).then((shown) => diary.note(`open ${ask.sessionId}: ${shown.answer}`));
@@ -108,7 +118,7 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
   function copyWhatHappened(more?: string) {
     const kept = diary.count === 0 ? 'Nothing has happened yet.' : diary.text(MACHINE);
     const text = more === undefined || more === '' ? kept : `${kept}\n\n${more}`;
-    void invoke('clipboard_set', { text }).catch(() => undefined);
+    void invoke(TAURI_COMMAND.clipboardSet, { text }).catch(() => undefined);
   }
   void listen<string | null>(COPY_WHAT_HAPPENED_EVENT, (event) => copyWhatHappened(event.payload ?? undefined));
 
@@ -116,7 +126,7 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
     diary.note(`tray: ${action}`);
     switch (action) {
       case 'talk':
-        void emit('talk', null);
+        void emit(TALK_EVENT, null);
         return;
       case 'rule':
         parts.sayRule?.();
@@ -128,10 +138,14 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
         parts.mute?.().toggle();
         return;
       case 'settings':
-        void invoke('open_settings', { page: null }).catch(() => undefined);
+        void invoke(TAURI_COMMAND.openSettings, { page: null }).catch(() => undefined);
+        return;
+      case 'demo':
+        // Every window reads the demo once as it starts, so switching reopens the app.
+        void invoke(TAURI_COMMAND.switchDemo, { on: !demoOn }).catch(() => undefined);
         return;
       case 'tools':
-        void invoke('open_settings', { page: 'tools' }).catch(() => undefined);
+        void invoke(TAURI_COMMAND.openSettings, { page: 'tools' }).catch(() => undefined);
         return;
       case 'quit':
         return;
@@ -152,7 +166,7 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
       }
       notices.signingIn(tool.toolkit);
       diary.note(`opened the ${tool.toolkit} sign in`);
-      void invoke('open_link', { url: tool.url }).catch(() => undefined);
+      void invoke(TAURI_COMMAND.openLink, { url: tool.url }).catch(() => undefined);
     },
     onNotMe: (pill) => {
       notices.dismissSignedIn();

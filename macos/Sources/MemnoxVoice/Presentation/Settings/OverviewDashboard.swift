@@ -18,12 +18,12 @@ struct OverviewHero: View {
             HStack(alignment: .center, spacing: Memnox.Spacing.large) {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
                     Text(greeting)
-                        .font(Memnox.display(Layout.titleSize, .bold))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .font(Memnox.Console.sans(Layout.titleSize, .bold))
+                        .foregroundStyle(Memnox.Console.foreground)
                         .accessibilityAddTraits(.isHeader)
                     Text("Talk to your agents, or dictate anywhere on this Mac.")
                         .font(.system(size: SettingsMetrics.rowTextSize))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                 }
                 Spacer(minLength: Memnox.Spacing.large)
                 Button(action: talk) { Label("Talk to Memnox", systemImage: MenuSymbol.talk) }
@@ -48,15 +48,16 @@ struct OverviewHero: View {
             HStack(spacing: Layout.keySpacing) { ForEach(keys, id: \.self) { Keycap(label: $0) } }
             Text(title)
                 .font(.system(size: SettingsMetrics.rowTextSize, weight: .semibold))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .foregroundStyle(Memnox.Console.foreground)
             Text(words)
                 .font(.system(size: SettingsMetrics.captionSize))
-                .foregroundStyle(Memnox.Palette.muted)
+                .foregroundStyle(Memnox.Console.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(SettingsMetrics.cardPadding)
-        .background(Memnox.Palette.card, in: RoundedRectangle(cornerRadius: SettingsMetrics.cardRadius, style: .continuous))
+        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous).strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
         .accessibilityElement(children: .combine)
     }
 }
@@ -68,9 +69,9 @@ struct OverviewStats: View {
 
     var body: some View {
         HStack(spacing: Memnox.Spacing.large) {
-            StatTile(value: overview.needYou, label: "Need you", symbol: "hand.raised", tint: Memnox.Palette.warm,
+            StatTile(value: overview.needYou, label: "Need you", symbol: "hand.raised", tint: Memnox.Console.warm,
                      caption: overview.needYou == 0 ? "Nothing waiting" : "Answer on the notch")
-            StatTile(value: overview.working, label: "Working", symbol: "bolt", tint: Memnox.Palette.success,
+            StatTile(value: overview.working, label: "Working", symbol: "bolt", tint: Memnox.Console.success,
                      caption: overview.agents == 1 ? "1 agent" : "\(overview.agents) agents")
             if let store { DictationTiles(store: store) }
         }
@@ -83,9 +84,9 @@ private struct DictationTiles: View {
 
     var body: some View {
         let streak = store.tally.streak(today: Date())
-        StatTile(value: store.tally.words, label: "Words dictated", symbol: "waveform", tint: Memnox.Palette.primary,
+        StatTile(value: store.tally.words, label: "Words dictated", symbol: "waveform", tint: Memnox.Console.primary,
                  caption: store.tally.wordsPerMinute.map { "\($0) a minute" } ?? "Free, on this Mac")
-        StatTile(value: streak, label: "Day streak", symbol: "flame", tint: Memnox.Palette.sky,
+        StatTile(value: streak, label: "Day streak", symbol: "flame", tint: Memnox.Console.sky,
                  caption: streak == 1 ? "1 day in a row" : "\(streak) days in a row")
     }
 }
@@ -118,7 +119,7 @@ struct RecentDictations: View {
                         if index > 0 { SettingsDivider(full: true) }
                         Text(day.title)
                             .font(.system(size: SettingsMetrics.captionSize, weight: .semibold))
-                            .foregroundStyle(Memnox.Palette.muted)
+                            .foregroundStyle(Memnox.Console.muted)
                         ForEach(day.entries) { entry in row(entry) }
                     }
                 }
@@ -153,21 +154,21 @@ struct RecentDictations: View {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
                 Text(entry.at.formatted(date: .omitted, time: .shortened))
                     .font(.system(size: SettingsMetrics.captionSize).monospacedDigit())
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Memnox.Console.muted)
                 if let app = entry.app {
                     Text(app)
                         .font(.system(size: SettingsMetrics.captionSize - 1, weight: .medium))
                         .lineLimit(1)
                         .padding(.horizontal, Memnox.Spacing.small)
                         .padding(.vertical, Memnox.Spacing.xxSmall)
-                        .background(Capsule().fill(Memnox.Palette.surface))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .background(Capsule().fill(Memnox.Console.surface))
+                        .foregroundStyle(Memnox.Console.foreground)
                 }
             }
             .frame(width: Layout.timeColumn, alignment: .leading)
             Text(entry.written)
                 .font(.system(size: SettingsMetrics.rowTextSize))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .foregroundStyle(Memnox.Console.foreground)
                 .lineLimit(Layout.lines)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -184,10 +185,10 @@ struct RecentDictations: View {
         Button(action: run) {
             Image(systemName: symbol)
                 .frame(width: Layout.actionSide, height: Layout.actionSide)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Memnox.Palette.surface))
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Memnox.Console.surface))
         }
         .buttonStyle(.plain)
-        .foregroundStyle(Memnox.Palette.muted)
+        .foregroundStyle(Memnox.Console.muted)
         .pointingHand()
         .help(help)
         .accessibilityLabel(help)

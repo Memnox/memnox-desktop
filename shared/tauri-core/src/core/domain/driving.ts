@@ -19,11 +19,6 @@ export function driveGrant(drivenBy: DrivenBy, now: number): DriveGrant | undefi
   return { deviceId: drivenBy.deviceId, name: drivenBy.name, until };
 }
 
-/** Still live at this moment, so the island stops saying it the instant the time comes. */
-export function isLive(grant: DriveGrant, now: number): boolean {
-  return now < grant.until;
-}
-
 /** A plain word where the phone gave no name. */
 function phoneName(name: string): string {
   const trimmed = name.trim();

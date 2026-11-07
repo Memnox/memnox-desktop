@@ -5,9 +5,9 @@
  */
 
 /** What a press on a panel row asks for; the island carries each out, and Quit ends the app. */
-export type MenuAction = 'talk' | 'rule' | 'copy' | 'mute' | 'settings' | 'tools' | 'quit';
+export type MenuAction = 'talk' | 'rule' | 'copy' | 'mute' | 'demo' | 'settings' | 'tools' | 'quit';
 
-export const MENU_ACTIONS: readonly MenuAction[] = ['talk', 'rule', 'copy', 'mute', 'settings', 'tools', 'quit'];
+export const MENU_ACTIONS: readonly MenuAction[] = ['talk', 'rule', 'copy', 'mute', 'demo', 'settings', 'tools', 'quit'];
 
 export function isMenuAction(value: unknown): value is MenuAction {
   return typeof value === 'string' && (MENU_ACTIONS as readonly string[]).includes(value);
@@ -30,8 +30,20 @@ export interface MenuRow {
   readonly dividerAbove?: boolean;
 }
 
+/** The panel's own words outside its rows, as the Mac's `MenuView` and `MenuTools` print them. */
+export const MENU_WORDS = {
+  title: 'Memnox',
+  connected: 'Connected',
+  manage: 'Manage',
+} as const;
+
+/** What a screen reader hears for a chip, as the Mac labels it: its name, or its name and what it needs. */
+export function chipLabel(chip: ToolChip): string {
+  return chip.ready ? chip.name : `${chip.name}, needs you`;
+}
+
 /** The rows in the Mac's order, with the talk key as this computer spells it. */
-export function menuRows(muted: boolean, talkKeys: readonly string[]): MenuRow[] {
+export function menuRows(muted: boolean, talkKeys: readonly string[], demo = false): MenuRow[] {
   return [
     { action: 'talk', title: 'Talk to Memnox', symbol: 'waveform', keys: talkKeys, tooltip: `Talk to Memnox with ${talkKeys.join(' ')}` },
     { action: 'rule', title: 'Say a rule', symbol: 'shield.lefthalf.filled' },
@@ -39,7 +51,11 @@ export function menuRows(muted: boolean, talkKeys: readonly string[]): MenuRow[]
     muted
       ? { action: 'mute', title: 'Unmute voice', symbol: 'speaker.wave.2', staysOpen: true }
       : { action: 'mute', title: 'Mute voice', symbol: 'speaker.slash', staysOpen: true },
-    { action: 'settings', title: 'Settings', symbol: 'gearshape', dividerAbove: true },
+    // Reopens the app on the made up power user, so a person sees everything Memnox does before their own agents fill it.
+    demo
+      ? { action: 'demo', title: 'Leave the demo', symbol: 'arrow.uturn.backward', tooltip: "Reopens Memnox on this computer's own agents", dividerAbove: true }
+      : { action: 'demo', title: 'Watch a demo', symbol: 'play.circle', tooltip: 'Reopens Memnox with made up data, so every page shows what it can do', dividerAbove: true },
+    { action: 'settings', title: 'Settings', symbol: 'gearshape' },
     { action: 'quit', title: 'Quit Memnox', symbol: 'power', quiet: true },
   ];
 }

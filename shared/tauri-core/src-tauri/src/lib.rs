@@ -5,15 +5,22 @@
 mod awake;
 mod cloud;
 mod daemon;
+mod demo;
 mod focus;
 mod glass;
 mod island;
 mod key;
 mod keys;
+mod local_file;
+mod memory_source;
+mod notices;
 mod panels;
 mod permissions;
 mod presence;
+mod presses;
+mod project_folder;
 mod relay;
+mod rule_pack;
 mod runtime;
 mod sessions;
 mod settings_windows;
@@ -37,9 +44,13 @@ pub fn run() {
             None,
         ))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(demo::plugin())
         .manage(awake::Awake::default())
         .manage(relay::Relays::default())
         .manage(glass::Glassed::default())
+        .manage(presses::PressRoute::default())
         .manage(Arc::new(island::HitAreas::default()))
         .setup(|app| {
             let window = app
@@ -80,6 +91,8 @@ pub fn run() {
             keys::start(app.handle());
             // The screen locking and unlocking, for Catch me up.
             presence::watch(app.handle().clone());
+            // A press on a held call's notification opens Approvals.
+            notices::answer_presses(app.handle());
             tray::build(app)?;
             tray::start_at_sign_in_once(app);
             // Another app holding the key is no reason not to start; the Talk button still works.
@@ -89,6 +102,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            demo::switch_demo,
             daemon::daemon_stream,
             relay::relay_servers,
             relay::relay_pair,
@@ -132,6 +146,7 @@ pub fn run() {
             runtime::runtime_install,
             runtime::runtime_wired,
             runtime::runtime_run,
+            runtime::runtime_build,
             runtime::runtime_source,
             tray::tray_action,
             tray::tray_panel_hide,
@@ -156,6 +171,8 @@ pub fn run() {
             focus::launch_in_terminal,
             focus::launch_in_editor,
             focus::open_app_links,
+            focus::agent_homes,
+            focus::launch_in_home,
             settings_windows::open_settings,
             settings_windows::open_onboarding,
             settings_windows::onboarding_veil,
@@ -165,6 +182,18 @@ pub fn run() {
             settings_windows::set_start_at_sign_in,
             settings_windows::restart_memnox,
             settings_windows::open_page,
+            settings_windows::open_inspector,
+            rule_pack::pick_rule_pack,
+            rule_pack::save_rule_pack,
+            project_folder::pick_project_folder,
+            local_file::open_file,
+            local_file::read_skill_file,
+            memory_source::memory_source_home,
+            memory_source::pick_memory_source,
+            memory_source::look_memory_paths,
+            memory_source::unzip_memory_export,
+            presses::presses_listen,
+            presses::window_press,
             permissions::permission_facts,
             permissions::open_privacy,
         ])

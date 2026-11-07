@@ -17,7 +17,7 @@ const INITIAL_INK = '#0B1A2E';
  * navy where it ships none. `ring` draws the black ring the compact logos overlap with.
  */
 export function SessionLogo({ agent, name, size, ring, className }: { agent: string; name: string; size: number; ring?: number; className?: string }) {
-  const url = agentLogoUrl(agent);
+  const url = agentLogoUrl(agent) ?? agentLogoUrl(name);
   const inner = size * LOGO_SHARE;
   return (
     <span
@@ -47,6 +47,9 @@ export function tinted(hex: string, opacity: number): string {
   return `color-mix(in srgb, ${hex} ${opacity * 100}%, transparent)`;
 }
 
+/** The badge's capsule, its status colour at 16%. */
+const BADGE_TINT = 0.16;
+
 /**
  * `IslandStatusBadge`: a 6 dot in the status colour, pulsing only while busy, and the label 10 semibold
  * in that colour lifted toward white, on a capsule of the colour at 16%.
@@ -54,7 +57,7 @@ export function tinted(hex: string, opacity: number): string {
 export function StatusBadge({ status, label }: { status: SessionStatus; label: string }) {
   const tint = statusTint(status);
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-0.5 text-micro font-semibold" style={{ backgroundColor: tinted(tint, 0.16), color: lifted(tint) }}>
+    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-0.5 text-micro font-semibold" style={{ backgroundColor: tinted(tint, BADGE_TINT), color: lifted(tint) }}>
       {isActive(status) ? <PulseDot colour={tint} size={6} /> : <span className="size-1.5 rounded-full" style={{ backgroundColor: tint }} />}
       {label}
     </span>
@@ -82,5 +85,5 @@ export function Counts({ added, removed, className }: { added?: number; removed?
 
 /** The mini spinner the Mac draws for a step still at work. */
 export function MiniSpinner({ size = 10 }: { size?: number }) {
-  return <span className="inline-block animate-spin rounded-full border-[1.5px] border-white/25 border-t-white/80" style={{ width: size, height: size }} aria-hidden />;
+  return <span className="inline-block animate-spin rounded-full border-(length:--mx-stroke-emphasis) border-white/25 border-t-white/80" style={{ width: size, height: size }} aria-hidden />;
 }

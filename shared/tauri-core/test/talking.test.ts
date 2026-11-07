@@ -139,6 +139,16 @@ describe('a proposal', () => {
     expect(speaker.said).toEqual([LINES.unasked]);
   });
 
+  it('is declined in words that name its kind, and put to the key with that kind first', async () => {
+    const unasked = talkingOver({ confirm: confirmedOk });
+    await unasked.talking.handle(proposal('prp_1', { proposalKind: 'mcp-hub' }));
+    expect(unasked.speaker.said).toEqual(['Something proposed a change to your MCP servers, which you did not ask for. I have declined it.']);
+    const asked = talkingOver(answering);
+    await asked.talking.heard('yes, add it');
+    await asked.talking.handle(proposal('prp_2', { proposalKind: 'mcp-hub', summary: 'Add the MCP server github' }));
+    expect(asked.key.signed[0]?.reason).toBe('A change to your MCP servers: Add the MCP server github');
+  });
+
   it('is declined once the person spoke too long ago', async () => {
     const { daemon, key, talking, later } = talkingOver(answering);
     await talking.heard('yes, let it push');

@@ -3,6 +3,8 @@ import { listen } from '@tauri-apps/api/event';
 import type { Ear, EarEvent, Focus, KeyReport, PreferenceStore, Typist } from '../../core';
 import type { Chimes } from '../../core/application/ports/chimes';
 import type { Cue } from '../../core/domain/chimes';
+import { TAURI_COMMAND } from '../adapters/tauri-commands';
+import { VOICE_KEY_PREFIX } from '../../core/application/voice-preferences';
 
 /** The open ear in Rust: Silero and Parakeet on this computer, its events down one channel per opening. */
 export class TauriEar implements Ear {
@@ -10,12 +12,12 @@ export class TauriEar implements Ear {
     const events = new Channel<EarEvent>();
     events.onmessage = onEvent;
     // The echo canceller follows the Listening page's switch, read at each opening since Settings sets it apart.
-    await invoke('echo_cancel', { on: echoCancelOn() }).catch(() => undefined);
-    await invoke('ear_open', { events, partials: options.partials });
+    await invoke(TAURI_COMMAND.echoCancel, { on: echoCancelOn() }).catch(() => undefined);
+    await invoke(TAURI_COMMAND.earOpen, { events, partials: options.partials });
   }
 
   async close(): Promise<void> {
-    await invoke('ear_close');
+    await invoke(TAURI_COMMAND.earClose);
   }
 }
 
@@ -39,10 +41,16 @@ function fieldOf(read: FocusRead): Pick<Focus, 'before' | 'after' | 'value' | 'c
   return { value, caret, selectionEnd: end, before: value.slice(0, caret), after: value.slice(end) };
 }
 
+
 /** The echo switch as Settings keeps it, on unless turned off for a headset. */
+const ECHO_CANCEL_KEY = `${VOICE_KEY_PREFIX}echoCancel`;
+
+/** What a switch turned off is stored as. */
+const SWITCH_OFF = 'false';
+
 function echoCancelOn(): boolean {
   try {
-    return window.localStorage.getItem('memnox.voice.echoCancel') !== 'false';
+    return window.localStorage.getItem(ECHO_CANCEL_KEY) !== SWITCH_OFF;
   } catch {
     return true;
   }
@@ -51,7 +59,7 @@ function echoCancelOn(): boolean {
 /** The platform layer in Rust that types into the app in front: SendInput on Windows, wtype, ydotool or xdotool on Linux. */
 export class TauriTypist implements Typist {
   async focus(): Promise<Focus> {
-    const read = await invoke<FocusRead>('focus_read');
+    const read = await invoke<FocusRead>(TAURI_COMMAND.focusRead);
     return {
       app: read.app ?? undefined,
       title: read.title ?? undefined,
@@ -62,22 +70,22 @@ export class TauriTypist implements Typist {
   }
 
   async type(text: string): Promise<void> {
-    await invoke('type_text', { text });
+    await invoke(TAURI_COMMAND.typeText, { text });
   }
 
   async revise(remove: number, add: string): Promise<void> {
-    await invoke('type_revise', { remove, add });
+    await invoke(TAURI_COMMAND.typeRevise, { remove, add });
   }
 
   async copy(text: string): Promise<void> {
-    await invoke('clipboard_set', { text });
+    await invoke(TAURI_COMMAND.clipboardSet, { text });
   }
 }
 
 /** The nine cues, drawn in Rust at the Mac's quiet volume, on an output of their own. */
 export class TauriChimes implements Chimes {
   play(cue: Cue): void {
-    void invoke('chime', { cue }).catch(() => undefined);
+    void invoke(TAURI_COMMAND.chime, { cue }).catch(() => undefined);
   }
 }
 
@@ -116,12 +124,12 @@ export function onPresence(seen: (now: 'locked' | 'unlocked') => void): () => vo
 
 /** The names the recognizer should listen for, handed to Parakeet's hotwords. */
 export function hintNames(names: readonly string[]): void {
-  void invoke('ear_hints', { names }).catch(() => undefined);
+  void invoke(TAURI_COMMAND.earHints, { names }).catch(() => undefined);
 }
 
 /** Whether the keyboard's layout types with AltGr, which makes right Alt a poor key to hold; undefined when unread. */
 export async function keyboardHasAltGr(): Promise<boolean | undefined> {
-  return invoke<boolean | null>('keyboard_has_altgr').then(
+  return invoke<boolean | null>(TAURI_COMMAND.keyboardHasAltgr).then(
     (has) => has ?? undefined,
     () => undefined,
   );
@@ -129,6 +137,6 @@ export async function keyboardHasAltGr(): Promise<boolean | undefined> {
 
 /** Whether the keys can be seen at all: not on a Wayland session without XWayland, which forbids it. */
 export async function keysWatching(): Promise<{ watching: boolean; why: string | undefined }> {
-  const answer = await invoke<{ watching: boolean; why: string | null }>('keys_watching').catch(() => ({ watching: false, why: null }));
+  const answer = await invoke<{ watching: boolean; why: string | null }>(TAURI_COMMAND.keysWatching).catch(() => ({ watching: false, why: null }));
   return { watching: answer.watching, why: answer.why ?? undefined };
 }

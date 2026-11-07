@@ -15,8 +15,8 @@ struct AppearancePage: View {
             .surface()
             // Said here, since a person who picks Light would otherwise wonder why the notch did not follow.
             Text("The notch stays dark in every look, because it grows out of the black notch at the top of the screen.")
-                .font(Memnox.sans(Memnox.TextSize.caption))
-                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                .font(Memnox.Console.sans(Memnox.TextSize.caption))
+                .foregroundStyle(Memnox.Console.ink(Memnox.Ink.secondary))
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, Memnox.Spacing.xSmall)
             IslandScreenPicker()
@@ -45,11 +45,11 @@ struct IslandScreenPicker: View {
         HStack(spacing: Memnox.Spacing.large) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                 Text("Island display")
-                    .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.primary))
+                    .font(Memnox.Console.sans(Memnox.TextSize.body, .semibold))
+                    .foregroundStyle(Memnox.Console.ink(Memnox.Ink.primary))
                 Text("The screen the island hangs from. A display that is unplugged hands it back to the notch.")
-                    .font(Memnox.sans(Memnox.TextSize.caption))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                    .font(Memnox.Console.sans(Memnox.TextSize.caption))
+                    .foregroundStyle(Memnox.Console.ink(Memnox.Ink.secondary))
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: Memnox.Spacing.large)
@@ -63,10 +63,10 @@ struct IslandScreenPicker: View {
                 }
             } label: {
                 HStack(spacing: Memnox.Spacing.small) {
-                    Text(current).font(Memnox.sans(Memnox.TextSize.body)).foregroundStyle(Memnox.ink(Memnox.Ink.primary))
+                    Text(current).font(Memnox.Console.sans(Memnox.TextSize.body)).foregroundStyle(Memnox.Console.ink(Memnox.Ink.primary))
                     Image(systemName: Self.chevronSymbol)
                         .font(.system(size: Self.chevronSize))
-                        .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                        .foregroundStyle(Memnox.Console.ink(Memnox.Ink.secondary))
                 }
             }
             .menuStyle(.button)
@@ -139,11 +139,11 @@ struct AppearancePicker: View {
                 thumbnail(look)
                     .frame(width: Layout.width, height: Layout.height)
                     .overlay(RoundedRectangle(cornerRadius: Layout.radius, style: .continuous)
-                        .strokeBorder(picked ? Memnox.Palette.primary : Memnox.ink(Memnox.Ink.edge),
+                        .strokeBorder(picked ? Memnox.Console.primary : Memnox.Console.ink(Memnox.Ink.edge),
                                       lineWidth: picked ? Layout.ring : Memnox.Stroke.hairline))
                 Text(look.title)
-                    .font(Memnox.sans(Memnox.TextSize.body, picked ? .semibold : .regular))
-                    .foregroundStyle(picked ? Layout.pickedText : Memnox.ink(Memnox.Ink.primary))
+                    .font(Memnox.Console.sans(Memnox.TextSize.body, picked ? .semibold : .regular))
+                    .foregroundStyle(picked ? Layout.pickedText : Memnox.Console.ink(Memnox.Ink.primary))
             }
             .contentShape(Rectangle())
         }
@@ -182,7 +182,7 @@ struct AppearancePicker: View {
                 }
                 .padding(Layout.inset * 2)
                 Circle()
-                    .fill(Memnox.Palette.primary)
+                    .fill(Memnox.Console.primary)
                     .frame(width: Layout.dot, height: Layout.dot)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding(Layout.inset * 2)

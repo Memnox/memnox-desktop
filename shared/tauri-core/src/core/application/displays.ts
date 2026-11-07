@@ -13,6 +13,7 @@ import {
   type WalkPage,
 } from '@memnox/core/wire';
 import { DISPLAY_VIA } from '@memnox/core/wire';
+import { pickedPlan, type AgentHomeKind } from '../domain/agent-homes';
 import { isAppLink, launchPlan } from '../domain/session-focus';
 import type { DaemonLink } from './ports/daemon-link';
 import { requestOnce } from './ports/daemon-link';
@@ -73,6 +74,8 @@ export interface DisplayOptions {
   readonly terminals?: Terminals;
   /** Stay where I am: words and new agents go only where they land without taking the person's window. */
   readonly stayPut?: () => boolean;
+  /** The app picked under Where your agents run, which a session the runtime named no app for opens in. */
+  readonly sessionHome?: () => Promise<AgentHomeKind | undefined>;
 }
 
 /** What the runtime names as the session of a show that belongs to none. */
@@ -203,7 +206,12 @@ export class Displays {
     if (terminals === undefined) return { answer: DELIVERY.FAILED, reason: CANNOT.launch };
     const folder = event.host?.cwd;
     if (folder === undefined || folder === '') return { answer: DELIVERY.FAILED, reason: NO_FOLDER };
-    const plan = launchPlan(event.host?.appPath ?? event.host?.app, event.via === DISPLAY_VIA.TERMINAL_APP, this.options.stayPut?.() ?? false);
+    const named = event.host?.appPath ?? event.host?.app;
+    const viaTerminalApp = event.via === DISPLAY_VIA.TERMINAL_APP;
+    const stayPut = this.options.stayPut?.() ?? false;
+    // An app the runtime named wins, since the person may have said where; otherwise the one they picked.
+    const picked = named === undefined && !viaTerminalApp ? await this.options.sessionHome?.() : undefined;
+    const plan = picked === undefined ? launchPlan(named, viaTerminalApp, stayPut) : pickedPlan(picked, stayPut);
     switch (plan.kind) {
       case 'none':
         return { answer: DELIVERY.FAILED, reason: plan.why };
@@ -211,6 +219,8 @@ export class Displays {
         return terminals.launchInEditor(plan.editor, folder, event.subject);
       case 'terminal':
         return terminals.launchInTerminal(plan.terminal, event.summary, folder, plan.background);
+      case 'window':
+        return terminals.launchInHome(plan.home, event.summary, folder);
     }
   }
 

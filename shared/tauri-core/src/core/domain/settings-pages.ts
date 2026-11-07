@@ -9,7 +9,10 @@ export type SettingsPage =
   | 'permissions'
   | 'connection'
   | 'phones'
+  | 'network'
   | 'appearance'
+  | 'backup'
+  | 'sync'
   | 'tools'
   | 'apps'
   | 'voice'
@@ -30,7 +33,10 @@ const INFO: Record<SettingsPage, Omit<SettingsPageInfo, 'page'>> = {
   permissions: { title: 'Permissions', subtitle: 'What this computer lets Memnox hear, type and see.' },
   connection: { title: 'Connection', subtitle: 'The Memnox service your agents talk to, and the key your approvals are signed with.' },
   phones: { title: 'Phones', subtitle: 'Phones paired with this computer and what each may do.' },
+  network: { title: 'Local network', subtitle: 'Reach this computer over the network you share, rather than through the relay.' },
   appearance: { title: 'Appearance', subtitle: 'Light, dark, or the same as this computer.' },
+  backup: { title: 'Backup', subtitle: 'Your rules, hubs, skills, projects and memory, sealed under a passphrase and put back once you sign.' },
+  sync: { title: 'Personal sync', subtitle: 'Your own setup carried between your machines, sealed under a key only they hold.' },
   tools: { title: 'Connected tools', subtitle: 'The agents on this computer and the apps Memnox can act in as you.' },
   apps: { title: 'Your apps', subtitle: 'Connect any tool you use as yourself, and see the ones this computer already reaches.' },
   voice: { title: 'Voice', subtitle: 'Who thinks for the voice, and the voice it answers in.' },
@@ -38,6 +44,11 @@ const INFO: Record<SettingsPage, Omit<SettingsPageInfo, 'page'>> = {
   dictation: { title: 'Dictation', subtitle: 'Speak instead of typing, in any app, written the way you would have typed it.' },
   help: { title: 'Help', subtitle: 'Rules, a quick test, and what happened for support.' },
 };
+
+/** The Settings window's own words beyond its pages' titles. */
+export const SettingsWindowLines = {
+  search: 'Search settings',
+} as const;
 
 export interface SettingsGroup {
   /** Absent for the overview, which stands alone above the groups. */
@@ -49,7 +60,7 @@ export interface SettingsGroup {
 export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
   { title: undefined, pages: ['overview'] },
   { title: 'You', pages: ['account'] },
-  { title: 'This computer', pages: ['permissions', 'connection', 'phones', 'appearance'] },
+  { title: 'This computer', pages: ['permissions', 'connection', 'phones', 'appearance', 'sync'] },
   { title: 'Agents and tools', pages: ['tools', 'apps'] },
   { title: 'Voice', pages: ['voice', 'listening', 'dictation'] },
   { title: 'Support', pages: ['help'] },

@@ -60,6 +60,13 @@ struct FocusedText {
                            range: range, isSecure: secureInput || secureField, windowTitle: title, isEditable: editable(element))
     }
 
+    /// Up to `characters` of what is written before the cursor, more than `before` holds, so the polish can spell a
+    /// name the way it is already written further up.
+    func written(before characters: Int) -> String? {
+        guard let value, let range, let swiftRange = Range(range, in: value) else { return before }
+        return String(value[..<swiftRange.lowerBound].suffix(characters))
+    }
+
     /// A text role, or a value or selection that can be written, which is how a web page's own editor answers.
     private static func editable(_ element: AXUIElement) -> Bool {
         if let role = string(element, kAXRoleAttribute), textRoles.contains(role) { return true }

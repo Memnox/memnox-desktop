@@ -55,7 +55,7 @@ private struct HomeLine: View {
     var body: some View {
         Text(text)
             .font(.system(size: SettingsMetrics.rowTextSize))
-            .foregroundStyle(ink >= Memnox.Ink.primary ? Memnox.Palette.foreground : Memnox.Palette.muted)
+            .foregroundStyle(ink >= Memnox.Ink.primary ? Memnox.Console.foreground : Memnox.Console.muted)
             .fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -70,7 +70,7 @@ private struct HomeNeedsYouBlock: View {
                 Label {
                     HomeLine(need)
                 } icon: {
-                    Image(systemName: "exclamationmark.circle").foregroundStyle(Memnox.Palette.muted)
+                    Image(systemName: "exclamationmark.circle").foregroundStyle(Memnox.Console.muted)
                 }
             }
         }
@@ -86,8 +86,8 @@ private struct HomeWaitingBlock: View {
         HomeBlock(title: "Waiting on you", accent: nil) {
             HStack(spacing: Memnox.Spacing.medium) {
                 Text("\(count)")
-                    .font(Memnox.sans(Memnox.TextSize.body, .semibold).monospacedDigit())
-                    .foregroundStyle(Memnox.Palette.ink)
+                    .font(Memnox.Console.sans(Memnox.TextSize.body, .semibold).monospacedDigit())
+                    .foregroundStyle(Memnox.Console.ink)
                     .contentTransition(.numericText(value: Double(count)))
                 HomeLine(HomeLines.waiting(count), ink: Memnox.Ink.secondary)
                 Spacer(minLength: 0)
@@ -118,22 +118,22 @@ private struct HomeWorkingBlock: View {
                                 .overlay(alignment: .bottomTrailing) {
                                     Circle().fill(IslandPalette.green)
                                         .frame(width: Layout.dot, height: Layout.dot)
-                                        .overlay(Circle().strokeBorder(Memnox.Palette.surface, lineWidth: 2))
+                                        .overlay(Circle().strokeBorder(Memnox.Console.surface, lineWidth: 2))
                                         .offset(x: 2, y: 2)
                                 }
                             VStack(alignment: .leading, spacing: MenuLayout.titleDetailSpacing) {
                                 Text(session.agentName)
-                                    .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                                    .foregroundStyle(Memnox.Palette.ink)
+                                    .font(Memnox.Console.sans(Memnox.TextSize.body, .semibold))
+                                    .foregroundStyle(Memnox.Console.ink)
                                 Text(HomeLines.working(session))
-                                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                                    .foregroundStyle(Memnox.Console.ink(Memnox.Ink.secondary))
                                     .lineLimit(2)
                             }
                             Spacer(minLength: 0)
                             Image(systemName: MenuSymbol.more)
                                 .font(.system(size: Memnox.TextSize.caption, weight: .semibold))
-                                .foregroundStyle(Memnox.ink(MenuLayout.dimInk))
+                                .foregroundStyle(Memnox.Console.ink(MenuLayout.dimInk))
                         }
                         .contentShape(Rectangle())
                     }
@@ -160,15 +160,15 @@ private struct HomeReadyCard: View {
     var body: some View {
         HomeBlock(title: "Ready to hand over", accent: nil) {
             Text(HomeLines.ready(ready))
-                .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                .foregroundStyle(Memnox.Palette.ink)
+                .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
+                .foregroundStyle(Memnox.Console.ink)
                 .fixedSize(horizontal: false, vertical: true)
             if !ready.targets.isEmpty {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
                     ForEach(ready.targets, id: \.self) { target in
                         Text(target)
                             .font(.system(size: Memnox.TextSize.footnote, design: .monospaced))
-                            .foregroundStyle(Memnox.ink(Memnox.Ink.primary))
+                            .foregroundStyle(Memnox.Console.ink(Memnox.Ink.primary))
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }

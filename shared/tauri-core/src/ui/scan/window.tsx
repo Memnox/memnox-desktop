@@ -6,6 +6,7 @@ import type { AgentNode } from '@memnox/core/wire';
 import { WINDOW_EVENTS } from '../adapters/tauri-windows';
 import { ScanScreen } from './ScanScreen';
 import '../styles.css';
+import { TAURI_COMMAND } from '../adapters/tauri-commands';
 
 /** Agents the preview draws with no scan behind it: scan.html?preview=found. */
 const PREVIEW_AGENTS: AgentNode[] = [
@@ -36,7 +37,7 @@ function ScanWindow() {
       still={preview === 'found'}
       onClose={() => {
         setAgents(undefined);
-        if (preview === undefined) void invoke('scan_hide').catch(() => undefined);
+        if (preview === undefined) void invoke(TAURI_COMMAND.scanHide).catch(() => undefined);
       }}
     />
   );

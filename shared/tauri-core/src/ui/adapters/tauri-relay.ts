@@ -5,6 +5,7 @@ import type { Paired, Pairer } from '../../core/application/ports/pairer';
 import type { PairedServer } from '../../core/domain/paired-machines';
 import { isLastLine } from '../../core/domain/relay/stream-end';
 import type { PairingFailure } from '../../core/domain/server-pairing-lines';
+import { TAURI_COMMAND } from './tauri-commands';
 
 /**
  * One paired server's daemon over the Rust relay link: the request goes as the runtime encodes it, each line comes
@@ -25,7 +26,7 @@ export class TauriRelayLink implements DaemonLink {
       queue.push(JSON.parse(line) as DaemonResponse);
       wake?.();
     };
-    invoke('relay_stream', { machineId: this.machineId, request: encode(request).trimEnd(), stream, lines })
+    invoke(TAURI_COMMAND.relayStream, { machineId: this.machineId, request: encode(request).trimEnd(), stream, lines })
       .catch((error: unknown) => {
         failure = error;
       })
@@ -50,7 +51,7 @@ export class TauriRelayLink implements DaemonLink {
       if (failure !== undefined) throw new Error(String(failure));
     } finally {
       // Done with it, early or not, so the link stops routing to a channel nobody reads.
-      if (!ended) void invoke('relay_done', { machineId: this.machineId, stream }).catch(() => undefined);
+      if (!ended) void invoke(TAURI_COMMAND.relayDone, { machineId: this.machineId, stream }).catch(() => undefined);
     }
   }
 }
@@ -61,13 +62,13 @@ export const tauriPairer: Pairer = {
     const digits = new Channel<string>();
     digits.onmessage = code;
     try {
-      const server = await invoke<PairedServer>('relay_pair', { link, name, code: digits });
+      const server = await invoke<PairedServer>(TAURI_COMMAND.relayPair, { link, name, code: digits });
       return { kind: 'paired', server };
     } catch (error) {
       const why = typeof error === 'object' && error !== null && 'kind' in error ? (error as PairingFailure) : ({ kind: 'broken', why: String(error) } as const);
       return { kind: 'failed', why };
     }
   },
-  servers: () => invoke<PairedServer[]>('relay_servers'),
-  forget: (machineId) => invoke<void>('relay_forget', { machineId }),
+  servers: () => invoke<PairedServer[]>(TAURI_COMMAND.relayServers),
+  forget: (machineId) => invoke<void>(TAURI_COMMAND.relayForget, { machineId }),
 };

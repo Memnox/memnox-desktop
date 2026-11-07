@@ -68,7 +68,7 @@ struct SettingsView: View {
         .ignoresSafeArea()
         // Only the sidebar is glass; the page is solid, as Vorssaint's is.
         .background(WindowGlass(material: .sidebar).ignoresSafeArea())
-        .tint(Memnox.Palette.primary)
+        .tint(Memnox.Console.primary)
         .background(escapeKey)
         .task(id: models.setup.map(ObjectIdentifier.init)) { await models.setup?.check() }
     }
@@ -81,7 +81,7 @@ struct SettingsView: View {
             )
             Text(navigation.page.title)
                 .font(.system(size: Layout.headerTitleSize, weight: .semibold))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .foregroundStyle(Memnox.Console.foreground)
                 .lineLimit(1)
             Spacer(minLength: 0)
         }
@@ -136,17 +136,17 @@ struct SettingsView: View {
             HStack(spacing: Layout.rowIconSpacing) {
                 Image(systemName: page.symbol)
                     .font(.system(size: Layout.rowIconSize))
-                    .foregroundStyle(chosen ? Color.white : Memnox.Palette.primary)
+                    .foregroundStyle(chosen ? Color.white : Memnox.Console.primary)
                     .frame(width: Layout.rowIconWidth)
                 Text(page.title)
                     .font(.system(size: Layout.rowTextSize, weight: chosen ? .medium : .regular))
-                    .foregroundStyle(chosen ? Color.white : Memnox.Palette.foreground)
+                    .foregroundStyle(chosen ? Color.white : Memnox.Console.foreground)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Layout.rowPadding)
             .frame(height: Layout.rowHeight)
-            .background(chosen ? Memnox.Palette.primary : Color.clear,
+            .background(chosen ? Memnox.Console.primary : Color.clear,
                         in: RoundedRectangle(cornerRadius: Layout.rowRadius, style: .continuous))
             // Under the blue of the chosen row, so only the others light.
             .hoverLight(radius: Layout.rowRadius, inset: 0)
@@ -169,7 +169,7 @@ struct SettingsView: View {
                 Text(title).font(.system(size: Layout.sectionTextSize, weight: .semibold))
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(Memnox.Palette.faint)
+            .foregroundStyle(Memnox.Console.faint)
             .padding(.horizontal, Layout.headerSpacing)
             .padding(.top, Layout.sectionTop)
             .padding(.bottom, Layout.sectionBottom)
@@ -224,7 +224,7 @@ struct SettingsView: View {
 }
 
 /// The phones: pairing one, then the ones already paired with what each may do.
-private struct PhonesPage: View {
+struct PhonesPage: View {
     @ObservedObject var menu: MenuModel
     @ObservedObject var setup: SetupModel
 
@@ -245,7 +245,7 @@ private struct PhonesPage: View {
 }
 
 /// Who thinks for the voice and which voice speaks, the Mac's own or a Kokoro one, in one row.
-private struct VoicePage: View {
+struct VoicePage: View {
     @ObservedObject var menu: MenuModel
     @ObservedObject var setup: SetupModel
 
@@ -256,10 +256,12 @@ private struct VoicePage: View {
 
 /// The switches for when Memnox listens and speaks up, with catching up after time away, in two cards as Vorssaint
 /// groups its own: hearing the person, then speaking to them.
-private struct ListeningPage: View {
+struct ListeningPage: View {
     @ObservedObject var menu: MenuModel
     @ObservedObject private var mute = VoiceMute.shared
     @ObservedObject var setup: SetupModel
+    /// Off unless turned on here, since Apple's voice processing reshapes the whole Mac's audio while it runs.
+    @AppStorage(AudioIO.echoCancellationKey) private var cancelsEcho = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsMetrics.pageSpacing) {
@@ -269,6 +271,9 @@ private struct ListeningPage: View {
                 SettingsDivider()
                 SwitchRow(symbol: MenuSymbol.talkOver, title: "Talk over it", detail: "Cut in just by speaking",
                           isOn: Binding(get: { menu.talkOverOn }, set: { menu.talkOverOn = $0; menu.setTalkOver($0) }))
+                SettingsDivider()
+                SwitchRow(symbol: MenuSymbol.echo, title: "Cancel echo", detail: "Talk over it on speakers, though macOS changes other sound while it listens",
+                          isOn: $cancelsEcho)
                 SettingsDivider()
                 SwitchRow(symbol: MenuSymbol.liveWords, title: "Live words", detail: "See what you say in the notch",
                           isOn: Binding(get: { menu.liveWordsOn }, set: { menu.liveWordsOn = $0; menu.setLiveWords($0) }))
@@ -280,7 +285,10 @@ private struct ListeningPage: View {
                 SwitchRow(symbol: MenuSymbol.mute, title: "Mute the voice", detail: "Answers still show in the notch",
                           isOn: Binding(get: { mute.on }, set: { mute.set($0) }))
                 SettingsDivider()
-                SwitchRow(symbol: MenuSymbol.speakUp, title: "Speak up on its own", detail: "When work finishes or ships",
+                SwitchRow(symbol: MenuSymbol.sayFinished, title: "Say when a session finishes", detail: "Which agent, where and what you asked it",
+                          isOn: Binding(get: { menu.sayFinishedOn }, set: { menu.sayFinishedOn = $0; menu.setSayFinished($0) }))
+                SettingsDivider()
+                SwitchRow(symbol: MenuSymbol.speakUp, title: "Speak up on its own", detail: "Commits, pushes and other news",
                           isOn: Binding(get: { menu.speakUpOn }, set: { menu.speakUpOn = $0; menu.setSpeakUp($0) }))
                 SettingsDivider()
                 SwitchRow(symbol: MenuSymbol.sounds, title: "Sounds", detail: "A chime when something happens",
@@ -316,7 +324,7 @@ private struct ChimeVolumeRow: View {
 }
 
 /// Saying a rule or a line, and copying what happened for support, each a row with its button at the end.
-private struct HelpPage: View {
+struct HelpPage: View {
     @ObservedObject var menu: MenuModel
 
     var body: some View {
@@ -338,7 +346,7 @@ private struct HelpPage: View {
             SettingsDivider()
             SettingsRow(symbol: "trash", title: "Uninstall Memnox",
                         caption: "Removes the service, its hooks in your agents, your history here, its sign ins and the app.",
-                        tint: Memnox.Palette.warm) {
+                        tint: Memnox.Console.warm) {
                 Button("Uninstall", action: menu.uninstall)
             }
         }
@@ -353,8 +361,8 @@ private struct PagePanel: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
         content
-            .background(Memnox.Palette.background, in: shape)
+            .background(Memnox.Console.background, in: shape)
             .clipShape(shape)
-            .overlay(shape.strokeBorder(Memnox.Palette.panelEdge, lineWidth: Memnox.Stroke.hairline))
+            .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
     }
 }

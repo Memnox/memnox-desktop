@@ -73,6 +73,16 @@ describe('agent logo', () => {
     expect(agentLogo('agt_gemini')).toBeUndefined();
   });
 
+  it('finds the same file from the name the person reads', () => {
+    expect(agentLogo('Claude Code')).toBe('claude');
+    expect(agentLogo('Codex')).toBe('openai');
+    expect(agentLogo('Copilot CLI')).toBe('copilot');
+    expect(agentLogo('OpenCode')).toBe('opencode');
+    expect(agentLogo('OpenClaw')).toBe('openclaw');
+    expect(agentLogo('Gemini CLI')).toBeUndefined();
+    expect(agentLogo('Ruflo')).toBeUndefined();
+  });
+
   it('stands in with the first letter', () => {
     expect(agentInitial('agt_gemini')).toBe('G');
     expect(agentInitial('hermes')).toBe('H');

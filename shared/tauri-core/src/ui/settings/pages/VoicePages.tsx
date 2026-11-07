@@ -1,14 +1,35 @@
-import { AppWindow, ArrowRight, AudioWaveform, Bell, ChevronsUpDown, CircleMinus, Ear, Gauge, History, Keyboard, MessageSquareText, MicVocal, Play, Sparkles, TextCursorInput, Volume1, VolumeX } from 'lucide-react';
+import { AppWindow, ArrowRight, AudioWaveform, Bell, CircleMinus, Ear, Gauge, History, Keyboard, MessageSquareText, MicVocal, Play, Sparkles, TextCursorInput, Volume1, VolumeX } from 'lucide-react';
 import { Fragment, useEffect, useState } from 'react';
 import type { VoiceChoices } from '../../../core/application/voice-preferences';
 import type { Platform } from '../../../core/domain/platform';
 import { DICTATION_KEY_WORDS, type DictationKeyName } from '../../../core/domain/voice-keys';
 import { AgentCheckText } from '../../../core/domain/agent-check-text';
 import { firstName, voiceDetail, voiceStep } from '../../../core/domain/setup-steps';
-import { BrandLogo } from '../../kit/logos';
-import { KitButton, KitField, QuietLine, SettingsCard, SettingsDivider, SettingsRow, SettingsSection, Spinner, Surface, SwitchRow, useCopied } from '../kit';
+import { AgentLogos, BrandLogo } from '../../kit/logos';
+import { QuietLine, SettingsCard, SettingsDivider, SettingsRow, SettingsSection, Surface, SwitchRow, useCopied } from '../kit';
 import { useObserved, usePreferences, type SettingsParts } from '../parts';
 import { SetupDivider, SetupStep } from '../steps';
+import { Button, Input, Pressable, Select, Spinner } from '../../kit';
+import { OverviewLines } from '../../../core/domain/overview-lines';
+import { VoiceLines } from '../../../core/domain/voice-page-lines';
+
+/** `VoicePicker` is 220 wide and the small pop ups 140, as the Mac sizes them. */
+const VOICE_PICKER_WIDTH = 220;
+const SMALL_PICKER_WIDTH = 140;
+/** The "When I say" field, wide enough for a name and no wider. */
+const SAID_FIELD_WIDTH = 200;
+/** The voice a first run starts on, the natural voice's default. */
+const FIRST_VOICE = 'af_sky';
+/** The Mac's unhurried pace, between half speed and normal. */
+const UNHURRIED = 0.85;
+/** An agent's logo in its row, and those not installed yet, smaller in a line. */
+const AGENT_LOGO = 24;
+const ABSENT_LOGO = 14;
+/** Hear it's play mark, and the glyphs beside a learned word. */
+const PLAY_GLYPH = 11;
+const PLAY_GLYPH_STROKE = 2.4;
+const WORD_ARROW = 13;
+const REMOVE_GLYPH = 15;
 
 /** "af_sky" as "Sky", with who it sounds like, as the Mac's voice menu names them. */
 const VOICE_PEOPLE: Record<string, string> = {
@@ -20,7 +41,7 @@ const VOICE_PEOPLE: Record<string, string> = {
 
 /** The computer's own voice, as the Mac's picker names its own "Mac voice". */
 export const SYSTEM_VOICE = 'system';
-const SYSTEM_VOICE_LABEL: Record<Platform, string> = { windows: 'Windows voice', linux: 'System voice', other: 'System voice' };
+const SYSTEM_VOICE_LABEL: Record<Platform, string> = { windows: VoiceLines.windowsVoice, linux: VoiceLines.systemVoice, other: VoiceLines.systemVoice };
 
 export function voiceLabel(id: string, platform: Platform = 'other'): string {
   if (id === SYSTEM_VOICE) return SYSTEM_VOICE_LABEL[platform];
@@ -51,37 +72,43 @@ function AgentsStep({ parts }: { parts: SettingsParts }) {
   const state = steps.agentsState;
   const done = state.kind === 'done';
   const installed = steps.agents.filter((agent) => agent.installed);
-  const missing = steps.agents.filter((agent) => !agent.installed).map((agent) => agent.label);
+  const absent = steps.agents.filter((agent) => !agent.installed);
+  const missing = absent.map((agent) => agent.label);
   return (
     <SetupStep
       state={state}
-      title="Who answers for you"
+      title={VoiceLines.whoAnswers}
       detail={steps.agentsDetail}
-      trailing={done ? <KitButton onClick={() => setShown(!shown)}>{shown ? 'Hide agents' : 'Show agents'}</KitButton> : undefined}
+      trailing={done ? <Button onClick={() => setShown(!shown)}>{shown ? VoiceLines.hideAgents : VoiceLines.showAgents}</Button> : undefined}
       extra={
         !done || shown ? (
           <div className="flex flex-col gap-2">
             {installed.map((agent) => (
               <div key={agent.kind} className="flex items-center gap-2">
-                <BrandLogo agent={agent.kind} name={agent.label} size={24} />
-                <span className="w-[84px] shrink-0 truncate text-caption font-semibold text-foreground">{agent.label}</span>
+                <BrandLogo agent={agent.kind} name={agent.label} size={AGENT_LOGO} />
+                <span className="w-settings-agent-label shrink-0 truncate text-caption font-semibold text-foreground">{agent.label}</span>
                 <span className={`min-w-0 flex-1 truncate text-caption ${agent.works === false ? 'text-ink-primary' : 'text-ink-secondary'}`} title={AgentCheckText.status(agent, steps.checkingAgents)}>
                   {AgentCheckText.status(agent, steps.checkingAgents)}
                 </span>
                 {agent.chosen ? (
-                  <span className="text-caption font-semibold text-green">In use</span>
+                  <span className="text-caption font-semibold text-green">{VoiceLines.inUse}</span>
                 ) : (
-                  <KitButton disabled={agent.works === false} onClick={() => void steps.useAgent(agent.kind)}>
-                    Use
-                  </KitButton>
+                  <Button disabled={agent.works === false} onClick={() => void steps.useAgent(agent.kind)}>
+                    {VoiceLines.use}
+                  </Button>
                 )}
               </div>
             ))}
-            {missing.length > 0 && <p className="text-caption text-muted">Also answers through {AgentCheckText.names(missing)} once installed and logged in.</p>}
+            {missing.length > 0 && (
+              <p className="flex items-center gap-1.5 text-caption text-muted">
+                <AgentLogos agents={absent.map((agent) => ({ agent: agent.kind, name: agent.label }))} size={ABSENT_LOGO} />
+                <span>{VoiceLines.alsoAnswers(AgentCheckText.names(missing))}</span>
+              </p>
+            )}
             <div className="flex items-center gap-2">
-              <KitButton disabled={steps.checkingAgents} onClick={() => void steps.loadAgents(true)}>
-                Check again
-              </KitButton>
+              <Button disabled={steps.checkingAgents} onClick={() => void steps.loadAgents(true)}>
+                {VoiceLines.checkAgain}
+              </Button>
               {steps.checkingAgents && <Spinner />}
             </div>
           </div>
@@ -95,7 +122,7 @@ function AgentsStep({ parts }: { parts: SettingsParts }) {
 function VoiceStep({ parts }: { parts: SettingsParts }) {
   const { steps, host, preferences, voiceSettings } = parts;
   const [voices, setVoices] = useState<string[]>([]);
-  const [chosen, setChosen] = useState<string>('af_sky');
+  const [chosen, setChosen] = useState<string>(FIRST_VOICE);
   useEffect(() => {
     host.voices.choice().then(
       (choice) => {
@@ -112,27 +139,34 @@ function VoiceStep({ parts }: { parts: SettingsParts }) {
     void host.voices
       .choose(id)
       .then(() => voiceSettings.tellVoice(id))
-      .then(() => (install.kind === 'done' ? host.voices.say('This is how I sound now.') : undefined))
+      .then(() => (install.kind === 'done' ? host.voices.say(VoiceLines.soundsNow) : undefined))
       .catch(() => undefined);
   };
   const hear = () => {
     const first = firstName(preferences.name);
     void host.voices
       .choose(chosen)
-      .then(() => host.voices.say(`Hi ${first ?? 'there'}, I am Memnox. Press ${parts.words.talkKeysSaid} whenever you want me.`))
+      .then(() => host.voices.say(OverviewLines.hello(first, parts.words.talkKeysSaid)))
       .catch(() => undefined);
   };
   return (
     <SetupStep
       state={voiceStep(install)}
-      title="Voice"
+      title={VoiceLines.voice}
       detail={voiceDetail(install)}
       trailing={
         <>
-          <VoicePicker voices={voices} chosen={chosen} pick={pick} platform={host.platform} />
-          <KitButton onClick={hear} title="Hear it" aria-label="Hear it" className="px-3">
-            <Play size={11} fill="currentColor" strokeWidth={2.4} />
-          </KitButton>
+          <Select
+            look="popup"
+            width={VOICE_PICKER_WIDTH}
+            label={VoiceLines.voice}
+            value={chosen}
+            options={(voices.length > 0 ? voices : [chosen]).map((id) => ({ value: id, label: voiceLabel(id, host.platform) }))}
+            onChange={pick}
+          />
+          <Button onClick={hear} title={VoiceLines.hear} aria-label={VoiceLines.hear}>
+            <Play size={PLAY_GLYPH} fill="currentColor" strokeWidth={PLAY_GLYPH_STROKE} />
+          </Button>
         </>
       }
       hint={false}
@@ -140,42 +174,23 @@ function VoiceStep({ parts }: { parts: SettingsParts }) {
         install.kind === 'installing' ? (
           <div className="flex items-center gap-2">
             <Spinner />
-            <QuietLine>
-              Downloading the voice{install.percent === undefined ? '' : `, ${install.percent}%`}. Memnox speaks with your computer&rsquo;s own voice until it is in.
-            </QuietLine>
+            <QuietLine>{VoiceLines.downloading(install.percent)}</QuietLine>
           </div>
         ) : install.kind === 'failed' ? (
           <div className="flex flex-col items-start gap-2">
             <QuietLine>{install.why}</QuietLine>
             <div className="flex items-center gap-2">
-              <KitButton onClick={() => void steps.installVoice()}>Try again</KitButton>
+              <Button onClick={() => void steps.installVoice()}>{VoiceLines.tryAgain}</Button>
               {voices.includes(SYSTEM_VOICE) && chosen !== SYSTEM_VOICE && (
-                <KitButton onClick={() => pick(SYSTEM_VOICE)}>Use the {voiceLabel(SYSTEM_VOICE, host.platform)} instead</KitButton>
+                <Button onClick={() => pick(SYSTEM_VOICE)}>{VoiceLines.useInstead(voiceLabel(SYSTEM_VOICE, host.platform))}</Button>
               )}
             </div>
           </div>
         ) : install.kind === 'idle' ? (
-          <KitButton onClick={() => void steps.installVoice()}>Download the voice</KitButton>
+          <Button onClick={() => void steps.installVoice()}>{VoiceLines.download}</Button>
         ) : undefined
       }
     />
-  );
-}
-
-/** `VoicePicker`: 220 by 28, radius 9, ink 6% with an 8% edge, the name 14 on the left and the chevron right. */
-function VoicePicker({ voices, chosen, pick, platform }: { voices: readonly string[]; chosen: string; pick: (id: string) => void; platform: Platform }) {
-  return (
-    <label className="relative flex h-7 w-[220px] cursor-pointer items-center justify-between rounded-[9px] border border-ink-fill bg-ink-faint-fill px-3">
-      <span className="truncate text-callout text-foreground">{voiceLabel(chosen, platform)}</span>
-      <ChevronsUpDown size={10} strokeWidth={2.5} className="shrink-0 text-muted" />
-      <select className="absolute inset-0 cursor-pointer opacity-0" value={chosen} onChange={(event) => pick(event.target.value)} aria-label="Voice">
-        {(voices.length > 0 ? voices : [chosen]).map((id) => (
-          <option key={id} value={id}>
-            {voiceLabel(id, platform)}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 
@@ -190,25 +205,25 @@ export function ListeningPage({ parts }: { parts: SettingsParts }) {
   usePreferences();
   return (
     <>
-      <SettingsCard title="Hearing you">
-        <VoiceSwitch parts={parts} name="wake" icon={Ear} title={'Wake when I say “Memnox”'} caption="On this computer only" />
+      <SettingsCard title={VoiceLines.hearing}>
+        <VoiceSwitch parts={parts} name="wake" icon={Ear} title={VoiceLines.wake} caption={VoiceLines.wakeCaption} />
         <SettingsDivider />
-        <VoiceSwitch parts={parts} name="talkOver" icon={MicVocal} title="Talk over it" caption="Cut in just by speaking" />
+        <VoiceSwitch parts={parts} name="talkOver" icon={MicVocal} title={VoiceLines.talkOver} caption={VoiceLines.talkOverCaption} />
         <SettingsDivider />
-        <VoiceSwitch parts={parts} name="liveWords" icon={MessageSquareText} title="Live words" caption="See what you say in the island" />
+        <VoiceSwitch parts={parts} name="liveWords" icon={MessageSquareText} title={VoiceLines.liveWords} caption={VoiceLines.liveWordsCaption} />
         <SettingsDivider />
-        <VoiceSwitch parts={parts} name="stayPut" icon={AppWindow} title="Stay where I am" caption="Agents get your words without taking your window" />
+        <VoiceSwitch parts={parts} name="stayPut" icon={AppWindow} title={VoiceLines.stayPut} caption={VoiceLines.stayPutCaption} />
         <SettingsDivider />
-        <VoiceSwitch parts={parts} name="echoCancel" icon={AudioWaveform} title="Cancel my own voice" caption="Off for a headset, where the speakers never reach the microphone" />
+        <VoiceSwitch parts={parts} name="echoCancel" icon={AudioWaveform} title={VoiceLines.echoCancel} caption={VoiceLines.echoCancelCaption} />
       </SettingsCard>
-      <SettingsCard title="Speaking to you">
-        <VoiceSwitch parts={parts} name="muted" icon={VolumeX} title="Mute the voice" caption="Answers still show in the island" />
+      <SettingsCard title={VoiceLines.speaking}>
+        <VoiceSwitch parts={parts} name="muted" icon={VolumeX} title={VoiceLines.mute} caption={VoiceLines.muteCaption} />
         <SettingsDivider />
-        <VoiceSwitch parts={parts} name="speakUp" icon={Bell} title="Speak up on its own" caption="When work finishes or ships" />
+        <VoiceSwitch parts={parts} name="speakUp" icon={Bell} title={VoiceLines.speakUp} caption={VoiceLines.speakUpCaption} />
         <SettingsDivider />
-        <VoiceSwitch parts={parts} name="chimes" icon={Volume1} title="Sounds" caption="A chime when something happens" />
+        <VoiceSwitch parts={parts} name="chimes" icon={Volume1} title={VoiceLines.sounds} caption={VoiceLines.soundsCaption} />
         <SettingsDivider />
-        <VoiceSwitch parts={parts} name="catchUp" icon={History} title="Catch me up" caption="What my agents did while I was away" />
+        <VoiceSwitch parts={parts} name="catchUp" icon={History} title={VoiceLines.catchUp} caption={VoiceLines.catchUpCaption} />
         <SettingsDivider />
         <SpeedRow parts={parts} />
       </SettingsCard>
@@ -218,15 +233,15 @@ export function ListeningPage({ parts }: { parts: SettingsParts }) {
 
 /** The speeds on offer, the Mac's unhurried pace in the middle, held between half speed and normal as it holds them. */
 const SPEEDS: readonly { readonly speed: number; readonly label: string }[] = [
-  { speed: 0.7, label: 'Slower' },
-  { speed: 0.85, label: 'Unhurried' },
-  { speed: 1, label: 'Normal' },
+  { speed: 0.7, label: VoiceLines.slower },
+  { speed: UNHURRIED, label: VoiceLines.unhurried },
+  { speed: 1, label: VoiceLines.normal },
 ];
 
 /** How fast the voice speaks, kept by Rust beside the chosen voice and heard on the next sentence. */
 function SpeedRow({ parts }: { parts: SettingsParts }) {
   const { host } = parts;
-  const [speed, setSpeed] = useState(0.85);
+  const [speed, setSpeed] = useState(UNHURRIED);
   useEffect(() => {
     host.voices.choice().then(
       (choice) => choice.speed !== undefined && setSpeed(choice.speed),
@@ -237,31 +252,14 @@ function SpeedRow({ parts }: { parts: SettingsParts }) {
     setSpeed(next);
     void host.voices
       .setSpeed(next)
-      .then(() => host.voices.say('This is how fast I speak now.'))
+      .then(() => host.voices.say(VoiceLines.speedNow))
       .catch(() => undefined);
   };
   const nearest = SPEEDS.reduce((best, each) => (Math.abs(each.speed - speed) < Math.abs(best.speed - speed) ? each : best));
   return (
-    <SettingsRow icon={Gauge} title="Voice speed" caption="How quickly Memnox talks">
-      <SmallPicker label="Voice speed" value={String(nearest.speed)} shown={nearest.label} options={SPEEDS.map((each) => ({ value: String(each.speed), label: each.label }))} pick={(value) => pick(Number(value))} />
+    <SettingsRow icon={Gauge} title={VoiceLines.speed} caption={VoiceLines.speedCaption}>
+      <Select look="popup" width={SMALL_PICKER_WIDTH} label={VoiceLines.speed} value={String(nearest.speed)} options={SPEEDS.map((each) => ({ value: String(each.speed), label: each.label }))} onChange={(value) => pick(Number(value))} />
     </SettingsRow>
-  );
-}
-
-/** A picker the size of the Mac's small pop up: the choice and a chevron over a hidden select. */
-function SmallPicker({ label, value, shown, options, pick }: { label: string; value: string; shown: string; options: readonly { value: string; label: string }[]; pick: (value: string) => void }) {
-  return (
-    <label className="relative flex h-7 w-[140px] cursor-pointer items-center justify-between rounded-[9px] border border-ink-fill bg-ink-faint-fill px-3">
-      <span className="truncate text-callout text-foreground">{shown}</span>
-      <ChevronsUpDown size={10} strokeWidth={2.5} className="shrink-0 text-muted" />
-      <select className="absolute inset-0 cursor-pointer opacity-0" value={value} onChange={(event) => pick(event.target.value)} aria-label={label}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 
@@ -271,8 +269,8 @@ function DictationKeyRow({ parts }: { parts: SettingsParts }) {
   const key = parts.voice.dictationKey;
   const keys = Object.entries(DICTATION_KEY_WORDS) as [DictationKeyName, string][];
   return (
-    <SettingsRow icon={Keyboard} title="Dictation key" caption="Right Alt types characters on many layouts, so pick the key you never type with">
-      <SmallPicker label="Dictation key" value={key} shown={DICTATION_KEY_WORDS[key]} options={keys.map(([value, label]) => ({ value, label }))} pick={(value) => parts.voice.pickDictationKey(value as DictationKeyName)} />
+    <SettingsRow icon={Keyboard} title={VoiceLines.dictationKey} caption={VoiceLines.dictationKeyCaption}>
+      <Select look="popup" width={SMALL_PICKER_WIDTH} label={VoiceLines.dictationKey} value={key} options={keys.map(([value, label]) => ({ value, label }))} onChange={(value) => parts.voice.pickDictationKey(value as DictationKeyName)} />
     </SettingsRow>
   );
 }
@@ -295,87 +293,85 @@ export function DictationPage({ parts }: { parts: SettingsParts }) {
   };
   return (
     <>
-      <SettingsSection title="Dictate">
+      <SettingsSection title={VoiceLines.dictate}>
         <SettingsCard>
           <VoiceSwitch
             parts={parts}
             name="dictation"
             icon={Keyboard}
-            title="Dictate anywhere"
-            caption={`Hold the ${DICTATION_KEY_WORDS[voice.dictationKey].replace('Right', 'right')} key and speak, or tap it twice to keep going hands free.`}
+            title={VoiceLines.dictateAnywhere}
+            caption={VoiceLines.dictateCaption(DICTATION_KEY_WORDS[voice.dictationKey])}
           />
           <SettingsDivider />
           <DictationKeyRow parts={parts} />
           <SettingsDivider />
-          <VoiceSwitch parts={parts} name="typesLive" icon={TextCursorInput} title="Type as I speak" caption="Words appear at the cursor while you talk, and are tidied once you finish." disabled={!on} />
+          <VoiceSwitch parts={parts} name="typesLive" icon={TextCursorInput} title={VoiceLines.typesLive} caption={VoiceLines.typesLiveCaption} disabled={!on} />
           <SettingsDivider />
           <VoiceSwitch
             parts={parts}
             name="polish"
             icon={Sparkles}
-            title="Polish with Claude Code"
-            caption="Your own Claude Code tidies false starts and layout, and lets you edit selected text by voice. Off, Memnox tidies it alone."
+            title={VoiceLines.polish}
+            caption={VoiceLines.polishCaption}
             disabled={!on}
           />
         </SettingsCard>
       </SettingsSection>
-      <SettingsSection title="Your words">
+      <SettingsSection title={VoiceLines.yourWords}>
         <Surface className="py-1">
           <div className="flex items-center gap-1.5 px-4 py-3">
-            <KitField value={said} placeholder="When I say (optional)" width={200} onChange={setSaid} onSubmit={add} />
-            <KitField value={written} placeholder="Write it as" className="flex-1" onChange={setWritten} onSubmit={add} />
-            <KitButton kind="primary" disabled={written.trim() === ''} onClick={add}>
-              Add
-            </KitButton>
+            <Input value={said} placeholder={VoiceLines.whenISay} width={SAID_FIELD_WIDTH} onValue={setSaid} onSubmit={add} />
+            <Input value={written} placeholder={VoiceLines.writeAs} className="flex-1" onValue={setWritten} onSubmit={add} />
+            <Button kind="primary" disabled={written.trim() === ''} onClick={add}>
+              {VoiceLines.add}
+            </Button>
           </div>
           {words.length === 0 ? (
-            <p className="px-4 pb-3 text-footnote text-muted">
-              Names and words Memnox should spell your way, such as a teammate&rsquo;s name or ORB. Fixes you make right after dictating are learned here too.
-            </p>
+            <p className="px-4 pb-3 text-footnote text-muted">{VoiceLines.noWords}</p>
           ) : (
             words.map((word) => (
               <Fragment key={`${word.said ?? ''}:${word.written}`}>
-                <div className="ml-[41px] h-px bg-ink-rim" />
+                <div className="ml-settings-menu-divider h-px bg-ink-rim" />
                 <div className="flex items-center gap-1.5 px-4 py-2 text-callout">
                   {word.said !== undefined && (
                     <>
                       <span className="text-ink-secondary">{word.said}</span>
-                      <ArrowRight size={13} className="text-ink-tertiary" />
+                      <ArrowRight size={WORD_ARROW} className="text-ink-tertiary" />
                     </>
                   )}
                   <span className="flex-1 text-ink">{word.written}</span>
-                  <button type="button" className="grid cursor-pointer text-muted hover:text-foreground" title="Remove" aria-label="Remove" onClick={() => dictation.removeWord(word)}>
-                    <CircleMinus size={15} />
-                  </button>
+                  <Pressable className="grid cursor-pointer text-muted hover:text-foreground" title={VoiceLines.remove} aria-label={VoiceLines.remove} onClick={() => dictation.removeWord(word)}>
+                    <CircleMinus size={REMOVE_GLYPH} />
+                  </Pressable>
                 </div>
               </Fragment>
             ))
           )}
         </Surface>
       </SettingsSection>
-      <SettingsSection title="Lately">
+      <SettingsSection title={VoiceLines.lately}>
         <Surface className="py-1">
           {history.length === 0 ? (
-            <p className="px-4 py-3 text-body text-muted">What you dictate shows here, so a dictation that went nowhere can be copied again.</p>
+            <p className="px-4 py-3 text-body text-muted">{VoiceLines.noHistory}</p>
           ) : (
             <>
               {history.map((entry, index) => (
                 <Fragment key={entry.at}>
-                  {index > 0 && <div className="ml-[41px] h-px bg-ink-rim" />}
+                  {index > 0 && <div className="ml-settings-menu-divider h-px bg-ink-rim" />}
                   <div className="flex items-center gap-3 px-4 py-3">
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="line-clamp-3 select-text text-callout text-ink">{entry.written}</span>
                       <span className="text-caption text-ink-tertiary">
-                        {entry.app ?? 'An app'}, {new Date(entry.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                        {entry.app ?? VoiceLines.anApp}, {new Date(entry.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                       </span>
                     </div>
-                    <KitButton onClick={() => copy(entry.written)}>Copy</KitButton>
+                    <Button onClick={() => copy(entry.written)}>{VoiceLines.copy}</Button>
                   </div>
                 </Fragment>
               ))}
-              <div className="ml-[41px] h-px bg-ink-rim" />
+              <div className="ml-settings-menu-divider h-px bg-ink-rim" />
               <div className="flex justify-end px-4 py-3">
-                <KitButton onClick={() => dictation.clearHistory()}>Clear history</KitButton>
+                <Button onClick={() => dictation.clearHistory()}>{VoiceLines.clearHistory}</Button>
               </div>
             </>
           )}

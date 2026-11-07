@@ -1,5 +1,5 @@
 /** The core every desktop screen draws from: no DOM, no Tauri, only the daemon, the key and the voice through ports. */
-export { HeldCalls, type HeldCallsOptions, type HeldOutcome, type HeldState } from './application/held-calls';
+export { HeldCalls, handedOutcome, type HandedOutcome, type HeldCallsOptions, type HeldOutcome, type HeldState } from './application/held-calls';
 export { RequestIds } from './application/request-ids';
 export { ProposalCards } from './application/proposal-cards';
 export { NO_KEY_LINE, Signer, type Signing } from './application/signer';
@@ -48,6 +48,7 @@ export { settledLine, SETTLED_UNKNOWN } from './domain/settled-line';
 export { atRest, cubicBezier, SHRINK, springConstants, springStep, SPRINGS, type Moving, type Spring } from './domain/spring';
 export { EarlierAnswer } from './domain/earlier-answer';
 export type { HeldCard } from './domain/held-card';
+export { IMPACT_WORDS, impactEvidence, impactRows, type HeldClaim, type HeldImpact } from './domain/held-impact';
 export { accountWarning, draftAudience, suggestedScope, typedAddresses, type ProposalCard } from './domain/proposal-card';
 export { ANOTHER_KEY_LINE, type KeyStatus } from './domain/key-status';
 export { isAtLeast, MINIMUM_RUNTIME, type RuntimeState } from './domain/runtime-state';

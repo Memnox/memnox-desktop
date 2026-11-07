@@ -327,6 +327,8 @@ struct IslandSatellites: View {
     @ObservedObject var model: IslandModel
     @ObservedObject private var mute = VoiceMute.shared
     let islandWidth: CGFloat
+    /// While Memnox talks: mute and the eye on the right, in place of the full set.
+    var talking = false
     /// False for the first moment, so each column starts tucked behind the island's edge and slides out of it.
     @State private var out = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -342,9 +344,35 @@ struct IslandSatellites: View {
         static let settings = "gearshape"
         static let mute = "speaker.slash"
         static let unmute = "speaker.wave.2"
+        static let fold = "eye.slash"
     }
 
     var body: some View {
+        if talking { talkingSet } else { fullSet }
+    }
+
+    private var talkingSet: some View {
+        HStack(alignment: .top, spacing: 0) {
+            // Nothing on the left, so the right column stays where it is in the full set.
+            Spacer().frame(width: NotchMetrics.satelliteDiameter + islandWidth + 2 * NotchMetrics.satelliteGap)
+            VStack(spacing: NotchMetrics.satelliteStep - NotchMetrics.satelliteDiameter) {
+                satellite(mute.on ? Symbol.mute : Symbol.unmute, mute.on ? "Unmute the voice" : "Mute the voice", on: mute.on, action: mute.toggle)
+                    .slidingOut(out, from: -Self.tucked, after: 0, reduceMotion: reduceMotion)
+                satellite(Symbol.fold, "Fold into the notch and keep it closed. Memnox keeps talking, and a tap on the orb opens it", on: false, action: fold)
+                    .slidingOut(out, from: -Self.tucked, after: Self.stagger, reduceMotion: reduceMotion)
+            }
+        }
+        .onAppear { out = true }
+    }
+
+    /// Folds this talk into the notch and keeps the notch closed for news after it; calling Memnox still opens it.
+    private func fold() {
+        IslandHiding.shared.set(true)
+        model.folded = true
+        model.settle()
+    }
+
+    private var fullSet: some View {
         HStack(alignment: .top, spacing: 0) {
             VStack(spacing: NotchMetrics.satelliteStep - NotchMetrics.satelliteDiameter) {
                 satellite(Symbol.grid, "Everything Memnox does", on: model.mode == .launcher, action: toggleLauncher)

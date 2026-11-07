@@ -25,7 +25,7 @@ export function MarkdownText({ source, tone = 'island', onLink, className }: { s
             );
           case 'bullet':
             return (
-              <div key={index} className="flex items-baseline gap-[7px] text-body leading-[18px]">
+              <div key={index} className="flex items-baseline gap-card-bullet text-body leading-card-bullet">
                 <span className="font-semibold text-primary">{'•'}</span>
                 <span className="min-w-0">
                   <Inline line={block.text} onLink={onLink} />
@@ -34,13 +34,13 @@ export function MarkdownText({ source, tone = 'island', onLink, className }: { s
             );
           case 'code':
             return (
-              <pre key={index} className={`m-0 w-full overflow-x-auto whitespace-pre rounded-control bg-black/[0.28] p-2 text-[11.5px] leading-[15px] ${SYSTEM_MONO}`}>
+              <pre key={index} className={`m-0 w-full overflow-x-auto whitespace-pre rounded-control bg-black/[0.28] p-2 text-card-code leading-card-code ${SYSTEM_MONO}`}>
                 {block.text}
               </pre>
             );
           case 'text':
             return (
-              <p key={index} className="m-0 text-[13.5px] leading-[19.5px]">
+              <p key={index} className="m-0 text-card-paragraph leading-card-paragraph">
                 <Inline line={block.text} onLink={onLink} />
               </p>
             );

@@ -1,4 +1,5 @@
 import type { DisplayHost } from '@memnox/core/wire';
+import type { AgentHomeKind } from './agent-homes';
 import { bestTab } from './tab-match';
 import { isAgentProgram } from './terminal-front';
 
@@ -141,11 +142,6 @@ export function choosePane(panes: readonly TerminalPane[], host: DisplayHost, te
   return { why: `${inFolder.length} tabs in ${terminal} are in its folder, so which one is the session's cannot be told` };
 }
 
-/** The Claude Code extension's conversation id is a UUID, the only id that opens its conversation rather than a new one. */
-export function isConversationId(id: string | undefined): boolean {
-  return id !== undefined && /^[0-9a-f-]{36}$/i.test(id);
-}
-
 /** The schemes an agent's own desktop app answers on, the only links an APP display may open. */
 const APP_SCHEMES: readonly string[] = ['claude', 'codex', 'cursor', 'vscode', 'windsurf'];
 
@@ -160,6 +156,8 @@ export function isAppLink(link: string): boolean {
 export type LaunchPlan =
   | { readonly kind: 'editor'; readonly editor: EditorKind; readonly app: string }
   | { readonly kind: 'terminal'; readonly terminal?: TerminalKind; readonly background: boolean }
+  /** A window of the app the person picked under Where your agents run, for a terminal with no tab command. */
+  | { readonly kind: 'window'; readonly home: AgentHomeKind }
   | { readonly kind: 'none'; readonly why: string };
 
 /** The terminals that open a tab without bringing their window forward, so Stay where I am keeps the person's window. */

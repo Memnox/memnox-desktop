@@ -8,6 +8,3 @@ export function needs(why: string): StepState {
   return { kind: 'needs', why };
 }
 
-export function isDone(state: StepState): boolean {
-  return state.kind === 'done';
-}

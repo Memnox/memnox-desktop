@@ -14,6 +14,8 @@ public final class DictationPolish: @unchecked Sendable {
     public static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
     /// Editing a selection has nothing to fall back on, so it waits a little longer for its one answer.
     public static let editPatience: TimeInterval = 12
+    /// Enough of the text before the cursor to hold the names already written there, and little enough to stay quick.
+    public static let mostTextBefore = 600
 
     public init(link: DaemonLink, ids: RequestIds = RequestIds(),
                 sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { seconds in
@@ -29,16 +31,18 @@ public final class DictationPolish: @unchecked Sendable {
         _ = try? await link.request(DaemonRequest(id: ids.next(), method: .polishWarm))
     }
 
-    /// The polished text, or nil when the daemon said no or did not answer within `patience`.
+    /// The polished text, or nil when the daemon said no or did not answer within `patience`. `textBefore` is what
+    /// the field already holds before the cursor, sent only so a name written there is spelled the same way.
     public func polish(
         _ said: String, family: DictationFamily, vocabulary: [String], selection: String? = nil,
-        patience: TimeInterval = DictationPolish.patience
+        textBefore: String? = nil, patience: TimeInterval = DictationPolish.patience
     ) async -> String? {
         var request = DaemonRequest(id: ids.next(), method: .polish)
         request.said = said
         request.family = family.rawValue
         request.vocabulary = vocabulary
         request.selection = selection
+        request.textBefore = textBefore.map { String($0.suffix(Self.mostTextBefore)) }.flatMap(\.nilIfBlank)
         let link = self.link
         let sleep = self.sleep
         let answer: String? = await withTaskGroup(of: String?.self) { group in
@@ -61,4 +65,5 @@ public final class DictationPolish: @unchecked Sendable {
 
 private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
+    var nilIfBlank: String? { trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : self }
 }

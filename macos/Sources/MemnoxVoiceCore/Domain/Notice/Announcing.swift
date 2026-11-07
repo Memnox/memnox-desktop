@@ -21,15 +21,17 @@ extension NoticeKind {
 extension DaemonEvent {
     /// Whether to say this out loud: everything but a notice is, and a notice only when it must be or the person asked for news.
     /// Anything a phone holds or asked for is never said here, since its words go back to that phone.
-    public func isSaid(speakUp: Bool) -> Bool {
+    /// `sayFinished` is its own setting, so a person can hear a session end without hearing every commit and push.
+    public func isSaid(speakUp: Bool, sayFinished: Bool = false) -> Bool {
         if quietOnMac || isShownOnly { return false }
         guard eventKind == .notice else { return true }
+        if noticeKind == .finished, sayFinished { return true }
         return speakUp || (noticeKind?.isAlwaysSaid ?? false)
     }
 
-    /// A drive grant, a phone's turn or the voice moving to a phone: put on the island at once and never said.
+    /// A drive grant, a phone's turn, the voice moving to a phone, or live activity for the screens: never said.
     public var isShownOnly: Bool {
-        drivenBy != nil || phoneTurn != nil || voiceOn != nil
+        eventKind == .activity || drivenBy != nil || phoneTurn != nil || voiceOn != nil
     }
 
     /// Whether the conversation stays open once this is said, because it waits on the person rather than only telling them.

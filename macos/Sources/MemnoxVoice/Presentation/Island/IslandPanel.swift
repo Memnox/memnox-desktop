@@ -55,7 +55,9 @@ final class IslandPanel: NSPanel, Face {
         static let hoverDamping = 0.6
         /// Sessions are read this often while the island is open, and less often while it only shows dots.
         static let openRefresh: TimeInterval = 2
-        static let restingRefresh: TimeInterval = 5
+        static let restingRefresh: TimeInterval = 10
+        /// With no session to show, since each read asks the daemon to walk every transcript, and opening reads at once.
+        static let emptyRefresh: TimeInterval = 30
         static let nanosecondsPerSecond: TimeInterval = 1_000_000_000
     }
 
@@ -134,7 +136,12 @@ final class IslandPanel: NSPanel, Face {
     ) {
         model.answer = answer
         model.answerQuestion = answerQuestion
-        model.tapped = tapped
+        // A tap on the orb folded in the notch opens the talk under way rather than ending it.
+        model.tapped = { [weak self] in
+            guard let self, model.folded else { return tapped() }
+            model.folded = false
+            settle()
+        }
     }
 
     /// An agent asked in its own picker: the island opens on its choices; one with nothing to pick stays spoken only.
@@ -145,7 +152,7 @@ final class IslandPanel: NSPanel, Face {
             model.question = card
             model.ticked = []
             model.questionError = nil
-            model.settle()
+            settle()
         }
     }
 
@@ -170,7 +177,7 @@ final class IslandPanel: NSPanel, Face {
                     self?.model.questionError = nil
                 }
             }
-            model.settle()
+            settle()
         }
     }
 
@@ -202,7 +209,7 @@ final class IslandPanel: NSPanel, Face {
             guard let self else { return }
             self.model.history.forget()
             self.historyFile?.save(self.model.history)
-            self.model.settle()
+            self.settle()
         }
     }
 
@@ -256,7 +263,7 @@ final class IslandPanel: NSPanel, Face {
     nonisolated func ruling(_ on: Bool) {
         DispatchQueue.main.async { [self] in
             withAnimation(.snappy) { model.ruling = on }
-            model.settle()
+            settle()
         }
     }
 
@@ -264,7 +271,7 @@ final class IslandPanel: NSPanel, Face {
     nonisolated func dictating(_ hint: String?) {
         DispatchQueue.main.async { [self] in
             withAnimation(.snappy) { model.dictating = hint }
-            model.settle()
+            settle()
         }
     }
 
@@ -276,7 +283,7 @@ final class IslandPanel: NSPanel, Face {
             model.rule = card
             model.ruleScope = rule.suggestedScope?.id
             model.sending = false
-            model.settle()
+            settle()
         }
     }
 
@@ -290,7 +297,7 @@ final class IslandPanel: NSPanel, Face {
                 guard model.rule?.subject == card.subject else { return }
                 model.rule = nil
                 model.ruleScope = nil
-                model.settle()
+                settle()
             case .cancelled: break
             case .failed: model.shakes += 1
             }
@@ -301,7 +308,7 @@ final class IslandPanel: NSPanel, Face {
     @MainActor func showLiveWords(_ on: Bool) {
         model.liveWords = on
         if !on { model.heard = "" }
-        model.settle()
+        settle()
     }
 
     /// Where the orb is on screen while it shows large, for a card that flies out of it.
@@ -316,18 +323,23 @@ final class IslandPanel: NSPanel, Face {
         )
     }
 
-    nonisolated func present() {
+    /// `onItsOwn` is news nobody called for, which stays folded in the notch while the person keeps it closed.
+    nonisolated func present(onItsOwn: Bool = false) {
         DispatchQueue.main.async { [self] in
             place()
-            if !model.active { model.talkingSince = Date() }
+            if !model.active {
+                model.talkingSince = Date()
+                model.folded = onItsOwn && IslandHiding.shared.on
+            }
             model.active = true
-            model.settle()
+            settle()
         }
     }
 
     nonisolated func dismiss() {
         DispatchQueue.main.async { [self] in
             model.active = false
+            model.folded = false
             model.dictating = nil
             model.caption = ""
             model.heard = ""
@@ -335,7 +347,7 @@ final class IslandPanel: NSPanel, Face {
             model.talkingSince = nil
             model.state = .idle
             renderer?.state = .idle
-            model.settle()
+            settle()
         }
     }
 
@@ -344,7 +356,7 @@ final class IslandPanel: NSPanel, Face {
         DispatchQueue.main.async { [self] in
             guard model.liveWords, model.active, words != model.heard else { return }
             model.heard = words
-            model.settle()
+            settle()
         }
     }
 
@@ -352,7 +364,7 @@ final class IslandPanel: NSPanel, Face {
         DispatchQueue.main.async { [self] in
             model.history.ask(words, at: Date())
             model.heard = ""
-            model.settle()
+            settle()
         }
     }
 
@@ -384,13 +396,13 @@ final class IslandPanel: NSPanel, Face {
             phoneEnd?.cancel()
             place()
             model.phone = turn
-            model.settle()
+            settle()
             guard !turn.isAnswering else { return }
             phoneEnd = Task { @MainActor [weak self] in
                 try? await Task.sleep(nanoseconds: Island.phoneTurnFor)
                 guard !Task.isCancelled, let self, self.model.phone?.id == turn.id else { return }
                 self.model.phone = nil
-                self.model.settle()
+                self.settle()
             }
         }
     }
@@ -413,7 +425,7 @@ final class IslandPanel: NSPanel, Face {
         DispatchQueue.main.async { [self] in
             model.history.end(at: Date(), failure: failure)
             historyFile?.save(model.history)
-            model.settle()
+            settle()
         }
     }
 
@@ -428,7 +440,7 @@ final class IslandPanel: NSPanel, Face {
             place()
             model.draft = card
             model.sending = false
-            model.settle()
+            settle()
         }
     }
 
@@ -440,7 +452,7 @@ final class IslandPanel: NSPanel, Face {
             case .answered, .answeredElsewhere:
                 guard model.draft?.subject == card.subject else { return }
                 model.draft = nil
-                model.settle()
+                settle()
             case .cancelled: break
             case .failed: model.shakes += 1
             }
@@ -454,7 +466,7 @@ final class IslandPanel: NSPanel, Face {
             place()
             model.work = card
             model.sending = false
-            model.settle()
+            settle()
         }
     }
 
@@ -474,7 +486,7 @@ final class IslandPanel: NSPanel, Face {
                 }
                 guard model.work?.subject == card.subject else { return }
                 model.work = nil
-                model.settle()
+                settle()
             case .cancelled: break
             case .failed: model.shakes += 1
             }
@@ -570,7 +582,7 @@ final class IslandPanel: NSPanel, Face {
             if !text.isEmpty || state == .idle { model.caption = text }
             // A fresh listen starts with no words, so nothing heard last time lingers in the bubble.
             if state == .listening, text.isEmpty { model.heard = "" }
-            model.settle()
+            settle()
         }
     }
 
@@ -586,7 +598,7 @@ final class IslandPanel: NSPanel, Face {
             place()
             model.waiting.add(card, subject: card.subject, machine: card.machine, keepShown: model.answering || model.settledNote != nil)
             renderer?.waiting = true
-            model.settle()
+            settle()
         }
     }
 
@@ -597,14 +609,14 @@ final class IslandPanel: NSPanel, Face {
             // A draft withdrawn by voice or run out settles too, and its card goes; one being sent is left to its answer.
             if model.work?.subject == subject, !model.sending {
                 model.work = nil
-                model.settle()
+                settle()
             }
             // Answered here, by voice or in the agent's own picker, or run out: the question has nothing left to ask.
             if model.question?.subject == subject {
                 model.question = nil
                 model.ticked = []
                 model.questionError = nil
-                model.settle()
+                settle()
             }
             if let note, model.held?.subject == subject, model.pressed != subject {
                 model.settledNote = note
@@ -632,7 +644,7 @@ final class IslandPanel: NSPanel, Face {
         }
         if model.pressed == subject { model.pressed = nil }
         renderer?.waiting = !model.waiting.isEmpty
-        model.settle()
+        settle()
     }
 
     /// A button press ended: the call stays up when Touch ID was cancelled or the answer failed.
@@ -657,14 +669,14 @@ final class IslandPanel: NSPanel, Face {
         let card = FinishedCard(event)
         DispatchQueue.main.async { [self] in
             model.finished = card
-            model.settle()
+            settle()
             model.hops += 1
             finishing?.cancel()
             finishing = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: Island.finishedFor)
-                guard !Task.isCancelled, let model = self?.model else { return }
+                guard !Task.isCancelled, let self else { return }
                 model.finished = nil
-                model.settle()
+                settle()
             }
         }
     }
@@ -702,6 +714,12 @@ final class IslandPanel: NSPanel, Face {
         if frame != placed { setFrame(placed, display: false) }
     }
 
+    /// The model settled and the pointer looked at again at once, since far away the pointer is only looked at once a second.
+    @MainActor private func settle() {
+        model.settle()
+        poll?.now()
+    }
+
     /// Showing something, or with the side panel out, so following the pointer waits rather than moving it away.
     @MainActor private var isOpen: Bool {
         model.active || model.sideOpen || !(model.mode == .peek || model.mode == .compact)
@@ -734,7 +752,7 @@ final class IslandPanel: NSPanel, Face {
             x: frame.minX + below.minX, y: frame.maxY - below.maxY, width: below.width, height: below.height
         ).insetBy(dx: -Layout.pointerSlop, dy: -Layout.pointerSlop).contains(mouse)
         // The round buttons either side of the open island take clicks too, over their column only.
-        let satellites = model.showsSatellites && NSRect(
+        let satellites = (model.showsSatellites || model.showsTalkSatellites) && NSRect(
             x: shape.minX - NotchMetrics.satelliteReach, y: frame.maxY - Island.satelliteColumn(model.notch),
             width: shape.width + 2 * NotchMetrics.satelliteReach, height: Island.satelliteColumn(model.notch)
         ).contains(mouse)
@@ -789,7 +807,7 @@ final class IslandPanel: NSPanel, Face {
         lastActivity = Date()
         model.opened = true
         model.detail = false
-        model.settle()
+        settle()
         refresh()
     }
 
@@ -803,7 +821,7 @@ final class IslandPanel: NSPanel, Face {
         model.pickedTool = nil
         model.picked = nil
         model.countdown = nil
-        model.settle()
+        settle()
         refresh()
     }
 
@@ -817,14 +835,15 @@ final class IslandPanel: NSPanel, Face {
                 let cards = await list().filter { !IslandPalette.kind($0.agent).hasPrefix(Self.operatorKindPrefix) }
                 guard !Task.isCancelled else { return }
                 if cards != model.cards { model.cards = cards }
+                model.cardsReadAt = Date()
                 if model.opened, let focus = model.focusCard {
                     if model.focusId == nil { model.focusId = focus.sessionId }
                     let view = await view(focus.sessionId)
                     guard !Task.isCancelled else { return }
                     if view != model.focused { model.focused = view }
                 }
-                model.settle()
-                let pause = model.opened ? Timing.openRefresh : Timing.restingRefresh
+                settle()
+                let pause = model.opened ? Timing.openRefresh : model.cards.isEmpty ? Timing.emptyRefresh : Timing.restingRefresh
                 try? await Task.sleep(nanoseconds: UInt64(pause * Timing.nanosecondsPerSecond))
             }
         }
@@ -845,14 +864,14 @@ final class IslandPanel: NSPanel, Face {
     /// The answer under the question opened up tall, or put back in its card.
     @MainActor func expandAnswer(_ on: Bool) {
         model.expanded = on
-        model.settle()
+        settle()
     }
 
     /// The open island turned to one session up close, or back to all of them.
     @MainActor func showDetail(_ on: Bool) {
         lastActivity = Date()
         model.detail = on
-        model.settle()
+        settle()
     }
 
     /// A pill was clicked: that session comes into focus and is read at once.

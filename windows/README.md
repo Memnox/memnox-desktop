@@ -74,9 +74,12 @@ the tray can turn off.
 
 ## Build from source
 
-You need the Rust MSVC toolchain with Visual Studio's C++ build tools, Node 22, pnpm 9.15.4, Git for
-Windows, and a [memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout beside this repo or named
-by `MEMNOX_RUNTIME`. From Git Bash:
+You need the Rust MSVC toolchain with Visual Studio's C++ build tools (the "Desktop development with
+C++" workload), Node 22 with `corepack enable`, Git for Windows, and a
+[memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout beside this repo, cloned with
+`git clone https://github.com/Memnox/memnox.git memnox-runtime`, or named by `MEMNOX_RUNTIME`. This
+repository keeps its shell scripts at LF through `.gitattributes`; if a script fails with `$'\r'`, the
+clone predates that file, and cloning again fixes it. From Git Bash:
 
 ```sh
 cd shared/tauri-core

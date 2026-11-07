@@ -67,3 +67,13 @@ public enum HomeLines {
         "\(count) \(count == 1 ? one : many)"
     }
 }
+
+extension DaemonHome {
+    /// The same home with actions the runtime sent live counted into today, which the next read corrects.
+    public func counting(actions: Int) -> DaemonHome {
+        guard actions > 0 else { return self }
+        let counted = HomeToday(actions: today.actions + actions, asked: today.asked, allowed: today.allowed, refused: today.refused)
+        return DaemonHome(machine: machine, mode: mode, waiting: waiting, working: working, today: counted,
+                          ready: ready, notCovered: notCovered, needsYou: needsYou)
+    }
+}

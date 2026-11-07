@@ -67,10 +67,15 @@
 
   --mx-stroke-hairline: 1px;
   --mx-stroke-emphasis: 1.5px;
+  /* Memnox.Console.ringWidth: the soft ring outside a focused field. */
+  --mx-ring-width: 3px;
 
   --mx-duration-quick: 200ms;
   --mx-duration-standard: 300ms;
   --mx-duration-slow: 500ms;
+
+  /* What a filled symbol's marks are cut out to: the island's black under the notch and its cards. */
+  --mx-symbol-ground: #000000;
 
   color-scheme: light;
 }
@@ -159,6 +164,180 @@
   }
 }
 
+/*
+ * The Memnox window and the first run wear the Memnox Cloud console's palette, value for value from
+ * memnox-client packages/ui/src/styles/globals.css, so the desktop and the console read as one product.
+ * Light is a neutral ground under white cards and dark is the same shape inverted, each card read by its
+ * border rather than a fill, and the console's blue is the one hue. Status keeps the desktop's own words
+ * in the console's pill colours: green allows, amber asks, red denies, grey is not known.
+ * Scoped to `html.mx-window` so the island, the tray and the floating cards keep the Mac's palette.
+ */
+html.mx-window {
+  --mx-background: #fbfbfb;
+  --mx-surface: #fbfbfb;
+  --mx-card: #ffffff;
+  --mx-secondary: #ffffff;
+  --mx-control-edge: #e2e2e2;
+  --mx-border: #e2e2e2;
+  --mx-panel-edge: #e2e2e2;
+  --mx-foreground: #0f0f0f;
+  --mx-muted: #333333;
+  --mx-faint: #8a8a8a;
+  --mx-ink: #0f0f0f;
+  --mx-success: #37cd8f;
+  --mx-warm: #dd815d;
+  --mx-destructive: #e31957;
+  --mx-rim: #ffffff;
+  --mx-capsule: #ffffff;
+  --mx-capsule-edge: #e2e2e2;
+  --mx-hover: #f2f2f2;
+  --mx-active: #eaeaea;
+  --mx-field: #ffffff;
+  --mx-field-edge: #e2e2e2;
+  --mx-keycap: #f2f2f2;
+  --mx-raised: #ffffff;
+  --mx-panel: #ffffff;
+  --mx-sky: #1e86ee;
+  --mx-ring: rgb(30 134 238 / 0.35);
+  --mx-switch-knob: #ffffff;
+  /* The console's sixth chart hue, which the memory map gives the line from a restatement to what it repeats. */
+  --mx-violet: #7c5cf0;
+  --mx-ink-primary: rgb(15 15 15 / 1);
+  --mx-ink-secondary: rgb(15 15 15 / 0.8);
+  --mx-ink-tertiary: rgb(15 15 15 / 0.6);
+  --mx-ink-fill: rgb(15 15 15 / 0.08);
+  --mx-ink-faint-fill: rgb(15 15 15 / 0.05);
+  --mx-ink-edge: rgb(15 15 15 / 0.18);
+  --mx-ink-rim: rgb(15 15 15 / 0.08);
+
+  /* The console's blue for every primary, and its status colours, in this window alone. */
+  --color-primary: #1e86ee;
+  --color-deep: #1e86ee;
+  --color-green: #37cd8f;
+  --color-amber: #dd815d;
+  --color-red: #e31957;
+
+  /* Inter for everything, as the console sets it; a real monospace only where code is shown. */
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-display: Inter, system-ui, sans-serif;
+  --font-mono: Inter, system-ui, sans-serif;
+  --font-code: "DM Mono", ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+
+  /* Two shapes, as the console folds them: 6 for controls and tiles, 12 for cards and panels. */
+  --radius-sm: 6px;
+  --radius-md: 6px;
+  --radius-lg: 6px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
+  --radius-3xl: 12px;
+  --radius-control: 6px;
+  --radius-card: 12px;
+  /* A filled symbol on a page is cut out to the card it sits on. */
+  --mx-symbol-ground: var(--mx-card);
+  color-scheme: light;
+}
+
+html.mx-window[data-theme="dark"] {
+  --mx-background: #030303;
+  --mx-surface: #030303;
+  --mx-card: #0f0f0f;
+  --mx-secondary: #0f0f0f;
+  --mx-control-edge: #313131;
+  --mx-border: #313131;
+  --mx-panel-edge: #313131;
+  --mx-foreground: #fdfdfd;
+  --mx-muted: #adadad;
+  --mx-faint: #6b6b6b;
+  --mx-ink: #fdfdfd;
+  --mx-rim: #0f0f0f;
+  --mx-capsule: #0f0f0f;
+  --mx-capsule-edge: #313131;
+  --mx-hover: #191919;
+  --mx-active: #1d1d1d;
+  --mx-field: #0f0f0f;
+  --mx-field-edge: #313131;
+  --mx-keycap: #191919;
+  --mx-raised: #0f0f0f;
+  --mx-panel: #0f0f0f;
+  --mx-sky: #3d97f3;
+  --mx-ring: rgb(30 134 238 / 0.45);
+  --mx-switch-knob: #9cd1fd;
+  --mx-violet: #a78bfa;
+  --mx-ink-primary: rgb(253 253 253 / 0.92);
+  --mx-ink-secondary: rgb(253 253 253 / 0.62);
+  --mx-ink-tertiary: rgb(253 253 253 / 0.5);
+  --mx-ink-fill: rgb(253 253 253 / 0.08);
+  --mx-ink-faint-fill: rgb(253 253 253 / 0.06);
+  --mx-ink-edge: rgb(253 253 253 / 0.16);
+  --mx-ink-rim: rgb(253 253 253 / 0.07);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  html.mx-window:not([data-theme="light"]) {
+    --mx-background: #030303;
+    --mx-surface: #030303;
+    --mx-card: #0f0f0f;
+    --mx-secondary: #0f0f0f;
+    --mx-control-edge: #313131;
+    --mx-border: #313131;
+    --mx-panel-edge: #313131;
+    --mx-foreground: #fdfdfd;
+    --mx-muted: #adadad;
+    --mx-faint: #6b6b6b;
+    --mx-ink: #fdfdfd;
+    --mx-rim: #0f0f0f;
+    --mx-capsule: #0f0f0f;
+    --mx-capsule-edge: #313131;
+    --mx-hover: #191919;
+    --mx-active: #1d1d1d;
+    --mx-field: #0f0f0f;
+    --mx-field-edge: #313131;
+    --mx-keycap: #191919;
+    --mx-raised: #0f0f0f;
+    --mx-panel: #0f0f0f;
+    --mx-sky: #3d97f3;
+    --mx-ring: rgb(30 134 238 / 0.45);
+    --mx-switch-knob: #9cd1fd;
+    --mx-violet: #a78bfa;
+    --mx-ink-primary: rgb(253 253 253 / 0.92);
+    --mx-ink-secondary: rgb(253 253 253 / 0.62);
+    --mx-ink-tertiary: rgb(253 253 253 / 0.5);
+    --mx-ink-fill: rgb(253 253 253 / 0.08);
+    --mx-ink-faint-fill: rgb(253 253 253 / 0.06);
+    --mx-ink-edge: rgb(253 253 253 / 0.16);
+    --mx-ink-rim: rgb(253 253 253 / 0.07);
+    color-scheme: dark;
+  }
+}
+
+/* The console sets its whole scale one step tight, since Inter is drawn loose for the web. */
+html.mx-window body {
+  letter-spacing: -0.01em;
+}
+
+/* Code and raw configuration keep a fixed advance, as the console's code block does; nothing else does. */
+html.mx-window pre,
+html.mx-window .font-code {
+  font-family: var(--font-code);
+  letter-spacing: 0;
+}
+
+/* A native check, radio or slider takes the blue rather than the system's accent. */
+html.mx-window input[type="checkbox"],
+html.mx-window input[type="radio"],
+html.mx-window input[type="range"] {
+  accent-color: var(--color-primary);
+}
+
+/* A field answers focus as the console's do: its border turns blue and a soft ring sits outside it. */
+html.mx-window .mx-field:focus-visible,
+html.mx-window .mx-field-within:focus-within {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 var(--mx-ring-width) var(--mx-ring);
+}
+
 /* The adaptive palette under Tailwind names, read through the variables so a theme change repaints. */
 @theme inline {
   --color-background: var(--mx-background);
@@ -195,9 +374,15 @@
   --color-primary-fill: var(--mx-primary-fill);
   --color-primary-text: var(--mx-primary-text);
   --color-soft: var(--mx-soft);
+  /* The console's active row and its switch knob; outside the Memnox window they fall back to the hover fill and white. */
+  --color-active: var(--mx-active, var(--mx-hover));
+  --color-switch-knob: var(--mx-switch-knob, #ffffff);
 }
 
 @theme {
+  /* Memnox.Console.controlHeight and fieldHeight: a button, a select and a chip are 32, a text field 36, as `h-control` and `h-field`. */
+  --spacing-control: 32px;
+  --spacing-field: 36px;
   /* The same in both appearances. */
   --color-primary: #3b82f7;
   /* The orb's blue, and the fallback tool colour; never the brand blue of a picked ring. */
@@ -257,6 +442,10 @@
   --text-callout: 14px;
   --text-headline: 15px;
   --text-title: 17px;
+  /* The console's own names for the steps it shares with this scale: label 11, meta 12, body-sm 13. */
+  --text-label: 11px;
+  --text-meta: 12px;
+  --text-body-sm: 13px;
 
   /* Radii: control, card on a page, keycap; then the island's card and tile, and the command box. */
   --radius-control: 6px;
@@ -264,6 +453,9 @@
   --radius-key: 4px;
   --radius-island: 16px;
   --radius-command: 10px;
+  /* OnboardingKit's card, and the app tile on Where your agents run. */
+  --radius-setup: 16px;
+  --radius-tile: 14px;
 
   /* SwiftUI's springs as the nearest CSS curves; the island's own size moves on a real spring in JS. */
   --ease-press: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -469,6 +661,60 @@ body {
   }
 }
 
+/*
+ * The console's layout sizes as Tailwind names, so a class says `medium:` or `max-w-sheet` rather than a number.
+ * The breakpoints are WIDTH in core/domain/destinations.ts, the widths the Mac's window changes its layout at, and
+ * test/layout-tokens.test.ts holds the two together.
+ */
+@theme {
+  --breakpoint-narrow: 640px;
+  --breakpoint-medium: 900px;
+  --breakpoint-wide: 1200px;
+  /* A sheet over the page, as the Mac's: 560 wide, at most 720 tall. */
+  --container-sheet: 560px;
+  --max-height-sheet: 720px;
+}
+
+/*
+ * The brain's own measures, Memnox.Console.Brain and MapMetrics in the Mac's MemoryMapView.swift, as Tailwind names;
+ * test/memory-brain-foot.test.ts holds them to the Swift. The colours are the console's dark, which `.mx-brain` sets.
+ */
+@theme {
+  --text-brain-headline: 34px;
+  --text-brain-numeral: 26px;
+  --text-brain-overline: 11px;
+  --text-brain-caption: 10px;
+  --text-brain-mode: 24px;
+  /* Memnox.Console.headingTracking and titleTracking, and the deck's own spacing of its capitals. */
+  --tracking-heading: 1.98px;
+  --tracking-title: -0.48px;
+  --tracking-deck: 1.4px;
+  --tracking-deck-detail: 1.2px;
+  /* The legend and the growth card, the heading, the search capsule, the tour's deck and its play button, rail and knob. */
+  --spacing-brain-card: 240px;
+  --spacing-brain-heading: 380px;
+  --spacing-brain-seek: 360px;
+  --spacing-brain-seek-top: 72px;
+  --spacing-brain-deck: 560px;
+  --spacing-brain-play: 34px;
+  --spacing-brain-rail: 18px;
+  --spacing-brain-knob: 11px;
+  --spacing-brain-tick: 9px;
+  --spacing-brain-bar: 3px;
+  /* MapButton's square, the speed slider, the divider between the view controls, and the drawn tick box. */
+  --spacing-map-button: 26px;
+  --spacing-map-slider: 84px;
+  --spacing-map-divider: 16px;
+  --spacing-map-box: 14px;
+  /* MapMetrics' shadow under every panel over the brain. */
+  --shadow-brain-panel: 0 8px 24px rgb(0 0 0 / 0.3);
+}
+
+/* A panel lets a little of the brain through, BrainPanel.fill; inline, so it reads the card of the brain it sits on. */
+@theme inline {
+  --color-brain-panel: color-mix(in srgb, var(--mx-card) 88%, transparent);
+}
+
 /* The tray panel, the tool page, the floating cards and the scan screen. */
 @theme {
   --animate-halo: halo 2.4s ease-in-out infinite alternate;
@@ -604,4 +850,465 @@ body {
     opacity: 1;
     translate: 0 0;
   }
+}
+
+/*
+ * The Memnox window's frame, from the Mac's ShellMetrics, AppShellView, AppSidebar and its project switcher, and
+ * SettingsMetrics for the reading column Settings keeps. test/design-tokens.test.ts holds each to its Swift twin.
+ */
+@theme {
+  /* ShellMetrics: the widest a page grows, its sides at each width, its top and foot, and the room between sections. */
+  --container-shell-page: 1216px;
+  --spacing-shell-side: 20px;
+  --spacing-shell-side-wide: 28px;
+  --spacing-shell-side-compact: 14px;
+  --spacing-shell-top: 24px;
+  --spacing-shell-foot: 40px;
+  --spacing-shell-section: 24px;
+  --spacing-shell-dot: 6px;
+  --spacing-shell-bar: 56px;
+  /* The top bar is the bar less the panel's inset, so its rule meets the sidebar's head at the corner. */
+  --spacing-shell-top-bar: calc(56px - 8px);
+  --spacing-shell-panel-inset: 8px;
+  /* DemoBadge's 3 above and below its words. */
+  --spacing-shell-badge-y: 3px;
+
+  /* AppSidebar.Layout: its two widths, a row and a rail row, the icon's column, a heading and the search. */
+  --spacing-sidebar: 240px;
+  --spacing-sidebar-rail: 64px;
+  --spacing-sidebar-row: 30px;
+  --spacing-sidebar-rail-row: 40px;
+  --spacing-sidebar-icon: 18px;
+  --spacing-sidebar-heading: 26px;
+  --spacing-sidebar-search: 30px;
+  /* ProjectSwitcherList.Layout: the popover's width, the most its list grows to, and a project's row. */
+  --spacing-switcher: 300px;
+  --spacing-switcher-list: 320px;
+  --spacing-switcher-row: 44px;
+
+  /* Island.width caps what hangs under the island, and IslandView.Layout.countTrailing ends its header's count. */
+  --container-island: 560px;
+  --spacing-island-count-trailing: 18px;
+
+  /* Memnox.Console's lift under a panel over the page: 0.18 black, radius 30 (a CSS blur of twice that), 12 down. */
+  --shadow-lift: 0 12px 60px rgb(0 0 0 / 0.18);
+
+  /* AppShellView.sheet: the sidebar moves in from the leading edge as its scrim fades in, over Motion.quick. */
+  --animate-drawer-in: drawer-in var(--mx-duration-quick) ease-out both;
+  --animate-scrim-in: fade-in var(--mx-duration-quick) ease-out both;
+
+  @keyframes drawer-in {
+    from {
+      translate: -100% 0;
+    }
+    to {
+      translate: 0 0;
+    }
+  }
+}
+
+/* SubNavMetrics.treeWidth beside the page, and CategoryRail.Layout.width beside the cards, each with the rest after it. */
+:root {
+  --mx-shell-sub-nav-columns: 208px minmax(0, 1fr);
+  --mx-shell-catalog-columns: 200px minmax(0, 1fr);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-drawer-in,
+  .animate-scrim-in {
+    animation: none;
+  }
+}
+
+/* The Memnox window's pages, the island's tool page and the voice words, from the Mac views of the same names. */
+@theme {
+  /* CodeBlock.Metrics.copyHeight, and its code line: codeSize 12.5 on a line spaced 6 more. */
+  --spacing-app-code-copy: 26px;
+  --leading-app-code: 21px;
+  /* AddServerSheet.variableName: a variable's or a header's name field. */
+  --container-app-variable-name: 180px;
+  /* Home's greeting, SettingsMetrics.pageTitleSize and three more. */
+  --text-app-greeting: 22px;
+  /* LayersLayout.badge: a layer's number. */
+  --spacing-app-layer-badge: 26px;
+  /* MemoryLayout.searchWidth and SkillsLayout.searchWidth. */
+  --spacing-app-memory-search: 300px;
+  --container-app-skill-search: 320px;
+  /* EffectBand.Layout.height: a rule's effect across its panel. */
+  --spacing-app-effect-band: 30px;
+  /* ChangesBar: lifted by its shadow 0.12, radius Spacing.large and drop Spacing.xSmall. */
+  --shadow-app-changes: 0 4px 24px rgb(0 0 0 / 0.12);
+  /* PagesLayout.descriptionWidth, the project's description at Console.TextSize.base spaced Spacing.xSmall. */
+  --container-app-description: 560px;
+  --leading-app-description: 23px;
+  /* RuleDialogParts' DataClassChips Layout.height, the word chips of a rule. */
+  --spacing-app-rule-chip: 30px;
+  /* WorkTable.headHeight, and TodayDestination's keySide for a choice's key. */
+  --spacing-app-work-head: 34px;
+  --spacing-app-choice-key: 22px;
+  /* The surface the map is drawn on has no Mac twin, since the Mac draws the brain instead. */
+  --spacing-app-surface-least: 380px;
+  --container-app-surface-legend: 260px;
+
+  /* IslandToolPage.Layout: the left column, the mark row (markSide and Spacing.medium), the halo and its blur. */
+  --spacing-tool-left: 132px;
+  --spacing-tool-mark-row: calc(54px + 8px);
+  --spacing-tool-halo: 104px;
+  --blur-tool-halo: 22px;
+  /* IslandToolPage.Layout.markShadow, markShadowRadius and markShadowDrop, shaped to the mark as SwiftUI's shadow is. */
+  --drop-shadow-tool-mark: 0 4px 8px rgb(0 0 0 / 0.4);
+  /* IslandToolPage.Layout.labelTracking and askRadius, and NotchMetrics.tileRim round an ask. */
+  --tracking-tool-label: 0.6px;
+  --radius-tool-ask: 11px;
+  --color-tool-rim: rgb(255 255 255 / 0.04);
+}
+
+:root {
+  /* SubNav's stackedGroup: the groups stack in columns at least this wide below besideFrom. */
+  --mx-app-nav-groups: repeat(auto-fill, minmax(176px, 1fr));
+  /* The leading of a compatibility loss: SkillsLayout.smallLogo and Spacing.regular. */
+  --mx-app-skill-loss-indent: calc(20px + var(--mx-space-rg));
+  /* WorkTable's numberWidth, What taking the rest, fromWidth, whenWidth and stateWidth. */
+  --mx-app-work-columns: 28px minmax(0, 1fr) 170px 72px 118px;
+  /* MapMetrics.detailMost, within the window less what the page holds above and below the brain. */
+  --mx-app-arms-detail-most: min(576px, calc(100vh - 160px));
+  /* The detail card keeps BrainCard.margin from each side of the brain. */
+  --mx-app-arms-card-most: calc(100% - 2 * 10px);
+  /* The brain stands at least 520 tall, else the window less the page's head and foot; the Mac fills its window. */
+  --mx-app-brain-height: max(520px, calc(100vh - 260px));
+  /* The surface the map is drawn on, at most 620 or seven tenths of the window. */
+  --mx-app-surface-height: min(620px, 70vh);
+}
+
+/* The session windows, the island's session screens and the side panel, from the Mac views each names. */
+@theme {
+  /* window-kit: CardControls CloseButton.target, DesignSystem Keycap.height and minimumWidth, FloatingCard.titleSize. */
+  --spacing-session-close: 26px;
+  --spacing-session-keycap: 18px;
+  --text-session-card-title: 22px;
+  /* LiveSectionLayout.titleSpacing and titleTracking, which LiveBrief's labelTracking shares. */
+  --spacing-session-section-title: 7px;
+  --tracking-session-label: 0.8px;
+  /* HeldStrip.commandRadius, which the live diff's radius shares. */
+  --radius-session-command: 8px;
+  /* The status dot every session card draws: SessionTile.dotSize, StatusTag.dot, StatePill.dotSize, ExchangeRow.dotSide. */
+  --spacing-session-dot: 7px;
+
+  /* Switcher's SessionTile: its size, padding and name; its shadow, whose SwiftUI radius is half a CSS blur. */
+  --spacing-session-tile-width: 240px;
+  --spacing-session-tile-height: 300px;
+  --spacing-session-tile-pad: 18px;
+  --text-session-tile-name: 20px;
+  --shadow-session-tile: 0 10px calc(2 * 14px) rgb(0 0 0 / 0.4);
+  --shadow-session-tile-front: 0 10px calc(2 * 22px) rgb(0 0 0 / 0.4);
+
+  /* CardFace and the live window share one corner; CardFace's shadow, its radius half a CSS blur. */
+  --radius-session-card: 28px;
+  --shadow-session-card: 0 12px calc(2 * 30px) rgb(0 0 0 / 0.5);
+
+  /* LiveSession: the window's padding and status band, StatePill's padding, LiveNow's height, LiveSteps' rows. */
+  --spacing-session-live-pad: 22px;
+  --spacing-session-status-edge: 3px;
+  --spacing-session-pill-x: 9px;
+  --spacing-session-pill-y: 3px;
+  --spacing-session-now-y: 11px;
+  --spacing-session-step: 5px;
+  /* ConversationRow's person bubble: kept 60 from the agent's side, 11 by 7 inside. */
+  --spacing-session-bubble-indent: 60px;
+  --spacing-session-bubble-x: 11px;
+  --spacing-session-bubble-y: 7px;
+  /* FileList's codeTextSize, for file names, line counts and diff lines. */
+  --text-session-code: 11.5px;
+
+  /* LiveSessionParts: LiveTabBar's height and inset, LiveTalk's bubble, the file row and the diff. */
+  --spacing-session-tab-bar: 30px;
+  --spacing-session-tab-inset: 3px;
+  --radius-session-bubble: 14px;
+  --radius-session-file-row: 10px;
+  --max-height-session-diff: 300px;
+  --spacing-session-diff-row: 17px;
+  --spacing-session-diff-gutter: 34px;
+  /* A reply's line: SF's natural line, about 1.2 of its size, opened by ReplyView's lineSpacing. */
+  --leading-session-reply: calc(1.2em + 2px);
+
+  /* IslandOverview: the focus card, the text clearing the orb, the title's gap and the subtitle under it. */
+  --spacing-session-focus-card: 280px;
+  --spacing-session-focus-text: 88px;
+  --spacing-session-title-dot: 7px;
+  --spacing-session-subtitle-indent: calc(16px + 7px);
+  /* IslandStepRoll: three lines of 26 in 84, the icon 9 before the words. */
+  --spacing-session-roll: 84px;
+  --spacing-session-roll-line: 26px;
+  --spacing-session-roll-icon: 9px;
+  /* IslandSessionRow: 30 tall at radius 11; the title and subtitle lines SF gives 12 and 11. */
+  --spacing-session-row: 30px;
+  --radius-session-row: 11px;
+  --leading-session-row-title: 14px;
+  --leading-session-row-subtitle: 13px;
+
+  /* IslandSessionDetail: the card, the header's spacing, the open button, the label's tracking, steps and files. */
+  --spacing-session-detail-card: 260px;
+  --spacing-session-detail-header: 3px;
+  --spacing-session-open: 26px;
+  --tracking-session-detail-label: 0.6px;
+  --spacing-session-detail-step: 7px;
+  --spacing-session-files-row: 7px;
+
+  /* NotchMetrics.tileSymbolFrame, and IslandQuestion's numberSide. */
+  --spacing-session-tile-symbol: 25px;
+  --spacing-session-choice-number: 22px;
+
+  /* SideView: a row's vertical padding, an exchange's mark, the footer's keycaps, and an answer lined up under its question. */
+  --spacing-session-side-row-y: 7px;
+  --spacing-session-side-mark: 22px;
+  --spacing-session-keycap-gap: 3px;
+  --spacing-session-side-answer-indent: calc(var(--mx-space-md) + var(--spacing-session-side-mark) + var(--mx-space-rg));
+}
+
+/* SideInk.failure, adaptive, so a failure reads as text on either page. */
+@theme inline {
+  --color-session-failure: var(--mx-session-failure);
+}
+
+:root {
+  /* SurfaceStyle.borderWidth: the hairline every surface outside the notch is drawn with. */
+  --mx-session-surface-edge: 0.7px;
+  /* The side tab's hairline is stroked on its shape and clipped to it, so half of it shows. */
+  --mx-session-tab-edge: calc(var(--mx-stroke-hairline) / 2);
+  /* SessionTile.reflectionOpacity and reflectionGap: the card in the glass below it. */
+  --mx-session-tile-reflection: 0.16;
+  --mx-session-tile-reflection-gap: 4px;
+  --mx-session-failure: #c0213a;
+}
+:root[data-theme="dark"],
+[data-theme="dark"] {
+  --mx-session-failure: #f77c86;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --mx-session-failure: #f77c86;
+  }
+}
+
+/*
+ * Settings, the first run and the scan, from SettingsView.swift, SettingsKit.swift, Controls.swift, PermissionGuide.swift,
+ * the onboarding views and ScanOverlay.swift. A sum the Mac builds from two metrics is written as that sum, so the
+ * test reads each part against its Swift twin.
+ */
+@theme {
+  /* SettingsView.Layout: the sidebar is its width plus the inset the page card stands off it. */
+  --spacing-settings-sidebar: calc(235px + 8px);
+  --spacing-settings-sidebar-pad: 9px;
+  --spacing-settings-row: 30px;
+  --spacing-settings-row-icon: 18px;
+  --spacing-settings-row-icon-gap: 9px;
+  --radius-settings-row: 8px;
+  --spacing-settings-header-gap: 13px;
+  --spacing-settings-header-leading: 19px;
+  /* SettingsMetrics: the page column and its padding. */
+  --container-settings-page: 760px;
+  --spacing-settings-page-pad: 22px;
+  /* SettingsMetrics.rowTextInset: a divider starts under the titles, the tile's side and the row's spacing in. */
+  --spacing-settings-row-text: calc(26px + 12px);
+  /* Keycap: at least 18 square. */
+  --spacing-settings-keycap: 18px;
+  /* NavigationCapsule.Layout: its width and its soft shadow. */
+  --spacing-settings-capsule: 69px;
+  --shadow-settings-capsule: 0 1px 2px rgb(0 0 0 / 0.06);
+  /* AccountLayout.codeTracking: the pairing code's spacing. */
+  --tracking-settings-code: 2px;
+  /* SyncLayout: the fingerprint's digits. */
+  --text-settings-fingerprint: 24px;
+  --tracking-settings-fingerprint: 2px;
+  /* AppearancePicker.Layout: the look's picture, ringed 2 when picked and a hairline otherwise. */
+  --spacing-settings-look-width: 136px;
+  --spacing-settings-look-height: 92px;
+  --shadow-settings-look: 0 0 0 1px var(--mx-ink-edge);
+  --shadow-settings-look-picked: 0 0 0 2px var(--color-primary);
+  /* HomeBlocks' working dot on a session's logo. */
+  --spacing-settings-live-dot: 9px;
+  /* ToolsPage's toolRowDotSide. */
+  --spacing-settings-tool-dot: 7px;
+  /* AgentRows.Layout.labelWidth on the voice page. */
+  --spacing-settings-agent-label: 84px;
+  /* MenuDivider starts under the row titles: the row's inset, its icon column and the gap after it. */
+  --spacing-settings-menu-divider: calc(12px + 18px + 11px);
+  /* SetupStepLayout.lineSpacing between a step's title and its line. */
+  --spacing-settings-step-line: 3px;
+  /* GuideLayout: the picture of the pane, its header over three rows, and the switch with its knob inset 2. */
+  --spacing-settings-guide-width: 300px;
+  --spacing-settings-guide-height: calc(26px + 3 * 30px);
+  --radius-settings-guide: 10px;
+  --spacing-settings-guide-header: 26px;
+  --spacing-settings-guide-row: 30px;
+  --spacing-settings-guide-tile: 18px;
+  --radius-settings-guide-tile: 5px;
+  --spacing-settings-guide-switch-width: 30px;
+  --spacing-settings-guide-switch-height: 17px;
+  --spacing-settings-guide-knob: calc(17px - 2 * 2px);
+  --spacing-settings-guide-number: 18px;
+  /* The guide's pointer, white with a dark edge so it shows on either look. */
+  --drop-shadow-settings-pointer: 0 0 0.8px rgb(0 0 0 / 0.9);
+
+  /* OnboardingCard.Layout: the stepper's top and side, and the step column with the gutter its scroll bar takes. */
+  --spacing-onboard-top: 28px;
+  --spacing-onboard-side: 40px;
+  /* No Mac twin: the Mac's cued scroll draws no bar, so the web column keeps room for one beside the 440. */
+  --spacing-onboard-gutter: 18px;
+  --spacing-onboard-scroll: calc(440px + 18px);
+  /* StepTitle.titleSize. */
+  --text-onboard-title: 30px;
+  /* OnboardingIntro.Layout: the wordmark's height, its white sheen and its glow. */
+  --spacing-onboard-wordmark: 92px;
+  --text-onboard-wordmark: 92px;
+  --drop-shadow-onboard-wordmark: 0 0 6px rgb(255 255 255 / 0.6), 0 0 28px rgb(255 255 255 / 0.55);
+  /* CuedScroll's More below, lifted off the step. */
+  --shadow-onboard-more: 0 4px 10px rgb(0 0 0 / 0.25);
+  /* No Mac twin: the Mac fits the scene to the panel, so the web caps it where the window would otherwise stretch it. */
+  --container-onboard-demo: 520px;
+  /*
+   * MacScene.Layout: the lid's and the screen's top corners as a share of each box, so they scale with the picture
+   * as DesignFit scales the Mac's. The lid is 828 by 634 and the screen 800 by 620.
+   */
+  --radius-onboard-lid: calc(32 / 828 * 100%) calc(32 / 634 * 100%);
+  --radius-onboard-screen: calc(20 / 800 * 100%) calc(20 / 620 * 100%);
+  --color-onboard-bezel: #0c0c0d;
+  --shadow-onboard-lid: 0 14px 24px rgb(0 0 0 / 0.35);
+
+  /* ScanOverlay: the pulse rings, the heading's dot and count, the agent card, its status pill and the totals. */
+  --spacing-scan-pulse: 200px;
+  --spacing-scan-badge-dot: 7px;
+  --text-scan-count: 58px;
+  --text-scan-count-label: 28px;
+  --spacing-scan-card: 230px;
+  --spacing-scan-status-x: 9px;
+  --spacing-scan-status-y: 3px;
+  /* An agent card's shadow, drawn at twice the Mac's radius as a CSS blur, over SurfaceStyle's 0.7 rim at ink 11%. */
+  --shadow-scan-card: 0 10px calc(2 * 20px) rgb(0 0 0 / 0.5), inset 0 0 0 0.7px rgb(255 255 255 / 0.11);
+  /* With a status the rim is the status colour at 60%, a hairline wide. */
+  --shadow-scan-card-green: 0 10px calc(2 * 20px) rgb(0 0 0 / 0.5), inset 0 0 0 1px color-mix(in srgb, var(--color-green) 60%, transparent);
+  --shadow-scan-card-amber: 0 10px calc(2 * 20px) rgb(0 0 0 / 0.5), inset 0 0 0 1px color-mix(in srgb, var(--color-amber) 60%, transparent);
+  --spacing-scan-summary-gap: 22px;
+  --spacing-scan-summary-pad: 22px;
+  --spacing-scan-divider: 22px;
+  --shadow-scan-summary: 0 10px calc(2 * 24px) rgb(0 0 0 / 0.6), inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+:root {
+  /* AgentHomePicker.Layout.tileWidth: the app tiles fill the row, none narrower than 96. */
+  --mx-settings-app-tiles: repeat(auto-fill, minmax(96px, 1fr));
+  /* OnboardingIntro: black at veilInk over the screen; the sky stands in for the Mac's full screen glass, which a web window cannot draw. */
+  --mx-onboard-veil: linear-gradient(rgb(0 0 0 / 0.58), rgb(0 0 0 / 0.58)), radial-gradient(120% 90% at 50% 20%, #2b4f7f 0%, #10213a 55%, #05070c 100%);
+  /* CuedScroll's fade, 36 deep at the foot while more waits below. */
+  --mx-onboard-fade: linear-gradient(black calc(100% - 36px), transparent);
+  /* ScanGrid: a dot of 1.4 at ink 8% every 34. */
+  --mx-scan-grid: radial-gradient(circle, rgb(255 255 255 / 0.08) 0.7px, transparent 0.8px);
+  --mx-scan-grid-size: 34px 34px;
+}
+
+/* The island's cards, the floating cards, the tray panel and the orb's fallback, each from its Swift view. */
+@theme {
+  /* CallLayout in IslandCalls.swift: the held and finished text column clears the orb. */
+  --spacing-card-call-leading: 98px;
+  --spacing-card-call-trailing: 18px;
+  /* IslandEmpty.textLeading in IslandSessionDetail.swift. */
+  --spacing-card-empty-leading: 112px;
+  /* IslandRuleCard.Layout.placesHeight, and each place row's vertical padding and icon column. */
+  --spacing-card-rule-places: 138px;
+  --spacing-card-place-y: 7px;
+  --spacing-card-place-icon: 18px;
+  /* IslandButton.verticalPadding, for a pill drawn outside the kit's own island button. */
+  --spacing-card-pill-y: 7px;
+  /* IslandDraftCard: a 34 row, the header one row and a medium step tall, and the 1.5 caret. */
+  --spacing-card-mail-row: 34px;
+  --spacing-card-mail-head: 42px;
+  --spacing-card-caret: 1.5px;
+  /* IslandDraftCard.mailRed and sendBlue, the mail's own colours. */
+  --color-card-mail-red: #ea4335;
+  --color-card-mail-send: #1a73e8;
+  /* A 14 body with bodyLineSpacing 4 over the face's own line, shared by the draft and work cards. */
+  --leading-card-body: 21px;
+  /* MarkdownText: the bullet gap, the code and paragraph sizes, and each with its line spacing added. */
+  --spacing-card-bullet: 7px;
+  --leading-card-bullet: 18px;
+  --text-card-code: 11.5px;
+  --leading-card-code: 15px;
+  --text-card-paragraph: 13.5px;
+  --leading-card-paragraph: 19.5px;
+  /* QuestionBubble: at most 76 tall at radius 18. */
+  --spacing-card-bubble: 76px;
+  --radius-card-bubble: 18px;
+  /* IslandPhonePill and IslandSignInRow: their vertical padding, the sign in hit area and the again badge. */
+  --spacing-card-phone-pill-y: 5px;
+  --spacing-card-sign-in-y: 3px;
+  --spacing-card-sign-in-hit: 30px;
+  --spacing-card-again-badge: 11px;
+  /* IslandWorkCard: the comment header row and the editor's least and most height. */
+  --spacing-card-work-row: 30px;
+  --spacing-card-editor-least: 72px;
+  --spacing-card-editor-most: 180px;
+  /* CardPanel.width and CardFace: radius 28 and a shadow of 0.5 black at radius 30, which CSS blurs at twice that, 12 down. */
+  --spacing-card-face: 440px;
+  --radius-card-face: 28px;
+  --shadow-card-face: 0 12px 60px rgb(0 0 0 / 0.5);
+  /* FloatingCard.titleSize, on a line of 26. */
+  --text-card-title: 22px;
+  --text-card-title--line-height: 26px;
+  /* CloseButton's target. */
+  --spacing-card-close: 26px;
+  /* CodeExcerpt: radius 14, a 30 header, the badge at radius 3 in 9, and each line's 2 wide rule at 70% of its tint. */
+  --radius-card-code: 14px;
+  --spacing-card-code-head: 30px;
+  --radius-card-badge: 3px;
+  --text-card-badge: 9px;
+  --shadow-card-diff-added: inset 2px 0 0 rgb(48 209 88 / 0.7);
+  --shadow-card-diff-removed: inset 2px 0 0 rgb(255 69 58 / 0.7);
+  --shadow-card-diff-same: inset 2px 0 0 var(--mx-ink-edge);
+  /* WalkView: the page height and its note's line with noteLineSpacing 3; PageDots' spacing. */
+  --spacing-card-walk-page: 300px;
+  --leading-card-walk-note: 20px;
+  --spacing-card-dot: 5px;
+  /* TraceView: the step name and duration columns. */
+  --spacing-card-trace-name: 150px;
+  --spacing-card-trace-duration: 52px;
+
+  /* The orb drawn without WebGL, which the Mac never needs since Metal is always there. */
+  --color-orb-shade: #0f47c7;
+  --shadow-orb-glow: 0 0 18px rgb(30 134 238 / 0.5);
+
+  /* MenuView in MenuBar.swift: radius 22, the system's window shadow under the shared 0.7 rim, and the material's blur. */
+  --radius-tray-panel: 22px;
+  --shadow-tray-panel: inset 0 0 0 0.7px var(--mx-ink-edge-11), 0 12px 40px rgb(0 0 0 / 0.28);
+  --blur-tray-panel: 30px;
+  /* menuCard: radius 10 under the shared 0.7 rim. */
+  --radius-tray-card: 10px;
+  --shadow-tray-rim: inset 0 0 0 0.7px var(--mx-ink-edge-11);
+  /* MenuLayout: the gap after an icon, the icon column and a row's corner. */
+  --spacing-tray-icon-gap: 11px;
+  --spacing-tray-icon-column: 18px;
+  --radius-tray-row: 11px;
+  /* MenuDivider's indent: the row inset 12, the icon column 18 and the gap 11. */
+  --spacing-tray-divider-indent: 41px;
+  /* The header: the title 21 and the badge 9 by 5. */
+  --text-tray-title: 21px;
+  --spacing-tray-badge-x: 9px;
+  --spacing-tray-badge-y: 5px;
+  /* MenuHeading's kerning. */
+  --tracking-tray-heading: 0.5px;
+  /* MenuTools: the strip 52 tall, each chip 58 wide, its status dot ringed 0.5 in black 40%. */
+  --spacing-tray-strip: 52px;
+  --spacing-tray-chip: 58px;
+  --shadow-tray-dot: inset 0 0 0 0.5px rgb(0 0 0 / 0.4);
+  /* The strip's note in the system caption, two lines on its own leading. */
+  --leading-tray-note: 13px;
+  /* Keycap: at least 18 square. */
+  --spacing-tray-keycap: 18px;
+}
+
+:root {
+  /* IslandRuleCard.labelWidth and IslandWorkCard.fieldNameWidth, each a label column before its value. */
+  --mx-card-rule-columns: 70px 1fr;
+  --mx-card-work-fields: 96px 1fr;
+  /* The orb without WebGL: sky to the orb's blue to its shade, lit from a little above centre. */
+  --mx-orb-fallback: radial-gradient(circle at 50% 35%, var(--color-island-sky) 0%, var(--color-deep) 55%, var(--color-orb-shade) 100%);
 }

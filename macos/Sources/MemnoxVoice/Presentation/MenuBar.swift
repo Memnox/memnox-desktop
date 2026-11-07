@@ -7,6 +7,7 @@ import SwiftUI
 final class MenuModel: ObservableObject {
     @Published var wakeOn: Bool
     @Published var speakUpOn: Bool
+    @Published var sayFinishedOn: Bool
     @Published var talkOverOn: Bool
     @Published var chimesOn: Bool
     @Published var liveWordsOn: Bool
@@ -25,12 +26,16 @@ final class MenuModel: ObservableObject {
     let talk: () -> Void
     let setWake: (Bool) -> Void
     let setSpeakUp: (Bool) -> Void
+    let setSayFinished: (Bool) -> Void
     let setTalkOver: (Bool) -> Void
     let setChimes: (Bool) -> Void
     /// Plays one cue at the volume just chosen, so the slider is heard rather than guessed at.
     var previewChime: () -> Void = {}
     /// Asks, then takes Memnox and everything it put on this Mac away, the app last.
     var uninstall: () -> Void = {}
+    /// Whether the app is showing the made up power user rather than this Mac, and how to switch, which reopens the app.
+    var demoOn = false
+    var switchDemo: () -> Void = {}
     let setLiveWords: (Bool) -> Void
     let setStayPut: (Bool) -> Void
     let chooseVoice: (String) -> Void
@@ -51,6 +56,8 @@ final class MenuModel: ObservableObject {
         setWake: @escaping (Bool) -> Void,
         speakUpOn: Bool,
         setSpeakUp: @escaping (Bool) -> Void,
+        sayFinishedOn: Bool = true,
+        setSayFinished: @escaping (Bool) -> Void = { _ in },
         talkOverOn: Bool,
         setTalkOver: @escaping (Bool) -> Void,
         chimesOn: Bool,
@@ -78,6 +85,8 @@ final class MenuModel: ObservableObject {
         self.setWake = setWake
         self.speakUpOn = speakUpOn
         self.setSpeakUp = setSpeakUp
+        self.sayFinishedOn = sayFinishedOn
+        self.setSayFinished = setSayFinished
         self.talkOverOn = talkOverOn
         self.setTalkOver = setTalkOver
         self.chimesOn = chimesOn
@@ -216,6 +225,7 @@ final class MenuBarPanel: NSObject {
 struct MenuView: View {
     @ObservedObject var model: MenuModel
     @ObservedObject private var mute = VoiceMute.shared
+    @ObservedObject private var hiding = IslandHiding.shared
     let close: () -> Void
     let openSettings: () -> Void
     static let width: CGFloat = 300
@@ -257,9 +267,21 @@ struct MenuView: View {
                 MenuRow(symbol: mute.on ? MenuSymbol.unmute : MenuSymbol.mute, title: mute.on ? "Unmute voice" : "Mute voice") {
                     mute.toggle()
                 }
+                // Keeps the panel open too, so the row is seen to change.
+                MenuRow(symbol: hiding.on ? MenuSymbol.showNotch : MenuSymbol.hideNotch, title: hiding.on ? "Let the notch open" : "Keep the notch closed") {
+                    hiding.toggle()
+                }
+                .help(hiding.on ? "News opens the notch again" : "News is said from the orb in the notch. Calling Memnox still opens it, and so does an agent waiting on you")
                 // What Memnox does above the line, the app itself below it, as a Mac menu groups them.
                 MenuDivider()
                     .padding(.vertical, Memnox.Spacing.xxSmall)
+                // Reopens the app on the made up power user, so a person can see everything Memnox does before their own agents fill it.
+                MenuRow(symbol: model.demoOn ? MenuSymbol.leaveDemo : MenuSymbol.demo,
+                        title: model.demoOn ? "Leave the demo" : "Watch a demo") {
+                    close()
+                    model.switchDemo()
+                }
+                .help(model.demoOn ? "Reopens Memnox on this Mac's own agents" : "Reopens Memnox with made up data, so every page shows what it can do")
                 MenuRow(symbol: MenuSymbol.settings, title: "Settings", action: showSettings)
                 MenuRow(symbol: MenuSymbol.quit, title: "Quit Memnox", quiet: true) {
                     NSApp.terminate(nil)
@@ -436,6 +458,17 @@ enum VoiceChoice {
 /// A switch, Memnox blue when on with a white knob as a settings switch is, drawn here since the system one goes grey in a
 /// panel that is not key.
 struct MemnoxSwitch: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        SwitchFace(configuration: configuration)
+    }
+}
+
+/// The switch in the look of its window: the Mac's capsule, or in the Memnox window the console's squircle track, blue
+/// when on and grey when off, its knob a tint of the blue on the dark.
+private struct SwitchFace: View {
+    let configuration: ToggleStyleConfiguration
+    @Environment(\.look) private var look
+
     private enum Layout {
         static let trackWidth: CGFloat = 34
         static let trackHeight: CGFloat = 20
@@ -446,9 +479,39 @@ struct MemnoxSwitch: ToggleStyle {
         static let knobShadowRadius: CGFloat = 1
         static let knobShadowDrop: CGFloat = 1
         static let flip = Animation.spring(response: 0.25, dampingFraction: 0.75)
+        static let consoleWidth: CGFloat = 36
+        static let consoleTrackRadius: CGFloat = 5
+        static let consoleKnobRadius: CGFloat = 4
+        static let consoleOffTrack = 0.4
+        static let consoleKnobShadow = 0.2
+        static let consoleShadowRadius: CGFloat = 2
+        static let consoleFlip = Animation.easeOut(duration: 0.2)
     }
 
-    func makeBody(configuration: Configuration) -> some View {
+    var body: some View {
+        if look == .console { console } else { mac }
+    }
+
+    private var console: some View {
+        let on = configuration.isOn
+        return Button { configuration.isOn.toggle() } label: {
+            ZStack(alignment: on ? .trailing : .leading) {
+                RoundedRectangle(cornerRadius: Layout.consoleTrackRadius, style: .continuous)
+                    .fill(on ? Memnox.Console.primary : Memnox.Console.muted.opacity(Layout.consoleOffTrack))
+                    .frame(width: Layout.consoleWidth, height: Layout.trackHeight)
+                RoundedRectangle(cornerRadius: Layout.consoleKnobRadius, style: .continuous)
+                    .fill(on ? Memnox.Console.switchKnob : Color.white)
+                    .frame(width: Layout.knobSize, height: Layout.knobSize)
+                    .padding(Memnox.Spacing.xxSmall)
+                    .shadow(color: .black.opacity(Layout.consoleKnobShadow), radius: Layout.consoleShadowRadius, y: Layout.knobShadowDrop)
+            }
+            .animation(Layout.consoleFlip, value: on)
+        }
+        .buttonStyle(.plain)
+        .pointingHand()
+    }
+
+    private var mac: some View {
         Button { configuration.isOn.toggle() } label: {
             ZStack(alignment: configuration.isOn ? .trailing : .leading) {
                 Capsule()
@@ -654,7 +717,9 @@ enum MenuSymbol {
     static let talk = "waveform"
     static let wake = "ear"
     static let speakUp = "bell"
+    static let sayFinished = "checkmark.bubble"
     static let talkOver = "waveform.badge.mic"
+    static let echo = "speaker.wave.2.bubble"
     static let sounds = "speaker.wave.1"
     static let volume = "speaker.wave.3"
     static let liveWords = "text.bubble"
@@ -670,7 +735,11 @@ enum MenuSymbol {
     static let copy = "doc.on.clipboard"
     static let mute = "speaker.slash"
     static let unmute = "speaker.wave.2"
+    static let hideNotch = "eye.slash"
+    static let showNotch = "eye"
     static let quit = "power"
+    static let demo = "play.circle"
+    static let leaveDemo = "arrow.uturn.backward"
     static let settings = "gearshape"
     static let more = "chevron.right"
     static let needYou = "hand.raised"

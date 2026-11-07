@@ -1,4 +1,5 @@
 import { accountWhole, type AccountWhole } from '../domain/account-whole';
+import { joinedToWorkspace } from '../domain/project-sidebar';
 import type { DaemonAccount } from './daemon-sign-in';
 import { Observed } from './observed';
 
@@ -33,6 +34,11 @@ export class Account extends Observed {
 
   get isSignedIn(): boolean {
     return this.whole.kind === 'signed-in';
+  }
+
+  /** Joined to a workspace by the person's sign in or this computer's own, which is what decides the team's parts. */
+  get isJoined(): boolean {
+    return joinedToWorkspace(this.person.isSignedIn, this.machine.isSignedIn);
   }
 
   async refresh(): Promise<void> {

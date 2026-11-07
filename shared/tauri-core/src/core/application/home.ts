@@ -1,4 +1,5 @@
 import { DAEMON_METHOD, type DaemonRequest, type DaemonResponse, type HomeReady, type HomeView, type SessionCard } from '@memnox/core/wire';
+import { HomeEnforce, type EnforceOutcome } from '../domain/home-steps';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
@@ -40,6 +41,9 @@ export class Home extends Observed {
   private handNote: string | undefined;
   private protectingNow = false;
   private protectWhy: string | undefined;
+  private restartingNow = false;
+  private enforcingNow = false;
+  private enforceSaid: string | undefined;
   /** Set while a read is due after a burst, so more events in the burst ask for nothing more. */
   private soon = false;
 
@@ -52,6 +56,8 @@ export class Home extends Observed {
       fire();
       return () => undefined;
     },
+    /** Restarts the Memnox service on the newest runtime: undefined once it answers again, else why not. */
+    private readonly restartServiceAction: () => Promise<string | undefined> = async () => undefined,
   ) {
     super();
   }
@@ -86,12 +92,56 @@ export class Home extends Observed {
     return this.protectWhy;
   }
 
+  /** True while the Memnox service is rebuilt and restarted for a Protect the old service could not see through. */
+  get restarting(): boolean {
+    return this.restartingNow;
+  }
+
+  get enforcing(): boolean {
+    return this.enforcingNow;
+  }
+
+  /** What turning on stopping came to, until the next press. */
+  get enforceNote(): string | undefined {
+    return this.enforceSaid;
+  }
+
+  /**
+   * Turns this computer from watching to stopping. Unsigned, because it only narrows what agents may do; going back
+   * widens and stays at the terminal, so no press here offers it.
+   */
+  async enforce(): Promise<EnforceOutcome> {
+    if (this.enforcingNow) return { kind: 'refused', why: 'Already asking.' };
+    this.enforcingNow = true;
+    this.enforceSaid = undefined;
+    this.changed();
+    const response = await this.ask({ id: this.ids.next(), method: DAEMON_METHOD.MODE_ENFORCE });
+    const outcome: EnforceOutcome =
+      response === undefined
+        ? { kind: 'unreachable' }
+        : response.ok && response.modeSet !== undefined
+          ? { kind: 'enforcing', set: response.modeSet }
+          : // A runtime from before the method answers it with a bare ok and nothing else.
+            { kind: 'refused', why: response.reason ?? response.error ?? HomeEnforce.older };
+    this.enforcingNow = false;
+    this.enforceSaid = HomeEnforce.line(outcome);
+    await this.refresh();
+    return outcome;
+  }
+
   async refresh(): Promise<void> {
     const response = await this.ask({ id: this.ids.next(), method: DAEMON_METHOD.HOME });
     const home = response?.ok === true ? response.home : undefined;
     if (home !== undefined) this.read = home;
     this.away = home === undefined;
     if (this.away) await this.readNumbers();
+    this.changed();
+  }
+
+  /** Actions the runtime sent live, counted into today at once rather than read again every second; the next read corrects it. */
+  heard(actions: number): void {
+    if (this.read === undefined || actions <= 0) return;
+    this.read = { ...this.read, today: { ...this.read.today, actions: this.read.today.actions + actions } };
     this.changed();
   }
 
@@ -121,13 +171,27 @@ export class Home extends Observed {
 
   /** One press: every agent found here goes under Memnox through the runtime's own setup. */
   async protect(): Promise<void> {
-    if (this.protectingNow) return;
+    if (this.protectingNow || this.restartingNow) return;
     this.protectingNow = true;
     this.protectWhy = undefined;
     this.changed();
     this.protectWhy = await this.protectAgents();
     this.protectingNow = false;
     await this.refresh();
+  }
+
+  /**
+   * Restarts the Memnox service on the newest runtime, as the Mac's `HomeModel.restartService`: undefined once it
+   * answers again, else why not, and undefined at once while a restart or a Protect is under way, whose caller reports it.
+   */
+  async restartService(): Promise<string | undefined> {
+    if (this.restartingNow || this.protectingNow) return undefined;
+    this.restartingNow = true;
+    this.changed();
+    const failed = await this.restartServiceAction();
+    this.restartingNow = false;
+    await this.refresh();
+    return failed;
   }
 
   private async readNumbers(): Promise<void> {

@@ -9,6 +9,7 @@ import { WINDOW_EVENTS, type CardSessionAsk } from '../../adapters/tauri-windows
 import { previewCard } from './preview-cards';
 import '../../styles.css';
 import './floating.css';
+import { TAURI_COMMAND } from '../../adapters/tauri-commands';
 
 const asked = new URLSearchParams(window.location.search);
 const preview = asked.get('preview') ?? undefined;
@@ -31,7 +32,7 @@ function CardPanel() {
     setTimeout(() => {
       setCard(undefined);
       setLeaving(false);
-      if (preview === undefined) void invoke('cards_hide').catch(() => undefined);
+      if (preview === undefined) void invoke(TAURI_COMMAND.cardsHide).catch(() => undefined);
     }, CARD_TIMING.fadeOutMs);
   }, []);
 
@@ -60,7 +61,7 @@ function CardPanel() {
   useLayoutEffect(() => {
     const element = holder.current;
     if (element === null || preview !== undefined) return;
-    const fit = () => void invoke('cards_fit', { height: Math.ceil(element.getBoundingClientRect().height) + 2 * CARD_PANEL.margin }).catch(() => undefined);
+    const fit = () => void invoke(TAURI_COMMAND.cardsFit, { height: Math.ceil(element.getBoundingClientRect().height) + 2 * CARD_PANEL.margin }).catch(() => undefined);
     const watcher = new ResizeObserver(fit);
     watcher.observe(element);
     return () => watcher.disconnect();
@@ -83,7 +84,7 @@ function CardPanel() {
               close,
               watch: (sessionId, host) => ask(sessionId, host, true),
               open: (sessionId, host) => ask(sessionId, host, false),
-              link: (href) => void invoke('open_link', { url: href }).catch(() => undefined),
+              link: (href) => void invoke(TAURI_COMMAND.openLink, { url: href }).catch(() => undefined),
               hovering: (over) => {
                 setHovered(over);
                 if (!over) setLeft(true);

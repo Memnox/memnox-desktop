@@ -6,8 +6,8 @@ const first = (choices: readonly string[]) => choices[0];
 describe('what it says when called', () => {
   it('greets the first call in a while for the hour and never repeats a line', () => {
     const lines = new WakeLines();
-    expect(lines.line({ address: 'sir', hour: 20, sinceLastCallMs: undefined, pick: first })).toBe('Good evening, sir. Systems online. Memnox is ready.');
-    expect(lines.line({ hour: 8, sinceLastCallMs: 5 * 3_600_000, pick: first })).toBe('Good morning. Systems online. Memnox is ready.');
+    expect(lines.line({ address: 'sir', hour: 20, sinceLastCallMs: undefined, pick: first })).toBe('Good evening, sir. What can I do for you?');
+    expect(lines.line({ hour: 8, sinceLastCallMs: 5 * 3_600_000, pick: first })).toBe('Good morning. What can I do for you?');
     expect(lines.line({ address: 'sir', hour: 20, sinceLastCallMs: 30_000, pick: first })).toBe('How may I help, sir?');
     expect(lines.line({ address: 'sir', hour: 20, sinceLastCallMs: 30_000, pick: first })).toBe("I'm listening, sir.");
     expect(lines.line({ address: '  ', hour: 20, sinceLastCallMs: 30_000 })).not.toContain('sir');
@@ -17,7 +17,7 @@ describe('what it says when called', () => {
   it('greets by name, then says the title until the name has rested', () => {
     const lines = new WakeLines();
     const start = 1_000_000_000;
-    expect(lines.line({ address: 'sir', name: 'Moiz', hour: 8, sinceLastCallMs: undefined, at: start, pick: first })).toBe('Good morning, Moiz. Systems online. Memnox is ready.');
+    expect(lines.line({ address: 'sir', name: 'Moiz', hour: 8, sinceLastCallMs: undefined, at: start, pick: first })).toBe('Good morning, Moiz. What can I do for you?');
     expect(lines.line({ address: 'sir', name: 'Moiz', hour: 8, sinceLastCallMs: 60_000, at: start + 60_000, pick: first })).toBe('How may I help, sir?');
     expect(lines.line({ address: 'sir', name: 'Moiz', hour: 9, sinceLastCallMs: 60_000, at: start + 31 * 60_000, pick: first })).toBe('How may I help, Moiz?');
     expect(new WakeLines().line({ name: 'Moiz', hour: 8, sinceLastCallMs: 60_000, pick: first })).toBe('How may I help?');

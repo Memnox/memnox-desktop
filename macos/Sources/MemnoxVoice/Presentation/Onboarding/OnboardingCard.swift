@@ -1,27 +1,28 @@
+import MemnoxVoiceCore
 import SwiftUI
 
-/// The first run's window: a progress bar across the top, the step on the left with the one button that moves on,
-/// the real notch playing what Memnox does to its right through every step, and Back at the foot.
+/// The first run's window, in the Memnox window's own look: a stepper across the top naming every step, the step on
+/// the left with the one button that moves on, the real notch playing in a bordered panel to its right, and Back with
+/// the sound controls at the foot. No rule divides the parts; space and the panel's edge do.
 struct OnboardingCard: View {
     @ObservedObject var flow: OnboardingFlow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Layout {
-        static let side: CGFloat = 56
-        static let top: CGFloat = 36
-        static let barHeight: CGFloat = 4
+        static let side: CGFloat = 40
+        static let top: CGFloat = 28
         static let columnWidth: CGFloat = 440
-        static let gap: CGFloat = 48
+        static let gap: CGFloat = 40
+        static let footerHeight: CGFloat = 56
+        /// The panel the notch plays in stands this far inside the window's edge.
+        static let artInset: CGFloat = 8
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-                progress
-                stepNames
-            }
-            .padding(.horizontal, Layout.side / 2)
-            .padding(.top, Layout.top / 2)
+            OnboardingStepper(flow: flow)
+                .padding(.horizontal, Layout.side)
+                .padding(.top, Layout.top)
             if let setup = flow.setup {
                 HStack(alignment: .center, spacing: Layout.gap) {
                     CuedScroll {
@@ -30,12 +31,17 @@ struct OnboardingCard: View {
                             .padding(.vertical, Layout.top)
                     }
                     .frame(width: Layout.columnWidth)
-                    .id(flow.step)
+                    .id(flow.page)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
                                             removal: .move(edge: .leading).combined(with: .opacity)))
                     // Outside the step's identity, so the notch plays on rather than starting over at every step.
                     OnboardingArt(highlighted: { flow.highlight = $0 }, jump: flow.jump)
+                        .padding(Layout.artInset)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous)
+                            .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
                         .padding(.vertical, Layout.top)
                         // The landscape overflows its clip and SwiftUI hit tests the overflow, so without this the
                         // picture lies over the step's buttons and takes their clicks.
@@ -46,65 +52,117 @@ struct OnboardingCard: View {
             }
             footer
         }
-        .background(Memnox.Palette.background)
-        .animation(reduceMotion ? .easeInOut(duration: Memnox.Motion.standard) : .spring(response: 0.5, dampingFraction: 0.88), value: flow.step)
+        .background(Memnox.Console.background)
+        .consoleLook()
+        .animation(reduceMotion ? .easeInOut(duration: Memnox.Motion.standard) : .spring(response: 0.5, dampingFraction: 0.88), value: flow.page)
         .task(id: flow.setup.map(ObjectIdentifier.init)) { await flow.setup?.check() }
     }
 
-    /// How far through the steps, in ink, so the one colour on the page is the picture.
-    private var progress: some View {
-        GeometryReader { space in
-            let share = CGFloat(flow.step.rawValue + 1) / CGFloat(OnboardingStep.allCases.count)
-            ZStack(alignment: .leading) {
-                Capsule().fill(Memnox.ink(Memnox.Ink.fill))
-                Capsule()
-                    .fill(Memnox.ink(Memnox.Ink.primary))
-                    .frame(width: space.size.width * share)
-            }
-        }
-        .frame(height: Layout.barHeight)
-        .accessibilityElement()
-        .accessibilityLabel("Step \(flow.step.rawValue + 1) of \(OnboardingStep.allCases.count), \(flow.step.title)")
-    }
-
-    /// Every step by name, the current one in full ink and the ones done ticked, under the bar.
-    private var stepNames: some View {
-        HStack(spacing: Memnox.Spacing.xLarge) {
-            ForEach(OnboardingStep.allCases) { step in
-                HStack(spacing: Memnox.Spacing.xSmall) {
-                    if step.rawValue < flow.step.rawValue {
-                        Image(systemName: "checkmark").font(.system(size: Memnox.TextSize.micro, weight: .bold))
-                    }
-                    Text(step.title)
-                }
-                .font(Memnox.sans(Memnox.TextSize.footnote, step == flow.step ? .semibold : .regular))
-                .foregroundStyle(Memnox.ink(step == flow.step ? Memnox.Ink.primary : Memnox.Ink.tertiary))
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
+    /// Back on the left; on the right where all of this can be changed later, and the music and the voice.
     private var footer: some View {
-        HStack {
-            if flow.step != .welcome {
+        HStack(spacing: Memnox.Spacing.medium) {
+            if flow.step != .connect || flow.ready {
                 Button("Back", systemImage: "chevron.left") { flow.back() }
                     .buttonStyle(KitButton(kind: .secondary))
                     .keyboardShortcut(.cancelAction)
             }
             Spacer()
+            Text("You can change all of this later in Settings.")
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                .foregroundStyle(Memnox.Console.faint)
             AmbienceButton()
             MuteButton()
-            Text("You can change all of this later in Settings.")
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
         }
-        .frame(height: Card.footerHeight)
-        .padding(.horizontal, Layout.side / 2)
-        .padding(.bottom, Memnox.Spacing.large)
+        .frame(height: Layout.footerHeight)
+        .padding(.horizontal, Layout.side)
+        .padding(.bottom, Memnox.Spacing.medium)
+    }
+}
+
+/// The three steps as numbered marks joined by a line, as a stepper reads: a done step is a blue mark with a tick, the
+/// step on screen a blue ring around its number with its name in full ink, and what is left an outline. Step N of 3
+/// stands at the end, so a new person always sees where they are and how much is left.
+private struct OnboardingStepper: View {
+    @ObservedObject var flow: OnboardingFlow
+
+    private enum Layout {
+        static let mark: CGFloat = 22
+        static let ring: CGFloat = 1.5
+        static let line: CGFloat = 1.5
+        static let lineMin: CGFloat = 16
+        static let tick: CGFloat = 9
     }
 
-    private enum Card {
-        static let footerHeight: CGFloat = 44
+    private enum State {
+        case done
+        case here
+        case ahead
+    }
+
+    var body: some View {
+        // Every name where the window has room, and only the one on screen where it does not.
+        ViewThatFits(in: .horizontal) {
+            row(everyName: true)
+            row(everyName: false)
+        }
+    }
+
+    private func row(everyName: Bool) -> some View {
+        HStack(spacing: Memnox.Spacing.medium) {
+            ForEach(OnboardingStep.allCases) { step in
+                let state = state(of: step)
+                mark(String(step.rawValue + 1), state)
+                if everyName || state == .here { name(step.title, state) }
+                if step != OnboardingStep.allCases.last { line(lit: state == .done) }
+            }
+            Spacer(minLength: Memnox.Spacing.large)
+            Text(flow.ready ? "Done" : FirstRunLines.progressLabel(step: flow.step.rawValue))
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.meta, .medium))
+                .foregroundStyle(Memnox.Console.muted)
+                .fixedSize()
+        }
+        .animation(.easeOut(duration: Memnox.Motion.quick), value: flow.page)
+        .accessibilityElement()
+        .accessibilityLabel(flow.ready ? "Three steps done, the rest is optional"
+            : "\(FirstRunLines.progressLabel(step: flow.step.rawValue)), \(flow.step.title)")
+    }
+
+    private func state(of step: OnboardingStep) -> State {
+        if flow.ready || step.rawValue < flow.step.rawValue { return .done }
+        return step == flow.step ? .here : .ahead
+    }
+
+    private func mark(_ number: String, _ state: State) -> some View {
+        ZStack {
+            switch state {
+            case .done:
+                Circle().fill(Memnox.Console.primary)
+                Image(systemName: "checkmark").font(.system(size: Layout.tick, weight: .bold)).foregroundStyle(Color.white)
+            case .here:
+                Circle().fill(Memnox.Console.primary.opacity(Memnox.Ink.faintFill))
+                Circle().strokeBorder(Memnox.Console.primary, lineWidth: Layout.ring)
+                Text(number).font(Memnox.Console.sans(Memnox.Console.TextSize.meta, .semibold)).foregroundStyle(Memnox.Console.foreground)
+            case .ahead:
+                Circle().strokeBorder(Memnox.Console.panelEdge, lineWidth: Layout.ring)
+                Text(number).font(Memnox.Console.sans(Memnox.Console.TextSize.meta, .medium)).foregroundStyle(Memnox.Console.faint)
+            }
+        }
+        .frame(width: Layout.mark, height: Layout.mark)
+    }
+
+    private func name(_ title: String, _ state: State) -> some View {
+        Text(title)
+            .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, state == .here ? .medium : .regular))
+            .foregroundStyle(state == .ahead ? Memnox.Console.faint : state == .here ? Memnox.Console.foreground : Memnox.Console.muted)
+            .lineLimit(1)
+            .fixedSize()
+    }
+
+    private func line(lit: Bool) -> some View {
+        Capsule()
+            .fill(lit ? Memnox.Console.primary : Memnox.Console.panelEdge)
+            .frame(minWidth: Layout.lineMin, maxWidth: .infinity)
+            .frame(height: Layout.line)
     }
 }
 
@@ -115,11 +173,14 @@ private struct OnboardingStepView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
-            switch flow.step {
-            case .welcome: WelcomeStep(flow: flow)
-            case .setup: ThisMacStep(flow: flow, setup: setup)
-            case .editors: AgentHomesStep(flow: flow)
-            case .ready: ReadyStep(flow: flow, setup: setup)
+            if flow.ready {
+                ReadyStep(flow: flow, setup: setup)
+            } else {
+                switch flow.step {
+                case .connect: ConnectStep(flow: flow, setup: setup)
+                case .workspace: WorkspaceStep(flow: flow)
+                case .boundaries: BoundariesStep(flow: flow)
+                }
             }
         }
     }
@@ -136,12 +197,12 @@ struct StepTitle: View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             Text(title)
                 .font(Memnox.display(Self.titleSize, .semibold))
-                .foregroundStyle(Memnox.Palette.ink)
+                .foregroundStyle(Memnox.Console.foreground)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Text(detail)
                 .font(Memnox.sans(Memnox.TextSize.headline))
-                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                .foregroundStyle(Memnox.Console.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

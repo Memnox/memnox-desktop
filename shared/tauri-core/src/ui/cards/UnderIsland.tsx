@@ -3,7 +3,8 @@ import type { ToolSignIn } from '@memnox/core/wire';
 import type { IslandNotices, SignedInPill as SignedIn } from '../../core/application/island-notices';
 import { driveLabel, phoneVoiceLabel } from '../../core/domain/driving';
 import { signedInWords, signInLabel, signInLead } from '../../core/domain/tool-brand';
-import { IslandButton, PRESSABLE, SFSymbol, ToolMark } from '../kit';
+import { IslandButton, PRESSABLE, Pressable, SFSymbol, ToolMark } from '../kit';
+import { SignedInLines } from '../../core/domain/island-lines';
 
 /**
  * What hangs 6 under the island in every mode, from the Mac's `IslandView`: a phone driving this
@@ -43,7 +44,7 @@ export function UnderIsland({
  */
 export function PhonePill({ label, symbol }: { label: string; symbol: 'iphone' | 'iphone.radiowaves.left.and.right' }) {
   return (
-    <div className="pointer-events-none inline-flex max-w-full animate-pill-in items-center gap-1 rounded-full bg-black px-3 py-[5px]" style={{ boxShadow: 'inset 0 0 0 1px rgb(255 159 10 / 0.5)' }} role="status">
+    <div className="pointer-events-none inline-flex max-w-full animate-pill-in items-center gap-1 rounded-full bg-black px-3 py-card-phone-pill-y ring-1 ring-amber/50 ring-inset" role="status">
       <span className="grid shrink-0 text-amber">
         <SFSymbol name={symbol} size={11} weight="semibold" />
       </span>
@@ -52,30 +53,32 @@ export function PhonePill({ label, symbol }: { label: string; symbol: 'iphone' |
   );
 }
 
+/** The amber badge on a tool to sign in to again: 11 across, its centre a third of it past a 4 inset, its arrows 6.6. */
+const AGAIN_BADGE = { side: 11, inset: 4, symbol: 6.6 } as const;
+
 /**
  * `IslandSignInRow`: "Sign in to use" and one tool mark per tool not signed in to, each a 30 hit area
  * around a 22 mark, one tap opening its sign in. A tool to sign in to again wears an amber badge.
  */
 export function SignInRow({ tools, onSignIn, online = true }: { tools: readonly ToolSignIn[]; onSignIn: (tool: ToolSignIn) => void; online?: boolean }) {
   return (
-    <div className="inline-flex animate-pill-in items-center gap-1 rounded-full bg-black px-2.5 py-[3px]" style={{ boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.14)' }}>
+    <div className="inline-flex animate-pill-in items-center gap-1 rounded-full bg-black px-2.5 py-card-sign-in-y ring-1 ring-white/14 ring-inset">
       <span className="pr-1 text-caption font-medium text-white/[0.62]">{signInLead(tools.map((tool) => tool.again === true))}</span>
       {tools.map((tool) => (
-        <button
+        <Pressable
           key={tool.toolkit}
-          type="button"
-          className={`${PRESSABLE} relative grid size-[30px] place-items-center`}
+          className={`${PRESSABLE} relative grid size-card-sign-in-hit place-items-center`}
           onClick={() => onSignIn(tool)}
           title={signInLabel(tool.toolkit, tool.again === true)}
           aria-label={signInLabel(tool.toolkit, tool.again === true)}
         >
           <ToolMark toolkit={tool.toolkit} size={22} online={online} />
           {tool.again === true && (
-            <span className="absolute grid size-[11px] place-items-center rounded-full bg-amber text-black" style={{ right: 4 - 11 / 3, bottom: 4 - 11 / 3 }}>
-              <SFSymbol name="arrow.triangle.2.circlepath" size={6.6} weight="bold" />
+            <span className="absolute grid size-card-again-badge place-items-center rounded-full bg-amber text-black" style={{ right: AGAIN_BADGE.inset - AGAIN_BADGE.side / 3, bottom: AGAIN_BADGE.inset - AGAIN_BADGE.side / 3 }}>
+              <SFSymbol name="arrow.triangle.2.circlepath" size={AGAIN_BADGE.symbol} weight="bold" />
             </span>
           )}
-        </button>
+        </Pressable>
       ))}
     </div>
   );
@@ -88,16 +91,15 @@ export function SignInRow({ tools, onSignIn, online = true }: { tools: readonly 
 export function SignedInPill({ pill, onNotMe, online = true }: { pill: SignedIn; onNotMe: () => void; online?: boolean }) {
   return (
     <div
-      className="inline-flex max-w-full animate-pill-in items-center gap-1.5 rounded-full bg-black px-3 py-1.5"
-      style={{ boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.14)' }}
+      className="inline-flex max-w-full animate-pill-in items-center gap-1.5 rounded-full bg-black px-3 py-1.5 ring-1 ring-white/14 ring-inset"
       role="status"
-      aria-label={pill.who === undefined ? `Signed in to ${pill.toolkit}` : `Signed in to ${pill.toolkit} as ${pill.who}`}
+      aria-label={SignedInLines.signedIn(pill.toolkit, pill.who)}
     >
       <ToolMark toolkit={pill.toolkit} size={18} online={online} />
       <span className="truncate text-caption font-semibold text-white">{signedInWords(pill.toolkit, pill.who)}</span>
       {pill.unverified ? (
-        <IslandButton onClick={onNotMe} title="Sign in again with your own account">
-          Not me
+        <IslandButton onClick={onNotMe} title={SignedInLines.signInAgain}>
+          {SignedInLines.notMe}
         </IslandButton>
       ) : (
         <span className="grid text-green" aria-label="your account">

@@ -64,7 +64,8 @@ export class ServerFeeds {
       while (!stopped) {
         let end: unknown;
         try {
-          const iterator = link.stream({ id: this.ids.next(), method: DAEMON_METHOD.SUBSCRIBE })[Symbol.asyncIterator]();
+          // Live activity is asked for, since the windows page through the chosen server's ledger and show its rows.
+          const iterator = link.stream({ id: this.ids.next(), method: DAEMON_METHOD.SUBSCRIBE, subscribeActivity: true })[Symbol.asyncIterator]();
           lines = iterator;
           for (;;) {
             const next = await iterator.next();

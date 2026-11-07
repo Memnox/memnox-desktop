@@ -1,7 +1,9 @@
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { HOLD_ANSWER } from '@memnox/core/wire';
 import type { HeldCalls, HeldCard } from '../../core';
-import { BrandLogo, IslandButton, SFSymbol, type SFSymbolName } from '../kit';
+import { BrandLogo, IslandButton, Pressable, SFSymbol, type SFSymbolName } from '../kit';
+import { HeldImpactLines } from '../cards/HeldImpact';
+import { HeldLines } from '../../core/domain/island-lines';
 
 /**
  * The pieces the session windows share, outside the island: these follow the system's light or dark as
@@ -16,32 +18,30 @@ export const PRESS_DOWN = 'cursor-pointer select-none transition-[scale] duratio
  * with near black words; secondary is ink 9% (15% hovered). Hover eases over 0.12 s; disabled dims to 0.4.
  */
 export function CardButton({ title, symbol, primary = false, disabled, onPress }: { title: string; symbol?: SFSymbolName; primary?: boolean; disabled?: boolean; onPress: () => void }) {
-  const look = primary ? 'bg-[#F5F6F8]/[0.92] text-[#0B0C0E] hover:bg-[#F5F6F8]' : 'bg-ink/[0.09] text-ink hover:bg-ink/15';
+  const look = primary ? 'bg-island-primary-fill/[0.92] text-island-primary-text hover:bg-island-primary-fill' : 'bg-ink/[0.09] text-ink hover:bg-ink/15';
   return (
-    <button
-      type="button"
+    <Pressable
       className={`${PRESS_DOWN} inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-button font-medium transition-colors duration-[120ms] ease-out disabled:opacity-40 ${look}`}
       disabled={disabled}
       onClick={onPress}
     >
       {symbol !== undefined && <SFSymbol name={symbol} size={12.5} weight="medium" />}
       {title}
-    </button>
+    </Pressable>
   );
 }
 
 /** `CloseButton`: an 11 semibold cross, muted until hovered, in a 26 circle that fills ink 12% on hover. */
 export function CloseButton({ onPress, label = 'Close' }: { onPress: () => void; label?: string }) {
   return (
-    <button
-      type="button"
-      className={`${PRESS_DOWN} grid size-[26px] shrink-0 place-items-center rounded-full text-muted transition-colors duration-[120ms] ease-out hover:bg-ink/[0.12] hover:text-foreground`}
+    <Pressable
+      className={`${PRESS_DOWN} grid size-session-close shrink-0 place-items-center rounded-full text-muted transition-colors duration-[120ms] ease-out hover:bg-ink/[0.12] hover:text-foreground`}
       onClick={onPress}
       title={label}
       aria-label={label}
     >
       <SFSymbol name="xmark" size={11} weight="semibold" />
-    </button>
+    </Pressable>
   );
 }
 
@@ -51,8 +51,7 @@ export function CloseButton({ onPress, label = 'Close' }: { onPress: () => void;
  */
 export function FilterChip({ title, chosen, count, onPress }: { title: string; chosen: boolean; count?: number; onPress: () => void }) {
   return (
-    <button
-      type="button"
+    <Pressable
       className={`${PRESS_DOWN} inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2.5 text-caption transition-colors duration-200 ${
         chosen ? 'bg-primary-fill font-semibold text-primary-text' : 'border border-ink/[0.14] bg-ink/[0.06] font-medium text-ink'
       }`}
@@ -61,14 +60,14 @@ export function FilterChip({ title, chosen, count, onPress }: { title: string; c
     >
       {title}
       {count !== undefined && <span className={`tabular text-micro font-semibold ${chosen ? 'opacity-[0.92]' : 'opacity-50'}`}>{count}</span>}
-    </button>
+    </Pressable>
   );
 }
 
 /** `Keycap`: one key, 11 medium, at least 18 square, radius 4 on the keycap fill. */
 export function Keycap({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-key border border-control-edge bg-keycap px-1.5 text-caption font-medium text-foreground">{children}</span>
+    <span className="inline-flex h-session-keycap min-w-session-keycap items-center justify-center rounded-key border border-control-edge bg-keycap px-1.5 text-caption font-medium text-foreground">{children}</span>
   );
 }
 
@@ -81,7 +80,7 @@ export function CardHeader({ mark, title, subtitle, accessory, onClose }: { mark
     <div className="flex min-w-0 items-center gap-2.5" data-tauri-drag-region>
       <span className="grid size-7 shrink-0 place-items-center">{mark}</span>
       <div className="pointer-events-none flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="line-clamp-2 font-display text-[22px] font-semibold leading-tight text-foreground">{title}</span>
+        <span className="line-clamp-2 font-display text-session-card-title font-semibold leading-tight text-foreground">{title}</span>
         {subtitle !== undefined && <span className="truncate text-footnote text-muted">{subtitle}</span>}
       </div>
       {accessory}
@@ -93,8 +92,8 @@ export function CardHeader({ mark, title, subtitle, accessory, onClose }: { mark
 /** `LiveSection`: an uppercased title 10 semibold over its content on the section fill, radius 16. */
 export function LiveSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-[7px]">
-      <h3 className="m-0 pl-1 text-micro font-semibold uppercase tracking-[0.8px] text-ink/40">{title}</h3>
+    <section className="flex flex-col gap-session-section-title">
+      <h3 className="m-0 pl-1 text-micro font-semibold uppercase tracking-session-label text-ink/40">{title}</h3>
       <div className="w-full rounded-island border border-ink/[0.035] bg-[var(--mx-section)] p-3">{children}</div>
     </section>
   );
@@ -114,24 +113,25 @@ export function HeldStrip({ calls, card }: { calls: HeldCalls; card: HeldCard })
   const answering = state.answering && state.pressed === card.subject;
   async function press(answer: typeof HOLD_ANSWER.DENY | typeof HOLD_ANSWER.ONCE) {
     const outcome = await calls.answer(card.subject, answer);
-    setSaid(outcome.kind === 'failed' ? outcome.why : outcome.kind === 'cancelled' ? 'Nothing was sent, so it is still waiting.' : undefined);
+    setSaid(outcome.kind === 'failed' ? outcome.why : outcome.kind === 'cancelled' ? HeldLines.cancelled : undefined);
   }
   return (
-    <div className="flex flex-col gap-2.5 rounded-island border bg-surface p-3" style={{ borderColor: 'rgb(255 159 10 / 0.62)' }}>
+    <div className="flex flex-col gap-2.5 rounded-island border-(length:--mx-session-surface-edge) border-amber/[0.62] bg-surface p-3">
       <div className="flex min-w-0 items-center gap-2">
         <BrandLogo agent={card.agent} name={card.who} size={22} />
         <span className="shrink-0 text-body font-semibold text-ink">{card.who}</span>
         <span className="truncate text-body text-ink-secondary">{card.why ?? 'is waiting on you'}</span>
       </div>
-      <code className="line-clamp-2 w-full break-all rounded-[8px] bg-ink-faint-fill p-2 font-['DM_Mono',ui-monospace,Consolas,monospace] text-footnote text-ink" title={card.what}>
+      <code className="line-clamp-2 w-full break-all rounded-session-command bg-ink-faint-fill p-2 font-mono text-footnote text-ink" title={card.what}>
         {card.what}
       </code>
+      {card.impact !== undefined && <HeldImpactLines impact={card.impact} />}
       <div className={`flex items-center gap-2 ${answering ? 'pointer-events-none opacity-[0.55]' : ''}`}>
         <IslandButton inRow onClick={() => void press(HOLD_ANSWER.DENY)} className="!bg-ink/[0.09] !text-ink">
-          Deny
+          {HeldLines.deny}
         </IslandButton>
         <IslandButton inRow kind="primary" symbol={card.touchID ? 'touchid' : undefined} onClick={() => void press(HOLD_ANSWER.ONCE)}>
-          Allow once
+          {HeldLines.allowOnce}
         </IslandButton>
       </div>
       {said !== undefined && <span className="text-footnote text-destructive">{said}</span>}

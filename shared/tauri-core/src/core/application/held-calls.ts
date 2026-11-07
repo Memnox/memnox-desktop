@@ -28,6 +28,22 @@ export type HeldOutcome =
   | { kind: 'cancelled' }
   | { kind: 'failed'; why: string };
 
+/**
+ * How the island's answer to a call pressed in another window ended, as plain data, since it crosses from the island's
+ * webview to the window's. Somebody answering first carries only the word the daemon gave for it.
+ */
+export type HandedOutcome =
+  | { kind: 'answered' }
+  | { kind: 'answered-elsewhere'; word?: string }
+  | { kind: 'cancelled' }
+  | { kind: 'failed'; why: string };
+
+/** An outcome as the island hands it back to the window that pressed. */
+export function handedOutcome(outcome: HeldOutcome): HandedOutcome {
+  if (outcome.kind !== 'answered-elsewhere') return outcome;
+  return outcome.earlier.word === undefined ? { kind: 'answered-elsewhere' } : { kind: 'answered-elsewhere', word: outcome.earlier.word };
+}
+
 /** Everything the island draws, replaced whole on every change so a screen compares one with the next. */
 export interface HeldState {
   readonly waiting: WaitingCalls<HeldCard>;
@@ -49,6 +65,8 @@ export interface HeldCallsOptions {
   readonly answers?: DaemonLink;
   /** Whether an event of this computer's own feed reaches the island, and the place to remember it by. */
   readonly accept?: (event: DaemonEvent) => boolean;
+  /** Asks the daemon for live activity rows too, which only the feed that hands them to the windows wants. */
+  readonly liveActivity?: boolean;
   /** Teammates' calls the workspace routed here, answered through it and never through a daemon. */
   readonly team?: {
     owns(subject: string): boolean;
@@ -112,7 +130,7 @@ export class HeldCalls {
   async watch(): Promise<void> {
     try {
       await this.catchUp();
-      for await (const response of this.link.stream(this.request(DAEMON_METHOD.SUBSCRIBE))) {
+      for await (const response of this.link.stream(this.subscription())) {
         this.update({ connected: true });
         if (response.event === undefined) continue;
         if (this.options.accept?.(response.event) === false) continue;
@@ -179,19 +197,32 @@ export class HeldCalls {
 
   /** A held call answered with a button. A yes that reaches past its session carries a signature, or is not sent. */
   async answer(subject: string, answer: HeldAnswer): Promise<HeldOutcome> {
-    this.update({ answering: answer !== HOLD_ANSWER.DENY, pressed: subject });
+    this.handed(subject, answer);
     const outcome = await this.send(subject, answer);
+    this.handedBack(subject, handedOutcome(outcome));
+    return outcome;
+  }
+
+  /**
+   * A press in another window that the island answers, as the Mac's pages hand theirs to its island: the call is held
+   * as pressed here meanwhile, so its own settling never shows a note and nothing else is pressed while it is signed.
+   */
+  handed(subject: string, answer: HeldAnswer): void {
+    this.update({ answering: answer !== HOLD_ANSWER.DENY, pressed: subject });
+  }
+
+  /** How that answer ended, settled here exactly as one sent from these buttons is. */
+  handedBack(subject: string, outcome: HandedOutcome): void {
     this.update({ answering: false });
     if (outcome.kind === 'answered-elsewhere') {
       // Somebody got there first, so the card says how it was settled before it goes.
       this.update({ pressed: undefined });
-      this.release(subject, settledLine(outcome.earlier.word));
+      this.release(subject, settledLine(outcome.word));
     } else if (outcome.kind === 'answered') {
       this.release(subject);
     } else {
       this.update({ pressed: undefined });
     }
-    return outcome;
   }
 
   private async send(subject: string, answer: HeldAnswer): Promise<HeldOutcome> {
@@ -203,10 +234,13 @@ export class HeldCalls {
       return team.answer(subject, said, consentReason(card?.label ?? 'this call', card?.what, said));
     }
     const request: DaemonRequest = { ...this.request(DAEMON_METHOD.CONFIRM), subject, answer };
+    // The digest of the call as shown goes with every answer, so the daemon refuses by name one that changed since.
+    const actionDigest = card?.actionDigest;
+    if (actionDigest !== undefined) request.actionDigest = actionDigest;
     // A card that is gone is signed for, since only the daemon's word that it stays inside its session waives the key.
     if (answer !== HOLD_ANSWER.DENY && card?.withinSession !== true) {
       const reason = consentReason(card?.label ?? 'this call', card?.what, answer);
-      const signing = await this.signer.sign(subject, answer, reason);
+      const signing = await this.signer.signHeld(subject, answer, reason, actionDigest);
       if (signing.kind === 'cancelled') return { kind: 'cancelled' };
       if (signing.kind === 'refused') return { kind: 'failed', why: signing.why };
       request.signature = signing.signature;
@@ -243,12 +277,23 @@ export class HeldCalls {
   private drop(subject: string): void {
     const change: { -readonly [K in keyof HeldState]?: HeldState[K] } = { waiting: this.current.waiting.remove(subject) };
     if (this.current.settled?.subject === subject) change.settled = undefined;
-    if (this.current.pressed === subject) change.pressed = undefined;
+    // Its press is over once it is gone, as the Mac's drop puts `answering` down, so a call another window handed the
+    // island and the feed settled first never leaves these answers dimmed.
+    if (this.current.pressed === subject) {
+      change.pressed = undefined;
+      change.answering = false;
+    }
     this.update(change);
   }
 
   private request(method: DaemonRequest['method']): DaemonRequest {
     return { id: this.ids.next(), method };
+  }
+
+  /** A daemon sends activity only when asked, since an app built before it would say every row aloud. */
+  private subscription(): DaemonRequest {
+    const request = this.request(DAEMON_METHOD.SUBSCRIBE);
+    return this.options.liveActivity === true ? { ...request, subscribeActivity: true } : request;
   }
 
   private update(change: Partial<HeldState>): void {

@@ -38,7 +38,7 @@ public func reaction(to event: DaemonEvent) -> Reaction? {
         case .started, .closed, .together: return .settle
         case .watched, .wouldHave, .question, .asking, .message, .ended, nil: return nil
         }
-    case .held, .settled, .proposal, .show, nil:
+    case .held, .settled, .proposal, .show, .activity, nil:
         return nil
     }
 }

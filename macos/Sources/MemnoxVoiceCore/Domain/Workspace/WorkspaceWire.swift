@@ -90,10 +90,12 @@ public struct WorkspaceHeldCall: Decodable, Equatable, Sendable {
     public let answer: String?
     public let answeredBy: String?
     public let answeredOn: String?
+    /// What it could affect, whether it can be undone and what was verified; nil from an older runtime.
+    public let impact: HeldImpact?
 
     private enum Field: String, CodingKey {
         case id, machineId, machineLabel, machineClass, agent, operation, target, summary, why, reason, askedAt,
-             expiresAt, escalated, approvalsNeeded, approvedByYou, ownerName, answer, answeredBy, answeredOn
+             expiresAt, escalated, approvalsNeeded, approvedByYou, ownerName, answer, answeredBy, answeredOn, impact
     }
 
     public init(from decoder: Decoder) throws {
@@ -117,6 +119,8 @@ public struct WorkspaceHeldCall: Decodable, Equatable, Sendable {
         answer = try? fields.decodeIfPresent(String.self, forKey: .answer)
         answeredBy = try? fields.decodeIfPresent(String.self, forKey: .answeredBy)
         answeredOn = try? fields.decodeIfPresent(String.self, forKey: .answeredOn)
+        // An impact missing a part a person needs is dropped whole, and the call is still read.
+        impact = try? fields.decodeIfPresent(HeldImpact.self, forKey: .impact)
     }
 
     /// The class the contract reads a machine nobody can find as.

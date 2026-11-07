@@ -50,7 +50,8 @@ private let fuzzyEchoLength = 4
 /// A spelling one edit in this many letters away is still its own word misheard.
 private let misspellingShare = 3
 
-private func editDistance(_ a: String, _ b: String) -> Int {
+/// Letters to change, add or drop to turn one word into the other, shared by the echo check and the polish guard.
+func editDistance(_ a: String, _ b: String) -> Int {
     let a = Array(a), b = Array(b)
     var row = Array(0...b.count)
     for i in 1...max(a.count, 1) where !a.isEmpty {
@@ -168,11 +169,24 @@ private let bargeWindow = 6
 public func withoutEcho(_ heard: String, spoken: String) -> String {
     let said = wordsIn(spoken)
     var parts = heard.split(separator: " ").map(String.init)
-    while let first = parts.first, let word = wordsIn(first).first, isEcho(word, of: said) {
+    while let first = parts.first, let word = wordsIn(first).first, isEcho(word, of: said) || isEchoEnding(word, of: said) {
         parts.removeFirst()
     }
     return parts.joined(separator: " ")
 }
+
+/// Whether a word is the end of a longer one it said, which is what the recognizer writes when the pause
+/// cut in mid word: "art" from its "ImagineArt". Never a stop word, and only well inside a longer word,
+/// so the person's "now" is never taken for the end of its "know".
+private func isEchoEnding(_ word: String, of said: [String]) -> Bool {
+    guard word.count >= echoEndingLength, !stopWords.contains(word) else { return false }
+    return said.contains { $0.count >= word.count + echoEndingLead && $0.hasSuffix(word) }
+}
+
+/// Shorter than this an ending matches the end of too many words by chance.
+private let echoEndingLength = 3
+/// How many letters of its word must come before the ending, so only a word cut in two counts.
+private let echoEndingLead = 3
 
 /// What was heard with its own recent words taken off either end, which is where they land when a
 /// sentence it was still saying runs into the microphone before or after the person. A run of two

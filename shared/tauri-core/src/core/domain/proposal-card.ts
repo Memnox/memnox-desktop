@@ -15,6 +15,15 @@ export type ProposalCard =
   | { readonly kind: 'work'; readonly subject: string; readonly work: WorkDraft };
 
 /** The card a proposal needs, undefined for one answered without a card. */
+/**
+ * The card the island shows of those waiting: the newest going out in the person's name before any rule, as the
+ * Mac's `settle` puts a draft ahead of a rule, since a send waits on the person where a rule waits on nobody.
+ */
+export function shownProposal(cards: readonly ProposalCard[]): ProposalCard | undefined {
+  const newest = [...cards].reverse();
+  return newest.find((card) => card.kind === 'work') ?? newest.find((card) => card.kind === 'rule');
+}
+
 export function proposalCard(event: DaemonEvent): ProposalCard | undefined {
   if (event.rule !== undefined) return { kind: 'rule', subject: event.subject, rule: event.rule };
   if (event.work !== undefined) return { kind: 'work', subject: event.subject, work: event.work };
@@ -38,7 +47,7 @@ export function afterRule(scope: RuleScope | undefined): string {
   if (scope === undefined) return 'Very well. I have left that rule out.';
   if (scope.kind === RULE_SCOPE.MACHINE) return 'Very well. That rule is in force on this computer.';
   if (scope.kind === RULE_SCOPE.REPOSITORY) return `Very well. That rule is in force in ${scope.label}.`;
-  if (scope.kind === RULE_SCOPE.TEAM) return 'Very well. I have offered that rule to the team. It holds everywhere once a second admin approves it.';
+  if (scope.kind === RULE_SCOPE.TEAM) return 'Very well. I have offered that rule to the team. It holds everywhere once an admin approves it.';
   return 'Very well. That rule is in force.';
 }
 

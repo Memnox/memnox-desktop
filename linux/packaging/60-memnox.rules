@@ -1,0 +1,3 @@
+# Memnox types on Wayland through uinput, which many distributions keep for root. This gives it to the
+# input group, so typing still needs the person to join that group, which keeps it their choice.
+KERNEL=="uinput", GROUP="input", MODE="0660"

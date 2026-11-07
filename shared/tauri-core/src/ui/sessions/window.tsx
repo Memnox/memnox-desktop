@@ -5,17 +5,19 @@ import { emit, emitTo, listen } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import type { SessionCard } from '@memnox/core/wire';
 import { HeldCalls, HistoryKeeper, RequestIds, Sessions, Signer, type Timer } from '../../core';
-import { TauriConfirmKey } from '../adapters/tauri-confirm-key';
-import { TauriDaemonLink } from '../adapters/tauri-daemon-link';
+import { confirmKey, daemonLink } from '../adapters/demo';
 import { islandWindow } from '../adapters/tauri-island-window';
 import { Board } from './Board';
 import { localHistory, HISTORY_KEY } from './history-store';
 import { LiveSession } from './LiveSession';
-import { SIDE_TAB, SidePanel, SideTab } from './SidePanel';
+import { SidePanel, SideTab } from './SidePanel';
+import { SIDE_TAB } from './session-metrics';
 import { Switcher } from './Switcher';
 import { ASK_AGAIN_EVENT, DISMISS_EVENT } from './tauri-presenter';
 import { bringForward, SESSION_TURNED_EVENT } from './open-session';
 import '../styles.css';
+import { TAURI_COMMAND } from '../adapters/tauri-commands';
+import { SessionCardLines } from '../../core/domain/island-lines';
 
 /**
  * The session windows' composition root: the live window, the side panel, the switcher and the card
@@ -33,18 +35,18 @@ const timer: Timer = (ms, fire) => {
 
 const asked = new URLSearchParams(window.location.search);
 const view = asked.get('view');
-const link = new TauriDaemonLink();
+const link = daemonLink();
 const ids = new RequestIds();
 const sessions = new Sessions(link, ids, timer);
 
 function close(): void {
-  void invoke('close_session_window').catch(() => undefined);
+  void invoke(TAURI_COMMAND.closeSessionWindow).catch(() => undefined);
 }
 
 /** Held calls watched from this window too, so one can be answered where it is read, signed as from the island. */
 function watchedCalls(): HeldCalls {
   let calls: HeldCalls | undefined;
-  const signer = new Signer(link, new TauriConfirmKey(), ids, (status) => calls?.keyChanged(status));
+  const signer = new Signer(link, confirmKey(), ids, (status) => calls?.keyChanged(status));
   calls = new HeldCalls(link, signer, ids, { timer });
   const held = calls;
   void (async () => {
@@ -57,7 +59,7 @@ function watchedCalls(): HeldCalls {
 }
 
 function openLive(sessionId: string): void {
-  void invoke('open_live_session', { sessionId }).catch(() => undefined);
+  void invoke(TAURI_COMMAND.openLiveSession, { sessionId }).catch(() => undefined);
 }
 
 function LiveWindow({ first }: { first: string }) {
@@ -73,7 +75,7 @@ function LiveWindow({ first }: { first: string }) {
       sessions={sessions}
       calls={calls}
       onClose={close}
-      onOpenFolder={(path) => void invoke('open_folder', { path }).catch(() => undefined)}
+      onOpenFolder={(path) => void invoke(TAURI_COMMAND.openFolder, { path }).catch(() => undefined)}
       onOpenApp={bringForward}
     />
   );
@@ -221,7 +223,7 @@ function Page() {
     case 'switcher':
       return <SwitcherWindow target={asked.get('session') ?? ''} />;
     case 'board':
-      return <Board sessions={sessions} title={asked.get('title') ?? 'Your sessions'} onWatch={openLive} onClose={close} />;
+      return <Board sessions={sessions} title={asked.get('title') ?? SessionCardLines.yourSessions} onWatch={openLive} onClose={close} />;
     default:
       return null;
   }

@@ -1,9 +1,24 @@
 import { useEffect, useReducer } from 'react';
 import { Account } from '../../core/application/account';
+import { AgentHomes } from '../../core/application/agent-homes';
 import { AppConnections } from '../../core/application/app-connections';
+import { Backup } from '../../core/application/backup';
+import { CommunityIndex } from '../../core/application/community-index';
 import { DaemonAccount, DaemonSignIn } from '../../core/application/daemon-sign-in';
+import { DaemonSupport } from '../../core/application/daemon-support';
+import { HeldCalls } from '../../core/application/held-calls';
 import { Home } from '../../core/application/home';
+import { McpHub } from '../../core/application/mcp-hub';
+import { LocalNetwork } from '../../core/application/local-network';
+import { Memory } from '../../core/application/memory';
+import { PersonalSync } from '../../core/application/personal-sync';
+import { Profiles } from '../../core/application/profiles';
+import { Activity, Agents, Studio } from '../../core/application/studio';
+import { Sessions } from '../../core/application/sessions';
+import { SkillsHub } from '../../core/application/skills';
+import { SkillCare } from '../../core/application/skill-care';
 import { PhonePairing } from '../../core/application/pairing';
+import { Projects } from '../../core/application/projects';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
@@ -42,6 +57,8 @@ export interface SettingsParts {
   readonly pairing: PhonePairing;
   readonly home: Home;
   readonly tools: Tools;
+  /** The terminal or editor a session opens in, picked under Where your agents run. */
+  readonly homes: AgentHomes;
   /** Adding any app, signing in to one again and disconnecting it, read back through `tools`. */
   readonly apps: AppConnections;
   /** The servers paired over the relay, and which machine the voice talks to. */
@@ -50,6 +67,38 @@ export interface SettingsParts {
   readonly team: TeamAccount;
   /** Where every setup step stands, shared by the overview, the setup pages and the first run. */
   readonly steps: SetupModel;
+  /** Which daemon methods this computer's runtime answers, so a tab needing a newer one stays hidden. */
+  readonly support: DaemonSupport;
+  /** The agents' sessions, for Home, Agents and Workspaces. */
+  readonly sessions: Sessions;
+  /** What waits on the person, answered here as on the island, signed the same way. */
+  readonly calls: HeldCalls;
+  /** The MCP servers set up once and given to the agents the person chose. */
+  readonly hub: McpHub;
+  /** The rules in force and what could be let go next. */
+  readonly studio: Studio;
+  /** What the agents did, a page at a time, and why. */
+  readonly activity: Activity;
+  /** The agents on this computer as the runtime sees them. */
+  readonly agents: Agents;
+  /** Skills kept once and written into each agent's own format. */
+  readonly skills: SkillsHub;
+  /** Each skill's use and its fixes, a suggested fix accepted through skill-put like any new version. */
+  readonly skillCare: SkillCare;
+  /** The projects on this computer and what each gives the agents opened in it. */
+  readonly projects: Projects;
+  /** The setup sealed under a passphrase, and put back once signed on the island. */
+  readonly backup: Backup;
+  /** The sources memory is read from, the Learn queue, and the facts a person confirmed. */
+  readonly memory: Memory;
+  /** Whether paired phones reach this computer over the local network, turned on only once signed. */
+  readonly network: LocalNetwork;
+  /** The person's own setup carried between their machines, the key moved only once signed. */
+  readonly sync: PersonalSync;
+  /** Skills and rule packs from the community index, installed only as held skills and proposed rules. */
+  readonly index: CommunityIndex;
+  /** Named bundles of skills, servers and a rule pack, applied through signed proposals. */
+  readonly profiles: Profiles;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -75,13 +124,28 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     async () => void (await setup.bringUpToDate()),
     () => host.computerName(),
   );
-  const connected = async (): Promise<boolean | undefined> => {
-    await machine.refresh();
-    if (machine.step.kind === 'signed-in') return true;
-    return machine.step.kind === 'signed-out' ? false : undefined;
-  };
   const tools = new Tools(link, ids);
+  const timer = (ms: number, fire: () => void) => {
+    const handle = setTimeout(fire, ms);
+    return () => clearTimeout(handle);
+  };
   const parts: Omit<SettingsParts, 'steps'> = {
+    support: new DaemonSupport(link, ids),
+    sessions: new Sessions(link, ids, timer),
+    calls: new HeldCalls(link, signer, ids, { timer }),
+    hub: new McpHub(link, ids),
+    studio: new Studio(link, ids),
+    activity: new Activity(link, ids),
+    agents: new Agents(link, ids),
+    skills: new SkillsHub(link, ids),
+    skillCare: new SkillCare(link, ids),
+    projects: new Projects(link, ids),
+    backup: new Backup(link, ids),
+    memory: new Memory(link, ids),
+    network: new LocalNetwork(link, ids),
+    sync: new PersonalSync(link, ids),
+    index: new CommunityIndex(link, ids, platformWords(host.platform).keyTitle),
+    profiles: new Profiles(link, ids, platformWords(host.platform).keyTitle),
     host,
     words: platformWords(host.platform),
     setup,
@@ -91,16 +155,39 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     dictation: new DictationWords(store),
     preferences: new Preferences(store),
     account,
-    pairing: new PhonePairing(link, signer, key, ids, connected, () => host.computerName()),
-    home: new Home(link, ids, () => setup.protectAgents(), (ms, fire) => {
-      const handle = setTimeout(fire, ms);
-      return () => clearTimeout(handle);
-    }),
+    pairing: new PhonePairing(link, signer, key, ids, () => host.computerName()),
+    home: new Home(
+      link,
+      ids,
+      () => setup.protectAgents(),
+      (ms, fire) => {
+        const handle = setTimeout(fire, ms);
+        return () => clearTimeout(handle);
+      },
+      () => setup.restartService(),
+    ),
     tools,
-    apps: new AppConnections(link, ids, tools, (url) => host.openPage(url), sleep, (ms, fire) => {
-      const handle = setTimeout(fire, ms);
-      return () => clearTimeout(handle);
-    }),
+    homes: new AgentHomes(
+      store,
+      () => host.agentHomes?.() ?? Promise.resolve([]),
+      (link) => (host.openAppLink ?? host.openPage)(link),
+    ),
+    apps: new AppConnections(
+      link,
+      ids,
+      tools,
+      (url) => host.openPage(url),
+      sleep,
+      (ms, fire) => {
+        const handle = setTimeout(fire, ms);
+        return () => clearTimeout(handle);
+      },
+      // The Account page's own sign in, as the Mac's Connect starts it, carrying this computer in on the same approval.
+      async () => {
+        if (!account.person.isSignedIn) await account.start();
+        return account.person.isSignedIn;
+      },
+    ),
     servers: new ServerPairing(
       relay.pairer,
       () => host.computerName() ?? 'This computer',

@@ -18,7 +18,7 @@ final class TeamAnswerByVoiceTests: XCTestCase {
     var carried: [(String, HeldOutcome)] = []
     private let vpsMachine = MachineTarget.server(machineId: "mch_vps", deviceId: "dev_mac", name: "hostinger-vps")
     private let otherMachine = MachineTarget.server(machineId: "mch_other", deviceId: "dev_mac2", name: "build-box")
-    private let answerRoute = "POST /v1/workspaces/ws_1/me/held/apr_1"
+    private let answerRoute = "POST /v1/workspaces/ws_1/me/held-calls/apr_1/answer"
     private let done = #"{"id":1,"ok":true,"chunk":{"kind":"done"}}"#
 
     override func setUp() {
@@ -40,7 +40,7 @@ final class TeamAnswerByVoiceTests: XCTestCase {
     }
 
     private func showing(_ calls: String...) async {
-        cloud.answer("GET /v1/workspaces/ws_1/me/held", 200, "[\(calls.joined(separator: ","))]")
+        cloud.answer("GET /v1/workspaces/ws_1/me/held-calls", 200, "[\(calls.joined(separator: ","))]")
         for call in await answering.refresh().arrived { target.rememberWorkspace(subject: call.id) }
     }
 

@@ -1,0 +1,5 @@
+# One Rust for every machine and CI, so clippy -D warnings means the same thing everywhere; rustup installs it on first use.
+[toolchain]
+channel = "1.99.1"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

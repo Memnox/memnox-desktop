@@ -1,3 +1,4 @@
+import AppKit
 import MemnoxVoiceCore
 import SwiftUI
 
@@ -25,6 +26,16 @@ struct ToolsPage: View {
             }
             // The same checklist as the first run, for an app installed since or a step skipped then.
             SettingsSection(title: "Where your agents run") { AgentHomesSetup() }
+            // Search by meaning is a CLI setting, so this says the command rather than keeping a second copy of the choice.
+            SettingsCard(title: "Memory") {
+                SettingsRow(symbol: "brain", title: MemoryLines.meaningSearchTitle,
+                            caption: "\(MemoryLines.meaningSearchLine) \(MemoryLines.embeddingCommand)") {
+                    Button("Copy") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(MemoryLines.embeddingCommand, forType: .string)
+                    }
+                }
+            }
             HStack {
                 Spacer()
                 Button { tools.refresh() } label: { Label("Check again", systemImage: Self.refreshSymbol) }
@@ -46,16 +57,16 @@ struct ToolRow<Mark: View, Accessory: View>: View {
         HStack(spacing: SettingsMetrics.rowSpacing) {
             mark
             VStack(alignment: .leading, spacing: SettingsMetrics.captionSpacing) {
-                Text(title).font(.body).foregroundStyle(Memnox.Palette.foreground)
+                Text(title).font(.body).foregroundStyle(Memnox.Console.foreground)
                 Text(caption)
                     .font(.caption)
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Memnox.Console.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: SettingsMetrics.rowSpacing)
             accessory
             Circle()
-                .fill(ok ? Memnox.Palette.success : Memnox.Palette.warm)
+                .fill(ok ? Memnox.Console.success : Memnox.Console.warm)
                 .frame(width: toolRowDotSide, height: toolRowDotSide)
                 .accessibilityLabel(ok ? "Working" : "Needs you")
         }

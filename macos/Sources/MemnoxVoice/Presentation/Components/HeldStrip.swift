@@ -38,6 +38,9 @@ struct HeldStrip: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(Memnox.Spacing.medium)
                 .background(RoundedRectangle(cornerRadius: Layout.commandRadius).fill(Memnox.ink(Memnox.Ink.faintFill)))
+            if let impact = card.impact {
+                HeldImpactLines(impact: impact)
+            }
             HStack(spacing: Memnox.Spacing.medium) {
                 Button("Deny") { press(.deny) }
                     .buttonStyle(IslandButton(primary: false))

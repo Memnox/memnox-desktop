@@ -169,7 +169,7 @@ func placeWords(_ scope: RuleScope) -> String {
     }
 }
 
-/// The signing button's words: a team rule is proposed rather than enforced, since a second admin decides.
+/// The signing button's words: a team rule is proposed rather than enforced, since an admin decides.
 private func enforceWords(_ scope: RuleScope) -> String {
     scope.scopeKind == .team ? "Propose for the team" : "Enforce \(placeWords(scope))"
 }

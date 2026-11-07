@@ -59,6 +59,9 @@ public enum DaemonMethod: String, Sendable {
     case home
     /// Turns the home's ready suggestion into a rule proposal, which the person confirms with Touch ID like any other.
     case handOver = "hand-over"
+    /// Puts this machine from observe into enforce, unsigned because it only narrows; going back to observe widens and
+    /// stays at the terminal, so no method here offers it.
+    case modeEnforce = "mode-enforce"
     /// Whether a person is signed in on the daemon's side, which is what the voice and the terminal act through.
     case person
     /// Starts the daemon's own sign in as the person, answering the code to approve; the daemon polls on its own.
@@ -89,6 +92,161 @@ public enum DaemonMethod: String, Sendable {
     case toolkitsSearch = "toolkits-search"
     /// One spoken sentence drafted into a rule and read back; with nothing left open it is proposed for Touch ID.
     case rule
+    /// The MCP Hub: servers, agents, and what each agent's config holds that the hub did not write.
+    case mcpHub = "mcp-hub"
+    /// Adds or replaces a server; widening, so it comes back as a proposal the person signs.
+    case mcpServerPut = "mcp-server-put"
+    /// Takes a server away from the hub and from every agent it was given to.
+    case mcpServerRemove = "mcp-server-remove"
+    /// Gives a server to an agent, signed, or takes it away, unsigned.
+    case mcpAssign = "mcp-assign"
+    /// Takes a server the person configured themselves into the hub, for that same agent.
+    case mcpImport = "mcp-import"
+    /// Writes what the hub says into every agent's config it can write.
+    case mcpSync = "mcp-sync"
+    /// Asks one server for its tools, on request and never on a timer.
+    case mcpTest = "mcp-test"
+    /// Keeps a credential in the OS store, typed on this Mac and refused from afar.
+    case mcpSecretSet = "mcp-secret-set"
+    case mcpSecretRemove = "mcp-secret-remove"
+    /// Every rule in force here, with where it came from and what would not load.
+    case rules
+    /// A rule filled in on a form; it holds only once the person signs the proposal it raises.
+    case rulePropose = "rule-propose"
+    /// Removing a person's rule: an allow goes at once, a deny or an ask waits on a signature.
+    case ruleRemove = "rule-remove"
+    /// One action ruled on against the rules in force, recording and changing nothing.
+    case ruleTest = "rule-test"
+    /// The rules a person added here, as TOML text.
+    case rulesExport = "rules-export"
+    /// A pack of rules as TOML, each turned into its own signed proposal.
+    case rulePackImport = "rule-pack-import"
+    /// The packs Memnox ships, each offered whole and imported through rule-pack-import.
+    case rulePacks = "rule-packs"
+    /// What could be handed over, what the autopilot holds, and where the machine stands.
+    case progress
+    /// Takes one autopilot grant back at once, since that only narrows.
+    case autopilotRevoke = "autopilot-revoke"
+    /// One page of the ledger, newest first, filtered and bounded.
+    case activity
+    /// One decision whole: its rule, who handed the work down, what led up to it, and the trace.
+    case decision
+    /// The rows a filter selects, as a signed bundle an auditor can check.
+    case activityExport = "activity-export"
+    /// Every agent found here, one card each.
+    case agents
+    /// Holds one agent at once, since that only narrows.
+    case agentPause = "agent-pause"
+    /// Lets a paused agent carry on, which waits on the person's signature.
+    case agentResume = "agent-resume"
+    /// Holds one session before its next action, at once.
+    case sessionStop = "session-stop"
+    /// Opens the agent in a new terminal in a folder, for an agent with a known launch command.
+    case agentLaunch = "agent-launch"
+    /// Every agent the scan finds now, with the counted facts the full screen scan draws; Mac only, since it can start servers to count them.
+    case agentsScan = "agents-scan"
+    /// Skills, the agents that take them, and skills found on this machine to import.
+    case skillsHub = "skills-hub"
+    /// Takes a skill found in an agent's folder into the hub, its files with it.
+    case skillImport = "skill-import"
+    /// Adds a skill or a new version; one reaching further than the accepted version waits on a signature.
+    case skillPut = "skill-put"
+    /// Gives a skill to an agent, signed, or takes it away, unsigned.
+    case skillAssign = "skill-assign"
+    /// Takes a skill out of every agent at once, keeping its assignments for later.
+    case skillDisable = "skill-disable"
+    /// Hands a disabled skill back to the agents it was given to, as accepted.
+    case skillEnable = "skill-enable"
+    /// Writes what the hub says into every agent it can write.
+    case skillSync = "skill-sync"
+    /// Hands out an older accepted version again; signed where it reaches further than the current one.
+    case skillRollback = "skill-rollback"
+    /// Accepts a held skill's folder as it is now; signed where it reaches further.
+    case skillAccept = "skill-accept"
+    /// Takes a skill out of the hub and every agent at once, its kept versions with it, since that only narrows.
+    case skillRemove = "skill-remove"
+    /// How often each skill was used lately, and how often what ran inside it failed or was refused.
+    case skillStats = "skill-stats"
+    /// Adds one line to a skill's fix backlog, which nothing reads until the person calibrates it.
+    case skillNote = "skill-note"
+    /// A suggested SKILL.md built by rule from the backlog and the failures, a preview that changes nothing.
+    case skillCalibrate = "skill-calibrate"
+    /// Every project on this machine, opened or found, most recently active first.
+    case projects
+    /// Takes a folder in as a project and applies it; what widens an agent waits on a signature.
+    case projectOpen = "project-open"
+    /// Writes a project's `.memnox/project.toml` from a form, applying nothing until asked.
+    case projectPut = "project-put"
+    /// Hands the project's instructions to its agents at once, and proposes its servers, skills and rules.
+    case projectApply = "project-apply"
+    /// Seals the setup under a passphrase and hands the archive back as text.
+    case backupCreate = "backup-create"
+    /// Opens an archive and proposes putting it back, which holds once the person signs it.
+    case backupRestore = "backup-restore"
+    /// Every memory source with where it is, its trust, when it was last read and what it taught.
+    case memorySources = "memory-sources"
+    /// Adds a folder, a repository's instruction files, an export, Supermemory or a hub server.
+    case memorySourceAdd = "memory-source-add"
+    /// Takes a source away; what it taught goes outdated rather than vanishing.
+    case memorySourceRemove = "memory-source-remove"
+    /// Reads a source again now with the person's own agent CLI.
+    case memorySourceRead = "memory-source-read"
+    /// The Learn queue: candidates and conflicts waiting on a person.
+    case memoryLearn = "memory-learn"
+    /// A fact becomes verified; a rule candidate raises a signed rule proposal.
+    case memoryConfirm = "memory-confirm"
+    /// Rejected, and remembered so the same words are never proposed again.
+    case memoryReject = "memory-reject"
+    /// A candidate's words or its rule changed before it is confirmed.
+    case memoryEdit = "memory-edit"
+    /// Keyword search over what was learned.
+    case memorySearch = "memory-search"
+    /// What was learned, by status and scope; verified by default.
+    case memoryFacts = "memory-facts"
+    /// Deletes one item and its evidence.
+    case memoryForget = "memory-forget"
+    /// What the workspace settled and its connected tools said, as this machine last pulled it; only a read down.
+    case workspaceMemory = "workspace-memory"
+    /// The workspace's memory graph as the console draws it, read live by the daemon and folded with the saved facts.
+    case workspaceGraph = "workspace-graph"
+    /// Each project's three memory layers as they stand: MEMORY.md, the router files, and the SKILL.md skills.
+    case memoryLayers = "memory-layers"
+    /// The proposed MEMORY.md index and router lines for one project, a preview that writes nothing.
+    case memoryLayersPlan = "memory-layers-plan"
+    /// Writes the plan the person confirmed, refused when the files changed since it was shown.
+    case memoryLayersApply = "memory-layers-apply"
+    /// The last thirty days of chats: how often a cold cache was loaded again, and what keeping it warm saves.
+    case sessionCost = "session-cost"
+    /// Whether the local network is on, where it listens, whether it is advertised, and which phones reach it.
+    case lanStatus = "lan-status"
+    /// Turns it off at once, or proposes turning it on, which holds once the person signs it here.
+    case lanSet = "lan-set"
+    /// Where personal sync stands here: the key, the last run, what was left out, and any machine waiting.
+    case personalSyncStatus = "personal-sync-status"
+    /// Pulls what the person's other machines sent, then sends what changed here.
+    case personalSyncNow = "personal-sync-now"
+    /// The copies a sync replaced without having seen them, opened for the person to choose from.
+    case personalSyncConflicts = "personal-sync-conflicts"
+    /// Keeps one side of a conflict: the copy taken back here, or this Mac's own.
+    case personalSyncResolve = "personal-sync-resolve"
+    /// On a Mac holding the key: proposes sealing it to a waiting machine whose fingerprint the person compared.
+    case personalSyncKeyOffer = "personal-sync-key-offer"
+    /// On a new Mac: proposes taking the key sealed to it, once the person compared the same fingerprint.
+    case personalSyncKeyAccept = "personal-sync-key-accept"
+    /// Every profile kept here, with what of each the hubs no longer hold.
+    case profiles
+    /// Adds a profile or replaces one of the same name; it grants nothing until it is applied.
+    case profilePut = "profile-put"
+    /// Forgets a profile; what it already handed out stays where it was given.
+    case profileRemove = "profile-remove"
+    /// Proposes giving an agent the profile's servers and skills, in a project, and its rule pack's rules.
+    case profileApply = "profile-apply"
+    /// The community index, filtered by words and kind, read fresh or from what was last read.
+    case indexList = "index-list"
+    /// Fetches one version, checks its digest, and holds the skill or proposes the pack's rules.
+    case indexInstall = "index-install"
+    /// Where the index is read from: another index is a proposal signed on this Mac, the marketplace again is at once.
+    case indexSourceSet = "index-source-set"
 }
 
 public enum EventKind: String, Sendable {
@@ -100,6 +258,8 @@ public enum EventKind: String, Sendable {
     case show
     /// Worth saying unasked: a session finished, committed or pushed.
     case notice
+    /// Rows the ledger gained that a screen's activity view shows, names only, a burst at most once a second.
+    case activity
 }
 
 /// How a show event wants to be shown.
@@ -142,6 +302,16 @@ public enum Display: String, Sendable {
     case signIn = "signin"
     /// A web page the person asked to open, its one address in the app links, opened in their browser.
     case link
+    /// A ring drawn on the screen where the brain found something on a screen picture, the title its label.
+    case point
+}
+
+/// What picture a look takes beside the words, as the runtime's DISPLAY_VIA names it on a look; none means words first.
+public enum LookPicture: String, Sendable {
+    /// The window's own picture, since how it looks matters.
+    case window = "picture"
+    /// Every display, which is what a point is placed on.
+    case screens
 }
 
 /// Where a folder opens, as the runtime's FOLDER_OPENER names it in a folder display's title.
@@ -162,7 +332,7 @@ public enum AskIntent: String, Sendable {
 public enum RuleScopeKind: String, CaseIterable, Sendable {
     case machine
     case repository
-    /// Offered to the workspace: a second admin approves it, then every agent it runs follows it, the ones in the cloud too.
+    /// Offered to the workspace: an admin approves it, then every agent it runs follows it, the ones in the cloud too.
     case team
 }
 
@@ -561,6 +731,17 @@ public struct AgentNode: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
+/// What agents-scan found: each agent with its counted facts, and the Mac's real capabilities, whose total is absent while counting.
+public struct AgentsScanView: Decodable, Equatable, Sendable {
+    public let agents: [AgentNode]
+    public let capabilities: CapabilityShare
+
+    public init(agents: [AgentNode], capabilities: CapabilityShare) {
+        self.agents = agents
+        self.capabilities = capabilities
+    }
+}
+
 /// What one agent is credited with of the things that change something outside the Mac; no total means still counting.
 public struct CapabilityShare: Decodable, Equatable, Sendable {
     public let total: Int?
@@ -573,11 +754,14 @@ public struct CapabilityShare: Decodable, Equatable, Sendable {
 /// One MCP server on the scan screen; the counts are absent where no scan has asked it.
 public struct AgentServer: Decodable, Equatable, Sendable {
     public let name: String
+    /// The program its config starts, by file name only; absent from an older daemon and for a server reached by URL.
+    public let command: String?
     public let tools: Int?
     public let changing: Int?
 
-    public init(name: String, tools: Int? = nil, changing: Int? = nil) {
+    public init(name: String, command: String? = nil, tools: Int? = nil, changing: Int? = nil) {
         self.name = name
+        self.command = command
         self.tools = tools
         self.changing = changing
     }
@@ -664,13 +848,59 @@ public struct Sight: Encodable, Equatable, Sendable {
     public let outline: String?
     /// The words in the capture, read on this Mac, so the brain reads the screen without the picture leaving it.
     public let text: String?
+    /// On a look at every display, one picture each in `NSScreen.screens` order, which a point names by index.
+    public let screens: [ScreenPicture]?
 
-    public init(app: String, window: String? = nil, image: String? = nil, outline: String? = nil, text: String? = nil) {
+    public init(app: String, window: String? = nil, image: String? = nil, outline: String? = nil, text: String? = nil,
+                screens: [ScreenPicture]? = nil) {
         self.app = app
         self.window = window
         self.image = image
         self.outline = outline
         self.text = text
+        self.screens = screens
+    }
+}
+
+/// One display as a picture, measured in that picture's own pixels from its top left corner.
+public struct ScreenPicture: Encodable, Equatable, Sendable {
+    public let image: String
+    public let width: Int
+    public let height: Int
+    /// The display's own name, such as Built-in Retina Display.
+    public let name: String?
+
+    public init(image: String, width: Int, height: Int, name: String? = nil) {
+        self.image = image
+        self.width = width
+        self.height = height
+        self.name = name
+    }
+}
+
+/// A spot on one screen picture: `screen` indexes the pictures a look sent, `x` and `y` are pixels from its top left
+/// inside `width` by `height`, which the Mac scales to that display's points.
+public struct ScreenSpot: Decodable, Equatable, Sendable {
+    public let screen: Int
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+
+    public init(screen: Int, x: Double, y: Double, width: Double, height: Double) {
+        self.screen = screen
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+
+    /// The spot in a display's own points from its top left, or nil for a picture with no size or a spot off it.
+    public func points(across displayWidth: Double, down displayHeight: Double) -> (x: Double, y: Double)? {
+        guard width > 0, height > 0, (0...width).contains(x), (0...height).contains(y) else { return nil }
+        // One scale for both axes, since a picture keeps its display's shape.
+        let scale = displayWidth / width
+        return (min(x * scale, displayWidth), min(y * scale, displayHeight))
     }
 }
 
@@ -1041,6 +1271,8 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var subject: String?
     public var answer: String?
     public var signature: String?
+    /// On confirm of a held call: the digest of the call as shown, sent with every answer so one changed since is refused by name.
+    public var actionDigest: String?
     /// On confirm of a draft: the words the person rewrote on its card, which the signature then covers.
     public var edited: String?
     /// On confirm of a mail: the addresses the person typed on its card, joined by commas, which the signature covers too.
@@ -1049,6 +1281,8 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var questionNumber: Int?
     /// On person-sign-in: this app's own waiting device code, so one approval in the browser signs the daemon in too.
     public var companionOf: String?
+    /// On subscribe: send live activity rows too, asked for, since an app built before them would say every row aloud.
+    public var subscribeActivity: Bool?
     public var point: String?
     public var said: String?
     /// On ask: they were waited on for the rest and said nothing more, so `said` is the whole of it.
@@ -1063,6 +1297,8 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var vocabulary: [String]?
     /// On polish: text they selected, which what they said is an instruction about.
     public var selection: String?
+    /// On polish: the last of what is already written before the cursor, so names are spelled the way the field has them.
+    public var textBefore: String?
     /// On ask: the words so far, sent at a pause so the answer can start before they are known to be done.
     public var speculative: Bool?
     /// On ask: the app in front of the person as they spoke, by name, so a misheard word is read against it.
@@ -1122,6 +1358,124 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var again: Bool?
     /// On toolkits-search: the words to match; left out lists the catalogue's first page.
     public var query: String?
+    /// On mcp-server-put: the server as the form filled it, secrets as names only.
+    public var mcpServer: HubServer?
+    /// On mcp-server-remove, mcp-assign, mcp-import and mcp-test: the server, by name.
+    public var mcpServerName: String?
+    /// On mcp-assign and mcp-import: the agent, by its kind.
+    public var mcpAgent: String?
+    /// On mcp-assign: given when true, taken away when false.
+    public var mcpOn: Bool?
+    /// On mcp-secret-set and mcp-secret-remove: the secret, by name.
+    public var mcpSecret: String?
+    /// On mcp-secret-set: the value, which goes straight to the OS store and is never written anywhere else.
+    public var mcpSecretValue: String?
+    /// On rule-propose: the rule as the form filled it.
+    public var ruleDraft: RuleDraftInput?
+    /// On rule-remove: the rule, by name.
+    public var ruleName: String?
+    /// On rule-test: the action to rule on.
+    public var ruleTest: RuleTestInput?
+    /// On rule-pack-import: the pack as TOML text.
+    public var rulePack: String?
+    /// On autopilot-revoke: the grant, by id.
+    public var grantId: String?
+    /// On activity and activity-export: which rows.
+    public var activityFilter: ActivityFilter?
+    /// On activity: where the last page ended.
+    public var activityCursor: String?
+    /// On activity: rows wanted, capped by the daemon.
+    public var activityLimit: Int?
+    /// On decision: the row, by id.
+    public var decisionId: String?
+    /// On agent-pause and agent-resume: the agent, by kind or by the name it goes by.
+    public var agentKind: String?
+    /// On agent-launch: the folder it opens in, as an absolute path.
+    public var workingDirectory: String?
+    /// On every skill change but skill-import and skill-put: the skill, by name.
+    public var skillName: String?
+    /// On skill-assign: the agent, by kind.
+    public var skillAgent: String?
+    /// On skill-assign: the repository it is written into; on skill-put and skill-import, where a project skill lives.
+    public var skillProject: String?
+    /// On skill-assign: given when true, taken away when false.
+    public var skillOn: Bool?
+    /// On skill-rollback: the version to hand out again.
+    public var skillVersion: String?
+    /// On skill-import: the found skill, by id.
+    public var skillFoundId: String?
+    /// On skill-put and skill-import: personal or project.
+    public var skillScope: String?
+    /// On skill-put.
+    public var skillDraft: SkillDraft?
+    /// On skill-note: the one line to add to the backlog.
+    public var skillNote: String?
+    /// On project-open: the folder, absolute; on project-put, the repository the manifest is written into.
+    public var projectPath: String?
+    /// On project-apply.
+    public var projectId: String?
+    /// On project-put.
+    public var projectDraft: ProjectDraft?
+    /// On backup-create and backup-restore. Never stored, never logged.
+    public var backupPassphrase: String?
+    /// On backup-restore: the archive as backup-create handed it back.
+    public var backupArchive: String?
+    /// On backup-create: carry the ledger too.
+    public var backupLedger: Bool?
+    /// On memory-source-add.
+    public var memorySource: MemorySourceInput?
+    /// On memory-source-remove and memory-source-read.
+    public var memorySourceId: String?
+    /// On memory-confirm, memory-reject, memory-edit and memory-forget.
+    public var memoryItemId: String?
+    /// On memory-edit.
+    public var memoryEdit: MemoryEditInput?
+    /// On memory-search.
+    public var memoryQuery: String?
+    /// On memory-search, memory-facts and memory-learn: personal or project.
+    public var memoryScope: String?
+    /// On memory-facts.
+    public var memoryStatus: String?
+    /// On workspace-graph: read the cloud again now rather than answer from the last few seconds' read.
+    public var workspaceGraphFresh: Bool?
+    /// On memory-layers-plan and memory-layers-apply, and to narrow memory-layers: the repository, absolute.
+    public var memoryLayersProject: String?
+    /// On memory-layers-plan and memory-layers-apply: one agent's router; absent is every agent of the project.
+    public var memoryLayersAgent: String?
+    /// On memory-layers-plan and memory-layers-apply: what the router keeps when a chat compacts, one line each.
+    public var memoryKeep: [String]?
+    /// On memory-layers-apply: the digest of the plan the person confirmed.
+    public var memoryLayersDigest: String?
+    /// On lan-set: true proposes turning it on, false turns it off now.
+    public var lanOn: Bool?
+    /// On personal-sync-resolve.
+    public var syncConflictId: String?
+    /// On personal-sync-resolve: theirs or mine.
+    public var syncKeep: String?
+    /// On personal-sync-key-offer: the waiting machine to seal the key to.
+    public var syncMachineId: String?
+    /// On personal-sync-key-offer and personal-sync-key-accept: the fingerprint the person compared.
+    public var syncFingerprint: String?
+    /// On profile-put.
+    public var profileDraft: ProfileDraft?
+    /// On profile-remove, profile-apply and agent-launch: the profile, by id or by name.
+    public var profileName: String?
+    /// On profile-apply: the agent, by kind.
+    public var profileAgent: String?
+    /// On profile-apply: the repository its skills are written into, absolute; absent is the home folder.
+    public var profileProject: String?
+    /// On index-list: words, each found in the name or the description.
+    public var indexQuery: String?
+    /// On index-list: only skills, or only rule packs.
+    public var indexKind: String?
+    /// On index-list: read again now rather than from what was last read.
+    public var indexRefresh: Bool?
+    /// On index-source-set, from this machine only: an https address to an index.json, or marketplace; absent is marketplace.
+    public var indexSource: String?
+    /// On index-install: the listing, by id or by name.
+    public var indexName: String?
+    /// On index-install: the version; absent is the newest not marked unsafe.
+    public var indexVersion: String?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -1155,6 +1509,8 @@ public struct DaemonEvent: Decodable, Equatable, Sendable {
     /// On a held call or a notice, the person's latest follow up in that session, beside the task rather than over it.
     public let lastAsk: String?
     public let place: String?
+    /// On a finished notice, what the agent said it did, a sentence or two of its own closing words.
+    public let brief: String?
     /// On a show event: open or card, its heading, and where the session runs.
     public let display: String?
     public let title: String?
@@ -1178,8 +1534,12 @@ public struct DaemonEvent: Decodable, Equatable, Sendable {
     public let draft: MailDraft?
     /// On a proposal of a rule, the rule and where it could hold, so the person picks a place before Touch ID.
     public let rule: RuleDraft?
+    /// On a proposal, what kind of change it is, as the runtime's PROPOSAL_KIND names it, so the island words each kind.
+    public let proposalKind: String?
     /// On a held call, or a proposal answering one, the daemon found it stays inside its session's repository.
     public let withinSession: Bool?
+    /// On a held call, the digest of exactly this call, which a yes signs and sends so one changed since is refused.
+    public let actionDigest: String?
     /// On an app start, the app's own links and what it reads as it opens.
     public let app: AppLinks?
     /// On a launch, a terminal app or an editor's agent panel rather than a terminal tab; on an app start, a new chat first.
@@ -1209,15 +1569,25 @@ public struct DaemonEvent: Decodable, Equatable, Sendable {
     public let signedIn: SignedInNotice?
     /// On a proposal that an account is the person's own, answered from the signed in pill and never unasked.
     public let claim: AccountClaim?
+    /// On a proposal of work a working agent asked for through Memnox, so its card waits for Send although nobody spoke.
+    public let agentAsked: Bool?
     /// On a question notice, what the agent asked in its own picker with its choices, so the island offers them as taps.
     public let questions: [AgentQuestionItem]?
     /// On a question notice, what is already picked by question text, so only what is left is asked.
     public let answers: [String: String]?
+    /// On activity: the rows written since the last one, oldest first.
+    public let activityRows: [LiveActivityRow]?
+    /// On activity: rows of the same burst this event does not carry, at least this many.
+    public let activityMissed: Int?
+    /// On a point, where on which screen picture the ring goes.
+    public let point: ScreenSpot?
 
     public var eventKind: EventKind? { EventKind(rawValue: kind) }
     public var noticeKind: NoticeKind? { notice.flatMap(NoticeKind.init(rawValue:)) }
     public var turnTests: TurnTests? { tests.flatMap(TurnTests.init(rawValue:)) }
     public var displayKind: Display? { display.flatMap(Display.init(rawValue:)) }
+    /// On a look, the picture asked for beside the words; nil is words first, with a picture only when there are none.
+    public var lookPicture: LookPicture? { via.flatMap(LookPicture.init(rawValue:)) }
     /// Only a call the daemon placed inside its repository goes without a fingerprint; absent asks for one.
     public var needsTouchID: Bool { withinSession != true }
 
@@ -1294,14 +1664,33 @@ public struct ToolConnection: Decodable, Equatable, Identifiable, Sendable {
     public let connected: Bool
     /// True for a tool this Mac reaches itself, an MCP server or a signed in command line tool, never disconnected here.
     public let local: Bool?
+    /// When its working sign in was made, as the cloud wrote it; left out by a cloud too old to say.
+    public let connectedAt: String?
+    /// The agents that worked in it through Memnox lately, newest first, from the daemon's ledger.
+    public let usedBy: [AppUse]?
 
     public var id: String { toolkit }
     public var isLocal: Bool { local == true }
 
-    public init(toolkit: String, connected: Bool, local: Bool? = nil) {
+    public init(toolkit: String, connected: Bool, local: Bool? = nil, connectedAt: String? = nil, usedBy: [AppUse]? = nil) {
         self.toolkit = toolkit
         self.connected = connected
         self.local = local
+        self.connectedAt = connectedAt
+        self.usedBy = usedBy
+    }
+}
+
+/// One agent's latest call into an app through Memnox, as the runtime's AppUse names it: who, in which session, when.
+public struct AppUse: Decodable, Equatable, Sendable {
+    public let agent: String
+    public let sessionId: String?
+    public let at: String
+
+    public init(agent: String, sessionId: String? = nil, at: String) {
+        self.agent = agent
+        self.sessionId = sessionId
+        self.at = at
     }
 }
 
@@ -1320,19 +1709,69 @@ public struct ConnectionSignIn: Decodable, Equatable, Sendable {
     }
 }
 
-/// One tool Memnox Cloud's catalogue offers, by the slug connections-sign-in takes.
+/// One tool Memnox Cloud's catalogue offers, by the slug connections-sign-in takes; an older runtime sends only the first three.
 public struct ToolkitSummary: Decodable, Equatable, Identifiable, Sendable {
     public let slug: String
     public let name: String
     public let logo: String?
+    /// The provider's own words for it.
+    public let description: String?
+    /// The provider's category tags as written, counted into the page's rail.
+    public let categories: [String]?
+    /// The cloud's reading of it, record, conversation or other, kept as text so a new kind never fails the answer.
+    public let kind: String?
+    /// How fully the cloud reads it, full or partial, kept as text for the same reason.
+    public let support: String?
+    /// Where it comes from, official, cli, api or mcp, kept as text so a new source never fails the answer.
+    public let source: String?
+    /// The weight a search sorted it by, highest first.
+    public let weight: Int?
 
     public var id: String { slug }
+    public var connectorSource: ConnectorSource? { source.flatMap(ConnectorSource.init(rawValue:)) }
+    public var toolkitKind: ToolkitKind? { kind.flatMap(ToolkitKind.init(rawValue:)) }
+    public var supportLevel: ToolkitSupport? { support.flatMap(ToolkitSupport.init(rawValue:)) }
 
-    public init(slug: String, name: String, logo: String? = nil) {
+    public init(slug: String, name: String, logo: String? = nil, description: String? = nil,
+                categories: [String]? = nil, kind: String? = nil, support: String? = nil, source: String? = nil,
+                weight: Int? = nil) {
+        self.source = source
+        self.weight = weight
         self.slug = slug
         self.name = name
         self.logo = logo
+        self.description = description
+        self.categories = categories
+        self.kind = kind
+        self.support = support
     }
+}
+
+/// Where a connector comes from, as the runtime's CONNECTOR_SOURCE spells it, in the order a search offers them.
+public enum ConnectorSource: String, CaseIterable, Sendable {
+    case official
+    case cli
+    case api
+    case mcp
+}
+
+/// The cloud's reading of a toolkit, as the runtime's TOOLKIT_KIND spells it.
+public enum ToolkitKind: String, Sendable {
+    case record
+    case conversation
+    case other
+}
+
+/// How fully the cloud reads a toolkit, as the runtime's TOOLKIT_SUPPORT spells it.
+public enum ToolkitSupport: String, Sendable {
+    case full
+    case partial
+}
+
+/// What connecting waits on, as the runtime's CONNECT_STATE spells it.
+public enum ConnectState: String, Sendable {
+    /// Nobody is signed in to Memnox Cloud on the daemon's side, which connecting any app needs.
+    case signInNeeded = "sign-in-needed"
 }
 
 /// Where a session's agent runs, for bringing its window forward.
@@ -1352,6 +1791,7 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let event: DaemonEvent?
     public let waiting: [DaemonEvent]?
     public let chunk: AskChunk?
+    /// On confirm, what happened; on mcp-server-put, how a server typed as a package install will be started instead.
     public let outcome: String?
     public let location: DaemonLocation?
     public let words: [String]?
@@ -1402,17 +1842,112 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let signIn: ConnectionSignIn?
     /// On toolkits-search: at most thirty tools the catalogue matched.
     public let toolkits: [ToolkitSummary]?
+    /// On toolkits-search and a refused connections-sign-in: what connecting waits on, absent when nothing does.
+    public let connectState: String?
     /// On hand-over: the rule proposal the person now confirms, by its id.
     public let proposed: String?
+    /// On mode-enforce: the mode this machine was in and the one it is in now; absent from a runtime too old to set it.
+    public let modeSet: HomeModeSet?
     /// On person, person-sign-in and person-sign-out: where the daemon's own sign in stands.
     public let person: PersonStanding?
     /// On machine, machine-sign-in and machine-sign-out: whether this machine is connected to a workspace.
     public let machine: MachineStanding?
     /// On polish: the dictation as it should be typed.
     public let polished: String?
+    /// On mcp-hub, and after every hub change, so a screen redraws from one answer.
+    public let mcpHub: McpHubView?
+    /// On mcp-test: what the server answered.
+    public let mcpHealth: McpServerHealth?
+    /// On mcp-sync, and after a change that wrote configs.
+    public let mcpSynced: McpSyncSummary?
+    /// On rules, and after every rule change, so a screen redraws from one answer.
+    public let policyRules: PolicyRulesView?
+    /// On rule-test.
+    public let ruleVerdict: RuleVerdictView?
+    /// On rules-export.
+    public let rulesToml: String?
+    /// On rule-pack-import: one proposal per rule, each confirmed on its own.
+    public let packProposed: [String]?
+    /// On progress and autopilot-revoke.
+    public let progress: AutonomyProgress?
+    /// On activity.
+    public let activity: ActivityPage?
+    /// On decision.
+    public let decision: DecisionView?
+    /// On activity-export: the signed header as one JSON line, then one event per line.
+    public let activityBundle: String?
+    /// On agents, and after a pause or a stop.
+    public let agentsView: [AgentStanding]?
+    /// On agent-launch: what was typed, in the folder it opened on.
+    public let agentLaunched: AgentLaunched?
+    /// On agents-scan; absent from an older daemon, which has no such method.
+    public let agentsScan: AgentsScanView?
+    /// On rule-packs.
+    public let rulePacks: [RulePackView]?
+    /// On skills-hub, and after every skill change, so a screen redraws from one answer.
+    public let skillsHub: SkillsHubView?
+    /// On skill-sync, and after a change that wrote agents' folders.
+    public let skillsSynced: SkillsSyncSummary?
+    /// On skill-stats and skill-note: every hub skill, used or not; absent from an older runtime.
+    public let skillStats: [SkillStatsView]?
+    /// On skill-calibrate: absent where nothing was noted and nothing failed.
+    public let skillCalibration: SkillCalibration?
+    /// On projects, and after every project change, so a screen redraws from one answer.
+    public let projects: ProjectsView?
+    /// On project-open and project-apply: what was done at once.
+    public let projectApplied: ProjectApplySummary?
+    /// On backup-create.
+    public let backupArchive: String?
+    /// On backup-create and backup-restore: what the archive holds.
+    public let backupSummary: BackupSummary?
+    /// On every memory source method, so a screen redraws from one answer.
+    public let memorySources: [MemorySourceView]?
+    /// On memory-source-read, and on memory-source-add, which reads the source once.
+    public let memoryRead: MemoryReadSummary?
+    /// On memory-learn, and after memory-confirm, memory-reject and memory-edit.
+    public let memoryLearn: MemoryItemsView?
+    /// On memory-facts and memory-search.
+    public let memoryFacts: MemoryItemsView?
+    /// On memory-search: keyword alone, or keyword fused with a local embedding model the person turned on.
+    public let memorySearchMode: String?
+    /// On memory-search: why it was keyword only although search by meaning is on, such as the model not answering.
+    public let memorySearchNote: String?
+    /// On memory-confirm and memory-edit: the item as it now stands.
+    public let memoryItem: MemoryItemView?
+    /// On workspace-memory: absent where this machine never pulled one, which is every machine never connected.
+    public let workspaceMemory: WorkspaceMemoryView?
+    /// On workspace-graph: live where the cloud answered just now, the saved facts with the reason where it did not.
+    public let workspaceGraph: WorkspaceGraphView?
+    /// On memory-layers, and after memory-layers-apply.
+    public let memoryLayers: MemoryLayersView?
+    /// On memory-layers-plan.
+    public let memoryLayersPlan: MemoryLayersPlan?
+    /// On memory-layers-apply.
+    public let memoryLayersApplied: MemoryLayersApplied?
+    /// On session-cost.
+    public let sessionCost: SessionCostView?
+    /// On memory-search: passages of the read documents that matched, best first.
+    public let memoryPassages: [MemoryPassageView]?
+    /// On lan-status and lan-set.
+    public let lan: LanStatus?
+    /// On every personal sync method, so a screen redraws from one answer.
+    public let personalSync: PersonalSyncStatus?
+    /// On personal-sync-conflicts.
+    public let syncConflicts: [PersonalSyncConflict]?
+    /// On every profile method, so a screen redraws from one answer.
+    public let profiles: [ProfileView]?
+    /// On profile-apply, and on agent-launch with a profile.
+    public let profileApplied: ProfileApplied?
+    /// On index-list, and after an install.
+    public let communityIndex: CommunityIndexView?
+    /// On index-install.
+    public let indexInstalled: IndexInstalled?
 
     /// The outcome as a known case, or nil for one this app does not know yet.
     public var outcomeKind: Outcome? { outcome.flatMap(Outcome.init(rawValue:)) }
+
+    /// What connecting waits on as a known case, or nil for nothing or one this app does not know yet.
+    public var connectStateKind: ConnectState? { connectState.flatMap(ConnectState.init(rawValue:)) }
 }
 
 /// Where a sign in on the daemon's side stands, the same for the person and for this machine, so one piece of
@@ -1489,6 +2024,17 @@ public struct AppLinks: Decodable, Equatable, Sendable {
 
 /// The home every surface opens on, mirrored from the runtime's HomeView in daemon/home.ts: what waits on the
 /// person, what is working, what happened today, the one thing that could be handed over, and what nothing covers.
+/// What a mode change moved, as the runtime's home.ts names it.
+public struct HomeModeSet: Decodable, Equatable, Sendable {
+    public let was: String
+    public let now: String
+
+    public init(was: String, now: String) {
+        self.was = was
+        self.now = now
+    }
+}
+
 public struct DaemonHome: Decodable, Equatable, Sendable {
     public let machine: String
     /// observe or enforce, as the daemon says it.

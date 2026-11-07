@@ -14,13 +14,15 @@ import {
   isActive,
   meaningful,
   onlyNetwork,
+  statusTint,
   stepLine,
   totals,
   viewStatus,
 } from '../../core';
-import { IslandCard, MiddleCut, PRESSABLE, PulseDot, SFSymbol, ShimmerText, veilOf } from '../kit';
+import { IslandCard, MiddleCut, PRESSABLE, Pressable, PulseDot, SFSymbol, ShimmerText, veilOf } from '../kit';
 import { Counts, MiniSpinner, SessionLogo, StatusBadge, StepIcon } from './parts';
 import './sessions.css';
+import { SessionCardLines } from '../../core/domain/island-lines';
 
 /**
  * The open island's session screens, each the web twin of one Swift view in `Island/IslandOverview.swift`
@@ -30,7 +32,7 @@ import './sessions.css';
 const CONTENT_INSET = 'absolute inset-x-2.5 bottom-2.5 top-9';
 
 /** The rim in amber while a call waits on you, and in the agent's own colour while it works. */
-const HELD_VEIL = 'rgb(255 159 10 / 0.7)';
+const HELD_VEIL_OPACITY = 0.7;
 const WORKING_VEIL_OPACITY = 0.45;
 const THINKING_VEIL_OPACITY = 0.3;
 /** As many rows as the list card holds at the overview's height. */
@@ -40,9 +42,20 @@ const LISTED_STEPS = 2;
 /** As many files as fit under the totals, with the line that counts the rest. */
 const SHOWN_FILES = 5;
 const SHOWN_ROLL = 3;
+/** `IslandOverview`'s focus logo before the title, a little taller than the title's line. */
+const FOCUS_LOGO = 16;
+/** Each row rises 6 into place, the first 0.22 s after the overview opens and each next 35 ms later. */
+const ROW_RISE = 6;
+const ROW_DELAY_MS = 220;
+const ROW_STAGGER_MS = 35;
+/** The roll fades in at the top, full strength from 28% down, so the oldest line fades through. */
+const ROLL_FADE = 'linear-gradient(to bottom, transparent 0%, black 28%, black 100%)';
 
 /** The clock the screens read "ago" against, ticking so a line that says just now moves on. */
-function useNow(everyMs = 15_000): number {
+/** "Ago" moves in minutes, so a quarter of one is often enough. */
+const NOW_EVERY_MS = 15_000;
+
+function useNow(everyMs = NOW_EVERY_MS): number {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), everyMs);
@@ -76,7 +89,7 @@ export function Overview({
     card === undefined
       ? undefined
       : (focused?.waitingOnYou ?? 0) > 0
-        ? HELD_VEIL
+        ? veilOf(statusTint('waiting-on-you'), HELD_VEIL_OPACITY)
         : isActive(cardStatus(card))
           ? veilOf(agentColour(card.agent), WORKING_VEIL_OPACITY)
           : undefined;
@@ -88,14 +101,14 @@ export function Overview({
   }, []);
   return (
     <div className={`${CONTENT_INSET} flex gap-2.5`}>
-      <IslandCard veil={veil} className="w-[280px] shrink-0 cursor-pointer" onClick={onDetail} title="See what it is changing" role="button" aria-label="See what it is changing">
+      <IslandCard veil={veil} className="w-session-focus-card shrink-0 cursor-pointer" onClick={onDetail} title={SessionCardLines.seeChanging} role="button" aria-label={SessionCardLines.seeChanging}>
         {card !== undefined && (
-          <div className="flex h-full min-w-0 flex-col justify-center gap-0.5 pl-[88px] pr-3.5">
-            <div className="flex min-w-0 items-center gap-[7px]">
-              <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: agentColour(card.agent) }} />
+          <div className="flex h-full min-w-0 flex-col justify-center gap-0.5 pl-session-focus-text pr-3.5">
+            <div className="flex min-w-0 items-center gap-session-title-dot">
+              <SessionLogo agent={card.agent} name={card.agentName} size={FOCUS_LOGO} />
               <span className="truncate text-body font-semibold text-white">{cardTitle(card)}</span>
             </div>
-            <span className="truncate pl-[15px] text-caption text-white/50">{cardSubtitle(card, now)}</span>
+            <span className="truncate pl-session-subtitle-indent text-caption text-white/50">{cardSubtitle(card, now)}</span>
             <StepRoll steps={meaningful(focused?.sessionId === card.sessionId ? focused.steps : [])} thinking={card.thinking} />
           </div>
         )}
@@ -106,7 +119,7 @@ export function Overview({
             <div
               key={each.sessionId}
               className="transition-[opacity,translate] duration-[440ms] ease-[cubic-bezier(0.3,1.2,0.6,1)]"
-              style={{ opacity: revealed ? 1 : 0, translate: revealed ? '0 0' : '0 6px', transitionDelay: `${220 + index * 35}ms` }}
+              style={{ opacity: revealed ? 1 : 0, translate: revealed ? '0 0' : `0 ${ROW_RISE}px`, transitionDelay: `${ROW_DELAY_MS + index * ROW_STAGGER_MS}ms` }}
             >
               <SessionRow card={each} focused={each.sessionId === card?.sessionId} now={now} onHover={() => onFocus(each.sessionId)} onOpen={() => onOpen(each)} />
             </div>
@@ -125,14 +138,14 @@ export function StepRoll({ steps, thinking }: { steps: readonly SessionViewStep[
   const shown = steps.slice(-SHOWN_ROLL);
   return (
     <div
-      className="flex h-[84px] flex-col justify-end overflow-hidden"
-      style={{ maskImage: 'linear-gradient(to bottom, transparent 0%, #000 28%, #000 100%)', WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, #000 28%, #000 100%)' }}
+      className="flex h-session-roll flex-col justify-end overflow-hidden"
+      style={{ maskImage: ROLL_FADE, WebkitMaskImage: ROLL_FADE }}
     >
       {shown.map((step, index) => {
         const current = index === shown.length - 1;
         const line = stepLine(step);
         return (
-          <div key={`${step.at}-${step.text}`} className="flex h-[26px] min-w-0 shrink-0 animate-[step-in_450ms_cubic-bezier(0.3,0.9,0.3,1)_both] items-center gap-[9px]">
+          <div key={`${step.at}-${step.text}`} className="flex h-session-roll-line min-w-0 shrink-0 animate-[step-in_450ms_cubic-bezier(0.3,0.9,0.3,1)_both] items-center gap-session-roll-icon">
             <StepIcon step={step} current={current} />
             <span className="flex min-w-0 flex-1">
               {current && thinking ? (
@@ -144,7 +157,7 @@ export function StepRoll({ steps, thinking }: { steps: readonly SessionViewStep[
           </div>
         );
       })}
-      {shown.length === 0 && <span className="flex h-[26px] shrink-0 items-center text-footnote text-quiet">{thinking ? 'Thinking' : 'Nothing done yet'}</span>}
+      {shown.length === 0 && <span className="flex h-session-roll-line shrink-0 items-center text-footnote text-quiet">{thinking ? SessionCardLines.thinking : SessionCardLines.nothingDone}</span>}
     </div>
   );
 }
@@ -156,27 +169,26 @@ export function StepRoll({ steps, thinking }: { steps: readonly SessionViewStep[
 export function SessionRow({ card, focused, now, onHover, onOpen }: { card: SessionCard; focused: boolean; now: number; onHover: () => void; onOpen: () => void }) {
   const active = isActive(cardStatus(card));
   return (
-    <button
-      type="button"
-      className={`${PRESSABLE} flex h-[30px] w-full min-w-0 items-center gap-2.5 rounded-[11px] px-2 text-left transition-colors duration-150 ease-out ${focused ? 'bg-white/[0.08]' : 'bg-transparent'}`}
+    <Pressable
+      className={`${PRESSABLE} flex h-session-row w-full min-w-0 items-center gap-2.5 rounded-session-row px-2 text-left transition-colors duration-150 ease-out ${focused ? 'bg-white/[0.08]' : 'bg-transparent'}`}
       onPointerEnter={onHover}
       onFocus={onHover}
       onClick={onOpen}
-      title="Go to this session"
+      title={SessionCardLines.goTo}
     >
       <SessionLogo agent={card.agent} name={card.agentName} size={22} />
       <span className="flex min-w-0 flex-1 flex-col gap-px">
-        <span className={`truncate text-footnote leading-[14px] font-semibold ${focused ? 'text-white' : 'text-white/85'}`}>{cardTitle(card)}</span>
-        <span className="truncate text-caption leading-[13px] text-white/40">{cardSubtitle(card, now)}</span>
+        <span className={`truncate text-footnote leading-session-row-title font-semibold ${focused ? 'text-white' : 'text-white/85'}`}>{cardTitle(card)}</span>
+        <span className="truncate text-caption leading-session-row-subtitle text-white/40">{cardSubtitle(card, now)}</span>
       </span>
       {focused ? (
         <span className="grid shrink-0 animate-[arrow-in_200ms_ease-out_both] text-white/60">
           <SFSymbol name="arrow.up.forward" size={11} weight="semibold" />
         </span>
       ) : (
-        active && <PulseDot colour="#8CC8FF" size={7} />
+        active && <PulseDot colour="var(--color-island-sky)" size={7} />
       )}
-    </button>
+    </Pressable>
   );
 }
 
@@ -192,11 +204,11 @@ export function SessionDetail({ session, onOpen, onWatch }: { session: SessionVi
   const steps = meaningful(session.steps).slice(-LISTED_STEPS).reverse();
   return (
     <div className={`${CONTENT_INSET} flex gap-2.5`}>
-      <IslandCard veil={session.thinking ? veilOf(agentColour(session.agent), THINKING_VEIL_OPACITY) : undefined} className="w-[260px] shrink-0">
+      <IslandCard veil={session.thinking ? veilOf(agentColour(session.agent), THINKING_VEIL_OPACITY) : undefined} className="w-session-detail-card shrink-0">
         <div className="flex h-full min-w-0 flex-col gap-2.5 p-3.5">
           <div className="flex min-w-0 items-center gap-2">
             <SessionLogo agent={session.agent} name={session.agentName} size={30} />
-            <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
+            <div className="flex min-w-0 flex-1 flex-col gap-session-detail-header">
               <span className="truncate text-callout font-semibold text-white">{session.agentName}</span>
               <span className="flex min-w-0 items-center gap-1.5">
                 <StatusBadge status={status} label={badgeLabel(session, now)} />
@@ -207,26 +219,25 @@ export function SessionDetail({ session, onOpen, onWatch }: { session: SessionVi
                 )}
               </span>
             </div>
-            <button
-              type="button"
-              className={`${PRESSABLE} grid size-[26px] shrink-0 place-items-center rounded-full bg-white/[0.08] text-white`}
+            <Pressable
+              className={`${PRESSABLE} grid size-session-open shrink-0 place-items-center rounded-full bg-white/[0.08] text-white`}
               onClick={onOpen}
-              title={session.runningIn === undefined ? 'Open this session' : `Open this session in ${session.runningIn}`}
-              aria-label="Open this session"
+              title={session.runningIn === undefined ? SessionCardLines.open : SessionCardLines.openIn(session.runningIn)}
+              aria-label={SessionCardLines.open}
             >
               <SFSymbol name="arrow.up.forward" size={11} weight="semibold" />
-            </button>
+            </Pressable>
           </div>
           {asked !== undefined && (
             <div className="flex min-w-0 flex-col gap-0.5">
-              <span className={`text-micro font-semibold uppercase tracking-[0.6px] ${asked.followUp ? 'text-island-sky' : 'text-white/40'}`}>{asked.followUp ? 'Follow-up' : 'Asked'}</span>
+              <span className={`text-micro font-semibold uppercase tracking-session-detail-label ${asked.followUp ? 'text-island-sky' : 'text-white/40'}`}>{asked.followUp ? SessionCardLines.followUp : SessionCardLines.asked}</span>
               <span className="line-clamp-2 text-footnote text-island-soft" title={asked.words}>
                 {asked.words}
               </span>
             </div>
           )}
           {steps.length > 0 && (
-            <div className="flex min-w-0 flex-col gap-[7px]">
+            <div className="flex min-w-0 flex-col gap-session-detail-step">
               {steps.map((step, index) => (
                 <StepLine key={`${step.at}-${step.text}`} step={step} latest={index === 0} working={index === 0 && session.thinking} now={now} />
               ))}
@@ -268,11 +279,11 @@ function FilesPanel({ session, onWatch }: { session: SessionView; onWatch: () =>
   const sum = totals(files);
   const rest = files.length - SHOWN_FILES;
   return (
-    <button type="button" className={`${PRESSABLE} group flex min-w-0 flex-1 text-left`} onClick={onWatch} title="Open the live window to read the diffs">
-      <IslandCard className="flex size-full min-w-0 flex-col gap-[7px] p-3.5">
+    <Pressable className={`${PRESSABLE} group flex min-w-0 flex-1 text-left`} onClick={onWatch} title={SessionCardLines.openLive}>
+      <IslandCard className="flex size-full min-w-0 flex-col gap-session-files-row p-3.5">
         {files.length === 0 ? (
           <span className="m-auto text-center text-footnote text-island-soft">
-            {onlyNetwork(session.steps) ? 'Memnox sees only where this session connects, not the files it changes' : 'No files changed yet'}
+            {onlyNetwork(session.steps) ? SessionCardLines.onlyNetwork : SessionCardLines.noFiles}
           </span>
         ) : (
           <>
@@ -300,11 +311,11 @@ function FilesPanel({ session, onWatch }: { session: SessionView; onWatch: () =>
             <span className="flex-1" />
             <span className="flex items-center gap-1 text-caption font-medium text-white/55 transition-colors group-hover:text-island-sky">
               <SFSymbol name="plusminus" size={11} weight="medium" />
-              {rest > 0 ? `${rest} more, see every diff` : 'See the diffs'}
+              {rest > 0 ? SessionCardLines.moreDiffs(rest) : SessionCardLines.seeDiffs}
             </span>
           </>
         )}
       </IslandCard>
-    </button>
+    </Pressable>
   );
 }

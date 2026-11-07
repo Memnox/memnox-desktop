@@ -89,7 +89,8 @@ describe('how a session reads', () => {
     expect(ago('not a date', NOW)).toBeUndefined();
   });
 
-  it('titles a card by its task, then its repository, then its agent', () => {
+  it('titles a card by what it is on now, then its task, then its repository, then its agent', () => {
+    expect(cardTitle(card('a', { focus: 'Port the switcher', task: 'Fix the login' }))).toBe('Port the switcher');
     expect(cardTitle(card('a', { task: 'Fix the login' }))).toBe('Fix the login');
     expect(cardTitle(card('a', { repository: 'memnox-web' }))).toBe('memnox-web');
     expect(cardTitle(card('a'))).toBe('Claude Code');
@@ -324,6 +325,7 @@ describe('the gesture an event earns', () => {
     const notice = (word: string, tests?: string): DaemonEvent => ({ kind: 'notice', notice: word, tests: tests as DaemonEvent['tests'], subject: 's', agent: 'a', summary: '', at: '' });
     expect(reactionTo(notice('finished', 'passed'))).toBe('burst');
     expect(reactionTo(notice('finished', 'stale'))).toBe('settle');
+    expect(reactionTo(notice('together'))).toBe('settle');
     expect(reactionTo(notice('collision'))).toBe('stumble');
     expect(reactionTo({ ...notice('x'), kind: 'paused' })).toBe('stumble');
     expect(reactionTo(notice('question'))).toBeUndefined();

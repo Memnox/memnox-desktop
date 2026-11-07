@@ -174,6 +174,14 @@ describe('jobs, as the job editor steers them', () => {
     expect(profiles.profiles).toEqual([]);
   });
 
+  it('fills in what a runtime from before jobs leaves out, raising no level', async () => {
+    const old = { id: 'docs', name: 'Docs', skills: ['a'], mcpServers: [], updatedAt: '', missing: [] };
+    const daemon = new ScriptedDaemon({ profiles: (request) => [{ id: request.id, ok: true, profiles: [old as unknown as ProfileView] }] });
+    const profiles = new Profiles(daemon, new RequestIds(), 'Windows Hello');
+    await profiles.refresh();
+    expect(profiles.profiles?.[0]).toMatchObject({ connections: [], responsibilities: [], projects: [], levels: NO_LEVELS });
+  });
+
   it('leaves the templates unread from a runtime that has none', async () => {
     const daemon = new ScriptedDaemon({ templates: (request) => [{ id: request.id, ok: false, error: 'unknown method' }] });
     const profiles = new Profiles(daemon, new RequestIds(), 'Windows Hello');

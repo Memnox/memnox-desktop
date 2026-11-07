@@ -40,7 +40,8 @@ export class AgentWorkDesk extends Observed {
   async refresh(): Promise<void> {
     const response = await this.ask({ method: DAEMON_METHOD.WORK });
     this.failed = response === undefined || !response.ok;
-    if (response?.agentWork !== undefined) this.list = response.agentWork;
+    // A daemon that answered with no list keeps no work, so the tab says so rather than drawing nothing.
+    if (response?.ok === true) this.list = response.agentWork ?? [];
     this.changed();
   }
 

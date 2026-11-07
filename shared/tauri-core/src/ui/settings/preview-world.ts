@@ -423,9 +423,85 @@ const previewProfiles: ProfileView[] = [
   { id: 'docs-writer', name: 'Docs writer', skills: ['release-notes'], mcpServers: ['figma'], updatedAt: '2026-10-21T09:00:00Z', missing: ['figma is no longer in the MCP Hub.'], responsibilities: [], projects: [], connections: [], levels: NO_LEVELS },
 ];
 
+/** Claude Code under a job, checked by Memnox through its own hook, with every seam but the network held. */
+const previewLevels = {
+  context: 'mediated',
+  instructions: 'mediated',
+  tools: 'enforced',
+  activity: 'enforced',
+  coordination: 'mediated',
+  approval: 'enforced',
+  enforcement: { shell: 'enforced', filesystem: 'enforced', git: 'enforced', network: 'observed', browser: 'none', mcp: 'mediated' },
+} as const;
+
+/** The jobs a person keeps, a default with no job yet, and the agent work they carry, for the Jobs and Work tabs. */
+const previewJobs: ProfileView[] = [
+  {
+    ...previewProfiles[0]!,
+    purpose: 'Builds and changes the API and the billing service.',
+    role: 'developer',
+    responsibilities: ['make the change the task asks for', 'run the tests before handing back'],
+    responsiblePerson: 'Sam Rivera',
+    connections: [{ id: 'con_claude', profileId: 'backend-engineering', kind: 'runtime_hook', agentKind: 'claude-code', agentId: 'agt_claude-code', mediation: 'interposed', firstSeen: '2026-10-01T09:00:00Z', lastSeen: '2026-10-30T11:50:00Z', status: 'live', levels: previewLevels }],
+    levels: previewLevels,
+  },
+  { ...previewProfiles[1]!, purpose: 'Writes the release notes and keeps the docs current.', responsiblePerson: 'Sam Rivera', templateOf: 'documentation' },
+  {
+    id: 'agt_codex-cli',
+    name: 'Codex',
+    skills: [],
+    mcpServers: [],
+    updatedAt: '2026-10-30T09:00:00Z',
+    missing: [],
+    responsibilities: [],
+    projects: [],
+    responsiblePerson: 'Sam Rivera',
+    isDefault: true,
+    connections: [{ id: 'con_codex', profileId: 'agt_codex-cli', kind: 'observed', agentKind: 'codex-cli', agentId: 'agt_codex-cli', mediation: 'observed', firstSeen: '2026-10-01T09:00:00Z', lastSeen: '2026-10-29T17:00:00Z', status: 'idle', levels: { ...NO_LEVELS, activity: 'observed' } }],
+    levels: { ...NO_LEVELS, activity: 'observed' },
+  },
+];
+
+const previewTemplates: NonNullable<DaemonResponse['templates']> = [
+  { id: 'code-review', name: 'Code Review', purpose: 'Reads a change before it is merged and says what is risky.', role: 'reviewer', responsibilities: ['read the diff', 'name what is risky'], suggestedSkills: ['review'], suggestedRules: ['Never push.', 'Never change files; only read them.'], suggestedConnections: ['claude-code', 'cursor'] },
+  { id: 'testing', name: 'Testing', purpose: 'Writes and runs tests, and says plainly what failed.', role: 'tester', responsibilities: ['write the missing tests', 'run the suite'], suggestedSkills: ['testing'], suggestedRules: ['Never push.'], suggestedConnections: ['claude-code'] },
+  { id: 'documentation', name: 'Documentation', purpose: 'Keeps the docs and the release notes true to the code.', role: 'writer', responsibilities: ['update the docs a change touches'], suggestedSkills: [], suggestedRules: ['Ask before changing code.'], suggestedConnections: ['claude-code'] },
+];
+
+const previewWork: NonNullable<DaemonResponse['agentWork']> = [
+  {
+    id: 'agw_1',
+    profileId: 'backend-engineering',
+    responsiblePerson: 'Sam Rivera',
+    target: { source: 'linear', externalId: 'PAY-42', url: 'https://linear.app/acme/issue/PAY-42', title: 'Retry failed card captures' },
+    sessions: ['s1'],
+    attempts: 1,
+    status: 'handoff_requested',
+    progress: [{ at: '2026-10-30T11:40:00Z', by: 's1', note: 'The retry is in; the docs need the new error codes.', refs: [] }],
+    handoffs: [{ id: 'hof_1', from: { profileId: 'backend-engineering' }, to: { profileId: 'docs-writer' }, reason: 'the docs need the new error codes', refs: [], state: 'requested', requestedAt: '2026-10-30T11:41:00Z' }],
+    createdAt: '2026-10-30T09:00:00Z',
+    updatedAt: '2026-10-30T11:41:00Z',
+  },
+  {
+    id: 'agw_2',
+    profileId: 'backend-engineering',
+    responsiblePerson: 'Sam Rivera',
+    target: { source: 'github', externalId: 'acme/api#17', title: 'Flaky checkout test' },
+    sessions: [],
+    attempts: 1,
+    status: 'done',
+    progress: [{ at: '2026-10-29T16:00:00Z', by: 's2', note: 'Fixed the clock in the test.', refs: [] }],
+    handoffs: [],
+    createdAt: '2026-10-29T09:00:00Z',
+    updatedAt: '2026-10-29T16:00:00Z',
+  },
+];
+
 function profileAnswer(request: DaemonRequest): Partial<DaemonResponse> {
-  if (request.method === 'profile-apply') return { profiles: previewProfiles, profileApplied: { profile: request.profileName ?? '', agent: request.profileAgent ?? '', proposed: ['prp_preview_1', 'prp_preview_2'], already: ['github'], skipped: [] } };
-  return { profiles: previewProfiles };
+  if (previewState === 'empty') return request.method === 'templates' ? { templates: [] } : { profiles: [] };
+  if (request.method === 'templates') return { templates: previewTemplates };
+  if (request.method === 'profile-apply') return { profiles: previewJobs, profileApplied: { profile: request.profileName ?? '', agent: request.profileAgent ?? '', proposed: ['prp_preview_1', 'prp_preview_2'], already: ['github'], skipped: [] } };
+  return { profiles: previewJobs };
 }
 
 /** Every method a page asks, answered from the scene. */
@@ -433,7 +509,8 @@ function answer(request: DaemonRequest): DaemonResponse[] {
   const ok = { id: request.id, ok: true };
   if (request.method.startsWith('memory-')) return [{ ...ok, ...memoryAnswer(request) }];
   if (request.method.startsWith('index-')) return [{ ...ok, ...indexAnswer(request) }];
-  if (request.method === 'profiles' || request.method.startsWith('profile-')) return [{ ...ok, ...profileAnswer(request) }];
+  if (request.method === 'profiles' || request.method === 'templates' || request.method.startsWith('profile-')) return [{ ...ok, ...profileAnswer(request) }];
+  if (request.method === 'agent-work' || request.method.startsWith('work-') || request.method === 'handoff-answer') return [{ ...ok, agentWork: previewState === 'empty' ? [] : previewWork }];
   if (request.method.startsWith('personal-sync-')) return [{ ...ok, ...syncAnswer(request) }];
   if (request.method === 'lan-status') return [{ ...ok, lan: previewLan }];
   if (request.method === 'lan-set') return [{ ...ok, lan: previewLan, ...(request.lanOn === true ? { proposed: 'prp_preview' } : {}) }];

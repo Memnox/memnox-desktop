@@ -1,5 +1,5 @@
 import { PROFILES_METHOD, type DaemonRequest, type DaemonResponse, type ProfileDraft, type ProfileView } from '@memnox/core/wire';
-import type { ProfileTemplate } from '../domain/agent-wire';
+import { NO_LEVELS, type ProfileTemplate } from '../domain/agent-wire';
 import { filled } from '../domain/agent-work-lines';
 import { boundLine, copiedLine, profileAppliedLine, profileSavedLine, unboundLine } from '../domain/profile-lines';
 import { Observed } from './observed';
@@ -48,7 +48,8 @@ export class Profiles extends Observed {
   async refresh(): Promise<void> {
     const response = await this.ask({ method: PROFILES_METHOD.PROFILES });
     this.failed = response === undefined || !response.ok;
-    if (response?.profiles !== undefined) this.list = response.profiles;
+    // A daemon that answered with no list keeps no profile, so a page says so rather than drawing nothing.
+    if (response?.ok === true) this.list = (response.profiles ?? []).map(whole);
     this.changed();
   }
 
@@ -64,7 +65,7 @@ export class Profiles extends Observed {
   /** Reads the catalog of job descriptions, which ships with the runtime and needs no account. */
   async readTemplates(): Promise<void> {
     const response = await this.ask({ method: PROFILES_METHOD.TEMPLATES });
-    if (response?.templates !== undefined) this.catalog = response.templates;
+    if (response?.ok === true) this.catalog = response.templates ?? [];
     this.changed();
   }
 
@@ -110,7 +111,7 @@ export class Profiles extends Observed {
     this.changed();
     const response = await this.ask(fields);
     this.busyWith = undefined;
-    if (response?.profiles !== undefined) this.list = response.profiles;
+    if (response?.profiles !== undefined) this.list = response.profiles.map(whole);
     this.changed();
     if (response === undefined) return { kind: 'failed', why: 'The runtime is not answering.' };
     if (!response.ok) return { kind: 'failed', why: response.error ?? 'The runtime refused this.' };
@@ -126,4 +127,22 @@ export class Profiles extends Observed {
       return undefined;
     }
   }
+}
+
+/**
+ * A profile with every list it may leave out filled in empty, since a runtime from before jobs sends no connections,
+ * responsibilities or levels, and a page reading one must never stop on it. No level is ever raised by filling.
+ */
+function whole(profile: ProfileView): ProfileView {
+  const sent = profile as Partial<ProfileView> & Pick<ProfileView, 'id' | 'name' | 'updatedAt'>;
+  return {
+    ...profile,
+    skills: sent.skills ?? [],
+    mcpServers: sent.mcpServers ?? [],
+    missing: sent.missing ?? [],
+    responsibilities: sent.responsibilities ?? [],
+    projects: sent.projects ?? [],
+    connections: sent.connections ?? [],
+    levels: sent.levels ?? NO_LEVELS,
+  };
 }

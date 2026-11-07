@@ -1,7 +1,9 @@
 import {
   ArrowRight,
   AudioLines,
+  Briefcase,
   Building2,
+  Cloud,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -12,7 +14,9 @@ import {
   Lock,
   Mic,
   Monitor,
+  Network,
   RotateCw,
+  ShieldCheck,
   ScreenShare,
   Settings as SettingsIcon,
   Smartphone,
@@ -25,11 +29,18 @@ import {
 } from 'lucide-react';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+  AGENT_PLACES,
   endLinks,
+  type AgentPlace,
   type EndLink,
+  FirstRunCoverage,
+  FirstRunQuestions,
   GuideLines,
   GuideMemory,
+  nextStep,
   ONBOARDING_STEPS,
+  placeInfo,
+  previousStep,
   permissionsAsked,
   permissionsLine,
   progressOf,
@@ -38,6 +49,8 @@ import {
   startingPacks,
   stepCounter,
   stepHeading,
+  suggestedPlace,
+  throughCloud,
   type OnboardingStage,
   type OnboardingStep,
   type WelcomeRow,
@@ -52,6 +65,10 @@ import { PermissionGuide } from '../settings/steps';
 import { IslandDemo, useDemoTour } from './IslandDemo';
 import { Button, Pressable, Spinner } from '../kit';
 import { OnboardingLines } from '../../core/domain/onboarding-lines';
+import type { ProfileTemplate } from '../../core/domain/agent-wire';
+import { orderedProfiles } from '../../core/domain/agent-work-lines';
+import { LevelPill } from '../app/capability-strip';
+import { Select } from '../kit';
 
 const PERMISSION_ICONS: Record<PermissionStep['id'], LucideIcon> = { hear: Mic, type: Keyboard, see: ScreenShare };
 const END_ICONS: Record<EndLink['id'], LucideIcon> = { name: UserRound, voice: AudioLines, workspace: Building2, phone: Smartphone };
@@ -68,6 +85,9 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
   const [step, setStep] = useState<OnboardingStep>(firstStep);
   // What the starting rules step proposed, said again on the end screen.
   const [proposed, setProposed] = useState<string | undefined>(undefined);
+  // The answers to the two questions, each skippable, which the end screen says back.
+  const [answers, setAnswers] = useState<Answers>({});
+  const answer = (change: Partial<Answers>) => setAnswers((before) => ({ ...before, ...change }));
   const guide = useGuide(parts);
   // The real island plays each part beside the steps, round and round; a row pressed plays its part at once.
   // A preview can start on one part with ?part=, so each part can be looked at.
@@ -86,7 +106,9 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
       guide(GuideLines.setup(parts.host.platform), false);
     }
     if (stage === 'steps' && step === 1) guide(GuideLines.permissions);
-    if (stage === 'steps' && step === 2) guide(GuideLines.boundaries(parts.host.platform));
+    if (stage === 'steps' && step === 2) guide(GuideLines.job);
+    if (stage === 'steps' && step === 3) guide(GuideLines.place);
+    if (stage === 'steps' && step === 4) guide(GuideLines.boundaries(parts.host.platform));
     if (stage === 'done') guide(GuideLines.done);
   }, [stage, step]);
 
@@ -97,8 +119,9 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
   useEffect(() => {
     const keys = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      const before = previousStep(step);
       if (stage === 'done') setStage('steps');
-      else if (stage === 'steps' && step > 0) setStep((step - 1) as OnboardingStep);
+      else if (stage === 'steps' && before !== undefined) setStep(before);
     };
     window.addEventListener('keydown', keys);
     return () => window.removeEventListener('keydown', keys);
@@ -110,7 +133,12 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
     parts.host.close();
   };
   const done = stage === 'done';
-  const back = () => (done ? setStage('steps') : setStep((step - 1) as OnboardingStep));
+  const back = () => (done ? setStage('steps') : setStep(previousStep(step) ?? step));
+  const forward = () => {
+    const after = nextStep(step);
+    if (after === undefined) setStage('done');
+    else setStep(after);
+  };
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
       <div className="flex flex-col gap-2 px-onboard-side pt-onboard-top">
@@ -128,10 +156,12 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
       </div>
       <div className="flex min-h-0 flex-1 justify-center gap-12 px-14">
         <ScrollColumn key={done ? 'done' : step}>
-          {done && <EndScreen parts={parts} proposed={proposed} finish={finish} />}
-          {!done && step === 0 && <ConnectStep parts={parts} next={() => setStep(1)} />}
-          {!done && step === 1 && <PermissionsStep parts={parts} next={() => setStep(2)} />}
-          {!done && step === 2 && (
+          {done && <EndScreen parts={parts} proposed={proposed} answers={answers} finish={finish} />}
+          {!done && step === 0 && <ConnectStep parts={parts} next={forward} />}
+          {!done && step === 1 && <PermissionsStep parts={parts} next={forward} />}
+          {!done && step === 2 && <JobStep parts={parts} answers={answers} answer={answer} next={forward} />}
+          {!done && step === 3 && <PlaceStep parts={parts} answers={answers} answer={answer} next={forward} />}
+          {!done && step === 4 && (
             <RulesStep
               parts={parts}
               next={(note) => {
@@ -156,6 +186,18 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
     </div>
   );
 }
+
+/** What the two questions were answered with; each stays undefined when skipped. */
+interface Answers {
+  /** The job kept from a template, by its profile id and name. */
+  readonly job?: { readonly id: string; readonly name: string };
+  readonly place?: AgentPlace;
+  /** The agent found here the job was bound to, by its name, so the end says who does the job. */
+  readonly boundTo?: string;
+}
+
+/** Set once the first run put the agents found here under Memnox by itself, so it is tried once and then offered. */
+let autoProtected = false;
 
 /** The lines said in this first run, kept for the window's life so every page reads the same memory. */
 const guideMemory = new GuideMemory();
@@ -321,6 +363,18 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
   const service = steps.service;
   const key = steps.keyState;
   const found = agents.agents;
+  // What was found is put under Memnox once by itself, the way setup does, while the service runs; Protect stays for
+  // what that could not reach, as on the Mac.
+  const unprotected = (found ?? []).filter((agent) => agent.status === 'unprotected').map((agent) => agent.kind);
+  const [protectedByItself, setProtectedByItself] = useState(false);
+  useEffect(() => {
+    if (unprotected.length === 0 || autoProtected || service.state.kind !== 'done' || home.protecting) return;
+    autoProtected = true;
+    void home.protect().then(async () => {
+      await agents.refresh();
+      setProtectedByItself(home.protectFailed === undefined);
+    });
+  }, [unprotected.join(), service.state.kind]);
   // Before the agents method answers, the agents the voice found stand in, so a fresh computer still shows its agents.
   const fallback = steps.agents.filter((agent) => agent.installed);
   const heading = stepHeading(0, words.keyTitle);
@@ -390,6 +444,8 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
         {found !== undefined && found.length === 0 && (
           <KitRow tile={<IconTile icon={UserRoundSearch} />} title={OnboardingLines.noAgent} detail={OnboardingLines.noAgentDetail} trailing={<Button onClick={() => void agents.refresh()}>{OnboardingLines.checkAgain}</Button>} />
         )}
+        {protectedByItself && <QuietLine size={12}>{FirstRunQuestions.protectedByItself}</QuietLine>}
+        {home.protectFailed !== undefined && <NeedsHint why={home.protectFailed} size={12} />}
       </KitCard>
       <Button kind="primary" wide trailing={ArrowRight} onClick={next}>
         {OnboardingLines.continue}
@@ -469,7 +525,261 @@ function PermissionsStep({ parts, next }: { parts: SettingsParts; next: () => vo
   );
 }
 
-/** Step 3: the recommended pack chosen already, the rest folded behind See other packs; Finish proposes the one chosen. */
+/** One answer of a question as a row pressed whole, with the radio mark the rule packs wear. */
+function AnswerRow({ icon, title, detail, on, disabled, pick }: { icon: LucideIcon; title: string; detail: string; on: boolean; disabled?: boolean; pick: () => void }) {
+  return (
+    <Pressable role="radio" aria-checked={on} disabled={disabled} onClick={pick} className="cursor-pointer text-left disabled:cursor-default">
+      <KitRow tile={<IconTile icon={icon} />} title={title} detail={detail} trailing={<span aria-hidden className={`size-4 rounded-full border-2 ${on ? 'border-primary bg-primary' : 'border-ink-edge'}`} />} />
+    </Pressable>
+  );
+}
+
+/**
+ * Step 3, the first question: what the person wants their AI to help with, answered by picking one of the runtime's
+ * jobs, kept as a profile with no agent behind it yet. No suggested skill is taken and no rule applied; skipping is
+ * always allowed.
+ */
+function JobStep({ parts, answers, answer, next }: { parts: SettingsParts; answers: Answers; answer: (change: Partial<Answers>) => void; next: () => void }) {
+  const { profiles, support, words } = parts;
+  useObserved(profiles, support);
+  const offers = support.supports('templates') === true;
+  const [picked, pick] = useState<string | undefined>(undefined);
+  const [keeping, setKeeping] = useState(false);
+  const [failed, fail] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (!offers) return;
+    void profiles.readTemplates();
+    void profiles.refresh();
+  }, [offers]);
+  const templates = profiles.templates;
+  const kept = (template: ProfileTemplate) => {
+    const matching = (profiles.profiles ?? []).filter((each) => each.templateOf === template.id);
+    return matching.find((each) => each.name === template.name) ?? matching[0];
+  };
+  const chosen = picked ?? (answers.job === undefined ? undefined : (profiles.profiles ?? []).find((each) => each.id === answers.job?.id)?.templateOf);
+  const template = templates?.find((each) => each.id === chosen);
+  const keep = async (each: ProfileTemplate) => {
+    setKeeping(true);
+    fail(undefined);
+    const outcome = await profiles.fromTemplate(each.id, each.name, []);
+    setKeeping(false);
+    // A job of that name kept by an earlier first run is used as it is, so a second run never stops here.
+    const copy = kept(each);
+    if (copy !== undefined) {
+      answer({ job: { id: copy.id, name: copy.name }, boundTo: undefined });
+      return next();
+    }
+    if (outcome.kind === 'failed') return fail(outcome.why);
+    next();
+  };
+  const heading = stepHeading(2, words.keyTitle);
+  return (
+    <>
+      <StepTitle counter={stepCounter(2)} title={heading.title} detail={heading.detail} />
+      {offers ? (
+        <KitCard icon={Briefcase} title={FirstRunQuestions.jobsCard} detail={FirstRunQuestions.jobsCardDetail}>
+          {templates === undefined && <Spinner />}
+          {templates !== undefined && templates.length === 0 && <QuietLine size={13}>{FirstRunQuestions.noJobs}</QuietLine>}
+          {templates !== undefined && templates.length > 0 && (
+            <div role="radiogroup" aria-label={FirstRunQuestions.jobsCard} className="flex flex-col">
+              {templates.map((each, index) => (
+                <Fragment key={each.id}>
+                  {index > 0 && <KitDivider />}
+                  <AnswerRow icon={Briefcase} title={each.name} detail={each.purpose} on={chosen === each.id} disabled={keeping} pick={() => pick(each.id)} />
+                </Fragment>
+              ))}
+            </div>
+          )}
+        </KitCard>
+      ) : (
+        <QuietLine size={13}>{FirstRunQuestions.noJobs}</QuietLine>
+      )}
+      {failed !== undefined && <NeedsHint why={failed} size={12} />}
+      <Button
+        kind="primary"
+        wide
+        trailing={ArrowRight}
+        disabled={keeping}
+        onClick={() => (template !== undefined && answers.job?.name !== template.name ? void keep(template) : next())}
+      >
+        {keeping && template !== undefined ? FirstRunQuestions.keeping(template.name) : OnboardingLines.continue}
+      </Button>
+      {answers.job === undefined && (
+        <Button wide disabled={keeping} onClick={next}>
+          {FirstRunQuestions.skip}
+        </Button>
+      )}
+    </>
+  );
+}
+
+const PLACE_ICONS: Record<AgentPlace, LucideIcon> = {
+  'computer-coding': Monitor,
+  'computer-app': Monitor,
+  hosted: Cloud,
+  'inside-app': Network,
+  'no-code': Network,
+  'own-code': Network,
+  'none-yet': Briefcase,
+};
+
+/**
+ * Step 4, the second question: where the person's agent runs. On this computer the agents found are already under
+ * Memnox and the job can go to one of them; anywhere else the agent reaches Memnox through Memnox Cloud, offered and
+ * never required.
+ */
+function PlaceStep({ parts, answers, answer, next }: { parts: SettingsParts; answers: Answers; answer: (change: Partial<Answers>) => void; next: () => void }) {
+  const { agents, profiles, words } = parts;
+  useObserved(agents, profiles);
+  const found = agents.agents ?? [];
+  const [agent, setAgent] = useState(found[0]?.kind ?? '');
+  const [binding, setBinding] = useState(false);
+  const [failed, fail] = useState<string | undefined>(undefined);
+  const place = answers.place ?? suggestedPlace(found.length);
+  useEffect(() => {
+    if (agents.agents === undefined) void agents.refresh();
+  }, []);
+  useEffect(() => {
+    if (agent === '' && found[0] !== undefined) setAgent(found[0].kind);
+  }, [found.length]);
+  const info = place === undefined ? undefined : placeInfo(place);
+  const go = async () => {
+    if (place !== undefined && answers.place === undefined) answer({ place });
+    const job = answers.job;
+    if (job === undefined || info === undefined || !info.local || agent === '') return next();
+    setBinding(true);
+    fail(undefined);
+    const outcome = await profiles.bind(job.id, agent);
+    setBinding(false);
+    if (outcome.kind === 'failed') return fail(outcome.why);
+    answer({ place, boundTo: found.find((each) => each.kind === agent)?.name ?? agent });
+    next();
+  };
+  const heading = stepHeading(3, words.keyTitle);
+  return (
+    <>
+      <StepTitle counter={stepCounter(3)} title={heading.title} detail={heading.detail} />
+      <KitCard icon={Network} title={FirstRunQuestions.placeCard}>
+        <div role="radiogroup" aria-label={FirstRunQuestions.placeTitle} className="flex flex-col">
+          {AGENT_PLACES.map((each, index) => (
+            <Fragment key={each.id}>
+              {index > 0 && <KitDivider />}
+              <AnswerRow icon={PLACE_ICONS[each.id]} title={each.title} detail={each.detail} on={place === each.id} disabled={binding} pick={() => answer({ place: each.id })} />
+            </Fragment>
+          ))}
+        </div>
+      </KitCard>
+      {info !== undefined && (
+        <KitCard icon={info.local ? Monitor : Cloud} title={FirstRunQuestions.reaches} detail={info.connects}>
+          {info.local && found.length === 0 && <QuietLine size={13}>{FirstRunQuestions.nothingFound}</QuietLine>}
+          {info.local && found.length > 0 && answers.job !== undefined && (
+            <div className="flex flex-col gap-1.5 py-2">
+              <span className="text-footnote font-medium text-ink-secondary">{FirstRunQuestions.giveTo(answers.job.name)}</span>
+              <Select
+                value={agent}
+                label={FirstRunQuestions.giveTo(answers.job.name)}
+                wide
+                options={[{ value: '', label: FirstRunQuestions.noAgentYet }, ...found.map((each) => ({ value: each.kind, label: each.name }))]}
+                onChange={setAgent}
+              />
+            </div>
+          )}
+          {info.local && found.length > 0 && answers.job === undefined && <QuietLine size={13}>{agentsFoundLine(found)}</QuietLine>}
+          {place !== undefined && throughCloud(place) && (
+            <div className="flex flex-col gap-2 py-2">
+              <QuietLine size={13}>{FirstRunQuestions.cloudOptional}</QuietLine>
+              <CloudSignIn parts={parts} />
+            </div>
+          )}
+          {place === 'none-yet' && FirstRunQuestions.jobLine(answers.job?.name, undefined) !== undefined && <QuietLine size={13}>{FirstRunQuestions.jobLine(answers.job?.name, undefined)}</QuietLine>}
+        </KitCard>
+      )}
+      {failed !== undefined && <NeedsHint why={failed} size={12} />}
+      <Button kind="primary" wide trailing={ArrowRight} disabled={binding} onClick={() => void go()}>
+        {binding ? FirstRunQuestions.giving : OnboardingLines.continue}
+      </Button>
+      {answers.place === undefined && (
+        <Button wide disabled={binding} onClick={next}>
+          {FirstRunQuestions.skip}
+        </Button>
+      )}
+    </>
+  );
+}
+
+/** Sign in to Memnox Cloud from the first run, waiting on the console page it opens; cancelling changes nothing. */
+function CloudSignIn({ parts }: { parts: SettingsParts }) {
+  const { team } = parts;
+  useObserved(team);
+  useEffect(() => {
+    void team.load();
+  }, []);
+  const step = team.step;
+  if (step.kind === 'signed-in') return <StatusMark state={{ kind: 'done' }} />;
+  if (step.kind === 'starting' || step.kind === 'showing-code') {
+    return (
+      <span className="flex items-center gap-2">
+        {step.kind === 'showing-code' && <span className="font-mono text-callout text-ink">{step.code}</span>}
+        <Button onClick={() => team.cancel()}>{OnboardingLines.cancelSignIn}</Button>
+      </span>
+    );
+  }
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <Button icon={UserRound} onClick={() => void team.start()}>
+        {OnboardingLines.signIn}
+      </Button>
+      {step.kind === 'failed' && <NeedsHint why={step.why} size={12} />}
+    </span>
+  );
+}
+
+/**
+ * What Memnox can and cannot do, at the end, in the five plain levels: each agent's levels as the service states them,
+ * the place the person named until its own connection reports, and a job with nobody behind it saying so.
+ */
+function CoverageCard({ parts, answers }: { parts: SettingsParts; answers: Answers }) {
+  const { profiles, support } = parts;
+  useObserved(profiles, support);
+  const offers = support.supports('profiles') === true;
+  useEffect(() => {
+    if (offers) void profiles.refresh();
+  }, [offers]);
+  const agents = orderedProfiles(profiles.profiles ?? []).filter((each) => each.connections.length > 0);
+  const job = answers.job;
+  const unboundJob = job !== undefined && answers.boundTo === undefined && !agents.some((each) => each.id === job.id);
+  const place = answers.place;
+  const elsewhere = place !== undefined && !placeInfo(place).local;
+  return (
+    <KitCard icon={ShieldCheck} title={FirstRunCoverage.title} detail={FirstRunCoverage.lead}>
+      {agents.map((profile, index) => (
+        <Fragment key={profile.id}>
+          {index > 0 && <KitDivider />}
+          <div className="flex flex-col gap-1.5 py-2.5">
+            <span className="flex items-center gap-2">
+              <BrandLogo agent={profile.connections[0]?.agentKind} name={profile.name} size={22} />
+              <span className="text-callout font-semibold text-ink">{profile.name}</span>
+            </span>
+            {FirstRunCoverage.lines(profile.levels).map((line) => (
+              <span key={line.level} className="flex items-start gap-2">
+                <LevelPill level={line.level} />
+                <span className="text-footnote text-ink-secondary">{line.things.join(', ')}</span>
+              </span>
+            ))}
+          </div>
+        </Fragment>
+      ))}
+      {elsewhere && place !== undefined && place !== 'none-yet' && <KitRow tile={<IconTile icon={Cloud} />} title={placeInfo(place).title} detail={FirstRunCoverage.place(place)} />}
+      {unboundJob && job !== undefined && <KitRow tile={<IconTile icon={Briefcase} />} title={job.name} detail={FirstRunCoverage.job(job.name)} />}
+      {agents.length === 0 && !unboundJob && !elsewhere && <QuietLine size={13}>{FirstRunCoverage.noAgents}</QuietLine>}
+      <div className="pt-2">
+        <QuietLine size={12}>{FirstRunCoverage.cannot}</QuietLine>
+      </div>
+    </KitCard>
+  );
+}
+
+/** Step 5: the recommended pack chosen already, the rest folded behind See other packs; Finish proposes the one chosen. */
 function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: string | undefined) => void }) {
   const { studio, words } = parts;
   useObserved(studio);
@@ -505,10 +815,10 @@ function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: str
       </Pressable>
     </Fragment>
   );
-  const heading = stepHeading(2, words.keyTitle);
+  const heading = stepHeading(4, words.keyTitle);
   return (
     <>
-      <StepTitle counter={stepCounter(2)} title={heading.title} detail={heading.detail} />
+      <StepTitle counter={stepCounter(4)} title={heading.title} detail={heading.detail} />
       <KitCard icon={ListChecks} title={OnboardingLines.rulePacks} detail={OnboardingLines.rulePacksDetail}>
         {packs === undefined && <Spinner />}
         {packs !== undefined && packs.length === 0 && <QuietLine size={13}>{OnboardingLines.noPacks}</QuietLine>}
@@ -535,7 +845,7 @@ function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: str
 }
 
 /** The end screen: one next action, then a short optional list, each row opening the Settings page that holds it. */
-function EndScreen({ parts, proposed, finish }: { parts: SettingsParts; proposed: string | undefined; finish: () => void }) {
+function EndScreen({ parts, proposed, answers, finish }: { parts: SettingsParts; proposed: string | undefined; answers: Answers; finish: () => void }) {
   const { words, host, preferences } = parts;
   usePreferences();
   const name = firstName(preferences.name);
@@ -548,14 +858,21 @@ function EndScreen({ parts, proposed, finish }: { parts: SettingsParts; proposed
     <>
       <StepTitle title={setTitle(name)} detail={GuideLines.ready(name, words.talkKeysSaid)} />
       {proposed !== undefined && <QuietLine size={13}>{proposed}</QuietLine>}
+      {FirstRunQuestions.jobLine(answers.job?.name, answers.boundTo) !== undefined && <QuietLine size={13}>{FirstRunQuestions.jobLine(answers.job?.name, answers.boundTo)}</QuietLine>}
+      <CoverageCard parts={parts} answers={answers} />
       <Button kind="primary" wide icon={Sparkles} onClick={finish}>
         {OnboardingLines.start}
       </Button>
-      <KitCard icon={SettingsIcon} title={OnboardingLines.optional} detail={OnboardingLines.optionalDetail}>
+      <KitCard icon={SettingsIcon} title={OnboardingLines.optionalSkip} detail={OnboardingLines.optionalDetail}>
         {endLinks(name).map((link, index) => (
           <Fragment key={link.id}>
             {index > 0 && <KitDivider />}
-            <KitRow tile={<IconTile icon={END_ICONS[link.id]} />} title={link.title} detail={link.detail} trailing={<Button onClick={() => open(link.page)}>{OnboardingLines.open}</Button>} />
+            <KitRow
+              tile={<IconTile icon={END_ICONS[link.id]} />}
+              title={link.title}
+              detail={link.detail}
+              trailing={link.id === 'workspace' ? <CloudSignIn parts={parts} /> : <Button onClick={() => open(link.page)}>{link.id === 'phone' ? OnboardingLines.pair : OnboardingLines.open}</Button>}
+            />
           </Fragment>
         ))}
       </KitCard>

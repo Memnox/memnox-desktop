@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AGENT_PLACES,
   endLinks,
+  FirstRunCoverage,
+  FirstRunQuestions,
+  joinedThings,
+  nextStep,
+  previousStep,
+  suggestedPlace,
+  throughCloud,
   GuideLines,
   GuideMemory,
   ONBOARDING_STEPS,
@@ -36,14 +44,19 @@ describe('the first run guide', () => {
     expect(rowSpoken('tools', 'linux')).toContain('send it with your password');
   });
 
-  it('runs three short steps for a fresh computer, then an end screen', () => {
-    expect(ONBOARDING_STEPS).toEqual(['Connect', 'Permissions', 'Starting rules']);
-    expect([0, 1, 2].map((step) => stepCounter(step as 0 | 1 | 2))).toEqual(['Step 1 of 3', 'Step 2 of 3', 'Step 3 of 3']);
-    expect(progressOf(0)).toBeCloseTo(1 / 3);
-    expect(progressOf(2)).toBe(1);
+  it('runs short steps with two questions asked one at a time, then an end screen', () => {
+    expect(ONBOARDING_STEPS).toEqual(['Connect', 'Permissions', 'Its job', 'Where it runs', 'Starting rules']);
+    expect(([0, 2, 4] as const).map((step) => stepCounter(step))).toEqual(['Step 1 of 5', 'Step 3 of 5', 'Step 5 of 5']);
+    expect(progressOf(0)).toBeCloseTo(1 / 5);
+    expect(progressOf(4)).toBe(1);
     expect(progressOf(0, 'done')).toBe(1);
+    expect(nextStep(3)).toBe(4);
+    expect(nextStep(4)).toBeUndefined();
+    expect(previousStep(0)).toBeUndefined();
     expect(stepHeading(0, 'Windows Hello').detail).toContain('Windows Hello becomes the key only you approve with');
-    expect(stepHeading(2, 'Windows Hello').detail).toContain('The recommended rules are chosen for you');
+    expect(stepHeading(2, 'Windows Hello').title).toBe('What do you want your AI to help with?');
+    expect(stepHeading(3, 'Windows Hello').title).toBe('Where does your agent run?');
+    expect(stepHeading(4, 'Windows Hello').detail).toContain('The recommended rules are chosen for you');
   });
 
   it('introduces each step only once', () => {
@@ -102,5 +115,54 @@ describe('the end screen', () => {
 
   it('stops asking for the name once it is given', () => {
     expect(endLinks('Sam').map((link) => link.id)).toEqual(['voice', 'workspace', 'phone']);
+  });
+
+  it('offers Memnox Cloud and the phone as optional, never a step', () => {
+    const links = endLinks('Sam');
+    expect(links.find((link) => link.id === 'workspace')).toMatchObject({ title: 'Sign in to Memnox Cloud', detail: expect.stringMatching(/^Optional\./) });
+    expect(links.find((link) => link.id === 'phone')?.detail).toMatch(/^Optional\./);
+  });
+});
+
+describe('the two questions', () => {
+  it('offers every place an agent can run, this computer first, and suggests it when agents were found here', () => {
+    expect(AGENT_PLACES.map((place) => place.id)).toEqual(['computer-coding', 'computer-app', 'hosted', 'inside-app', 'no-code', 'own-code', 'none-yet']);
+    expect(suggestedPlace(2)).toBe('computer-coding');
+    expect(suggestedPlace(0)).toBeUndefined();
+    expect(throughCloud('hosted')).toBe(true);
+    expect(throughCloud('computer-app')).toBe(false);
+    expect(throughCloud('none-yet')).toBe(false);
+  });
+
+  it('says what became of the job', () => {
+    expect(FirstRunQuestions.jobLine(undefined, undefined)).toBeUndefined();
+    expect(FirstRunQuestions.jobLine('Code Review', 'Cursor')).toBe('Code Review now works through Cursor.');
+    expect(FirstRunQuestions.jobLine('Code Review', undefined)).toBe('Code Review has no agent behind it yet. Connect one whenever you are ready, under AI agents.');
+  });
+});
+
+describe('what Memnox can and cannot do, at the end', () => {
+  const levels = {
+    context: 'mediated',
+    instructions: 'mediated',
+    tools: 'enforced',
+    activity: 'observed',
+    coordination: 'none',
+    approval: 'enforced',
+    enforcement: { shell: 'enforced', filesystem: 'enforced', git: 'mediated', network: 'none', browser: 'none', mcp: 'observed' },
+  } as const;
+
+  it('groups what an agent does by level in plain words, strongest first, a level with nothing left out', () => {
+    const lines = FirstRunCoverage.lines(levels);
+    expect(lines.map((line) => line.plain)).toEqual(['Memnox stops this', 'Memnox checks this', 'Memnox only sees this', 'Outside Memnox']);
+    expect(lines[0]?.sentence).toBe('Memnox stops this: Its tools, Asking you first, Commands and Files.');
+  });
+
+  it('says a place elsewhere is outside Memnox until it reports, and a job with nobody behind it shows no level', () => {
+    expect(FirstRunCoverage.place('inside-app')).toBe('Outside Memnox until it is connected. Connected this way, expect: The agent asks Memnox.');
+    expect(FirstRunCoverage.place('none-yet')).toBe('Nothing yet. Connect an agent whenever you are ready.');
+    expect(FirstRunCoverage.job('Testing')).toBe('Testing has no agent behind it yet, so there is nothing for Memnox to stop or see yet.');
+    expect(joinedThings(['Git'])).toBe('Git');
+    expect(joinedThings([])).toBe('');
   });
 });

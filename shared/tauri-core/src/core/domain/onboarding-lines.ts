@@ -35,5 +35,9 @@ export const OnboardingLines = {
   optional: 'Optional',
   optionalDetail: 'Each waits in Settings whenever you want it.',
   open: 'Open',
+  pair: 'Pair',
+  signIn: 'Sign in',
+  cancelSignIn: 'Cancel',
+  optionalSkip: 'Optional, and you can skip all of it',
   recommendedPack: (pack: string) => `${pack} · Recommended`,
 } as const;

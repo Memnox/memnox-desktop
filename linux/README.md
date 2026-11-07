@@ -108,7 +108,18 @@ it, that path is never taken, and it only looks.
 
 ## Build from source
 
-On Ubuntu or Debian, which CI builds on:
+One command does every step below and opens the app, skipping what is already done, so it is also
+the command to run each day:
+
+```sh
+sh dev.sh                 # from the repo root, which runs linux/scripts/dev.sh here
+```
+
+This repo is the only clone it needs: the wire comes from the `@memnox/core` published to npm, and
+the app installs and starts `memnox` from npm on its first run. Where a
+[memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout sits beside this repo, or
+`MEMNOX_RUNTIME` names one, it builds that one and the app runs its CLI instead, for working on both
+at once. The steps it takes, by hand, on Ubuntu or Debian, which CI builds on:
 
 ```sh
 sudo apt install -y build-essential curl git pkg-config libdbus-1-dev libwebkit2gtk-4.1-dev libgtk-3-dev \
@@ -137,17 +148,15 @@ Then, on any of them, install the polkit policy that Allow once asks through:
 sudo install -m 644 linux/packaging/org.memnox.desktop.policy /usr/share/polkit-1/actions/
 ```
 
-Then, with Node 22 and `corepack enable`, rustup, and a
-[memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout beside this repo, cloned with
-`git clone https://github.com/Memnox/memnox.git memnox-runtime`, or named by `MEMNOX_RUNTIME`:
+Then, with Node 22 and `corepack enable` and rustup:
 
 ```sh
 cd shared/tauri-core
-pnpm wire                 # builds memnox-runtime's core and copies its wire into .runtime
+pnpm wire                 # the runtime's wire into .runtime, from npm or a checkout beside this repo
 pnpm install
 pnpm typecheck && pnpm test
 cargo test --workspace    # from the repo root
-pnpm tauri dev
+pnpm tauri dev           # MEMNOX_RUNTIME_DIR=../memnox-runtime runs a checkout's CLI
 ```
 
 The layer shell island needs GTK, so `memnox-linux` keeps it behind its default `island` feature;

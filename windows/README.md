@@ -75,15 +75,16 @@ the tray can turn off.
 ## Build from source
 
 You need the Rust MSVC toolchain with Visual Studio's C++ build tools (the "Desktop development with
-C++" workload), Node 22 with `corepack enable`, Git for Windows, and a
-[memnox-runtime](https://github.com/Memnox/memnox-runtime) checkout beside this repo, cloned with
-`git clone https://github.com/Memnox/memnox.git memnox-runtime`, or named by `MEMNOX_RUNTIME`. This
+C++" workload), Node 22 with `corepack enable`, and Git for Windows. From Git Bash, `sh dev.sh` at the repo root installs
+what is missing of those with winget and opens the app, and skips every step already done. The wire comes
+from npm and the app installs `memnox` on its first run, so no memnox-runtime checkout is needed; one
+beside this repo, or named by `MEMNOX_RUNTIME`, is built and used instead. This
 repository keeps its shell scripts at LF through `.gitattributes`; if a script fails with `$'\r'`, the
 clone predates that file, and cloning again fixes it. From Git Bash:
 
 ```sh
 cd shared/tauri-core
-pnpm wire                 # builds memnox-runtime's core and copies its wire into .runtime
+pnpm wire                 # the runtime's wire into .runtime, from npm or a checkout beside this repo
 pnpm install
 pnpm typecheck && pnpm test
 cargo test --workspace    # from the repo root

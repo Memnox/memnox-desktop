@@ -1,6 +1,7 @@
 #!/bin/sh
 # Puts MemnoxNoise.xcframework into Vendor, which Package.swift needs and git never holds (55 MB of static libraries).
-# Taken from memnox-runtime's build when there is one, else from the iPhone app in memnox-mobile/ios, else built in memnox-runtime with cargo.
+# Taken from memnox-runtime's build when there is one, else from the iPhone app in memnox-mobile/ios, else built in a
+# memnox-runtime checkout with cargo, else downloaded from the newest memnox-runtime release.
 # Run on its own, or by bundle.sh and sync-relay.sh when Vendor is empty.
 set -eu
 # The Noise framework, the bundled Node and the voice's Python are all arm64, so an Intel Mac stops here rather than at a link error.
@@ -10,21 +11,36 @@ runtime="${MEMNOX_RUNTIME:-$here/../../memnox-runtime}"
 ios="${MEMNOX_IOS:-$here/../../memnox-mobile/ios}"
 target="$here/Vendor/MemnoxNoise.xcframework"
 
+# The newest memnox-runtime release carries a built one, checked against its own SHA256, for working on this repo alone.
+download() {
+  release="${MEMNOX_NOISE_RELEASE:-https://github.com/Memnox/memnox-runtime/releases/latest/download}"
+  work=$(mktemp -d "${TMPDIR:-/tmp}/memnox-noise.XXXXXX")
+  trap 'rm -rf "$work"' EXIT
+  echo "Downloading MemnoxNoise.xcframework from $release"
+  curl -fsSL --retry 3 -o "$work/MemnoxNoise.xcframework.zip" "$release/MemnoxNoise.xcframework.zip" &&
+    curl -fsSL --retry 3 -o "$work/MemnoxNoise.xcframework.zip.sha256" "$release/MemnoxNoise.xcframework.zip.sha256" || {
+    echo "the release at $release has no MemnoxNoise.xcframework.zip; set MEMNOX_RUNTIME to a memnox-runtime checkout to build it" >&2
+    exit 1
+  }
+  (cd "$work" && shasum -a 256 -c MemnoxNoise.xcframework.zip.sha256) >/dev/null || {
+    echo "MemnoxNoise.xcframework.zip does not match its SHA256, so nothing was unpacked" >&2
+    exit 1
+  }
+  ditto -x -k "$work/MemnoxNoise.xcframework.zip" "$work"
+  noise="$work/MemnoxNoise.xcframework"
+}
+
 noise="$runtime/native/noise/build/MemnoxNoise.xcframework"
 [ -d "$noise" ] || noise="$ios/Vendor/MemnoxNoise.xcframework"
 if [ ! -d "$noise" ]; then
   build="$runtime/native/noise/scripts/build-xcframework.sh"
-  if [ ! -f "$build" ]; then
-    echo "no MemnoxNoise.xcframework in memnox-runtime or the iPhone app, and no memnox-runtime checkout to build it in; set MEMNOX_RUNTIME or MEMNOX_IOS" >&2
-    exit 1
+  if [ -f "$build" ] && command -v cargo >/dev/null 2>&1 && command -v rustup >/dev/null 2>&1; then
+    echo "Building MemnoxNoise.xcframework in $runtime/native/noise"
+    sh "$build"
+    noise="$runtime/native/noise/build/MemnoxNoise.xcframework"
+  else
+    download
   fi
-  if ! command -v cargo >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
-    echo "no MemnoxNoise.xcframework to copy, and building it needs rustup and cargo: https://rustup.rs" >&2
-    exit 1
-  fi
-  echo "Building MemnoxNoise.xcframework in $runtime/native/noise"
-  sh "$build"
-  noise="$runtime/native/noise/build/MemnoxNoise.xcframework"
 fi
 rm -rf "$target"
 mkdir -p "$here/Vendor"

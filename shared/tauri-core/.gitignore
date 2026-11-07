@@ -3,3 +3,4 @@ dist
 .runtime
 src-tauri/target
 src-tauri/gen
+.sherpa

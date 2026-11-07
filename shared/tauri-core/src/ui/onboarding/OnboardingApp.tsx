@@ -66,9 +66,9 @@ import { IslandDemo, useDemoTour } from './IslandDemo';
 import { Button, Pressable, Spinner } from '../kit';
 import { OnboardingLines } from '../../core/domain/onboarding-lines';
 import type { ProfileTemplate } from '../../core/domain/agent-wire';
-import { orderedProfiles } from '../../core/domain/agent-work-lines';
+import { NO_AGENT, orderedProfiles } from '../../core/domain/agent-work-lines';
 import { LevelPill } from '../app/capability-strip';
-import { Select } from '../kit';
+import { Select, StatusWord } from '../kit';
 
 const PERMISSION_ICONS: Record<PermissionStep['id'], LucideIcon> = { hear: Mic, type: Keyboard, see: ScreenShare };
 const END_ICONS: Record<EndLink['id'], LucideIcon> = { name: UserRound, voice: AudioLines, workspace: Building2, phone: Smartphone };
@@ -105,9 +105,9 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
       guide(GuideLines.welcome(firstName(parts.preferences.name)));
       guide(GuideLines.setup(parts.host.platform), false);
     }
-    if (stage === 'steps' && step === 1) guide(GuideLines.permissions);
-    if (stage === 'steps' && step === 2) guide(GuideLines.job);
-    if (stage === 'steps' && step === 3) guide(GuideLines.place);
+    if (stage === 'steps' && step === 1) guide(GuideLines.job);
+    if (stage === 'steps' && step === 2) guide(GuideLines.place);
+    if (stage === 'steps' && step === 3) guide(GuideLines.permissions);
     if (stage === 'steps' && step === 4) guide(GuideLines.boundaries(parts.host.platform));
     if (stage === 'done') guide(GuideLines.done);
   }, [stage, step]);
@@ -158,9 +158,9 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
         <ScrollColumn key={done ? 'done' : step}>
           {done && <EndScreen parts={parts} proposed={proposed} answers={answers} finish={finish} />}
           {!done && step === 0 && <ConnectStep parts={parts} next={forward} />}
-          {!done && step === 1 && <PermissionsStep parts={parts} next={forward} />}
-          {!done && step === 2 && <JobStep parts={parts} answers={answers} answer={answer} next={forward} />}
-          {!done && step === 3 && <PlaceStep parts={parts} answers={answers} answer={answer} next={forward} />}
+          {!done && step === 1 && <JobStep parts={parts} answers={answers} answer={answer} next={forward} />}
+          {!done && step === 2 && <PlaceStep parts={parts} answers={answers} answer={answer} next={forward} />}
+          {!done && step === 3 && <PermissionsStep parts={parts} next={forward} />}
           {!done && step === 4 && (
             <RulesStep
               parts={parts}
@@ -355,7 +355,7 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
   useEffect(() => {
     void steps.refresh().then(() => steps.recheckOnce());
     void agents.refresh();
-    // The next step's grants are read now, so they are settled by the time it shows.
+    // The grants are read now, so they are settled by the time their step shows.
     void steps.readPermissions();
     // The voice is optional, but it is fetched now so it has arrived by the time anybody asks for it.
     if (steps.voiceInstall.kind === 'idle') void steps.installVoice();
@@ -454,7 +454,7 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
   );
 }
 
-/** Step 2: only the grants this system asks the person for, each with its one button; installs need nobody. */
+/** Step 4: only the grants this system asks the person for, each with its one button; installs need nobody. */
 function PermissionsStep({ parts, next }: { parts: SettingsParts; next: () => void }) {
   const { steps, words, host } = parts;
   useObserved(steps);
@@ -473,10 +473,10 @@ function PermissionsStep({ parts, next }: { parts: SettingsParts; next: () => vo
       if (step.id === 'see') guide(GuideLines.seeing(step.guide.some((line) => line.includes('portal')) ? 'portal' : 'accessibility'), false);
     }
   }, [waitingOn.join()]);
-  const heading = stepHeading(1, words.keyTitle);
+  const heading = stepHeading(3, words.keyTitle);
   return (
     <>
-      <StepTitle counter={stepCounter(1)} title={heading.title} detail={heading.detail} />
+      <StepTitle counter={stepCounter(3)} title={heading.title} detail={heading.detail} />
       <KitCard icon={Lock} title={OnboardingLines.asksFor} detail={permissionsLine(asked)}>
         {asked.map((step, index) => {
           const pane = step.pane;
@@ -535,7 +535,7 @@ function AnswerRow({ icon, title, detail, on, disabled, pick }: { icon: LucideIc
 }
 
 /**
- * Step 3, the first question: what the person wants their AI to help with, answered by picking one of the runtime's
+ * Step 2, the first question: what the person wants their AI to help with, answered by picking one of the runtime's
  * jobs, kept as a profile with no agent behind it yet. No suggested skill is taken and no rule applied; skipping is
  * always allowed.
  */
@@ -572,10 +572,10 @@ function JobStep({ parts, answers, answer, next }: { parts: SettingsParts; answe
     if (outcome.kind === 'failed') return fail(outcome.why);
     next();
   };
-  const heading = stepHeading(2, words.keyTitle);
+  const heading = stepHeading(1, words.keyTitle);
   return (
     <>
-      <StepTitle counter={stepCounter(2)} title={heading.title} detail={heading.detail} />
+      <StepTitle counter={stepCounter(1)} title={heading.title} detail={heading.detail} />
       {offers ? (
         <KitCard icon={Briefcase} title={FirstRunQuestions.jobsCard} detail={FirstRunQuestions.jobsCardDetail}>
           {templates === undefined && <Spinner />}
@@ -624,7 +624,7 @@ const PLACE_ICONS: Record<AgentPlace, LucideIcon> = {
 };
 
 /**
- * Step 4, the second question: where the person's agent runs. On this computer the agents found are already under
+ * Step 3, the second question: where the person's agent runs. On this computer the agents found are already under
  * Memnox and the job can go to one of them; anywhere else the agent reaches Memnox through Memnox Cloud, offered and
  * never required.
  */
@@ -655,10 +655,10 @@ function PlaceStep({ parts, answers, answer, next }: { parts: SettingsParts; ans
     answer({ place, boundTo: found.find((each) => each.kind === agent)?.name ?? agent });
     next();
   };
-  const heading = stepHeading(3, words.keyTitle);
+  const heading = stepHeading(2, words.keyTitle);
   return (
     <>
-      <StepTitle counter={stepCounter(3)} title={heading.title} detail={heading.detail} />
+      <StepTitle counter={stepCounter(2)} title={heading.title} detail={heading.detail} />
       <KitCard icon={Network} title={FirstRunQuestions.placeCard}>
         <div role="radiogroup" aria-label={FirstRunQuestions.placeTitle} className="flex flex-col">
           {AGENT_PLACES.map((each, index) => (
@@ -769,8 +769,8 @@ function CoverageCard({ parts, answers }: { parts: SettingsParts; answers: Answe
           </div>
         </Fragment>
       ))}
-      {elsewhere && place !== undefined && place !== 'none-yet' && <KitRow tile={<IconTile icon={Cloud} />} title={placeInfo(place).title} detail={FirstRunCoverage.place(place)} />}
-      {unboundJob && job !== undefined && <KitRow tile={<IconTile icon={Briefcase} />} title={job.name} detail={FirstRunCoverage.job(job.name)} />}
+      {elsewhere && place !== undefined && place !== 'none-yet' && <KitRow tile={<IconTile icon={Cloud} />} title={placeInfo(place).title} detail={FirstRunCoverage.place(place)} trailing={<LevelPill level="none" />} />}
+      {unboundJob && job !== undefined && <KitRow tile={<IconTile icon={Briefcase} />} title={job.name} detail={FirstRunCoverage.job(job.name)} trailing={<StatusWord tone="quiet">{NO_AGENT}</StatusWord>} />}
       {agents.length === 0 && !unboundJob && !elsewhere && <QuietLine size={13}>{FirstRunCoverage.noAgents}</QuietLine>}
       <div className="pt-2">
         <QuietLine size={12}>{FirstRunCoverage.cannot}</QuietLine>

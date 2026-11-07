@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { agentsFoundLine, foundLine, foundToImport, importedLine, packTitle } from '../src/core/domain/setup-steps';
+import { FirstRunCoverage, ONBOARDING_STEPS, stepHeading } from '../src/core/domain/onboarding';
+
+/** The Mac's first run, `FirstRunLines.steps`, which these steps keep in step with. */
+const MAC_STEPS = ['Connect', 'Its job', 'Where it runs', 'Bring in', 'Starting rules'];
+
+describe('the first run, in the Mac’s order', () => {
+  it('asks the two questions right after Connect and ends on the rules, with this system’s grants where the Mac brings in', () => {
+    expect(ONBOARDING_STEPS).toEqual(['Connect', 'Its job', 'Where it runs', 'Permissions', 'Starting rules']);
+    expect(ONBOARDING_STEPS.map((step, index) => (index === 3 ? MAC_STEPS[3] : step))).toEqual(MAC_STEPS);
+    expect(stepHeading(1, 'Windows Hello').title).toBe('What do you want your AI to help with?');
+    expect(stepHeading(2, 'Windows Hello').title).toBe('Where does your agent run?');
+  });
+
+  it('never shows an agent elsewhere as stopped, only outside Memnox until it is connected', () => {
+    for (const place of ['hosted', 'inside-app', 'no-code', 'own-code'] as const) {
+      expect(FirstRunCoverage.place(place)).toMatch(/^Outside Memnox until it is connected\./);
+      expect(FirstRunCoverage.place(place)).not.toContain('Memnox stops this');
+    }
+  });
+});
 
 describe('setting up a workspace on a fresh computer', () => {
   const servers = [

@@ -45,7 +45,7 @@ describe('the first run guide', () => {
   });
 
   it('runs short steps with two questions asked one at a time, then an end screen', () => {
-    expect(ONBOARDING_STEPS).toEqual(['Connect', 'Permissions', 'Its job', 'Where it runs', 'Starting rules']);
+    expect(ONBOARDING_STEPS).toHaveLength(5);
     expect(([0, 2, 4] as const).map((step) => stepCounter(step))).toEqual(['Step 1 of 5', 'Step 3 of 5', 'Step 5 of 5']);
     expect(progressOf(0)).toBeCloseTo(1 / 5);
     expect(progressOf(4)).toBe(1);
@@ -54,8 +54,9 @@ describe('the first run guide', () => {
     expect(nextStep(4)).toBeUndefined();
     expect(previousStep(0)).toBeUndefined();
     expect(stepHeading(0, 'Windows Hello').detail).toContain('Windows Hello becomes the key only you approve with');
-    expect(stepHeading(2, 'Windows Hello').title).toBe('What do you want your AI to help with?');
-    expect(stepHeading(3, 'Windows Hello').title).toBe('Where does your agent run?');
+    expect(stepHeading(1, 'Windows Hello').title).toBe('What do you want your AI to help with?');
+    expect(stepHeading(2, 'Windows Hello').title).toBe('Where does your agent run?');
+    expect(stepHeading(3, 'Windows Hello').title).toBe('Permissions');
     expect(stepHeading(4, 'Windows Hello').detail).toContain('The recommended rules are chosen for you');
   });
 

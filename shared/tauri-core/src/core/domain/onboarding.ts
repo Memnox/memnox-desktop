@@ -13,7 +13,8 @@ import type { SettingsPage } from './settings-pages';
  */
 export type OnboardingStage = 'intro' | 'steps' | 'done';
 
-export const ONBOARDING_STEPS = ['Connect', 'Permissions', 'Its job', 'Where it runs', 'Starting rules'] as const;
+/** In the Mac's order, the questions right after Connect; this system's grants stand where the Mac brings in what agents keep. */
+export const ONBOARDING_STEPS = ['Connect', 'Its job', 'Where it runs', 'Permissions', 'Starting rules'] as const;
 export type OnboardingStep = 0 | 1 | 2 | 3 | 4;
 
 /** Every step by its number, for a preview's ?step= and for moving on. */
@@ -46,11 +47,11 @@ export function stepHeading(step: OnboardingStep, keyTitle: string): { readonly 
     case 0:
       return { title: 'Connect your agents', detail: `The Memnox service starts by itself and ${keyTitle} becomes the key only you approve with. No account needed.` };
     case 1:
-      return { title: 'Permissions', detail: 'Only what this computer asks you for. Everything else installs by itself.' };
-    case 2:
       return { title: FirstRunQuestions.jobTitle, detail: FirstRunQuestions.jobDetail };
-    case 3:
+    case 2:
       return { title: FirstRunQuestions.placeTitle, detail: FirstRunQuestions.placeDetail };
+    case 3:
+      return { title: 'Permissions', detail: 'Only what this computer asks you for. Everything else installs by itself.' };
     case 4:
       return { title: 'Starting rules', detail: `The recommended rules are chosen for you. Each one holds once you confirm it with ${keyTitle} on the island.` };
   }
@@ -141,7 +142,7 @@ export const GuideLines = {
   setup(platform: Platform): string {
     return `Here is what I will do on this computer. I install the Memnox service in your home folder and keep it running and up to date, and I connect it to the agents I find, like Claude Code, Codex and Cursor, so what they do passes your rules first. From you I need one thing now: ${KEY_SAID[platform]} so only you approve.`;
   },
-  /** Said over the second step, which lists only what this system asks for. */
+  /** Said over the grants step, which lists only what this system asks for. */
   permissions: 'Next, the few things this computer asks you to allow. Everything else I install myself.',
   /** Said over the job question, which is a pick and never a form. */
   job: 'What do you want your AI to help with? Pick the closest job, or skip it. Nothing is applied.',

@@ -87,6 +87,6 @@ describe('the demo world', () => {
   });
 
   it('keeps every dash out of its copy', () => {
-    expect(readFileSync(shared, 'utf8')).not.toMatch(/[–—]| - /);
+    expect(readFileSync(shared, 'utf8')).not.toMatch(/[\u2013\u2014]| - /);
   });
 });

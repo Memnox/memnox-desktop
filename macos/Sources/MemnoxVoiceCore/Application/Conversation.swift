@@ -18,6 +18,10 @@ enum ToolName {
     static let openLink = "open_link"
     static let createFolder = "create_folder"
     static let signIn = "sign_in"
+    /// Points a job's agent at a tracker issue; a person's steer, so it goes unsigned and the daemon decides.
+    static let startAgentWork = "start_agent_work"
+    static let showAgentWork = "show_agent_work"
+    static let answerHandoff = "answer_handoff"
 }
 
 public final class Conversation {
@@ -132,6 +136,7 @@ public final class Conversation {
     static let actingTools: Set<String> = [
         ToolName.startSession, ToolName.sendInstruction, ToolName.watchFor, ToolName.pauseSession,
         ToolName.show, ToolName.walkThrough, ToolName.typeInApp, ToolName.controlApp, ToolName.answerQuestion,
+        ToolName.startAgentWork, ToolName.answerHandoff,
     ]
 
     /// The calls that change something the person can see, which the side panel lists; a lookup is left out as talk.

@@ -570,6 +570,9 @@ struct ActionWords {
         case openLink = "open_link"
         case createFolder = "create_folder"
         case signIn = "sign_in"
+        case startAgentWork = "start_agent_work"
+        case showAgentWork = "show_agent_work"
+        case answerHandoff = "answer_handoff"
     }
 
     init(_ action: TakenAction) {
@@ -601,6 +604,9 @@ struct ActionWords {
         case .openLink: (title, symbol) = ("Opened a link", "link")
         case .createFolder: (title, symbol) = ("Made a folder", "folder.fill")
         case .signIn: (title, symbol) = ("Signed in to a tool", "person.badge.key.fill")
+        case .startAgentWork: (title, symbol) = ("Started agent work", "checklist")
+        case .showAgentWork: (title, symbol) = ("Showed agent work", "list.bullet.rectangle")
+        case .answerHandoff: (title, symbol) = ("Answered a handoff", "arrow.left.arrow.right")
         case .none: (title, symbol) = ("Did \(action.tool.replacingOccurrences(of: "_", with: " "))", "bolt.fill")
         }
     }

@@ -70,10 +70,10 @@ final class SidebarTests: XCTestCase {
         XCTAssertEqual(Sidebar.strip(for: WindowRoute(.workspaces, tab: "skills"), supports: everything), [])
     }
 
-    func testGivesMcpServersItsOwnRowWithServersAloneWhileClientsAndSecretsAreLeftOff() {
+    func testGivesMcpServersItsOwnRowWithServersAndSecretsWhileClientsAreLeftOff() {
         let servers = Sidebar.rows.first { $0.id == .servers }
         XCTAssertEqual(servers.flatMap { Sidebar.target($0, supports: everything) }, WindowRoute(.mcp, tab: "servers"))
-        XCTAssertEqual(Sidebar.strip(for: WindowRoute(.mcp, tab: "servers"), supports: everything), [])
+        XCTAssertEqual(Sidebar.strip(for: WindowRoute(.mcp, tab: "servers"), supports: everything).map(\.title), ["Servers", "Secrets"])
         // A runtime without the hub has none of its pages, so the row stays out rather than leading nowhere.
         XCTAssertNil(servers.flatMap { Sidebar.target($0, supports: nothingNew) })
         XCTAssertEqual(Sidebar.row(of: WindowRoute(.mcp, tab: "apps"))?.id, .connectors)

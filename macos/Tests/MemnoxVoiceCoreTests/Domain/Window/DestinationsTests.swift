@@ -47,7 +47,7 @@ final class DestinationsTests: XCTestCase {
 
     func testLeavesDiscoverOutForNowAndShowsTheHubOnceTheRuntimeAnswersIt() {
         XCTAssertFalse(Destinations.visibleTabs(.workspaces, supports: everything).map(\.id).contains("discover"))
-        XCTAssertEqual(Destinations.visibleTabs(.mcp, supports: everything).map(\.id), ["servers", "apps"])
+        XCTAssertEqual(Destinations.visibleTabs(.mcp, supports: everything).map(\.id), ["servers", "secrets", "apps"])
         XCTAssertEqual(Destinations.visibleTabs(.mcp, supports: nothingNew).map(\.id), ["apps"])
         XCTAssertEqual(Destinations.matchCommands("servers", supports: everything).map(\.title), ["Servers"])
     }
@@ -60,11 +60,15 @@ final class DestinationsTests: XCTestCase {
         XCTAssertFalse(Destinations.visibleTabs(.settings, supports: { _ in true }).map(\.id).contains("network"))
     }
 
+    func testShowsLearnAndSecretsSinceOtherPagesSendPeopleThere() {
+        XCTAssertEqual(Destinations.settled(WindowRoute(.governance, tab: "learn"), supports: everything), WindowRoute(.governance, tab: "learn"))
+        XCTAssertEqual(Destinations.settled(WindowRoute(.mcp, tab: "secrets"), supports: everything), WindowRoute(.mcp, tab: "secrets"))
+    }
+
     func testLeavesWhatCouldLoseAPersonOffForNowAndSettlesItsOldLinks() {
         XCTAssertFalse(Destinations.visibleTabs(.settings, supports: { _ in true }).map(\.id).contains("sync"))
         XCTAssertEqual(Destinations.settled(WindowRoute(.settings, tab: "sync"), supports: everything), WindowRoute(.settings, tab: "account"))
-        XCTAssertEqual(Destinations.settled(WindowRoute(.governance, tab: "learn"), supports: everything), WindowRoute(.governance, tab: "approvals"))
-        XCTAssertEqual(Destinations.settled(WindowRoute(.mcp, tab: "secrets"), supports: everything), WindowRoute(.mcp, tab: "servers"))
+        XCTAssertEqual(Destinations.settled(WindowRoute(.mcp, tab: "clients"), supports: everything), WindowRoute(.mcp, tab: "servers"))
         XCTAssertEqual(Destinations.settled(WindowRoute(.workspaces, tab: "assigned"), supports: everything), WindowRoute(.workspaces, tab: "projects"))
     }
 
@@ -83,8 +87,9 @@ final class DestinationsTests: XCTestCase {
         XCTAssertEqual(titles(.agents), [["Agents", "Agents", "Jobs", "Work"], ["This computer", "On this computer"]])
         XCTAssertEqual(titles(.workspaces), [["Projects", "Projects"], ["Knowledge", "Map", "Memory", "Layers", "Files"],
                                              ["Skills", "My Skills"]])
-        XCTAssertEqual(titles(.mcp), [["Hub", "Servers"], ["Apps", "Connectors"]])
-        XCTAssertEqual(titles(.governance), [["Needs your attention", "Approvals"], ["Rules", "Protection settings"], ["Record", "Activity"]])
+        XCTAssertEqual(titles(.mcp), [["Hub", "Servers", "Secrets"], ["Apps", "Connectors"]])
+        XCTAssertEqual(titles(.governance), [["Needs your attention", "Approvals", "Learn"], ["Rules", "Protection settings"],
+                                             ["Record", "Activity"]])
     }
 
     func testDropsAHeadingWhoseEveryTabIsHiddenSoNoGroupStandsOverNothing() {

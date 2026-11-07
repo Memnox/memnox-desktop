@@ -232,10 +232,10 @@ public enum Destinations {
 
     /// Pages left off for now, so the window stays straightforward and nobody gets lost; each still settles on its
     /// destination's first tab shown, so an old link lands somewhere.
+    /// Learn and Secrets stay shown, since memory read from a source waits in Learn to be confirmed and a server that
+    /// needs a secret is set up only under Secrets; hiding either left the pages that send people there a dead end.
     public static let leftOff: Set<WindowRoute> = [
-        WindowRoute(.governance, tab: "learn"),
         WindowRoute(.mcp, tab: "clients"),
-        WindowRoute(.mcp, tab: "secrets"),
         WindowRoute(.workspaces, tab: "assigned"),
         WindowRoute(.agents, tab: "sessions"),
         WindowRoute(.settings, tab: "sync"),

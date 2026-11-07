@@ -24,7 +24,8 @@ final class ProfilesTests: XCTestCase {
         XCTAssertEqual(apply.profileAgent, "claude-code")
         XCTAssertEqual(apply.profileProject, "/code/api")
         let removed = await profiles.remove("backend-engineering")
-        XCTAssertEqual(removed, .done("backend-engineering is forgotten. What it already gave stays where it was given."))
+        // Pressed by id, said by name, since the person reads names.
+        XCTAssertEqual(removed, .done("Backend Engineering is forgotten. What it already gave stays where it was given."))
         XCTAssertEqual(profiles.profiles, [])
     }
 

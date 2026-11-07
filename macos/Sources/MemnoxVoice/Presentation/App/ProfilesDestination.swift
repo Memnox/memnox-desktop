@@ -42,6 +42,8 @@ struct ProfilesDestination: View {
     @State private var creating = false
     /// The job being given to an agent's default, opened from Give it a job.
     @State private var givingJob: ProfileView?
+    /// A kept job Edit the job on an agent's card asked for, opened on its editor once it is read.
+    @State private var editingAsked: ProfileView?
     @State private var template: ProfileTemplate?
 
     var body: some View {
@@ -65,6 +67,11 @@ struct ProfilesDestination: View {
                     ProfileSheet(shell: shell, screen: screen, jobFor: givingJob) { self.givingJob = nil }
                 }
             }
+            .consoleSheet(isPresented: Binding(get: { editingAsked != nil }, set: { if !$0 { editingAsked = nil } })) {
+                if let editingAsked {
+                    ProfileSheet(shell: shell, screen: screen, editing: editingAsked) { self.editingAsked = nil }
+                }
+            }
             .consoleSheet(isPresented: Binding(get: { template != nil }, set: { if !$0 { template = nil } })) {
                 if let template { TemplateSheet(screen: screen, template: template) { self.template = nil } }
             }
@@ -75,7 +82,8 @@ struct ProfilesDestination: View {
         guard let asked = shell.jobFor else { return }
         shell.jobFor = nil
         guard let profile = screen.profiles.profiles?.first(where: { $0.id == asked }) else { return }
-        if profile.isDefault { givingJob = profile }
+        // A default is given a job; a kept job opens on its own editor, so Edit the job on a card always lands on it.
+        if profile.isDefault { givingJob = profile } else { editingAsked = profile }
     }
 
     @ViewBuilder private var page: some View {
@@ -413,11 +421,17 @@ private struct ApplyForm: View {
     @State private var project = ""
 
     var body: some View {
-        let agents = shell.skills?.skills.hub?.agents.filter(\.installed) ?? []
+        // The Skills Hub's agents where it answers, else the agents found here, so Apply never stands with nothing to choose.
+        let hubAgents = (shell.skills?.skills.hub?.agents.filter(\.installed) ?? []).map { SelectOption(value: $0.agent, title: $0.label) }
+        let options = hubAgents.isEmpty ? (shell.agents?.agents.agents ?? []).map { SelectOption(value: $0.kind, title: $0.name) } : hubAgents
         let projects = shell.projects?.projects.projects ?? []
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             ShellDivider()
-            ConsoleSelect(label: "Agent", selection: $agent, options: agents.map { SelectOption(value: $0.agent, title: $0.label) })
+            if options.isEmpty {
+                QuietLine("No agent is found on this Mac yet. Install one and it appears here.")
+            } else {
+                ConsoleSelect(label: "Agent", selection: $agent, options: options)
+            }
             HStack(spacing: Memnox.Spacing.medium) {
                 TextField("Repository, optional", text: $project)
                     .kitField()
@@ -451,7 +465,7 @@ private struct ApplyForm: View {
                 Button("Cancel", action: cancel).buttonStyle(KitButton(kind: .secondary))
             }
         }
-        .onAppear { if agent.isEmpty, let first = agents.first { agent = first.agent } }
+        .onAppear { if agent.isEmpty, let first = options.first { agent = first.value } }
     }
 
     private func choose() {

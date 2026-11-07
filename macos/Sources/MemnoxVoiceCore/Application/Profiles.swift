@@ -57,7 +57,8 @@ public final class Profiles: @unchecked Sendable {
     public func remove(_ name: String) async -> ProfileOutcome {
         var request = DaemonRequest(id: ids.next(), method: .profileRemove)
         request.profileName = name
-        return await change(name, request) { _ in "\(name) is forgotten. What it already gave stays where it was given." }
+        let shown = named(name)
+        return await change(name, request) { _ in "\(shown) is forgotten. What it already gave stays where it was given." }
     }
 
     /// Reads the catalog of job descriptions, which ships with the runtime and needs no account.
@@ -72,7 +73,8 @@ public final class Profiles: @unchecked Sendable {
         var request = DaemonRequest(id: ids.next(), method: .profileBind)
         request.profileName = profile
         request.agentId = agent
-        return await change(profile, request) { _ in "The agent now works under \(profile)." }
+        let shown = named(profile)
+        return await change(profile, request) { _ in "The agent now works under \(shown)." }
     }
 
     /// Takes the binding off, which puts the agent back on its own default profile.
@@ -106,9 +108,15 @@ public final class Profiles: @unchecked Sendable {
         let folder = project.trimmingCharacters(in: .whitespacesAndNewlines)
         if !folder.isEmpty { request.profileProject = folder }
         let keyTitle = keyTitle
+        let shown = named(name)
         return await change(name, request) { response in
-            response.profileApplied.map { ProfileLines.applied($0, keyTitle: keyTitle) } ?? "\(name) is applied."
+            response.profileApplied.map { ProfileLines.applied($0, keyTitle: keyTitle) } ?? "\(shown) is applied."
         }
+    }
+
+    /// A profile's name for a line, since the pages press by id and the person reads names.
+    private func named(_ idOrName: String) -> String {
+        lock.withLock { list?.first { $0.id == idOrName }?.name } ?? idOrName
     }
 
     private func change(_ subject: String, _ request: DaemonRequest, done: (DaemonResponse) -> String) async -> ProfileOutcome {

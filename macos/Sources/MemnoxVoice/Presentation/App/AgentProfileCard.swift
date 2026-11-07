@@ -9,8 +9,9 @@ struct AgentProfileCard: View {
     let profile: ProfileView
     /// The open work its agent carries, newest first; nil where this Mac's runtime keeps no work.
     let work: AgentWork?
-    /// Opens the job: a default gets a new job bound to its agent, any other its own job to edit.
-    let giveJob: (ProfileView) -> Void
+    /// Opens the job: a default gets a new job bound to its agent, any other its own job to edit; nil for a job kept
+    /// in the workspace, which is edited in the console.
+    let giveJob: ((ProfileView) -> Void)?
 
     private static let logo: CGFloat = 30
     /// How faint a card with nobody behind it is drawn, so it never reads as an agent at work.
@@ -47,10 +48,12 @@ struct AgentProfileCard: View {
                 StatusWord(.quiet, AgentProfileLines.noAgent)
             }
             Spacer(minLength: 0)
-            Button(profile.isDefault ? AgentProfileLines.giveJob : "Edit the job", systemImage: profile.isDefault ? "briefcase" : "pencil") {
-                giveJob(profile)
+            if let giveJob {
+                Button(profile.isDefault ? AgentProfileLines.giveJob : "Edit the job", systemImage: profile.isDefault ? "briefcase" : "pencil") {
+                    giveJob(profile)
+                }
+                .buttonStyle(KitButton(kind: profile.isDefault ? .primary : .secondary))
             }
-            .buttonStyle(KitButton(kind: profile.isDefault ? .primary : .secondary))
         }
         .padding(Memnox.Spacing.xLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

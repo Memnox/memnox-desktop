@@ -17,7 +17,7 @@ public struct URLSessionTransport: HttpTransport {
 }
 
 /// The person inbox over Memnox Cloud's JSON API, as memnox-cloud/docs/person-inbox.md describes it.
-public final class HttpWorkspaceInbox: WorkspaceInbox, @unchecked Sendable {
+public final class HttpWorkspaceInbox: WorkspaceInbox, WorkspaceAgentsReader, @unchecked Sendable {
     public static let defaultBase = URL(string: "https://api.memnox.com")! // A literal that always parses.
     private let base: URL
     private let transport: HttpTransport
@@ -93,6 +93,11 @@ public final class HttpWorkspaceInbox: WorkspaceInbox, @unchecked Sendable {
     }
 
     private func exchange(_ method: String, _ path: String, body: [String: String]?, token: String?) async throws -> (Data, Int) {
+        let json = try body.map { try JSONSerialization.data(withJSONObject: $0, options: [.sortedKeys]) }
+        return try await exchange(method, path, json: json, token: token)
+    }
+
+    private func exchange(_ method: String, _ path: String, json: Data?, token: String?) async throws -> (Data, Int) {
         guard let url = URL(string: path, relativeTo: base)?.absoluteURL else {
             throw WorkspaceInboxError.refused(Status.unreadable, "no address for \(path)")
         }
@@ -100,15 +105,33 @@ public final class HttpWorkspaceInbox: WorkspaceInbox, @unchecked Sendable {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
-        if let body {
+        if let json {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
+            request.httpBody = json
         }
         do {
             return try await transport.send(request)
         } catch {
             throw WorkspaceInboxError.unreachable(error.localizedDescription)
         }
+    }
+
+    /// The workspace's jobs, for agents no daemon here reaches.
+    public func agentProfiles(in workspace: String, token: String) async throws -> [CloudProfileView] {
+        let listed: CloudProfiles = try await call("GET", "v1/workspaces/\(Self.segment(workspace))/agent-profiles", token: token)
+        return listed.profiles
+    }
+
+    public func myAgentWork(in workspace: String, token: String) async throws -> CloudMyWork {
+        try await call("GET", "v1/workspaces/\(Self.segment(workspace))/me/agent-work", token: token)
+    }
+
+    /// The answer goes as the cloud's own boolean, unsigned, since it only moves who carries the work.
+    public func answerHandoff(_ handoff: String, in workspace: String, accept: Bool, token: String) async throws {
+        let json = try JSONSerialization.data(withJSONObject: ["accept": accept], options: [.sortedKeys])
+        let (data, status) = try await exchange("POST", "v1/workspaces/\(Self.segment(workspace))/me/handoffs/\(Self.segment(handoff))/answer",
+                                                json: json, token: token)
+        guard Self.succeeded(status) else { throw Self.failure(status, data) }
     }
 
     private func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {

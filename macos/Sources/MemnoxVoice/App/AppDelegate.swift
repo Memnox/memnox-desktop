@@ -397,6 +397,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppWindow.shared.index = CommunityIndex(link: pressing, ids: ids)
         AppWindow.shared.profiles = Profiles(link: pressing, ids: ids)
         AppWindow.shared.work = AgentWorkDesk(link: pressing, ids: ids)
+        AppWindow.shared.workspaceAgents = WorkspaceAgents(reader: cloud, store: personCredential)
         let chosen = UserDefaults.standard.string(forKey: Self.voiceChoiceKey) ?? VoiceChoice.kokoro
         Task {
             await chooseVoice(chosen, announce: false)

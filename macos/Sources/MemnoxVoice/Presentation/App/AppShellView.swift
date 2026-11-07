@@ -278,6 +278,7 @@ private struct AppPage: View {
                                          profiles: shell.supports("profiles") == true ? shell.profiles : nil,
                                          current: shell.currentProject,
                                          work: shell.supports("agent-work") == true ? shell.work : nil,
+                                         workspace: shell.workspaceAgents,
                                          giveJob: { profile in
                                              shell.jobFor = profile.id
                                              shell.go(WindowRoute(.agents, tab: "profiles"))
@@ -322,7 +323,8 @@ private struct AppPage: View {
                 } else if route.tab == "approvals" || route.tab == nil {
                     ApprovalsDestination(island: island, projects: shell.projects?.projects.projects ?? [],
                                          work: shell.supports("agent-work") == true ? shell.work : nil,
-                                         profiles: shell.profiles?.profiles.profiles ?? [], width: width)
+                                         profiles: shell.profiles?.profiles.profiles ?? [],
+                                         workspace: shell.workspaceAgents, width: width)
                 }
             case .settings:
                 SettingsDestination(models: models, menu: menu, setup: setup, tab: route.tab, backup: shell.backup,

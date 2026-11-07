@@ -1,0 +1,39 @@
+import XCTest
+@testable import MemnoxVoiceCore
+
+/// The agents Memnox Cloud reaches, read only while somebody is signed in, and a handoff answered unsigned through it.
+final class WorkspaceAgentsTests: XCTestCase {
+    private static let profiles = #"{"profiles":[{"profile":{"id":"agp_1","name":"Support triage","purpose":"Sorts tickets","responsiblePersonId":"usr_ana","projects":[]},"needsResponsiblePerson":false,"connected":true,"agents":[],"connections":[{"machineId":"mch_1","connection":"gateway","label":"Zendesk bot","live":true,"levels":{"context":"mediated","instructions":"mediated","tools":"mediated","activity":"mediated","coordination":"advisory","approval":"mediated","enforcement":"mediated"}}],"levels":{"context":"mediated","instructions":"mediated","tools":"mediated","activity":"mediated","coordination":"advisory","approval":"mediated","enforcement":"mediated"}}]}"#
+    private static let mine = #"{"work":[{"id":"wrk_1","workspaceId":"ws_1","agentProfileId":"agp_1","responsiblePersonId":"usr_ana","assignedByPersonId":"usr_ana","target":{"source":"jira","externalId":"PAY-42","url":"https://acme.atlassian.net/browse/PAY-42"},"sessions":[],"attempts":1,"status":"handoff_requested","createdAt":"2026-11-07T09:00:00Z","updatedAt":"2026-11-07T10:00:00Z"}],"handoffs":[{"id":"hnd_9","workspaceId":"ws_1","workId":"wrk_1","fromProfileId":"agp_1","toPersonId":"usr_bo","reason":"Needs a refund approver","refs":[],"state":"requested","requestedBy":"agp_1","requestedAt":"2026-11-07T10:00:00Z"}]}"#
+
+    func testHoldsNothingWithNoAccountSoTheLocalListIsWhole() async {
+        let cloud = ScriptedTransport()
+        let agents = WorkspaceAgents(reader: HttpWorkspaceInbox(transport: cloud), store: MemoryPersonCredential())
+        await agents.refresh()
+        XCTAssertFalse(agents.signedIn)
+        XCTAssertEqual(agents.remote, [])
+        XCTAssertTrue(cloud.sent.isEmpty)
+    }
+
+    func testReadsTheWorkspacesJobsAndTheHandoffsWaitingOnThePerson() async throws {
+        let cloud = ScriptedTransport()
+        cloud.answer("GET /v1/workspaces/ws_1/agent-profiles", 200, Self.profiles)
+        cloud.answer("GET /v1/workspaces/ws_1/me/agent-work", 200, Self.mine)
+        cloud.answer("POST /v1/workspaces/ws_1/me/handoffs/hnd_9/answer", 201, #"{"id":"wrk_1"}"#)
+        let agents = WorkspaceAgents(reader: HttpWorkspaceInbox(transport: cloud), store: MemoryPersonCredential(signedInCredential()))
+        await agents.refresh()
+        let profile = try XCTUnwrap(agents.remote.first?.profiles.first)
+        XCTAssertEqual(profile.responsiblePerson, "you")
+        XCTAssertEqual(profile.connections.first?.agentKind, "Zendesk bot")
+        XCTAssertEqual(CapabilityLevelLines.headline(profile.levels), .advisory)
+        XCTAssertEqual(CapabilityLevelLines.seamRows(profile.levels).map(\.title), ["Everything it runs"])
+        let work = try XCTUnwrap(agents.remote.first?.work.first)
+        XCTAssertEqual(work.waitingHandoff?.to.person, "usr_bo")
+        XCTAssertEqual(AgentWorkLines.issue(work), "PAY-42")
+        let answered = await agents.answer("hnd_9", in: "ws_1", .decline)
+        XCTAssertEqual(answered, .done("Declined. The work stays with the agent that has it."))
+        let sent = try XCTUnwrap(cloud.sent("POST /v1/workspaces/ws_1/me/handoffs/hnd_9/answer").first)
+        XCTAssertEqual(sent.raw, #"{"accept":false}"#)
+        XCTAssertEqual(sent.authorization, "Bearer mnx_person")
+    }
+}

@@ -107,6 +107,11 @@ final class AppWindow {
         didSet { shell.work = work.map(AgentWorkScreen.init) }
     }
 
+    /// The agents Memnox Cloud reaches for the person signed in, read by the agents list and Needs your attention.
+    var workspaceAgents: WorkspaceAgents? {
+        didSet { shell.workspaceAgents = workspaceAgents.map(WorkspaceAgentsScreen.init) }
+    }
+
     let shell = AppShellModel()
     private var window: NSWindow?
 
@@ -234,6 +239,8 @@ final class AppShellModel: ObservableObject {
     @Published var profiles: ProfilesScreen?
     /// Agent work for the agents list and the Work tab, nil until the app wires it, which keeps both without work.
     @Published var work: AgentWorkScreen?
+    /// The workspace's agents, nil until the app wires it; it holds nothing while nobody is signed in.
+    @Published var workspaceAgents: WorkspaceAgentsScreen?
     /// The profile whose job the editor opens on, set by Give it a job on an agent's card.
     @Published var jobFor: String?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.

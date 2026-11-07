@@ -29,6 +29,11 @@ public enum CapabilityLevelLines {
 
     /// Each seam enforcement is broken down by, as a person reads it.
     public static func seamTitle(_ seam: String) -> String {
+        // Memnox Cloud states enforcement as one level for everything an agent runs.
+        seam == WorkspaceAgentsLines.everySeam ? "Everything it runs" : knownSeamTitle(seam)
+    }
+
+    private static func knownSeamTitle(_ seam: String) -> String {
         switch EnforcementSeam(rawValue: seam) {
         case .shell: "Commands"
         case .filesystem: "Files"

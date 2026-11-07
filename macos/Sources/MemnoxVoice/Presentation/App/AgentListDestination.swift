@@ -16,6 +16,8 @@ struct AgentListDestination: View {
     var current: ProjectView?
     /// The work each agent carries, nil where this Mac's runtime keeps none.
     var work: AgentWorkScreen?
+    /// The agents Memnox Cloud reaches, shown only while the person is signed in.
+    var workspace: WorkspaceAgentsScreen?
     /// Opens a profile's job, from Give it a job or Edit the job on its card.
     var giveJob: (ProfileView) -> Void = { _ in }
     let width: WidthClass
@@ -36,6 +38,7 @@ struct AgentListDestination: View {
             ShellScroll(width: width) {
                 NoteBanner(text: screen.note)
                 if let profiles { ProfileCards(profiles: profiles, work: work, giveJob: giveJob) }
+                if let workspace { WorkspaceAgentsSection(screen: workspace) }
                 if list.isEmpty {
                     EmptyState(symbol: "cpu", title: "No agents found yet",
                                detail: "Install Claude Code, Codex, Cursor or another agent and it appears here.")

@@ -11,6 +11,8 @@ final class ScriptedTransport: HttpTransport, @unchecked Sendable {
         let query: String?
         let authorization: String?
         let body: [String: String]
+        /// The body as sent, for one that is not all strings, such as a handoff's boolean answer.
+        let raw: String?
     }
 
     private let lock = NSLock()
@@ -52,7 +54,8 @@ final class ScriptedTransport: HttpTransport, @unchecked Sendable {
         let body = request.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: String] } ?? [:]
         lock.lock()
         defer { lock.unlock() }
-        kept.append(Sent(method: method, path: path, query: request.url?.query, authorization: request.value(forHTTPHeaderField: "Authorization"), body: body))
+        kept.append(Sent(method: method, path: path, query: request.url?.query, authorization: request.value(forHTTPHeaderField: "Authorization"), body: body,
+                         raw: request.httpBody.flatMap { String(data: $0, encoding: .utf8) }))
         let route = "\(method) \(path)"
         var queue = queues[route] ?? []
         if queue.count == 1 { served.insert(route) }

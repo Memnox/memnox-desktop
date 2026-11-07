@@ -11,6 +11,8 @@ struct ApprovalsDestination: View {
     var work: AgentWorkScreen?
     /// The jobs, which name the agent a handoff is from and to.
     var profiles: [ProfileView] = []
+    /// The workspace's handoffs, which wait here while the person is signed in.
+    var workspace: WorkspaceAgentsScreen?
     let width: WidthClass
 
     var body: some View {
@@ -18,6 +20,7 @@ struct ApprovalsDestination: View {
         ShellScroll(width: width) {
             NoticesSwitch(notifier: HeldNotifier.shared)
             if let work { WorkNeedingYou(screen: work, names: WorkNames(profiles)) }
+            if let workspace { WorkspaceHandoffs(screen: workspace) }
             if waiting.isEmpty {
                 EmptyState(symbol: "checkmark.shield", title: "Nothing is waiting on you",
                            detail: "When an agent asks before doing something your rules hold, it waits here and on the island.")

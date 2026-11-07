@@ -12,7 +12,7 @@ final class FirstRunEndTests: XCTestCase {
 
     func testListsWhatIsOptionalShortlyEachLinkedToItsSettingsPage() {
         let extras = FirstRunEnd.extras(hearing: false, signedIn: false, phonePaired: false)
-        XCTAssertEqual(extras.map(\.title), ["Talk to Memnox", "Keys to try", "Sign in to your workspace", "Pair your iPhone"])
+        XCTAssertEqual(extras.map(\.title), ["Talk to Memnox", "Keys to try", "Sign in to Memnox Cloud", "Pair your iPhone"])
         XCTAssertEqual(extras.map(\.id.settingsTab), ["voice", "listening", "account", "phones"])
         for tab in extras.map(\.id.settingsTab) {
             XCTAssertEqual(Destinations.route(forPage: tab), WindowRoute(.settings, tab: tab))

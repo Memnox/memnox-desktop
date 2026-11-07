@@ -22,19 +22,19 @@ public struct FoundToImport: Equatable, Sendable {
     public var isEmpty: Bool { servers.isEmpty && skills.isEmpty }
 }
 
-/// The first run's three short steps and what each says, with the safe defaults already chosen so a press of Continue
+/// The first run's short steps and what each says, with the safe defaults already chosen so a press of Continue
 /// is always the sensible answer. Counts, never a score.
 public enum FirstRunLines {
-    /// The three steps by name, as the stepper shows them; the voice, the keys, the workspace and the phone wait after
-    /// them in Settings, each optional.
-    public static let steps = ["Connect", "Bring in what your agents use", "Starting rules"]
+    /// The steps by name, as the stepper shows them: the scan, the two questions asked one at a time, what the agents
+    /// already keep, and the rules; the voice, the workspace and the phone wait after them, each optional.
+    public static let steps = ["Connect", "Its job", "Where it runs", "Bring in", "Starting rules"]
 
-    /// "Step 2 of 3", over every step, so a new person always knows how much is left.
+    /// "Step 2 of 5", over every step, so a new person always knows how much is left.
     public static func progressLabel(step: Int) -> String {
         "Step \(min(max(step, 0), steps.count - 1) + 1) of \(steps.count)"
     }
 
-    /// How far the bar is filled: a third, two thirds, then whole, and whole again once the steps are done.
+    /// How far the bar is filled, one step's share at a time, and whole once the steps are done.
     public static func progress(step: Int, done: Bool) -> Double {
         if done { return 1 }
         return Double(step + 1) / Double(steps.count)

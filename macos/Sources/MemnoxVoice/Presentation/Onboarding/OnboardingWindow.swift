@@ -2,21 +2,25 @@ import AppKit
 import MemnoxVoiceCore
 import SwiftUI
 
-/// Where the first run stands: the opening over the whole screen, the name asked there, the three short steps every
-/// Mac needs, then the end with one next action and what is optional.
+/// Where the first run stands: the opening over the whole screen, the name asked there, the short steps every Mac
+/// needs, then the end with what Memnox can and cannot do, one next action and what is optional.
 enum OnboardingStage: Equatable {
     case intro
     case name
     case steps
-    /// The end: one next action, and the voice, the keys, the workspace and the phone as links to Settings.
+    /// The end: what Memnox covers, one next action, and the voice, the keys, Memnox Cloud and the phone, each optional.
     case ready
 }
 
-/// The three short steps a fresh Mac needs with no account, safe defaults already chosen in each; the notch plays beside
-/// all of them.
+/// The short steps a fresh Mac needs with no account, safe defaults already chosen in each and one question at a time;
+/// the notch plays beside all of them.
 enum OnboardingStep: Int, CaseIterable, Identifiable {
-    /// The service, Touch ID, and the agents found here, on one card.
+    /// The service, Touch ID, and the agents found here, each put under Memnox by itself, on one card.
     case connect
+    /// What the person wants their AI to help with, kept as a job from the runtime's templates.
+    case job
+    /// Where their agent runs, which says how it reaches Memnox and binds the job to an agent found here.
+    case place
     /// The servers and skills the agents already keep, every one ticked and brought in with one press.
     case workspace
     /// The recommended pack of rules, already chosen, proposed on Finish and signed on the island one by one.
@@ -46,6 +50,18 @@ final class OnboardingFlow: ObservableObject {
     var narrated: Set<Highlight> = []
     /// The lines a step said once what it waited on answered, such as what the second step found, so a return is quiet.
     var answered: Set<String> = []
+    /// The job kept from a template on the job step, by its profile id and name; nil when the person skipped it.
+    @Published var job: (id: String, name: String)? {
+        didSet { remember() }
+    }
+    /// Where the person said their agent runs; nil until they answer, or when they skip.
+    @Published var place: AgentPlace? {
+        didSet { remember() }
+    }
+    /// The agent found here the job was bound to, by its name, so the end says who does the job.
+    @Published var boundTo: String?
+    /// Set once the first run put the agents found here under Memnox by itself, so it is tried once and then offered.
+    var autoProtected = false
 
     /// Says a step's line after the page's own, once in this first run.
     func sayOnce(_ line: String, key: String) {
@@ -60,7 +76,7 @@ final class OnboardingFlow: ObservableObject {
 
     var ready: Bool { stage == .ready }
 
-    /// The next step, or the end once the three are done.
+    /// The next step, or the end once they are done.
     func next() {
         if let following = OnboardingStep(rawValue: step.rawValue + 1) {
             step = following
@@ -90,8 +106,11 @@ final class OnboardingFlow: ObservableObject {
     func recall() {
         guard stage == .intro, UserDefaults.standard.object(forKey: Self.stepKey) != nil,
               let kept = OnboardingStep(rawValue: UserDefaults.standard.integer(forKey: Self.stepKey)) else { return }
+        let defaults = UserDefaults.standard
         step = kept
-        stage = UserDefaults.standard.bool(forKey: Self.optionalKey) ? .ready : .steps
+        stage = defaults.bool(forKey: Self.optionalKey) ? .ready : .steps
+        place = defaults.string(forKey: Self.placeKey).flatMap(AgentPlace.init(rawValue:))
+        if let id = defaults.string(forKey: Self.jobIdKey), let name = defaults.string(forKey: Self.jobNameKey) { job = (id, name) }
     }
 
     /// Forgets the step, once the first run is over.
@@ -99,7 +118,13 @@ final class OnboardingFlow: ObservableObject {
         UserDefaults.standard.removeObject(forKey: Self.stepKey)
         UserDefaults.standard.removeObject(forKey: Self.optionalKey)
         UserDefaults.standard.removeObject(forKey: Self.guidedKey)
+        for key in [Self.placeKey, Self.jobIdKey, Self.jobNameKey] { UserDefaults.standard.removeObject(forKey: key) }
     }
+
+    /// The answers to the two questions, kept so a reopen for Screen Recording still ends on what they said.
+    private static let placeKey = "onboardingPlace"
+    private static let jobIdKey = "onboardingJobId"
+    private static let jobNameKey = "onboardingJobName"
 
     /// The page on screen, a step or the end, so each is introduced once.
     var page: Int { guidePage.rawValue }
@@ -111,6 +136,8 @@ final class OnboardingFlow: ObservableObject {
         case .intro, .name, .steps:
             switch step {
             case .connect: return .connect
+            case .job: return .job
+            case .place: return .place
             case .workspace: return .workspace
             case .boundaries: return .boundaries
             }
@@ -129,8 +156,12 @@ final class OnboardingFlow: ObservableObject {
     private static let guidedKey = "onboardingGuided"
 
     private func remember() {
-        UserDefaults.standard.set(step.rawValue, forKey: Self.stepKey)
-        UserDefaults.standard.set(ready, forKey: Self.optionalKey)
+        let defaults = UserDefaults.standard
+        defaults.set(step.rawValue, forKey: Self.stepKey)
+        defaults.set(ready, forKey: Self.optionalKey)
+        defaults.set(place?.rawValue, forKey: Self.placeKey)
+        defaults.set(job?.id, forKey: Self.jobIdKey)
+        defaults.set(job?.name, forKey: Self.jobNameKey)
     }
 }
 

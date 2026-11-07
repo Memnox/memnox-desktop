@@ -15,7 +15,7 @@ public enum FirstRunNext: Equatable, Sendable {
     }
 }
 
-/// What is optional after the steps, each a link to the Settings page that holds it.
+/// What is optional after the steps, each done from the end itself or a link to the Settings page that holds it.
 public enum FirstRunExtraId: String, CaseIterable, Sendable {
     case voice
     case keys
@@ -49,7 +49,7 @@ public enum FirstRunEnd {
         return trimmed.isEmpty ? "You're set." : "You're set, \(trimmed)."
     }
 
-    public static let lead = "Your agents work inside your starting rules now. Everything below is optional, and waits in Settings."
+    public static let lead = "Your agents work inside your starting rules now. Here is what that covers, and what is optional."
 
     /// Talking once the microphone is allowed, since it shows Memnox at work in a second; Home otherwise.
     public static func next(hearing: Bool) -> FirstRunNext {
@@ -73,11 +73,12 @@ public enum FirstRunEnd {
             case .workspace:
                 return signedIn
                     ? FirstRunExtra(id: id, title: "Your workspace", detail: "Signed in. Its rules and memory reach this Mac.", done: true)
-                    : FirstRunExtra(id: id, title: "Sign in to your workspace", detail: "Bring your team's rules and memory to this Mac.", done: false)
+                    : FirstRunExtra(id: id, title: "Sign in to Memnox Cloud",
+                                    detail: "Optional. Reach hosted and app agents, and bring your team's rules and memory here.", done: false)
             case .phone:
                 return phonePaired
                     ? FirstRunExtra(id: id, title: "Your iPhone", detail: "Paired. Answer your agents when you are away.", done: true)
-                    : FirstRunExtra(id: id, title: "Pair your iPhone", detail: "Answer your agents when you are away from this Mac.", done: false)
+                    : FirstRunExtra(id: id, title: "Pair your iPhone", detail: "Optional. Answer your agents when you are away from this Mac.", done: false)
             }
         }
     }

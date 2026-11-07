@@ -5,8 +5,11 @@ public enum FirstRunPage: Int, CaseIterable, Sendable {
     case connect
     case workspace
     case boundaries
-    /// The end, once the three steps are done.
+    /// The end, once the steps are done.
     case ready
+    /// The two questions, numbered after the pages a first run already under way may have remembered.
+    case job
+    case place
 }
 
 /// Everything the spoken guide says from the first step until setup is finished and the scan after it, written to be heard: short
@@ -28,6 +31,8 @@ public enum FirstRunGuide {
         case .workspace: return workspace
         case .boundaries: return boundaries
         case .ready: return ready
+        case .job: return job
+        case .place: return place
         }
     }
 
@@ -57,29 +62,39 @@ public enum FirstRunGuide {
     }
 
     private static let connect = [
-        "Setup takes three short steps, and I will talk you through each one.",
+        "Setup takes a few short steps, and I will talk you through each one.",
         "Step one connects your agents. The Memnox service installs and starts by itself, and keeps itself up to date.",
         "I put myself under the agents I find, like Claude Code, Codex and Cursor, so everything they do passes your rules first.",
         "Touch ID signs what you approve, and the key never leaves this Mac.",
         "Press Continue as soon as the service shows a tick.",
     ]
 
+    private static let job = [
+        "What do you want your AI to help with? Pick the closest job, or skip it.",
+        "I keep it as a job your agent works under. Nothing is applied until you say so.",
+    ]
+
+    private static let place = [
+        "Where does your agent run? On this Mac, I find it and put it under Memnox by myself.",
+        "Hosted agents, agents inside apps and no code agents reach me through Memnox Cloud, which is optional.",
+    ]
+
     private static let workspace = [
-        "Step two brings in the skills and tools your agents already keep, each in its own folder.",
+        "Next I bring in the skills and tools your agents already keep, each in its own folder.",
         "Brought in once, they are shared with every agent you choose.",
         "A tool brought in runs behind Memnox, so everything it does is checked against your rules and recorded.",
     ]
 
     private static let boundaries = [
-        "Step three sets your starting rules.",
+        "Last, your starting rules.",
         "Every action an agent takes meets a rule: allow, ask or deny. Ask waits for you on the notch island.",
         "I chose the pack I recommend. Press Finish, and confirm its rules with Touch ID on the island.",
         "You can change any rule later, under Protection settings.",
     ]
 
     private static let ready = [
-        "That is the three steps done. Your agents now work inside your rules.",
-        "The rest is optional and waits in Settings: the voice, your workspace, and your iPhone.",
+        "That is setup done. Here is what I can and cannot do for each of your agents, in plain words.",
+        "The rest is optional: the voice, signing in to Memnox Cloud, and pairing your iPhone.",
         "Memnox can also act in your apps, like Gmail, Slack and GitHub, through connectors. Nothing goes out until you approve it.",
     ]
 

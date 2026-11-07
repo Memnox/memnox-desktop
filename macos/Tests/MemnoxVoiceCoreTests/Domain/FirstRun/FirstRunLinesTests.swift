@@ -13,12 +13,13 @@ final class FirstRunLinesTests: XCTestCase {
         RulePackView(id: id, name: id, description: "", ruleCount: 3, toml: "")
     }
 
-    func testRunsThreeShortStepsCountedOnEveryOne() {
-        XCTAssertEqual(FirstRunLines.steps, ["Connect", "Bring in what your agents use", "Starting rules"])
-        XCTAssertEqual((0..<3).map { FirstRunLines.progressLabel(step: $0) }, ["Step 1 of 3", "Step 2 of 3", "Step 3 of 3"])
-        XCTAssertEqual(FirstRunLines.progressLabel(step: 7), "Step 3 of 3")
-        XCTAssertEqual(FirstRunLines.progress(step: 0, done: false), 1.0 / 3.0, accuracy: 0.0001)
-        XCTAssertEqual(FirstRunLines.progress(step: 2, done: false), 1)
+    func testRunsFiveShortStepsCountedOnEveryOne() {
+        XCTAssertEqual(FirstRunLines.steps, ["Connect", "Its job", "Where it runs", "Bring in", "Starting rules"])
+        XCTAssertEqual((0..<5).map { FirstRunLines.progressLabel(step: $0) },
+                       ["Step 1 of 5", "Step 2 of 5", "Step 3 of 5", "Step 4 of 5", "Step 5 of 5"])
+        XCTAssertEqual(FirstRunLines.progressLabel(step: 7), "Step 5 of 5")
+        XCTAssertEqual(FirstRunLines.progress(step: 0, done: false), 1.0 / 5.0, accuracy: 0.0001)
+        XCTAssertEqual(FirstRunLines.progress(step: 4, done: false), 1)
         XCTAssertEqual(FirstRunLines.progress(step: 0, done: true), 1)
     }
 

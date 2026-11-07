@@ -79,7 +79,7 @@ struct OnboardingCard: View {
     }
 }
 
-/// The three steps as numbered marks joined by a line, as a stepper reads: a done step is a blue mark with a tick, the
+/// The steps as numbered marks joined by a line, as a stepper reads: a done step is a blue mark with a tick, the
 /// step on screen a blue ring around its number with its name in full ink, and what is left an outline. Step N of 3
 /// stands at the end, so a new person always sees where they are and how much is left.
 private struct OnboardingStepper: View {
@@ -123,7 +123,7 @@ private struct OnboardingStepper: View {
         }
         .animation(.easeOut(duration: Memnox.Motion.quick), value: flow.page)
         .accessibilityElement()
-        .accessibilityLabel(flow.ready ? "Three steps done, the rest is optional"
+        .accessibilityLabel(flow.ready ? "Setup done, the rest is optional"
             : "\(FirstRunLines.progressLabel(step: flow.step.rawValue)), \(flow.step.title)")
     }
 
@@ -178,6 +178,8 @@ private struct OnboardingStepView: View {
             } else {
                 switch flow.step {
                 case .connect: ConnectStep(flow: flow, setup: setup)
+                case .job: JobStep(flow: flow)
+                case .place: PlaceStep(flow: flow)
                 case .workspace: WorkspaceStep(flow: flow)
                 case .boundaries: BoundariesStep(flow: flow)
                 }

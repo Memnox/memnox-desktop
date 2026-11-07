@@ -30,7 +30,7 @@ struct ConnectStep: View {
             }
             KitDivider()
             if let agents = AppWindow.shared.shell.agents {
-                FoundAgents(screen: agents, setup: setup, home: SettingsWindow.shared.home)
+                FoundAgents(flow: flow, screen: agents, setup: setup, home: SettingsWindow.shared.home)
             } else {
                 InstalledAgents(setup: setup)
             }
@@ -49,8 +49,10 @@ struct ConnectStep: View {
     }
 }
 
-/// The agents the runtime found here, as rows of the connect card, each protected or one press from it.
+/// The agents the runtime found here, as rows of the connect card, each put under Memnox by itself once the service
+/// runs, the way setup does, and one press from it again only where that did not go through.
 private struct FoundAgents: View {
+    @ObservedObject var flow: OnboardingFlow
     @ObservedObject var screen: AgentsScreen
     @ObservedObject var setup: SetupModel
     let home: HomeModel?
@@ -84,6 +86,27 @@ private struct FoundAgents: View {
             }
         }
         .task { await screen.agents.refresh() }
+        .task(id: unprotected) { await protectByItself() }
+        if let failed = home?.protectFailed {
+            Text(failed)
+                .font(Memnox.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The agents found that still run outside Memnox, so a new one found later is put under it too.
+    private var unprotected: [String] {
+        (screen.agents.agents ?? []).filter { $0.agentStatus == .unprotected }.map(\.kind)
+    }
+
+    /// Puts what was found under Memnox once, with the same setup the service ran, while the service runs; a press of
+    /// Protect stays for what that could not reach.
+    private func protectByItself() async {
+        guard !unprotected.isEmpty, !flow.autoProtected, setup.daemon == .done, let home, !home.remote() else { return }
+        flow.autoProtected = true
+        _ = await home.protectNow()
+        await screen.agents.refresh()
     }
 }
 
@@ -474,6 +497,7 @@ struct ReadyStep: View {
         let hearing = setup.listening == .done
         let next = FirstRunEnd.next(hearing: hearing)
         StepTitle(title: FirstRunEnd.title(name: setup.name), detail: FirstRunEnd.lead)
+        CoverageCard(flow: flow)
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             switch next {
             case .talk:
@@ -491,7 +515,7 @@ struct ReadyStep: View {
                     .keyboardShortcut(.defaultAction)
             }
         }
-        KitCard(title: "Optional, in Settings") {
+        KitCard(title: "Optional, and you can skip all of it") {
             ForEach(Array(FirstRunEnd.extras(hearing: hearing, signedIn: signedIn, phonePaired: paired).enumerated()),
                     id: \.element.id) { index, extra in
                 if index > 0 { KitDivider() }
@@ -512,6 +536,12 @@ struct ReadyStep: View {
         if extra.id == .voice, !extra.done {
             Button("Allow", systemImage: "checkmark.shield") { Task { await setup.allowListening() } }
                 .buttonStyle(KitButton(kind: .secondary))
+        } else if extra.id == .workspace, !extra.done, let account = flow.account {
+            SignInButton(account: account)
+        } else if extra.id == .phone, !extra.done {
+            Button("Pair", systemImage: "iphone") { openSettings(extra.id.settingsTab) }
+                .buttonStyle(KitButton(kind: .secondary))
+                .help("Pair your iPhone in Settings, or skip it")
         } else if extra.done {
             CheckBox(state: .done)
         } else {
@@ -549,6 +579,23 @@ struct ReadyStep: View {
     private func openSettings(_ tab: String) {
         SettingsWindow.shared.show()
         AppWindow.shared.shell.go(WindowRoute(.settings, tab: tab))
+    }
+}
+
+/// Sign in to Memnox Cloud straight from the end, waiting on the console page it opens; cancelling changes nothing.
+private struct SignInButton: View {
+    @ObservedObject var account: AccountModel
+
+    var body: some View {
+        switch account.step {
+        case .starting, .showingCode:
+            Button("Cancel") { account.cancel() }.buttonStyle(KitButton(kind: .secondary))
+                .help("Approve the code on the page that opened, or cancel and sign in later")
+        case .signedIn:
+            CheckBox(state: .done)
+        case .signedOut, .failed:
+            Button("Sign in", systemImage: "person.crop.circle") { account.start() }.buttonStyle(KitButton(kind: .secondary))
+        }
     }
 }
 

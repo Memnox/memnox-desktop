@@ -230,6 +230,8 @@ function counted(count: number, one: string, many: string): string {
 /** The Agents list's own words. */
 export const AgentListLines = {
   readWhat: 'the agents',
+  noRuntime: 'No Memnox runtime is running on this computer, so only the agents your workspace reaches are listed. Start it to see and protect the agents here too.',
+  startRuntime: 'Start Memnox',
   emptyTitle: 'No agents found yet',
   emptyBody: 'Install Claude Code, Codex, Cursor or another agent and it appears here.',
   show: 'Show',

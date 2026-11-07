@@ -117,7 +117,7 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
     if (!agents.unreadable) return null;
     return (
       <div className="flex flex-col gap-6">
-        <ReadFailed what={AgentListLines.readWhat} retry={() => void agents.refresh()} />
+        {parts.workspaceAgents.signedIn ? <NoRuntime parts={parts} /> : <ReadFailed what={AgentListLines.readWhat} retry={() => void agents.refresh()} />}
         <WorkspaceAgentsSection parts={parts} />
       </div>
     );
@@ -445,3 +445,29 @@ function LaunchForm({
   );
 }
 
+
+/** No daemon here while signed in: the workspace's agents stand alone, with the same start setup runs everywhere else. */
+function NoRuntime({ parts }: { parts: SettingsParts }) {
+  const { steps, setup, agents, support, workspaceAgents } = parts;
+  useObserved(steps, setup, workspaceAgents);
+  const doing = setup.state.doing;
+  return (
+    <Note>
+      <span className="flex flex-col items-start gap-2">
+        <span>{AgentListLines.noRuntime}</span>
+        <Button
+          kind="primary"
+          busy={doing !== undefined}
+          onClick={() =>
+            void steps.checkService().then(() => {
+              support.forget();
+              void agents.refresh();
+            })
+          }
+        >
+          {doing ?? AgentListLines.startRuntime}
+        </Button>
+      </span>
+    </Note>
+  );
+}

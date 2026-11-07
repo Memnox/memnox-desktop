@@ -26,6 +26,7 @@ import {
   tabOf,
   visibleTabs,
   widthClass,
+  withWorkspaceAgents,
   type Supports,
 } from '../src/core/domain/destinations';
 import { ScriptedDaemon } from './doubles';
@@ -34,6 +35,12 @@ const nothingNew: Supports = () => false;
 const everything: Supports = () => true;
 
 describe('the window’s destinations', () => {
+  it('shows the agents list with no daemon only while the person is signed in to Memnox Cloud', () => {
+    expect(visibleTabs('agents', withWorkspaceAgents(nothingNew, true)).map((tab) => tab.id)).toEqual(['list', 'computer']);
+    expect(visibleTabs('agents', withWorkspaceAgents(nothingNew, false)).map((tab) => tab.id)).toEqual(['computer']);
+    expect(withWorkspaceAgents(nothingNew, true)('profiles')).toBe(false);
+  });
+
   it('hides a tab until the daemon answers the method it reads', () => {
     expect(visibleTabs('mcp', nothingNew).map((tab) => tab.id)).toEqual(['apps']);
     expect(visibleTabs('mcp', everything).map((tab) => tab.id)).toEqual(['servers', 'apps']);

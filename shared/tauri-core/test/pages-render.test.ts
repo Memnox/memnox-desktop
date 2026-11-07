@@ -215,6 +215,18 @@ describe('the workspace’s agents', () => {
     expect(approvals).toContain('needs the numbers');
   });
 
+  it('keeps AI agents shown with no daemon while signed in, with the way to start Memnox and the workspace alone', async () => {
+    const { visibleTabs, withWorkspaceAgents } = await import('../src/core/domain/destinations');
+    const parts = await partsOver(gone, workspace);
+    const supports = withWorkspaceAgents((method) => parts.support.supports(method), parts.workspaceAgents.signedIn);
+    expect(visibleTabs('agents', supports).map((tab) => tab.id)).toContain('list');
+    const list = renderToString(createElement('div', null, pageNamed('agents/list').draw(parts)));
+    expect(list).toContain('No Memnox runtime is running on this computer');
+    expect(list).toContain('Start Memnox');
+    expect(list).toContain('In your workspace');
+    expect(list).toContain('Content Agent');
+  });
+
   it('is not there with no account, and nothing is asked of the cloud', async () => {
     const parts = await partsOver(await demo());
     expect(renderToString(createElement('div', null, pageNamed('agents/list').draw(parts)))).not.toContain('In your workspace');

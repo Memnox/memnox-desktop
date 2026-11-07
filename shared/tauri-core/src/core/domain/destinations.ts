@@ -437,6 +437,17 @@ export function paneHeading(route: Route, supports: Supports): PaneHeading {
 /** Whether the daemon answers a method: true, false, or undefined while nobody has asked yet. */
 export type Supports = (method: string) => boolean | undefined;
 
+/**
+ * The agents list stays shown while the person is signed in to Memnox Cloud, even with no daemon answering, since the
+ * workspace's hosted and app agents are listed there; every other method is the daemon's own answer.
+ */
+export function withWorkspaceAgents(supports: Supports, signedIn: boolean): Supports {
+  return (method) => {
+    const answer = supports(method);
+    return method === 'agents' && signedIn && answer !== true ? true : answer;
+  };
+}
+
 export function destinationInfo(id: Destination): DestinationInfo {
   // Every Destination is listed above, so the find always lands.
   return DESTINATIONS.find((each) => each.id === id) as DestinationInfo;

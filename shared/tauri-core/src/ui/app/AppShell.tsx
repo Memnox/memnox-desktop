@@ -53,6 +53,7 @@ import {
   routeForPage,
   searchOf,
   settled,
+  withWorkspaceAgents,
   shellLayout,
   tabGroups,
   type Route,
@@ -182,15 +183,19 @@ function AloneInspector({ parts, route }: { parts: SettingsParts; route: Route }
 
 function Shell({ parts, first }: { parts: SettingsParts; first: Route }) {
   useLook(parts.preferences);
-  const { support, projects } = parts;
-  useObserved(support, projects);
+  const { support, projects, workspaceAgents } = parts;
+  useObserved(support, projects, workspaceAgents);
+  // Read once, so a person signed in with no daemon still finds their workspace's agents under AI agents.
+  useEffect(() => {
+    void workspaceAgents.refresh();
+  }, []);
   const width = useWidthClass();
   const history = useRef(new RouteHistory(first)).current;
   const [, redraw] = useReducer((count: number) => count + 1, 0);
   const [palette, setPalette] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === 'true');
-  const supports = (method: string) => support.supports(method);
+  const supports = withWorkspaceAgents((method: string) => support.supports(method), workspaceAgents.signedIn);
   const route = settled(history.current, supports);
   const place = route.project;
   // The project a route opens, once the list is read; the sidebar swaps to its own pages only then.

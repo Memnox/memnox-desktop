@@ -10923,6 +10923,9 @@
               "id": "org_prj_api",
               "name": "Acme API",
               "repository": "github.com/acme-example/acme-api",
+              "repositories": [
+                "github.com/acme-example/acme-api"
+              ],
               "description": "The public API, billing and the webhook workers",
               "servers": [
                 "github",
@@ -11656,6 +11659,9 @@
               "id": "org_prj_api",
               "name": "Acme API",
               "repository": "github.com/acme-example/acme-api",
+              "repositories": [
+                "github.com/acme-example/acme-api"
+              ],
               "description": "The public API, billing and the webhook workers",
               "servers": [
                 "github",
@@ -12399,6 +12405,9 @@
               "id": "org_prj_api",
               "name": "Acme API",
               "repository": "github.com/acme-example/acme-api",
+              "repositories": [
+                "github.com/acme-example/acme-api"
+              ],
               "description": "The public API, billing and the webhook workers",
               "servers": [
                 "github",

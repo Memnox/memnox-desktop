@@ -159,7 +159,7 @@ describe('the projects use case', () => {
 });
 
 describe('a project the organization shares', () => {
-  const organization = { id: 'op_1', name: 'API', repository: 'github.com/acme/api', servers: ['github'], skills: [], rulePack: 'Release rules', rules: 4, memory: 'project', skipped: [], editedIn: 'API is the organization’s project, so it is changed in Memnox Cloud rather than here.' };
+  const organization = { id: 'op_1', name: 'API', repository: 'github.com/acme/api', repositories: ['github.com/acme/api'], servers: ['github'], skills: [], rulePack: 'Release rules', rules: 4, memory: 'project', skipped: [], editedIn: 'API is the organization’s project, so it is changed in Memnox Cloud rather than here.' };
 
   it('is read only only when the organization names it', () => {
     expect(sharedBy({ scope: 'organization', organization })).toBe(organization);

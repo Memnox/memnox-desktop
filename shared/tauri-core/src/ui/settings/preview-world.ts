@@ -248,6 +248,7 @@ const previewProjects: ProjectView[] = [
       id: 'op_api',
       name: 'Acme API',
       repository: 'github.com/acme/api',
+      repositories: ['github.com/acme/api'],
       description: 'The public API and its workers',
       servers: ['github', 'docs'],
       skills: ['review-checklist'],

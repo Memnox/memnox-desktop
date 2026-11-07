@@ -120,7 +120,7 @@ describe('a project as a card', () => {
     const shared = projectCard({
       ...base,
       scope: 'organization',
-      organization: { id: 'o', name: 'web', repository: 'github.com/acme/web', description: 'The storefront', servers: [], skills: [], rules: 0, memory: 'project', skipped: [], editedIn: '' },
+      organization: { id: 'o', name: 'web', repository: 'github.com/acme/web', repositories: ['github.com/acme/web'], description: 'The storefront', servers: [], skills: [], rules: 0, memory: 'project', skipped: [], editedIn: '' },
     });
     expect(shared).toMatchObject({ repository: 'github.com/acme/web', line: 'The storefront' });
     expect(projectCard({ ...base, path: ' ' }).repository).toBe(NO_REPOSITORY);

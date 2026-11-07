@@ -62,7 +62,7 @@ const project = (extra: Partial<ProjectView> = {}): ProjectView => ({
   ...extra,
 });
 
-const organization = { id: 'org proj', name: 'Acme', repository: 'github.com/acme/launch', description: 'The spring campaign', servers: ['slack'], skills: [], rules: 0, memory: 'project', skipped: [], editedIn: 'Changed in Memnox Cloud' };
+const organization = { id: 'org proj', name: 'Acme', repository: 'github.com/acme/launch', repositories: ['github.com/acme/launch'], description: 'The spring campaign', servers: ['slack'], skills: [], rules: 0, memory: 'project', skipped: [], editedIn: 'Changed in Memnox Cloud' };
 
 describe('the sidebar a project swaps in', () => {
   it('leads with the way back and the project’s name, then its four pages, the one shown lit', () => {

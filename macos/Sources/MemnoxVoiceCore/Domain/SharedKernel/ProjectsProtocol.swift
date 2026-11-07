@@ -90,6 +90,8 @@ public struct ProjectOrganizationView: Decodable, Equatable, Sendable {
     public let name: String
     /// `host/owner/name`, which this clone's `origin` reduces to.
     public let repository: String
+    /// Every repository the project spans, this clone's `origin` among them; nil from a runtime that names only one.
+    public let repositories: [String]?
     public let description: String?
     public let servers: [String]
     public let skills: [String]
@@ -102,12 +104,13 @@ public struct ProjectOrganizationView: Decodable, Equatable, Sendable {
     /// The line a local edit is refused with, for a screen to show before anybody tries.
     public let editedIn: String
 
-    public init(id: String, name: String, repository: String, description: String? = nil, servers: [String] = [],
+    public init(id: String, name: String, repository: String, repositories: [String]? = nil, description: String? = nil, servers: [String] = [],
                 skills: [String] = [], rulePack: String? = nil, rules: Int = 0, memory: String, skipped: [String] = [],
                 editedIn: String) {
         self.id = id
         self.name = name
         self.repository = repository
+        self.repositories = repositories
         self.description = description
         self.servers = servers
         self.skills = skills

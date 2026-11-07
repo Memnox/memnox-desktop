@@ -102,6 +102,11 @@ final class AppWindow {
         didSet { shell.profiles = profiles.map(ProfilesScreen.init) }
     }
 
+    /// Agent work joined to tracker issues, read by the agents list and the Work tab.
+    var work: AgentWorkDesk? {
+        didSet { shell.work = work.map(AgentWorkScreen.init) }
+    }
+
     let shell = AppShellModel()
     private var window: NSWindow?
 
@@ -227,6 +232,10 @@ final class AppShellModel: ObservableObject {
     @Published var index: IndexScreen?
     /// Profiles for their tab and Launch, nil until the app wires it, which keeps the tab empty and Launch without a choice.
     @Published var profiles: ProfilesScreen?
+    /// Agent work for the agents list and the Work tab, nil until the app wires it, which keeps both without work.
+    @Published var work: AgentWorkScreen?
+    /// The profile whose job the editor opens on, set by Give it a job on an agent's card.
+    @Published var jobFor: String?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.
     @Published private(set) var answers = 0
     private var support: DaemonSupport?

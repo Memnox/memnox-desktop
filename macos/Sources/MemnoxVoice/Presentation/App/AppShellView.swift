@@ -272,7 +272,12 @@ private struct AppPage: View {
                 } else if route.tab == "list", let agents = shell.agents {
                     AgentListDestination(screen: agents, island: island, home: models.home,
                                          profiles: shell.supports("profiles") == true ? shell.profiles : nil,
-                                         current: shell.currentProject, width: width)
+                                         current: shell.currentProject,
+                                         work: shell.supports("agent-work") == true ? shell.work : nil,
+                                         giveJob: { profile in
+                                             shell.jobFor = profile.id
+                                             shell.go(WindowRoute(.agents, tab: "profiles"))
+                                         }, width: width)
                 } else {
                     SessionsDestination(shell: shell, island: island, width: width)
                 }

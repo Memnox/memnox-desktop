@@ -396,6 +396,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppWindow.shared.sync = PersonalSync(link: pressing, ids: ids)
         AppWindow.shared.index = CommunityIndex(link: pressing, ids: ids)
         AppWindow.shared.profiles = Profiles(link: pressing, ids: ids)
+        AppWindow.shared.work = AgentWorkDesk(link: pressing, ids: ids)
         let chosen = UserDefaults.standard.string(forKey: Self.voiceChoiceKey) ?? VoiceChoice.kokoro
         Task {
             await chooseVoice(chosen, announce: false)
@@ -671,8 +672,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             liveActivity(event)
             return
         }
-        // Work changes are for the window's Work tab, never said.
-        if event.eventKind == .work { return }
+        // Work changes are for the window's agents and Work tab, never said.
+        if event.eventKind == .work {
+            if let changed = event.workChanged { AppWindow.shared.work?.heard(changed) }
+            return
+        }
         // Saying the name near the phone must not wake the Mac as well, so the name is not listened for while a phone holds the voice.
         if let voiceOn = event.voiceOn {
             phoneHoldsVoice = voiceOn.holding
@@ -1421,6 +1425,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     // Live activity is asked for, since Activity pages through the chosen machine's ledger and shows its rows.
                     var subscribe = DaemonRequest(id: ids.next(), method: .subscribe)
                     subscribe.subscribeActivity = true
+                    // Work changes too, so a handoff or a done claim reaches the window without a read.
+                    subscribe.subscribeWork = true
                     for try await response in link.stream(subscribe) {
                         guard let event = response.event else { continue }
                         await deliver(event)

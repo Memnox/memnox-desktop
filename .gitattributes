@@ -1,5 +1,6 @@
-# Shell scripts run under sh on every platform, so a Windows checkout must not turn their endings into CRLF.
-* text=auto
+# Every text file is checked out with LF, since the parity tests read the Swift and TypeScript sources line by line
+# and shell scripts run under sh on every platform; only the Windows scripts keep the CRLF cmd expects.
+* text=auto eol=lf
 *.sh text eol=lf
 *.cmd text eol=crlf
 *.bat text eol=crlf

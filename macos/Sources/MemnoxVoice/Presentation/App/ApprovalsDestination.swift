@@ -7,12 +7,17 @@ struct ApprovalsDestination: View {
     @ObservedObject var island: IslandModel
     /// The projects on this computer, which name where each call waits.
     let projects: [ProjectView]
+    /// Agent work whose handoffs and done claims wait here too, nil where this Mac's runtime keeps none.
+    var work: AgentWorkScreen?
+    /// The jobs, which name the agent a handoff is from and to.
+    var profiles: [ProfileView] = []
     let width: WidthClass
 
     var body: some View {
         let waiting = island.waiting.entries
         ShellScroll(width: width) {
             NoticesSwitch(notifier: HeldNotifier.shared)
+            if let work { WorkNeedingYou(screen: work, names: WorkNames(profiles)) }
             if waiting.isEmpty {
                 EmptyState(symbol: "checkmark.shield", title: "Nothing is waiting on you",
                            detail: "When an agent asks before doing something your rules hold, it waits here and on the island.")

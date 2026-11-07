@@ -269,6 +269,8 @@ private struct AppPage: View {
             case .agents:
                 if route.tab == "computer" {
                     SettingsPageColumn { ToolsPage(tools: menu.tools) }
+                } else if route.tab == "work", let work = shell.work {
+                    WorkDestination(screen: work, profiles: shell.profiles, width: width)
                 } else if route.tab == "profiles", let profiles = shell.profiles {
                     ProfilesDestination(shell: shell, screen: profiles, width: width)
                 } else if route.tab == "list", let agents = shell.agents {
@@ -318,7 +320,9 @@ private struct AppPage: View {
                 } else if route.tab == "learn", let memory = shell.memory {
                     LearnDestination(screen: memory, island: island, width: width)
                 } else if route.tab == "approvals" || route.tab == nil {
-                    ApprovalsDestination(island: island, projects: shell.projects?.projects.projects ?? [], width: width)
+                    ApprovalsDestination(island: island, projects: shell.projects?.projects.projects ?? [],
+                                         work: shell.supports("agent-work") == true ? shell.work : nil,
+                                         profiles: shell.profiles?.profiles.profiles ?? [], width: width)
                 }
             case .settings:
                 SettingsDestination(models: models, menu: menu, setup: setup, tab: route.tab, backup: shell.backup,

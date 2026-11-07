@@ -14,7 +14,7 @@ final class DestinationsTests: XCTestCase {
     }
 
     func testListsEveryAgentFirstOnceTheDaemonAnswersAgents() {
-        XCTAssertEqual(Destinations.visibleTabs(.agents, supports: everything).map(\.id), ["list", "profiles", "computer"])
+        XCTAssertEqual(Destinations.visibleTabs(.agents, supports: everything).map(\.id), ["list", "profiles", "work", "computer"])
         XCTAssertEqual(Destinations.settled(WindowRoute(.agents), supports: everything), WindowRoute(.agents, tab: "list"))
         // Sessions is left off for now, so a runtime older than the agents view opens Agents on this computer.
         XCTAssertEqual(Destinations.settled(WindowRoute(.agents), supports: nothingNew), WindowRoute(.agents, tab: "computer"))
@@ -80,7 +80,7 @@ final class DestinationsTests: XCTestCase {
 
     func testGroupsEveryDestinationAsWindowsAndLinuxDo() {
         let titles = { (id: Destination) in Destinations.tabGroups(id, supports: self.everything).map { [$0.title] + $0.tabs.map(\.title) } }
-        XCTAssertEqual(titles(.agents), [["Agents", "Agents", "Jobs"], ["This computer", "On this computer"]])
+        XCTAssertEqual(titles(.agents), [["Agents", "Agents", "Jobs", "Work"], ["This computer", "On this computer"]])
         XCTAssertEqual(titles(.workspaces), [["Projects", "Projects"], ["Knowledge", "Map", "Memory", "Layers", "Files"],
                                              ["Skills", "My Skills"]])
         XCTAssertEqual(titles(.mcp), [["Hub", "Servers"], ["Apps", "Connectors"]])

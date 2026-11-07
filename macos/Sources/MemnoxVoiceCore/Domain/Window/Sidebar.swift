@@ -79,6 +79,7 @@ public enum Sidebar {
             // An agent's sessions and what this Mac holds are about the agents, so they are tabs here.
             SidebarRow(id: .agents, pages: [SidebarPage(WindowRoute(.agents, tab: "list")),
                                             SidebarPage(WindowRoute(.agents, tab: "profiles")),
+                                            SidebarPage(WindowRoute(.agents, tab: "work")),
                                             SidebarPage(WindowRoute(.agents, tab: "sessions")),
                                             SidebarPage(WindowRoute(.agents, tab: "computer"))]),
             SidebarRow(id: .protection, pages: [SidebarPage(WindowRoute(.governance, tab: "policies"))]),

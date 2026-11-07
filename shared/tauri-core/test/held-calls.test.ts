@@ -49,6 +49,20 @@ describe('what the island shows', () => {
     const ids = new RequestIds();
     await new HeldCalls(island, new Signer(island, new PersonKey(), ids, () => undefined), ids, { liveActivity: true }).watch();
     expect(island.sent('subscribe')[0]?.subscribeActivity).toBe(true);
+    expect(island.sent('subscribe')[0]?.subscribeWork).toBeUndefined();
+  });
+
+  it('asks for agent work changes when told to, and hands each to whoever listens', async () => {
+    const island = new ScriptedDaemon(nothingWaits);
+    island.push({ kind: 'work', subject: 'agw_1', agent: 'claude-code', summary: 'It reported.', at: 't', workChanged: { id: 'agw_1', profileId: 'backend', responsiblePerson: 'Bo', target: { source: 'linear', externalId: 'LIN-1' }, sessions: [], attempts: 1, status: 'blocked', progress: [], handoffs: [], createdAt: 't', updatedAt: 't' } });
+    const ids = new RequestIds();
+    const calls = new HeldCalls(island, new Signer(island, new PersonKey(), ids, () => undefined), ids, { liveActivity: true, liveWork: true });
+    const heard: string[] = [];
+    calls.observeEvents((event) => heard.push(event.workChanged?.status ?? ''));
+    await calls.watch();
+    expect(island.sent('subscribe')[0]).toMatchObject({ subscribeActivity: true, subscribeWork: true });
+    expect(heard).toEqual(['blocked']);
+    expect(calls.state.waiting.newestFirst).toEqual([]);
   });
 
   it('says the feed is closed when the daemon is down', async () => {

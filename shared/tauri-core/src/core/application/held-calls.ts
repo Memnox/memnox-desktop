@@ -67,6 +67,8 @@ export interface HeldCallsOptions {
   readonly accept?: (event: DaemonEvent) => boolean;
   /** Asks the daemon for live activity rows too, which only the feed that hands them to the windows wants. */
   readonly liveActivity?: boolean;
+  /** Asks the daemon for agent work changes too, for the same feed, so the Work tab moves as the agent reports. */
+  readonly liveWork?: boolean;
   /** Teammates' calls the workspace routed here, answered through it and never through a daemon. */
   readonly team?: {
     owns(subject: string): boolean;
@@ -290,10 +292,14 @@ export class HeldCalls {
     return { id: this.ids.next(), method };
   }
 
-  /** A daemon sends activity only when asked, since an app built before it would say every row aloud. */
+  /** A daemon sends activity and work only when asked, since an app built before them would say every one aloud. */
   private subscription(): DaemonRequest {
     const request = this.request(DAEMON_METHOD.SUBSCRIBE);
-    return this.options.liveActivity === true ? { ...request, subscribeActivity: true } : request;
+    return {
+      ...request,
+      ...(this.options.liveActivity === true ? { subscribeActivity: true } : {}),
+      ...(this.options.liveWork === true ? { subscribeWork: true } : {}),
+    };
   }
 
   private update(change: Partial<HeldState>): void {

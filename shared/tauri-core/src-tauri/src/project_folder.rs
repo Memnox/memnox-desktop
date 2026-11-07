@@ -9,7 +9,10 @@ const PICK_TITLE: &str = "Add as a project";
 
 /// Asks for one folder and answers its path, or nothing when the person cancelled.
 #[tauri::command]
-pub async fn pick_project_folder(app: AppHandle, window: WebviewWindow) -> Result<Option<String>, String> {
+pub async fn pick_project_folder(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<Option<String>, String> {
     if !crate::settings_windows::is_memnox_window(window.label()) {
         return Err("only the Memnox window adds a project".to_owned());
     }

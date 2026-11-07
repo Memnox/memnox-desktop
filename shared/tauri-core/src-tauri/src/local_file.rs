@@ -67,11 +67,15 @@ fn readable_skill(path: &str) -> Result<PathBuf, String> {
     let markdown = file
         .extension()
         .and_then(|extension| extension.to_str())
-        .is_some_and(|kind| kind.eq_ignore_ascii_case("md") || kind.eq_ignore_ascii_case("markdown"));
+        .is_some_and(|kind| {
+            kind.eq_ignore_ascii_case("md") || kind.eq_ignore_ascii_case("markdown")
+        });
     if !markdown {
         return Err(format!("{path} is not a skill's markdown"));
     }
-    let size = std::fs::metadata(&file).map_err(|error| error.to_string())?.len();
+    let size = std::fs::metadata(&file)
+        .map_err(|error| error.to_string())?
+        .len();
     if size > MOST_SKILL_BYTES {
         return Err(format!("{path} is too large to read here"));
     }
@@ -204,7 +208,10 @@ mod tests {
         let dir = folder("skill");
         let skill = dir.join("SKILL.md");
         std::fs::write(&skill, "---\nname: notes\n---\nWrite notes.").expect("a skill");
-        assert_eq!(readable_skill(skill.to_str().unwrap()), Ok(std::fs::canonicalize(&skill).unwrap()));
+        assert_eq!(
+            readable_skill(skill.to_str().unwrap()),
+            Ok(std::fs::canonicalize(&skill).unwrap())
+        );
         let other = dir.join("notes.txt");
         std::fs::write(&other, "plain").expect("a note");
         assert!(readable_skill(other.to_str().unwrap()).is_err());

@@ -15,7 +15,10 @@ const LARGEST_PACK: u64 = 1024 * 1024;
 
 /// Asks for a pack in the open dialog and answers its text, or nothing when the person cancelled.
 #[tauri::command]
-pub async fn pick_rule_pack(app: AppHandle, window: WebviewWindow) -> Result<Option<String>, String> {
+pub async fn pick_rule_pack(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<Option<String>, String> {
     allowed(&window)?;
     let (sent, chosen) = tokio::sync::oneshot::channel();
     app.dialog()
@@ -34,7 +37,11 @@ pub async fn pick_rule_pack(app: AppHandle, window: WebviewWindow) -> Result<Opt
 
 /// Asks where to save the pack in the save dialog and writes it there; false when the person cancelled.
 #[tauri::command]
-pub async fn save_rule_pack(app: AppHandle, window: WebviewWindow, toml: String) -> Result<bool, String> {
+pub async fn save_rule_pack(
+    app: AppHandle,
+    window: WebviewWindow,
+    toml: String,
+) -> Result<bool, String> {
     allowed(&window)?;
     let (sent, chosen) = tokio::sync::oneshot::channel();
     app.dialog()
@@ -70,7 +77,8 @@ fn read_pack(path: &PathBuf) -> Result<String, String> {
     if facts.len() > LARGEST_PACK {
         return Err(format!("{} is too large to be a rule pack", path.display()));
     }
-    std::fs::read_to_string(path).map_err(|_| format!("{} could not be read as text", path.display()))
+    std::fs::read_to_string(path)
+        .map_err(|_| format!("{} could not be read as text", path.display()))
 }
 
 #[cfg(test)]

@@ -48,7 +48,12 @@ pub fn show_approvals(app: &AppHandle) -> tauri::Result<()> {
 
 /// Pops the selected item's details out into a window of their own, on the link the page names for that item.
 #[tauri::command]
-pub fn open_inspector(app: AppHandle, window: WebviewWindow, search: String, title: String) -> Result<(), String> {
+pub fn open_inspector(
+    app: AppHandle,
+    window: WebviewWindow,
+    search: String,
+    title: String,
+) -> Result<(), String> {
     if !is_memnox_window(window.label()) {
         return Err("only the Memnox window pops out its details".to_owned());
     }
@@ -91,7 +96,10 @@ pub fn show_settings(app: &AppHandle, page: Option<&str>) -> tauri::Result<()> {
     bring_forward(&window)
 }
 
-fn settings_builder(app: &AppHandle, path: String) -> WebviewWindowBuilder<'_, tauri::Wry, AppHandle> {
+fn settings_builder(
+    app: &AppHandle,
+    path: String,
+) -> WebviewWindowBuilder<'_, tauri::Wry, AppHandle> {
     WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App(path.into()))
         .title("Memnox")
         .inner_size(SETTINGS_SIZE.0, SETTINGS_SIZE.1)

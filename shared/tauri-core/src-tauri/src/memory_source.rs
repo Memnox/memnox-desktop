@@ -38,15 +38,23 @@ pub fn memory_source_home(window: WebviewWindow) -> Result<Option<String>, Strin
 
 /// Asks for files, or folders where the kind reads only a folder, and answers their paths, or nothing when cancelled.
 #[tauri::command]
-pub async fn pick_memory_source(app: AppHandle, window: WebviewWindow, files: bool, extensions: Vec<String>, title: String) -> Result<Option<Vec<String>>, String> {
+pub async fn pick_memory_source(
+    app: AppHandle,
+    window: WebviewWindow,
+    files: bool,
+    extensions: Vec<String>,
+    title: String,
+) -> Result<Option<Vec<String>>, String> {
     allowed(&window)?;
     let (sent, chosen) = tokio::sync::oneshot::channel();
     let dialog = app.dialog().file().set_parent(&window).set_title(title);
     if files {
         let named: Vec<&str> = extensions.iter().map(String::as_str).collect();
-        dialog.add_filter(FILTER_NAME, &named).pick_files(move |paths| {
-            let _ = sent.send(paths);
-        });
+        dialog
+            .add_filter(FILTER_NAME, &named)
+            .pick_files(move |paths| {
+                let _ = sent.send(paths);
+            });
     } else {
         dialog.pick_folders(move |paths| {
             let _ = sent.send(paths);
@@ -65,7 +73,11 @@ pub async fn pick_memory_source(app: AppHandle, window: WebviewWindow, files: bo
 
 /// Every path looked at off the window's thread, since a large folder takes a moment to walk.
 #[tauri::command]
-pub async fn look_memory_paths(window: WebviewWindow, paths: Vec<String>, kind: String) -> Result<Vec<PathLook>, String> {
+pub async fn look_memory_paths(
+    window: WebviewWindow,
+    paths: Vec<String>,
+    kind: String,
+) -> Result<Vec<PathLook>, String> {
     allowed(&window)?;
     tokio::task::spawn_blocking(move || paths.into_iter().map(|path| look(path, &kind)).collect())
         .await
@@ -85,32 +97,64 @@ pub async fn unzip_memory_export(window: WebviewWindow, zip: String) -> Result<S
 fn look(path: String, kind: &str) -> PathLook {
     let at = Path::new(&path);
     let Ok(meta) = std::fs::metadata(at) else {
-        return PathLook { path, kind: "missing", readable: true, found: Vec::new(), cut: false };
+        return PathLook {
+            path,
+            kind: "missing",
+            readable: true,
+            found: Vec::new(),
+            cut: false,
+        };
     };
     if !meta.is_dir() {
         let kind = if meta.is_file() { "file" } else { "other" };
         let readable = std::fs::File::open(at).is_ok();
-        return PathLook { path, kind, readable, found: Vec::new(), cut: false };
+        return PathLook {
+            path,
+            kind,
+            readable,
+            found: Vec::new(),
+            cut: false,
+        };
     }
     if std::fs::read_dir(at).is_err() {
-        return PathLook { path, kind: "folder", readable: false, found: Vec::new(), cut: false };
+        return PathLook {
+            path,
+            kind: "folder",
+            readable: false,
+            found: Vec::new(),
+            cut: false,
+        };
     }
-    let (found, cut) = if kind == "instructions" { instruction_files(at) } else { notes(at) };
-    PathLook { path, kind: "folder", readable: true, found, cut }
+    let (found, cut) = if kind == "instructions" {
+        instruction_files(at)
+    } else {
+        notes(at)
+    };
+    PathLook {
+        path,
+        kind: "folder",
+        readable: true,
+        found,
+        cut,
+    }
 }
 
 fn notes(root: &Path) -> (Vec<String>, bool) {
     let mut found = Vec::new();
     let mut waiting = vec![(root.to_path_buf(), 0usize)];
     while let Some((folder, depth)) = waiting.pop() {
-        let Ok(entries) = std::fs::read_dir(&folder) else { continue };
+        let Ok(entries) = std::fs::read_dir(&folder) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
             // Hidden entries are passed over, as the Mac's walk and the runtime's both do.
             if name.starts_with('.') {
                 continue;
             }
-            let Ok(kind) = entry.file_type() else { continue };
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
             let path = entry.path();
             if kind.is_dir() {
                 if depth + 1 < MOST_DEPTH && !SKIPPED_FOLDERS.contains(&name.as_str()) {
@@ -133,12 +177,26 @@ fn notes(root: &Path) -> (Vec<String>, bool) {
 }
 
 fn instruction_files(root: &Path) -> (Vec<String>, bool) {
-    let mut found: Vec<String> = INSTRUCTION_NAMES.iter().filter(|name| root.join(name).exists()).map(|name| (*name).to_owned()).collect();
+    let mut found: Vec<String> = INSTRUCTION_NAMES
+        .iter()
+        .filter(|name| root.join(name).exists())
+        .map(|name| (*name).to_owned())
+        .collect();
     let mut rules: Vec<String> = std::fs::read_dir(root.join(CURSOR_RULES))
-        .map(|entries| entries.flatten().map(|entry| entry.file_name().to_string_lossy().into_owned()).filter(|name| is_markdown(name)).collect())
+        .map(|entries| {
+            entries
+                .flatten()
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .filter(|name| is_markdown(name))
+                .collect()
+        })
         .unwrap_or_default();
     rules.sort();
-    found.extend(rules.into_iter().map(|name| format!("{CURSOR_RULES}/{name}")));
+    found.extend(
+        rules
+            .into_iter()
+            .map(|name| format!("{CURSOR_RULES}/{name}")),
+    );
     (found, false)
 }
 
@@ -152,20 +210,41 @@ fn is_markdown(name: &str) -> bool {
 /// A path under the root with forward slashes, the spelling `counts` in `memory-import.ts` reads on every system.
 fn relative(root: &Path, path: &Path) -> String {
     let inside = path.strip_prefix(root).unwrap_or(path);
-    inside.components().map(|part| part.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/")
+    inside
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 fn unzip(zip: &Path) -> Result<String, String> {
     let into = zip.with_extension("");
-    let name = |path: &Path| path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
+    let name = |path: &Path| {
+        path.file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    };
     if into.exists() {
-        return if into.is_dir() { Ok(into.to_string_lossy().into_owned()) } else { Err(format!("{} is already a file beside the zip.", name(&into))) };
+        return if into.is_dir() {
+            Ok(into.to_string_lossy().into_owned())
+        } else {
+            Err(format!("{} is already a file beside the zip.", name(&into)))
+        };
     }
     std::fs::create_dir_all(&into).map_err(|_| format!("{} could not be unzipped.", name(zip)))?;
     extract(zip, &into)?;
     // Notion splits a large export into part zips inside the first one.
     let parts: Vec<PathBuf> = std::fs::read_dir(&into)
-        .map(|entries| entries.flatten().map(|entry| entry.path()).filter(|path| path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("zip"))).collect())
+        .map(|entries| {
+            entries
+                .flatten()
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.extension()
+                        .is_some_and(|extension| extension.eq_ignore_ascii_case("zip"))
+                })
+                .collect()
+        })
         .unwrap_or_default();
     for part in parts {
         extract(&part, &into)?;
@@ -185,14 +264,25 @@ fn extract(zip: &Path, into: &Path) -> Result<(), String> {
         unzip.arg("-q").arg("-o").arg(zip).arg("-d").arg(into);
         unzip
     };
-    let name = zip.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
-    let status = command.status().map_err(|_| "The system could not start unzipping it.".to_owned())?;
-    if status.success() { Ok(()) } else { Err(format!("{name} could not be unzipped.")) }
+    let name = zip
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let status = command
+        .status()
+        .map_err(|_| "The system could not start unzipping it.".to_owned())?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{name} could not be unzipped."))
+    }
 }
 
 fn home() -> Option<PathBuf> {
     let variable = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
-    std::env::var_os(variable).map(PathBuf::from).filter(|path| path.is_absolute())
+    std::env::var_os(variable)
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
 }
 
 /// Only the Memnox window and its popped out inspectors add a memory source, so only they ask.

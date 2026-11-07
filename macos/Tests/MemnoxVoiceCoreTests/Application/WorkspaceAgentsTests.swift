@@ -28,12 +28,28 @@ final class WorkspaceAgentsTests: XCTestCase {
         XCTAssertEqual(CapabilityLevelLines.headline(profile.levels), .advisory)
         XCTAssertEqual(CapabilityLevelLines.seamRows(profile.levels).map(\.title), ["Everything it runs"])
         let work = try XCTUnwrap(agents.remote.first?.work.first)
-        XCTAssertEqual(work.waitingHandoff?.to.person, "usr_bo")
+        // A person id never reaches the screen: the handoff names a teammate, and the work names the person signed in.
+        XCTAssertEqual(work.waitingHandoff?.to.person, "a teammate")
+        XCTAssertEqual(work.responsiblePerson, "you")
         XCTAssertEqual(AgentWorkLines.issue(work), "PAY-42")
         let answered = await agents.answer("hnd_9", in: "ws_1", .decline)
         XCTAssertEqual(answered, .done("Declined. The work stays with the agent that has it."))
         let sent = try XCTUnwrap(cloud.sent("POST /v1/workspaces/ws_1/me/handoffs/hnd_9/answer").first)
         XCTAssertEqual(sent.raw, #"{"accept":false}"#)
         XCTAssertEqual(sent.authorization, "Bearer mnx_person")
+    }
+
+    func testNamesTheResponsiblePersonWhenTheCloudSendsTheName() throws {
+        let named = #"{"profile":{"id":"agp_2","name":"Refunds","responsiblePersonId":"usr_bo"},"needsResponsiblePerson":false,"responsiblePersonName":"Bo Ito"}"#
+        let unnamed = #"{"profile":{"id":"agp_3","name":"Billing","responsiblePersonId":"usr_bo"},"needsResponsiblePerson":false}"#
+        let orphaned = #"{"profile":{"id":"agp_4","name":"Ops","responsiblePersonId":"usr_gone"},"needsResponsiblePerson":true,"responsiblePersonName":"Cy"}"#
+        func view(_ json: String) throws -> ProfileView {
+            WorkspaceAgentsLines.profileView(try JSONDecoder().decode(CloudProfileView.self, from: Data(json.utf8)), you: "usr_ana")
+        }
+        XCTAssertEqual(try view(named).responsiblePerson, "Bo Ito")
+        XCTAssertEqual(try view(unnamed).responsiblePerson, "a teammate")
+        XCTAssertNil(try view(orphaned).responsiblePerson)
+        XCTAssertEqual(WorkspaceAgentsLines.responsibleName(id: "usr_ana", name: "Ana", you: "usr_ana"), "you")
+        XCTAssertNil(WorkspaceAgentsLines.responsibleName(id: "", name: "Ana", you: nil))
     }
 }

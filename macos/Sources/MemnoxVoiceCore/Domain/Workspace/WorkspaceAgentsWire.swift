@@ -30,6 +30,8 @@ public struct CloudProfileView: Decodable, Equatable, Sendable {
     public let profile: CloudProfile
     /// The responsible person left or was never one, so an admin must reassign it.
     public let needsResponsiblePerson: Bool?
+    /// The responsible person's display name, sent beside the profile by a cloud that knows it; absent from an older one.
+    public let responsiblePersonName: String?
     public let connected: Bool?
     public let connections: [CloudProfileConnection]?
     public let levels: [String: String]?
@@ -83,8 +85,8 @@ public enum WorkspaceAgentsLines {
     /// The profile as a card draws it; the responsible person reads as you when it is the person signed in.
     public static func profileView(_ cloud: CloudProfileView, you: String?) -> ProfileView {
         let profile = cloud.profile
-        let responsible: String? = cloud.needsResponsiblePerson == true ? nil
-            : profile.responsiblePersonId.map { $0 == you ? "you" : "a teammate" }
+        let responsible = cloud.needsResponsiblePerson == true ? nil
+            : responsibleName(id: profile.responsiblePersonId, name: cloud.responsiblePersonName, you: you)
         let connections = (cloud.connections ?? []).map { each in
             AgentConnection(id: "\(each.machineId)/\(each.connection ?? "")", profileId: profile.id, kind: each.connection ?? "observed",
                             agentKind: each.label, mediation: "", firstSeen: "", lastSeen: "", status: each.live ? "live" : "idle",
@@ -96,14 +98,26 @@ public enum WorkspaceAgentsLines {
                            levels: levels(cloud.levels))
     }
 
-    /// A piece of the workspace's work as the work lines read it, its waiting handoffs with it.
-    public static func work(_ cloud: CloudWork, handoffs: [CloudHandoff]) -> AgentWork {
+    /// Who answers for a job, as a card says it: you when it is the person signed in, else the name the cloud sent,
+    /// else a teammate, so a person id never reaches the screen.
+    public static func responsibleName(id: String?, name: String?, you: String?) -> String? {
+        guard let id, !id.isEmpty else { return nil }
+        if id == you { return "you" }
+        return AgentWorkLines.filled(name) ?? "a teammate"
+    }
+
+    /// A piece of the workspace's work as the work lines read it, its waiting handoffs with it; the person who answers
+    /// for it is named from the profiles the workspace sent, never by their id.
+    public static func work(_ cloud: CloudWork, handoffs: [CloudHandoff], you: String? = nil, profiles: [CloudProfileView] = []) -> AgentWork {
+        let named = profiles.first { $0.profile.responsiblePersonId == cloud.responsiblePersonId }?.responsiblePersonName
         let waiting = handoffs.filter { $0.workId == cloud.id }.map { each in
             WorkHandoff(id: each.id, from: HandoffParty(profileId: each.fromProfileId),
-                        to: HandoffParty(profileId: each.toProfileId, person: each.toPersonId), reason: each.reason,
+                        to: HandoffParty(profileId: each.toProfileId, person: responsibleName(id: each.toPersonId, name: nil, you: you)),
+                        reason: each.reason,
                         state: each.state, requestedAt: each.requestedAt)
         }
-        return AgentWork(id: cloud.id, profileId: cloud.agentProfileId, responsiblePerson: cloud.responsiblePersonId,
+        return AgentWork(id: cloud.id, profileId: cloud.agentProfileId,
+                         responsiblePerson: responsibleName(id: cloud.responsiblePersonId, name: named, you: you) ?? "",
                          target: cloud.target, status: cloud.status, handoffs: waiting, createdAt: cloud.createdAt,
                          updatedAt: cloud.updatedAt)
     }

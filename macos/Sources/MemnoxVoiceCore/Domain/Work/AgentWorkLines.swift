@@ -60,10 +60,19 @@ public enum AgentWorkLines {
         work.latestProgress?.note ?? "No word from the agent yet."
     }
 
-    /// Who the handoff goes to, in a line: a profile by its name where the caller knows it, or a person.
+    /// Who the handoff goes to, in a line: a profile by its name where the caller knows it, or a person, and never an
+    /// id the person could not read.
     public static func handoffLine(_ handoff: WorkHandoff, profileName: (String) -> String?) -> String {
-        let to = handoff.to.profileId.map { profileName($0) ?? $0 } ?? handoff.to.person ?? "someone else"
+        let to = handoff.to.profileId.map { profileName($0) ?? anotherAgent } ?? filled(handoff.to.person) ?? "someone else"
         return "Wants to hand it to \(to): \(handoff.reason)"
+    }
+
+    /// Said for an agent whose job this Mac does not know by name.
+    public static let anotherAgent = "another agent"
+
+    /// The agent carrying the work by its job's name, or a plain word where the job is not known here.
+    public static func agentName(_ work: AgentWork, profileName: (String) -> String?) -> String {
+        profileName(work.profileId) ?? anotherAgent
     }
 
     /// The link to open, only a web address, so a tracker's link never starts an app.

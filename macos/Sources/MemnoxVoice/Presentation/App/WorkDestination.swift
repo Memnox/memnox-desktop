@@ -84,13 +84,20 @@ struct AgentWorkCard: View {
     let work: AgentWork
     let names: WorkNames
 
+    /// The agent by its job's name, who answers for it, and the tracker; a blank responsible person is left out.
+    private var facts: [(String, String)] {
+        var facts: [(String, String)] = [("Agent", AgentWorkLines.agentName(work, profileName: names.name))]
+        if let responsible = AgentWorkLines.filled(work.responsiblePerson) { facts.append(("Answers to", responsible)) }
+        facts.append(("Tracker", AgentWorkLines.trackerName(work.target.source)))
+        return facts
+    }
+
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: ShellMetrics.radius, style: .continuous)
         let busy = screen.desk.busy != nil
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             WorkLine(work: work)
-            FactList(facts: [("Agent", names.name(work.profileId) ?? work.profileId), ("Answers to", work.responsiblePerson),
-                             ("Tracker", AgentWorkLines.trackerName(work.target.source))])
+            FactList(facts: facts)
             if let handoff = work.waitingHandoff {
                 Text(AgentWorkLines.handoffLine(handoff, profileName: names.name))
                     .font(Memnox.Console.sans(Memnox.TextSize.footnote))
@@ -148,6 +155,11 @@ private struct StartWorkSheet: View {
             field("Agent") {
                 if offered.isEmpty {
                     QuietLine("No agent is connected yet. Give one of your agents a job first.")
+                    Button("Open Jobs", systemImage: "arrow.up.forward") {
+                        close()
+                        AppWindow.shared.shell.go(WindowRoute(.agents, tab: "profiles"))
+                    }
+                    .buttonStyle(KitButton(kind: .secondary))
                 } else {
                     ConsoleSelect(label: "Agent", selection: $profile, options: offered.map { SelectOption(value: $0.id, title: $0.name) })
                 }

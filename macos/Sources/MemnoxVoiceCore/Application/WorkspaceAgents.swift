@@ -42,8 +42,10 @@ public final class WorkspaceAgents: @unchecked Sendable {
                 let mine = try await reader.myAgentWork(in: workspace, token: credential.token)
                 fresh.append(Remote(workspace: workspace,
                                     profiles: profiles.map { WorkspaceAgentsLines.profileView($0, you: credential.personId) },
-                                    work: mine.work.map { WorkspaceAgentsLines.work($0, handoffs: mine.handoffs) }
-                                        + orphans(mine)))
+                                    work: mine.work.map {
+                                        WorkspaceAgentsLines.work($0, handoffs: mine.handoffs, you: credential.personId, profiles: profiles)
+                                    }
+                                        + orphans(mine, you: credential.personId)))
             } catch WorkspaceInboxError.signedOut {
                 lock.withLock { kept = [] }
                 changed?()
@@ -58,13 +60,14 @@ public final class WorkspaceAgents: @unchecked Sendable {
     }
 
     /// Handoffs on work the person does not answer for still wait on them, so each stands on a piece of its own.
-    private func orphans(_ mine: CloudMyWork) -> [AgentWork] {
+    private func orphans(_ mine: CloudMyWork, you: String?) -> [AgentWork] {
         let known = Set(mine.work.map(\.id))
         return mine.handoffs.filter { !known.contains($0.workId) }.map { handoff in
             AgentWork(id: handoff.workId, profileId: handoff.fromProfileId, responsiblePerson: "",
                       target: ExternalTaskRef(source: "", externalId: handoff.workId), status: WorkStatus.handoffRequested.rawValue,
                       handoffs: [WorkHandoff(id: handoff.id, from: HandoffParty(profileId: handoff.fromProfileId),
-                                             to: HandoffParty(profileId: handoff.toProfileId, person: handoff.toPersonId),
+                                             to: HandoffParty(profileId: handoff.toProfileId,
+                                                               person: WorkspaceAgentsLines.responsibleName(id: handoff.toPersonId, name: nil, you: you)),
                                              reason: handoff.reason, state: handoff.state, requestedAt: handoff.requestedAt)],
                       createdAt: handoff.requestedAt, updatedAt: handoff.requestedAt)
         }

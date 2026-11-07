@@ -58,7 +58,11 @@ const empty: DaemonLink = {
 type Page = { name: string; draw: (parts: SettingsParts) => ReactNode };
 
 let pages: Page[] = [];
-let partsOver: (link: DaemonLink) => Promise<SettingsParts>;
+let partsOver: (link: DaemonLink, cloud?: CloudScript) => Promise<SettingsParts>;
+let pageNamed: (name: string) => Page;
+
+/** Memnox Cloud as a signed in person's workspace answers it, by method and path. */
+type CloudScript = Record<string, unknown>;
 let demo: () => Promise<DaemonLink>;
 
 beforeAll(async () => {
@@ -131,9 +135,23 @@ beforeAll(async () => {
     cloud: { send: async () => ({ status: 404, body: '{}' }) },
     credentials: { load: async () => undefined, save: async () => undefined, delete: async () => undefined },
   };
-  partsOver = async (link) => {
+  pageNamed = (name) => {
+    const page = pages.find((each) => each.name === name);
+    if (page === undefined) throw new Error(`no page ${name}`);
+    return page;
+  };
+  partsOver = async (link, cloud) => {
+    const signedIn = { token: 'tok', tokenId: 'tid', personId: 'psn_me', name: 'Sam', orgId: 'org', workspaces: ['ws_1'], deviceId: 'dev' };
+    const reach =
+      cloud === undefined
+        ? relay
+        : {
+            ...relay,
+            cloud: { send: async (method: string, path: string) => (cloud[`${method} ${path}`] === undefined ? { status: 404, body: '{}' } : { status: 200, body: JSON.stringify(cloud[`${method} ${path}`]) }) },
+            credentials: { load: async () => signedIn, save: async () => undefined, delete: async () => undefined },
+          };
     // Cast is safe: the host stands in only for what the pages call while they draw.
-    const parts = buildParts(link, host as unknown as Parameters<typeof buildParts>[1], { found: async () => true, install: async () => true, wired: async () => true, run: async () => true }, { publicPoint: async () => 'P', sign: async () => 's' }, store, relay as unknown as Parameters<typeof buildParts>[5]);
+    const parts = buildParts(link, host as unknown as Parameters<typeof buildParts>[1], { found: async () => true, install: async () => true, wired: async () => true, run: async () => true }, { publicPoint: async () => 'P', sign: async () => 's' }, store, reach as unknown as Parameters<typeof buildParts>[5]);
     // Reads every page starts with, so the drawing sees what a page would after its first answers.
     await Promise.allSettled([
       parts.agents.refresh(),
@@ -180,4 +198,55 @@ describe('every page draws', () => {
       expect(pages.length).toBeGreaterThan(30);
     });
   }
+});
+
+describe('the workspace’s agents', () => {
+  const workspace: CloudScript = {
+    'GET v1/workspaces/ws_1/agent-profiles': { profiles: [{ profile: { id: 'prf_1', name: 'Content Agent', purpose: 'Drafts the campaign briefs', responsiblePersonId: 'psn_x' }, needsResponsiblePerson: false, responsiblePersonName: 'Ana Ruiz', connections: [{ machineId: 'mch_1', connection: 'gateway', label: 'openai', live: true, levels: { context: 'mediated' } }], levels: { context: 'mediated' } }] },
+    'GET v1/workspaces/ws_1/me/agent-work': { work: [], handoffs: [{ id: 'hof_1', workId: 'wrk_9', fromProfileId: 'prf_1', toPersonId: 'psn_me', reason: 'needs the numbers', state: 'requested', requestedAt: 't' }] },
+  };
+
+  it('stands beside this computer’s agents and waits in Needs your attention while signed in, named by who answers', async () => {
+    const parts = await partsOver(await demo(), workspace);
+    const list = renderToString(createElement('div', null, pageNamed('agents/list').draw(parts)));
+    expect(list).toContain('In your workspace');
+    expect(list).toContain('Answers to Ana Ruiz');
+    const approvals = renderToString(createElement('div', null, pageNamed('governance/approvals').draw(parts)));
+    expect(approvals).toContain('needs the numbers');
+  });
+
+  it('is not there with no account, and nothing is asked of the cloud', async () => {
+    const parts = await partsOver(await demo());
+    expect(renderToString(createElement('div', null, pageNamed('agents/list').draw(parts)))).not.toContain('In your workspace');
+  });
+});
+
+describe('the Jobs tab', () => {
+  const levels = { context: 'mediated', instructions: 'mediated', tools: 'enforced', activity: 'enforced', coordination: 'mediated', approval: 'enforced', enforcement: { shell: 'enforced', filesystem: 'enforced', git: 'enforced', network: 'observed', browser: 'none', mcp: 'mediated' } };
+  const connection = { id: 'c1', profileId: 'agt_claude-code', kind: 'runtime_hook', agentKind: 'claude-code', agentId: 'agt_claude-code', mediation: 'interposed', firstSeen: 't', lastSeen: 't', status: 'live', levels };
+  const answers: Record<string, Partial<DaemonResponse>> = {
+    profiles: {
+      profiles: [
+        { id: 'agt_claude-code', name: 'Claude Code', skills: [], mcpServers: [], updatedAt: 't', missing: [], responsibilities: [], projects: [], isDefault: true, connections: [connection], levels },
+        { id: 'reviewer', name: 'Reviewer', purpose: 'Reads a change', skills: [], mcpServers: [], updatedAt: 't', missing: [], responsibilities: [], projects: [], connections: [], levels },
+      ] as unknown as DaemonResponse['profiles'],
+    },
+    templates: { templates: [{ id: 'testing', name: 'Testing', purpose: 'Writes and runs tests', role: 'tester', responsibilities: [], suggestedSkills: [], suggestedRules: ['Never push.'], suggestedConnections: [] }] as unknown as DaemonResponse['templates'] },
+  };
+  const link: DaemonLink = {
+    async *stream(request: DaemonRequest): AsyncIterable<DaemonResponse> {
+      if (request.method === 'subscribe') return;
+      yield { id: request.id, ok: true, ...NOTHING[request.method], ...answers[request.method] } as DaemonResponse;
+    },
+  };
+
+  it('offers a default a job, draws a job with nobody behind it grey, and a template with no activity', async () => {
+    const html = renderToString(createElement('div', null, pageNamed('agents/profiles').draw(await partsOver(link))));
+    expect(html).toContain('Agents with no job yet');
+    expect(html).toContain('Give it a job');
+    expect(html).toContain('Reviewer');
+    expect(html).toContain('Start from a template');
+    expect(html).toContain('Use this job');
+    expect((html.match(/No agent behind it yet/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
 });

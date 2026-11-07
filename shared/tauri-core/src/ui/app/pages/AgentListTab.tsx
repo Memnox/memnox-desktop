@@ -28,6 +28,7 @@ import {
 } from '../../../core/domain/agent-lines';
 import { folderProblem } from '../../../core/domain/launch-lines';
 import { AgentProfileCards } from './AgentProfileCards';
+import { WorkspaceAgentsSection } from './WorkspaceAgents';
 import { ago } from '../../../core/domain/session-text';
 import { workspacesFrom } from '../../../core/domain/workspaces';
 import { EFFECT_WORDS, activityLine, effectTone, isEffect } from '../../../core/domain/studio-lines';
@@ -111,13 +112,23 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
   };
   const followUp = { restarting: home.restarting, busy: home.restarting || home.protecting, restart };
 
-  if (list === undefined) return agents.unreadable ? <ReadFailed what={AgentListLines.readWhat} retry={() => void agents.refresh()} /> : null;
+  // The workspace's agents stand under whatever this computer shows, so a hosted agent is listed even here alone.
+  if (list === undefined) {
+    if (!agents.unreadable) return null;
+    return (
+      <div className="flex flex-col gap-6">
+        <ReadFailed what={AgentListLines.readWhat} retry={() => void agents.refresh()} />
+        <WorkspaceAgentsSection parts={parts} />
+      </div>
+    );
+  }
   const noteLine = note !== undefined && <Note>{note}</Note>;
   if (list.length === 0) {
     return (
       <div className="flex flex-col gap-6">
         {noteLine}
         <EmptyState icon={Bot} title={AgentListLines.emptyTitle} body={AgentListLines.emptyBody} />
+        <WorkspaceAgentsSection parts={parts} />
       </div>
     );
   }
@@ -128,6 +139,7 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
     <div className="flex flex-col gap-6">
       {noteLine}
       {offersProfiles && <AgentProfileCards parts={parts} />}
+      <WorkspaceAgentsSection parts={parts} />
       <div className="flex items-center gap-3 max-narrow:flex-col max-narrow:items-start">
         <span className="min-w-0 flex-1 truncate text-body-sm text-muted">{agentsSummary(list)}</span>
         <ChipGroup label={AgentListLines.show} role="group">

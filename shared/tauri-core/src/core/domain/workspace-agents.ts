@@ -12,7 +12,7 @@ export interface CloudProfile {
   readonly role?: string;
   readonly responsibilities?: readonly string[];
   readonly responsiblePersonId?: string;
-  /** The responsible person's name, sent by a newer cloud; older ones send only the id. */
+  /** Read only as a fallback; the cloud sends the name on the view, beside `needsResponsiblePerson`. */
   readonly responsiblePersonName?: string;
   readonly projects?: readonly string[];
   readonly templateOf?: string;
@@ -33,7 +33,7 @@ export interface CloudProfileView {
   readonly profile: CloudProfile;
   /** The responsible person left or was never one, so an admin must reassign it. */
   readonly needsResponsiblePerson?: boolean;
-  /** Where a newer cloud puts the responsible person's name beside the profile rather than in it. */
+  /** The responsible person's name, sent by a newer cloud; an older one sends only the id. */
   readonly responsiblePersonName?: string;
   readonly connected?: boolean;
   readonly connections?: readonly CloudProfileConnection[];
@@ -95,7 +95,7 @@ export function cloudLevels(cloud: Readonly<Record<string, string>> | undefined)
 /** Who answers for a workspace job: their name when the cloud sends it, else you or a teammate, else nobody yet. */
 export function responsibleOf(view: CloudProfileView, you: string | undefined): string | undefined {
   if (view.needsResponsiblePerson === true) return undefined;
-  const named = (view.profile.responsiblePersonName ?? view.responsiblePersonName)?.trim();
+  const named = (view.responsiblePersonName ?? view.profile.responsiblePersonName)?.trim();
   if (named !== undefined && named !== '') return named;
   const id = view.profile.responsiblePersonId;
   if (id === undefined) return undefined;

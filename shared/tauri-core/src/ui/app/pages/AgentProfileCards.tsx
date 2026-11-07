@@ -10,7 +10,6 @@ import { CapabilityStrip, ConnectionPill, LevelPill } from '../capability-strip'
 import { BrandLogo, Button, Card, CardGrid, Note, Section, StatusWord } from '../../kit';
 import { JobSheet } from './JobsTab';
 import { WorkLine } from './WorkTab';
-import { WorkspaceAgentsSection } from './WorkspaceAgents';
 
 /** As the Mac's agent grid sets it. */
 const CARD_WIDTH = 300;
@@ -18,8 +17,7 @@ const CARD_LOGO = 30;
 
 /**
  * The agents as their jobs, over the connections Memnox reaches them through, as the Mac's `AgentProfileCard`. A
- * runtime that sends no connections leaves this out, and the cards of what was found stand alone as before. The
- * workspace's agents follow while the person is signed in to Memnox Cloud, and with no account nothing more is asked.
+ * runtime that sends no connections leaves this out, and the cards of what was found stand alone as before.
  */
 export function AgentProfileCards({ parts }: { parts: SettingsParts }) {
   const { profiles, work, support, host } = parts;
@@ -52,7 +50,6 @@ export function AgentProfileCards({ parts }: { parts: SettingsParts }) {
           </CardGrid>
         </Section>
       )}
-      <WorkspaceAgentsSection parts={parts} />
       {(jobFor !== undefined || editing !== undefined) && (
         <JobSheet
           parts={parts}

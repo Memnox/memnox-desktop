@@ -388,13 +388,17 @@ struct MemoryDestination: View {
         if memory.unreadable.facts {
             ReadFailed(what: "what was learned") { Task { await memory.show(memory.filter) } }
         }
+        if listed == nil, !memory.unreadable.facts {
+            // The first answer is still on its way, so the list says so rather than standing blank under its filters.
+            ProgressView().controlSize(.small).frame(maxWidth: .infinity)
+        }
         if let listed {
             let items = narrowed(listed)
             if choice == .shared { MemoryQuiet(ProjectContext.memoryEverywhereNote) }
             if items.isEmpty {
                 EmptyState(symbol: "brain",
                            title: filter.query == nil ? "Nothing \(MemoryLines.statusWord(status.rawValue).word.lowercased()) here" : "Nothing learned says that",
-                           detail: "Add a file under Connected tools and Memnox reads it with your own agent. What it finds waits in Learn until you confirm it.")
+                           detail: "Add a file under Files and Memnox reads it with your own agent. What it finds waits in Learn, under Governance, until you confirm it.")
             } else {
                 ShellPanel {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
@@ -509,7 +513,7 @@ private struct PlaceDetail: View {
             }
             if place.kind == .source, let source {
                 FactList(facts: facts(source))
-                Button("Manage under Inputs", systemImage: "books.vertical", action: manage).buttonStyle(KitButton(kind: .secondary))
+                Button("Manage under Files", systemImage: "books.vertical", action: manage).buttonStyle(KitButton(kind: .secondary))
             }
             if let live = place.live { LiveDetail(node: live) }
             if let entry = place.workspace {
@@ -528,7 +532,7 @@ private struct PlaceDetail: View {
                     ShellPanel {
                         ForEach(Array(related.enumerated()), id: \.element.id) { index, item in
                             if index > 0 { ShellDivider() }
-                            ShellRow(title: item.statement, caption: MemoryLines.statusWord(item.status).word, action: {}) {
+                            ShellRow(title: item.statement, caption: MemoryLines.statusWord(item.status).word, action: nil) {
                                 EmptyView()
                             } trailing: {
                                 EmptyView()
@@ -922,7 +926,7 @@ private struct SkillPlace: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
             if let skill {
-                FactList(facts: [("Version", skill.version), ("Given to", skill.agents.isEmpty ? "No agent yet" : skill.agents.joined(separator: ", "))],
+                FactList(facts: [("Version", skill.version), ("Given to", skill.agents.isEmpty ? "No agent yet" : skill.agents.map(McpHubLines.agentLabel).joined(separator: ", "))],
                          agents: ["Given to": skill.agents])
             }
             if let path { PathRow(path: path) }

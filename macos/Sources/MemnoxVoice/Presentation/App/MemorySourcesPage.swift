@@ -23,8 +23,13 @@ struct MemorySourcesPage: View {
             if let list, !list.isEmpty { addButton }
         } content: {
             VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
+                // What a Read now or a Remove came to, so a failure on a card is said rather than lost.
+                NoteBanner(text: screen.note)
                 if memory.unreadable.sources {
                     ReadFailed(what: "the memory sources") { Task { await memory.refreshSources() } }
+                }
+                if list == nil, !memory.unreadable.sources {
+                    ProgressView().controlSize(.small).frame(maxWidth: .infinity)
                 }
                 if let list {
                     if list.isEmpty {

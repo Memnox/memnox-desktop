@@ -16,11 +16,11 @@ function card(sessionId: string, fields: Partial<SessionCard>): SessionCard {
 }
 
 describe('Home brief', () => {
-  it('reads the blocks in the console’s order and words, an empty one kept so it can say so, and Not covered left off for now', () => {
+  it('reads the blocks in the contract’s order and words, an empty one kept so it can say so, and Not covered left off for now', () => {
     const blocks = homeBrief(empty, now);
-    expect(blocks.map(({ block }) => HOME_BRIEF_TITLE[block])).toEqual(['Waiting on you', 'Working now', 'Today', 'Ready to hand over']);
+    expect(blocks.map(({ block }) => HOME_BRIEF_TITLE[block])).toEqual(['Needs you', 'Working now', 'Ready to hand over', 'Today']);
     expect(blocks.every(({ items }) => items.length === 0)).toBe(true);
-    expect(HOME_BRIEF_NONE.waiting).toBe('Nothing is waiting on you.');
+    expect(HOME_BRIEF_NONE.waiting).toBe('Nothing needs you. Agents keep working inside their rules.');
   });
 
   it('puts each of Today’s items under the block that answers it', () => {
@@ -39,8 +39,8 @@ describe('Home brief', () => {
     expect(blocks.map(({ block, items }) => [block, items.map((item) => item.id)])).toEqual([
       ['waiting', ['held:h1', 'owed:Sign in']],
       ['working', ['session:s-working']],
-      ['today', ['row:ran']],
       ['ready', ['ready:npm test']],
+      ['today', ['row:ran']],
     ]);
     expect(briefItems(blocks)[0]?.id).toBe('held:h1');
   });

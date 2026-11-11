@@ -11,7 +11,7 @@ final class HomeStepsTests: XCTestCase {
         XCTAssertEqual(setup.stage, .ungoverned)
         XCTAssertEqual(setup.next?.id, .protectAgents)
         XCTAssertEqual(setup.waiting.map(\.id), [.actionsRecorded])
-        XCTAssertEqual(HomeSteps.progress(setup), "0 of 8 done")
+        XCTAssertEqual(HomeSteps.progress(setup), "1 of 9 done")
         XCTAssertTrue(setup.standing.isEmpty)
         XCTAssertFalse(setup.rest(of: .mac).contains { $0.id == .protectAgents || $0.id == .actionsRecorded })
         XCTAssertEqual(setup.rest(of: .work).count, 3)
@@ -28,7 +28,7 @@ final class HomeStepsTests: XCTestCase {
         XCTAssertEqual(setup.stage, .observing)
         XCTAssertEqual(setup.next?.id, .answerAway)
         XCTAssertTrue(setup.waiting.isEmpty)
-        XCTAssertEqual(setup.completed, 3)
+        XCTAssertEqual(setup.completed, 4)
         XCTAssertEqual(setup.standing.map(\.label), ["Agents protected", "Rules in force", "Actions recorded"])
     }
 
@@ -46,10 +46,19 @@ final class HomeStepsTests: XCTestCase {
         let setup = HomeSteps.setup(standing)
         XCTAssertEqual(setup.stage, .enforcing)
         XCTAssertTrue(setup.climbed)
-        XCTAssertEqual(HomeSteps.progress(setup), "8 of 8 done")
+        XCTAssertEqual(HomeSteps.progress(setup), "9 of 9 done")
     }
 
     func testAMacWithNoAgentHasNotPutAnyUnderMemnox() {
-        XCTAssertFalse(HomeSteps.setup(HomeStanding()).steps[0].done)
+        XCTAssertFalse(HomeSteps.setup(HomeStanding()).steps.first { $0.id == .protectAgents }?.done ?? true)
+    }
+
+    func testAsksToFinishSetupFirstUntilItIsDone() {
+        var standing = HomeStanding()
+        standing.setupFinished = false
+        let setup = HomeSteps.setup(standing)
+        XCTAssertEqual(setup.next?.id, .finishSetup)
+        XCTAssertEqual(HomeSteps.progress(setup), "0 of 9 done")
+        XCTAssertEqual(HomeSteps.cardTitle, "Do this next")
     }
 }

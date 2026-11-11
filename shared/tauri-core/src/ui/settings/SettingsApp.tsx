@@ -7,7 +7,6 @@ import { BackupPage } from './pages/BackupPage';
 import { HelpPage } from './pages/HelpPage';
 import { NetworkPage } from './pages/NetworkPage';
 import { SyncPage } from './pages/SyncPage';
-import { OverviewPage } from './pages/OverviewPage';
 import { AppearancePage, ConnectionPage, PermissionsPage, PhonesPage } from './pages/ComputerPages';
 import { ToolsPage } from './pages/ToolsPage';
 import { YourAppsPage } from './pages/YourAppsPage';
@@ -123,7 +122,7 @@ export function SettingsApp({ parts, first }: { parts: SettingsParts; first?: Se
         <div className="flex-1 overflow-y-auto [scrollbar-width:none]">
           <div key={page} className="mx-auto flex max-w-settings-page flex-col gap-5 px-settings-page-pad pt-2 pb-settings-page-pad">
             {page !== 'overview' && <PageTitle title={info.title} subtitle={info.subtitle} />}
-            <PageBody page={page} parts={parts} go={go} />
+            <PageBody page={page} parts={parts} />
           </div>
         </div>
       </main>
@@ -131,10 +130,10 @@ export function SettingsApp({ parts, first }: { parts: SettingsParts; first?: Se
   );
 }
 
-export function PageBody({ page, parts, go }: { page: SettingsPage; parts: SettingsParts; go: (page: SettingsPage) => void }): ReactNode {
+export function PageBody({ page, parts }: { page: SettingsPage; parts: SettingsParts }): ReactNode {
   switch (page) {
+    // The overview became Home, so a stale link naming it lands on Account.
     case 'overview':
-      return <OverviewPage parts={parts} go={go} />;
     case 'account':
       return <AccountPage parts={parts} />;
     case 'permissions':

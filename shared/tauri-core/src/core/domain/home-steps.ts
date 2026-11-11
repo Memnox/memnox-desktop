@@ -9,6 +9,8 @@ import type { Route } from './destinations';
 
 /** The counts the steps are read off. */
 export interface HomeStanding {
+  /** Whether the five onboarding steps were finished, which is the first rung until they are. */
+  readonly setupFinished: boolean;
   readonly agents: number;
   readonly agentsProtected: number;
   readonly rulesInForce: number;
@@ -23,6 +25,7 @@ export interface HomeStanding {
 }
 
 export const EMPTY_STANDING: HomeStanding = {
+  setupFinished: true,
   agents: 0,
   agentsProtected: 0,
   rulesInForce: 0,
@@ -75,7 +78,7 @@ export const TRACK_LEAD: Record<HomeTrack, string> = {
   work: 'What your agents can reach and start from. Linked where it is, and read on this computer.',
 };
 
-export type HomeStepId = 'protectAgents' | 'rulesInForce' | 'actionsRecorded' | 'answerAway' | 'enforce' | 'connectApps' | 'linkSource' | 'shareSkills';
+export type HomeStepId = 'finishSetup' | 'protectAgents' | 'rulesInForce' | 'actionsRecorded' | 'answerAway' | 'enforce' | 'connectApps' | 'linkSource' | 'shareSkills';
 
 export interface HomeStep {
   readonly id: HomeStepId;
@@ -111,8 +114,10 @@ export interface HomeSetup {
 export const WAITING_LABEL = 'Waiting on an agent';
 export const WAITING_MEANS = 'This closes the first time an agent on this computer does something. Use one as you normally would.';
 
-/** Remembered, so a person who hid the steps is not shown them again on every opening. */
-export const STEPS_HIDDEN_KEY = 'memnox.home.startHidden';
+/** The card's title on every surface, from the contract's Home block of that name. */
+export const CARD_TITLE = 'Do this next';
+export const ALL_STEPS = 'Show all steps';
+export const FEWER_STEPS = 'Show fewer steps';
 
 export function homeSetup(standing: HomeStanding, keyTitle: string): HomeSetup {
   const steps = homeSteps(standing, keyTitle);
@@ -147,6 +152,8 @@ export function stageOf(standing: HomeStanding): HomeStage {
 
 /** Where each step's press goes in the window; for stopping, that is the record it is read off. */
 export const STEP_ROUTE: Record<HomeStepId, Route & { readonly tab: string }> = {
+  // Run setup again stands in Help once setup is done, which is where its rung points.
+  finishSetup: { destination: 'settings', tab: 'help' },
   protectAgents: { destination: 'agents', tab: 'agents' },
   rulesInForce: { destination: 'rules', tab: 'rules' },
   actionsRecorded: { destination: 'activity', tab: 'timeline' },
@@ -159,6 +166,16 @@ export const STEP_ROUTE: Record<HomeStepId, Route & { readonly tab: string }> = 
 
 function homeSteps(standing: HomeStanding, keyTitle: string): HomeStep[] {
   return [
+    {
+      id: 'finishSetup',
+      title: 'Finish setting up this computer',
+      value: 'Five short steps put your agents under Memnox and choose where it asks you, so the rest of these can start.',
+      how: 'Who it is for, your agents, this computer, where Memnox asks you, and your starting rules.',
+      action: 'Run setup',
+      track: 'computer',
+      done: standing.setupFinished,
+      waitsOnAnAgent: false,
+    },
     {
       id: 'protectAgents',
       title: 'Put your agents under Memnox',

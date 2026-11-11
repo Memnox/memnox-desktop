@@ -628,10 +628,9 @@ export class PreviewStore implements PreferenceStore {
 
 export function previewSeed(): Record<string, string> {
   const look = asked.get('theme');
-  const seed: Record<string, string> = { [PREFERENCE.name]: 'Sam Rivera', [PREFERENCE.firstRun]: 'mac' };
+  const seed: Record<string, string> = { [PREFERENCE.name]: 'Sam Rivera' };
   if (look === 'light' || look === 'dark') seed[PREFERENCE.appearance] = look;
   if (previewState === 'firstrun') {
-    delete seed[PREFERENCE.firstRun];
     delete seed[PREFERENCE.name];
   }
   if (previewState === 'home') seed[PREFERENCE.setupDone] = 'true';

@@ -8,18 +8,10 @@ export const HomePageLines = {
   protecting: 'Runtime protecting this computer',
   away: 'The runtime is not answering',
   readFailed: 'the runtime',
-  carryOn: 'Carry on',
 };
 
 /** The getting started block's own words, beside the steps that `home-steps` names. */
 export const HomeStartLines = {
-  label: 'What to do next',
-  hiddenLabel: 'What to do next, hidden',
-  doThisNext: 'DO THIS NEXT',
-  show: 'Show',
-  hide: 'Hide',
-  showHelp: 'Show the steps again',
-  hideHelp: 'Fold these steps to one line until you want them again',
   cancel: 'Cancel',
   /** "3 of 8 steps done", what a screen reader hears for the ring. */
   stepsDone: (completed: number, total: number) => `${completed} of ${total} steps done`,

@@ -19,7 +19,7 @@ import { deviceCaption, PairingLines } from '../src/core/domain/pairing-lines';
 import { permissionSteps } from '../src/core/domain/permission-steps';
 import { keyStep, platformOf } from '../src/core/domain/platform';
 import { matchingPages, PageHistory, pageNamed, SETTINGS_GROUPS, SETTINGS_PAGES } from '../src/core/domain/settings-pages';
-import { agentsDetail, agentsStep, greeting, openStep, overviewSteps, readyCount, serviceStep, voiceStep } from '../src/core/domain/setup-steps';
+import { agentsDetail, agentsStep, greeting, overviewSteps, serviceStep, voiceStep } from '../src/core/domain/setup-steps';
 import { DONE, needs, WAITING } from '../src/core/domain/step-state';
 import { PersonKey, registered, ScriptedDaemon } from './doubles';
 
@@ -147,11 +147,10 @@ describe('the overview checklist', () => {
     voiceDetail: '',
   };
 
-  it('lists eight steps, counts the done ones, and offers the first open one with its reason', () => {
+  it('lists eight steps, the first open one with its reason', () => {
     const steps = overviewSteps(facts);
     expect(steps).toHaveLength(8);
-    expect(readyCount(steps)).toBe(5);
-    expect(openStep(steps)).toMatchObject({ title: 'Let it type for you', page: 'permissions', hint: 'Wayland lets Memnox type only through uinput' });
+    expect(steps.find((each) => each.state.kind !== 'done')).toMatchObject({ title: 'Let it type for you', page: 'permissions', hint: 'Wayland lets Memnox type only through uinput' });
   });
 
   it('greets by first name, or says Memnox', () => {

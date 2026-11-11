@@ -17,8 +17,6 @@ final class MenuModel: ObservableObject {
     @Published var opened = 0
     /// The phones paired with this Mac and not revoked, fetched each time the panel opens.
     @Published var devices: [Device] = []
-    /// The four numbers at the top, fetched each time the panel opens.
-    @Published var overview = MenuOverview()
     /// The Kokoro voice saved, so the voice menu ticks the one speaking.
     @Published var kokoroVoice = KokoroVoice.chosen().voice
     /// The agents and connected apps, shared with the notch and Settings.
@@ -48,7 +46,6 @@ final class MenuModel: ObservableObject {
     /// Gives a phone the mac capability with Touch ID when on, and takes it back unsigned when off.
     let letDrive: (Device, Bool) -> Void
     let loadDevices: () -> Void
-    let loadOverview: () -> Void
 
     init(
         wakeOn: Bool,
@@ -76,7 +73,6 @@ final class MenuModel: ObservableObject {
         revoke: @escaping (Device) -> Void,
         letDrive: @escaping (Device, Bool) -> Void,
         loadDevices: @escaping () -> Void,
-        loadOverview: @escaping () -> Void = {},
         tools: ToolsModel? = nil
     ) {
         self.tools = tools ?? ToolsModel()
@@ -105,26 +101,6 @@ final class MenuModel: ObservableObject {
         self.revoke = revoke
         self.letDrive = letDrive
         self.loadDevices = loadDevices
-        self.loadOverview = loadOverview
-    }
-}
-
-/// What the agents add up to right now, counted only from what the daemon and the island report.
-struct MenuOverview: Equatable {
-    var needYou = 0
-    var working = 0
-    var agents = 0
-    var repositories = 0
-
-    init() {}
-
-    /// Ended sessions are left out, so the counts describe work that is still alive.
-    init(sessions: [SessionCard], waiting: Int) {
-        let live = sessions.filter { $0.sessionState != .ended }
-        needYou = waiting
-        working = live.filter(\.status.isActive).count
-        agents = Set(live.map { $0.agent ?? $0.agentName }).count
-        repositories = Set(live.compactMap(\.repository)).count
     }
 }
 
@@ -194,7 +170,6 @@ final class MenuBarPanel: NSObject {
         host.rootView.model.opened += 1
         host.rootView.model.kokoroVoice = KokoroVoice.chosen().voice
         host.rootView.model.loadDevices()
-        host.rootView.model.loadOverview()
         host.rootView.model.tools.refresh()
         watchForDismissal()
     }

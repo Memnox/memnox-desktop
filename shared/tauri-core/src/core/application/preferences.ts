@@ -8,15 +8,11 @@ export const PREFERENCE = {
   /** Set once the first run is finished, after which Settings stops offering Finish setup. */
   setupDone: 'memnox.setupDone',
   /** Which way the first run went, so the choice is offered once: mac or account. */
-  firstRun: 'memnox.firstRunPath',
   /** Light, dark or system, for every window but the island. */
   appearance: 'memnox.appearance',
   /** The first run's spoken guide, muted from its footer. */
   guideMuted: 'memnox.onboarding.muted',
 } as const;
-
-/** The first run's two ways in, stored as the Mac stores them. */
-export const FIRST_RUN = { thisComputer: 'mac', account: 'team' } as const;
 
 /** The person's name, the look, and where the first run stands, read and written through the store. */
 export class Preferences {
@@ -38,14 +34,6 @@ export class Preferences {
 
   finishSetup(): void {
     this.write(PREFERENCE.setupDone, 'true');
-  }
-
-  get firstRun(): string {
-    return this.read(PREFERENCE.firstRun) ?? '';
-  }
-
-  set firstRun(path: string) {
-    this.write(PREFERENCE.firstRun, path);
   }
 
   get look(): Look {

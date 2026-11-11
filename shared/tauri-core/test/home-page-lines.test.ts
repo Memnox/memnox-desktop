@@ -14,6 +14,8 @@ const swift = [
   mac(`${app}/TodayDestination.swift`),
   mac(`${app}/HomeStart.swift`),
   mac('MemnoxVoice/Presentation/Components/ConsoleModal.swift'),
+  // Home's line is the contract's, kept once as Home's subtitle in the Mac's destinations.
+  mac('MemnoxVoiceCore/Domain/Window/Destinations.swift'),
 ].join('\n');
 const onMac = (text: string) => text.replace(/this computer/g, 'this Mac');
 const said = (text: string) => swift.includes(`"${onMac(text)}"`);

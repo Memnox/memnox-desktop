@@ -334,7 +334,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             revoke: { [weak self] device in self?.revoke(device) },
             letDrive: { [weak self] device, on in self?.letDrive(device, on) },
             loadDevices: { [weak self] in self?.loadDevices() },
-            loadOverview: { [weak self] in self?.loadOverview() },
             tools: tools
         )
         self.menu = menu
@@ -370,9 +369,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self, let conversation = self.conversation else { return "Memnox is still starting up. Try again in a moment." }
                 return await self.runtime.updateNow(conversation)
             },
-            remote: { [target] in target.isRemote },
-            openWaiting: { [weak self] in self?.panel.openIsland() },
-            openSession: { [weak self] session in self?.watchLive(session) }
+            remote: { [target] in target.isRemote }
         )
         self.home = home
         SettingsWindow.shared.home = home
@@ -1328,15 +1325,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self, let conversation = self.conversation else { return }
             let host = await conversation.sessionsList().first { $0.sessionId == session.sessionId }?.host
             await self.shown.live(session: session.sessionId, host: host)
-        }
-    }
-
-    /// The menu's four numbers, from the daemon's sessions and the calls still held.
-    private func loadOverview() {
-        Task { [weak self] in
-            guard let self, let conversation = self.conversation else { return }
-            let sessions = await conversation.sessionsList()
-            self.menu?.overview = MenuOverview(sessions: sessions, waiting: self.waitingCalls.count)
         }
     }
 

@@ -83,8 +83,8 @@ export function StateMark({ state }: { state: TodayState }) {
 }
 
 /**
- * What Today showed, drawn on Home below `lead` as the console's home brief: waiting on you, working now, today, ready
- * to hand over and not covered. Every answer to a held call goes through `HeldCalls`, so an allow is signed with this
+ * Home's blocks below `lead`, in the contract's order: needs you, working now, ready to hand over and today, each with
+ * its count in its own header. Every answer to a held call goes through `HeldCalls`, so an allow is signed with this
  * computer's key exactly as on the island, and is not sent when the signature is not given. Ported from the Mac's
  * `TodayDestination`.
  */
@@ -93,18 +93,12 @@ export function TodayPage({
   width,
   go,
   lead,
-  waitingFoot,
-  trail,
 }: {
   parts: SettingsParts;
   width: WidthClass;
   go: (route: Route) => void;
-  /** The greeting and the getting started steps, above every block. */
+  /** The greeting and the one Do this next card, above every block. */
   lead: ReactNode;
-  /** What else waits on the person and lives outside Today's items, under Waiting on you. */
-  waitingFoot: ReactNode;
-  /** The counts and the sessions to carry on, below every block. */
-  trail: ReactNode;
 }) {
   const { calls, sessions, home, agents, activity, support, words, projects } = parts;
   useObserved(calls, home, agents, activity, support, projects);
@@ -270,13 +264,11 @@ export function TodayPage({
               )}
               {!folded && cut && <GoLink onClick={() => setEveryUrgent(true)}>{TodayPageLines.showAll(held.length)}</GoLink>}
               {block === 'today' && today !== undefined && <p className="text-footnote text-muted">{HomeLines.today(today)}</p>}
-              {block === 'waiting' && waitingFoot}
             </section>
           );
         })}
         </>
         )}
-        {trail}
       </div>
       {opened !== undefined && (
         <Inspector title={position(opened.id, items) ?? TodayNotes.details} width={width} close={() => setOpen(undefined)}>

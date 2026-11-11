@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { routeForPage, type Route, type WidthClass } from '../../../core/domain/destinations';
+import type { Route, WidthClass } from '../../../core/domain/destinations';
 import { pageNamed } from '../../../core/domain/settings-pages';
 import type { SettingsParts } from '../../settings/parts';
 import { PageBody } from '../../settings/SettingsApp';
@@ -50,13 +50,13 @@ export function RoutePage({ parts, route, width, go }: { parts: SettingsParts; r
       if (route.tab === 'mcp') return <McpHubPage parts={parts} width={width} go={go} />;
       return <YourAppsPage parts={parts} />;
     case 'machines':
-      return <PageBody page="connection" parts={parts} go={(next) => go(routeForPage(next) ?? { destination: 'settings', tab: next })} />;
+      return <PageBody page="connection" parts={parts} />;
     case 'settings': {
       const page = pageNamed(route.tab) ?? 'account';
       // The pane header above it names the page, as the console's settings pane does.
       return (
         <div className="flex w-full max-w-settings-page flex-col gap-5">
-          <PageBody page={page} parts={parts} go={(next) => go(routeForPage(next) ?? { destination: 'settings', tab: next })} />
+          <PageBody page={page} parts={parts} />
         </div>
       );
     }

@@ -2,7 +2,7 @@ import XCTest
 
 @testable import MemnoxVoiceCore
 
-/// Home lays Today's items into the console's blocks, in the console's order and words.
+/// Home lays Today's items into the contract's blocks, in the contract's order and words.
 final class HomeBriefTests: XCTestCase {
     private var calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
@@ -14,9 +14,9 @@ final class HomeBriefTests: XCTestCase {
 
     func testReadsTheBlocksInTheConsolesOrderAndWords() {
         let blocks = HomeBrief.blocks(TodaySources(), now: now, calendar: calendar)
-        XCTAssertEqual(blocks.map(\.block.title), ["Waiting on you", "Working now", "Today", "Ready to hand over"])
+        XCTAssertEqual(blocks.map(\.block.title), ["Needs you", "Working now", "Ready to hand over", "Today"])
         XCTAssertTrue(blocks.allSatisfy { $0.items.isEmpty })
-        XCTAssertEqual(HomeBriefBlock.waiting.none, "Nothing is waiting on you.")
+        XCTAssertEqual(HomeBriefBlock.waiting.none, "Nothing needs you. Agents keep working inside their rules.")
     }
 
     func testPutsEachItemUnderTheBlockThatAnswersIt() throws {

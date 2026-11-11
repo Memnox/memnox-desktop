@@ -18,8 +18,8 @@ describe("Home's getting started steps", () => {
     expect(setup.next?.id).toBe('rulesInForce');
     expect(setup.next?.how).toContain('Windows Hello');
     expect(setup.waiting.map((step) => step.id)).toEqual(['actionsRecorded']);
-    expect(progressLine(setup)).toBe('1 of 8 done');
-    expect(restOf(setup, 'computer').map((step) => step.id)).toEqual(['protectAgents', 'answerAway', 'enforce']);
+    expect(progressLine(setup)).toBe('2 of 9 done');
+    expect(restOf(setup, 'computer').map((step) => step.id)).toEqual(['finishSetup', 'protectAgents', 'answerAway', 'enforce']);
     expect(restOf(setup, 'work')).toHaveLength(3);
   });
 
@@ -29,6 +29,12 @@ describe("Home's getting started steps", () => {
     expect(setup.climbed).toBe(true);
     expect(setup.standing.map((count) => count.label)).not.toContain('Servers shared');
     expect(homeSetup(EMPTY_STANDING, 'Windows Hello').standing).toEqual([]);
+  });
+
+  it('asks to finish setup first until it is done', () => {
+    const setup = homeSetup(standing({ setupFinished: false }), 'Windows Hello');
+    expect(setup.next?.id).toBe('finishSetup');
+    expect(progressLine(setup)).toBe('0 of 9 done');
   });
 
   it('knows only the two modes the runtime names', () => {

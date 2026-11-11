@@ -45,14 +45,6 @@ function step(title: string, state: StepState, page: SettingsPage, general: stri
 }
 
 /** The first step still open, which the card offers with its own button. */
-export function openStep(steps: readonly OverviewStep[]): OverviewStep | undefined {
-  return steps.find((each) => each.state.kind !== 'done');
-}
-
-export function readyCount(steps: readonly OverviewStep[]): number {
-  return steps.filter((each) => each.state.kind === 'done').length;
-}
-
 /** The name as a step: done once there is one. */
 export function nameStep(name: string): StepState {
   return name.trim() === '' ? WAITING : DONE;

@@ -17,16 +17,6 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// The sidebar's groups in order, each with the pages under it; the overview stands alone at the top.
-    static let groups: [(title: String?, pages: [SettingsPage])] = [
-        (nil, [.overview]),
-        ("You", [.account]),
-        ("This Mac", [.permissions, .connection, .phones, .appearance]),
-        ("Agents and tools", [.tools, .apps]),
-        ("Voice", [.voice, .listening, .dictation]),
-        ("Support", [.help]),
-    ]
-
     var title: String {
         switch self {
         case .overview: return "Overview"
@@ -59,23 +49,6 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .listening: return "When Memnox listens and how it speaks up."
         case .dictation: return "Speak instead of typing, in any app, written the way you would have typed it."
         case .help: return "Rules, a quick test, and what happened for support."
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .overview: return "house"
-        case .account: return "person.crop.circle"
-        case .permissions: return "lock.shield"
-        case .connection: return "bolt.horizontal.circle"
-        case .phones: return "iphone"
-        case .tools: return "terminal"
-        case .apps: return "square.grid.2x2"
-        case .appearance: return "circle.lefthalf.filled"
-        case .voice: return "person.wave.2"
-        case .listening: return "ear"
-        case .dictation: return "keyboard"
-        case .help: return "questionmark.circle"
         }
     }
 }

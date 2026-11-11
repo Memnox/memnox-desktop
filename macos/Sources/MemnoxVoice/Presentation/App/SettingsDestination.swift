@@ -28,7 +28,7 @@ struct SettingsDestination: View {
             case .listening: ListeningPage(menu: menu, setup: setup)
             case .dictation:
                 if let dictations = models.dictations { DictationPage(store: dictations) }
-            case .help: HelpPage(menu: menu)
+            case .help: HelpPage(menu: menu, setup: setup)
             // These moved to pages of their own, so a stale tab naming one lands on Account instead.
             case .overview, .tools, .apps, .connection:
                 if let account = models.account { AccountPage(account: account, setup: setup) }

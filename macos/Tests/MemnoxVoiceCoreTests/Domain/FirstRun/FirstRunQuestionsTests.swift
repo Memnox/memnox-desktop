@@ -50,16 +50,9 @@ final class FirstRunQuestionsTests: XCTestCase {
         XCTAssertEqual(lines.map(\.level), [.noEvidence])
     }
 
-    func testSaysAJobWithNoAgentHasNothingToStop() {
-        XCTAssertEqual(FirstRunCoverage.job("Research"), "Research has no agent behind it yet, so there is nothing for Memnox to stop or see yet.")
-        XCTAssertNil(FirstRunQuestions.jobLine(job: nil, boundTo: nil))
-        XCTAssertEqual(FirstRunQuestions.jobLine(job: "Research", boundTo: "Claude Code"), "Research now works through Claude Code.")
-    }
-
     func testKeepsEveryWordFreeOfDashes() {
         let words = AgentPlace.allCases.flatMap { [$0.title, $0.detail, $0.connects, FirstRunCoverage.place($0)] }
-            + [FirstRunQuestions.jobTitle, FirstRunQuestions.jobDetail, FirstRunQuestions.placeTitle, FirstRunQuestions.placeDetail,
-               FirstRunQuestions.noJobs, FirstRunQuestions.cloudOptional, FirstRunQuestions.nothingFound, FirstRunCoverage.title,
+            + [FirstRunQuestions.placeTitle, FirstRunQuestions.placeDetail, FirstRunQuestions.cloudOptional, FirstRunQuestions.nothingFound, FirstRunCoverage.title,
                FirstRunCoverage.lead, FirstRunCoverage.cannot]
         for line in words {
             XCTAssertFalse(line.contains("\u{2014}") || line.contains("\u{2013}") || line.contains(" - "), line)

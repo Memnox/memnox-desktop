@@ -5,16 +5,13 @@ import XCTest
 
 /// Mirrors shared/tauri-core/test/onboarding-steps.test.ts and the steps in onboarding-guide.test.ts.
 final class FirstRunLinesTests: XCTestCase {
-    private func entry(_ json: String) throws -> McpHubEntryView {
-        try JSONDecoder().decode(McpHubEntryView.self, from: Data(json.utf8))
-    }
-
     private func pack(_ id: String) -> RulePackView {
         RulePackView(id: id, name: id, description: "", ruleCount: 3, toml: "")
     }
 
     func testRunsFiveShortStepsCountedOnEveryOne() {
-        XCTAssertEqual(FirstRunLines.steps, ["Connect", "Its job", "Where it runs", "Bring in", "Starting rules"])
+        XCTAssertEqual(FirstRunLines.steps, ["Who it is for", "Your agents", "This Mac", "Where you are asked", "Starting rules"])
+        XCTAssertEqual(FirstRunStepID.allCases.map(\.rawValue), ["who", "agents", "connect", "ask-where", "rules"])
         XCTAssertEqual((0..<5).map { FirstRunLines.progressLabel(step: $0) },
                        ["Step 1 of 5", "Step 2 of 5", "Step 3 of 5", "Step 4 of 5", "Step 5 of 5"])
         XCTAssertEqual(FirstRunLines.progressLabel(step: 7), "Step 5 of 5")
@@ -39,32 +36,9 @@ final class FirstRunLinesTests: XCTestCase {
         XCTAssertEqual(FirstRunLines.otherPacks([]), [])
     }
 
-    func testCountsWhatOneAgentKeepsAndLeavesARepositoryFileWhereItIs() throws {
-        let servers = [
-            try entry(#"{"agent":"cursor","path":"~/.cursor/mcp.json","name":"notion"}"#),
-            try entry(#"{"agent":"claude-code","path":"~/.claude.json","name":"github"}"#),
-            try entry(#"{"path":"/code/app/.mcp.json","name":"playwright"}"#),
-        ]
-        let skills = [
-            FoundSkillView(id: "f1", name: "frontend-design", agent: "claude-code", kind: "skill", path: "p", tools: [], grant: "g", imported: false),
-            FoundSkillView(id: "f2", name: "old", agent: "codex-cli", kind: "skill", path: "p", tools: [], grant: "g", imported: true),
-        ]
-        let found = FirstRunLines.found(servers: servers, skills: skills)
-        XCTAssertEqual(found.servers.map(\.name), ["notion", "github"])
-        XCTAssertEqual(found.skills.map(\.id), ["f1"])
-        XCTAssertEqual(found.agents, 2)
-        XCTAssertEqual(FirstRunLines.foundLine(found), "We found 2 tools and 1 skill across 2 agents.")
-    }
-
-    func testSaysPlainlyWhenThereIsNothingToBringIn() {
-        XCTAssertEqual(FirstRunLines.foundLine(FirstRunLines.found(servers: [], skills: [])),
-                       "Nothing to bring in: no agent here keeps tools or skills of its own yet.")
-    }
-
-    func testSaysWhatAnImportBroughtInAndWhatItLeft() {
-        XCTAssertEqual(FirstRunLines.importedLine(3, failed: []), "Brought in 3, now set up once in Memnox.")
-        XCTAssertEqual(FirstRunLines.importedLine(1, failed: ["notion: no such file"]),
-                       "Brought in 1, now set up once in Memnox. 1 could not be, and stay where they are: notion: no such file")
+    func testSuggestsAskingWhereWhoItIsForPointsFirst() {
+        XCTAssertEqual(FirstRunAudience.allCases.map(\.suggested), [.here, .phone, .cloud])
+        XCTAssertEqual(FirstRunAudience.away.title, "Just me, with agents working while I'm away")
     }
 
     func testListsAPackWithItsRuleCount() {

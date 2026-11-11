@@ -76,23 +76,8 @@ public enum AgentPlace: String, CaseIterable, Identifiable, Sendable {
 
 /// The first run's two questions and their words, asked one at a time after the scan.
 public enum FirstRunQuestions {
-    public static let jobTitle = "What do you want your AI to help with?"
-    public static let jobDetail = "Pick the closest. Memnox keeps it as a job your agent works under. Nothing is applied, and you can change it later."
     public static let placeTitle = "Where does your agent run?"
-    public static let placeDetail = "Pick where the one you use most lives. You can add the others later under AI agents."
-
-    /// Said where the runtime offers no jobs to start from, so the step never stands empty.
-    public static let noJobs = "This Memnox service has no jobs to start from yet. You can write one later under AI agents."
-
-    /// The button that leaves the question unanswered, which is always allowed.
-    public static let skip = "Skip for now"
-
-    /// What happens to the job once the place is known: bound to a found agent, or kept with nothing behind it.
-    public static func jobLine(job: String?, boundTo agent: String?) -> String? {
-        guard let job else { return nil }
-        if let agent { return "\(job) now works through \(agent)." }
-        return "\(job) has \(AgentProfileLines.noAgent.lowercased()). Connect one whenever you are ready, under AI agents."
-    }
+    public static let placeDetail = "Pick where the one you use most lives. You can add the others later under Agents."
 
     /// What reaching an agent through Memnox Cloud asks of the person: nothing now, since signing in is optional.
     public static let cloudOptional = "This kind of agent reaches Memnox through Memnox Cloud. Signing in is optional, and everything on this Mac works without it."
@@ -137,11 +122,6 @@ public enum FirstRunCoverage {
     public static func place(_ place: AgentPlace) -> String {
         guard let expected = place.expected else { return place.connects }
         return "Outside Memnox until it is connected. Connected this way, expect: \(CapabilityLevelLines.plain(expected))."
-    }
-
-    /// The line for a job with no agent behind it, which shows no level since nothing does the job.
-    public static func job(_ name: String) -> String {
-        "\(name) has \(AgentProfileLines.noAgent.lowercased()), so there is nothing for Memnox to stop or see yet."
     }
 
     /// "Commands, Files and Git", the way a sentence lists things.

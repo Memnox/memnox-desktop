@@ -2,7 +2,7 @@ import MemnoxVoiceCore
 import SwiftUI
 
 /// The end's card of what Memnox can and cannot do, in the five plain levels: each agent found here with the levels
-/// the service stated, the agent the person said runs elsewhere, and the job with no agent behind it. It shows only
+/// the service stated, and the agent the person said runs elsewhere. It shows only
 /// what the service said, so it can say less than is true and never more.
 struct CoverageCard: View {
     @ObservedObject var flow: OnboardingFlow
@@ -16,12 +16,6 @@ struct CoverageCard: View {
                 KitDivider()
                 KitRow(symbol: "cloud", title: place.title, detail: FirstRunCoverage.place(place)) {
                     LevelPill(level: .noEvidence)
-                }
-            }
-            if let job = flow.job, flow.boundTo == nil {
-                KitDivider()
-                KitRow(symbol: "briefcase", title: job.name, detail: FirstRunCoverage.job(job.name)) {
-                    StatusWord(.quiet, AgentProfileLines.noAgent)
                 }
             }
             KitDivider()

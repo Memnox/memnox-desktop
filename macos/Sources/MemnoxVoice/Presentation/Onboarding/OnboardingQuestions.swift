@@ -50,186 +50,72 @@ private struct StepNote: View {
     }
 }
 
-/// The first question: what the person wants their AI to help with, answered by picking one of the runtime's jobs,
-/// which is kept as a profile with no agent behind it yet. Nothing is applied, and skipping is always allowed.
-struct JobStep: View {
+/// The first question: who Memnox is for, which only picks where Where should Memnox ask you suggests first.
+struct WhoStep: View {
     @ObservedObject var flow: OnboardingFlow
 
     var body: some View {
-        StepTitle(title: FirstRunQuestions.jobTitle, detail: FirstRunQuestions.jobDetail)
-        if let profiles = AppWindow.shared.shell.profiles, AppWindow.shared.shell.supports("templates") == true {
-            JobChoices(flow: flow, screen: profiles)
-        } else {
-            StepNote(text: FirstRunQuestions.noJobs)
-            Next(title: "Continue", flow: flow)
+        StepTitle(title: FirstRunStepID.who.title, detail: "It only picks what is suggested next. You can change it later.")
+        KitCard(symbol: "person.2", title: "Pick one") {
+            ForEach(Array(FirstRunAudience.allCases.enumerated()), id: \.element.id) { index, audience in
+                if index > 0 { KitDivider() }
+                AnswerRow(symbol: Self.symbol(audience), title: audience.title, detail: audience.detail, on: flow.audience == audience) {
+                    flow.audience = audience
+                }
+            }
+        }
+        .onAppear { if flow.audience == nil { flow.audience = .me } }
+        Next(title: "Continue", flow: flow)
+    }
+
+    private static func symbol(_ audience: FirstRunAudience) -> String {
+        switch audience {
+        case .me: "person"
+        case .away: "iphone"
+        case .team: "person.3"
         }
     }
 }
 
-private struct JobChoices: View {
-    @ObservedObject var flow: OnboardingFlow
-    @ObservedObject var screen: ProfilesScreen
-    @State private var picked: String?
-    @State private var keeping = false
-    @State private var failed: String?
-
-    var body: some View {
-        let templates = screen.profiles.templates
-        KitCard(symbol: "briefcase", title: "Jobs to start from", detail: "Each one is a job description. \(AgentProfileLines.noAgent).") {
-            if let templates {
-                if templates.isEmpty { StepNote(text: FirstRunQuestions.noJobs) }
-                ForEach(Array(templates.enumerated()), id: \.element.id) { index, each in
-                    if index > 0 { KitDivider() }
-                    AnswerRow(symbol: "briefcase", title: each.name, detail: each.purpose, on: chosen == each.id, disabled: keeping) {
-                        picked = each.id
-                    }
-                }
-            } else {
-                ProgressView().controlSize(.small)
-            }
-        }
-        .task {
-            if picked == nil, let kept = flow.job { picked = screen.profiles.profiles?.first { $0.id == kept.id }?.templateOf }
-            await screen.profiles.readTemplates()
-        }
-        if let failed { StepNote(text: failed) }
-        if let template = templates?.first(where: { $0.id == chosen }), flow.job?.name != template.name {
-            Button { Task { await keep(template) } } label: {
-                HStack(spacing: Memnox.Spacing.small) {
-                    Text(keeping ? "Keeping \(template.name)" : "Continue")
-                    Image(systemName: "arrow.right")
-                }
-            }
-            .buttonStyle(KitButton(kind: .primary, wide: true))
-            .keyboardShortcut(.defaultAction)
-            .disabled(keeping)
-        } else {
-            Next(title: "Continue", flow: flow)
-        }
-        if flow.job == nil {
-            Button(FirstRunQuestions.skip) { flow.next() }
-                .buttonStyle(KitButton(kind: .secondary, wide: true))
-                .disabled(keeping)
-        }
-    }
-
-    private var chosen: String? { picked }
-
-    /// Copies the job into a profile with no suggested skill taken and no rule applied, then moves on.
-    private func keep(_ template: ProfileTemplate) async {
-        keeping = true
-        failed = nil
-        let outcome = await screen.profiles.fromTemplate(template.id, named: template.name, skills: [])
-        keeping = false
-        switch outcome {
-        case .failed(let why):
-            // A job of that name kept by an earlier first run is used as it is, so a second run never stops here.
-            if let kept = Self.kept(template, in: screen.profiles.profiles) {
-                flow.job = (kept.id, kept.name)
-                flow.next()
-            } else {
-                failed = why
-            }
-        case .done:
-            if let kept = Self.kept(template, in: screen.profiles.profiles) { flow.job = (kept.id, kept.name) }
-            flow.next()
-        }
-    }
-
-    private static func kept(_ template: ProfileTemplate, in profiles: [ProfileView]?) -> ProfileView? {
-        let matching = (profiles ?? []).filter { $0.templateOf == template.id }
-        return matching.first { $0.name == template.name } ?? matching.first
-    }
-}
-
-/// The second question: where the person's agent runs. On this Mac the agents found are already under Memnox and the
-/// job can go to one of them; anywhere else the agent reaches Memnox through Memnox Cloud, offered and never required.
-struct PlaceStep: View {
+/// The second question: which agents the person runs and where. On this Mac the agents found are put under Memnox once
+/// the service runs; anywhere else the agent reaches Memnox through Memnox Cloud, offered and never required.
+struct AgentsStep: View {
     @ObservedObject var flow: OnboardingFlow
 
     var body: some View {
-        StepTitle(title: FirstRunQuestions.placeTitle, detail: FirstRunQuestions.placeDetail)
-        if let agents = AppWindow.shared.shell.agents {
-            PlaceChoices(flow: flow, agents: agents, profiles: AppWindow.shared.shell.profiles)
-        } else {
-            PlaceChoices(flow: flow, agents: nil, profiles: AppWindow.shared.shell.profiles)
-        }
+        StepTitle(title: FirstRunStepID.agents.title, detail: FirstRunQuestions.placeDetail)
+        PlaceChoices(flow: flow, agents: AppWindow.shared.shell.agents)
     }
 }
 
 private struct PlaceChoices: View {
     @ObservedObject var flow: OnboardingFlow
     let agents: AgentsScreen?
-    let profiles: ProfilesScreen?
-    @State private var agent = ""
-    @State private var binding = false
-    @State private var failed: String?
 
     var body: some View {
         let found = agents?.agents.agents ?? []
-        KitCard(symbol: "point.3.connected.trianglepath.dotted", title: "Pick one") {
+        KitCard(symbol: "point.3.connected.trianglepath.dotted", title: FirstRunQuestions.placeTitle) {
             ForEach(Array(AgentPlace.allCases.enumerated()), id: \.element.id) { index, place in
                 if index > 0 { KitDivider() }
-                AnswerRow(symbol: Self.symbol(place), title: place.title, detail: place.detail, on: flow.place == place, disabled: binding) {
+                AnswerRow(symbol: Self.symbol(place), title: place.title, detail: place.detail, on: flow.place == place) {
                     flow.place = place
                 }
             }
         }
-        .onAppear {
-            if flow.place == nil { flow.place = AgentPlace.suggested(foundHere: found.count) }
-            if agent.isEmpty { agent = found.first?.kind ?? "" }
-        }
+        .onAppear { if flow.place == nil { flow.place = AgentPlace.suggested(foundHere: found.count) } }
         if let place = flow.place { answer(place, found: found) }
-        if let failed { StepNote(text: failed) }
-        Button { Task { await go(found) } } label: {
-            HStack(spacing: Memnox.Spacing.small) {
-                Text(binding ? "Giving the job" : "Continue")
-                Image(systemName: "arrow.right")
-            }
-        }
-        .buttonStyle(KitButton(kind: .primary, wide: true))
-        .keyboardShortcut(.defaultAction)
-        .disabled(binding)
+        Next(title: "Continue", flow: flow)
     }
 
-    /// What the answer means: the agents found here and who takes the job, or how a remote agent connects.
+    /// What the answer means: the agents found here, or how a remote agent connects.
     @ViewBuilder private func answer(_ place: AgentPlace, found: [AgentStanding]) -> some View {
         KitCard(symbol: place.isLocal ? "desktopcomputer" : "cloud", title: "How it reaches Memnox", detail: place.connects) {
             if place.isLocal {
-                if found.isEmpty {
-                    StepNote(text: FirstRunQuestions.nothingFound)
-                } else if let job = flow.job {
-                    ConsoleSelect(label: "Give \(job.name) to", selection: $agent,
-                                  options: [SelectOption(value: "", title: "No agent yet")]
-                                      + found.map { SelectOption(value: $0.kind, title: $0.name) })
-                } else {
-                    StepNote(text: FirstRunLines.agentsFound(found))
-                }
+                StepNote(text: found.isEmpty ? FirstRunQuestions.nothingFound : FirstRunLines.agentsFound(found))
             } else if place.throughCloud {
                 StepNote(text: FirstRunQuestions.cloudOptional)
                 if let account = flow.account { CloudOffer(account: account) }
-            } else if let line = FirstRunQuestions.jobLine(job: flow.job?.name, boundTo: nil) {
-                StepNote(text: line)
             }
-        }
-    }
-
-    /// Binds the job to the agent chosen on this Mac, which a person does on purpose, then moves on.
-    private func go(_ found: [AgentStanding]) async {
-        guard let place = flow.place, place.isLocal, let job = flow.job, let profiles, !agent.isEmpty,
-              found.contains(where: { $0.kind == agent }) else {
-            flow.next()
-            return
-        }
-        binding = true
-        failed = nil
-        let outcome = await profiles.profiles.bind(job.id, agent: agent)
-        binding = false
-        switch outcome {
-        case .failed(let why): failed = why
-        case .done:
-            flow.boundTo = found.first { $0.kind == agent }?.name
-            flow.next()
         }
     }
 
@@ -242,6 +128,53 @@ private struct PlaceChoices: View {
         case .noCode: "square.grid.3x3"
         case .ownCode: "curlybraces"
         case .noneYet: "sparkles"
+        }
+    }
+}
+
+/// The fourth step: where Memnox asks. Touch ID here is always on; the phone and Memnox Cloud are each one press, the
+/// one suggested by who Memnox is for listed first, and both can wait.
+struct AskWhereStep: View {
+    @ObservedObject var flow: OnboardingFlow
+    @ObservedObject var setup: SetupModel
+
+    var body: some View {
+        let first = flow.audience?.suggested ?? .here
+        let routes = [first] + FirstRunAskRoute.allCases.filter { $0 != first }
+        StepTitle(title: FirstRunStepID.askWhere.title, detail: "When an agent needs a yes, Memnox asks you there first. You can add the rest later.")
+        KitCard(symbol: "bell.badge", title: "Ask me") {
+            ForEach(Array(routes.enumerated()), id: \.element.rawValue) { index, route in
+                if index > 0 { KitDivider() }
+                KitRow(symbol: Self.symbol(route), title: route.title, detail: route.detail) { trailing(route) }
+            }
+        }
+        Next(title: "Continue", flow: flow)
+    }
+
+    @ViewBuilder private func trailing(_ route: FirstRunAskRoute) -> some View {
+        switch route {
+        case .here:
+            CheckBox(state: setup.key == .done ? .done : .waiting)
+        case .phone:
+            if case .paired = setup.phone {
+                CheckBox(state: .done)
+            } else {
+                Button("Pair", systemImage: "qrcode") {
+                    SettingsWindow.shared.show()
+                    AppWindow.shared.shell.go(WindowRoute(.settings, tab: "phones"))
+                }
+                .buttonStyle(KitButton(kind: .secondary))
+            }
+        case .cloud:
+            if let account = flow.account { CloudOffer(account: account) }
+        }
+    }
+
+    private static func symbol(_ route: FirstRunAskRoute) -> String {
+        switch route {
+        case .here: "touchid"
+        case .phone: "iphone"
+        case .cloud: "building.2"
         }
     }
 }

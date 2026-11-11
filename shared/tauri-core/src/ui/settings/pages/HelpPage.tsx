@@ -1,4 +1,4 @@
-import { ClipboardCopy, ShieldHalf, Volume2 } from 'lucide-react';
+import { ClipboardCopy, RotateCcw, ShieldHalf, Volume2 } from 'lucide-react';
 import { overviewSteps } from '../../../core/domain/setup-steps';
 import { SettingsCard, SettingsDivider, SettingsRow, useCopied } from '../kit';
 import type { SettingsParts } from '../parts';
@@ -21,13 +21,17 @@ function whatHappened(parts: SettingsParts): string {
   ].join('\n');
 }
 
-/** The Help page: say a rule, check that Memnox hears and answers, and copy what happened for support. */
+/** The Help page: run setup again, say a rule, check that Memnox hears and answers, and copy what happened for support. */
 export function HelpPage({ parts }: { parts: SettingsParts }) {
   const { host } = parts;
   // The island's diary of steps first, as the Mac copies it, then where this computer stands.
   const [copied, copy] = useCopied((text) => host.copyWhatHappened?.(text) ?? host.copy(text));
   return (
     <SettingsCard>
+      <SettingsRow icon={RotateCcw} title={HelpPageLines.setupAgain} caption={HelpPageLines.setupAgainCaption}>
+        <Button onClick={() => host.openOnboarding()}>{HelpPageLines.runSetup}</Button>
+      </SettingsRow>
+      <SettingsDivider />
       <SettingsRow icon={ShieldHalf} title={HelpPageLines.sayRule} caption={HelpPageLines.sayRuleCaption}>
         <Button onClick={() => host.talk('rule')}>{HelpPageLines.sayRule}</Button>
       </SettingsRow>

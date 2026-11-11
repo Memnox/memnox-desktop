@@ -177,11 +177,11 @@ private struct OnboardingStepView: View {
                 ReadyStep(flow: flow, setup: setup)
             } else {
                 switch flow.step {
+                case .who: WhoStep(flow: flow)
+                case .agents: AgentsStep(flow: flow)
                 case .connect: ConnectStep(flow: flow, setup: setup)
-                case .job: JobStep(flow: flow)
-                case .place: PlaceStep(flow: flow)
-                case .workspace: WorkspaceStep(flow: flow)
-                case .boundaries: BoundariesStep(flow: flow)
+                case .askWhere: AskWhereStep(flow: flow, setup: setup)
+                case .rules: RulesStep(flow: flow)
                 }
             }
         }

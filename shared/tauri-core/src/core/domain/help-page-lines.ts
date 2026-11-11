@@ -1,6 +1,9 @@
 /** The Help page's words, as the Mac's HelpPage says them. */
 
 export const HelpPageLines = {
+  setupAgain: 'Run setup again',
+  setupAgainCaption: 'The five steps from the start, with what you answered before already chosen.',
+  runSetup: 'Run setup',
   sayRule: 'Say a rule',
   saySomething: 'Say something',
   saySomethingCaption: 'Checks that Memnox hears and answers you.',

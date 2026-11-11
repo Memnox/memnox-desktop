@@ -1,4 +1,4 @@
-import type { AgentView, FoundSkillView, McpHubEntryView, RulePackView, VoiceAgentStatus } from '@memnox/core/wire';
+import type { AgentView, RulePackView, VoiceAgentStatus } from '@memnox/core/wire';
 import type { SettingsPage } from './settings-pages';
 import { DONE, needs, WAITING, type StepState } from './step-state';
 
@@ -144,39 +144,8 @@ export function editorRow(editors: { readonly present: boolean; readonly withExt
   };
 }
 
-/** What a fresh computer already has that Memnox can bring in: servers and skills each agent keeps on its own. */
-export interface FoundToImport {
-  /** Servers named in one agent's config; a repository's own file is shared by several and stays where it is. */
-  readonly servers: readonly { readonly agent: string; readonly name: string }[];
-  readonly skills: readonly { readonly id: string; readonly agent: string; readonly name: string }[];
-  /** The agents that hold any of them, counted once each. */
-  readonly agents: number;
-}
-
-export function foundToImport(servers: readonly McpHubEntryView[], skills: readonly FoundSkillView[]): FoundToImport {
-  const importableServers = servers.flatMap((entry) => (entry.agent === undefined ? [] : [{ agent: entry.agent, name: entry.name }]));
-  const importableSkills = skills.filter((skill) => !skill.imported).map((skill) => ({ id: skill.id, agent: skill.agent, name: skill.name }));
-  const agents = new Set([...importableServers.map((each) => each.agent), ...importableSkills.map((each) => each.agent)]);
-  return { servers: importableServers, skills: importableSkills, agents: agents.size };
-}
-
 function counted(count: number, one: string, many: string): string {
   return count === 1 ? `1 ${one}` : `${count} ${many}`;
-}
-
-/** "We found 3 tools and 2 skills across 2 agents." Counts, never a score. */
-export function foundLine(found: FoundToImport): string {
-  if (found.servers.length === 0 && found.skills.length === 0) return 'Nothing to bring in: no agent here keeps tools or skills of its own yet.';
-  const servers = counted(found.servers.length, 'tool', 'tools');
-  const skills = counted(found.skills.length, 'skill', 'skills');
-  return `We found ${servers} and ${skills} across ${counted(found.agents, 'agent', 'agents')}.`;
-}
-
-/** What one tap of Import brought in, and what it could not. */
-export function importedLine(imported: number, failed: readonly string[]): string {
-  const brought = imported === 1 ? 'Brought in 1, now set up once in Memnox.' : `Brought in ${imported}, now set up once in Memnox.`;
-  if (failed.length === 0) return brought;
-  return `${brought} ${failed.length} could not be, and stay where they are: ${failed[0] ?? ''}`;
 }
 
 /** "Careful · 6 rules", as a pack is listed to choose from. */

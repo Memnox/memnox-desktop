@@ -3,7 +3,6 @@ import {
   AGENT_PLACES,
   endLinks,
   FirstRunCoverage,
-  FirstRunQuestions,
   joinedThings,
   nextStep,
   previousStep,
@@ -12,8 +11,9 @@ import {
   GuideLines,
   GuideMemory,
   ONBOARDING_STEPS,
-  permissionsAsked,
-  permissionsLine,
+  askOrder,
+  ONBOARDING_IDS,
+  TRY_PROMPT,
   progressOf,
   rowSpoken,
   startingPacks,
@@ -21,7 +21,6 @@ import {
   stepHeading,
   WELCOME_ROWS,
 } from '../src/core/domain/onboarding';
-import { permissionSteps, waitingSteps, type PermissionFacts } from '../src/core/domain/permission-steps';
 
 describe('the first run guide', () => {
   it('greets by name as the Mac does, and with no name at all', () => {
@@ -44,7 +43,8 @@ describe('the first run guide', () => {
     expect(rowSpoken('tools', 'linux')).toContain('send it with your password');
   });
 
-  it('runs short steps with two questions asked one at a time, then an end screen', () => {
+  it('runs the contract’s five steps, then an end screen', () => {
+    expect(ONBOARDING_IDS).toEqual(['who', 'agents', 'connect', 'ask-where', 'rules']);
     expect(ONBOARDING_STEPS).toHaveLength(5);
     expect(([0, 2, 4] as const).map((step) => stepCounter(step))).toEqual(['Step 1 of 5', 'Step 3 of 5', 'Step 5 of 5']);
     expect(progressOf(0)).toBeCloseTo(1 / 5);
@@ -53,10 +53,10 @@ describe('the first run guide', () => {
     expect(nextStep(3)).toBe(4);
     expect(nextStep(4)).toBeUndefined();
     expect(previousStep(0)).toBeUndefined();
-    expect(stepHeading(0, 'Windows Hello').detail).toContain('Windows Hello becomes the key only you approve with');
-    expect(stepHeading(1, 'Windows Hello').title).toBe('What do you want your AI to help with?');
-    expect(stepHeading(2, 'Windows Hello').title).toBe('Where does your agent run?');
-    expect(stepHeading(3, 'Windows Hello').title).toBe('Permissions');
+    expect(stepHeading(0, 'Windows Hello').title).toBe('Who is Memnox for?');
+    expect(stepHeading(1, 'Windows Hello').title).toBe('Which agents do you run?');
+    expect(stepHeading(2, 'Windows Hello').detail).toContain('Windows Hello becomes the key only you approve with');
+    expect(stepHeading(3, 'Windows Hello').title).toBe('Where should Memnox ask you?');
     expect(stepHeading(4, 'Windows Hello').detail).toContain('The recommended rules are chosen for you');
   });
 
@@ -68,25 +68,11 @@ describe('the first run guide', () => {
   });
 });
 
-describe('the grants step', () => {
-  const windows = (microphone: PermissionFacts['microphone']): PermissionFacts => ({ platform: 'windows', session: 'desktop', microphone, typing: true });
-
-  it('lists on Windows only the microphone switch, which is the one thing Windows asks for', () => {
-    expect(permissionsAsked(permissionSteps(windows('denied'))).map((step) => step.id)).toEqual(['hear']);
-    expect(permissionsLine(permissionsAsked(permissionSteps(windows('denied'))))).toBe('One grant left. Memnox carries on without it, and asks again in Settings.');
-    expect(permissionsLine(permissionsAsked(permissionSteps(windows('allowed'))))).toBe('Everything this computer asks for is granted.');
-  });
-
-  it('lists nothing on an X11 desktop that asks for nothing, and only what Wayland still lacks', () => {
-    const x11: PermissionFacts = { platform: 'linux', session: 'x11', microphone: 'allowed', typing: true, seeing: { portal: null, accessibility: true } };
-    expect(permissionsAsked(permissionSteps(x11))).toEqual([]);
-    expect(permissionsLine([])).toContain('Nothing to grant');
-    const wayland: PermissionFacts = { platform: 'linux', session: 'wayland', microphone: 'allowed', typing: false, seeing: { portal: true, accessibility: true } };
-    expect(permissionsAsked(permissionSteps(wayland)).map((step) => step.id)).toEqual(['type']);
-  });
-
-  it('says it is still asking before the facts arrive', () => {
-    expect(permissionsLine(permissionsAsked(waitingSteps()))).toBe('Asking this computer what it needs.');
+describe('where Memnox asks', () => {
+  it('lists the route who it is for suggests first, this computer first when nobody said', () => {
+    expect(askOrder('away')).toEqual(['phone', 'here', 'cloud']);
+    expect(askOrder('team')).toEqual(['cloud', 'here', 'phone']);
+    expect(askOrder(undefined)).toEqual(['here', 'phone', 'cloud']);
   });
 });
 
@@ -105,23 +91,16 @@ describe('the starting rules step', () => {
 });
 
 describe('the end screen', () => {
-  it('offers the name, the voice, the workspace and the phone, each in Settings', () => {
+  it('offers the name and the voice, each in Settings, the phone and Memnox Cloud having their own step', () => {
     expect(endLinks(undefined).map((link) => [link.id, link.page])).toEqual([
       ['name', 'account'],
       ['voice', 'voice'],
-      ['workspace', 'account'],
-      ['phone', 'phones'],
     ]);
+    expect(endLinks('Sam').map((link) => link.id)).toEqual(['voice']);
   });
 
-  it('stops asking for the name once it is given', () => {
-    expect(endLinks('Sam').map((link) => link.id)).toEqual(['voice', 'workspace', 'phone']);
-  });
-
-  it('offers Memnox Cloud and the phone as optional, never a step', () => {
-    const links = endLinks('Sam');
-    expect(links.find((link) => link.id === 'workspace')).toMatchObject({ title: 'Sign in to Memnox Cloud', detail: expect.stringMatching(/^Optional\./) });
-    expect(links.find((link) => link.id === 'phone')?.detail).toMatch(/^Optional\./);
+  it('offers the contract’s prompt to try first', () => {
+    expect(TRY_PROMPT).toBe('Make a folder called memnox-try, then delete it with rm -rf memnox-try.');
   });
 });
 
@@ -135,11 +114,6 @@ describe('the two questions', () => {
     expect(throughCloud('none-yet')).toBe(false);
   });
 
-  it('says what became of the job', () => {
-    expect(FirstRunQuestions.jobLine(undefined, undefined)).toBeUndefined();
-    expect(FirstRunQuestions.jobLine('Code Review', 'Cursor')).toBe('Code Review now works through Cursor.');
-    expect(FirstRunQuestions.jobLine('Code Review', undefined)).toBe('Code Review has no agent behind it yet. Connect one whenever you are ready, under AI agents.');
-  });
 });
 
 describe('what Memnox can and cannot do, at the end', () => {
@@ -159,10 +133,9 @@ describe('what Memnox can and cannot do, at the end', () => {
     expect(lines[0]?.sentence).toBe('Memnox stops this: Its tools, Asking you first, Commands and Files.');
   });
 
-  it('says a place elsewhere is outside Memnox until it reports, and a job with nobody behind it shows no level', () => {
+  it('says a place elsewhere is outside Memnox until it reports', () => {
     expect(FirstRunCoverage.place('inside-app')).toBe('Outside Memnox until it is connected. Connected this way, expect: The agent asks Memnox.');
     expect(FirstRunCoverage.place('none-yet')).toBe('Nothing yet. Connect an agent whenever you are ready.');
-    expect(FirstRunCoverage.job('Testing')).toBe('Testing has no agent behind it yet, so there is nothing for Memnox to stop or see yet.');
     expect(joinedThings(['Git'])).toBe('Git');
     expect(joinedThings([])).toBe('');
   });

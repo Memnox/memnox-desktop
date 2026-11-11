@@ -15,20 +15,17 @@ public enum FirstRunNext: Equatable, Sendable {
     }
 }
 
-/// What is optional after the steps, each done from the end itself or a link to the Settings page that holds it.
+/// What is optional after the steps, each done from the end itself or a link to the Settings page that holds it; the
+/// phone and Memnox Cloud are offered on Where should Memnox ask you.
 public enum FirstRunExtraId: String, CaseIterable, Sendable {
     case voice
     case keys
-    case workspace
-    case phone
 
     /// The Settings tab it opens, as `Destinations.settingsTabs` names it.
     public var settingsTab: String {
         switch self {
         case .voice: "voice"
         case .keys: "listening"
-        case .workspace: "account"
-        case .phone: "phones"
         }
     }
 }
@@ -49,7 +46,7 @@ public enum FirstRunEnd {
         return trimmed.isEmpty ? "You're set." : "You're set, \(trimmed)."
     }
 
-    public static let lead = "Your agents work inside your starting rules now. Here is what that covers, and what is optional."
+    public static let lead = "Your agents work inside your starting rules now. Try one ask, then see what that covers."
 
     /// Talking once the microphone is allowed, since it shows Memnox at work in a second; Home otherwise.
     public static func next(hearing: Bool) -> FirstRunNext {
@@ -60,7 +57,7 @@ public enum FirstRunEnd {
     public static let talkHint = "Press Option Space, talk, and let go. Memnox answers in the notch."
 
     /// The optional rows in the order a person would reach for them, each saying whether it is already done.
-    public static func extras(hearing: Bool, signedIn: Bool, phonePaired: Bool) -> [FirstRunExtra] {
+    public static func extras(hearing: Bool) -> [FirstRunExtra] {
         FirstRunExtraId.allCases.map { id in
             switch id {
             case .voice:
@@ -70,15 +67,6 @@ public enum FirstRunEnd {
             case .keys:
                 return FirstRunExtra(id: id, title: "Keys to try",
                                      detail: "Option Space to ask, Control Option to say a rule, Right Option to dictate.", done: false)
-            case .workspace:
-                return signedIn
-                    ? FirstRunExtra(id: id, title: "Your workspace", detail: "Signed in. Its rules and memory reach this Mac.", done: true)
-                    : FirstRunExtra(id: id, title: "Sign in to Memnox Cloud",
-                                    detail: "Optional. Reach hosted and app agents, and bring your team's rules and memory here.", done: false)
-            case .phone:
-                return phonePaired
-                    ? FirstRunExtra(id: id, title: "Your iPhone", detail: "Paired. Answer your agents when you are away.", done: true)
-                    : FirstRunExtra(id: id, title: "Pair your iPhone", detail: "Optional. Answer your agents when you are away from this Mac.", done: false)
             }
         }
     }

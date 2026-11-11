@@ -1,7 +1,5 @@
 import type { CapabilityLevel, CapabilityLevels } from './agent-wire';
-import { NO_AGENT } from './agent-work-lines';
 import { LEVEL_WORDS, levelRows, seamRows } from './capability-level-lines';
-import type { PermissionStep } from './permission-steps';
 import type { Platform } from './platform';
 import type { SettingsPage } from './settings-pages';
 
@@ -13,9 +11,53 @@ import type { SettingsPage } from './settings-pages';
  */
 export type OnboardingStage = 'intro' | 'steps' | 'done';
 
-/** In the Mac's order, the questions right after Connect; this system's grants stand where the Mac brings in what agents keep. */
-export const ONBOARDING_STEPS = ['Connect', 'Its job', 'Where it runs', 'Permissions', 'Starting rules'] as const;
+/** The five steps by their contract ids, the same on the console, the Mac, Windows and Linux (`shared/ux/contract.json`). */
+export const ONBOARDING_IDS = ['who', 'agents', 'connect', 'ask-where', 'rules'] as const;
+export type OnboardingId = (typeof ONBOARDING_IDS)[number];
+
+/** Each step's question, heading its page, as the contract words it. */
+export const ONBOARDING_TITLE: Readonly<Record<OnboardingId, string>> = {
+  who: 'Who is Memnox for?',
+  agents: 'Which agents do you run?',
+  connect: 'Connect this machine',
+  'ask-where': 'Where should Memnox ask you?',
+  rules: 'Your starting rules',
+};
+
+/** The steps by name under the progress bar, as the Mac's stepper names them with "Mac" said as "computer". */
+export const ONBOARDING_STEPS = ['Who it is for', 'Your agents', 'This computer', 'Where you are asked', 'Starting rules'] as const;
 export type OnboardingStep = 0 | 1 | 2 | 3 | 4;
+
+/** What the end offers to paste into an agent, so the first ask arrives in minutes; the contract's `tryPrompt`. */
+export const TRY_PROMPT = 'Make a folder called memnox-try, then delete it with rm -rf memnox-try.';
+export const TRY_TITLE = 'Try it with your agent';
+export const TRY_DETAIL = 'Paste this into Claude Code, Codex or Cursor. Memnox asks you before the delete runs.';
+
+/** Who Memnox is for, which only picks where Where should Memnox ask you suggests first. */
+export type Audience = 'me' | 'away' | 'team';
+
+export const AUDIENCES: readonly { readonly id: Audience; readonly title: string; readonly detail: string; readonly suggested: AskRoute }[] = [
+  { id: 'me', title: 'Just me', detail: 'My agents on this computer, answered here.', suggested: 'here' },
+  { id: 'away', title: "Just me, with agents working while I'm away", detail: 'Agents that keep going when I step out, answered from my phone.', suggested: 'phone' },
+  { id: 'team', title: 'A team', detail: 'Agents across people and machines, under the same rules.', suggested: 'cloud' },
+];
+
+/** The places Memnox asks a person, each one more way in beside this computer's key, which is always on. */
+export type AskRoute = 'here' | 'phone' | 'cloud';
+
+export function askRoutes(keyTitle: string): readonly { readonly id: AskRoute; readonly title: string; readonly detail: string }[] {
+  return [
+    { id: 'here', title: `${keyTitle} on this computer`, detail: 'Always on. The island asks, and your key signs the yes.' },
+    { id: 'phone', title: 'Your phone', detail: 'Pair it with a code here, and answer wherever you are.' },
+    { id: 'cloud', title: 'Memnox Cloud, in the browser or chat', detail: 'Sign in, and a question reaches you in the browser or chat your workspace uses.' },
+  ];
+}
+
+/** The routes in the order the step lists them, the one who it is for suggests first. */
+export function askOrder(audience: Audience | undefined): readonly AskRoute[] {
+  const first = AUDIENCES.find((each) => each.id === audience)?.suggested ?? 'here';
+  return [first, ...(['here', 'phone', 'cloud'] as const).filter((route) => route !== first)];
+}
 
 /** Every step by its number, for a preview's ?step= and for moving on. */
 export const STEP_NUMBERS: readonly OnboardingStep[] = [0, 1, 2, 3, 4];
@@ -43,35 +85,20 @@ export function progressOf(step: OnboardingStep, stage: OnboardingStage = 'steps
 
 /** The title and the line under it on each step. */
 export function stepHeading(step: OnboardingStep, keyTitle: string): { readonly title: string; readonly detail: string } {
-  switch (step) {
-    case 0:
-      return { title: 'Connect your agents', detail: `The Memnox service starts by itself and ${keyTitle} becomes the key only you approve with. No account needed.` };
-    case 1:
-      return { title: FirstRunQuestions.jobTitle, detail: FirstRunQuestions.jobDetail };
-    case 2:
-      return { title: FirstRunQuestions.placeTitle, detail: FirstRunQuestions.placeDetail };
-    case 3:
-      return { title: 'Permissions', detail: 'Only what this computer asks you for. Everything else installs by itself.' };
-    case 4:
-      return { title: 'Starting rules', detail: `The recommended rules are chosen for you. Each one holds once you confirm it with ${keyTitle} on the island.` };
+  const id = ONBOARDING_IDS[step];
+  switch (id) {
+    case 'who':
+      return { title: ONBOARDING_TITLE.who, detail: 'It only picks what is suggested next. You can change it later.' };
+    case 'agents':
+      return { title: ONBOARDING_TITLE.agents, detail: FirstRunQuestions.placeDetail };
+    case 'connect':
+      return { title: ONBOARDING_TITLE.connect, detail: `The Memnox service starts by itself and ${keyTitle} becomes the key only you approve with. No account needed.` };
+    case 'ask-where':
+      return { title: ONBOARDING_TITLE['ask-where'], detail: 'When an agent needs a yes, Memnox asks you there first. You can add the rest later.' };
+    case 'rules':
+    case undefined:
+      return { title: ONBOARDING_TITLE.rules, detail: `The recommended rules are chosen for you. Each one holds once you confirm it with ${keyTitle} on the island.` };
   }
-}
-
-/**
- * The grants this system actually asks the person for: a switch the system guards, such as the Windows microphone,
- * or anything still left to do. A row the system never asks about is not listed, since there is nothing to press.
- */
-export function permissionsAsked(steps: readonly PermissionStep[]): readonly PermissionStep[] {
-  return steps.filter((step) => step.state.kind !== 'done' || step.switchName !== undefined);
-}
-
-/** The line over the grants: still asking, nothing to grant, every one granted, or how many are left. */
-export function permissionsLine(asked: readonly PermissionStep[]): string {
-  if (asked.some((step) => step.state.kind === 'waiting')) return 'Asking this computer what it needs.';
-  const left = asked.filter((step) => step.state.kind === 'needs').length;
-  if (asked.length === 0) return 'Nothing to grant. This computer lets Memnox hear, type and see without asking.';
-  if (left === 0) return 'Everything this computer asks for is granted.';
-  return left === 1 ? 'One grant left. Memnox carries on without it, and asks again in Settings.' : `${left} grants left. Memnox carries on without them, and asks again in Settings.`;
 }
 
 /** The pack the first run starts on, the same safe defaults the runtime ships. */
@@ -85,7 +112,7 @@ export function startingPacks<Pack extends { readonly id: string }>(packs: reado
 
 /** One optional thing the end screen offers, opening the Settings page that holds it. */
 export interface EndLink {
-  readonly id: 'name' | 'voice' | 'workspace' | 'phone';
+  readonly id: 'name' | 'voice';
   readonly title: string;
   readonly detail: string;
   readonly page: SettingsPage;
@@ -96,8 +123,6 @@ export function endLinks(name: string | undefined): readonly EndLink[] {
   const all: readonly EndLink[] = [
     { id: 'name', title: 'Tell Memnox your name', detail: 'So it greets you by name.', page: 'account' },
     { id: 'voice', title: 'Pick a voice', detail: 'Who answers when you talk, and how it sounds.', page: 'voice' },
-    { id: 'workspace', title: 'Sign in to Memnox Cloud', detail: 'Optional. Reach hosted and app agents, and share rules and approvals with your team.', page: 'account' },
-    { id: 'phone', title: 'Pair your phone', detail: 'Optional. Answer your agents when you are away.', page: 'phones' },
   ];
   return name === undefined || name.trim() === '' ? all : all.filter((link) => link.id !== 'name');
 }
@@ -143,9 +168,10 @@ export const GuideLines = {
     return `Here is what I will do on this computer. I install the Memnox service in your home folder and keep it running and up to date, and I connect it to the agents I find, like Claude Code, Codex and Cursor, so what they do passes your rules first. From you I need one thing now: ${KEY_SAID[platform]} so only you approve.`;
   },
   /** Said over the grants step, which lists only what this system asks for. */
-  permissions: 'Next, the few things this computer asks you to allow. Everything else I install myself.',
-  /** Said over the job question, which is a pick and never a form. */
-  job: 'What do you want your AI to help with? Pick the closest job, or skip it. Nothing is applied.',
+  /** Said over who Memnox is for, which only picks what is suggested next. */
+  who: 'First, who is Memnox for? Just you, you with agents working while you are away, or a team. It only picks what I suggest next.',
+  /** Said over where Memnox asks, beside the key that is always on. */
+  askWhere: 'Where should I ask you when an agent needs a yes? This computer is always on. Pair your phone for when you are away, or sign in to Memnox Cloud so a question reaches you in the browser or chat.',
   /** Said over the place question, where anything off this computer is offered through Memnox Cloud and never required. */
   place: 'And where does your agent run? On this computer I look after it myself. Anywhere else it reaches me through Memnox Cloud, which is optional.',
   /** Said over the last step: a pack is only proposed, and each rule waits for the person. */
@@ -153,21 +179,7 @@ export const GuideLines = {
     return `Last, your starting rules. The recommended ones are already chosen, and each holds once you confirm it with ${KEY_SAID[platform]} on the island. You can change any of them later.`;
   },
   /** Said on the end screen, over its one next action and what is optional. */
-  done: 'That is everything your agents need. Here is what I can and cannot do for them, in plain words. Memnox Cloud and your phone are optional.',
-  /** Said when hearing waits on a switch the person has to turn on. */
-  microphone(platform: Platform): string {
-    return platform === 'windows'
-      ? 'Settings is opening. Under Privacy and security, Microphone, switch on Let desktop apps access your microphone, then come back here.'
-      : 'I cannot find a microphone on this computer. Plug one in or pick one in your sound settings, then press Check again.';
-  },
-  /** Said when typing waits on the person, which only Wayland asks. */
-  typing: 'Wayland lets me type into other apps only through uinput. Follow the steps on screen, then press Check again.',
-  /** Said when seeing waits on the person, as the Mac's seeing line, for what each Linux desktop lacks. */
-  seeing(why: 'portal' | 'accessibility'): string {
-    return why === 'portal'
-      ? 'Your desktop has no screen sharing portal answering, which is how Wayland lets me see a window. Follow the steps on screen, then press Check again.'
-      : 'The accessibility bus is off, so I cannot read the outline of a window. Follow the steps on screen, then press Check again.';
-  },
+  done: 'That is setup done. Paste the prompt on screen into your agent, and I will ask you before the delete runs. Below it is what I can and cannot do for your agents, in plain words.',
   ready(name: string | undefined, talkKeys: string): string {
     return `You’re all set${greeting(name)}. Press ${talkKeys} and say what you need. When an agent needs you, I will ask right here in the island.`;
   },
@@ -254,33 +266,16 @@ export function suggestedPlace(foundHere: number): AgentPlace | undefined {
   return foundHere > 0 ? 'computer-coding' : undefined;
 }
 
-/** The first run's two questions and their words, asked one at a time after the grants, as the Mac's `FirstRunQuestions`. */
+/** The first run's questions and their words, as the Mac's `FirstRunQuestions`. */
 export const FirstRunQuestions = {
-  jobTitle: 'What do you want your AI to help with?',
-  jobDetail: 'Pick the closest. Memnox keeps it as a job your agent works under. Nothing is applied, and you can change it later.',
-  jobsCard: 'Jobs to start from',
-  jobsCardDetail: `Each one is a job description. ${NO_AGENT}.`,
   placeTitle: 'Where does your agent run?',
-  placeDetail: 'Pick where the one you use most lives. You can add the others later under AI agents.',
+  placeDetail: 'Pick where the one you use most lives. You can add the others later under Agents.',
   placeCard: 'Pick one',
   reaches: 'How it reaches Memnox',
-  /** Said where the runtime offers no jobs to start from, so the step never stands empty. */
-  noJobs: 'This Memnox service has no jobs to start from yet. You can write one later under AI agents.',
-  skip: 'Skip for now',
-  keeping: (name: string) => `Keeping ${name}`,
-  giving: 'Giving the job',
-  giveTo: (job: string) => `Give ${job} to`,
-  noAgentYet: 'No agent yet',
   /** What reaching an agent through Memnox Cloud asks of the person: nothing now, since signing in is optional. */
   cloudOptional: 'This kind of agent reaches Memnox through Memnox Cloud. Signing in is optional, and everything on this computer works without it.',
   /** Said where the person chose this computer and the scan found nothing yet. */
   nothingFound: 'No agent is on this computer yet. Install one and Memnox finds it and puts it under itself.',
-  /** What happens to the job once the place is known: bound to a found agent, or kept with nothing behind it. */
-  jobLine(job: string | undefined, boundTo: string | undefined): string | undefined {
-    if (job === undefined) return undefined;
-    if (boundTo !== undefined) return `${job} now works through ${boundTo}.`;
-    return `${job} has ${NO_AGENT.toLowerCase()}. Connect one whenever you are ready, under AI agents.`;
-  },
   /** Said under the found agents once the first run put them under Memnox by itself. */
   protectedByItself: 'Memnox put the agents it found under itself, the way setup does. Nothing else was changed.',
 } as const;
@@ -325,9 +320,5 @@ export const FirstRunCoverage = {
     const info = placeInfo(place);
     if (info.expected === undefined) return info.connects;
     return `Outside Memnox until it is connected. Connected this way, expect: ${LEVEL_WORDS[info.expected]}.`;
-  },
-  /** The line for a job with no agent behind it, which shows no level since nothing does the job. */
-  job(name: string): string {
-    return `${name} has ${NO_AGENT.toLowerCase()}, so there is nothing for Memnox to stop or see yet.`;
   },
 } as const;

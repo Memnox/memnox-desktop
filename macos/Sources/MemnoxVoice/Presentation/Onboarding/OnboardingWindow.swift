@@ -12,31 +12,41 @@ enum OnboardingStage: Equatable {
     case ready
 }
 
-/// The short steps a fresh Mac needs with no account, safe defaults already chosen in each and one question at a time;
-/// the notch plays beside all of them.
+/// The five steps every surface walks a person through, in the contract's order, safe defaults already chosen in
+/// each and one question at a time; the notch plays beside all of them.
 enum OnboardingStep: Int, CaseIterable, Identifiable {
+    /// Who Memnox is for, which picks where it suggests asking.
+    case who
+    /// Where the person's agent runs, and the agents found here.
+    case agents
     /// The service, Touch ID, and the agents found here, each put under Memnox by itself, on one card.
     case connect
-    /// What the person wants their AI to help with, kept as a job from the runtime's templates.
-    case job
-    /// Where their agent runs, which says how it reaches Memnox and binds the job to an agent found here.
-    case place
-    /// The servers and skills the agents already keep, every one ticked and brought in with one press.
-    case workspace
+    /// Where Memnox asks: Touch ID here, the phone, or Memnox Cloud.
+    case askWhere
     /// The recommended pack of rules, already chosen, proposed on Finish and signed on the island one by one.
-    case boundaries
+    case rules
 
     var id: Int { rawValue }
 
+    var contract: FirstRunStepID {
+        switch self {
+        case .who: .who
+        case .agents: .agents
+        case .connect: .connect
+        case .askWhere: .askWhere
+        case .rules: .rules
+        }
+    }
+
     /// The step's name under the progress bar, so a new person always knows where they are and what is left.
-    var title: String { FirstRunLines.steps[rawValue] }
+    var title: String { contract.label }
 }
 
 /// The first run's state, shared by the opening and the window so the name typed in one is the name in the other.
 @MainActor
 final class OnboardingFlow: ObservableObject {
     @Published var stage: OnboardingStage = .intro
-    @Published var step: OnboardingStep = .connect
+    @Published var step: OnboardingStep = .who
     /// The part of Memnox the notch beside the steps is playing, said on the first step.
     @Published var highlight: Highlight?
     @Published var setup: SetupModel?
@@ -50,16 +60,14 @@ final class OnboardingFlow: ObservableObject {
     var narrated: Set<Highlight> = []
     /// The lines a step said once what it waited on answered, such as what the second step found, so a return is quiet.
     var answered: Set<String> = []
-    /// The job kept from a template on the job step, by its profile id and name; nil when the person skipped it.
-    @Published var job: (id: String, name: String)? {
+    /// Who Memnox is for; nil until they answer.
+    @Published var audience: FirstRunAudience? {
         didSet { remember() }
     }
     /// Where the person said their agent runs; nil until they answer, or when they skip.
     @Published var place: AgentPlace? {
         didSet { remember() }
     }
-    /// The agent found here the job was bound to, by its name, so the end says who does the job.
-    @Published var boundTo: String?
     /// Set once the first run put the agents found here under Memnox by itself, so it is tried once and then offered.
     var autoProtected = false
 
@@ -110,7 +118,14 @@ final class OnboardingFlow: ObservableObject {
         step = kept
         stage = defaults.bool(forKey: Self.optionalKey) ? .ready : .steps
         place = defaults.string(forKey: Self.placeKey).flatMap(AgentPlace.init(rawValue:))
-        if let id = defaults.string(forKey: Self.jobIdKey), let name = defaults.string(forKey: Self.jobNameKey) { job = (id, name) }
+        audience = defaults.string(forKey: Self.audienceKey).flatMap(FirstRunAudience.init(rawValue:))
+    }
+
+    /// Back to the first step, for Run setup again, with what was answered kept as the defaults.
+    func restart() {
+        step = .who
+        stage = .steps
+        remember()
     }
 
     /// Forgets the step, once the first run is over.
@@ -118,13 +133,12 @@ final class OnboardingFlow: ObservableObject {
         UserDefaults.standard.removeObject(forKey: Self.stepKey)
         UserDefaults.standard.removeObject(forKey: Self.optionalKey)
         UserDefaults.standard.removeObject(forKey: Self.guidedKey)
-        for key in [Self.placeKey, Self.jobIdKey, Self.jobNameKey] { UserDefaults.standard.removeObject(forKey: key) }
+        for key in [Self.placeKey, Self.audienceKey] { UserDefaults.standard.removeObject(forKey: key) }
     }
 
     /// The answers to the two questions, kept so a reopen for Screen Recording still ends on what they said.
     private static let placeKey = "onboardingPlace"
-    private static let jobIdKey = "onboardingJobId"
-    private static let jobNameKey = "onboardingJobName"
+    private static let audienceKey = "onboardingAudience"
 
     /// The page on screen, a step or the end, so each is introduced once.
     var page: Int { guidePage.rawValue }
@@ -135,11 +149,11 @@ final class OnboardingFlow: ObservableObject {
         case .ready: return .ready
         case .intro, .name, .steps:
             switch step {
+            case .who: return .who
+            case .agents: return .agents
             case .connect: return .connect
-            case .job: return .job
-            case .place: return .place
-            case .workspace: return .workspace
-            case .boundaries: return .boundaries
+            case .askWhere: return .askWhere
+            case .rules: return .rules
             }
         }
     }
@@ -160,8 +174,7 @@ final class OnboardingFlow: ObservableObject {
         defaults.set(step.rawValue, forKey: Self.stepKey)
         defaults.set(ready, forKey: Self.optionalKey)
         defaults.set(place?.rawValue, forKey: Self.placeKey)
-        defaults.set(job?.id, forKey: Self.jobIdKey)
-        defaults.set(job?.name, forKey: Self.jobNameKey)
+        defaults.set(audience?.rawValue, forKey: Self.audienceKey)
     }
 }
 
@@ -193,11 +206,12 @@ final class OnboardingWindow {
         flow.opened = { [weak self] in self?.showSteps() }
     }
 
-    func show(_ model: SetupModel) {
+    func show(_ model: SetupModel, again: Bool = false) {
         flow.setup = model
         flow.menu = SettingsWindow.shared.menu
         flow.account = SettingsWindow.shared.account
         flow.recall()
+        if again { flow.restart() }
         if flow.stage == .steps || flow.ready { showSteps() } else { showVeil() }
         SetupAmbience.shared.start()
     }

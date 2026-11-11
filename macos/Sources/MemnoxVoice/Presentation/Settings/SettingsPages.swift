@@ -104,9 +104,15 @@ private struct ChimeVolumeRow: View {
 /// Saying a rule or a line, and copying what happened for support, each a row with its button at the end.
 struct HelpPage: View {
     @ObservedObject var menu: MenuModel
+    let setup: SetupModel
 
     var body: some View {
         SettingsCard {
+            SettingsRow(symbol: "arrow.counterclockwise", title: "Run setup again",
+                        caption: "The five steps from the start, with what you answered before already chosen.") {
+                Button("Run setup") { OnboardingWindow.shared.show(setup, again: true) }
+            }
+            SettingsDivider()
             SettingsRow(symbol: MenuSymbol.rule, title: "Say a rule",
                         caption: "Turns a sentence like \u{201C}never deploy on Fridays\u{201D} into a rule.") {
                 Button("Say a rule", action: menu.sayRule)

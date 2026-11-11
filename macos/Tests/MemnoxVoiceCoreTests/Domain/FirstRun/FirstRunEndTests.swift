@@ -11,9 +11,9 @@ final class FirstRunEndTests: XCTestCase {
     }
 
     func testListsWhatIsOptionalShortlyEachLinkedToItsSettingsPage() {
-        let extras = FirstRunEnd.extras(hearing: false, signedIn: false, phonePaired: false)
-        XCTAssertEqual(extras.map(\.title), ["Talk to Memnox", "Keys to try", "Sign in to Memnox Cloud", "Pair your iPhone"])
-        XCTAssertEqual(extras.map(\.id.settingsTab), ["voice", "listening", "account", "phones"])
+        let extras = FirstRunEnd.extras(hearing: false)
+        XCTAssertEqual(extras.map(\.title), ["Talk to Memnox", "Keys to try"])
+        XCTAssertEqual(extras.map(\.id.settingsTab), ["voice", "listening"])
         for tab in extras.map(\.id.settingsTab) {
             XCTAssertEqual(Destinations.route(forPage: tab), WindowRoute(.settings, tab: tab))
         }
@@ -21,9 +21,9 @@ final class FirstRunEndTests: XCTestCase {
     }
 
     func testTicksWhatIsAlreadyInPlace() {
-        let extras = FirstRunEnd.extras(hearing: true, signedIn: true, phonePaired: true)
-        XCTAssertEqual(extras.filter(\.done).map(\.id), [.voice, .workspace, .phone])
-        XCTAssertEqual(extras.first { $0.id == .workspace }?.title, "Your workspace")
+        let extras = FirstRunEnd.extras(hearing: true)
+        XCTAssertEqual(extras.filter(\.done).map(\.id), [.voice])
+        XCTAssertEqual(FirstRunLines.tryPrompt, "Make a folder called memnox-try, then delete it with rm -rf memnox-try.")
     }
 
     func testAsksThePersonOnlyForTheMicrophoneAndOnlyUntilItIsGranted() {
@@ -37,7 +37,8 @@ final class FirstRunEndTests: XCTestCase {
     }
 
     func testKeepsEveryWordFreeOfDashes() {
-        let words = [FirstRunEnd.lead, FirstRunEnd.talkHint] + FirstRunEnd.extras(hearing: false, signedIn: false, phonePaired: false)
+        let words = [FirstRunEnd.lead, FirstRunEnd.talkHint, FirstRunLines.tryPrompt, FirstRunLines.tryDetail] + FirstRunAudience.allCases.flatMap { [$0.title, $0.detail] }
+            + FirstRunAskRoute.allCases.flatMap { [$0.title, $0.detail] } + FirstRunEnd.extras(hearing: false)
             .flatMap { [$0.title, $0.detail] }
         for line in words {
             XCTAssertFalse(line.contains("\u{2014}") || line.contains("\u{2013}") || line.contains(" - "), line)

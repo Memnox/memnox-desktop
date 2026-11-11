@@ -19,38 +19,6 @@
 
 /* Light, the default for every window that is not the island. */
 :root {
-  --mx-background: #fafafa;
-  --mx-card: #f1f1f1;
-  --mx-secondary: #ffffff;
-  --mx-control-edge: rgb(0 0 0 / 0.12);
-  --mx-border: #d9d9d9;
-  --mx-foreground: #222222;
-  --mx-muted: #797979;
-  --mx-faint: #b2b2b2;
-  --mx-ink: #0d0d0d;
-  --mx-success: #1f7a35;
-  --mx-warm: #b25000;
-  --mx-destructive: #c4001a;
-  --mx-surface: #ededf0;
-  --mx-rim: #fafafb;
-  --mx-panel-edge: #d6d6da;
-  --mx-capsule: #ffffff;
-  --mx-capsule-edge: #e0e0e0;
-  --mx-hover: rgb(0 0 0 / 0.05);
-  --mx-field: rgb(0 0 0 / 0.07);
-  --mx-field-edge: rgb(0 0 0 / 0.06);
-  --mx-keycap: #ffffff;
-  --mx-raised: #ffffff;
-  --mx-panel: #ffffff;
-  --mx-sky: #1e6fd0;
-  /* Light ink is white level 0.05 at min(1, x * 1.35), as Memnox.ink(x) draws it on a light window. */
-  --mx-ink-primary: rgb(13 13 13 / 1);
-  --mx-ink-secondary: rgb(13 13 13 / 0.837);
-  --mx-ink-tertiary: rgb(13 13 13 / 0.675);
-  --mx-ink-fill: rgb(13 13 13 / 0.108);
-  --mx-ink-faint-fill: rgb(13 13 13 / 0.081);
-  --mx-ink-edge: rgb(13 13 13 / 0.189);
-  --mx-ink-rim: rgb(13 13 13 / 0.0945);
   /* The answer that lets something happen is near black on a light window and white in the notch. */
   --mx-primary-fill: #0d0d0d;
   --mx-primary-text: #ffffff;
@@ -74,9 +42,6 @@
   --mx-duration-standard: 300ms;
   --mx-duration-slow: 500ms;
 
-  /* What a filled symbol's marks are cut out to: the island's black under the notch and its cards. */
-  --mx-symbol-ground: #000000;
-
   color-scheme: light;
 }
 
@@ -86,37 +51,6 @@
  */
 :root[data-theme="dark"],
 [data-theme="dark"] {
-  --mx-background: #1e1e1e;
-  --mx-card: #262626;
-  --mx-secondary: #383838;
-  --mx-control-edge: rgb(255 255 255 / 0);
-  --mx-border: #3b3b3b;
-  --mx-foreground: #e1e1e1;
-  --mx-muted: #9e9e9f;
-  --mx-faint: #5e5e5f;
-  --mx-ink: #ffffff;
-  --mx-success: #30d158;
-  --mx-warm: #ff9f0a;
-  --mx-destructive: #ff453a;
-  --mx-surface: #28282b;
-  --mx-rim: #4b4b4d;
-  --mx-panel-edge: #3a3a3d;
-  --mx-capsule: #262626;
-  --mx-capsule-edge: #3b3b3b;
-  --mx-hover: rgb(255 255 255 / 0.07);
-  --mx-field: rgb(255 255 255 / 0.16);
-  --mx-field-edge: rgb(255 255 255 / 0.08);
-  --mx-keycap: #454545;
-  --mx-raised: #2f2f2f;
-  --mx-panel: #141518;
-  --mx-sky: #8cc8ff;
-  --mx-ink-primary: rgb(255 255 255 / 0.92);
-  --mx-ink-secondary: rgb(255 255 255 / 0.62);
-  --mx-ink-tertiary: rgb(255 255 255 / 0.5);
-  --mx-ink-fill: rgb(255 255 255 / 0.08);
-  --mx-ink-faint-fill: rgb(255 255 255 / 0.06);
-  --mx-ink-edge: rgb(255 255 255 / 0.14);
-  --mx-ink-rim: rgb(255 255 255 / 0.07);
   --mx-primary-fill: #f5f6f8;
   --mx-primary-text: #0b0c0e;
   --mx-soft: #c9cdd4;
@@ -126,37 +60,38 @@
 /* System, where the window was told neither: it follows the computer. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --mx-background: #1e1e1e;
-    --mx-card: #262626;
-    --mx-secondary: #383838;
-    --mx-control-edge: rgb(255 255 255 / 0);
-    --mx-border: #3b3b3b;
-    --mx-foreground: #e1e1e1;
-    --mx-muted: #9e9e9f;
-    --mx-faint: #5e5e5f;
-    --mx-ink: #ffffff;
-    --mx-success: #30d158;
-    --mx-warm: #ff9f0a;
-    --mx-destructive: #ff453a;
-    --mx-surface: #28282b;
-    --mx-rim: #4b4b4d;
-    --mx-panel-edge: #3a3a3d;
-    --mx-capsule: #262626;
-    --mx-capsule-edge: #3b3b3b;
-    --mx-hover: rgb(255 255 255 / 0.07);
-    --mx-field: rgb(255 255 255 / 0.16);
-    --mx-field-edge: rgb(255 255 255 / 0.08);
-    --mx-keycap: #454545;
-    --mx-raised: #2f2f2f;
-    --mx-panel: #141518;
-    --mx-sky: #8cc8ff;
-    --mx-ink-primary: rgb(255 255 255 / 0.92);
-    --mx-ink-secondary: rgb(255 255 255 / 0.62);
-    --mx-ink-tertiary: rgb(255 255 255 / 0.5);
-    --mx-ink-fill: rgb(255 255 255 / 0.08);
-    --mx-ink-faint-fill: rgb(255 255 255 / 0.06);
-    --mx-ink-edge: rgb(255 255 255 / 0.14);
-    --mx-ink-rim: rgb(255 255 255 / 0.07);
+    --mx-background: #030303;
+    --mx-surface: #030303;
+    --mx-card: #0f0f0f;
+    --mx-secondary: #0f0f0f;
+    --mx-control-edge: #313131;
+    --mx-border: #313131;
+    --mx-panel-edge: #313131;
+    --mx-foreground: #fdfdfd;
+    --mx-muted: #adadad;
+    --mx-faint: #6b6b6b;
+    --mx-ink: #fdfdfd;
+    --mx-rim: #0f0f0f;
+    --mx-capsule: #0f0f0f;
+    --mx-capsule-edge: #313131;
+    --mx-hover: #191919;
+    --mx-active: #1d1d1d;
+    --mx-field: #0f0f0f;
+    --mx-field-edge: #313131;
+    --mx-keycap: #191919;
+    --mx-raised: #0f0f0f;
+    --mx-panel: #0f0f0f;
+    --mx-sky: #3d97f3;
+    --mx-ring: rgb(30 134 238 / 0.45);
+    --mx-switch-knob: #9cd1fd;
+    --mx-violet: #a78bfa;
+    --mx-ink-primary: rgb(253 253 253 / 0.92);
+    --mx-ink-secondary: rgb(253 253 253 / 0.62);
+    --mx-ink-tertiary: rgb(253 253 253 / 0.5);
+    --mx-ink-fill: rgb(253 253 253 / 0.08);
+    --mx-ink-faint-fill: rgb(253 253 253 / 0.06);
+    --mx-ink-edge: rgb(253 253 253 / 0.16);
+    --mx-ink-rim: rgb(253 253 253 / 0.07);
     --mx-primary-fill: #f5f6f8;
     --mx-primary-text: #0b0c0e;
     --mx-soft: #c9cdd4;
@@ -172,6 +107,7 @@
  * in the console's pill colours: green allows, amber asks, red denies, grey is not known.
  * Scoped to `html.mx-window` so the island, the tray and the floating cards keep the Mac's palette.
  */
+:root,
 html.mx-window {
   --mx-background: #fbfbfb;
   --mx-surface: #fbfbfb;
@@ -237,6 +173,8 @@ html.mx-window {
   color-scheme: light;
 }
 
+:root[data-theme="dark"],
+[data-theme="dark"],
 html.mx-window[data-theme="dark"] {
   --mx-background: #030303;
   --mx-surface: #030303;
@@ -450,7 +388,7 @@ html.mx-window .mx-field-within:focus-within {
   /* Radii: control, card on a page, keycap; then the island's card and tile, and the command box. */
   --radius-control: 6px;
   --radius-card: 12px;
-  --radius-key: 4px;
+  --radius-key: 6px;
   --radius-island: 16px;
   --radius-command: 10px;
   /* OnboardingKit's card, and the app tile on Where your agents run. */

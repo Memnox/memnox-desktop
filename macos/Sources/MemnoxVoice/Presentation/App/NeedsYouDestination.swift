@@ -105,14 +105,8 @@ private struct HeldCallCard: View {
                                 font: { Memnox.Console.sans($0, $1) })
             }
             FactList(facts: facts)
-            HStack(spacing: Memnox.Spacing.medium) {
-                Button("Allow once") { answer(.once) }.buttonStyle(KitButton(kind: .primary))
-                Button("Allow this session") { answer(.session) }.buttonStyle(KitButton(kind: .secondary))
-                // Set apart from the yeses, so a refusal is never pressed by a slip.
-                Spacer(minLength: Memnox.Spacing.xxLarge)
-                Button("Deny") { answer(.deny) }.buttonStyle(KitButton(kind: .secondary))
-            }
-            .disabled(busy)
+            HeldAnswers(size: .card, touchID: card.touchID) { answer($0) }
+                .disabled(busy)
         }
         .padding(Memnox.Spacing.xLarge)
         .background(Memnox.Console.card, in: shape)

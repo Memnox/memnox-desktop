@@ -285,7 +285,7 @@ struct MenuView: View {
             LogoMark(size: Layout.logoSize)
             Text("Memnox")
                 .font(Memnox.display(Layout.titleSize))
-                .foregroundStyle(Memnox.Palette.ink)
+                .foregroundStyle(Memnox.Console.ink)
             Spacer()
             HStack(spacing: Memnox.Spacing.small) {
                 Circle()
@@ -438,22 +438,16 @@ struct MemnoxSwitch: ToggleStyle {
     }
 }
 
-/// The switch in the look of its window: the Mac's capsule, or in the Memnox window the console's squircle track, blue
-/// when on and grey when off, its knob a tint of the blue on the dark.
+/// The switch in the console's squircle track on every surface, blue when on and grey when off, its knob a tint of the
+/// blue on the dark.
 private struct SwitchFace: View {
     let configuration: ToggleStyleConfiguration
-    @Environment(\.look) private var look
 
     private enum Layout {
-        static let trackWidth: CGFloat = 34
         static let trackHeight: CGFloat = 20
-        static let offTrackInk = 0.14
         /// The knob fills the track's height less its inset on each side.
         static let knobSize: CGFloat = 16
-        static let knobShadowOpacity = 0.25
-        static let knobShadowRadius: CGFloat = 1
         static let knobShadowDrop: CGFloat = 1
-        static let flip = Animation.spring(response: 0.25, dampingFraction: 0.75)
         static let consoleWidth: CGFloat = 36
         static let consoleTrackRadius: CGFloat = 5
         static let consoleKnobRadius: CGFloat = 4
@@ -463,9 +457,7 @@ private struct SwitchFace: View {
         static let consoleFlip = Animation.easeOut(duration: 0.2)
     }
 
-    var body: some View {
-        if look == .console { console } else { mac }
-    }
+    var body: some View { console }
 
     private var console: some View {
         let on = configuration.isOn
@@ -481,24 +473,6 @@ private struct SwitchFace: View {
                     .shadow(color: .black.opacity(Layout.consoleKnobShadow), radius: Layout.consoleShadowRadius, y: Layout.knobShadowDrop)
             }
             .animation(Layout.consoleFlip, value: on)
-        }
-        .buttonStyle(.plain)
-        .pointingHand()
-    }
-
-    private var mac: some View {
-        Button { configuration.isOn.toggle() } label: {
-            ZStack(alignment: configuration.isOn ? .trailing : .leading) {
-                Capsule()
-                    .fill(configuration.isOn ? Memnox.Palette.primary : Memnox.ink(Layout.offTrackInk))
-                    .frame(width: Layout.trackWidth, height: Layout.trackHeight)
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: Layout.knobSize, height: Layout.knobSize)
-                    .padding(Memnox.Spacing.xxSmall)
-                    .shadow(color: .black.opacity(Layout.knobShadowOpacity), radius: Layout.knobShadowRadius, y: Layout.knobShadowDrop)
-            }
-            .animation(Layout.flip, value: configuration.isOn)
         }
         .buttonStyle(.plain)
         .pointingHand()
@@ -611,7 +585,7 @@ struct MenuTools: View {
                 Button("Manage", action: open)
                     .buttonStyle(.plain)
                     .font(.system(size: Memnox.TextSize.micro, weight: .semibold))
-                    .foregroundStyle(Memnox.Palette.primary)
+                    .foregroundStyle(Memnox.Console.primary)
                     .pointingHand()
             }
             .padding(.horizontal, Memnox.Spacing.xSmall)
@@ -653,7 +627,7 @@ struct MenuTools: View {
                 mark()
                     .overlay(alignment: .bottomTrailing) {
                         Circle()
-                            .fill(ok ? Memnox.Palette.success : Memnox.Palette.warm)
+                            .fill(ok ? Memnox.Console.success : Memnox.Console.warm)
                             .frame(width: Layout.dotSide, height: Layout.dotSide)
                             .overlay(Circle().strokeBorder(Color.black.opacity(Layout.dotRingInk), lineWidth: Layout.dotRingWidth))
                     }

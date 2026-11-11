@@ -1030,10 +1030,10 @@ private struct SetupStep<Trailing: View, Extra: View>: View {
                     VStack(alignment: .leading, spacing: Layout.lineSpacing) {
                         Text(title)
                             .font(.body)
-                            .foregroundStyle(Memnox.Palette.foreground)
+                            .foregroundStyle(Memnox.Console.foreground)
                         Text(detail)
                             .font(.caption)
-                            .foregroundStyle(Memnox.Palette.muted)
+                            .foregroundStyle(Memnox.Console.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 0)
@@ -1090,7 +1090,7 @@ struct NameField: View {
     @Binding var text: String
 
     var body: some View {
-        TextField("", text: $text, prompt: Text("Your name").foregroundStyle(Memnox.Palette.muted))
+        TextField("", text: $text, prompt: Text("Your name").foregroundStyle(Memnox.Console.muted))
             .accessibilityLabel("Your name")
             .kitField()
             .frame(width: SetupLayout.fieldWidth)
@@ -1114,7 +1114,7 @@ private struct AgentRows: View {
                     BrandLogo(agent: agent.kind, name: agent.label, size: Layout.logoSide)
                     Text(agent.label)
                         .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .foregroundStyle(Memnox.Console.foreground)
                         .frame(width: Layout.labelWidth, alignment: .leading)
                     // One line each, so a long failure cannot stretch the window; the whole of it shows on hover.
                     Text(status(agent))
@@ -1134,7 +1134,7 @@ private struct AgentRows: View {
             if !missing.isEmpty {
                 Text("Also answers through \(missing) once installed and logged in.")
                     .font(Memnox.sans(Memnox.TextSize.caption))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Memnox.Console.muted)
             }
             HStack(spacing: Memnox.Spacing.medium) {
                 Button("Check again") { Task { await model.loadAgents(recheck: true) } }
@@ -1220,11 +1220,11 @@ private struct PhoneExtra: View {
         return VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             Text(phone.name)
                 .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .foregroundStyle(Memnox.Console.foreground)
             Text(grouped(phone.code))
                 .font(.system(size: Layout.codeSize, weight: .semibold, design: .monospaced))
                 .tracking(Layout.codeTracking)
-                .foregroundStyle(Memnox.Palette.ink)
+                .foregroundStyle(Memnox.Console.ink)
                 .textSelection(.enabled)
             Text("Approve if your iPhone shows the same digits.")
                 .font(Memnox.sans(Memnox.TextSize.caption))
@@ -1270,7 +1270,7 @@ private struct ServerExtra: View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             switch model.server {
             case .idle, .connected, .failed:
-                TextField("", text: $model.serverLink, prompt: Text("memnox://pair?d=...").foregroundStyle(Memnox.Palette.muted))
+                TextField("", text: $model.serverLink, prompt: Text("memnox://pair?d=...").foregroundStyle(Memnox.Console.muted))
                     .kitField()
                     .frame(width: Layout.fieldWidth)
                     .onSubmit { Task { await model.connectServer() } }
@@ -1282,7 +1282,7 @@ private struct ServerExtra: View {
                 Text(grouped(code))
                     .font(.system(size: Layout.codeSize, weight: .semibold, design: .monospaced))
                     .tracking(Layout.codeTracking)
-                    .foregroundStyle(Memnox.Palette.ink)
+                    .foregroundStyle(Memnox.Console.ink)
                     .textSelection(.enabled)
                 Text(ServerPairingLines.typeCode)
                     .font(Memnox.sans(Memnox.TextSize.caption))
@@ -1307,7 +1307,7 @@ private struct ServerExtra: View {
         HStack(spacing: Memnox.Spacing.medium) {
             Text(name)
                 .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .foregroundStyle(Memnox.Console.foreground)
             Spacer(minLength: Memnox.Spacing.small)
             if model.talkingTo == id {
                 Text("Talking to it")
@@ -1350,9 +1350,9 @@ private struct VoicePicker: View {
             }
         } label: {
             HStack {
-                Text(current).font(Memnox.sans(Memnox.TextSize.callout)).foregroundStyle(Memnox.Palette.foreground)
+                Text(current).font(Memnox.sans(Memnox.TextSize.callout)).foregroundStyle(Memnox.Console.foreground)
                 Spacer()
-                Image(systemName: Self.chevronSymbol).font(.system(size: Self.chevronSize)).foregroundStyle(Memnox.Palette.muted)
+                Image(systemName: Self.chevronSymbol).font(.system(size: Self.chevronSize)).foregroundStyle(Memnox.Console.muted)
             }
             // As tall as the name field above it, so the two read as one column.
             .padding(.horizontal, Memnox.Spacing.large)

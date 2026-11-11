@@ -180,17 +180,17 @@ private struct AgentHomePicker: View {
                 }
                 Text(home.name)
                     .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-                    .foregroundStyle(Memnox.Palette.ink)
+                    .foregroundStyle(Memnox.Console.ink)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, Memnox.Spacing.medium)
             .background(shape.fill(Memnox.ink(Layout.restingInk)))
-            .overlay(shape.strokeBorder(chosen ? Memnox.Palette.primary : Color.clear, lineWidth: Layout.chosenEdge))
+            .overlay(shape.strokeBorder(chosen ? Memnox.Console.primary : Color.clear, lineWidth: Layout.chosenEdge))
             .overlay(alignment: .topTrailing) {
                 if chosen {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Memnox.Palette.primary)
+                        .foregroundStyle(Memnox.Console.primary)
                         .padding(Memnox.Spacing.small)
                 }
             }

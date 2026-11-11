@@ -7,8 +7,6 @@ enum ControlMetrics {
     static let textSize: CGFloat = 13
     static let symbolSize: CGFloat = 9
     static let iconSpacing: CGFloat = 6
-    /// A control that cannot be used yet keeps a faint fill, so its place on the row still shows.
-    static let disabledFill = 0.5
     static let checkboxSide: CGFloat = 14
     static let checkboxRadius: CGFloat = 4
     static let checkSymbol: CGFloat = 9
@@ -22,7 +20,6 @@ struct SelectFace: View {
     let text: String
     var maximumWidth: CGFloat = .infinity
     @State private var hovering = false
-    @Environment(\.look) private var look
 
     private static let chevrons = "chevron.up.chevron.down"
     private static let chevron = "chevron.down"
@@ -30,9 +27,7 @@ struct SelectFace: View {
     /// The pointer's light over the capsule, half the row's own, since the capsule already stands out.
     private static let hoverWash = 0.5
 
-    var body: some View {
-        if look == .console { console } else { mac }
-    }
+    var body: some View { console }
 
     private var console: some View {
         let shape = RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous)
@@ -52,28 +47,6 @@ struct SelectFace: View {
         .background(shape.fill(hovering ? Memnox.Console.hover : Memnox.Console.field))
         .overlay(shape.strokeBorder(Memnox.Console.controlEdge, lineWidth: Memnox.Stroke.hairline))
         .contentShape(shape)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: Memnox.Motion.quick), value: hovering)
-    }
-
-    private var mac: some View {
-        HStack(spacing: ControlMetrics.iconSpacing) {
-            Text(text)
-                .font(.system(size: ControlMetrics.textSize))
-                .foregroundStyle(Memnox.Palette.foreground)
-                .lineLimit(1)
-            Image(systemName: Self.chevrons)
-                .font(.system(size: ControlMetrics.symbolSize, weight: .semibold))
-                .foregroundStyle(Memnox.Palette.muted)
-        }
-        .padding(.horizontal, ControlMetrics.horizontalPadding)
-        .frame(height: ControlMetrics.height)
-        .frame(maxWidth: maximumWidth)
-        .fixedSize(horizontal: maximumWidth == .infinity, vertical: false)
-        .background(Memnox.Palette.secondary, in: Capsule())
-        .overlay(Capsule().strokeBorder(Memnox.Palette.controlEdge, lineWidth: Memnox.Stroke.hairline))
-        .overlay(Capsule().fill(Memnox.Palette.hover.opacity(hovering ? Self.hoverWash : 0)).allowsHitTesting(false))
-        .contentShape(Capsule())
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: Memnox.Motion.quick), value: hovering)
     }
@@ -111,7 +84,6 @@ struct SearchField: View {
     /// Bumped by a page to put the cursor in the field, as a slash key does on the memory brain.
     var focusRequest = 0
     @FocusState private var focused: Bool
-    @Environment(\.look) private var look
 
     enum Symbol {
         static let search = "magnifyingglass"
@@ -121,17 +93,16 @@ struct SearchField: View {
     private static let consolePadding: CGFloat = 12
 
     var body: some View {
-        let console = look == .console
-        let tokens = look.tokens
+        let tokens = LookTokens.console
         let shape = RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous)
-        let face = HStack(spacing: console ? Memnox.Spacing.medium : ControlMetrics.iconSpacing) {
+        let face = HStack(spacing: Memnox.Spacing.medium) {
             Image(systemName: symbol)
-                .font(.system(size: console ? Memnox.TextSize.callout : ControlMetrics.textSize))
+                .font(.system(size: Memnox.TextSize.callout))
                 .foregroundStyle(tokens.muted)
             TextField(prompt, text: $text)
                 .onSubmit { submit?() }
                 .textFieldStyle(.plain)
-                .font(look.sans(ControlMetrics.textSize))
+                .font(Memnox.Console.sans(ControlMetrics.textSize))
                 .foregroundStyle(tokens.foreground)
                 .focused($focused)
                 // The capsule is the field, so macOS draws no blue ring around it on focus.
@@ -144,23 +115,16 @@ struct SearchField: View {
                     .help("Clear")
             }
         }
-        .padding(.horizontal, console ? Self.consolePadding : ControlMetrics.horizontalPadding - ControlMetrics.fieldPadding)
-        .frame(height: console ? Memnox.Console.fieldHeight : ControlMetrics.height)
+        .padding(.horizontal, Self.consolePadding)
+        .frame(height: Memnox.Console.fieldHeight)
         .onTapGesture { focused = true }
         .onChange(of: focusRequest) { focused = true }
-        if console {
-            face
-                .background(shape.fill(tokens.field))
-                .overlay(shape.strokeBorder(focused ? tokens.primary : tokens.fieldEdge, lineWidth: Memnox.Stroke.hairline))
-                .background(shape.stroke(focused ? Memnox.Console.ring : Color.clear, lineWidth: Memnox.Console.ringWidth * 2))
-                .contentShape(shape)
-                .animation(.easeOut(duration: Memnox.Motion.quick), value: focused)
-        } else {
-            face
-                .background(tokens.field, in: Capsule())
-                .overlay(Capsule().strokeBorder(tokens.fieldEdge, lineWidth: Memnox.Stroke.hairline))
-                .contentShape(Capsule())
-        }
+        face
+            .background(shape.fill(tokens.field))
+            .overlay(shape.strokeBorder(focused ? tokens.primary : tokens.fieldEdge, lineWidth: Memnox.Stroke.hairline))
+            .background(shape.stroke(focused ? Memnox.Console.ring : Color.clear, lineWidth: Memnox.Console.ringWidth * 2))
+            .contentShape(shape)
+            .animation(.easeOut(duration: Memnox.Motion.quick), value: focused)
     }
 }
 
@@ -171,15 +135,14 @@ struct CheckboxStyle: ToggleStyle {
     }
 }
 
-/// The checkbox drawn in the look of the window it sits in.
+/// The checkbox, in the console's look on every surface.
 private struct CheckboxFace: View {
     let configuration: ToggleStyleConfiguration
-    @Environment(\.look) private var look
 
     private static let tick = "checkmark"
 
     var body: some View {
-        let tokens = look.tokens
+        let tokens = LookTokens.console
         let shape = RoundedRectangle(cornerRadius: ControlMetrics.checkboxRadius, style: .continuous)
         Button { configuration.isOn.toggle() } label: {
             HStack(spacing: ControlMetrics.iconSpacing) {
@@ -196,7 +159,7 @@ private struct CheckboxFace: View {
                 }
                 .frame(width: ControlMetrics.checkboxSide, height: ControlMetrics.checkboxSide)
                 configuration.label
-                    .font(look.sans(ControlMetrics.textSize))
+                    .font(Memnox.Console.sans(ControlMetrics.textSize))
                     .foregroundStyle(tokens.foreground)
             }
             .contentShape(Rectangle())
@@ -210,10 +173,9 @@ private struct CheckboxFace: View {
 /// A shortcut as Vorssaint shows one: each key printed on its own cap, inside a grey capsule.
 struct ShortcutField: View {
     let keys: [String]
-    @Environment(\.look) private var look
 
     var body: some View {
-        let tokens = look.tokens
+        let tokens = LookTokens.console
         HStack(spacing: ControlMetrics.keySpacing) {
             ForEach(keys, id: \.self) { Keycap(label: $0) }
         }
@@ -253,8 +215,8 @@ struct NavigationCapsule: View {
             arrow(Symbol.forward, "Forward", enabled: canGoForward, action: forward)
         }
         .frame(width: Layout.width, height: Layout.height)
-        .background(Memnox.Palette.capsule, in: Capsule())
-        .overlay(Capsule().strokeBorder(Memnox.Palette.capsuleEdge, lineWidth: Memnox.Stroke.hairline))
+        .background(Memnox.Console.capsule, in: Capsule())
+        .overlay(Capsule().strokeBorder(Memnox.Console.capsuleEdge, lineWidth: Memnox.Stroke.hairline))
         .shadow(color: .black.opacity(Layout.shadow), radius: Layout.shadowRadius, y: Layout.shadowDrop)
     }
 
@@ -262,7 +224,7 @@ struct NavigationCapsule: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: Layout.symbolSize, weight: .semibold))
-                .foregroundStyle(enabled ? Memnox.Palette.foreground : Memnox.Palette.faint)
+                .foregroundStyle(enabled ? Memnox.Console.foreground : Memnox.Console.faint)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
         }

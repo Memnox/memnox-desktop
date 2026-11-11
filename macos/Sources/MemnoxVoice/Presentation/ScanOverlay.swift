@@ -362,7 +362,7 @@ private struct ScanCore: View {
                 ForEach(0..<Pulse.waves, id: \.self) { wave in
                     let progress = ((time + Double(wave) * Pulse.stagger).truncatingRemainder(dividingBy: Pulse.lap)) / Pulse.lap
                     Circle()
-                        .stroke(Memnox.Palette.primary.opacity((1 - progress) * (phase == .scanning ? Pulse.scanningOpacity : Pulse.restingOpacity)), lineWidth: Memnox.Stroke.hairline)
+                        .stroke(Memnox.Console.primary.opacity((1 - progress) * (phase == .scanning ? Pulse.scanningOpacity : Pulse.restingOpacity)), lineWidth: Memnox.Stroke.hairline)
                         .frame(width: Self.size * (Pulse.startScale + progress * Pulse.growth), height: Self.size * (Pulse.startScale + progress * Pulse.growth))
                 }
                 ScanOrb(state: phase == .scanning ? .thinking : .idle)
@@ -424,7 +424,7 @@ private struct ScanHeading: View {
         VStack(spacing: Memnox.Spacing.regular) {
             HStack(spacing: Memnox.Spacing.medium) {
                 Circle()
-                    .fill(phase == .found ? IslandPalette.green : Memnox.Palette.sky)
+                    .fill(phase == .found ? IslandPalette.green : Memnox.Console.sky)
                     .frame(width: Layout.dot, height: Layout.dot)
                 Text(phase == .found ? "Scan complete" : "Scanning this Mac")
                     .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
@@ -560,7 +560,7 @@ private struct AgentCard: View {
     private var statusColour: Color {
         if agent.working > 0 { return IslandPalette.green }
         if agent.open > 0 { return IslandPalette.amber }
-        return Memnox.Palette.primary
+        return Memnox.Console.primary
     }
 }
 

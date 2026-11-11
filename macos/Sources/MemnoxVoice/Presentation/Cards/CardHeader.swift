@@ -28,13 +28,13 @@ struct CardHeader<Mark: View, Accessory: View>: View {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                 Text(title)
                     .font(Memnox.display(FloatingCard.titleSize))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(FloatingCard.titleLineLimit)
                     .accessibilityAddTraits(.isHeader)
                 if let subtitle {
                     Text(subtitle)
                         .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                         .lineLimit(FloatingCard.subtitleLineLimit)
                 }
             }

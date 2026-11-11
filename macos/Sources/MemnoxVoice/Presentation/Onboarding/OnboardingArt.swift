@@ -78,7 +78,7 @@ private struct MacScene: View {
                     if let sky = sceneImage("sky") {
                         Image(nsImage: sky).resizable().interpolation(.none).scaledToFill()
                     } else {
-                        Memnox.Palette.deep
+                        Memnox.Console.deep
                     }
                 }
                 .frame(width: Layout.screen.width, height: Layout.screen.height)

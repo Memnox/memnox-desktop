@@ -65,7 +65,7 @@ export const PROTECTION = {
   noRuleHere: 'No rule here yet',
   noRuleHereBody: 'A rule with this effect shows here once one holds.',
   noRules: 'No rules yet',
-  noRulesBody: 'A rule comes from an Allow from now on answer, a ready-made rule, or one proposed here.',
+  noRulesBody: 'A rule comes from an Always allow answer, a ready-made rule, or one proposed here.',
   // Autonomy, as the console's hand over page.
   autonomyIntro: 'What your agents could start doing on their own, based on what you keep saying yes to.',
   readyToHandOver: 'Ready to hand over',

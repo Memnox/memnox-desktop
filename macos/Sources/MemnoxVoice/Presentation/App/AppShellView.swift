@@ -331,7 +331,6 @@ struct SettingsPageColumn<Content: View>: View {
 
     var body: some View {
         SettingsColumn(title: title, subtitle: subtitle, wide: wide) { content }
-            .environment(\.rimlessCards, true)
             // Any button a page leaves unstyled is the grey capsule, so no system button shows here.
             .buttonStyle(QuietButton())
     }

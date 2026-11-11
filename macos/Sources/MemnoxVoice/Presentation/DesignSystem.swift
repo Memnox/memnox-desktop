@@ -1,63 +1,13 @@
 import AppKit
 import SwiftUI
 
-/// The Memnox design system on the Mac, set in the Mac's own neutral colours the way Vorssaint sets its windows: a
-/// graphite page with no colour cast, cards one step lighter than it, and the system blue for what is chosen or on.
-/// The ordinary windows follow the Appearance the person chose; the notch is pinned dark, as the hardware is.
+/// The Memnox design system on the Mac, the console's own: one palette, Inter for words, and the Memnox blue for what
+/// is chosen or on. The ordinary windows follow the Appearance the person chose; the notch is pinned dark, as the
+/// hardware is.
 enum Memnox {
-    /// Sampled from Vorssaint's own Settings window, in the light and in the dark, so every value here is one it draws.
-    enum Palette {
-        /// The window behind the sidebar and the page.
-        static let background = Color(light: 0xFAFAFA, dark: 0x1E1E1E)
-        /// A card on the page, solid and with no rim, a step off the page as Vorssaint's are.
-        static let card = Color(light: 0xF1F1F1, dark: 0x262626)
-        /// A control set on a card: a button, a menu's pill. White in the light, a step up from the card in the dark.
-        static let secondary = Color(light: 0xFFFFFF, dark: 0x383838)
-        /// A control's hairline, which only the white controls of the light look need.
-        static let controlEdge = Color(darkWhite: 0, lightBlack: 0.12)
-        /// The rule between two rows of a card.
-        static let border = Color(light: 0xD9D9D9, dark: 0x3B3B3B)
-        static let foreground = Color(light: 0x222222, dark: 0xE1E1E1)
-        static let muted = Color(light: 0x797979, dark: 0x9E9E9F)
-        /// Text that is there but not asked about, such as a hint under a card or a control that cannot be used yet.
-        static let faint = Color(light: 0xB2B2B2, dark: 0x5E5E5F)
-        /// The colour text, symbols and hairlines are drawn in: white on the dark page, near black on the light one.
-        static let ink = Color(light: 0x0D0D0D, dark: 0xFFFFFF)
-        /// Vorssaint's blue, for what is chosen, switched on, or the one thing a page asks to be done.
-        static let primary = Color(hex: 0x3B82F7)
-        /// The status hues deepen on the light page, so a status said in words keeps 4.5 to 1 on white and on its own tint.
-        static let success = Color(light: 0x1F7A35, dark: 0x30D158)
-        static let warm = Color(light: 0xB25000, dark: 0xFF9F0A)
-        static let destructive = Color(light: 0xC4001A, dark: 0xFF453A)
-        /// The sidebar's own panel.
-        static let surface = Color(light: 0xEDEDF0, dark: 0x28282B)
-        /// A lit edge, which an unticked checkbox draws around itself.
-        static let rim = Color(light: 0xFAFAFB, dark: 0x4B4B4D)
-        /// The page panel's one even edge, a soft grey that sets it off the sidebar without lighting its top.
-        static let panelEdge = Color(light: 0xD6D6DA, dark: 0x3A3A3D)
-        /// Back and Forward's capsule and its edge.
-        static let capsule = Color(light: 0xFFFFFF, dark: 0x262626)
-        static let capsuleEdge = Color(light: 0xE0E0E0, dark: 0x3B3B3B)
-        /// A row or a button under the pointer.
-        static let hover = Color(darkWhite: 0.07, lightBlack: 0.05)
-        /// The search field's fill, and its edge.
-        static let field = Color(darkWhite: 0.16, lightBlack: 0.07)
-        static let fieldEdge = Color(darkWhite: 0.08, lightBlack: 0.06)
-        /// A key printed inside a shortcut's field.
-        static let keycap = Color(light: 0xFFFFFF, dark: 0x454545)
-        /// A shortcut's field, a text field, a disc or pill set on a card.
-        static let raised = Color(light: 0xFFFFFF, dark: 0x2F2F2F)
-        /// The history at the side of the screen, the island's own dark so the two read as one surface.
-        static let panel = Color(light: 0xFFFFFF, dark: 0x141518)
-        /// The orb's own two blues, the primary and a lighter sky over it; the sky deepens on white to stay readable.
-        static let sky = Color(light: 0x1E6FD0, dark: 0x8CC8FF)
-        static let deep = Color(hex: 0x1E86EE)
-    }
-
-    /// The Memnox window wears the Memnox Cloud console's palette, value for value from memnox-client's globals.css, so
-    /// the desktop and the console read as one product: a neutral ground under bordered cards, its blue the one hue, and
-    /// status kept in the desktop's words in the console's pill colours. The island, the menu and the floating cards keep
-    /// `Palette`, which is why this is a second set rather than new values for the first.
+    /// Every surface of this app wears the Memnox Cloud console's palette, value for value from memnox-client's
+    /// globals.css, so the window, the island, the menu, the cards and setup read as one product with the console: a
+    /// neutral ground under bordered cards, its blue the one hue, and status in the console's pill colours.
     enum Console {
         static let background = Color(light: 0xFBFBFB, dark: 0x030303)
         /// The sidebar sits flat on the ground, read by its border rather than a fill.
@@ -200,8 +150,6 @@ enum Memnox {
     /// `--radius`, 0.375rem.
     static let radius: CGFloat = 6
     static let cardRadius: CGFloat = 12
-    /// A keycap's corners, tighter than a button's so it reads as a key.
-    static let keycapRadius: CGFloat = 4
 
     /// Type sizes named for their role, so the same kind of text is the same size on every surface.
     enum TextSize {
@@ -326,41 +274,15 @@ enum BundledFonts {
     }
 }
 
-/// Which palette a surface wears: the Mac's own on the island, the menu and the floating cards, and the console's in
-/// the Memnox window. The shared controls read it, so one button is drawn in whichever window it sits in.
-enum Look: Sendable {
-    case mac
-    case console
-
-    var tokens: LookTokens { LookTokens.of(self) }
-
-    /// Text in the look's own face: Inter in the console's, the system's on the Mac's.
-    func sans(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        self == .console ? Memnox.Console.sans(size, weight) : .system(size: size, weight: weight)
-    }
-}
-
-private struct LookKey: EnvironmentKey {
-    static let defaultValue = Look.mac
-}
-
-extension EnvironmentValues {
-    var look: Look {
-        get { self[LookKey.self] }
-        set { self[LookKey.self] = newValue }
-    }
-}
-
 extension View {
-    /// Wears the console's palette and type from here down: the Memnox window, its popped out details and its sheets.
+    /// Wears the console's type and tint from here down: the Memnox window, its popped out details and its sheets.
     func consoleLook() -> some View {
-        environment(\.look, .console)
-            .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
+        font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
             .tint(Memnox.Console.primary)
     }
 }
 
-/// The tokens the shared controls pick from, by the look they are drawn in.
+/// The tokens the shared controls pick from, the console's on every surface.
 struct LookTokens {
     let background: Color
     let card: Color
@@ -380,23 +302,8 @@ struct LookTokens {
     let rim: Color
     let primary: Color
 
-    static func of(_ look: Look) -> LookTokens {
-        switch look {
-        case .mac: mac
-        case .console: console
-        }
-    }
-
-    private static let mac = LookTokens(
-        background: Memnox.Palette.background, card: Memnox.Palette.card, secondary: Memnox.Palette.secondary,
-        controlEdge: Memnox.Palette.controlEdge, border: Memnox.Palette.border, panelEdge: Memnox.Palette.panelEdge,
-        foreground: Memnox.Palette.foreground, muted: Memnox.Palette.muted, faint: Memnox.Palette.faint,
-        hover: Memnox.Palette.hover, active: Memnox.Palette.hover, field: Memnox.Palette.field,
-        fieldEdge: Memnox.Palette.fieldEdge, raised: Memnox.Palette.raised, keycap: Memnox.Palette.keycap,
-        rim: Memnox.Palette.rim, primary: Memnox.Palette.primary
-    )
-
-    private static let console = LookTokens(
+    /// The one set every surface draws with, the console's.
+    static let console = LookTokens(
         background: Memnox.Console.background, card: Memnox.Console.card, secondary: Memnox.Console.secondary,
         controlEdge: Memnox.Console.controlEdge, border: Memnox.Console.border, panelEdge: Memnox.Console.panelEdge,
         foreground: Memnox.Console.foreground, muted: Memnox.Console.muted, faint: Memnox.Console.faint,
@@ -483,7 +390,7 @@ struct WindowGlass: NSViewRepresentable {
 }
 
 /// A faint blue in the glass, so every surface reads as Memnox rather than as a system panel.
-let glassTint = NSColor(Memnox.Palette.primary).withAlphaComponent(glassTintAlpha)
+let glassTint = NSColor(Memnox.Console.primary).withAlphaComponent(glassTintAlpha)
 
 /// Faint enough that the desktop still shows through the glass.
 private let glassTintAlpha = 0.10
@@ -545,18 +452,17 @@ struct QuietButton: ButtonStyle {
 /// A key as it is printed on the keyboard, as Vorssaint prints one inside a shortcut's field.
 struct Keycap: View {
     let label: String
-    @Environment(\.look) private var look
 
     private static let horizontalPadding: CGFloat = 6
     private static let minimumWidth: CGFloat = 18
     private static let height: CGFloat = 18
 
     var body: some View {
-        let tokens = look.tokens
-        let shape = RoundedRectangle(cornerRadius: look == .console ? Memnox.Console.controlRadius : Memnox.keycapRadius, style: .continuous)
+        let tokens = LookTokens.console
+        let shape = RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous)
         Text(label)
-            .font(look.sans(Memnox.TextSize.caption, .medium))
-            .foregroundStyle(look == .console ? tokens.muted : tokens.foreground)
+            .font(Memnox.Console.sans(Memnox.TextSize.caption, .medium))
+            .foregroundStyle(tokens.muted)
             .padding(.horizontal, Self.horizontalPadding)
             .frame(minWidth: Self.minimumWidth, minHeight: Self.height)
             .background(shape.fill(tokens.keycap))
@@ -621,10 +527,10 @@ struct LogoMark: View {
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
-                    .foregroundStyle(Memnox.Palette.ink)
+                    .foregroundStyle(Memnox.Console.ink)
             } else {
                 Circle()
-                    .fill(Memnox.Palette.primary)
+                    .fill(Memnox.Console.primary)
                     .frame(width: size * Self.fallbackScale, height: size * Self.fallbackScale)
             }
         }
@@ -643,13 +549,13 @@ struct Wordmark: View {
                 .resizable()
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
-                .foregroundStyle(Memnox.Palette.ink)
+                .foregroundStyle(Memnox.Console.ink)
                 .frame(height: height)
                 .accessibilityLabel("Memnox")
         } else {
             Text("memnox")
                 .font(Memnox.display(height, .bold))
-                .foregroundStyle(Memnox.Palette.ink)
+                .foregroundStyle(Memnox.Console.ink)
         }
     }
 }

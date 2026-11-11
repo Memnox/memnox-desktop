@@ -70,7 +70,7 @@ public enum ProtectionLines {
     /// The console says nothing more under a filtered empty list; a card here needs a line, so it says when one shows.
     public static let noRuleHereBody = "A rule with this effect shows here once one holds."
     public static let noRules = "No rules yet"
-    public static let noRulesBody = "A rule comes from an Allow from now on answer, a ready-made rule, or one proposed here."
+    public static let noRulesBody = "A rule comes from an Always allow answer, a ready-made rule, or one proposed here."
 
     // Autonomy, as the console's hand over page.
     public static let autonomyIntro = "What your agents could start doing on their own, based on what you keep saying yes to."

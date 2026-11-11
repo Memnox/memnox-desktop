@@ -24,18 +24,18 @@ struct FileList: View {
                 HStack(spacing: Memnox.Spacing.medium) {
                     Text(SessionText.shortPath(file.path))
                         .font(.system(size: Memnox.TextSize.footnote, design: .monospaced))
-                        .foregroundStyle(Memnox.Palette.foreground.opacity(Layout.nameOpacity))
+                        .foregroundStyle(Memnox.Console.foreground.opacity(Layout.nameOpacity))
                         .lineLimit(1)
                         .truncationMode(.head)
                     Spacer(minLength: Memnox.Spacing.medium)
                     if let added = file.added {
                         Text("+\(counting ? added : 0)")
-                            .foregroundStyle(Memnox.Palette.success)
+                            .foregroundStyle(Memnox.Console.success)
                             .contentTransition(.numericText(value: Double(counting ? added : 0)))
                     }
                     if let removed = file.removed, removed > 0 {
                         Text("\u{2212}\(counting ? removed : 0)")
-                            .foregroundStyle(Memnox.Palette.destructive)
+                            .foregroundStyle(Memnox.Console.destructive)
                             .contentTransition(.numericText(value: Double(counting ? removed : 0)))
                     }
                 }
@@ -90,10 +90,10 @@ struct CodeExcerpt: View {
                     .foregroundStyle(Layout.onBadge)
                     .padding(.horizontal, Memnox.Spacing.xSmall)
                     .padding(.vertical, Memnox.Spacing.xxSmall)
-                    .background(RoundedRectangle(cornerRadius: Layout.badgeCornerRadius).fill(Memnox.Palette.primary))
+                    .background(RoundedRectangle(cornerRadius: Layout.badgeCornerRadius).fill(Memnox.Console.primary))
                 Text(SessionText.shortPath(excerpt.path))
                     .font(.system(size: codeTextSize, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Memnox.Palette.ink)
+                    .foregroundStyle(Memnox.Console.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }

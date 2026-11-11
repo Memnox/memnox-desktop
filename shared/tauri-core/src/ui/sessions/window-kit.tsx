@@ -4,6 +4,7 @@ import type { HeldCalls, HeldCard } from '../../core';
 import { BrandLogo, IslandButton, Pressable, SFSymbol, type SFSymbolName } from '../kit';
 import { HeldImpactLines } from '../cards/HeldImpact';
 import { HeldLines } from '../../core/domain/island-lines';
+import { ANSWER_LABEL } from '../../core/domain/answer-words';
 
 /**
  * The pieces the session windows share, outside the island: these follow the system's light or dark as
@@ -101,7 +102,7 @@ export function LiveSection({ title, children }: { title: string; children: Reac
 
 /**
  * `HeldStrip`: a call waiting on the person, answered where it is read, through the same signed path as
- * the island: who asks and why, the command, then Deny beside Allow once, which asks for the key when the
+ * the island: who asks and why, the command, then Allow once and Deny, the yes asking for the key when the
  * call reaches outside its session.
  */
 export function HeldStrip({ calls, card }: { calls: HeldCalls; card: HeldCard }) {
@@ -127,11 +128,11 @@ export function HeldStrip({ calls, card }: { calls: HeldCalls; card: HeldCard })
       </code>
       {card.impact !== undefined && <HeldImpactLines impact={card.impact} />}
       <div className={`flex items-center gap-2 ${answering ? 'pointer-events-none opacity-[0.55]' : ''}`}>
-        <IslandButton inRow onClick={() => void press(HOLD_ANSWER.DENY)} className="!bg-ink/[0.09] !text-ink">
-          {HeldLines.deny}
-        </IslandButton>
         <IslandButton inRow kind="primary" symbol={card.touchID ? 'touchid' : undefined} onClick={() => void press(HOLD_ANSWER.ONCE)}>
-          {HeldLines.allowOnce}
+          {ANSWER_LABEL[HOLD_ANSWER.ONCE]}
+        </IslandButton>
+        <IslandButton inRow onClick={() => void press(HOLD_ANSWER.DENY)} className="!bg-ink/[0.09] !text-ink">
+          {ANSWER_LABEL[HOLD_ANSWER.DENY]}
         </IslandButton>
       </div>
       {said !== undefined && <span className="text-footnote text-destructive">{said}</span>}

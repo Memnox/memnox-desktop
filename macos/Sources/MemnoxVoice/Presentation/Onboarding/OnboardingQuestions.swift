@@ -10,8 +10,8 @@ private struct RadioMark: View {
 
     var body: some View {
         Circle()
-            .strokeBorder(on ? Memnox.Palette.primary : Memnox.ink(Memnox.Ink.tertiary), lineWidth: Self.ring)
-            .background(Circle().fill(on ? Memnox.Palette.primary : Color.clear))
+            .strokeBorder(on ? Memnox.Console.primary : Memnox.ink(Memnox.Ink.tertiary), lineWidth: Self.ring)
+            .background(Circle().fill(on ? Memnox.Console.primary : Color.clear))
             .frame(width: Self.side, height: Self.side)
             .accessibilityHidden(true)
     }

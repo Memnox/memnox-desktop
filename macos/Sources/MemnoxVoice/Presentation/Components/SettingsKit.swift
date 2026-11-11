@@ -24,7 +24,6 @@ enum SettingsMetrics {
     /// Vorssaint's type: rows and buttons at 13, the line under a row at 12, and a group's title over its card at 15.
     static let rowTextSize: CGFloat = 13
     static let captionSize: CGFloat = 12
-    static let sectionTitleSize: CGFloat = 15
     static let pageTitleSize: CGFloat = 19
     /// Between a group's title and its card.
     static let sectionSpacing: CGFloat = 10
@@ -42,22 +41,20 @@ enum SettingsMetrics {
 struct IconTile: View {
     let symbol: String
     var tint: Color?
-    @Environment(\.look) private var look
 
     /// The console's stat icon: radius 6, the tint at 14 percent, its symbol half the tile at the stroke of its words.
     private static let consoleTint = 0.14
     private static let consoleSymbolShare: CGFloat = 0.5
 
     var body: some View {
-        let console = look == .console
-        let ink = tint ?? look.tokens.primary
+        let ink = tint ?? LookTokens.console.primary
         Image(systemName: symbol)
-            .font(.system(size: console ? SettingsMetrics.tileSide * Self.consoleSymbolShare : SettingsMetrics.tileSymbol,
-                          weight: console ? .regular : .semibold))
+            .font(.system(size: SettingsMetrics.tileSide * Self.consoleSymbolShare,
+                          weight: .regular))
             .foregroundStyle(ink)
             .frame(width: SettingsMetrics.tileSide, height: SettingsMetrics.tileSide)
-            .background(ink.opacity(console ? Self.consoleTint : SettingsMetrics.tileTint),
-                        in: RoundedRectangle(cornerRadius: console ? Memnox.Console.controlRadius : SettingsMetrics.tileRadius, style: .continuous))
+            .background(ink.opacity(Self.consoleTint),
+                        in: RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous))
             .accessibilityHidden(true)
     }
 }
@@ -66,26 +63,23 @@ struct IconTile: View {
 struct SettingsCard<Content: View>: View {
     var title: String?
     @ViewBuilder let content: Content
-    @Environment(\.look) private var look
 
     var body: some View {
-        let console = look == .console
-        let shape = RoundedRectangle(cornerRadius: console ? Memnox.Console.cardRadius : SettingsMetrics.cardRadius, style: .continuous)
-        VStack(alignment: .leading, spacing: console ? SettingsMetrics.consoleCardSpacing : SettingsMetrics.cardSpacing) {
+        let shape = RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous)
+        VStack(alignment: .leading, spacing: SettingsMetrics.consoleCardSpacing) {
             if let title {
                 Text(title)
-                    .font(console ? Memnox.Console.sans(Memnox.Console.TextSize.base, .medium)
-                        : .system(size: SettingsMetrics.sectionTitleSize, weight: .semibold))
-                    .foregroundStyle(look.tokens.foreground)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.base, .medium))
+                    .foregroundStyle(LookTokens.console.foreground)
                     .accessibilityAddTraits(.isHeader)
             }
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(console ? SettingsMetrics.consoleCardPadding : SettingsMetrics.cardPadding)
-        .background(look.tokens.card, in: shape)
+        .padding(SettingsMetrics.consoleCardPadding)
+        .background(LookTokens.console.card, in: shape)
         // The console reads a card by its border rather than its fill.
-        .overlay(shape.strokeBorder(console ? Memnox.Console.panelEdge : Color.clear, lineWidth: Memnox.Stroke.hairline))
+        .overlay(shape.strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
     }
 }
 
@@ -96,21 +90,20 @@ struct SettingsRow<Accessory: View>: View {
     var caption: String?
     var tint: Color?
     @ViewBuilder let accessory: Accessory
-    @Environment(\.look) private var look
 
     var body: some View {
         HStack(spacing: SettingsMetrics.rowSpacing) {
             IconTile(symbol: symbol, tint: tint)
             VStack(alignment: .leading, spacing: SettingsMetrics.captionSpacing) {
                 Text(title)
-                    .font(look.sans(SettingsMetrics.rowTextSize, look == .console ? .medium : .regular))
-                    .foregroundStyle(look.tokens.foreground)
+                    .font(Memnox.Console.sans(SettingsMetrics.rowTextSize, .medium))
+                    .foregroundStyle(LookTokens.console.foreground)
                     .fixedSize(horizontal: false, vertical: true)
                 if let caption {
                     // Wraps, since a caption cut off mid sentence hides what the row does.
                     Text(caption)
-                        .font(look.sans(SettingsMetrics.captionSize))
-                        .foregroundStyle(look.tokens.muted)
+                        .font(Memnox.Console.sans(SettingsMetrics.captionSize))
+                        .foregroundStyle(LookTokens.console.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -131,11 +124,10 @@ extension SettingsRow where Accessory == EmptyView {
 /// rows with no tile.
 struct SettingsDivider: View {
     var full = false
-    @Environment(\.look) private var look
 
     var body: some View {
         Rectangle()
-            .fill(look.tokens.border)
+            .fill(LookTokens.console.border)
             .frame(height: Memnox.Stroke.hairline)
             .padding(.leading, full ? 0 : SettingsMetrics.rowTextInset)
     }
@@ -147,15 +139,13 @@ struct SettingsSection<Content: View, Trailing: View>: View {
     let title: String
     @ViewBuilder var trailing: Trailing
     @ViewBuilder let content: Content
-    @Environment(\.look) private var look
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsMetrics.sectionSpacing) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(look == .console ? Memnox.Console.sans(Memnox.Console.TextSize.base, .medium)
-                        : .system(size: SettingsMetrics.sectionTitleSize, weight: .semibold))
-                    .foregroundStyle(look.tokens.foreground)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.base, .medium))
+                    .foregroundStyle(LookTokens.console.foreground)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: SettingsMetrics.rowSpacing)
                 trailing
@@ -179,14 +169,13 @@ struct HoverLight: ViewModifier {
     var inset: CGFloat = SettingsMetrics.hoverInset
     @State private var hovering = false
     @Environment(\.isEnabled) private var enabled
-    @Environment(\.look) private var look
 
     func body(content: Content) -> some View {
         content
             .background(
                 // The console folds every control's corner to 6, so a lit row matches the buttons beside it.
-                RoundedRectangle(cornerRadius: look == .console ? min(radius, Memnox.Console.controlRadius) : radius, style: .continuous)
-                    .fill(look.tokens.hover.opacity(hovering && enabled ? 1 : 0))
+                RoundedRectangle(cornerRadius: min(radius, Memnox.Console.controlRadius), style: .continuous)
+                    .fill(LookTokens.console.hover.opacity(hovering && enabled ? 1 : 0))
                     .padding(.horizontal, -inset)
             )
             .animation(.easeOut(duration: Memnox.Motion.quick), value: hovering)
@@ -259,47 +248,32 @@ struct SettingsColumn<Content: View>: View {
     }
 }
 
-/// Whether cards drop their rim, as Settings cards do, since they sit on a page of their own and need no edge there.
-private struct RimlessCardsKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
-extension EnvironmentValues {
-    var rimlessCards: Bool {
-        get { self[RimlessCardsKey.self] }
-        set { self[RimlessCardsKey.self] = newValue }
-    }
-}
-
 /// A page's heading, as the console's page header: an optional line above, a 24 semibold title, and its line 13 muted.
 struct PageTitle: View {
     var eyebrow: String?
     let title: String
     var subtitle: String?
-    @Environment(\.look) private var look
 
     private static let subtitleWidth: CGFloat = 672
 
     var body: some View {
-        let console = look == .console
-        VStack(alignment: .leading, spacing: console ? Memnox.Spacing.small : Memnox.Spacing.xSmall) {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
             if let eyebrow {
                 Text(eyebrow)
-                    .font(look.sans(Memnox.Console.TextSize.meta))
-                    .foregroundStyle(look.tokens.muted)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                    .foregroundStyle(LookTokens.console.muted)
             }
             Text(title)
-                .font(console ? Memnox.Console.sans(Memnox.Console.TextSize.title, .semibold)
-                    : .system(size: SettingsMetrics.pageTitleSize, weight: .bold))
-                .tracking(console ? Memnox.Console.titleTracking : 0)
-                .foregroundStyle(look.tokens.foreground)
+                .font(Memnox.Console.sans(Memnox.Console.TextSize.title, .semibold))
+                .tracking(Memnox.Console.titleTracking)
+                .foregroundStyle(LookTokens.console.foreground)
                 .accessibilityAddTraits(.isHeader)
             if let subtitle {
                 Text(subtitle)
-                    .font(look.sans(SettingsMetrics.rowTextSize))
-                    .foregroundStyle(look.tokens.muted)
-                    .lineSpacing(console ? Memnox.Spacing.xxSmall : 0)
-                    .frame(maxWidth: console ? Self.subtitleWidth : .infinity, alignment: .leading)
+                    .font(Memnox.Console.sans(SettingsMetrics.rowTextSize))
+                    .foregroundStyle(LookTokens.console.muted)
+                    .lineSpacing(Memnox.Spacing.xxSmall)
+                    .frame(maxWidth: Self.subtitleWidth, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

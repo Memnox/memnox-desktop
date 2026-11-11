@@ -252,7 +252,7 @@ struct LiveSessionView: View {
             } else {
                 Text("This session is not on the record yet.")
                     .font(Memnox.sans(Memnox.TextSize.callout))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Memnox.Console.muted)
                 // No header stands above to take Escape, so the footer's Close answers it.
                 LiveFooter(view: nil, jump: jump, close: close, answersEscape: true)
             }
@@ -335,7 +335,7 @@ struct LiveSessionView: View {
     private func empty(_ words: String) -> some View {
         Text(words)
             .font(Memnox.sans(Memnox.TextSize.footnote))
-            .foregroundStyle(Memnox.Palette.muted)
+            .foregroundStyle(Memnox.Console.muted)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -369,16 +369,16 @@ private struct LiveSummary: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             HStack(spacing: Memnox.Spacing.small) {
-                Image(systemName: LiveSymbol.thinking).foregroundStyle(Memnox.Palette.primary)
+                Image(systemName: LiveSymbol.thinking).foregroundStyle(Memnox.Console.primary)
                 Text(summary.title)
                     .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .foregroundStyle(Memnox.Console.foreground)
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 Button(action: close) {
                     Image(systemName: LiveSymbol.close)
                         .font(.system(size: Memnox.TextSize.caption, weight: .bold))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                 }
                 .buttonStyle(PressableStyle())
                 .help("Put the summary away")
@@ -393,7 +393,7 @@ private struct LiveSummary: View {
         .padding(Layout.padding)
         .background(RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous).fill(LiveStyle.section))
         .overlay(RoundedRectangle(cornerRadius: LiveStyle.sectionCornerRadius, style: .continuous)
-            .strokeBorder(Memnox.Palette.primary.opacity(LiveSummaryShade.edge), lineWidth: Memnox.Stroke.hairline))
+            .strokeBorder(Memnox.Console.primary.opacity(LiveSummaryShade.edge), lineWidth: Memnox.Stroke.hairline))
     }
 }
 
@@ -472,7 +472,7 @@ extension View {
 
 /// Green while it works or thinks, amber when it waits on the person, red when paused, quiet otherwise.
 private func statusColour(_ view: SessionView?) -> Color {
-    view?.status.tint ?? Memnox.Palette.muted
+    view?.status.tint ?? Memnox.Console.muted
 }
 
 /// The card header every floating card wears, with the agent's own logo, how it stands beside the name,
@@ -550,10 +550,10 @@ struct LiveNow: View {
     var body: some View {
         HStack(spacing: Memnox.Spacing.medium) {
             Image(systemName: view.thinking ? LiveSymbol.thinking : LiveSymbol.acting)
-                .foregroundStyle(Memnox.Palette.primary)
+                .foregroundStyle(Memnox.Console.primary)
             Text(now)
                 .font(Memnox.sans(Memnox.TextSize.body, .medium))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .foregroundStyle(Memnox.Console.foreground)
                 .lineLimit(1)
         }
         .padding(.horizontal, Self.horizontalPadding)
@@ -614,7 +614,7 @@ struct LiveStepRows: View {
                     Spacer(minLength: Memnox.Spacing.small)
                     Text(SessionText.ago(step.at, now: Date()) ?? "")
                         .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                 }
                 .accessibilityElement(children: .combine)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -635,9 +635,9 @@ struct LiveStepRows: View {
     }
 
     private func tint(_ step: SessionViewStep) -> Color {
-        if step.refused == true { return Memnox.Palette.warm }
-        if step.failed == true { return Memnox.Palette.destructive }
-        return Memnox.Palette.foreground.opacity(LiveStyle.softTextOpacity)
+        if step.refused == true { return Memnox.Console.warm }
+        if step.failed == true { return Memnox.Console.destructive }
+        return Memnox.Console.foreground.opacity(LiveStyle.softTextOpacity)
     }
 }
 
@@ -671,15 +671,15 @@ struct ConversationRow: View {
                 Spacer(minLength: Layout.personIndent)
                 Text(line.text)
                     .font(Memnox.sans(Memnox.TextSize.body))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .foregroundStyle(Memnox.Console.foreground)
                     .padding(.horizontal, Layout.bubbleHorizontalPadding)
                     .padding(.vertical, Layout.bubbleVerticalPadding)
-                    .background(RoundedRectangle(cornerRadius: Layout.bubbleCornerRadius).fill(Memnox.Palette.primary.opacity(Layout.bubbleFillOpacity)))
+                    .background(RoundedRectangle(cornerRadius: Layout.bubbleCornerRadius).fill(Memnox.Console.primary.opacity(Layout.bubbleFillOpacity)))
             }
         case .tool:
             Label(line.text, systemImage: LiveSymbol.tool)
                 .font(.system(size: Memnox.TextSize.caption, design: .monospaced))
-                .foregroundStyle(Memnox.Palette.muted)
+                .foregroundStyle(Memnox.Console.muted)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .padding(.leading, Memnox.Spacing.xSmall)
@@ -688,7 +688,7 @@ struct ConversationRow: View {
                 if typing { TypedText(text: line.text) } else { Text(line.text) }
             }
                 .font(Memnox.sans(Memnox.TextSize.body))
-                .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
+                .foregroundStyle(Memnox.Console.foreground.opacity(Memnox.Ink.primary))
                 .lineSpacing(Layout.replyLineSpacing)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.trailing, Layout.replyTrailingRoom)
@@ -740,7 +740,7 @@ private struct LiveHelperRows: View {
             ForEach(helpers, id: \.self) { helper in
                 Label(helper, systemImage: LiveSymbol.helper)
                     .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.Palette.foreground.opacity(LiveStyle.softTextOpacity))
+                    .foregroundStyle(Memnox.Console.foreground.opacity(LiveStyle.softTextOpacity))
             }
         }
     }
@@ -834,7 +834,7 @@ private struct LiveActivity: View {
                 if steps.isEmpty {
                     Text("Nothing recorded yet.")
                         .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                 } else {
                     tally
                     Picker("Show", selection: $only) {
@@ -845,7 +845,7 @@ private struct LiveActivity: View {
                     if shown.isEmpty {
                         Text(only == .problems ? "Nothing failed and nothing was blocked." : "No changes to its files or git yet.")
                             .font(Memnox.sans(Memnox.TextSize.footnote))
-                            .foregroundStyle(Memnox.Palette.muted)
+                            .foregroundStyle(Memnox.Console.muted)
                     } else {
                         LiveStepRows(steps: shown, most: shown.count, newestFirst: true)
                     }
@@ -854,7 +854,7 @@ private struct LiveActivity: View {
                     VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
                         Text(helpers.count == 1 ? "1 helper" : "\(helpers.count) helpers")
                             .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-                            .foregroundStyle(Memnox.Palette.foreground)
+                            .foregroundStyle(Memnox.Console.foreground)
                         LiveHelperRows(helpers: helpers)
                     }
                 }
@@ -868,12 +868,12 @@ private struct LiveActivity: View {
         let failed = steps.filter { $0.failed == true }.count
         let blocked = steps.filter { $0.refused == true }.count
         let parts: [(String, Int, Color)] = [
-            ("files", count(.filesystem), Memnox.Palette.foreground),
-            ("commands", count(.shell), Memnox.Palette.foreground),
-            ("git", count(.git), Memnox.Palette.foreground),
-            ("tools and sites", count(.mcp) + count(.network), Memnox.Palette.foreground),
-            ("failed", failed, Memnox.Palette.destructive),
-            ("blocked", blocked, Memnox.Palette.warm),
+            ("files", count(.filesystem), Memnox.Console.foreground),
+            ("commands", count(.shell), Memnox.Console.foreground),
+            ("git", count(.git), Memnox.Console.foreground),
+            ("tools and sites", count(.mcp) + count(.network), Memnox.Console.foreground),
+            ("failed", failed, Memnox.Console.destructive),
+            ("blocked", blocked, Memnox.Console.warm),
         ]
         return HStack(spacing: Memnox.Spacing.small) {
             ForEach(parts.filter { $0.1 > 0 }, id: \.0) { part in

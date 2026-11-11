@@ -118,7 +118,7 @@ struct IslandSessionDetail: View {
                         .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
                         .tracking(Layout.labelTracking)
                         .textCase(.uppercase)
-                        .foregroundStyle(followUp ? Memnox.Palette.sky : Color.white.opacity(Shade.sectionLabel))
+                        .foregroundStyle(followUp ? Memnox.Console.sky : Color.white.opacity(Shade.sectionLabel))
                     Spacer(minLength: 0)
                     // Said in words beside the label, so the prompt reads as something to open rather than cut text.
                     Label(askOpen ? "Less" : "All of it", systemImage: askOpen ? Symbol.less : Symbol.more)
@@ -364,7 +364,7 @@ struct IslandFilesPanel: View {
                             Text(more)
                         }
                         .font(Memnox.sans(Memnox.TextSize.caption, .medium))
-                        .foregroundStyle(hovered ? Memnox.Palette.sky : Color.white.opacity(Shade.hint))
+                        .foregroundStyle(hovered ? Memnox.Console.sky : Color.white.opacity(Shade.hint))
                     }
                 }
                 .padding(Layout.padding)

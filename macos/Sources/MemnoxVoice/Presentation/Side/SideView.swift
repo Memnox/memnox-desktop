@@ -105,7 +105,7 @@ struct SideView: View {
 
     @ViewBuilder private func history(_ days: [HistoryDay]) -> some View {
         if let running = model.history.current, running.mentions(model.query) {
-            SideSection(title: "In progress", count: nil, tint: Memnox.Palette.primary) {
+            SideSection(title: "In progress", count: nil, tint: Memnox.Console.primary) {
                 ExchangeRow(
                     exchange: running,
                     opened: model.picked == running.id,
@@ -257,7 +257,7 @@ private struct SideSearch: View {
                 TextField("Search", text: $model.query)
                     .textFieldStyle(.plain)
                     .font(Memnox.sans(Memnox.TextSize.callout))
-                    .foregroundStyle(Memnox.Palette.ink)
+                    .foregroundStyle(Memnox.Console.ink)
                     .focused($focused)
                 if !model.query.isEmpty {
                     Button("Clear search", systemImage: Symbol.clear) { model.query = "" }
@@ -275,7 +275,7 @@ private struct SideSearch: View {
             Button { model.sidePinned.toggle() } label: {
                 Image(systemName: model.sidePinned ? Symbol.pinned : Symbol.unpinned)
                     .font(.system(size: Memnox.TextSize.footnote, weight: .semibold))
-                    .foregroundStyle(model.sidePinned ? Memnox.Palette.primary : Memnox.ink(Memnox.Ink.secondary))
+                    .foregroundStyle(model.sidePinned ? Memnox.Console.primary : Memnox.ink(Memnox.Ink.secondary))
                     .frame(width: Layout.pinSide, height: Layout.height)
                     .background(RoundedRectangle(cornerRadius: Layout.radius).fill(Memnox.ink(Self.fill)))
             }
@@ -369,14 +369,14 @@ private struct WorkingRow: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(card.title)
                         .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                        .foregroundStyle(Memnox.Palette.ink)
+                        .foregroundStyle(Memnox.Console.ink)
                         .lineLimit(1)
                     if card.thinking {
                         ShimmerText(text: card.subtitle(now: Date()))
                     } else {
                         Text(card.subtitle(now: Date()))
                             .font(Memnox.sans(Memnox.TextSize.caption))
-                            .foregroundStyle(Memnox.Palette.muted)
+                            .foregroundStyle(Memnox.Console.muted)
                             .lineLimit(1)
                     }
                 }
@@ -420,7 +420,7 @@ private struct ExchangeRow: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(exchange.question)
                         .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                        .foregroundStyle(Memnox.Palette.ink)
+                        .foregroundStyle(Memnox.Console.ink)
                         .lineLimit(1)
                     detail
                 }
@@ -460,7 +460,7 @@ private struct ExchangeRow: View {
                 // White on the blue disc in either look, as the mark is drawn in ink.
                 .environment(\.colorScheme, .dark)
                 .frame(width: Layout.markSide, height: Layout.markSide)
-                .background(Circle().fill(Memnox.Palette.primary))
+                .background(Circle().fill(Memnox.Console.primary))
         }
     }
 
@@ -477,7 +477,7 @@ private struct ExchangeRow: View {
         } else {
             Text("Answered in \(clock(exchange.elapsed(now: Date()))) \u{00B7} \(exchange.askedAt.formatted(date: .omitted, time: .shortened))")
                 .font(Memnox.sans(Memnox.TextSize.caption))
-                .foregroundStyle(Memnox.Palette.muted)
+                .foregroundStyle(Memnox.Console.muted)
                 .lineLimit(1)
         }
     }
@@ -485,7 +485,7 @@ private struct ExchangeRow: View {
     /// Blue and breathing while it answers, red when it never did; nothing once it is simply done.
     @ViewBuilder private var dot: some View {
         if exchange.isAnswering {
-            let dot = Circle().fill(Memnox.Palette.primary).frame(width: Layout.dotSide, height: Layout.dotSide)
+            let dot = Circle().fill(Memnox.Console.primary).frame(width: Layout.dotSide, height: Layout.dotSide)
             // A still dot under Reduce Motion, since the breathing is decoration and the caption already says answering.
             if reduceMotion { dot } else { dot.modifier(PulseEffect()) }
         } else if exchange.failed {
@@ -518,11 +518,11 @@ private struct ActionRow: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(words.title)
                         .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                        .foregroundStyle(Memnox.Palette.ink)
+                        .foregroundStyle(Memnox.Console.ink)
                         .lineLimit(1)
                     Text(action.about ?? question)
                         .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
@@ -545,7 +545,7 @@ private struct ActionRow: View {
                 .font(.system(size: Layout.symbolSize, weight: .semibold))
                 .foregroundStyle(SideInk.onTint)
                 .frame(width: Layout.markSide, height: Layout.markSide)
-                .background(RoundedRectangle(cornerRadius: RowStyle.markRadius, style: .continuous).fill(Memnox.Palette.primary))
+                .background(RoundedRectangle(cornerRadius: RowStyle.markRadius, style: .continuous).fill(Memnox.Console.primary))
         }
     }
 }
@@ -627,7 +627,7 @@ private struct SideEmpty: View {
                 .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
             Text(searching ? "Nothing mentions \u{201C}\(query)\u{201D}" : "Nothing done yet")
                 .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
-                .foregroundStyle(Memnox.Palette.ink)
+                .foregroundStyle(Memnox.Console.ink)
                 .multilineTextAlignment(.center)
             if !searching {
                 Text("Press Option Space and ask Memnox to do something. What it does is listed here, on this Mac.")

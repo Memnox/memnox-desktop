@@ -179,7 +179,7 @@ struct ShimmerText: View {
                     LinearGradient(
                         stops: [
                             .init(color: Memnox.ink(Memnox.Ink.tertiary), location: max(0, phase - Self.halfWidth)),
-                            .init(color: Memnox.Palette.ink, location: phase),
+                            .init(color: Memnox.Console.ink, location: phase),
                             .init(color: Memnox.ink(Memnox.Ink.tertiary), location: min(1, phase + Self.halfWidth)),
                         ],
                         startPoint: .leading, endPoint: .trailing
@@ -239,7 +239,7 @@ struct IslandSessionRow: View {
                         .foregroundStyle(Color.white.opacity(Shade.arrow))
                         .transition(.opacity.combined(with: .scale(scale: Layout.arrowAppearScale)))
                 } else if card.status.isActive {
-                    Circle().fill(Memnox.Palette.sky).frame(width: Layout.workingDotSide, height: Layout.workingDotSide).modifier(PulseEffect())
+                    Circle().fill(Memnox.Console.sky).frame(width: Layout.workingDotSide, height: Layout.workingDotSide).modifier(PulseEffect())
                 }
             }
             .padding(.horizontal, Memnox.Spacing.medium)

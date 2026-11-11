@@ -130,7 +130,7 @@ struct IslandToolPage: View {
                 .lineLimit(1)
             HStack(spacing: Memnox.Spacing.xSmall) {
                 Circle()
-                    .fill(connection.connected ? Memnox.Palette.success : IslandPalette.amber)
+                    .fill(connection.connected ? Memnox.Console.success : IslandPalette.amber)
                     .frame(width: Layout.dotSide, height: Layout.dotSide)
                 Text(connection.connected ? "Connected" : "Needs a sign in")
                     .font(.system(size: Layout.statusSize, weight: .medium, design: .rounded))
@@ -167,7 +167,7 @@ struct IslandToolPage: View {
     /// Anything else is a sentence away; a tool not signed in to opens its sign in once something is asked of it.
     private var hint: some View {
         HStack(spacing: Memnox.Spacing.xSmall) {
-            Image(systemName: Symbol.talk).foregroundStyle(Memnox.Palette.sky)
+            Image(systemName: Symbol.talk).foregroundStyle(Memnox.Console.sky)
             Text(connection.connected
                  ? "Or press \u{2325} Space and ask anything about \(ToolkitName.of(connection.toolkit))."
                  : "Ask anything and Memnox opens the sign in first.")

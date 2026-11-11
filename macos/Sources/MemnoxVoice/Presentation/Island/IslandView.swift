@@ -421,7 +421,7 @@ struct IslandWorkforce: View {
                 .frame(width: face * Self.logoScale, height: face * Self.logoScale)
                 .frame(width: face, height: face)
                 .background(shape.fill(IslandPalette.color(card.agent)))
-                .overlay(shape.strokeBorder(Memnox.Palette.warm, lineWidth: card.sessionId == waiting ? Self.waitingEdge : 0))
+                .overlay(shape.strokeBorder(Memnox.Console.warm, lineWidth: card.sessionId == waiting ? Self.waitingEdge : 0))
                 .modifier(LogoMood(bouncing: card.sessionId == waiting, stumbling: stumbling.contains(card.sessionId)))
                 .transition(.scale.combined(with: .opacity))
         } else if index == Self.desks - 1, unseated > 0 {

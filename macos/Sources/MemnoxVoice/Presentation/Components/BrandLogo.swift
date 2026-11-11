@@ -27,7 +27,7 @@ struct BrandLogo: View {
                     .font(.system(size: size * Self.initialScale, weight: .semibold, design: .rounded))
                     .foregroundStyle(IslandPalette.color(agent ?? name))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Memnox.Palette.secondary)
+                    .background(Memnox.Console.secondary)
             }
         }
         .frame(width: size, height: size)

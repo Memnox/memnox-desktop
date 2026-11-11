@@ -121,12 +121,8 @@ function cssPixels(block: Map<string, string>, token: string): number {
 }
 
 describe('the design tokens', () => {
-  it('paint the Memnox window in the console palette of the Mac', () => {
+  it('paint every window in the console palette of the Mac, the one palette left', () => {
     expect(comparePalette('Console', cssBlock('html.mx-window'), cssBlock('html.mx-window[data-theme="dark"]'))).toBeGreaterThan(LEAST_COMPARED);
-  });
-
-  it('paint every other window in the Mac palette', () => {
-    expect(comparePalette('Palette', cssBlock(':root'), cssBlock('[data-theme="dark"]'))).toBeGreaterThan(LEAST_COMPARED);
   });
 
   it('give the console its two shapes, its control heights and its ring', () => {
@@ -164,7 +160,8 @@ describe('the design tokens', () => {
     expect(cssPixels(root, '--mx-stroke-emphasis')).toBe(swiftNumber(stroke, 'emphasis'));
     const motion = swiftEnum('Motion');
     for (const name of ['quick', 'standard', 'slow']) expect([name, cssPixels(root, `--mx-duration-${name}`) / 1000]).toEqual([name, swiftNumber(motion, name)]);
-    expect(cssPixels(theme, '--radius-key')).toBe(swiftNumber(swift, 'keycapRadius'));
+    // A key is a control, so it takes the console's control radius as every other one does.
+    expect(cssPixels(theme, '--radius-key')).toBe(swiftNumber(swiftEnum('Console'), 'controlRadius'));
   });
 });
 

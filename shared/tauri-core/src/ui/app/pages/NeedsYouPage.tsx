@@ -15,6 +15,7 @@ import { needsYou, openWork } from '../../../core/domain/agent-work-lines';
 import { waitingHandoffs } from '../../../core/domain/workspace-agents';
 import { WorkNeedingYou } from './WorkTab';
 import { WorkspaceHandoffs } from './WorkspaceAgents';
+import { ANSWER_LABEL } from '../../../core/domain/answer-words';
 
 /** How long the window waits before opening the live feed again after the daemon went away. */
 const RECONNECT_MS = 2_000;
@@ -112,15 +113,15 @@ function Approvals({ parts }: { parts: SettingsParts }) {
                 </dl>
                 <div className="flex items-center gap-2">
                   <Button kind="primary" disabled={busy} onClick={() => handHeld(calls, subject, HOLD_ANSWER.ONCE)}>
-                    {GovernanceLines.allowOnce}
+                    {ANSWER_LABEL[HOLD_ANSWER.ONCE]}
                   </Button>
                   <Button disabled={busy} onClick={() => handHeld(calls, subject, HOLD_ANSWER.SESSION)}>
-                    {GovernanceLines.allowSession}
+                    {ANSWER_LABEL[HOLD_ANSWER.SESSION]}
                   </Button>
                   {/* Set apart from the yeses, so a refusal is never pressed by a slip. */}
                   <span className="min-w-5 flex-1" />
                   <Button disabled={busy} onClick={() => handHeld(calls, subject, HOLD_ANSWER.DENY)}>
-                    {GovernanceLines.deny}
+                    {ANSWER_LABEL[HOLD_ANSWER.DENY]}
                   </Button>
                 </div>
               </article>

@@ -47,14 +47,14 @@ struct WalkView: View {
             } accessory: {
                 Text("\(page + 1) of \(walk.pages.count)")
                     .font(Memnox.sans(Memnox.TextSize.caption, .medium))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Memnox.Console.muted)
                     .contentTransition(.numericText(value: Double(page)))
             }
             VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
                 FileList(files: [CardFile(path: current.path, added: current.added, removed: current.removed)], counting: entrance.shown)
                 Text(current.note)
                     .font(Memnox.sans(Memnox.TextSize.callout))
-                    .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
+                    .foregroundStyle(Memnox.Console.foreground.opacity(Memnox.Ink.primary))
                     .lineSpacing(Layout.noteLineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
                 if !current.lines.isEmpty {
@@ -127,7 +127,7 @@ struct PageDots: View {
         HStack(spacing: Layout.spacing) {
             ForEach(0..<count, id: \.self) { index in
                 Capsule()
-                    .fill(index == current ? Memnox.Palette.primary : Memnox.ink(Layout.restingOpacity))
+                    .fill(index == current ? Memnox.Console.primary : Memnox.ink(Layout.restingOpacity))
                     .frame(width: index == current ? Layout.currentLength : Layout.size, height: Layout.size)
             }
         }

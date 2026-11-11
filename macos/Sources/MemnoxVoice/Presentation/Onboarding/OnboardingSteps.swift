@@ -194,7 +194,7 @@ private struct RulePacks: View {
                         .buttonStyle(.plain)
                         .pointingHand()
                         .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                        .foregroundStyle(Memnox.Palette.primary)
+                        .foregroundStyle(Memnox.Console.primary)
                         .padding(.top, Memnox.Spacing.regular)
                 }
             } else {
@@ -233,8 +233,8 @@ private struct RulePacks: View {
         return Button { picked = pack.id } label: {
             KitRow(symbol: "checklist", title: FirstRunLines.packTitle(pack), detail: pack.description) {
                 Circle()
-                    .strokeBorder(on ? Memnox.Palette.primary : Memnox.ink(Memnox.Ink.tertiary), lineWidth: Self.ring)
-                    .background(Circle().fill(on ? Memnox.Palette.primary : Color.clear))
+                    .strokeBorder(on ? Memnox.Console.primary : Memnox.ink(Memnox.Ink.tertiary), lineWidth: Self.ring)
+                    .background(Circle().fill(on ? Memnox.Console.primary : Color.clear))
                     .frame(width: Self.radio, height: Self.radio)
                     .accessibilityHidden(true)
             }

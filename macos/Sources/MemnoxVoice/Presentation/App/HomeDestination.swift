@@ -110,10 +110,10 @@ private struct HomeAtAGlance: View {
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.tileWidth), spacing: Memnox.Spacing.large)],
                          spacing: Memnox.Spacing.large) {
             tile(running, running == 1 ? "Agent working" : "Agents working", symbol: "bolt",
-                 tone: running > 0 ? .good : .quiet) { shell.go(WindowRoute(.agents, tab: "list")) }
+                 tone: running > 0 ? .good : .quiet) { shell.go(WindowRoute(.agents, tab: "agents")) }
             tile(view?.today.actions ?? 0, "Actions today", symbol: "checklist", tone: .quiet, open: nil)
             tile(waiting, "Waiting on you", symbol: "hand.raised", tone: waiting > 0 ? .attention : .quiet) {
-                shell.go(WindowRoute(.governance, tab: "approvals"))
+                shell.go(WindowRoute(.needsYou, tab: "decide-now"))
             }
         }
     }
@@ -163,7 +163,7 @@ private struct HomeThisWeek: View {
     var body: some View {
         if let progress = screen.studio.progress {
             ShellSection(title: "This week") {
-                GoLink("What could run on its own") { shell.go(WindowRoute(.governance, tab: "policies")) }
+                GoLink("What could run on its own") { shell.go(WindowRoute(.rules, tab: "rules")) }
             } content: {
                 Text(StudioLines.thisWeek(progress))
                     .font(Memnox.Console.sans(Memnox.TextSize.body))
@@ -192,7 +192,7 @@ private struct LearnRow: View {
                         .frame(width: Self.icon + 4)
                         .accessibilityHidden(true)
                 } trailing: {
-                    Button("Open Learn") { shell.go(WindowRoute(.governance, tab: "learn")) }.buttonStyle(KitButton(kind: .secondary))
+                    Button("Open Learn") { shell.go(WindowRoute(.needsYou, tab: "decide-now")) }.buttonStyle(KitButton(kind: .secondary))
                 }
             }
         }

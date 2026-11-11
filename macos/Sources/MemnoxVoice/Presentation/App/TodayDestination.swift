@@ -147,7 +147,7 @@ struct TodayDestination<Lead: View, WaitingFoot: View, Trail: View>: View {
         let shown = cut ? Array(held.prefix(TodayBoard.urgentShown)) : held
         return ShellSection(title: held.isEmpty ? block.title : "\(block.title) \u{00B7} \(held.count)") {
             HStack(spacing: Memnox.Spacing.medium) {
-                if block == .today { GoLink("Activity") { shell.go(WindowRoute(.governance, tab: "activity")) } }
+                if block == .today { GoLink("Activity") { shell.go(WindowRoute(.activity, tab: "timeline")) } }
                 if !held.isEmpty {
                     Button(folded ? "Show" : "Hide") {
                         withAnimation(.snappy(duration: Memnox.Motion.quick)) {
@@ -317,7 +317,7 @@ struct TodayDestination<Lead: View, WaitingFoot: View, Trail: View>: View {
         case .findInApp:
             if let session = item.sessionId { island.openWindow(session, host(session)) }
         case .openActivity:
-            shell.go(WindowRoute(.governance, tab: "activity"))
+            shell.go(WindowRoute(.activity, tab: "timeline"))
         }
     }
 

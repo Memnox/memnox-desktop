@@ -34,25 +34,7 @@ struct AppSidebar: View {
         /// The chevron turns from pointing at the heading to pointing down at its pages.
         static let openTurn: Double = 90
         static let searchHeight: CGFloat = 30
-    }
-
-    static let settingsSymbol = "gearshape"
-
-    /// Each row's icon, the SF Symbol nearest the lucide icon the console draws on the same row.
-    static func symbol(_ row: SidebarRowId) -> String {
-        switch row {
-        case .home: "house"
-        case .projects: "folder"
-        case .waiting: "tray"
-        case .activity: "sun.max"
-        case .agents: "cpu"
-        case .protection: "checkmark.shield"
-        case .memory: "brain"
-        case .skills: "sparkles"
-        case .servers: "powerplug"
-        case .connectors: "square.grid.2x2"
-        case .files: "doc.text"
-        }
+        static let railBadge: CGFloat = 6
     }
 
     var body: some View {
@@ -64,7 +46,7 @@ struct AppSidebar: View {
                     if let place = ProjectSidebar.place(of: route) {
                         project(place)
                     } else {
-                        ForEach(Sidebar.sections, id: \.rows.first?.id) { section in
+                        ForEach(Sidebar.sections, id: \.group) { section in
                             group(section)
                         }
                     }
@@ -75,13 +57,12 @@ struct AppSidebar: View {
             .scrollIndicators(.never)
             VStack(alignment: rail ? .center : .leading, spacing: Memnox.Spacing.xxSmall) {
                 if let home {
-                    RuntimeStanding(home: home, rail: rail) { shell.go(WindowRoute(.settings, tab: "connection")) }
+                    RuntimeStanding(home: home, rail: rail) { shell.go(WindowRoute(.machines)) }
                 } else {
                     RuntimeWord(tone: .quiet, words: RuntimeStanding.reaching, rail: rail)
                 }
-                let settings = Destinations.info(.settings)
-                row(symbol: Self.settingsSymbol, title: settings.title, hint: settings.subtitle, chosen: route.destination == .settings) {
-                    shell.go(WindowRoute(.settings))
+                ForEach(Sidebar.foot, id: \.self) { page in
+                    if let target = Sidebar.target(page, supports: shell.supports) { item(page, target) }
                 }
                 if canFold {
                     row(symbol: "sidebar.left", title: shell.collapsed ? "Show labels" : "Hide labels",
@@ -164,41 +145,10 @@ struct AppSidebar: View {
                 shell.go(ProjectSidebar.route(place.id, page))
             }
         }
-        // The shared group is left off for now, since each item's badge already says it is shared.
-        if ProjectContext.showsShared, let project = shell.projects?.projects.projects?.first(where: { $0.id == place.id }) {
-            shared(project)
-        }
     }
 
-    /// The pages every project shares, each with how much of it applies here, under a heading saying so.
-    @ViewBuilder private func shared(_ project: ProjectView) -> some View {
-        let counts = ProjectContext.counts(project, rules: shell.studio?.studio.rules?.rules, skills: shell.skills?.skills.hub?.skills,
-                                           servers: shell.hub?.hub.hub?.servers, connections: shell.island?.tools.connections,
-                                           memory: shell.memory?.memory.facts?.items, agents: shell.agents?.agents.agents?.count)
-        let links = ProjectContext.shared(counts, supports: shell.supports)
-        if !links.isEmpty {
-            if rail {
-                Divider().padding(.vertical, Memnox.Spacing.small)
-            } else {
-                Text(ProjectContext.sharedTitle)
-                    .font(Memnox.Console.sans(Memnox.Console.TextSize.meta, .medium))
-                    .foregroundStyle(Memnox.Console.faint)
-                    .padding(.horizontal, Memnox.Spacing.small)
-                    .padding(.top, Layout.headingGap)
-                    .frame(maxWidth: .infinity, minHeight: Layout.headingHeight, alignment: .leading)
-                    .help(ProjectContext.sharedNote)
-                    .accessibilityAddTraits(.isHeader)
-            }
-            ForEach(links) { link in
-                row(symbol: Self.symbol(link.row), title: link.title, hint: link.hint, chosen: false, count: link.count) {
-                    shell.go(link.route)
-                }
-            }
-        }
-    }
-
-    /// A section's rows the runtime answers now, each with where a press lands.
-    private func shown(_ section: SidebarSection) -> [(row: SidebarRow, target: WindowRoute)] {
+    /// A section's pages the runtime answers now, each with where a press lands.
+    private func shown(_ section: SidebarSection) -> [(row: Destination, target: WindowRoute)] {
         section.rows.compactMap { row in Sidebar.target(row, supports: shell.supports).map { (row, $0) } }
     }
 
@@ -216,28 +166,32 @@ struct AppSidebar: View {
                         }
                     }
                     if open {
-                        ForEach(rows, id: \.row.id) { item($0.row, $0.target) }
+                        ForEach(rows, id: \.row) { item($0.row, $0.target) }
                             .transition(.opacity)
                     }
                 }
                 .padding(.top, Layout.headingGap)
                 // Arriving on a page under a folded heading opens it, so the chosen row is never hidden.
                 .onChange(of: route) {
-                    if rows.contains(where: { $0.row.id == Sidebar.row(of: route)?.id }) { folded.remove(title) }
+                    if rows.contains(where: { $0.row == route.destination }) { folded.remove(title) }
                 }
             }
         } else {
             VStack(spacing: Memnox.Spacing.xxSmall) {
-                ForEach(rows, id: \.row.id) { item($0.row, $0.target) }
+                ForEach(rows, id: \.row) { item($0.row, $0.target) }
             }
             .padding(.top, section.title == nil || rows.isEmpty ? 0 : Layout.headingGap)
         }
     }
 
-    /// One row of the tree, chosen while the page drawn is any of its tabs.
-    private func item(_ row: SidebarRow, _ target: WindowRoute) -> some View {
-        let hint = Sidebar.tabs(row, supports: shell.supports).first?.summary ?? row.title
-        return self.row(symbol: Self.symbol(row.id), title: row.title, hint: hint, chosen: Sidebar.row(of: route)?.id == row.id) {
+    /// One row of the tree, chosen while the page drawn is any of its tabs; Needs you carries how many wait, on the
+    /// rail too, so the one count that asks for the person is never folded away.
+    private func item(_ row: Destination, _ target: WindowRoute) -> some View {
+        let info = Destinations.info(row)
+        let hint = Sidebar.tabs(row, supports: shell.supports).first?.summary ?? info.subtitle
+        let waiting = row == .needsYou ? shell.island?.waiting.entries.count : nil
+        return self.row(symbol: info.symbol, title: info.title, hint: hint, chosen: route.destination == row,
+                        count: waiting.flatMap { $0 > 0 ? $0 : nil }) {
             shell.go(target)
         }
     }
@@ -276,6 +230,15 @@ struct AppSidebar: View {
                     .font(.system(size: Layout.iconSize, weight: .regular))
                     .foregroundStyle(chosen ? Color.white : Memnox.Console.primary)
                     .frame(width: Layout.iconWidth)
+                    .overlay(alignment: .topTrailing) {
+                        // The rail drops the words, so a count rides on the icon instead of going unseen.
+                        if rail, count != nil {
+                            Circle().fill(Memnox.Console.primary)
+                                .frame(width: Layout.railBadge, height: Layout.railBadge)
+                                .offset(x: Layout.railBadge, y: -Layout.railBadge / 2)
+                                .accessibilityHidden(true)
+                        }
+                    }
                 if !rail {
                     Text(title)
                         .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, chosen ? .medium : .regular))

@@ -37,8 +37,8 @@ struct ProjectPages: View {
 
 /// Where a shared page lives, nil while the daemon answers none of its tabs, so no badge links nowhere.
 @MainActor
-func sharedRoute(_ id: SidebarRowId, shell: AppShellModel) -> WindowRoute? {
-    Sidebar.rows.first { $0.id == id }.flatMap { Sidebar.target($0, supports: shell.supports) }
+func sharedRoute(_ page: SharedPage, shell: AppShellModel) -> WindowRoute? {
+    page.target(supports: shell.supports)
 }
 
 /// The small badge saying whether an item belongs to this project alone or is shared with every project; a shared
@@ -495,13 +495,13 @@ private struct ProjectToolTile: View {
         case nil:
             EmptyView()
         case .files:
-            Button(card.slot.addTitle, systemImage: "plus") { shell.go(WindowRoute(.workspaces, tab: "sources")) }
+            Button(card.slot.addTitle, systemImage: "plus") { shell.go(WindowRoute(.connectors, tab: "files")) }
                 .buttonStyle(KitButton(kind: .primary, wide: true))
         case .apps:
             let added = Set(project.servers.map(\.name))
             let offered = (shell.hub?.hub.hub?.servers ?? []).filter { !added.contains($0.name) }
             if offered.isEmpty {
-                Button("Connect an app", systemImage: "plus") { shell.go(WindowRoute(.mcp, tab: "apps")) }
+                Button("Connect an app", systemImage: "plus") { shell.go(WindowRoute(.connectors, tab: "systems")) }
                     .buttonStyle(KitButton(kind: .secondary, wide: true))
             } else {
                 Menu {
@@ -661,7 +661,7 @@ private struct ProjectRulesPage: View {
 
     var body: some View {
         if let studio = shell.studio {
-            ProjectRulesHere(studio: studio, project: project) { shell.go(WindowRoute(.governance, tab: "policies")) }
+            ProjectRulesHere(studio: studio, project: project) { shell.go(WindowRoute(.rules, tab: "rules")) }
         } else {
             ProjectMuted(ProjectLines.rulesLine(project.rules))
         }

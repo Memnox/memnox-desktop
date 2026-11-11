@@ -1,9 +1,28 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// What waits on the person, oldest first, each saying exactly what the agent wants to do. Every answer goes through
-/// the island's own path, so a yes that reaches outside the session is signed with Touch ID exactly as on the island.
-struct ApprovalsDestination: View {
+/// Needs you: what waits on the person, oldest first, each saying exactly what the agent wants to do, and below it
+/// what was read from their sources waiting to be confirmed. Every answer goes through the island's own path, so a
+/// yes that reaches outside the session is signed with Touch ID exactly as on the island.
+struct NeedsYouDestination: View {
+    @ObservedObject var shell: AppShellModel
+    @ObservedObject var island: IslandModel
+    let width: WidthClass
+
+    var body: some View {
+        ShellScroll(width: width) {
+            HeldCalls(island: island, projects: shell.projects?.projects.projects ?? [],
+                      work: shell.supports("agent-work") == true ? shell.work : nil,
+                      profiles: shell.profiles?.profiles.profiles ?? [], workspace: shell.workspaceAgents)
+            if shell.supports("memory-learn") == true, let memory = shell.memory {
+                LearnQueue(screen: memory, island: island)
+            }
+        }
+    }
+}
+
+/// The calls held for the person, oldest first, with the agent work and the workspace's handoffs that wait beside them.
+private struct HeldCalls: View {
     @ObservedObject var island: IslandModel
     /// The projects on this computer, which name where each call waits.
     let projects: [ProjectView]
@@ -13,11 +32,10 @@ struct ApprovalsDestination: View {
     var profiles: [ProfileView] = []
     /// The workspace's handoffs, which wait here while the person is signed in.
     var workspace: WorkspaceAgentsScreen?
-    let width: WidthClass
 
     var body: some View {
         let waiting = island.waiting.entries
-        ShellScroll(width: width) {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
             NoticesSwitch(notifier: HeldNotifier.shared)
             if let work { WorkNeedingYou(screen: work, names: WorkNames(profiles)) }
             if let workspace { WorkspaceHandoffs(screen: workspace) }
@@ -142,14 +160,14 @@ private struct NoticesSwitch: View {
 private struct NothingWaiting: View {
     @ObservedObject var home: HomeModel
 
-    static let empty = EmptyState(symbol: "checkmark.shield", title: "Nothing is waiting on you",
+    static let empty = EmptyState(symbol: "checkmark.shield", title: "Nothing needs you",
                                   detail: "When an agent asks before doing something your rules hold, it waits here and on the island.")
 
     var body: some View {
         if home.unavailable {
             EmptyState(symbol: "exclamationmark.triangle", title: "The Memnox service is not answering",
                        detail: "Nothing an agent asks can reach you until it runs again.")
-            Button("Open Connection", systemImage: "arrow.up.forward") { AppWindow.shared.shell.go(WindowRoute(.settings, tab: "connection")) }
+            Button("Open Connection", systemImage: "arrow.up.forward") { AppWindow.shared.shell.go(WindowRoute(.machines)) }
                 .buttonStyle(KitButton(kind: .secondary))
         } else {
             Self.empty

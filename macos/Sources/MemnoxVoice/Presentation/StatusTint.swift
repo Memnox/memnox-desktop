@@ -5,18 +5,18 @@ extension SessionStatus {
     /// The badge colour: red when paused, amber when it waits on the person, green while it is busy.
     var tint: Color {
         switch self {
-        case .paused: Memnox.Palette.destructive
-        case .needsYou, .waitingOnYou: Memnox.Palette.warm
-        case .thinking, .working: Memnox.Palette.success
-        case .ended, .quiet: Memnox.Palette.muted
+        case .stopped: Memnox.Palette.destructive
+        case .needsYou, .finished: Memnox.Palette.warm
+        case .working: Memnox.Palette.success
+        case .idle: Memnox.Palette.muted
         }
     }
 
     /// The live window's glow, which stays a faint brand colour rather than grey when nothing happens.
     var glow: Color {
         switch self {
-        case .ended, .quiet: Memnox.Palette.primary.opacity(Self.restingGlowOpacity)
-        case .paused, .needsYou, .waitingOnYou, .thinking, .working: tint
+        case .idle: Memnox.Palette.primary.opacity(Self.restingGlowOpacity)
+        case .stopped, .needsYou, .finished, .working: tint
         }
     }
 

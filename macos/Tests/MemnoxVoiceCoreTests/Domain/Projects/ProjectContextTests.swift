@@ -18,27 +18,10 @@ final class ProjectContextTests: XCTestCase {
         MemoryItemView(id: id, statement: id, scope: project == nil ? .personal : .project, project: project, createdAt: at)
     }
 
-    func testLinksOnlyTheSharedPagesTheDaemonAnswersWithWhatAppliesHere() {
-        let links = ProjectContext.shared(SharedCounts(rules: 3, skills: 1), supports: everything)
-        XCTAssertEqual(links.map(\.title), ["Protection settings", "Skills", "MCP servers", "Connectors", "Memory", "AI agents"])
-        XCTAssertEqual(links.first?.count, 3)
-        XCTAssertEqual(links.first?.hint, "3 rules hold here and in every project")
-        XCTAssertNil(links[2].count)
-        let bare = ProjectContext.shared(SharedCounts(), supports: { _ in false })
-        XCTAssertFalse(bare.contains { $0.row == .skills || $0.row == .memory || $0.row == .servers })
-        XCTAssertTrue(bare.contains { $0.row == .connectors })
-        XCTAssertFalse(ProjectContext.showsShared)
-    }
-
-    func testCountsWhatOfEachSharedPageAppliesHereOnceItIsRead() {
-        let web = project("p1", "Website", "/code/web")
-        let rules = [PolicyRuleView(name: "everywhere", effect: "ask", match: PolicyRuleMatch(actions: ["git.push"]), sentence: "",
-                                    source: "person", editable: true),
-                     PolicyRuleView(name: "here", effect: "deny", match: PolicyRuleMatch(actions: ["filesystem.delete"], workingDirectories: ["/code/web"]),
-                                    sentence: "", source: "person", editable: true)]
-        let counts = ProjectContext.counts(web, rules: rules, skills: nil, servers: nil, connections: nil,
-                                           memory: [fact("a", project: nil), fact("b", project: "/code/web")], agents: 2)
-        XCTAssertEqual(counts, SharedCounts(rules: 1, memory: 1, agents: 2))
+    func testLinksASharedPageOnlyWhileTheDaemonAnswersIt() {
+        XCTAssertEqual(SharedPage.servers.target(supports: everything), WindowRoute(.connectors, tab: "mcp"))
+        XCTAssertNil(SharedPage.servers.target(supports: { _ in false }))
+        XCTAssertEqual(SharedPage.allCases.map(\.title), ["Rules", "Skills", "MCP servers", "Connectors", "Memory", "Agents"])
     }
 
     func testTellsWhatBelongsToTheProjectFromWhatIsShared() {

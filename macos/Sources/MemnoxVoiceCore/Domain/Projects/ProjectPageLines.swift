@@ -68,7 +68,7 @@ public struct ProjectCanUsePart: Equatable, Identifiable, Sendable {
 /// Where a part of What its AI can use opens: a page of the project, or a page every project shares.
 public enum ProjectCanUseTarget: Equatable, Sendable {
     case page(ProjectPage)
-    case shared(SidebarRowId)
+    case shared(SharedPage)
 
     public var title: String {
         switch self {

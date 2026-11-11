@@ -326,10 +326,10 @@ public enum TodayBoard {
             let kind: TodayKind
             let state: TodayState
             switch card.status {
-            case .paused: (kind, state) = (.paused, .stopped)
-            case .waitingOnYou, .needsYou: (kind, state) = (.handedBack, .needsYou)
-            case .working, .thinking: (kind, state) = (.working, .working)
-            case .quiet, .ended: return nil
+            case .stopped: (kind, state) = (.paused, .stopped)
+            case .finished, .needsYou: (kind, state) = (.handedBack, .needsYou)
+            case .working: (kind, state) = (.working, .working)
+            case .idle: return nil
             }
             var ways: [(String, TodayAction, Bool)] = [("Open conversation", .openConversation, false)]
             if card.host?.app != nil { ways.append(("Find in app", .findInApp, false)) }

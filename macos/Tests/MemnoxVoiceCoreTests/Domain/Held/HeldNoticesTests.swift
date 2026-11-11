@@ -42,7 +42,7 @@ final class HeldNoticesTests: XCTestCase {
         XCTAssertEqual(notices.next([pushAgain], onIsland: nil).map(\.subject), ["b"])
     }
 
-    func testOpensGovernanceOnApprovals() {
-        XCTAssertEqual(HeldNotices.opens, WindowRoute(.governance, tab: "approvals"))
+    func testOpensNeedsYouWhereTheCallWaits() {
+        XCTAssertEqual(HeldNotices.opens, WindowRoute(.needsYou, tab: "decide-now"))
     }
 }

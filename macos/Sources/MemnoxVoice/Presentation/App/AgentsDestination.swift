@@ -1,19 +1,15 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// Every session the island keeps, in the order they are read in: what needs the person, then what runs, then what is
-/// idle, then what is done. A session picked opens its facts beside the list, with the way into its live window.
+/// Every session the island keeps, grouped by status in the order every surface reads them: what needs the person,
+/// what Memnox stopped, what runs, what finished, and what is idle. A session picked opens its facts beside the list, with the way into its live window.
 struct SessionsDestination: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var island: IslandModel
     let width: WidthClass
 
-    private static let groups: [(title: String, holds: [SessionStatus])] = [
-        ("Needs you", [.needsYou, .waitingOnYou, .paused]),
-        ("Running", [.working, .thinking]),
-        ("Idle", [.quiet]),
-        ("Finished", [.ended]),
-    ]
+    /// One group per status, in the order every surface lists them, so this page reads as the console's does.
+    private static let groups: [(title: String, holds: [SessionStatus])] = SessionStatus.allCases.map { ($0.label, [$0]) }
     private static let logo: CGFloat = 28
 
     var body: some View {

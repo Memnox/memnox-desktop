@@ -151,7 +151,7 @@ private struct HomeWorkingBlock: View {
 }
 
 /// The one action people keep saying yes to: the question, what it would cover, and the button that proposes the rule.
-private struct HomeReadyCard: View {
+struct HomeReadyCard: View {
     let ready: HomeReady
     let busy: Bool
     let note: String?

@@ -22,36 +22,37 @@ public enum ItemReach: String, CaseIterable, Sendable {
     }
 }
 
-/// One link in the project sidebar's Shared with every project group: the machine wide page it opens and how much of
-/// it applies to this project, nil while that is still being read.
-public struct SharedLink: Equatable, Identifiable, Sendable {
-    public let row: SidebarRowId
-    public let count: Int?
-    /// Said on hover and to VoiceOver: what of it applies here.
-    public let hint: String
-    public let route: WindowRoute
+/// A page every project shares, which a project's own page links to rather than repeating what it holds.
+public enum SharedPage: String, CaseIterable, Sendable {
+    case rules
+    case skills
+    case servers
+    case connectors
+    case memory
+    case agents
 
-    public var id: SidebarRowId { row }
-    public var title: String { row.title }
-}
+    public var route: WindowRoute {
+        switch self {
+        case .rules: WindowRoute(.rules, tab: "rules")
+        case .skills: WindowRoute(.memory, tab: "skills")
+        case .servers: WindowRoute(.connectors, tab: "mcp")
+        case .connectors: WindowRoute(.connectors, tab: "systems")
+        case .memory: WindowRoute(.memory, tab: "map")
+        case .agents: WindowRoute(.agents, tab: "agents")
+        }
+    }
 
-/// How much of each shared page applies to one project, each nil while it is still being read.
-public struct SharedCounts: Equatable, Sendable {
-    public var rules: Int?
-    public var skills: Int?
-    public var servers: Int?
-    public var connectors: Int?
-    public var memory: Int?
-    public var agents: Int?
+    /// The page's word as the sidebar says it, or its tab's where the tab is the page a person thinks of.
+    public var title: String {
+        switch self {
+        case .skills, .servers: Destinations.tab(of: route)?.title ?? Destinations.info(route.destination).title
+        case .rules, .connectors, .memory, .agents: Destinations.info(route.destination).title
+        }
+    }
 
-    public init(rules: Int? = nil, skills: Int? = nil, servers: Int? = nil, connectors: Int? = nil, memory: Int? = nil,
-                agents: Int? = nil) {
-        self.rules = rules
-        self.skills = skills
-        self.servers = servers
-        self.connectors = connectors
-        self.memory = memory
-        self.agents = agents
+    /// Where it opens now, nil while the daemon answers none of it, so no link leads nowhere.
+    public func target(supports: Supports) -> WindowRoute? {
+        Destinations.visibleTabs(route.destination, supports: supports).contains { $0.id == route.tab } ? route : nil
     }
 }
 
@@ -118,67 +119,12 @@ public enum MemoryProjectChoice: Hashable, Sendable {
 /// The two contexts a person with several projects moves between: what belongs to one project, and what is shared with
 /// every project on this computer. It only reads what the daemon scopes; anything carrying no project is shared.
 public enum ProjectContext {
-    // MARK: Shared with every project
-
-    public static let sharedTitle = "Shared with every project"
-    /// The shared group is left off a project's sidebar for now, since each item's badge already says where it is shared.
-    public static let showsShared = false
-    public static let sharedNote = "Set once for every project on this computer, and changed on its own page."
-    /// The rows of the shared group, in the order the window's own sidebar lists them.
-    public static let sharedRows: [SidebarRowId] = [.protection, .skills, .servers, .connectors, .memory, .agents]
-
-    /// The shared group at the foot of a project's sidebar: only the pages the daemon answers, so no link leads nowhere.
-    public static func shared(_ counts: SharedCounts, supports: Supports) -> [SharedLink] {
-        sharedRows.compactMap { id in
-            guard let row = Sidebar.rows.first(where: { $0.id == id }), let route = Sidebar.target(row, supports: supports) else { return nil }
-            let count = count(id, counts)
-            return SharedLink(row: id, count: count, hint: hint(id, count), route: route)
-        }
-    }
-
-    /// How much of each shared page applies to one project, from whatever of it the window has read so far.
-    public static func counts(_ project: ProjectView, rules: [PolicyRuleView]?, skills: [SkillView]?, servers: [McpHubServerView]?,
-                              connections: [ToolConnection]?, memory: [MemoryItemView]?, agents: Int?) -> SharedCounts {
-        SharedCounts(
-            rules: rules.map { ProjectLines.rules($0, in: project).everywhere },
-            skills: skills.map { $0.filter { reach(skillScope: $0.scope, skillProject: $0.project, in: project) == .everyProject }.count },
-            servers: servers.map { $0.filter(givenEverywhere).count },
-            connectors: connections.map { $0.filter(\.connected).count },
-            memory: memory.map { $0.filter { owner($0.project) == nil }.count },
-            agents: agents)
-    }
+    // MARK: Which items belong where
 
     /// A server the hub gives to agents on their own, or the organization hands down, reaches every project.
     public static func givenEverywhere(_ server: McpHubServerView) -> Bool {
         !server.agents.isEmpty || server.scope == McpScope.organization.rawValue
     }
-
-    private static func count(_ row: SidebarRowId, _ counts: SharedCounts) -> Int? {
-        switch row {
-        case .protection: counts.rules
-        case .skills: counts.skills
-        case .servers: counts.servers
-        case .connectors: counts.connectors
-        case .memory: counts.memory
-        case .agents: counts.agents
-        case .home, .projects, .waiting, .activity, .files: nil
-        }
-    }
-
-    private static func hint(_ row: SidebarRowId, _ count: Int?) -> String {
-        guard let count else { return "\(row.title), shared with every project" }
-        switch row {
-        case .protection: return "\(ProjectLines.counted(count, "rule holds", "rules hold")) here and in every project"
-        case .skills: return "\(ProjectLines.counted(count, "skill", "skills")) its agents carry in every project"
-        case .servers: return "\(ProjectLines.counted(count, "server", "servers")) given to agents in every project"
-        case .connectors: return "\(ProjectLines.counted(count, "app", "apps")) connected as you, reached from every project"
-        case .memory: return "\(ProjectLines.counted(count, "fact", "facts")) known in every project"
-        case .agents: return "\(ProjectLines.counted(count, "agent", "agents")) on this computer, set up once for every project"
-        case .home, .projects, .waiting, .activity, .files: return row.title
-        }
-    }
-
-    // MARK: Which items belong where
 
     /// A skill the daemon wrote into this project's folder is only here; the person's own and the organization's are
     /// shared; one written into another project is nil, since it does not apply here.

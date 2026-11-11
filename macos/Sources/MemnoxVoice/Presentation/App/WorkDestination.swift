@@ -157,7 +157,7 @@ private struct StartWorkSheet: View {
                     QuietLine("No agent is connected yet. Give one of your agents a job first.")
                     Button("Open Jobs", systemImage: "arrow.up.forward") {
                         close()
-                        AppWindow.shared.shell.go(WindowRoute(.agents, tab: "profiles"))
+                        AppWindow.shared.shell.go(WindowRoute(.agents, tab: "jobs"))
                     }
                     .buttonStyle(KitButton(kind: .secondary))
                 } else {

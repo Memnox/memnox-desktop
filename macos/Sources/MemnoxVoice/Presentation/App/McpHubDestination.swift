@@ -48,32 +48,22 @@ struct McpHubDestination: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var screen: McpHubScreen
     @ObservedObject var island: IslandModel
-    let tab: String?
     let width: WidthClass
 
     var body: some View {
         page
             // A proposal signed or declined on the island is read back by the hub itself, from the daemon's settled event.
-            .task(id: tab) { await screen.hub.refresh() }
+            .task { await screen.hub.refresh() }
     }
 
     @ViewBuilder private var page: some View {
         if let view = screen.hub.hub {
-            switch tab {
-            case "clients": ShellScroll(width: width) { note; McpClients(screen: screen, view: view, workspaces: workspaces) }
-            case "secrets": ShellScroll(width: width) { note; McpSecrets(screen: screen, view: view) }
-            default: McpServers(shell: shell, screen: screen, view: view, width: width) { note }
-            }
+            McpServers(shell: shell, screen: screen, view: view, width: width) { note }
         } else if screen.hub.unreadable {
             ShellScroll(width: width) { ReadFailed(what: "the MCP Hub") { Task { await screen.hub.refresh() } } }
         } else {
             ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-    }
-
-    /// A server given in one project only is changed in that project's settings, which Workspaces shows.
-    private func workspaces() {
-        shell.go(WindowRoute(.workspaces, tab: "projects"))
     }
 
     @ViewBuilder private var note: some View {
@@ -131,10 +121,12 @@ private struct McpServers<Note: View>: View {
                 }
                 McpFound(screen: screen, view: view)
                 McpLeftAlone(view: view)
+                // A server that needs a secret is set up only here, so the secrets stand under the servers.
+                McpSecrets(screen: screen, view: view)
             }
         } detail: {
             if let picked {
-                McpServerDetail(screen: screen, view: view, server: picked, workspaces: { shell.go(WindowRoute(.workspaces, tab: "projects")) }) { shell.inspecting = nil }
+                McpServerDetail(screen: screen, view: view, server: picked, workspaces: { shell.go(WindowRoute(.projects)) }) { shell.inspecting = nil }
             }
         }
         .consoleSheet(isPresented: $adding) {
@@ -650,115 +642,6 @@ private struct McpLeftAlone: View {
     }
 }
 
-/// Agents across, servers down: one place to see and change who has what.
-private struct McpClients: View {
-    @ObservedObject var screen: McpHubScreen
-    let view: McpHubView
-    let workspaces: () -> Void
-
-    private static let logo: CGFloat = 18
-    private static let column: CGFloat = 96
-
-    var body: some View {
-        if view.servers.isEmpty || view.agents.isEmpty {
-            EmptyState(symbol: "powerplug", title: "Nothing to give yet",
-                       detail: "Once the hub holds a server and an agent with an MCP config is found, who has what is set here.")
-        } else {
-            ShellPanel {
-                ScrollView(.horizontal) {
-                    Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
-                        GridRow {
-                            header("Server").frame(maxWidth: .infinity, alignment: .leading)
-                            ForEach(view.agents, id: \.agent) { each in
-                                HStack(spacing: Memnox.Spacing.small) {
-                                    BrandLogo(agent: each.agent, name: McpHubLines.agentLabel(each.agent), size: Self.logo)
-                                    header(McpHubLines.agentLabel(each.agent))
-                                }
-                                .frame(minWidth: Self.column)
-                            }
-                        }
-                        .padding(.vertical, ShellMetrics.rowPaddingV)
-                        ForEach(view.servers) { server in
-                            ShellDivider().gridCellUnsizedAxes(.horizontal)
-                            GridRow {
-                                Text(server.name)
-                                    .font(Memnox.Console.sans(Memnox.TextSize.body, .medium))
-                                    .foregroundStyle(Memnox.Console.foreground)
-                                    .lineLimit(1)
-                                    .padding(.horizontal, ShellMetrics.rowPaddingH)
-                                ForEach(view.agents, id: \.agent) { each in
-                                    cell(server, each.agent).frame(minWidth: Self.column)
-                                }
-                            }
-                            .padding(.vertical, ShellMetrics.rowPaddingV)
-                        }
-                    }
-                }
-                .scrollIndicators(.automatic)
-            }
-            if view.servers.contains(where: { !($0.projects ?? []).isEmpty }) {
-                VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
-                    Text(McpHubLines.projectOnlyLine)
-                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Console.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                    GoLink(McpHubLines.workspacesLink, action: workspaces)
-                }
-            }
-        }
-    }
-
-    private func header(_ text: String) -> some View {
-        Text(text)
-            .font(Memnox.Console.sans(Memnox.TextSize.footnote, .semibold))
-            .foregroundStyle(Memnox.Console.muted)
-            .lineLimit(1)
-            .padding(.horizontal, ShellMetrics.rowPaddingH)
-    }
-
-    @ViewBuilder private func cell(_ server: McpHubServerView, _ agent: String) -> some View {
-        if McpHubLines.reach(server, agent: agent) == .projects {
-            // Unticked, since ticking gives it everywhere; the project assignment is changed in Projects.
-            let help = McpHubLines.projectOnlyHelp(server, agent: agent)
-            let everywhere = Binding(get: { false }, set: { want in
-                if want { screen.press { await $0.assign(server.name, agent: agent, on: true) } }
-            })
-            HStack(spacing: Memnox.Spacing.small) {
-                Toggle("", isOn: everywhere)
-                    .labelsHidden()
-                    .toggleStyle(CheckboxStyle())
-                    .disabled(McpHubLines.fromOrganization(server) || screen.hub.busy == McpHub.pair(server.name, agent))
-                    .help(McpHubLines.fromOrganization(server) ? McpHubLines.organizationLine : McpHubLines.giveEverywhere)
-                    .accessibilityLabel("\(McpHubLines.giveEverywhere): \(server.name) for \(McpHubLines.agentLabel(agent))")
-                Button(action: workspaces) {
-                    HStack(spacing: Memnox.Spacing.small) { McpProjectChips(server: server, agent: agent) }
-                }
-                .buttonStyle(.plain)
-                .help(help)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(help)
-                .accessibilityAddTraits(.isButton)
-            }
-        } else {
-            toggleCell(server, agent)
-        }
-    }
-
-    private func toggleCell(_ server: McpHubServerView, _ agent: String) -> some View {
-        let on = McpHubLines.reach(server, agent: agent) == .everywhere
-        let given = Binding(get: { on }, set: { want in screen.press { await $0.assign(server.name, agent: agent, on: want) } })
-        return HStack(spacing: Memnox.Spacing.small) {
-            Toggle("", isOn: given)
-                .labelsHidden()
-                .toggleStyle(CheckboxStyle())
-                .disabled(McpHubLines.fromOrganization(server) || screen.hub.busy == McpHub.pair(server.name, agent))
-                .help(McpHubLines.fromOrganization(server) ? McpHubLines.organizationLine : "")
-                .accessibilityLabel("\(server.name) for \(McpHubLines.agentLabel(agent))")
-            McpProjectChips(server: server, agent: agent)
-        }
-    }
-}
-
 /// Every repository one agent was given a server in, each by folder name with the full path as its help, or nothing.
 private struct McpProjectChips: View {
     let server: McpHubServerView
@@ -795,14 +678,14 @@ private struct McpSecrets: View {
 
     var body: some View {
         let secrets = McpHubLines.secretsAcross(view.servers)
-        if secrets.isEmpty {
-            EmptyState(symbol: "key", title: "No secrets yet",
-                       detail: "When a server needs a token, mark it as a secret while adding the server. Its value stays with this computer and no agent\u{2019}s config ever holds it.")
-        } else {
-            ShellPanel {
-                ForEach(Array(secrets.enumerated()), id: \.element.name) { index, secret in
-                    if index > 0 { ShellDivider() }
-                    McpSecretRow(screen: screen, secret: secret)
+        // Under the servers, a page with no secret says nothing about them; one is marked while adding a server.
+        if !secrets.isEmpty {
+            ShellSection(title: "Secrets") {
+                ShellPanel {
+                    ForEach(Array(secrets.enumerated()), id: \.element.name) { index, secret in
+                        if index > 0 { ShellDivider() }
+                        McpSecretRow(screen: screen, secret: secret)
+                    }
                 }
             }
         }

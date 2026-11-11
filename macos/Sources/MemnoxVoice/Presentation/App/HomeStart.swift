@@ -165,13 +165,13 @@ struct HomeStart: View {
     /// Where each step's press goes in the window; for stopping, that is the record it is read off.
     static func route(_ step: HomeStepID) -> WindowRoute {
         switch step {
-        case .protectAgents: return WindowRoute(.agents, tab: "list")
-        case .rulesInForce: return WindowRoute(.governance, tab: "policies")
-        case .actionsRecorded, .enforce: return WindowRoute(.governance, tab: "activity")
+        case .protectAgents: return WindowRoute(.agents, tab: "agents")
+        case .rulesInForce: return WindowRoute(.rules, tab: "rules")
+        case .actionsRecorded, .enforce: return WindowRoute(.activity, tab: "timeline")
         case .answerAway: return WindowRoute(.settings, tab: "phones")
-        case .connectApps: return WindowRoute(.mcp, tab: "apps")
-        case .linkSource: return WindowRoute(.workspaces, tab: "sources")
-        case .shareSkills: return WindowRoute(.workspaces, tab: "skills")
+        case .connectApps: return WindowRoute(.connectors, tab: "systems")
+        case .linkSource: return WindowRoute(.connectors, tab: "files")
+        case .shareSkills: return WindowRoute(.memory, tab: "skills")
         }
     }
 }

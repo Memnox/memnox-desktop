@@ -1,29 +1,28 @@
 import Foundation
 
-/// What a session shows a person at a glance, decided once so the switcher and the live window agree.
-public enum SessionStatus: Equatable, Sendable {
-    case paused
-    case needsYou
-    case thinking
+/// What a session shows a person at a glance, decided once so the switcher, the live window, Sessions and the side
+/// panel agree, in the five statuses every Memnox surface uses (`shared/ux/contract.json`).
+public enum SessionStatus: String, CaseIterable, Sendable {
+    case needsYou = "needs-you"
+    case stopped
     case working
-    case waitingOnYou
-    case ended
-    case quiet
+    case finished
+    case idle
 
     /// The first that holds wins, because a pause or a question for the person matters more than activity.
     public init(state: SessionState?, thinking: Bool, paused: Bool = false, waitingOnYou: Int = 0) {
         if paused || state == .paused {
-            self = .paused
+            self = .stopped
         } else if waitingOnYou > 0 {
             self = .needsYou
         } else if thinking {
-            self = .thinking
+            self = .working
         } else {
             switch state {
             case .working: self = .working
-            case .open: self = .waitingOnYou
-            case .ended: self = .ended
-            case .idle, .quiet, .paused, nil: self = .quiet
+            // Its turn is over and it handed back, which is news the person has not read yet.
+            case .open: self = .finished
+            case .ended, .idle, .quiet, .paused, nil: self = .idle
             }
         }
     }
@@ -31,18 +30,16 @@ public enum SessionStatus: Equatable, Sendable {
     /// The words on the session's badge.
     public var label: String {
         switch self {
-        case .paused: "Paused"
         case .needsYou: "Needs you"
-        case .thinking: "Thinking"
+        case .stopped: "Stopped"
         case .working: "Working"
-        case .waitingOnYou: "Waiting on you"
-        case .ended: "Ended"
-        case .quiet: "Quiet"
+        case .finished: "Finished"
+        case .idle: "Idle"
         }
     }
 
     /// Whether the agent is busy right now, which is what makes a card glow.
-    public var isActive: Bool { self == .working || self == .thinking }
+    public var isActive: Bool { self == .working }
 }
 
 extension SessionCard {

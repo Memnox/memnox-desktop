@@ -1,17 +1,17 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// What your agent read out of your sources, and what other agents suggested, waiting on you oldest first. Nothing
-/// here counts until it is confirmed, and a rule confirmed here still waits for its signature with Touch ID.
-struct LearnDestination: View {
+/// What your agent read out of your sources, and what other agents suggested, waiting on you oldest first, under the
+/// calls on Needs you. Nothing here counts until it is confirmed, and a rule confirmed here still waits for its
+/// signature with Touch ID.
+struct LearnQueue: View {
     @ObservedObject var screen: MemoryScreen
     @ObservedObject var island: IslandModel
-    let width: WidthClass
     /// The line each card's last press ended in, by the item's id.
     @State private var notes: [String: String] = [:]
 
     var body: some View {
-        ShellScroll(width: width) { content }
+        ShellSection(title: "Read from your sources") { content }
             .task {
                 await screen.memory.refreshLearn()
                 // Evidence names its source, and the sources say where a file sits.

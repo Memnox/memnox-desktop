@@ -1,4 +1,4 @@
-/** The words of the Settings window's first page, as the Mac's OverviewPage says them. */
+/** The voice's hello and the words around it, as the Mac says them. */
 export const OverviewLines = {
   subtitle: 'What waits on you, what your agents are doing, and what could run on its own.',
   talk: 'Talk to Memnox',

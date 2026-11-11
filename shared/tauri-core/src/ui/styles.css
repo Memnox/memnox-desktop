@@ -1034,15 +1034,6 @@ body {
  * test reads each part against its Swift twin.
  */
 @theme {
-  /* SettingsView.Layout: the sidebar is its width plus the inset the page card stands off it. */
-  --spacing-settings-sidebar: calc(235px + 8px);
-  --spacing-settings-sidebar-pad: 9px;
-  --spacing-settings-row: 30px;
-  --spacing-settings-row-icon: 18px;
-  --spacing-settings-row-icon-gap: 9px;
-  --radius-settings-row: 8px;
-  --spacing-settings-header-gap: 13px;
-  --spacing-settings-header-leading: 19px;
   /* SettingsMetrics: the page column and its padding. */
   --container-settings-page: 760px;
   --spacing-settings-page-pad: 22px;
@@ -1050,21 +1041,14 @@ body {
   --spacing-settings-row-text: calc(26px + 12px);
   /* Keycap: at least 18 square. */
   --spacing-settings-keycap: 18px;
-  /* NavigationCapsule.Layout: its width and its soft shadow. */
-  --spacing-settings-capsule: 69px;
-  --shadow-settings-capsule: 0 1px 2px rgb(0 0 0 / 0.06);
   /* AccountLayout.codeTracking: the pairing code's spacing. */
   --tracking-settings-code: 2px;
-  /* SyncLayout: the fingerprint's digits. */
-  --text-settings-fingerprint: 24px;
-  --tracking-settings-fingerprint: 2px;
   /* AppearancePicker.Layout: the look's picture, ringed 2 when picked and a hairline otherwise. */
   --spacing-settings-look-width: 136px;
   --spacing-settings-look-height: 92px;
   --shadow-settings-look: 0 0 0 1px var(--mx-ink-edge);
   --shadow-settings-look-picked: 0 0 0 2px var(--color-primary);
   /* HomeBlocks' working dot on a session's logo. */
-  --spacing-settings-live-dot: 9px;
   /* ToolsPage's toolRowDotSide. */
   --spacing-settings-tool-dot: 7px;
   /* AgentRows.Layout.labelWidth on the voice page. */

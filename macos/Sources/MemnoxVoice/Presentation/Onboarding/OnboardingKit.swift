@@ -9,10 +9,8 @@ enum Kit {
     static let tileSide: CGFloat = SettingsMetrics.tileSide
     static let tileRadius: CGFloat = SettingsMetrics.tileRadius
     static let checkSide: CGFloat = 20
-    static let checkRadius: CGFloat = 6
     /// Every button is this tall, whether it moves on or acts inside a row, as Vorssaint's capsule buttons are.
     static let buttonHeight: CGFloat = ControlMetrics.height
-    static let rowGap: CGFloat = 14
     /// Springs settle with a little give and no wobble.
     static let springDamping = 0.8
 }

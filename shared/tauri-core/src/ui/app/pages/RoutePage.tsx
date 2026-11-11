@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
 import { pageNamed } from '../../../core/domain/settings-pages';
 import type { SettingsParts } from '../../settings/parts';
-import { PageBody } from '../../settings/SettingsApp';
+import { PageBody } from '../../settings/PageBody';
 import { ToolsPage } from '../../settings/pages/ToolsPage';
 import { YourAppsPage } from '../../settings/pages/YourAppsPage';
 import { ActivityPage } from './ActivityPage';

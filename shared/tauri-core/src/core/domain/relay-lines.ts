@@ -1,4 +1,4 @@
-/** The relay and team cards' words, as the Mac's NetworkPage says them. */
+/** The relay and team cards' words under Phones, as the Mac says them. */
 
 export const RelayLines = {
   connectServer: 'Connect to a server',

@@ -1,4 +1,4 @@
-import { Check, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, type LucideIcon } from 'lucide-react';
+import { Check, CheckCircle2, CircleAlert, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { SettingsKitLines } from '../../core/domain/settings-kit-lines';
 import type { StepState } from '../../core/domain/step-state';
@@ -30,10 +30,6 @@ const KEY_SPACING = 3;
 
 /** The pairing code as both screens show it, 26 semibold. */
 const DIGITS_SIZE = 26;
-
-/** `NavigationCapsule.Layout.symbolSize`: its chevrons, 13 semibold. */
-const CAPSULE_CHEVRON = 13;
-const CAPSULE_CHEVRON_STROKE = 2.5;
 
 /** How long Copied stands before the press reads Copy again, long enough to be seen and no longer. */
 const COPIED_FOR_MS = 1_500;
@@ -292,21 +288,6 @@ export function SettingsDivider({ full = false }: { full?: boolean }) {
 /** `HoverLight`: a rounded hover fill reaching 8 past the row on either side. */
 export const HOVER_LIGHT =
   "relative before:pointer-events-none before:absolute before:inset-y-0 before:-inset-x-2 before:rounded-lg before:bg-hover before:opacity-0 before:transition-opacity before:duration-200 before:content-[''] hover:before:opacity-100";
-
-/** `NavigationCapsule`: Back and Forward in one 69 by 32 capsule. */
-export function NavigationCapsule({ canBack, canForward, back, forward }: { canBack: boolean; canForward: boolean; back: () => void; forward: () => void }) {
-  const half = 'grid h-full flex-1 cursor-pointer place-items-center disabled:cursor-default';
-  return (
-    <div className="flex h-8 w-settings-capsule shrink-0 rounded-full border border-capsule-edge bg-capsule shadow-settings-capsule">
-      <Pressable className={`${half} ${canBack ? 'text-foreground' : 'text-faint'}`} disabled={!canBack} onClick={back} title={SettingsKitLines.back} aria-label={SettingsKitLines.back}>
-        <ChevronLeft size={CAPSULE_CHEVRON} strokeWidth={CAPSULE_CHEVRON_STROKE} />
-      </Pressable>
-      <Pressable className={`${half} ${canForward ? 'text-foreground' : 'text-faint'}`} disabled={!canForward} onClick={forward} title={SettingsKitLines.forward} aria-label={SettingsKitLines.forward}>
-        <ChevronRight size={CAPSULE_CHEVRON} strokeWidth={CAPSULE_CHEVRON_STROKE} />
-      </Pressable>
-    </div>
-  );
-}
 
 /** A page's heading, as the console's page header: a 24 semibold title over its line 13 muted. */
 export function PageTitle({ title, subtitle, eyebrow }: { title: string; subtitle: string; eyebrow?: string }) {

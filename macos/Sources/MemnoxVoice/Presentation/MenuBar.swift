@@ -650,12 +650,8 @@ enum MenuLayout {
     static let iconColumnWidth: CGFloat = 18
     static let rowInset: CGFloat = 12
     static let rowCornerRadius: CGFloat = 11
-    static let titleDetailSpacing: CGFloat = 1
-    /// Every setting row is at least this tall, so a one line row and a two line row sit on the same rhythm.
-    static let settingRowHeight: CGFloat = 46
     /// White for secondary icons and labels, between the shared secondary ink and full white.
     static let mutedInk = 0.6
-    static let litInk = 0.75
     static let dimInk = 0.4
     /// The faint white behind a hovered row and the listening badge.
     static let softFill = 0.07

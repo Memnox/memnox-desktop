@@ -229,11 +229,6 @@ enum Memnox {
             : .system(size: size, weight: weight, design: .monospaced)
     }
 
-    /// SF Pro for AppKit drawing, such as the pill under the orb.
-    static func nsSans(_ size: CGFloat, semibold: Bool = false) -> NSFont {
-        .systemFont(ofSize: size, weight: semibold ? .semibold : .regular)
-    }
-
     private static func installed(_ family: String) -> Bool {
         NSFontManager.shared.availableFontFamilies.contains(family)
     }

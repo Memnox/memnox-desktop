@@ -18,7 +18,7 @@ import { GuideLines, progressOf, setTitle } from '../src/core/domain/onboarding'
 import { deviceCaption, PairingLines } from '../src/core/domain/pairing-lines';
 import { permissionSteps } from '../src/core/domain/permission-steps';
 import { keyStep, platformOf } from '../src/core/domain/platform';
-import { matchingPages, PageHistory, pageNamed, SETTINGS_GROUPS, SETTINGS_PAGES } from '../src/core/domain/settings-pages';
+import { pageNamed } from '../src/core/domain/settings-pages';
 import { agentsDetail, agentsStep, greeting, overviewSteps, serviceStep, voiceStep } from '../src/core/domain/setup-steps';
 import { DONE, needs, WAITING } from '../src/core/domain/step-state';
 import { PersonKey, registered, ScriptedDaemon } from './doubles';
@@ -40,41 +40,12 @@ class MemoryStore implements PreferenceStore {
 }
 
 describe('the Settings pages', () => {
-  it('lists fifteen pages in the Mac sidebar order, the overview alone first', () => {
-    expect(SETTINGS_PAGES).toEqual(['overview', 'account', 'permissions', 'connection', 'phones', 'appearance', 'sync', 'tools', 'apps', 'voice', 'listening', 'dictation', 'help']);
-    expect(SETTINGS_GROUPS[0]?.title).toBeUndefined();
-    expect(SETTINGS_GROUPS.map((group) => group.title).slice(1)).toEqual(['You', 'This computer', 'Agents and tools', 'Voice', 'Support']);
-  });
-
-  it('filters by title or the line under it, and lists all for an empty search', () => {
-    expect(matchingPages('')).toHaveLength(13);
-    expect(matchingPages('phone')).toEqual(['phones']);
-    expect(matchingPages('LISTENS')).toEqual(['listening']);
-    expect(matchingPages('nothing like this')).toEqual([]);
-  });
-
   it('reads a page from a link and ignores anything else', () => {
     expect(pageNamed('phones')).toBe('phones');
     expect(pageNamed('admin')).toBeUndefined();
     expect(pageNamed(null)).toBeUndefined();
   });
 
-  it('goes back and forward, and a new visit drops what was ahead', () => {
-    const history = new PageHistory();
-    history.visit('account');
-    history.visit('voice');
-    history.back();
-    expect(history.current).toBe('account');
-    expect(history.canGoForward).toBe(true);
-    history.visit('help');
-    expect(history.canGoForward).toBe(false);
-    history.back();
-    history.back();
-    expect(history.current).toBe('overview');
-    expect(history.canGoBack).toBe(false);
-    history.visit('overview');
-    expect(history.canGoForward).toBe(true);
-  });
 });
 
 describe('the home lines', () => {

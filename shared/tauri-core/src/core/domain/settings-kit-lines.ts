@@ -4,7 +4,5 @@ export const SettingsKitLines = {
   needs: 'Needs you',
   notYet: 'Not yet',
   needsMark: '!',
-  back: 'Back',
-  forward: 'Forward',
   pairingCode: 'Pairing code',
 } as const;

@@ -549,7 +549,7 @@ export function matchCommands(query: string, supports: Supports): readonly Comma
   return [...matching].sort((a, b) => Number(b.title.toLowerCase().startsWith(first)) - Number(a.title.toLowerCase().startsWith(first)));
 }
 
-/** Where Back and Forward go, as `PageHistory` does for pages: a visit drops whatever was ahead. */
+/** Where Back and Forward go, as a browser does: a visit drops whatever was ahead. */
 export class RouteHistory {
   private visited: Route[];
   private at = 0;

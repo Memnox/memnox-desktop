@@ -15,9 +15,6 @@ export const PAGE_METRICS = {
   hubSearch: 320,
   /** SkillsLayout.progressWidth: the import bar beside its count. */
   skillProgress: 120,
-  /** DiscoverLayout.searchWidth and addressWidth. */
-  discoverSearch: 320,
-  discoverAddress: 360,
   /** HomeStart.Layout.trackMinimum: the two tracks sit side by side once each has this much room. */
   homeTrack: 280,
 } as const;

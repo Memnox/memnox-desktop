@@ -2,7 +2,6 @@ import { useEffect, useReducer } from 'react';
 import { Account } from '../../core/application/account';
 import { AgentHomes } from '../../core/application/agent-homes';
 import { AppConnections } from '../../core/application/app-connections';
-import { Backup } from '../../core/application/backup';
 import { CommunityIndex } from '../../core/application/community-index';
 import { DaemonAccount, DaemonSignIn } from '../../core/application/daemon-sign-in';
 import { DaemonSupport } from '../../core/application/daemon-support';
@@ -11,7 +10,6 @@ import { Home } from '../../core/application/home';
 import { McpHub } from '../../core/application/mcp-hub';
 import { LocalNetwork } from '../../core/application/local-network';
 import { Memory } from '../../core/application/memory';
-import { PersonalSync } from '../../core/application/personal-sync';
 import { Profiles } from '../../core/application/profiles';
 import { AgentWorkDesk } from '../../core/application/agent-work';
 import { Activity, Agents, Studio } from '../../core/application/studio';
@@ -89,14 +87,10 @@ export interface SettingsParts {
   readonly skillCare: SkillCare;
   /** The projects on this computer and what each gives the agents opened in it. */
   readonly projects: Projects;
-  /** The setup sealed under a passphrase, and put back once signed on the island. */
-  readonly backup: Backup;
   /** The sources memory is read from, the Learn queue, and the facts a person confirmed. */
   readonly memory: Memory;
   /** Whether paired phones reach this computer over the local network, turned on only once signed. */
   readonly network: LocalNetwork;
-  /** The person's own setup carried between their machines, the key moved only once signed. */
-  readonly sync: PersonalSync;
   /** Skills and rule packs from the community index, installed only as held skills and proposed rules. */
   readonly index: CommunityIndex;
   /** Named bundles of skills, servers and a rule pack, applied through signed proposals. */
@@ -146,10 +140,8 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     skills: new SkillsHub(link, ids),
     skillCare: new SkillCare(link, ids),
     projects: new Projects(link, ids),
-    backup: new Backup(link, ids),
     memory: new Memory(link, ids),
     network: new LocalNetwork(link, ids),
-    sync: new PersonalSync(link, ids),
     index: new CommunityIndex(link, ids, platformWords(host.platform).keyTitle),
     profiles: new Profiles(link, ids, platformWords(host.platform).keyTitle),
     work: new AgentWorkDesk(link, ids),

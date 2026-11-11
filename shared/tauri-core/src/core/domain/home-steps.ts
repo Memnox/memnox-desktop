@@ -1,4 +1,5 @@
 import type { HomeModeSet } from '@memnox/core/wire';
+import type { Route } from './destinations';
 
 /**
  * Home's getting started steps, ported from the Mac's `HomeSteps`, which mirrors the cloud console's ladder: the
@@ -145,15 +146,15 @@ export function stageOf(standing: HomeStanding): HomeStage {
 }
 
 /** Where each step's press goes in the window; for stopping, that is the record it is read off. */
-export const STEP_ROUTE: Record<HomeStepId, { readonly destination: 'agents' | 'governance' | 'settings' | 'mcp' | 'workspaces'; readonly tab: string }> = {
-  protectAgents: { destination: 'agents', tab: 'list' },
-  rulesInForce: { destination: 'governance', tab: 'policies' },
-  actionsRecorded: { destination: 'governance', tab: 'activity' },
-  enforce: { destination: 'governance', tab: 'activity' },
+export const STEP_ROUTE: Record<HomeStepId, Route & { readonly tab: string }> = {
+  protectAgents: { destination: 'agents', tab: 'agents' },
+  rulesInForce: { destination: 'rules', tab: 'rules' },
+  actionsRecorded: { destination: 'activity', tab: 'timeline' },
+  enforce: { destination: 'activity', tab: 'timeline' },
   answerAway: { destination: 'settings', tab: 'phones' },
-  connectApps: { destination: 'mcp', tab: 'apps' },
-  linkSource: { destination: 'workspaces', tab: 'sources' },
-  shareSkills: { destination: 'workspaces', tab: 'skills' },
+  connectApps: { destination: 'connectors', tab: 'systems' },
+  linkSource: { destination: 'connectors', tab: 'files' },
+  shareSkills: { destination: 'memory', tab: 'skills' },
 };
 
 function homeSteps(standing: HomeStanding, keyTitle: string): HomeStep[] {

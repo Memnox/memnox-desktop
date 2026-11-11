@@ -267,10 +267,6 @@ export const AgentListLines = {
 
 /** The Sessions tab's own words. */
 export const SessionsTabLines = {
-  needsYou: 'Needs you',
-  running: 'Running',
-  idle: 'Idle',
-  finished: 'Finished',
   grouped: (title: string, count: number) => `${title} · ${count}`,
   emptyTitle: 'No sessions yet',
   emptyBody: 'When an agent on this computer starts working, its session shows here with what it is doing and what it touched.',

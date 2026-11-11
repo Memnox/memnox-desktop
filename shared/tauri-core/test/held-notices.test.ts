@@ -37,7 +37,7 @@ describe('a held call said by the system', () => {
     expect(notices.next([pushAgain], undefined).map((each) => each.subject)).toEqual(['b']);
   });
 
-  it('opens Governance on Approvals', () => {
-    expect(NOTICE_OPENS).toEqual({ destination: 'governance', tab: 'approvals' });
+  it('opens Needs you where the call waits', () => {
+    expect(NOTICE_OPENS).toEqual({ destination: 'needs-you', tab: 'decide-now' });
   });
 });

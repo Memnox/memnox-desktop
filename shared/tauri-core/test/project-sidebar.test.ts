@@ -195,8 +195,8 @@ describe('What its AI can use', () => {
     expect(alone.map((part) => `${part.title} ${part.names.join(',')}`)).toEqual(['AI agents Claude Code', 'Skills review', 'Apps linear']);
     expect(alone.map((part) => part.target)).toEqual([
       { kind: 'page', page: 'agents' },
-      { kind: 'shared', row: 'skills' },
-      { kind: 'shared', row: 'connectors' },
+      { kind: 'shared', page: 'skills' },
+      { kind: 'shared', page: 'connectors' },
     ]);
     expect(alone.some((part) => /people|team/.test(`${part.empty} ${part.what}`))).toBe(false);
     expect(canUse(project({ agents: [] }), false)[0]?.empty).toBe('Any AI agent you use');

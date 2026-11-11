@@ -5,10 +5,7 @@ import { useEffect, useState } from 'react';
 import { HeldImpactLines } from '../../cards/HeldImpact';
 import { NOTICES_ASKED_KEY, NOTICES_DENIED, NOTICES_DETAIL, NOTICES_KEY, NOTICES_TITLE } from '../../../core/domain/held-notices';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import type { Route, WidthClass } from '../../../core/domain/destinations';
-import { ActivityPage } from './ActivityPage';
 import { LearnPage } from './LearnPage';
-import { PoliciesPage } from './PoliciesPage';
 import { projectNameOfPlace } from '../../../core/domain/project-context';
 import { heldFacts, NOTHING_WAITING, NOTHING_WAITING_DETAIL, waitingLine } from '../../../core/domain/approvals-lines';
 import { GovernanceLines } from '../../../core/domain/governance-lines';
@@ -25,11 +22,19 @@ const RECONNECT_MS = 2_000;
 /** The asking agent's logo at the head of its card. */
 const CARD_LOGO = 26;
 
-export function GovernancePage({ parts, tab, width, go }: { parts: SettingsParts; tab: string | undefined; width: WidthClass; go: (route: Route) => void }) {
-  if (tab === 'policies') return <PoliciesPage parts={parts} width={width} />;
-  if (tab === 'activity') return <ActivityPage parts={parts} width={width} go={go} />;
-  if (tab === 'learn') return <LearnPage parts={parts} />;
-  return <Approvals parts={parts} />;
+/**
+ * Needs you: the calls held for the person, oldest first, and below them what was read from their sources waiting to
+ * be confirmed, as the Mac's `NeedsYouDestination` lays them out.
+ */
+export function NeedsYouPage({ parts }: { parts: SettingsParts }) {
+  const { support } = parts;
+  useObserved(support);
+  return (
+    <div className="flex flex-col gap-8">
+      <Approvals parts={parts} />
+      {support.supports('memory-learn') === true && <LearnPage parts={parts} />}
+    </div>
+  );
 }
 
 /**

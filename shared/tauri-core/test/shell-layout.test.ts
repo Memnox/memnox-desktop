@@ -26,9 +26,9 @@ describe('the shell at each breakpoint', () => {
 
 describe('an inspector popped out', () => {
   it('opens on the page it came from with only the item drawn', () => {
-    const search = inspectorSearch({ destination: 'mcp', tab: 'servers' }, 'git hub');
-    expect(search).toBe('?dest=mcp&tab=servers&inspect=git%20hub&alone=1');
-    expect(routeFrom(search)).toEqual({ destination: 'mcp', tab: 'servers' });
+    const search = inspectorSearch({ destination: 'connectors', tab: 'mcp' }, 'git hub');
+    expect(search).toBe('?dest=connectors&tab=mcp&inspect=git%20hub&alone=1');
+    expect(routeFrom(search)).toEqual({ destination: 'connectors', tab: 'mcp' });
     expect(inspectedItem(search)).toBe('git hub');
     expect(inspectorAlone(search)).toBe(true);
     expect(inspectorAlone('?dest=mcp&tab=servers')).toBe(false);
@@ -38,7 +38,7 @@ describe('an inspector popped out', () => {
 describe('the palette', () => {
   it('reaches the Memory and Files pages by the names the sidebar gives them', () => {
     const titles = commands(() => true).map((each) => each.title);
-    expect(titles).toEqual(expect.arrayContaining(['Memory', 'Files', 'Activity', 'Protection settings']));
+    expect(titles).toEqual(expect.arrayContaining(['Memory', 'Files', 'Activity', 'Rules']));
     expect(titles).not.toContain('Sources');
     // The Memory row's three tabs are each a command, as in the Mac's palette.
     expect(titles).toEqual(expect.arrayContaining(['Map', 'Layers']));
@@ -46,6 +46,6 @@ describe('the palette', () => {
 
   it('lists the number key beside each destination', () => {
     const keyed = commands(() => true).filter((each) => each.key !== undefined).map((each) => `${each.key} ${each.title}`);
-    expect(keyed).toEqual(['1 Home', '2 AI agents', '3 Projects', '4 MCP Hub', '5 Governance']);
+    expect(keyed).toEqual(['1 Home', '2 Needs you', '3 Sessions', '4 Agents', '5 Projects', '6 Work', '7 Rules', '8 Hand over', '9 Activity']);
   });
 });

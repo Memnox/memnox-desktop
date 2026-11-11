@@ -25,8 +25,6 @@ import { workspacesFrom, type SeenWorkspace } from '../../../core/domain/workspa
 import { ago, SEPARATOR } from '../../../core/domain/session-text';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { GoLink } from './HomePage';
-import { DiscoverPage } from './DiscoverPage';
-import { MemoryPage, MemorySourcesPage } from './MemoryPage';
 import {
   cloudProjectLink,
   editableHere,
@@ -41,7 +39,6 @@ import {
   renameProblem,
 } from '../../../core/domain/project-sidebar';
 import { AgentLogos, OrganizationBadge } from './ProjectPages';
-import { SkillsPage } from './SkillsPage';
 import { Inspector } from '../widgets';
 import { usePicked } from '../inspector-host';
 import { useShellChoices } from '../shell-choices';
@@ -49,21 +46,15 @@ import { BrandLogo, Button, Card, CardGrid, EmptyState, ErrorLine, Field, IconBu
 import { PAGE_METRICS } from '../page-metrics';
 
 /** Where a seen repository's sessions are listed. */
-const SESSIONS_ROUTE: Route = { destination: 'agents', tab: 'list' };
+const SESSIONS_ROUTE: Route = { destination: 'sessions' };
 
 /**
  * Projects as the runtime keeps them, with what each gives the agents opened in it. A runtime too old to
  * answer `projects` still shows every repository a session ran in, with who worked there.
  */
-export function WorkspacesPage({ parts, tab, width, go }: { parts: SettingsParts; tab: string | undefined; width: WidthClass; go: (route: Route) => void }) {
+export function ProjectsPage({ parts, width, go }: { parts: SettingsParts; width: WidthClass; go: (route: Route) => void }) {
   const { support } = parts;
   useObserved(support);
-  if (tab === 'skills' || tab === 'assigned') return <SkillsPage parts={parts} tab={tab} width={width} />;
-  // The Memory row's three tabs, the map, the list and the layers, are one page drawn three ways.
-  if (tab === 'map' || tab === 'memory' || tab === 'layers') return <MemoryPage parts={parts} tab={tab} width={width} go={go} />;
-  // Where memory is read from, under Inputs beside the connectors, as Memnox Cloud places its sources.
-  if (tab === 'sources') return <MemorySourcesPage parts={parts} />;
-  if (tab === 'discover') return <DiscoverPage parts={parts} width={width} />;
   if (support.supports('projects') === true) return <ProjectsTab parts={parts} go={go} />;
   return <SeenTab parts={parts} width={width} go={go} />;
 }

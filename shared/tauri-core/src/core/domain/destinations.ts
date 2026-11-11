@@ -1,51 +1,60 @@
 import { pageInfo, pageNamed, type SettingsPage } from './settings-pages';
 
 /**
- * The Memnox window's five destinations and Settings, the same on the Mac, Windows and Linux. A tab
- * that needs a daemon method is shown only once the daemon answers it, so nothing on screen is a promise.
+ * The window's pages, one per row of the sidebar, named and ordered as `shared/ux/contract.json` names them for the
+ * console, the Mac, Windows and Linux alike. A page or tab that needs a daemon method shows only once the daemon
+ * answers it, so nothing on screen is a promise. Mirrors the Mac's `Destinations`.
  */
-
-export type Destination = 'today' | 'home' | 'agents' | 'workspaces' | 'mcp' | 'governance' | 'settings';
-
-/** The headings a destination's sub navigation groups its tabs under, as the console's settings tree does. */
-export type TabGroupId =
+export type Destination =
+  | 'home'
+  | 'needs-you'
+  | 'sessions'
   | 'agents'
-  | 'computer'
   | 'projects'
-  | 'knowledge'
-  | 'skills'
-  | 'hub'
-  | 'apps'
-  | 'review'
+  | 'work'
   | 'rules'
-  | 'record'
-  | 'account'
-  | 'devices'
-  | 'voice'
-  | 'app';
+  | 'hand-over'
+  | 'activity'
+  | 'memory'
+  | 'connectors'
+  | 'machines'
+  | 'settings';
+
+/** The heading a page sits under in the sidebar: none for the top rows, Govern, Knowledge, or the foot. */
+export type SidebarGroup = 'top' | 'govern' | 'knowledge' | 'foot';
+
+const GROUP_HEADINGS: Record<SidebarGroup, string | undefined> = {
+  top: undefined,
+  govern: 'Govern',
+  knowledge: 'Knowledge',
+  foot: undefined,
+};
+
+/** The heading's words, undefined where the rows stand without one, as the console's first rows and its foot do. */
+export function groupHeading(group: SidebarGroup): string | undefined {
+  return GROUP_HEADINGS[group];
+}
+
+/** The headings Settings groups its pages under, as the console's settings tree does. */
+export type TabGroupId = 'account' | 'devices' | 'voice' | 'app';
 
 const GROUP_TITLES: Record<TabGroupId, string> = {
-  agents: 'Agents',
-  computer: 'This computer',
-  projects: 'Projects',
-  knowledge: 'Knowledge',
-  skills: 'Skills',
-  hub: 'Hub',
-  apps: 'Apps',
-  review: 'Needs your attention',
-  rules: 'Rules',
-  record: 'Record',
   account: 'Account',
   devices: 'Devices',
   voice: 'Voice',
   app: 'App',
 };
 
+/** A Settings heading's words. */
+export function groupTitle(id: TabGroupId): string {
+  return GROUP_TITLES[id];
+}
+
 export interface TabInfo {
   readonly id: string;
   readonly title: string;
-  /** The heading it sits under in the destination's sub navigation. */
-  readonly group: TabGroupId;
+  /** The heading it sits under in Settings' tree; absent on a page's tab strip, which has no headings. */
+  readonly group?: TabGroupId;
   /** One line under the pane's title saying what the tab is for. */
   readonly summary: string;
   /** The daemon method this tab reads; absent when the tab needs nothing new. */
@@ -58,131 +67,170 @@ export interface TabGroup {
   readonly tabs: readonly TabInfo[];
 }
 
+/** The icon a sidebar row wears, named as the Mac's SF Symbol is so both sidebars read alike. */
+export type SidebarSymbol =
+  | 'house'
+  | 'tray'
+  | 'rectangle.stack'
+  | 'cpu'
+  | 'folder'
+  | 'checklist'
+  | 'checkmark.shield'
+  | 'gauge.with.dots.needle.67percent'
+  | 'clock.arrow.circlepath'
+  | 'brain'
+  | 'square.grid.2x2'
+  | 'desktopcomputer'
+  | 'gearshape'
+  | 'chevron.left';
+
 export interface DestinationInfo {
   readonly id: Destination;
   readonly title: string;
   readonly subtitle: string;
-  /** The digit that opens it, with Ctrl on Windows and Linux. */
-  readonly key?: string;
+  readonly symbol: SidebarSymbol;
+  readonly group: SidebarGroup;
+  /** The daemon method a page with no tabs reads, absent when it needs nothing new. */
+  readonly needs?: string;
   readonly tabs: readonly TabInfo[];
 }
 
-/** Pages that moved out of Settings into a destination, so a link to one still lands. */
+/** Settings pages that moved to a page of their own, so a link to one still lands. */
 const MOVED: Partial<Record<SettingsPage, Route>> = {
   overview: { destination: 'home' },
-  tools: { destination: 'agents', tab: 'computer' },
-  apps: { destination: 'mcp', tab: 'apps' },
+  tools: { destination: 'agents', tab: 'this-computer' },
+  apps: { destination: 'connectors', tab: 'systems' },
+  connection: { destination: 'machines' },
 };
 
-/** What stays under Settings, in the order its sub navigation groups them. */
-export const SETTINGS_TABS: readonly SettingsPage[] = [
-  'account',
-  'permissions',
-  'connection',
-  'phones',
-  // Local network is left off for now, since phones reach this computer through the relay without a setting.
-  'sync',
-  'voice',
-  'listening',
-  'dictation',
-  'appearance',
-  // Backup is left off for now, so nobody leans on a restore that has not been tried end to end.
-  'help',
-];
+/** What stays under Settings, in the order its tree groups them; Connection stands as Machines now. */
+export const SETTINGS_TABS: readonly SettingsPage[] = ['account', 'permissions', 'phones', 'voice', 'listening', 'dictation', 'appearance', 'help'];
 
 /** Who a settings change is about: the person, their devices, the voice, or this app. */
-const SETTINGS_GROUP: Record<SettingsPage, TabGroupId> = {
+const SETTINGS_GROUP: Partial<Record<SettingsPage, TabGroupId>> = {
   account: 'account',
   permissions: 'account',
-  connection: 'account',
   phones: 'devices',
-  network: 'devices',
-  sync: 'devices',
   voice: 'voice',
   listening: 'voice',
   dictation: 'voice',
   appearance: 'app',
-  backup: 'app',
   help: 'app',
-  overview: 'app',
-  tools: 'app',
-  apps: 'app',
 };
 
-/** Settings pages that read a daemon method, hidden until the runtime answers it. */
-const SETTINGS_NEEDS: Partial<Record<SettingsPage, string>> = {
-  network: 'lan-status',
-  sync: 'personal-sync-status',
-};
+/**
+ * Methods a contract tab reads that no runtime serves yet, so the tab stays hidden rather than promising a page. A test
+ * fails the day the runtime declares one, so it leaves this list rather than lingering.
+ */
+export const NOT_YET_SERVED: readonly string[] = ['waiting-kept', 'decided', 'rule-changes', 'rules-history', 'budgets', 'autopilot', 'findings'];
 
 export const DESTINATIONS: readonly DestinationInfo[] = [
-  /** What Today showed now sits on Home, so this stays only for old links, which land on Home. */
-  { id: 'today', title: 'Today', subtitle: 'What needs you today, the most urgent first, and what your agents did.', tabs: [] },
-  { id: 'home', title: 'Home', subtitle: 'What is running, what needs you, and where to carry on.', key: '1', tabs: [] },
+  { id: 'home', title: 'Home', subtitle: 'What your agents can do on their own, and what still needs you.', symbol: 'house', group: 'top', tabs: [] },
+  {
+    id: 'needs-you',
+    title: 'Needs you',
+    subtitle: 'What waits on you, oldest first, each saying what the agent wants to do and where.',
+    symbol: 'tray',
+    group: 'top',
+    tabs: [
+      { id: 'decide-now', title: 'Decide now', summary: 'Calls held for you, and what was read from your sources, waiting for a yes or a no.' },
+      { id: 'kept', title: 'Kept for later', summary: 'Questions nobody answered in time, kept so a later yes lets the retry through.', needs: 'waiting-kept' },
+      { id: 'decided', title: 'Decided', summary: 'What was answered lately, and by whom.', needs: 'decided' },
+      { id: 'rule-changes', title: 'Rule changes', summary: 'Rules proposed by an agent or a teammate, waiting for your signature.', needs: 'rule-changes' },
+    ],
+  },
+  {
+    id: 'sessions',
+    title: 'Sessions',
+    subtitle: 'Every session on this computer by status: what needs you, what was stopped, what runs and what finished.',
+    symbol: 'rectangle.stack',
+    group: 'top',
+    tabs: [],
+  },
   {
     id: 'agents',
-    title: 'AI agents',
-    subtitle: 'The agents on this computer, their sessions, and what each can reach.',
-    key: '2',
+    title: 'Agents',
+    subtitle: 'The agents on this computer, what each is for, and what each can reach.',
+    symbol: 'cpu',
+    group: 'top',
     tabs: [
-      { id: 'list', title: 'Agents', group: 'agents', summary: 'The agents on this computer and what each can reach.', needs: 'agents' },
-      { id: 'profiles', title: 'Jobs', group: 'agents', summary: 'What each agent is for, who answers for it, and the agents each job works through.', needs: 'profiles' },
-      { id: 'work', title: 'Work', group: 'agents', summary: 'Which agent carries which issue, where it stands, and what waits on you.', needs: 'agent-work' },
-      { id: 'sessions', title: 'Sessions', group: 'agents', summary: 'What each agent is doing: what needs you, what runs, and what is done.' },
-      { id: 'computer', title: 'On this computer', group: 'computer', summary: 'The agents on this computer and the apps Memnox can act in as you.' },
+      { id: 'agents', title: 'Agents', summary: 'The agents on this computer and what each can reach.', needs: 'agents' },
+      { id: 'jobs', title: 'Jobs', summary: 'What each agent is for, who answers for it, and the agents each job works through.', needs: 'profiles' },
+      { id: 'this-computer', title: 'On this computer', summary: 'The agents on this computer and the apps Memnox can act in as you.' },
+    ],
+  },
+  { id: 'projects', title: 'Projects', subtitle: 'Your projects, with the skills, tools, memory and rules each one carries.', symbol: 'folder', group: 'top', tabs: [] },
+  { id: 'work', title: 'Work', subtitle: 'Which agent carries which issue, where it stands, and what waits on you.', symbol: 'checklist', group: 'top', needs: 'agent-work', tabs: [] },
+  {
+    id: 'rules',
+    title: 'Rules',
+    subtitle: 'For each thing your AI might do, choose Allow, Ask or Deny. Nothing changes until you save and the change is approved.',
+    symbol: 'checkmark.shield',
+    group: 'govern',
+    tabs: [
+      { id: 'rules', title: 'Rules', summary: 'What each agent may do, and what it asks first.', needs: 'rules' },
+      { id: 'history', title: 'History', summary: 'Every change to your rules, and a way back to any of them.', needs: 'rules-history' },
     ],
   },
   {
-    id: 'workspaces',
-    title: 'Projects',
-    subtitle: 'Your projects, with the skills, tools, memory and rules each one carries.',
-    key: '3',
+    id: 'hand-over',
+    title: 'Hand over',
+    subtitle: 'What you could let your agents do on their own, what they may spend, and what autopilot gave them.',
+    symbol: 'gauge.with.dots.needle.67percent',
+    group: 'govern',
     tabs: [
-      { id: 'projects', title: 'Projects', group: 'projects', summary: 'Your projects, with the skills, tools, memory and rules each one carries.' },
-      // The agents and all they reach as one map, its own page so it is one press from the sidebar, as on the Mac.
-      { id: 'map', title: 'Map', group: 'knowledge', summary: 'Your agents and everything they reach, drawn as one map of what they know and use.', needs: 'memory-facts' },
-      { id: 'memory', title: 'Memory', group: 'knowledge', summary: 'What your agents know, each fact with the evidence it was read from, and the sources it came out of.', needs: 'memory-facts' },
-      { id: 'layers', title: 'Layers', group: 'knowledge', summary: 'MEMORY.md, the router and the skills each project keeps, as the three layers any agent reads.', needs: 'memory-layers' },
-      { id: 'sources', title: 'Files', group: 'knowledge', summary: "Where your agents' memory is read from: notes, instruction files, exports and memory servers.", needs: 'memory-facts' },
-      { id: 'skills', title: 'My Skills', group: 'skills', summary: 'The skills you keep, and the agents each one is given to.', needs: 'skills-hub' },
-      { id: 'assigned', title: 'Assigned', group: 'skills', summary: 'Which skills each agent carries.', needs: 'skills-hub' },
-      // Discover is left off for now, since the marketplace holds no listing yet. Profiles is left off too, because a
-      // bundle handed across a team is kept in Memnox Cloud rather than on one person's computer.
+      { id: 'ready', title: 'Ready to hand over', summary: 'What you said yes to often enough that it could run without asking.' },
+      { id: 'budgets', title: 'Budgets', summary: 'How much each kind of action may happen in a window, and how much has.', needs: 'budgets' },
+      { id: 'autopilot', title: 'Autopilot', summary: 'What autopilot let an agent do on its own, and a way to take it back.', needs: 'autopilot' },
     ],
   },
   {
-    id: 'mcp',
-    title: 'MCP Hub',
-    subtitle: 'Servers set up once and given to the agents you choose.',
-    key: '4',
+    id: 'activity',
+    title: 'Activity',
+    subtitle: 'What your agents did, newest first, beside what was decided.',
+    symbol: 'clock.arrow.circlepath',
+    group: 'govern',
     tabs: [
-      // Servers, Clients and Secrets stand as the MCP servers row, Connectors as a row of its own.
-      { id: 'servers', title: 'Servers', group: 'hub', summary: 'Servers set up once and given to the agents you choose.', needs: 'mcp-hub' },
-      { id: 'clients', title: 'Clients', group: 'hub', summary: 'Which agent has which server, set in one place.', needs: 'mcp-hub' },
-      { id: 'secrets', title: 'Secrets', group: 'hub', summary: 'Each secret by name, where it is used, and whether this computer holds it.', needs: 'mcp-hub' },
-      { id: 'apps', title: 'Connectors', group: 'apps', summary: 'Connect any tool you use as yourself, and see the ones this computer already reaches.' },
+      { id: 'timeline', title: 'Timeline', summary: 'What your agents did, newest first, beside what was decided.', needs: 'activity' },
+      { id: 'caught', title: 'What was caught', summary: 'What Memnox stopped or would have stopped, and why.', needs: 'findings' },
     ],
   },
   {
-    id: 'governance',
-    title: 'Governance',
-    subtitle: 'What your agents may do, what waits on you, and what happened.',
-    key: '5',
+    id: 'memory',
+    title: 'Memory',
+    subtitle: 'What your agents know, and the skills they carry.',
+    symbol: 'brain',
+    group: 'knowledge',
     tabs: [
-      { id: 'approvals', title: 'Approvals', group: 'review', summary: 'What waits on you, oldest first, each saying what the agent wants to do and where.' },
-      { id: 'policies', title: 'Protection settings', group: 'rules', summary: 'For each thing your AI might do, choose Allow, Ask or Deny. Nothing changes until you save and the change is approved.', needs: 'rules' },
-      { id: 'activity', title: 'Activity', group: 'record', summary: 'What your agents did, newest first, beside what was decided.', needs: 'activity' },
-      { id: 'learn', title: 'Learn', group: 'review', summary: 'What was read out of your sources, waiting for you to confirm or reject it.', needs: 'memory-learn' },
+      { id: 'map', title: 'Map', summary: 'Your agents and everything they reach, drawn as one map of what they know and use.', needs: 'memory-facts' },
+      { id: 'list', title: 'List', summary: 'What your agents know, each fact with the evidence it was read from, and the sources it came out of.', needs: 'memory-facts' },
+      { id: 'layers', title: 'Layers', summary: 'MEMORY.md, the router and the skills each project keeps, as the three layers any agent reads.', needs: 'memory-layers' },
+      { id: 'skills', title: 'Skills', summary: 'The skills you keep, and the agents each one is given to.', needs: 'skills-hub' },
     ],
   },
+  {
+    id: 'connectors',
+    title: 'Connectors',
+    subtitle: 'The tools your agents reach, the files their memory is read from, and the MCP servers they share.',
+    symbol: 'square.grid.2x2',
+    group: 'knowledge',
+    tabs: [
+      { id: 'systems', title: 'Systems', summary: 'Connect any tool you use as yourself, and see the ones this computer already reaches.' },
+      { id: 'files', title: 'Files', summary: "Where your agents' memory is read from: notes, instruction files, exports and memory servers.", needs: 'memory-facts' },
+      { id: 'mcp', title: 'MCP servers', summary: 'Servers set up once and given to the agents you choose, and the secrets they use.', needs: 'mcp-hub' },
+    ],
+  },
+  { id: 'machines', title: 'Machines', subtitle: 'The Memnox service on this computer, and the key that signs your yes.', symbol: 'desktopcomputer', group: 'foot', tabs: [] },
   {
     id: 'settings',
     title: 'Settings',
     subtitle: 'This computer, your account, and the voice.',
+    symbol: 'gearshape',
+    group: 'foot',
     tabs: SETTINGS_TABS.map((page) => {
-      const needs = SETTINGS_NEEDS[page];
       const info = pageInfo(page);
-      return { id: page, title: info.title, group: SETTINGS_GROUP[page], summary: info.subtitle, ...(needs === undefined ? {} : { needs }) };
+      const group = SETTINGS_GROUP[page];
+      return { id: page, title: info.title, summary: info.subtitle, ...(group === undefined ? {} : { group }) };
     }),
   },
 ];
@@ -207,7 +255,7 @@ export interface ProjectPlace {
 }
 
 /** The project list, which every project's Back row returns to. */
-export const PROJECTS_ROUTE: Route = { destination: 'workspaces', tab: 'projects' };
+export const PROJECTS_ROUTE: Route = { destination: 'projects' };
 
 /** A page of one project, its Overview unless another is named; a page left off lands on the Overview too. */
 export function projectRoute(id: string, page: ProjectPage = 'overview'): Route {
@@ -218,195 +266,69 @@ function isProjectPage(name: string | undefined): name is ProjectPage {
   return PROJECT_PAGE_IDS.some((each) => each === name);
 }
 
-/** Where the window opens: Home, which holds what needs the person today below the greeting. */
+/** Where the window opens: Home, which holds what needs the person below the greeting. */
 export const LANDING: Route = { destination: 'home' };
 
-/** The icon a sidebar row wears, named as the Mac's SF Symbol is so both sidebars read alike. */
-export type SidebarSymbol =
-  | 'sun.max'
-  | 'house'
-  | 'tray'
-  | 'cpu'
-  | 'bubble.left.and.text.bubble.right'
-  | 'desktopcomputer'
-  | 'folder'
-  | 'brain'
-  | 'book'
-  | 'checkmark.shield'
-  | 'list.bullet.rectangle'
-  | 'point.3.connected.trianglepath.dotted'
-  | 'powerplug'
-  | 'server.rack'
-  | 'globe'
-  | 'sparkles'
-  | 'doc.text'
-  | 'person.2'
-  | 'chevron.left'
-  | 'gearshape';
+/** Where a held call waits, which a notification and Home's waiting block open. */
+export const WAITING_ROUTE: Route = { destination: 'needs-you', tab: 'decide-now' };
 
-/** One row of the sidebar: where it goes, and the pages behind it that its page shows as tabs. */
-export interface SidebarRow {
-  readonly title: string;
-  readonly symbol: SidebarSymbol;
-  /** The first is where a press goes; every one lights the row and stands as a tab on its page. */
-  readonly pages: readonly Route[];
-  /** A tab's word where the row says it differently from the tab's own title, by the tab's id. */
-  readonly titles?: Readonly<Record<string, string>>;
-}
+/** Where what happened is read, which Home's Today block opens. */
+export const ACTIVITY_ROUTE: Route = { destination: 'activity', tab: 'timeline' };
 
-/** One heading of the sidebar and its rows. */
+/** Where the Memory row lands: the map, with the list, the layers and the skills beside it. */
+export const MEMORY_ROUTE: Route = { destination: 'memory', tab: 'map' };
+
+/** One heading of the sidebar and the pages under it. */
 export interface SidebarSection {
-  readonly title: string;
-  readonly rows: readonly SidebarRow[];
+  readonly group: SidebarGroup;
+  readonly title: string | undefined;
+  readonly rows: readonly Destination[];
 }
 
-/** Needs your attention stands beside Home, as in Memnox Cloud, since it is the one row that asks something of the person. */
-export const WAITING_ROUTE: Route = { destination: 'governance', tab: 'approvals' };
-export const WAITING_TITLE = 'Needs your attention';
-export const WAITING_HINT = 'What your agents are waiting on you for';
+/** The headings above the foot, in order, read off `DESTINATIONS` so no second list is kept beside it. */
+export const SIDEBAR_SECTIONS: readonly SidebarSection[] = (['top', 'govern', 'knowledge'] as const).map((group) => ({
+  group,
+  title: groupHeading(group),
+  rows: DESTINATIONS.filter((each) => each.group === group).map((each) => each.id),
+}));
 
-/** Activity stands beside Needs your attention, as in Memnox Cloud, since what happened is read as often as what waits. */
-export const ACTIVITY_ROUTE: Route = { destination: 'governance', tab: 'activity' };
+/** The pages at the foot, Settings last. */
+export const SIDEBAR_FOOT: readonly Destination[] = DESTINATIONS.filter((each) => each.group === 'foot').map((each) => each.id);
 
-/** Where the Memory row lands: the map, with the list and the layers beside it in the row's strip. */
-export const MEMORY_ROUTE: Route = { destination: 'workspaces', tab: 'map' };
-
-/** The rows above every heading, in the console's order: Home, the projects everything else is for, what waits, and what happened. */
-export const SIDEBAR_TOP: readonly SidebarRow[] = [
-  // One page, since what Today showed now sits on Home below the greeting, so no strip shows.
-  { title: 'Home', symbol: 'house', pages: [{ destination: 'home' }] },
-  { title: 'Projects', symbol: 'folder', pages: [{ destination: 'workspaces', tab: 'projects' }] },
-  { title: WAITING_TITLE, symbol: 'tray', pages: [WAITING_ROUTE, { destination: 'governance', tab: 'learn' }] },
-  { title: 'Activity', symbol: 'sun.max', pages: [ACTIVITY_ROUTE] },
-];
-
-/**
- * The headings as the console and the Mac name them, in the console's order: the AI and what it may do, then what
- * Memnox reads, which governs nothing. Each row is one subject and the pages that answer it sit behind it as tabs.
- * Meetings and People are left out because no page on this computer reads them yet, so Organization goes with them
- * and Settings stands at the foot of the sidebar rather than under a heading.
- */
-export const SIDEBAR_SECTIONS: readonly SidebarSection[] = [
-  {
-    title: 'Your AI',
-    rows: [
-      {
-        title: 'AI agents',
-        symbol: 'cpu',
-        pages: [
-          { destination: 'agents', tab: 'list' },
-          { destination: 'agents', tab: 'profiles' },
-          { destination: 'agents', tab: 'work' },
-          { destination: 'agents', tab: 'sessions' },
-          { destination: 'agents', tab: 'computer' },
-        ],
-      },
-      { title: 'Protection settings', symbol: 'checkmark.shield', pages: [{ destination: 'governance', tab: 'policies' }] },
-      // One row for memory, opening on the map, with the list and the layers as its tabs, so the strip is its only switch.
-      {
-        title: 'Memory',
-        symbol: 'brain',
-        pages: [MEMORY_ROUTE, { destination: 'workspaces', tab: 'memory' }, { destination: 'workspaces', tab: 'layers' }],
-        titles: { memory: 'List' },
-      },
-      // A row of its own, as the console keeps one, since a page behind another row's tab is one nobody finds.
-      { title: 'Skills', symbol: 'sparkles', pages: [{ destination: 'workspaces', tab: 'skills' }, { destination: 'workspaces', tab: 'assigned' }] },
-      {
-        title: 'MCP servers',
-        symbol: 'powerplug',
-        pages: [
-          { destination: 'mcp', tab: 'servers' },
-          { destination: 'mcp', tab: 'clients' },
-          { destination: 'mcp', tab: 'secrets' },
-        ],
-      },
-    ],
-  },
-  {
-    title: 'Connected tools',
-    rows: [
-      { title: 'Connectors', symbol: 'globe', pages: [{ destination: 'mcp', tab: 'apps' }] },
-      { title: 'Files', symbol: 'doc.text', pages: [{ destination: 'workspaces', tab: 'sources' }] },
-    ],
-  },
-];
-
-/** One page behind a row, with the words its tab and its header wear. */
+/** One tab of a page's strip, with the words its tab and its header wear. */
 export interface SidebarPage {
   readonly route: Route;
   readonly title: string;
   readonly summary: string;
 }
 
-/** A page the runtime answers now, or undefined; a destination with no tabs is a page of its own. */
-function pageOf(route: Route, supports: Supports, titles: SidebarRow['titles']): SidebarPage | undefined {
-  const info = destinationInfo(route.destination);
-  if (route.tab === undefined) return info.tabs.length === 0 ? { route, title: info.title, summary: info.subtitle } : undefined;
-  const tab = visibleTabs(route.destination, supports).find((each) => each.id === route.tab);
-  return tab === undefined ? undefined : { route, title: titles?.[tab.id] ?? tab.title, summary: tab.summary };
+/** A page's tabs the runtime answers now, in its order. */
+export function shownPages(id: Destination, supports: Supports): readonly SidebarPage[] {
+  return visibleTabs(id, supports).map((tab) => ({ route: { destination: id, tab: tab.id }, title: tab.title, summary: tab.summary }));
 }
 
-/** A row's pages the runtime answers now, in the row's order; a row with none is not drawn. */
-export function shownPages(row: SidebarRow, supports: Supports): readonly SidebarPage[] {
-  return row.pages.flatMap((route) => {
-    const page = pageOf(route, supports, row.titles);
-    return page === undefined ? [] : [page];
-  });
+/** Whether a page shows now: one with tabs while any tab does, one without while its own method is answered. */
+export function isShown(id: Destination, supports: Supports): boolean {
+  const info = destinationInfo(id);
+  if (info.tabs.length > 0) return visibleTabs(id, supports).length > 0;
+  return info.needs === undefined || supports(info.needs) === true;
 }
 
-/** A heading's rows that have a page to show, so a heading never stands over nothing. */
-export function shownRows(section: SidebarSection, supports: Supports): readonly SidebarRow[] {
-  return section.rows.filter((row) => shownPages(row, supports).length > 0);
+/** Where a press on a row lands: its first tab shown, the page itself when it has none, undefined while it shows nothing. */
+export function rowTarget(id: Destination, supports: Supports): Route | undefined {
+  if (!isShown(id, supports)) return undefined;
+  return shownPages(id, supports)[0]?.route ?? { destination: id };
 }
 
-/** Every row the sidebar draws, top rows first. */
-export const SIDEBAR_ROWS: readonly SidebarRow[] = [...SIDEBAR_TOP, ...SIDEBAR_SECTIONS.flatMap((section) => section.rows)];
-
-/** The row a page sits behind, which is the row lit while it is shown. */
-export function rowOf(route: Route): SidebarRow | undefined {
-  return SIDEBAR_ROWS.find((row) => row.pages.some((page) => sameRoute(page, route)));
-}
-
-/** The tabs across the top of a page: the row's other pages, shown only where there is more than one. */
+/** The tabs across the top of a page, shown only where there is more than one; Settings keeps a tree instead. */
 export function rowTabs(route: Route, supports: Supports): readonly SidebarPage[] {
-  const row = rowOf(route);
-  const pages = row === undefined ? [] : shownPages(row, supports);
+  if (route.destination === 'settings') return [];
+  const pages = shownPages(route.destination, supports);
   return pages.length > 1 ? pages : [];
 }
 
-const DESTINATION_SYMBOLS: Record<Destination, SidebarSymbol> = {
-  today: 'sun.max',
-  home: 'house',
-  agents: 'cpu',
-  workspaces: 'folder',
-  mcp: 'powerplug',
-  governance: 'checkmark.shield',
-  settings: 'gearshape',
-};
-
-const TAB_SYMBOLS: Record<string, SidebarSymbol> = {
-  list: 'cpu',
-  sessions: 'bubble.left.and.text.bubble.right',
-  computer: 'desktopcomputer',
-  projects: 'folder',
-  map: 'brain',
-  memory: 'brain',
-  layers: 'brain',
-  skills: 'sparkles',
-  servers: 'server.rack',
-  apps: 'globe',
-  sources: 'doc.text',
-  policies: 'checkmark.shield',
-  activity: 'list.bullet.rectangle',
-};
-
 export function destinationSymbol(destination: Destination): SidebarSymbol {
-  return DESTINATION_SYMBOLS[destination];
-}
-
-/** Each page's icon in the tree, falling back to its destination's for a page not listed. */
-export function pageSymbol(route: Route): SidebarSymbol {
-  return (route.tab === undefined ? undefined : TAB_SYMBOLS[route.tab]) ?? DESTINATION_SYMBOLS[route.destination];
+  return destinationInfo(destination).symbol;
 }
 
 export function sameRoute(a: Route, b: Route): boolean {
@@ -419,19 +341,14 @@ export type PaneHeading =
   | { readonly kind: 'page'; readonly title: string; readonly subtitle: string }
   | { readonly kind: 'sub-nav'; readonly title: string };
 
-/**
- * Settings keeps its tree beside the page; every other page is reached from the sidebar, so it shows its row's
- * title where the row holds tabs, else its own, with its own line under it. Home and Today show neither, since
- * Today writes its own line from what waits.
- */
-export function paneHeading(route: Route, supports: Supports): PaneHeading {
+/** Settings keeps its tree beside the page; every other page shows its tab's title and line, and Home neither. */
+export function paneHeading(route: Route): PaneHeading {
   const info = destinationInfo(route.destination);
+  if (route.destination === 'home') return { kind: 'none' };
   const shown = tabOf(route);
-  const bare = route.destination === 'home' || route.destination === 'today';
-  const row = rowTabs(route, supports).length > 1 ? rowOf(route) : undefined;
-  if (route.destination !== 'settings' && !bare && shown !== undefined) return { kind: 'page', title: row?.title ?? shown.tab.title, subtitle: shown.tab.summary };
-  if (visibleTabs(route.destination, supports).length > 1 && shown !== undefined) return { kind: 'sub-nav', title: info.title };
-  return bare ? { kind: 'none' } : { kind: 'page', title: info.title, subtitle: info.subtitle };
+  if (shown === undefined) return { kind: 'page', title: info.title, subtitle: info.subtitle };
+  if (route.destination === 'settings') return { kind: 'sub-nav', title: info.title };
+  return { kind: 'page', title: shown.title, subtitle: shown.summary };
 }
 
 /** Whether the daemon answers a method: true, false, or undefined while nobody has asked yet. */
@@ -453,26 +370,22 @@ export function destinationInfo(id: Destination): DestinationInfo {
   return DESTINATIONS.find((each) => each.id === id) as DestinationInfo;
 }
 
-/**
- * Tabs left off for now, by destination and tab, so the window stays straightforward while a person finds their way:
- * the hub's Clients, Assigned skills, Sessions and Personal sync. Learn and Secrets are shown, since Memory sends
- * people to Learn and a server needing a secret is fixed only under Secrets. An old link to one settles on the
- * first tab its destination still shows. Mirrors `leftOff` in the Mac's `Destinations`.
- */
-export const LEFT_OFF: readonly string[] = ['mcp/clients', 'workspaces/assigned', 'agents/sessions', 'settings/sync'];
-
-/** The tabs shown now: those needing nothing, and those whose method the daemon answered, less those left off. */
-export function visibleTabs(id: Destination, supports: Supports): readonly TabInfo[] {
-  return destinationInfo(id).tabs.filter((tab) => !LEFT_OFF.includes(`${id}/${tab.id}`) && (tab.needs === undefined || supports(tab.needs) === true));
+/** The digit that opens a page with Ctrl or Cmd: the first nine rows of the sidebar, in its order. */
+export function keyOf(id: Destination): string | undefined {
+  const at = DESTINATIONS.findIndex((each) => each.id === id);
+  return at >= 0 && at < 9 ? String(at + 1) : undefined;
 }
 
-/**
- * The tabs shown now under their headings, in the order the headings first appear, an empty heading
- * dropped so a group never stands over nothing.
- */
+/** The tabs shown now: those needing nothing, and those whose method the daemon answered. */
+export function visibleTabs(id: Destination, supports: Supports): readonly TabInfo[] {
+  return destinationInfo(id).tabs.filter((tab) => tab.needs === undefined || supports(tab.needs) === true);
+}
+
+/** Settings' tabs shown now under their headings, in the order the headings first appear. */
 export function tabGroups(id: Destination, supports: Supports): readonly TabGroup[] {
   const groups: { id: TabGroupId; tabs: TabInfo[] }[] = [];
   for (const tab of visibleTabs(id, supports)) {
+    if (tab.group === undefined) continue;
     const known = groups.find((group) => group.id === tab.group);
     if (known === undefined) groups.push({ id: tab.group, tabs: [tab] });
     else known.tabs.push(tab);
@@ -480,21 +393,19 @@ export function tabGroups(id: Destination, supports: Supports): readonly TabGrou
   return groups.map((group) => ({ id: group.id, title: GROUP_TITLES[group.id], tabs: group.tabs }));
 }
 
-/** The tab a route names, with its heading, for the pane's own header. */
-export function tabOf(route: Route): { tab: TabInfo; group: string } | undefined {
-  const tab = destinationInfo(route.destination).tabs.find((each) => each.id === route.tab);
-  return tab === undefined ? undefined : { tab, group: GROUP_TITLES[tab.group] };
+/** The tab a route names, for the pane's own header. */
+export function tabOf(route: Route): TabInfo | undefined {
+  return destinationInfo(route.destination).tabs.find((each) => each.id === route.tab);
 }
 
 /** The route as it will be drawn: a missing or hidden tab falls back to the first one shown. */
 export function settled(route: Route, supports: Supports): Route {
-  if (route.destination === 'today') return { destination: 'home' };
   const tabs = visibleTabs(route.destination, supports);
-  if (tabs.length === 0) return { destination: route.destination };
+  const project = route.project === undefined ? {} : { project: route.project };
+  if (tabs.length === 0) return { destination: route.destination, ...project };
   const tab = tabs.find((each) => each.id === route.tab) ?? tabs[0];
-  // A project stays open only on the projects tab, which is the list its Back row returns to.
-  const project = tab?.id === PROJECTS_ROUTE.tab ? route.project : undefined;
-  return { destination: route.destination, tab: tab?.id, ...(project === undefined ? {} : { project }) };
+  // A project's page stays open while its tab is still the one shown.
+  return { destination: route.destination, tab: tab?.id, ...(tab?.id === route.tab ? project : {}) };
 }
 
 /** A link's query as names and values; the core has no URL parser, since it never runs in a browser alone. */
@@ -534,8 +445,18 @@ export function searchOf(route: Route): string {
   return `?dest=${encodeURIComponent(route.destination)}${tab}${project}`;
 }
 
+/** Pages an old link names that are no longer pages of their own, and where each went. */
+const OLD_PAGES: Readonly<Record<string, Route>> = {
+  today: LANDING,
+  approvals: WAITING_ROUTE,
+  learn: WAITING_ROUTE,
+  governance: WAITING_ROUTE,
+};
+
 /** A page a settings link names, as a route, for the host's "show this page" requests. */
 export function routeForPage(name: string): Route | undefined {
+  const old = OLD_PAGES[name];
+  if (old !== undefined) return old;
   const page = pageNamed(name);
   if (page === undefined) return isDestination(name) ? { destination: name } : undefined;
   return MOVED[page] ?? { destination: 'settings', tab: page };
@@ -594,17 +515,17 @@ export function inspectorAlone(search: string): boolean {
 export interface Command {
   readonly route: Route;
   readonly title: string;
-  /** The destination it sits under, shown beside it in the palette. */
+  /** The page it sits under, shown beside it in the palette. */
   readonly under: string;
-  /** The digit that opens it with Command or Ctrl, on a destination that has one. */
+  /** The digit that opens it with Command or Ctrl, on a page that has one. */
   readonly key?: string;
 }
 
-/** Every place the palette can go, in sidebar order. */
+/** Every place the palette can go, in sidebar order, each page with its tabs under it. */
 export function commands(supports: Supports): readonly Command[] {
-  // Today folded into Home, so the palette offers Home alone for both.
-  return DESTINATIONS.filter((each) => each.id !== 'today').flatMap((each) => {
-    const top: Command = { route: { destination: each.id }, title: each.title, under: '', ...(each.key === undefined ? {} : { key: each.key }) };
+  return DESTINATIONS.filter((each) => isShown(each.id, supports)).flatMap((each) => {
+    const key = keyOf(each.id);
+    const top: Command = { route: { destination: each.id }, title: each.title, under: '', ...(key === undefined ? {} : { key }) };
     const tabs = visibleTabs(each.id, supports).map((tab) => ({
       route: { destination: each.id, tab: tab.id },
       title: tab.title,

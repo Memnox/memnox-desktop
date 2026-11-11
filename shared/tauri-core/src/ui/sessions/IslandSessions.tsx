@@ -89,7 +89,7 @@ export function Overview({
     card === undefined
       ? undefined
       : (focused?.waitingOnYou ?? 0) > 0
-        ? veilOf(statusTint('waiting-on-you'), HELD_VEIL_OPACITY)
+        ? veilOf(statusTint('needs-you'), HELD_VEIL_OPACITY)
         : isActive(cardStatus(card))
           ? veilOf(agentColour(card.agent), WORKING_VEIL_OPACITY)
           : undefined;

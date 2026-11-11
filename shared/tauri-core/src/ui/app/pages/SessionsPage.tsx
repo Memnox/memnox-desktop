@@ -3,45 +3,29 @@ import { Bot } from 'lucide-react';
 import { useEffect } from 'react';
 import type { WidthClass } from '../../../core/domain/destinations';
 import { ago, cardStatus, cardTitle, repositoryName } from '../../../core/domain/session-text';
-import { statusLabel, type SessionStatus } from '../../../core/domain/session-status';
+import { SESSION_STATUS_ORDER, statusLabel, type SessionStatus } from '../../../core/domain/session-status';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { ToolsPage } from '../../settings/pages/ToolsPage';
-import { AgentListTab } from './AgentListTab';
-import { WorkTab } from './WorkTab';
-import { JobsTab } from './JobsTab';
 import { Inspector } from '../widgets';
 import { usePicked } from '../inspector-host';
 import { SessionsTabLines } from '../../../core/domain/agent-lines';
 import { BrandLogo, Button, EmptyState, Panel, Row, Section, StatusWord, type Tone } from '../../kit';
 
-/** The order the groups are read in: what needs the person, then what runs, then what is done. */
-const GROUPS: readonly { title: string; holds: readonly SessionStatus[] }[] = [
-  { title: SessionsTabLines.needsYou, holds: ['needs-you', 'waiting-on-you', 'paused'] },
-  { title: SessionsTabLines.running, holds: ['working', 'thinking'] },
-  { title: SessionsTabLines.idle, holds: ['quiet'] },
-  { title: SessionsTabLines.finished, holds: ['ended'] },
-];
+/** One group per status, in the order every surface reads them. */
+const GROUPS: readonly { title: string; holds: readonly SessionStatus[] }[] = SESSION_STATUS_ORDER.map((status) => ({ title: statusLabel(status), holds: [status] }));
 
 /** An agent's logo at the head of its row, and larger at the head of its details. */
 const ROW_LOGO = 28;
 const DETAIL_LOGO = 36;
 
 export function toneOf(status: SessionStatus): Tone {
-  if (status === 'paused') return 'bad';
-  if (status === 'needs-you' || status === 'waiting-on-you') return 'attention';
-  if (status === 'working' || status === 'thinking') return 'good';
+  if (status === 'stopped') return 'bad';
+  if (status === 'needs-you' || status === 'finished') return 'attention';
+  if (status === 'working') return 'good';
   return 'quiet';
 }
 
-export function AgentsPage({ parts, tab, width }: { parts: SettingsParts; tab: string | undefined; width: WidthClass }) {
-  if (tab === 'computer') return <ToolsPage parts={parts} />;
-  if (tab === 'list') return <AgentListTab parts={parts} />;
-  if (tab === 'work') return <WorkTab parts={parts} />;
-  if (tab === 'profiles') return <JobsTab parts={parts} />;
-  return <SessionsTab parts={parts} width={width} />;
-}
-
-function SessionsTab({ parts, width }: { parts: SettingsParts; width: WidthClass }) {
+/** Sessions: every session on this computer, grouped by status in the order every surface reads them. */
+export function SessionsPage({ parts, width }: { parts: SettingsParts; width: WidthClass }) {
   const { sessions, host } = parts;
   useObserved(sessions);
   useEffect(() => {

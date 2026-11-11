@@ -105,7 +105,7 @@ export function SidePanel({
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto pb-2 [scrollbar-width:none]">
           {shows('needs-you') && needsYou.length > 0 && (
-            <Section title="Needs you" count={needsYou.length} dot={statusTint('waiting-on-you')}>
+            <Section title="Needs you" count={needsYou.length} dot={statusTint('needs-you')}>
               {needsYou.map((card) => (
                 <HeldStrip key={card.subject} calls={calls} card={card} />
               ))}

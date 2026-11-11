@@ -63,8 +63,8 @@ const EVIDENCE_GLYPH = 13;
 /** The book on a source card, a point over its 15 title. */
 const SOURCE_GLYPH = 16;
 
-/** Where the sources link leads: the Sources tab under Connected tools. */
-const SOURCES_ROUTE: Route = { destination: 'workspaces', tab: 'sources' };
+/** Where the sources link leads: Files under Connectors. */
+const SOURCES_ROUTE: Route = { destination: 'connectors', tab: 'files' };
 
 /** A press's outcome as the line under it says it. */
 export function memoryNote(outcome: MemoryOutcome): string {

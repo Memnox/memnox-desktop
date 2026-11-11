@@ -322,22 +322,20 @@ function sessionItems(cards: readonly SessionCard[], projects: readonly ProjectV
     let kind: TodayKind;
     let state: TodayState;
     switch (cardStatus(card)) {
-      case 'paused':
+      case 'stopped':
         kind = { kind: 'paused' };
         state = 'stopped';
         break;
-      case 'waiting-on-you':
+      case 'finished':
       case 'needs-you':
         kind = { kind: 'handed-back' };
         state = 'needs-you';
         break;
       case 'working':
-      case 'thinking':
         kind = { kind: 'working' };
         state = 'working';
         break;
-      case 'quiet':
-      case 'ended':
+      case 'idle':
         return [];
     }
     const ways: [string, TodayAction, boolean][] = [['Open conversation', { kind: 'open-conversation' }, false]];
@@ -522,5 +520,5 @@ export function under(item: TodayItem): string | undefined {
 
 /** How many distinct repositories have a session still open, which is what open projects counts. */
 export function openProjects(cards: readonly SessionCard[]): number {
-  return new Set(cards.filter((card) => cardStatus(card) !== 'ended').flatMap((card) => repositoryName(card.repository) ?? [])).size;
+  return new Set(cards.filter((card) => card.state !== 'ended').flatMap((card) => repositoryName(card.repository) ?? [])).size;
 }

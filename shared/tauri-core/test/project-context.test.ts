@@ -1,6 +1,6 @@
 import type { MemoryItemView, ProjectView, SessionCard } from '@memnox/core/wire';
 import { describe, expect, it } from 'vitest';
-import { projectRoute, type Supports } from '../src/core/domain/destinations';
+import { projectRoute } from '../src/core/domain/destinations';
 import {
   choiceKey,
   choiceOfKey,
@@ -16,8 +16,8 @@ import {
   recent,
   REACH_WORD,
   serverReach,
-  shared,
-  SHARED_SHOWN,
+  sharedTarget,
+  sharedTitle,
   shownMemory,
   skillReach,
   switcher,
@@ -92,19 +92,15 @@ describe('what belongs to one project and what is shared', () => {
     expect(choiceOfKey(null)).toEqual({ kind: 'all' });
   });
 
-  it('links the shared group only to pages the daemon answers, each with what applies here', () => {
-    const everything: Supports = () => true;
-    const links = shared({ rules: 3, skills: 1 }, everything);
-    expect(links.map((each) => each.title)).toEqual(['Protection settings', 'Skills', 'MCP servers', 'Connectors', 'Memory', 'AI agents']);
-    expect(links[0]?.hint).toBe('3 rules hold here and in every project');
-    expect(links[1]?.hint).toBe('1 skill its agents carry in every project');
-    // The Overview's Skills part opens this link, the shared My Skills, rather than one of the project's own pages.
-    expect(links[1]?.route).toEqual({ destination: 'workspaces', tab: 'skills' });
-    expect(links[4]?.route).toEqual({ destination: 'workspaces', tab: 'map' });
-    expect(links[2]?.count).toBeUndefined();
-    expect(shared({}, () => false).map((each) => each.title)).toEqual(['Connectors', 'AI agents']);
-    expect(SHARED_SHOWN).toBe(false);
+  it('links a shared page only while the daemon answers it', () => {
+    expect(sharedTarget('servers', () => true)).toEqual({ destination: 'connectors', tab: 'mcp' });
+    expect(sharedTarget('servers', () => false)).toBeUndefined();
+    // The Overview's Skills part opens Skills under Memory rather than one of the project's own pages.
+    expect(sharedTarget('skills', () => true)).toEqual({ destination: 'memory', tab: 'skills' });
+    const pages = ['rules', 'skills', 'servers', 'connectors', 'memory', 'agents'] as const;
+    expect(pages.map(sharedTitle)).toEqual(['Rules', 'Skills', 'MCP servers', 'Connectors', 'Memory', 'Agents']);
   });
+
 });
 
 describe('moving between projects', () => {

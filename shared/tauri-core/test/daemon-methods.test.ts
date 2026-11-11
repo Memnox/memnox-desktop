@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { DESTINATIONS } from '../src/core/domain/destinations';
+import { DESTINATIONS, NOT_YET_SERVED } from '../src/core/domain/destinations';
 
 /**
  * Every press and every tab names a daemon method the runtime's own wire declares, so no button on any page sends a
@@ -42,13 +42,17 @@ describe('the daemon methods the window sends', () => {
       for (const pattern of NAMED) {
         for (const match of text.matchAll(pattern)) {
           const method = match[1] ?? '';
-          if (!KNOWN.has(method)) unknown.push(`${relative(src, file)}: ${method}`);
+          if (!KNOWN.has(method) && !NOT_YET_SERVED.includes(method)) unknown.push(`${relative(src, file)}: ${method}`);
         }
       }
     }
     for (const destination of DESTINATIONS) {
-      for (const tab of destination.tabs) if (tab.needs !== undefined && !KNOWN.has(tab.needs)) unknown.push(`${destination.id}/${tab.id}: ${tab.needs}`);
+      for (const tab of destination.tabs) if (tab.needs !== undefined && !KNOWN.has(tab.needs) && !NOT_YET_SERVED.includes(tab.needs)) unknown.push(`${destination.id}/${tab.id}: ${tab.needs}`);
     }
     expect(unknown).toEqual([]);
+  });
+
+  it('keeps a method waiting for the runtime only while the runtime still does not declare it', () => {
+    expect(NOT_YET_SERVED.filter((method) => KNOWN.has(method))).toEqual([]);
   });
 });

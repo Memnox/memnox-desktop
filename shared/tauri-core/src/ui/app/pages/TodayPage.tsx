@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronUp, Fingerprint } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { HOLD_ANSWER } from '@memnox/core/wire';
-import type { Route, WidthClass } from '../../../core/domain/destinations';
+import { ACTIVITY_ROUTE, type Route, type WidthClass } from '../../../core/domain/destinations';
 import type { HeldCard } from '../../../core/domain/held-card';
 import { briefItems, HOME_BRIEF_NONE, HOME_BRIEF_TITLE, homeBrief, type HomeBriefBlock } from '../../../core/domain/home-brief';
 import { HomeLines } from '../../../core/domain/home-lines';
@@ -64,8 +64,6 @@ const MARK_TEXT: Record<Tone, string> = {
  * styles.css token, which a test holds to `TODAY_TABLE` and the Swift. */
 const TABLE_COLUMNS = 'grid-cols-(--mx-app-work-columns)';
 
-/** Where Activity opens, under Governance as the Mac places it. */
-const ACTIVITY_ROUTE: Route = { destination: 'governance', tab: 'activity' };
 
 /** `WorkTable.markSize`: the glyph is caption sized and semibold, so it reads beside 12 point words. */
 const STATE_GLYPH = 11;

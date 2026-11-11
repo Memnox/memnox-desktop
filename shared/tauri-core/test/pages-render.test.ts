@@ -2,7 +2,6 @@ import type { DaemonRequest, DaemonResponse } from '@memnox/core/wire';
 import { createElement, type ReactNode } from 'react';
 import { renderToString } from 'react-dom/server';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { LEFT_OFF } from '../src/core/domain/destinations';
 import type { DaemonLink } from '../src/core/application/ports/daemon-link';
 import type { SettingsParts } from '../src/ui/settings/parts';
 
@@ -69,12 +68,7 @@ let demo: () => Promise<DaemonLink>;
 
 beforeAll(async () => {
   const { DESTINATIONS, PROJECT_PAGE_IDS } = await import('../src/core/domain/destinations');
-  const { AgentsPage } = await import('../src/ui/app/pages/AgentsPage');
-  const { GovernancePage } = await import('../src/ui/app/pages/GovernancePage');
-  const { HomePage } = await import('../src/ui/app/pages/HomePage');
-  const { McpHubPage } = await import('../src/ui/app/pages/McpHubPage');
-  const { WorkspacesPage } = await import('../src/ui/app/pages/WorkspacesPage');
-  const { PageBody } = await import('../src/ui/settings/SettingsApp');
+  const { RoutePage } = await import('../src/ui/app/pages/RoutePage');
   const { OnboardingApp } = await import('../src/ui/onboarding/OnboardingApp');
   const { ProjectGone, ProjectPages } = await import('../src/ui/app/pages/ProjectPages');
   const { buildParts } = await import('../src/ui/settings/parts');
@@ -82,20 +76,12 @@ beforeAll(async () => {
   const fixture = (await import('../../demo/power-user.json')).default;
   const go = () => undefined;
   const width = 'wide' as const;
-  const byDestination: Record<string, (parts: SettingsParts, tab: string | undefined) => ReactNode> = {
-    home: (parts) => createElement(HomePage, { parts, width, go }),
-    agents: (parts, tab) => createElement(AgentsPage, { parts, tab, width }),
-    workspaces: (parts, tab) => createElement(WorkspacesPage, { parts, tab, width, go }),
-    mcp: (parts, tab) => createElement(McpHubPage, { parts, tab, width, go }),
-    governance: (parts, tab) => createElement(GovernancePage, { parts, tab, width, go }),
-    // Cast is safe: every settings tab id is a settings page name.
-    settings: (parts, tab) => createElement(PageBody, { page: (tab ?? 'account') as Parameters<typeof PageBody>[0]['page'], parts, go }),
-  };
   pages = DESTINATIONS.flatMap((destination) => {
-    const draw = byDestination[destination.id];
-    if (draw === undefined) return [];
     const tabs = destination.tabs.length === 0 ? [undefined] : destination.tabs.map((tab) => tab.id);
-    return tabs.map((tab) => ({ name: `${destination.id}/${tab ?? ''}`, draw: (parts: SettingsParts) => draw(parts, tab) }));
+    return tabs.map((tab) => ({
+      name: `${destination.id}/${tab ?? ''}`,
+      draw: (parts: SettingsParts) => createElement(RoutePage, { parts, route: { destination: destination.id, ...(tab === undefined ? {} : { tab }) }, width, go }),
+    }));
   });
   // Each page of the first project the daemon keeps, or the page that says it is gone when it keeps none.
   pages.push(
@@ -197,10 +183,10 @@ describe('every page draws', () => {
         }
       }
       expect(failed).toEqual([]);
-      // Learn and Secrets are reached from Memory and from a server needing a secret, so both are among those drawn.
-      expect(pages.map((page) => page.name)).toEqual(expect.arrayContaining(['governance/learn', 'mcp/secrets']));
-      // Only a tab left off the window, which no route reaches, may draw nothing once its first reads answered.
-      expect(blank.filter((name) => !LEFT_OFF.includes(name))).toEqual([]);
+      // Needs you holds what Learn held, and the MCP servers tab what Secrets did, so both are among those drawn.
+      expect(pages.map((page) => page.name)).toEqual(expect.arrayContaining(['needs-you/decide-now', 'connectors/mcp']));
+      // No page of the contract may draw nothing once its first reads answered.
+      expect(blank).toEqual([]);
       expect(pages.length).toBeGreaterThan(30);
     });
   }
@@ -214,10 +200,10 @@ describe('the workspace’s agents', () => {
 
   it('stands beside this computer’s agents and waits in Needs your attention while signed in, named by who answers', async () => {
     const parts = await partsOver(await demo(), workspace);
-    const list = renderToString(createElement('div', null, pageNamed('agents/list').draw(parts)));
+    const list = renderToString(createElement('div', null, pageNamed('agents/agents').draw(parts)));
     expect(list).toContain('In your workspace');
     expect(list).toContain('Answers to Ana Ruiz');
-    const approvals = renderToString(createElement('div', null, pageNamed('governance/approvals').draw(parts)));
+    const approvals = renderToString(createElement('div', null, pageNamed('needs-you/decide-now').draw(parts)));
     expect(approvals).toContain('needs the numbers');
   });
 
@@ -225,8 +211,8 @@ describe('the workspace’s agents', () => {
     const { visibleTabs, withWorkspaceAgents } = await import('../src/core/domain/destinations');
     const parts = await partsOver(gone, workspace);
     const supports = withWorkspaceAgents((method) => parts.support.supports(method), parts.workspaceAgents.signedIn);
-    expect(visibleTabs('agents', supports).map((tab) => tab.id)).toContain('list');
-    const list = renderToString(createElement('div', null, pageNamed('agents/list').draw(parts)));
+    expect(visibleTabs('agents', supports).map((tab) => tab.id)).toContain('agents');
+    const list = renderToString(createElement('div', null, pageNamed('agents/agents').draw(parts)));
     expect(list).toContain('No Memnox runtime is running on this computer');
     expect(list).toContain('Start Memnox');
     expect(list).toContain('In your workspace');
@@ -235,7 +221,7 @@ describe('the workspace’s agents', () => {
 
   it('is not there with no account, and nothing is asked of the cloud', async () => {
     const parts = await partsOver(await demo());
-    expect(renderToString(createElement('div', null, pageNamed('agents/list').draw(parts)))).not.toContain('In your workspace');
+    expect(renderToString(createElement('div', null, pageNamed('agents/agents').draw(parts)))).not.toContain('In your workspace');
   });
 });
 
@@ -259,7 +245,7 @@ describe('the Jobs tab', () => {
   };
 
   it('offers a default a job, draws a job with nobody behind it grey, and a template with no activity', async () => {
-    const html = renderToString(createElement('div', null, pageNamed('agents/profiles').draw(await partsOver(link))));
+    const html = renderToString(createElement('div', null, pageNamed('agents/jobs').draw(await partsOver(link))));
     expect(html).toContain('Agents with no job yet');
     expect(html).toContain('Give it a job');
     expect(html).toContain('Reviewer');
@@ -276,14 +262,14 @@ describe('with the runtime away', () => {
     memory.set(PREFERENCE.setupDone, 'true');
     const parts = await partsOver(gone);
     await parts.tools.refresh();
-    const drawn = ['home/', 'governance/approvals', 'agents/computer'].map((name) => [name, renderToString(createElement('div', null, pageNamed(name).draw(parts)))] as const);
+    const drawn = ['home/', 'needs-you/decide-now', 'agents/this-computer'].map((name) => [name, renderToString(createElement('div', null, pageNamed(name).draw(parts)))] as const);
     drawn.push(['sidebar', renderToString(createElement(RuntimeStatus, { parts, rail: false }))]);
     for (const [name, html] of drawn) {
       for (const clear of ['Nothing is waiting', 'Nothing needs you', 'No agents found', 'Runtime running']) expect(html, `${name} says ${clear}`).not.toContain(clear);
     }
     expect(drawn.find(([name]) => name === 'home/')?.[1]).toContain('Open Connection');
-    expect(drawn.find(([name]) => name === 'governance/approvals')?.[1]).toContain('The Memnox service is not answering');
-    expect(drawn.find(([name]) => name === 'agents/computer')?.[1]).toContain('Open Connection');
+    expect(drawn.find(([name]) => name === 'needs-you/decide-now')?.[1]).toContain('The Memnox service is not answering');
+    expect(drawn.find(([name]) => name === 'agents/this-computer')?.[1]).toContain('Open Connection');
     expect(drawn.find(([name]) => name === 'sidebar')?.[1]).toContain('Runtime not answering');
     memory.delete(PREFERENCE.setupDone);
   });

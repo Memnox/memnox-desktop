@@ -115,7 +115,7 @@ export function LiveSession({
 
   if (view === undefined) {
     return (
-      <Surface colour={statusTint('quiet')}>
+      <Surface colour={statusTint('idle')}>
         <CardHeader mark={<SFSymbol name="circle" size={14} />} title={LiveSessionLines.reading} onClose={onClose} />
       </Surface>
     );

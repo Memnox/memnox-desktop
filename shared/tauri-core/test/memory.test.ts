@@ -255,7 +255,7 @@ describe('a press on evidence', () => {
 describe('the Memory row', () => {
   it('draws the map, the list or the layers by the tab the strip chose, the map for any other', () => {
     expect(memoryViewOf('map')).toBe('graph');
-    expect(memoryViewOf('memory')).toBe('list');
+    expect(memoryViewOf('list')).toBe('list');
     expect(memoryViewOf('layers')).toBe('layers');
     expect(memoryViewOf(undefined)).toBe('graph');
   });

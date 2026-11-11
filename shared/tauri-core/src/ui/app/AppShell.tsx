@@ -1,48 +1,38 @@
 import {
-  BookOpen,
+  Bot,
   Brain,
   Check,
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
-  Cpu,
-  FileText,
-  Folder,
-  Globe,
+  FolderGit2,
+  Gauge,
+  HardDrive,
+  History,
   House,
   Inbox,
+  Layers,
   ListChecks,
   Menu,
-  MessagesSquare,
-  Monitor,
-  Network,
   PanelLeft,
   Plug,
+  ScrollText,
   Search,
-  Server,
   Settings,
-  ShieldCheck,
-  Sparkles,
-  Sun,
-  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
 import {
   destinationInfo,
-  destinationSymbol,
   DESTINATIONS,
+  keyOf,
   paneHeading,
-  rowOf,
   rowTabs,
+  rowTarget,
   sameRoute,
-  shownPages,
-  shownRows,
+  SIDEBAR_FOOT,
   SIDEBAR_SECTIONS,
-  SIDEBAR_TOP,
-  WAITING_HINT,
-  WAITING_TITLE,
-  type SidebarRow,
+  type Destination,
   type SidebarSection,
   type SidebarSymbol,
   type Supports,
@@ -57,38 +47,17 @@ import {
   shellLayout,
   tabGroups,
   type Route,
-  type WidthClass,
   PROJECTS_ROUTE,
   projectRoute,
 } from '../../core/domain/destinations';
-import { pageNamed } from '../../core/domain/settings-pages';
 import { projectCrumbs, projectSidebar, type ProjectSidebar } from '../../core/domain/project-sidebar';
-import { projectRules } from '../../core/domain/project-lines';
-import {
-  ALL_PROJECTS_TITLE,
-  projectMemorySplit,
-  shared,
-  SHARED_NOTE,
-  SHARED_SHOWN,
-  SHARED_TITLE,
-  skillReach,
-  switcher,
-  SWITCHER_HINT,
-  SWITCHER_PROMPT,
-  switchRoute,
-  type SharedCounts,
-} from '../../core/domain/project-context';
+import { ALL_PROJECTS_TITLE, switcher, SWITCHER_HINT, SWITCHER_PROMPT, switchRoute } from '../../core/domain/project-context';
 import type { ProjectView } from '@memnox/core/wire';
 import { ProjectGone, ProjectPages } from './pages/ProjectPages';
 import { MemnoxTile, PageTitle } from '../settings/kit';
-import { PageBody } from '../settings/SettingsApp';
 import { useLook, useObserved, type SettingsParts } from '../settings/parts';
 import { CommandPalette } from './CommandPalette';
-import { AgentsPage } from './pages/AgentsPage';
-import { GovernancePage } from './pages/GovernancePage';
-import { HomePage } from './pages/HomePage';
-import { McpHubPage } from './pages/McpHubPage';
-import { WorkspacesPage } from './pages/WorkspacesPage';
+import { RoutePage } from './pages/RoutePage';
 import { InspectorWindow, type InspectorHost } from './inspector-host';
 import { ShellChoicesProvider, useShellChoices } from './shell-choices';
 import { TopBarPickers } from './TopBarPickers';
@@ -102,26 +71,20 @@ import { CONNECTION_PAGE } from '../../core/domain/runtime-away';
 
 /** The Mac's SF Symbols as lucide draws the nearest of each, so the two sidebars wear the same icons. */
 const ICONS: Record<SidebarSymbol, LucideIcon> = {
-  'sun.max': Sun,
   house: House,
   tray: Inbox,
-  cpu: Cpu,
-  'bubble.left.and.text.bubble.right': MessagesSquare,
-  desktopcomputer: Monitor,
-  folder: Folder,
+  'rectangle.stack': Layers,
+  cpu: Bot,
+  folder: FolderGit2,
+  checklist: ListChecks,
+  'checkmark.shield': ScrollText,
+  'gauge.with.dots.needle.67percent': Gauge,
+  'clock.arrow.circlepath': History,
   brain: Brain,
-  book: BookOpen,
-  'checkmark.shield': ShieldCheck,
-  'list.bullet.rectangle': ListChecks,
-  'point.3.connected.trianglepath.dotted': Network,
-  powerplug: Plug,
-  'server.rack': Server,
-  globe: Globe,
-  sparkles: Sparkles,
-  'doc.text': FileText,
-  'person.2': Users,
-  'chevron.left': ChevronLeft,
+  'square.grid.2x2': Plug,
+  desktopcomputer: HardDrive,
   gearshape: Settings,
+  'chevron.left': ChevronLeft,
 };
 
 /** Where the folded sidebar is remembered between openings. */
@@ -176,7 +139,7 @@ function AloneInspector({ parts, route }: { parts: SettingsParts; route: Route }
   return (
     <InspectorWindow.Provider value={host}>
       <div className="mx-app hidden" aria-hidden>
-        <Page parts={parts} route={route} width={width} go={() => undefined} />
+        <RoutePage parts={parts} route={route} width={width} go={() => undefined} />
       </div>
     </InspectorWindow.Provider>
   );
@@ -238,7 +201,7 @@ function Shell({ parts, first }: { parts: SettingsParts; first: Route }) {
     popOut: popOut === undefined ? undefined : (item, title) => popOut(inspectorSearch(route, item), title),
     close: () => undefined,
   };
-  const heading = paneHeading(route, supports);
+  const heading = paneHeading(route);
 
   const sidebar = (
     <Sidebar
@@ -294,13 +257,13 @@ function Shell({ parts, first }: { parts: SettingsParts; first: Route }) {
                 <OpenProject parts={parts} project={project} page={place.page} go={go} />
               ) : heading.kind === 'sub-nav' ? (
                 <SubNavFrame title={heading.title} groups={tabGroups(route.destination, supports)} route={route} choose={(tab) => go({ destination: route.destination, tab })}>
-                  <Page parts={parts} route={route} width={width} go={go} />
+                  <RoutePage parts={parts} route={route} width={width} go={go} />
                 </SubNavFrame>
               ) : (
                 <>
                   {heading.kind === 'page' && <PageTitle title={heading.title} subtitle={heading.subtitle} />}
                   <RowTabs route={route} supports={supports} go={go} />
-                  <Page parts={parts} route={route} width={width} go={go} />
+                  <RoutePage parts={parts} route={route} width={width} go={go} />
                 </>
               )}
             </InspectorWindow.Provider>
@@ -359,10 +322,8 @@ function DemoBadge() {
 
 /** Where the window is, as the console's top bar says it: the sidebar row, then its tab once the row has tabs. */
 function Breadcrumb({ route, supports }: { route: Route; supports: Supports }) {
-  const row = rowOf(route);
-  const tabs = rowTabs(route, supports);
-  const title = row?.title ?? destinationInfo(route.destination).title;
-  const tab = tabs.find((each) => sameRoute(each.route, route));
+  const title = destinationInfo(route.destination).title;
+  const tab = rowTabs(route, supports).find((each) => sameRoute(each.route, route));
   const under = tab === undefined || tab.title === title ? undefined : tab;
   return (
     <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate pl-2 text-body-sm">
@@ -386,7 +347,7 @@ function RowTabs({ route, supports, go }: { route: Route; supports: Supports; go
   const key = (each: Route) => `${each.destination}/${each.tab ?? ''}`;
   return (
     <Tabs
-      label={rowOf(route)?.title ?? ShellLines.pages}
+      label={destinationInfo(route.destination).title}
       tabs={tabs.map((each) => ({ id: key(each.route), title: each.title }))}
       chosen={key(route)}
       choose={(id) => {
@@ -395,32 +356,6 @@ function RowTabs({ route, supports, go }: { route: Route; supports: Supports; go
       }}
     />
   );
-}
-
-function Page({ parts, route, width, go }: { parts: SettingsParts; route: Route; width: WidthClass; go: (route: Route) => void }): ReactNode {
-  switch (route.destination) {
-    // An old link to Today settles on Home, which now holds what Today showed.
-    case 'today':
-    case 'home':
-      return <HomePage parts={parts} width={width} go={go} />;
-    case 'agents':
-      return <AgentsPage parts={parts} tab={route.tab} width={width} />;
-    case 'workspaces':
-      return <WorkspacesPage parts={parts} tab={route.tab} width={width} go={go} />;
-    case 'mcp':
-      return <McpHubPage parts={parts} tab={route.tab} width={width} go={go} />;
-    case 'governance':
-      return <GovernancePage parts={parts} tab={route.tab} width={width} go={go} />;
-    case 'settings': {
-      const page = pageNamed(route.tab) ?? 'account';
-      // The pane header above it names the page, as the console's settings pane does.
-      return (
-        <div className="flex w-full max-w-settings-page flex-col gap-5">
-          <PageBody page={page} parts={parts} go={(next) => go(routeForPage(next) ?? { destination: 'settings', tab: next })} />
-        </div>
-      );
-    }
-  }
 }
 
 /** Where the folded sidebar headings are remembered, by title. */
@@ -465,6 +400,10 @@ function Sidebar({
   collapsed: boolean;
 }) {
   const [folded, setFolded] = useState(savedFolds);
+  const { calls } = parts;
+  useObserved(calls);
+  // Needs you carries how many wait, on the rail too, so the one count that asks for the person is never folded away.
+  const waiting = calls.state.waiting.newestFirst.length;
   const fold = (title: string, shut: boolean) => {
     const next = new Set(folded);
     if (shut) next.add(title);
@@ -472,8 +411,6 @@ function Sidebar({
     localStorage.setItem(FOLDED_KEY, JSON.stringify([...next]));
     setFolded(next);
   };
-  const settings = destinationInfo('settings');
-  const here = rowOf(route);
   return (
     <nav aria-label={ShellLines.navigation} className={`flex h-full shrink-0 flex-col bg-background ${rail ? 'w-sidebar-rail items-center' : 'w-sidebar'}`}>
       <div className={`flex h-shell-bar w-full shrink-0 items-center gap-2.5 ${rail ? 'justify-center' : 'px-4'}`}>
@@ -496,21 +433,20 @@ function Sidebar({
       )}
       <div className={`flex flex-1 flex-col gap-0.5 overflow-y-auto pb-2 ${rail ? 'items-center px-2' : 'px-3'}`}>
         {project !== undefined ? (
-          <ProjectRows parts={parts} project={project} sidebar={projectSidebar(project, route)} route={route} rail={rail} supports={supports} go={go} />
+          <ProjectRows parts={parts} project={project} sidebar={projectSidebar(project, route)} route={route} rail={rail} go={go} />
         ) : (
           <>
-            {SIDEBAR_TOP.map((row) => (
-              <RowItem key={row.title} row={row} rail={rail} supports={supports} chosen={row === here} go={go} />
-            ))}
             {SIDEBAR_SECTIONS.map((section) => (
-              <Heading key={section.title} section={section} here={here} rail={rail} supports={supports} go={go} open={!folded.has(section.title)} fold={(shut) => fold(section.title, shut)} />
+              <Heading key={section.group} section={section} here={route.destination} rail={rail} supports={supports} go={go} waiting={waiting} open={section.title === undefined || !folded.has(section.title)} fold={(shut) => section.title !== undefined && fold(section.title, shut)} />
             ))}
           </>
         )}
       </div>
       <div className={`flex w-full flex-col gap-0.5 py-2 ${rail ? 'items-center px-2' : 'px-3'}`}>
         {runtime}
-        <NavItem icon={ICONS[destinationSymbol('settings')]} title={settings.title} hint={settings.subtitle} rail={rail} chosen={route.destination === 'settings'} onClick={() => go({ destination: 'settings' })} />
+        {SIDEBAR_FOOT.map((id) => (
+          <RowItem key={id} id={id} rail={rail} supports={supports} chosen={route.destination === id} go={go} />
+        ))}
         {toggle !== undefined && <NavItem icon={PanelLeft} title={collapsed ? ShellLines.showLabels : ShellLines.hideLabels} hint={ShellLines.foldHint} rail={rail} chosen={false} onClick={toggle} />}
       </div>
     </nav>
@@ -519,7 +455,6 @@ function Sidebar({
 
 /**
  * A project's own sidebar, as Cloudflare's for a domain: the switcher naming the project, the way back, and its own pages.
- * The pages shared with every project are left off it for now.
  */
 function ProjectRows({
   parts,
@@ -527,7 +462,6 @@ function ProjectRows({
   sidebar,
   route,
   rail,
-  supports,
   go,
 }: {
   parts: SettingsParts;
@@ -535,11 +469,8 @@ function ProjectRows({
   sidebar: ProjectSidebar;
   route: Route;
   rail: boolean;
-  supports: Supports;
   go: (route: Route) => void;
 }) {
-  const counts = useSharedCounts(parts, project, supports);
-  const links = SHARED_SHOWN ? shared(counts, supports) : [];
   return (
     <>
       <NavItem icon={ChevronLeft} title={sidebar.back.title} hint={sidebar.back.title} rail={rail} chosen={false} onClick={() => go(sidebar.back.route)} />
@@ -547,47 +478,8 @@ function ProjectRows({
       {sidebar.rows.map((row) => (
         <NavItem key={row.page} icon={ICONS[row.symbol]} title={row.title} hint={row.summary} rail={rail} chosen={row.chosen} onClick={() => go(row.route)} />
       ))}
-      {links.length > 0 && (
-        <div className={`flex flex-col gap-0.5 ${rail ? 'mt-1.5 items-center border-t border-panel-edge pt-1.5' : 'pt-2.5'}`}>
-          {!rail && (
-            <span className="flex h-sidebar-heading items-center px-1.5 text-meta font-medium text-faint" title={SHARED_NOTE}>
-              {SHARED_TITLE}
-            </span>
-          )}
-          {links.map((link) => (
-            <NavItem key={link.row} icon={ICONS[link.symbol]} title={link.title} hint={link.hint} rail={rail} chosen={false} count={link.count} onClick={() => go(link.route)} />
-          ))}
-        </div>
-      )}
     </>
   );
-}
-
-/** How much of each shared page applies to the project, each read once its page is answered and undefined until then. */
-function useSharedCounts(parts: SettingsParts, project: ProjectView, supports: Supports): SharedCounts {
-  const { studio, skills, hub, memory, agents, tools } = parts;
-  useObserved(studio, skills, hub, memory, agents, tools);
-  useEffect(() => {
-    if (supports('rules') === true && studio.rules === undefined) void studio.refresh();
-    if (supports('skills-hub') === true && skills.hub === undefined) void skills.refresh();
-    if (supports('mcp-hub') === true && hub.hub === undefined) void hub.refresh();
-    if (supports('memory-facts') === true && memory.everything === undefined) void memory.refreshEverything();
-    if (supports('agents') === true && agents.agents === undefined) void agents.refresh();
-    void tools.refresh();
-  }, [project.id]);
-  const rules = studio.rules === undefined ? undefined : projectRules(studio.rules.rules, project).everywhere;
-  const skillCount = skills.hub?.skills.filter((skill) => skillReach(skill.scope, skill.project, project) === 'every-project').length;
-  const servers = hub.hub?.servers.filter((server) => server.agents.length > 0 || server.scope === 'organization').length;
-  const facts = memory.everything === undefined ? undefined : projectMemorySplit(memory.everything, project).everywhere.length;
-  const connectors = tools.state.reading ? undefined : tools.state.connections.filter((each) => each.connected).length;
-  return {
-    ...(rules === undefined ? {} : { rules }),
-    ...(skillCount === undefined ? {} : { skills: skillCount }),
-    ...(servers === undefined ? {} : { servers }),
-    ...(facts === undefined ? {} : { memory: facts }),
-    ...(agents.agents === undefined ? {} : { agents: agents.agents.length }),
-    ...(connectors === undefined ? {} : { connectors }),
-  };
 }
 
 /**
@@ -634,7 +526,7 @@ function ProjectSwitcher({ parts, project, route, rail, go }: { parts: SettingsP
         className={`mx-focus flex h-sidebar-row cursor-pointer items-center gap-1.5 rounded-control text-left hover:bg-hover ${rail ? 'w-sidebar-rail-row justify-center' : 'mt-2.5 w-full px-1.5'}`}
       >
         {rail ? (
-          <Folder size={NAV_GLYPH} strokeWidth={NAV_GLYPH_STROKE} className="shrink-0 text-foreground" aria-hidden />
+          <FolderGit2 size={NAV_GLYPH} strokeWidth={NAV_GLYPH_STROKE} className="shrink-0 text-foreground" aria-hidden />
         ) : (
           <>
             <span className="min-w-0 flex-1 truncate text-body-sm font-semibold text-foreground">{project.name}</span>
@@ -678,41 +570,43 @@ function ProjectSwitcher({ parts, project, route, rail, go }: { parts: SettingsP
 }
 
 /** One row of the sidebar, going to its first page the runtime answers; a row with none is not drawn. */
-function RowItem({ row, rail, supports, chosen, go }: { row: SidebarRow; rail: boolean; supports: Supports; chosen: boolean; go: (route: Route) => void }) {
-  const first = shownPages(row, supports)[0];
-  if (first === undefined) return null;
-  const hint = row.title === WAITING_TITLE ? WAITING_HINT : first.summary;
-  return <NavItem icon={ICONS[row.symbol]} title={row.title} hint={hint} rail={rail} chosen={chosen} onClick={() => go(first.route)} />;
+function RowItem({ id, rail, supports, chosen, go, count }: { id: Destination; rail: boolean; supports: Supports; chosen: boolean; go: (route: Route) => void; count?: number | undefined }) {
+  const target = rowTarget(id, supports);
+  if (target === undefined) return null;
+  const info = destinationInfo(id);
+  return <NavItem icon={ICONS[info.symbol]} title={info.title} hint={info.subtitle} rail={rail} chosen={chosen} count={count} onClick={() => go(target)} />;
 }
 
-/** A heading that folds over its rows. On the rail there is no heading, only each row's icon. */
+/** A heading that folds over its rows; the top rows stand without one. On the rail there is no heading, only each row's icon. */
 function Heading({
   section,
   here,
   rail,
   supports,
   go,
+  waiting,
   open,
   fold,
 }: {
   section: SidebarSection;
-  here: SidebarRow | undefined;
+  here: Destination;
   rail: boolean;
   supports: Supports;
   go: (route: Route) => void;
+  waiting: number;
   open: boolean;
   fold: (shut: boolean) => void;
 }) {
-  const rows = shownRows(section, supports);
-  const holds = here !== undefined && rows.includes(here);
+  const rows = section.rows.filter((id) => rowTarget(id, supports) !== undefined);
+  const holds = rows.includes(here);
   // Arriving on a page under a folded heading opens it, so the chosen row is never hidden.
   useEffect(() => {
     if (holds && !open) fold(false);
   }, [holds]);
   if (rows.length === 0) return null;
-  const items = rows.map((row) => <RowItem key={row.title} row={row} rail={rail} supports={supports} chosen={row === here} go={go} />);
+  const items = rows.map((id) => <RowItem key={id} id={id} rail={rail} supports={supports} chosen={id === here} go={go} count={id === 'needs-you' && waiting > 0 ? waiting : undefined} />);
   // On the rail the heading gives way to a little room between the sections, as the Mac's does.
-  if (rail) return <div className="flex flex-col items-center gap-0.5 pt-2.5">{items}</div>;
+  if (rail || section.title === undefined) return <div className={`flex flex-col gap-0.5 ${section.title === undefined ? '' : 'pt-2.5'} ${rail ? 'items-center' : ''}`}>{items}</div>;
   return (
     <div className="flex flex-col gap-0.5 pt-2.5">
       <Pressable onClick={() => fold(open)} aria-expanded={open} className="mx-focus flex h-sidebar-heading cursor-pointer items-center gap-1.5 rounded-control px-1.5 text-meta font-medium text-faint">
@@ -730,13 +624,17 @@ function NavItem({ icon: Icon, title, hint, rail, chosen, onClick, count }: { ic
     <Pressable
       onClick={onClick}
       title={rail ? title : hint}
-      aria-label={rail ? title : undefined}
+      aria-label={rail ? (count === undefined ? title : `${title}, ${count}`) : undefined}
       aria-current={chosen ? 'page' : undefined}
       className={`mx-focus flex cursor-pointer items-center gap-2.5 rounded-control text-body-sm transition-colors ${rail ? 'size-sidebar-rail-row justify-center' : 'h-sidebar-row w-full px-1.5'} ${
         chosen ? 'bg-primary font-medium text-white' : 'text-foreground hover:bg-hover'
       }`}
     >
-      <Icon size={NAV_GLYPH} strokeWidth={NAV_GLYPH_STROKE} className={`w-sidebar-icon shrink-0 ${chosen ? 'text-white' : 'text-primary'}`} aria-hidden />
+      <span className="relative">
+        <Icon size={NAV_GLYPH} strokeWidth={NAV_GLYPH_STROKE} className={`w-sidebar-icon shrink-0 ${chosen ? 'text-white' : 'text-primary'}`} aria-hidden />
+        {/* The rail drops the words, so a count rides on the icon instead of going unseen. */}
+        {rail && count !== undefined && <span aria-hidden className="absolute -top-0.5 -right-1.5 size-1.5 rounded-full bg-primary" />}
+      </span>
       {!rail && <span className="flex-1 truncate text-left">{title}</span>}
       {!rail && count !== undefined && <span className={`shrink-0 tabular-nums text-meta ${chosen ? 'text-white' : 'text-faint'}`}>{count}</span>}
     </Pressable>
@@ -799,7 +697,7 @@ function shortcuts(actions: ShortcutActions): () => void {
       actions.openPalette();
       return;
     }
-    const numbered = DESTINATIONS.find((each) => each.key === event.key);
+    const numbered = DESTINATIONS.find((each) => keyOf(each.id) === event.key);
     // A digit typed into a field belongs to the field, so the destinations wait until focus leaves it.
     if (command && numbered !== undefined && !typing(event.target)) {
       event.preventDefault();

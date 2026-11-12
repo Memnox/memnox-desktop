@@ -308,6 +308,12 @@ public final class Conversation {
         _ = try? await link.request(newRequest(.warm))
     }
 
+    /// The version the service answers a ping with, or nil while it is away, for offering a newer one.
+    public func runtimeVersion() async -> String? {
+        guard let pong = try? await link.request(DaemonRequest(id: takeId(), method: .ping)), pong.ok else { return nil }
+        return pong.version
+    }
+
     /// Whether the daemon answers, and whether it speaks voice rather than only answering ok.
     public func daemonVoice() async -> DaemonVoice {
         guard let pong = try? await link.request(DaemonRequest(id: takeId(), method: .ping)) else { return .unreachable }

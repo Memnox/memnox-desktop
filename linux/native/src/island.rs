@@ -51,7 +51,7 @@ pub fn make_island(window: &gtk::ApplicationWindow) {
     // On GNOME a dock is the one kind of window Mutter does not push below its top bar, keeps above
     // everything, and leaves alone on show desktop. Elsewhere a dock is left out, since a tiling window
     // manager sets aside the whole height of one. It takes the keyboard only when asked to.
-    if on_gnome() && std::env::var(DOCK_VAR).map_or(true, |value| value != "0") {
+    if on_gnome() && std::env::var(DOCK_VAR).as_deref() != Ok("0") {
         window.set_type_hint(gtk::gdk::WindowTypeHint::Dock);
     }
     window.set_accept_focus(false);

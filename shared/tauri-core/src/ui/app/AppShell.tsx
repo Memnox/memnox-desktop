@@ -65,8 +65,9 @@ import { demoOn } from '../adapters/demo';
 import { useWidthClass } from './use-width';
 import { SubNavFrame } from './SubNav';
 import './shell.css';
-import { IconButton, Popover, Pressable, ReadFailed, SearchInput, SFSymbol, SideDrawer, StatusWord, Tabs, TruncatedText } from '../kit';
+import { IconButton, Popover, Pressable, ReadFailed, SearchInput, SFSymbol, SideDrawer, StatusWord, Tabs, TruncatedText, Wordmark } from '../kit';
 import { ShellLines } from '../../core/domain/shell-lines';
+import { useRuntimeStanding } from './runtime-standing';
 import { CONNECTION_PAGE } from '../../core/domain/runtime-away';
 
 /** The Mac's SF Symbols as lucide draws the nearest of each, so the two sidebars wear the same icons. */
@@ -116,6 +117,8 @@ const ALL_PROJECTS_GLYPH = 13;
 
 /** The Memnox mark at the sidebar's head. */
 const BRAND_TILE = 24;
+/** `AppSidebar.Layout.wordmark`: the name's height at the sidebar's head. */
+const BRAND_WORDMARK = 15;
 
 /**
  * The Memnox window, as the Mac's `AppShellView` draws it: the sidebar on the ground with Home, Projects, what waits on you
@@ -414,8 +417,8 @@ function Sidebar({
   return (
     <nav aria-label={ShellLines.navigation} className={`flex h-full shrink-0 flex-col bg-background ${rail ? 'w-sidebar-rail items-center' : 'w-sidebar'}`}>
       <div className={`flex h-shell-bar w-full shrink-0 items-center gap-2.5 ${rail ? 'justify-center' : 'px-4'}`}>
-        <MemnoxTile size={BRAND_TILE} />
-        {!rail && <span className="flex-1 text-headline font-semibold tracking-[-0.02em]">{ShellLines.brand}</span>}
+        {/* The name in the brand's own letters, as the Mac's sidebar heads itself; the rail has room for the mark alone. */}
+        {rail ? <MemnoxTile size={BRAND_TILE} /> : <Wordmark height={BRAND_WORDMARK} className="text-foreground" />}
       </div>
       {!rail && (
         <div className="px-3 pb-2">
@@ -643,17 +646,18 @@ function NavItem({ icon: Icon, title, hint, rail, chosen, onClick, count }: { ic
 
 /** The runtime's standing at the sidebar's foot, read off the home the window already keeps. */
 export function RuntimeStatus({ parts, rail }: { parts: SettingsParts; rail: boolean }) {
-  const { home, host } = parts;
-  useObserved(home);
+  const { host } = parts;
   // The last read decides, since a home kept from an earlier read outlives a runtime that stopped since.
-  const up = !home.unavailable && home.home !== undefined;
+  const standing = useRuntimeStanding(parts);
+  const up = standing === 'up';
+  const away = standing === 'away';
   // Away opens Connection, where Check again starts the service, so a stopped runtime is one press from running.
-  const fix = home.unavailable ? () => host.openSettings(CONNECTION_PAGE) : undefined;
-  const words = up ? ShellLines.runtimeUp : home.unavailable ? ShellLines.runtimeDown : ShellLines.runtimeReaching;
+  const fix = away ? () => host.openSettings(CONNECTION_PAGE) : undefined;
+  const words = up ? ShellLines.runtimeUp : away ? ShellLines.runtimeDown : standing === 'starting' ? ShellLines.runtimeStarting : ShellLines.runtimeReaching;
   if (rail) {
     return (
       <Pressable title={fix === undefined ? words : ShellLines.runtimeDownHint} disabled={fix === undefined} onClick={fix} className="grid h-sidebar-row w-sidebar-rail-row place-items-center">
-        <span aria-label={words} className={`size-2 rounded-full ${up ? 'bg-success' : home.unavailable ? 'bg-destructive' : 'bg-faint'}`} />
+        <span aria-label={words} className={`size-2 rounded-full ${up ? 'bg-success' : away ? 'bg-destructive' : 'bg-faint'}`} />
       </Pressable>
     );
   }

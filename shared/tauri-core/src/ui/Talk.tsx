@@ -155,9 +155,10 @@ export function Hearing({ state, notch, onTap, conversation }: { state: TalkStat
  * What keeps the voice from working, as pills under the island: the models installing with their
  * progress, and what went wrong. The Mac installs on its own, so these are the only visible trace of it.
  */
-export function VoicePills({ conversation }: { conversation: Conversation }) {
+export function VoicePills({ conversation, starting = false }: { conversation: Conversation; starting?: boolean }) {
   const { mic, step, problem, state, install } = conversation;
-  const failure = problem ?? state.failure;
+  // While the service is still starting, the pill above already says so, and a turn it could not take is no fault.
+  const failure = problem ?? (starting ? undefined : state.failure);
   return (
     <>
       {(mic === 'missing' || mic === 'installing') && (

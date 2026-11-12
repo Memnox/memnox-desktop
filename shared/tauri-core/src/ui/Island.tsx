@@ -672,7 +672,7 @@ export function Island({
             {IslandLines.waitingToStart}
           </UnderPill>
         )}
-        {!previewing && <VoicePills conversation={conversation} />}
+        {!previewing && <VoicePills conversation={conversation} starting={setupState.doing !== undefined || (setupState.failed === undefined && !held.connected)} />}
         {extras !== undefined && <UnderIsland notices={extras.notices} onSignIn={extras.onSignIn} onNotMe={extras.onNotMe} online={!previewing} />}
         </div>
       </div>

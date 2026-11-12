@@ -1,4 +1,5 @@
-import { CONNECTION_PAGE, RuntimeAwayLines } from '../../../core/domain/runtime-away';
+import { CONNECTION_PAGE, RuntimeAwayLines, type RuntimeStanding } from '../../../core/domain/runtime-away';
+import { useRuntimeStanding } from '../runtime-standing';
 import { ArrowRight } from 'lucide-react';
 import { useEffect } from 'react';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
@@ -8,7 +9,7 @@ import { homeMode, modeBadge } from '../../../core/domain/home-steps';
 import { HomePageLines } from '../../../core/domain/home-page-lines';
 import { HomeStart } from './HomeStart';
 import { TodayPage } from './TodayPage';
-import { PRESS_DIP, Pressable, ReadFailed, StatusWord } from '../../kit';
+import { Note, PRESS_DIP, Pressable, ReadFailed, Spinner, StatusWord } from '../../kit';
 
 /**
  * Home is the one page the window opens on, the same on the console, the Mac, Windows and Linux: the greeting and mode,
@@ -29,6 +30,7 @@ export function HomePage({ parts, width, go }: { parts: SettingsParts; width: Wi
   useEffect(() => host.onLiveActivity?.((rows, missed) => home.heard(rows.length + missed)), []);
 
   const view = home.home;
+  const standing = useRuntimeStanding(parts);
   const lead = (
     <>
       <header className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
@@ -36,10 +38,22 @@ export function HomePage({ parts, width, go }: { parts: SettingsParts; width: Wi
           <h1 className="text-app-greeting leading-tight font-bold text-foreground">{greeting(preferences.name)}</h1>
           <p className="text-footnote text-muted">{HomePageLines.lead}</p>
         </div>
-        <Standing mode={homeMode(view?.mode)} read={view !== undefined} away={home.unavailable} />
+        <Standing mode={homeMode(view?.mode)} read={view !== undefined} standing={standing} />
       </header>
 
-      {home.unavailable && (
+      {/* A service still being set up is said calmly; only one that stayed away reads as a fault with a way to fix it. */}
+      {standing === 'starting' && (
+        <Note>
+          <span className="flex items-center gap-2">
+            <Spinner />
+            <span className="flex flex-col">
+              <span className="font-medium text-foreground">{RuntimeAwayLines.starting}</span>
+              <span>{RuntimeAwayLines.startingDetail}</span>
+            </span>
+          </span>
+        </Note>
+      )}
+      {standing === 'away' && (
         <div className="flex flex-col gap-2">
           <ReadFailed what={HomePageLines.readFailed} retry={() => void home.refresh()} />
           <GoLink onClick={() => host.openSettings(CONNECTION_PAGE)}>{RuntimeAwayLines.openConnection}</GoLink>
@@ -54,12 +68,12 @@ export function HomePage({ parts, width, go }: { parts: SettingsParts; width: Wi
 }
 
 /** The mode the runtime reported, as the Mac's badge beside the greeting says it, or whether the runtime answers at all. */
-function Standing({ mode, read, away }: { mode: ReturnType<typeof homeMode>; read: boolean; away: boolean }) {
+function Standing({ mode, read, standing }: { mode: ReturnType<typeof homeMode>; read: boolean; standing: RuntimeStanding }) {
   // The last read decides, since a home kept from before outlives a runtime that stopped since.
-  if (away) return <StatusWord tone="bad">{HomePageLines.away}</StatusWord>;
+  if (standing === 'away') return <StatusWord tone="bad">{HomePageLines.away}</StatusWord>;
+  if (standing === 'starting') return <StatusWord tone="quiet">{RuntimeAwayLines.starting}</StatusWord>;
   if (mode !== undefined) return <StatusWord tone={mode === 'enforce' ? 'good' : 'attention'}>{modeBadge(mode)}</StatusWord>;
   if (read) return <StatusWord tone="good">{HomePageLines.protecting}</StatusWord>;
-  if (away) return <StatusWord tone="bad">{HomePageLines.away}</StatusWord>;
   return null;
 }
 

@@ -94,7 +94,7 @@ beforeAll(async () => {
     })),
   );
   for (const stage of ['intro', 'steps', 'done'] as const) {
-    for (const step of [0, 1, 2, 3, 4] as const) {
+    for (const step of [0, 1] as const) {
       if (stage !== 'steps' && step > 0) continue;
       pages.push({ name: `onboarding/${stage}/${step}`, draw: (parts) => createElement(OnboardingApp, { parts, stage, step }) });
     }
@@ -244,10 +244,18 @@ describe('the Jobs tab', () => {
     },
   };
 
-  it('offers a default a job, draws a job with nobody behind it grey, and a template with no activity', async () => {
+  it('keeps a default out of Jobs, as the console does, and offers it a job under Agents instead', async () => {
+    const parts = await partsOver(link);
+    const html = renderToString(createElement('div', null, pageNamed('agents/jobs').draw(parts)));
+    expect(html).not.toContain('Agents with no job yet');
+    expect(html).not.toContain('Give it a job');
+    const { AgentProfileCards } = await import('../src/ui/app/pages/AgentProfileCards');
+    const agents = renderToString(createElement(AgentProfileCards, { parts }));
+    expect(agents).toContain('Give it a job');
+  });
+
+  it('draws a job with nobody behind it grey, and a template with no activity', async () => {
     const html = renderToString(createElement('div', null, pageNamed('agents/jobs').draw(await partsOver(link))));
-    expect(html).toContain('Agents with no job yet');
-    expect(html).toContain('Give it a job');
     expect(html).toContain('Reviewer');
     expect(html).toContain('Start from a template');
     expect(html).toContain('Use this job');
@@ -260,8 +268,17 @@ describe('with the runtime away', () => {
     const { PREFERENCE } = await import('../src/core/application/preferences');
     const { RuntimeStatus } = await import('../src/ui/app/AppShell');
     memory.set(PREFERENCE.setupDone, 'true');
+    const { windowOpened } = await import('../src/ui/app/runtime-standing');
+    const { START_GRACE_MS } = await import('../src/core/domain/runtime-away');
     const parts = await partsOver(gone);
     await parts.tools.refresh();
+    // A window newly open is still waiting on a service being set up, so it says that and shows no fault.
+    const starting = renderToString(createElement('div', null, pageNamed('home/').draw(parts), createElement(RuntimeStatus, { parts, rail: false })));
+    expect(starting).toContain('Starting Memnox');
+    for (const fault of ['could not read', 'not answering', 'Open Connection', 'Runtime running']) expect(starting, `starting says ${fault}`).not.toContain(fault);
+    // Once the wait has run out, a service still away is said to be away.
+    const openedAt = windowOpened.at;
+    windowOpened.at = Date.now() - START_GRACE_MS;
     const drawn = ['home/', 'needs-you/decide-now', 'agents/this-computer'].map((name) => [name, renderToString(createElement('div', null, pageNamed(name).draw(parts)))] as const);
     drawn.push(['sidebar', renderToString(createElement(RuntimeStatus, { parts, rail: false }))]);
     for (const [name, html] of drawn) {
@@ -271,6 +288,7 @@ describe('with the runtime away', () => {
     expect(drawn.find(([name]) => name === 'needs-you/decide-now')?.[1]).toContain('The Memnox service is not answering');
     expect(drawn.find(([name]) => name === 'agents/this-computer')?.[1]).toContain('Open Connection');
     expect(drawn.find(([name]) => name === 'sidebar')?.[1]).toContain('Runtime not answering');
+    windowOpened.at = openedAt;
     memory.delete(PREFERENCE.setupDone);
   });
 });

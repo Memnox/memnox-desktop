@@ -14,6 +14,7 @@ import { handHeld, heldBusy } from '../held-hand';
 import { needsYou, openWork } from '../../../core/domain/agent-work-lines';
 import { waitingHandoffs } from '../../../core/domain/workspace-agents';
 import { WorkNeedingYou } from './WorkCards';
+import { useRuntimeStanding } from '../runtime-standing';
 import { WorkspaceHandoffs } from './WorkspaceAgents';
 import { ANSWER_LABEL } from '../../../core/domain/answer-words';
 
@@ -46,6 +47,7 @@ export function NeedsYouPage({ parts }: { parts: SettingsParts }) {
 function Approvals({ parts }: { parts: SettingsParts }) {
   const { calls, words, projects, support, work, workspaceAgents, home, host } = parts;
   useObserved(calls, projects, work, workspaceAgents, support, home);
+  const standing = useRuntimeStanding(parts);
   const offersWork = support.supports('agent-work') === true;
   useEffect(() => {
     // The projects name where each call waits, so a person with several sees which one it is in.
@@ -82,7 +84,9 @@ function Approvals({ parts }: { parts: SettingsParts }) {
       <NoticesSwitch parts={parts} />
       {waiting.length === 0 ? (
         !workWaits &&
-        (home.unavailable ? (
+        (standing === 'starting' ? (
+          <EmptyState icon={ShieldCheck} title={RuntimeAwayLines.starting} body={RuntimeAwayLines.startingDetail} />
+        ) : home.unavailable ? (
           <EmptyState
             icon={TriangleAlert}
             title={RuntimeAwayLines.title}

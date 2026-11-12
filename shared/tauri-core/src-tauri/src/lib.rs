@@ -27,6 +27,7 @@ mod settings_windows;
 mod talk_key;
 mod tray;
 mod typing;
+mod updates;
 mod voice;
 
 use std::sync::Arc;
@@ -113,6 +114,8 @@ pub fn run() {
             relay::relay_stream,
             relay::relay_done,
             cloud::cloud_send,
+            updates::release_feed,
+            updates::app_version,
             cloud::person_credential_load,
             cloud::person_credential_save,
             cloud::person_credential_delete,

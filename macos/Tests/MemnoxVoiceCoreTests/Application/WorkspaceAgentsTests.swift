@@ -39,6 +39,33 @@ final class WorkspaceAgentsTests: XCTestCase {
         XCTAssertEqual(sent.authorization, "Bearer mnx_person")
     }
 
+    func testAsksWhichIssueEachSessionIsOnOnlyWhileSignedIn() async throws {
+        let cloud = ScriptedTransport()
+        cloud.answer("GET /v1/workspaces/ws_1/work-correlations", 200,
+                     #"{"correlations":[{"id":"wcr_1","sessionId":"ses_b","source":"branch","state":"linked","lateMatch":false,"claim":"PAY-42","visible":true,"item":{"provider":"jira","label":"PAY-42","url":"https://acme.atlassian.net/browse/PAY-42"}}]}"#)
+        let nobody = WorkspaceAgents(reader: HttpWorkspaceInbox(transport: cloud), store: MemoryPersonCredential())
+        let none = await nobody.work(of: ["ses_b"])
+        XCTAssertEqual(none, [])
+        XCTAssertTrue(cloud.sent.isEmpty)
+        let agents = WorkspaceAgents(reader: HttpWorkspaceInbox(transport: cloud), store: MemoryPersonCredential(signedInCredential()))
+        let empty = await agents.work(of: [])
+        XCTAssertEqual(empty, [])
+        XCTAssertTrue(cloud.sent.isEmpty)
+        let found = await agents.work(of: ["ses_b", "ses_a"])
+        XCTAssertEqual(found.map(WorkCorrelationLines.label), ["PAY-42"])
+        let sent = try XCTUnwrap(cloud.sent("GET /v1/workspaces/ws_1/work-correlations").first)
+        XCTAssertEqual(sent.query, "session=ses_a%2Cses_b")
+        XCTAssertEqual(sent.authorization, "Bearer mnx_person")
+    }
+
+    func testLeavesOutAWorkspaceThatCannotSayWhichIssues() async {
+        let cloud = ScriptedTransport()
+        cloud.answer("GET /v1/workspaces/ws_1/work-correlations", 404, #"{"message":"no route"}"#)
+        let agents = WorkspaceAgents(reader: HttpWorkspaceInbox(transport: cloud), store: MemoryPersonCredential(signedInCredential()))
+        let found = await agents.work(of: ["ses_a"])
+        XCTAssertEqual(found, [])
+    }
+
     func testNamesTheResponsiblePersonWhenTheCloudSendsTheName() throws {
         let named = #"{"profile":{"id":"agp_2","name":"Refunds","responsiblePersonId":"usr_bo"},"needsResponsiblePerson":false,"responsiblePersonName":"Bo Ito"}"#
         let unnamed = #"{"profile":{"id":"agp_3","name":"Billing","responsiblePersonId":"usr_bo"},"needsResponsiblePerson":false}"#

@@ -73,6 +73,21 @@ public final class WorkspaceAgents: @unchecked Sendable {
         }
     }
 
+    /// Which issue each of these sessions concerns, across every workspace the person is in. With no account it asks
+    /// nothing and answers nothing, and a workspace that cannot answer is left out rather than guessed for.
+    public func work(of sessionIds: [String]) async -> [WorkCorrelation] {
+        guard !sessionIds.isEmpty, let credential = store.load() else { return [] }
+        var found: [WorkCorrelation] = []
+        for workspace in credential.workspaces {
+            do {
+                found += try await reader.workCorrelations(in: workspace, sessions: sessionIds, token: credential.token)
+            } catch {
+                diary.note("reading the issues sessions are on for \(workspace) failed: \(error)")
+            }
+        }
+        return found
+    }
+
     /// The person's answer to a handoff, unsigned since it only moves who carries the work; the workspace decides.
     public func answer(_ handoff: String, in workspace: String, _ word: HandoffAnswerWord) async -> WorkOutcome {
         guard let credential = store.load() else { return .failed("Sign in to Memnox Cloud to answer this.") }

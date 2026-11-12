@@ -126,6 +126,15 @@ public final class HttpWorkspaceInbox: WorkspaceInbox, WorkspaceAgentsReader, @u
         try await call("GET", "v1/workspaces/\(Self.segment(workspace))/me/agent-work", token: token)
     }
 
+    /// Asks nothing for no sessions; the ids go as one query value, each character outside a plain id escaped.
+    public func workCorrelations(in workspace: String, sessions: [String], token: String) async throws -> [WorkCorrelation] {
+        guard !sessions.isEmpty else { return [] }
+        let asked = Self.segment(WorkCorrelationLines.asked(sessions))
+        let listed: WorkCorrelations = try await call("GET", "v1/workspaces/\(Self.segment(workspace))/work-correlations?session=\(asked)",
+                                                      token: token)
+        return listed.correlations
+    }
+
     /// The answer goes as the cloud's own boolean, unsigned, since it only moves who carries the work.
     public func answerHandoff(_ handoff: String, in workspace: String, accept: Bool, token: String) async throws {
         let json = try JSONSerialization.data(withJSONObject: ["accept": accept], options: [.sortedKeys])

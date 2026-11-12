@@ -37,4 +37,18 @@ that operating system does differently.
 - `macos/` builds and tests from inside it: `cd macos && swift test`, which must pass at every commit.
 - The wire format is `memnox-runtime/packages/core/src/daemon/protocol.ts`. The Mac mirrors it in
   `macos/Sources/MemnoxVoiceCore/Domain/SharedKernel/DaemonProtocol.swift`; the Tauri core imports
-  it from `@memnox/core` rather than copying it. Change the runtime and every mirror together.
+  it as `@memnox/core/wire` from `shared/wire`, the runtime's own build kept in this repo and never
+  written by hand. Change the runtime and every mirror together.
+
+## This repo builds alone
+
+**A pull request is built from this repo and nothing else.** What the runtime owns is kept here as
+copies: `VISION.md`, `shared/vectors`, `shared/ux/contract.json`, the Noise layer in
+`shared/tauri-core/crates/desktop-noise`, and the built wire in `shared/wire`. A change that needs a
+newer one refreshes that copy in the same pull request, with `pnpm wire` for the wire, so the pull
+request passes or fails on what it holds and never on where the runtime's `main` stands.
+
+Whether the copies still match the runtime's `main` is a separate question, answered apart from pull
+requests: the Runtime copies workflow runs `scripts/check-runtime-copies.sh` on `main` and every
+morning, and a release runs it before it builds. The Mac's Noise framework is the one thing CI still
+builds from a runtime checkout, since it is 55 MB of static libraries no repo holds.

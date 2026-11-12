@@ -84,7 +84,7 @@ clone predates that file, and cloning again fixes it. From Git Bash:
 
 ```sh
 cd shared/tauri-core
-pnpm wire                 # the runtime's wire into .runtime, from npm or a checkout beside this repo
+pnpm wire                 # only after the runtime's wire changed: refreshes shared/wire from a checkout beside this repo
 pnpm install
 pnpm typecheck && pnpm test
 cargo test --workspace    # from the repo root

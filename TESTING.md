@@ -14,7 +14,7 @@ How to try each app on a real machine. For the unit tests every pull request run
 The Mac app builds and runs as [`macos/README.md`](macos/README.md) says.
 
 The Windows and Linux app also runs on a Mac for its screens and its voice, with no key, so it signs
-nothing: `cd shared/tauri-core && pnpm wire && pnpm install && pnpm tauri dev`. A debug build never adds
+nothing: `cd shared/tauri-core && pnpm install && pnpm tauri dev`. A debug build never adds
 itself to the login items. Quit the Mac app first, since both would answer the same daemon, and note
 that the talk key, Ctrl Alt Space, is taken while it runs.
 

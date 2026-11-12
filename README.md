@@ -208,7 +208,11 @@ with Windows Hello, a Linux desktop on GNOME and on KDE, and what has not been p
 
 [`ci.yml`](.github/workflows/ci.yml) builds and tests the Mac app on macOS 26 and the Tauri app on
 Windows and Ubuntu 24.04 (typecheck, vitest, `cargo fmt`, `cargo clippy`, `cargo test` and a debug
-build), checks the protocol vectors against the runtime, and refuses a dash in copy.
+build), and refuses a dash in copy. A pull request is built from this repo alone.
+
+[`runtime-copies.yml`](.github/workflows/runtime-copies.yml) says, on `main` and every morning, when
+one of this repo's copies of the runtime (the vision, the vectors, the ux contract, the Noise suite and
+the wire in `shared/wire`) parted from the runtime's `main`.
 
 [`release-app.yml`](.github/workflows/release-app.yml) releases the Windows and Linux app from a tag
 `app-v<version>` that matches `shared/tauri-core/src-tauri/tauri.conf.json`. It builds the NSIS and
@@ -217,8 +221,10 @@ and the AppImage, deb and rpm on Ubuntu 22.04 so older glibc runs them, then pub
 SHA256SUMS, the polkit policy, a PKGBUILD and `Memnox-setup.exe`, and marks the release latest. Run by
 hand without a tag, it builds the installers as workflow artifacts and publishes nothing.
 
-A release is four steps, because the Mac app is built on a Mac:
+A release is five steps, because the Mac app is built on a Mac:
 
+0. See that Runtime copies is green on `main`. The release runs the same check before it builds and
+   stops when a copy differs from the runtime's `main`, so the runtime's side lands first.
 1. Raise the version in `shared/tauri-core/src-tauri/tauri.conf.json` and in
    `CFBundleShortVersionString` in `macos/Support/Info.plist`, and commit.
 2. Tag `app-v<version>` and push the tag, which builds and publishes the Windows and Linux release.

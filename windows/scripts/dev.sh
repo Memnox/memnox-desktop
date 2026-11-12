@@ -3,7 +3,7 @@
 # From Git Bash, since the app's own build steps are shell scripts:
 #   sh windows/scripts/dev.sh
 # What is missing of Node, Rust and Visual Studio's C++ build tools is installed with winget, the wire
-# comes from npm and the app installs memnox on its first run, so this repo is the only clone needed.
+# is the copy in shared/wire and the app installs memnox on its first run, so this repo is the only clone needed.
 # A memnox-runtime checkout beside this repo, or named by MEMNOX_RUNTIME, is built and run instead,
 # for working on both at once. A step already done is skipped, so it is also the command to run every day.
 set -eu
@@ -61,12 +61,13 @@ if [ -f "$runtime/packages/core/src/wire.ts" ]; then
   # A debug build runs this checkout's CLI rather than an npm memnox, which a release never does.
   export MEMNOX_RUNTIME="$runtime" MEMNOX_RUNTIME_DIR="$runtime"
 else
-  echo "no checkout beside this repo, so the wire comes from npm and the app installs memnox on its first run"
+  echo "no checkout beside this repo, so the wire is the copy in shared/wire and the app installs memnox on its first run"
 fi
 
 step "The app"
 cd "$app"
-corepack pnpm wire
+# With a runtime checkout its wire is copied in, so a change there shows as a change to shared/wire here.
+if [ -n "${MEMNOX_RUNTIME:-}" ]; then corepack pnpm wire; fi
 corepack pnpm install --frozen-lockfile
 
 step "Opening Memnox: the tray icon opens the panel, and Ctrl Alt Space opens the island"

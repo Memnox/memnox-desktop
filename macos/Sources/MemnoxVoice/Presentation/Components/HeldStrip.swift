@@ -1,8 +1,8 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// A call waiting on the person, answered where it is read: who asks and the command, then Deny beside Allow once,
-/// which asks for Touch ID when the call reaches outside its session. It answers through the notch's own path, so a
+/// A call waiting on the person, answered where it is read: who asks and the command, then Allow once and Deny, the
+/// yes asking for Touch ID when the call reaches outside its session. It answers through the notch's own path, so a
 /// yes from a window is signed exactly as a yes from the notch.
 struct HeldStrip: View {
     @ObservedObject var model: IslandModel
@@ -15,7 +15,6 @@ struct HeldStrip: View {
 
     /// The answers dim while one is being signed, so a second press is not invited.
     private static let answeringOpacity = 0.55
-    private static let touchIDSymbol = "touchid"
 
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
@@ -23,7 +22,7 @@ struct HeldStrip: View {
                 BrandLogo(agent: card.agent, name: card.who, size: Layout.logoSide)
                 Text(card.who)
                     .font(Memnox.sans(Memnox.TextSize.body, .semibold))
-                    .foregroundStyle(Memnox.Palette.ink)
+                    .foregroundStyle(Memnox.Console.ink)
                 Text(card.why ?? "is waiting on you")
                     .font(Memnox.sans(Memnox.TextSize.body))
                     .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
@@ -32,7 +31,7 @@ struct HeldStrip: View {
             }
             Text(card.what)
                 .font(.system(size: Memnox.TextSize.footnote, design: .monospaced))
-                .foregroundStyle(Memnox.Palette.ink)
+                .foregroundStyle(Memnox.Console.ink)
                 .lineLimit(2)
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -41,18 +40,7 @@ struct HeldStrip: View {
             if let impact = card.impact {
                 HeldImpactLines(impact: impact)
             }
-            HStack(spacing: Memnox.Spacing.medium) {
-                Button("Deny") { press(.deny) }
-                    .buttonStyle(IslandButton(primary: false))
-                Button { press(.once) } label: {
-                    HStack(spacing: Memnox.Spacing.small) {
-                        if card.touchID { Image(systemName: Self.touchIDSymbol) }
-                        Text("Allow once")
-                    }
-                }
-                // No Return shortcut, since a stray keypress must never allow an agent's command.
-                .buttonStyle(IslandButton(primary: true))
-            }
+            HeldAnswers(size: .strip, touchID: card.touchID) { press($0) }
             .disabled(model.answering)
             .opacity(model.answering ? Self.answeringOpacity : 1)
         }

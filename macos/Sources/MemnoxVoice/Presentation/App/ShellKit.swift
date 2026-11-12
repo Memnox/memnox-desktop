@@ -33,10 +33,10 @@ enum Tone {
     /// How a session's status reads: red paused, amber waiting on the person, green busy, grey otherwise.
     init(_ status: SessionStatus) {
         switch status {
-        case .paused: self = .bad
-        case .needsYou, .waitingOnYou: self = .attention
-        case .working, .thinking: self = .good
-        case .ended, .quiet: self = .quiet
+        case .stopped: self = .bad
+        case .needsYou, .finished: self = .attention
+        case .working: self = .good
+        case .idle: self = .quiet
         }
     }
 }

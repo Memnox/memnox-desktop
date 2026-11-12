@@ -1,4 +1,4 @@
-import { Brain, Copy, RotateCw, Terminal } from 'lucide-react';
+import { Brain, Copy, RotateCw, Terminal, TriangleAlert } from 'lucide-react';
 import { Fragment, useEffect } from 'react';
 import { agentStatusWord } from '../../../core/application/tools';
 import { EMBEDDING_COMMAND, MEANING_SEARCH_LINE, MEANING_SEARCH_TITLE } from '../../../core/domain/memory-lines';
@@ -9,6 +9,7 @@ import { Button } from '../../kit';
 import { ToolsPageLines } from '../../../core/domain/tools-page-lines';
 import { AgentHomesLines } from '../../../core/domain/agent-homes';
 import { AgentHomesSetup } from './AgentHomesSetup';
+import { CONNECTION_PAGE, RuntimeAwayLines } from '../../../core/domain/runtime-away';
 
 /** A 7 dot after a tool: ready in the success colour, needing the person in the warm one. */
 function StatusDot({ ready }: { ready: boolean }) {
@@ -20,14 +21,19 @@ function StatusDot({ ready }: { ready: boolean }) {
  * apps are their own page, Your apps, as on the Mac.
  */
 export function ToolsPage({ parts }: { parts: SettingsParts }) {
-  const { tools } = parts;
+  const { tools, host } = parts;
   useObserved(tools);
   useEffect(() => void tools.refresh(), []);
-  const { agents, reading } = tools.state;
+  const { agents, reading, agentsNote } = tools.state;
   return (
     <>
       <SettingsCard title={ToolsPageLines.agents}>
-        {agents.length === 0 ? (
+        {agents.length === 0 && agentsNote !== undefined && !reading ? (
+          // With the service away, no agent could be read, which is not the same as none being installed.
+          <SettingsRow icon={TriangleAlert} title={agentsNote} caption={RuntimeAwayLines.agentsCaption}>
+            <Button onClick={() => host.openSettings(CONNECTION_PAGE)}>{RuntimeAwayLines.openConnection}</Button>
+          </SettingsRow>
+        ) : agents.length === 0 ? (
           <SettingsRow icon={Terminal} title={reading ? ToolsPageLines.looking : ToolsPageLines.noAgents} caption={ToolsPageLines.installHint} />
         ) : (
           agents.map((agent, index) => (

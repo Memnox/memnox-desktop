@@ -4,8 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
-/** The runtime's own wire build, copied by `pnpm wire`, so nothing of the protocol is copied. */
-const wire = fileURLToPath(new URL('./.runtime/packages/core/dist/wire.js', import.meta.url));
+/** The runtime's own wire build, kept in shared/wire and refreshed by `pnpm wire`, so nothing of the protocol is written by hand. */
+const wire = fileURLToPath(new URL('../wire/wire.js', import.meta.url));
 
 /** The pages beside this file, one per kind of window, by name. */
 const root = fileURLToPath(new URL('.', import.meta.url));

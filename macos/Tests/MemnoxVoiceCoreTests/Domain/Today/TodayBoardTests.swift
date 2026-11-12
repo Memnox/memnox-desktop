@@ -73,7 +73,7 @@ final class TodayBoardTests: XCTestCase {
     }
 
     func testOffersTheIslandsAnswersAndLeavesFromNowOnOffATeammatesCall() {
-        XCTAssertEqual(TodayBoard.heldChoices(team: false).map(\.title), ["Allow once", "Allow this session", "Allow from now on", "Deny"])
+        XCTAssertEqual(TodayBoard.heldChoices(team: false).map(\.title), ["Allow once", "Allow for this session", "Always allow", "Deny"])
         XCTAssertEqual(TodayBoard.heldChoices(team: false).map(\.key), ["A", "B", "C", "D"])
         XCTAssertEqual(TodayBoard.heldChoices(team: true).map(\.action), [.answer(.once), .answer(.session), .answer(.deny)])
         // Nothing is marked recommended unless the runtime said so.

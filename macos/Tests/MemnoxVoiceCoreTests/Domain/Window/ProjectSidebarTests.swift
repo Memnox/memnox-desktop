@@ -16,9 +16,8 @@ final class ProjectSidebarTests: XCTestCase {
     }
 
     func testOpensTheSharedMySkillsFromTheOverviewsSkillsPart() {
-        // The Overview's Skills part is ProjectCanUseTarget.shared(.skills), which lands on My Skills outside the project.
-        let skills = Sidebar.rows.first { $0.id == .skills }
-        XCTAssertEqual(skills.flatMap { Sidebar.target($0, supports: everything) }, WindowRoute(.workspaces, tab: "skills"))
+        // The Overview's Skills part is ProjectCanUseTarget.shared(.skills), which lands on Skills under Memory.
+        XCTAssertEqual(SharedPage.skills.target(supports: everything), WindowRoute(.memory, tab: "skills"))
         XCTAssertEqual(ProjectCanUseTarget.shared(.skills).title, "Skills")
     }
 
@@ -26,7 +25,7 @@ final class ProjectSidebarTests: XCTestCase {
         let route = ProjectSidebar.route("prj_1")
         XCTAssertEqual(ProjectSidebar.place(of: route), ProjectPlace(id: "prj_1", page: .overview))
         XCTAssertNil(ProjectSidebar.place(of: ProjectSidebar.list))
-        XCTAssertNil(ProjectSidebar.place(of: WindowRoute(.workspaces, tab: "map")))
+        XCTAssertNil(ProjectSidebar.place(of: WindowRoute(.memory, tab: "map")))
     }
 
     func testKeepsAProjectsPageOpenWhenTheRouteSettles() {
@@ -36,7 +35,6 @@ final class ProjectSidebarTests: XCTestCase {
     }
 
     func testLeavesTheUsualStripOffAProjectsPages() {
-        XCTAssertNil(Sidebar.row(of: ProjectSidebar.route("prj_1", .agents)))
         XCTAssertEqual(Sidebar.strip(for: ProjectSidebar.route("prj_1", .agents), supports: everything), [])
     }
 

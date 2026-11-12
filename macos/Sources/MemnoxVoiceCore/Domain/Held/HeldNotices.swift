@@ -37,10 +37,10 @@ public struct HeldNotices: Sendable {
     /// Set once the system was asked, so it is asked once, from Settings or the first held call, and never at launch.
     public static let askedKey = "memnox.notices.asked"
     public static let title = "Tell me when a call waits"
-    public static let detail = "A system notification for each call held for you that the island is not already showing. Pressing it opens Approvals."
+    public static let detail = "A system notification for each call held for you that the island is not already showing. Pressing it opens Needs you."
     public static let denied = "Notifications are turned off for Memnox in the system settings, so none can be shown."
     /// Where a click on one lands.
-    public static let opens = WindowRoute(.governance, tab: "approvals")
+    public static let opens = WindowRoute(.needsYou, tab: "decide-now")
 
     private var met: Set<String> = []
     /// The holds a notification or the island has already put in front of the person, while any call of them waits.

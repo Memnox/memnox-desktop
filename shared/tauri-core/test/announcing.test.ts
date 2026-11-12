@@ -36,6 +36,13 @@ describe('announcing', () => {
     expect(isSaid(turn, true)).toBe(false);
     expect(awaitsAnswer(turn)).toBe(false);
   });
+
+  it('never says a piece of agent work that changed, which only the screens show', () => {
+    const work: DaemonEvent = { kind: 'work', subject: 'agw_1', agent: 'claude-code', summary: 'It reported.', at: 't' };
+    expect(isShownOnly(work)).toBe(true);
+    expect(isSaid(work, true)).toBe(false);
+    expect(awaitsAnswer(work)).toBe(false);
+  });
 });
 
 describe('turn taking', () => {

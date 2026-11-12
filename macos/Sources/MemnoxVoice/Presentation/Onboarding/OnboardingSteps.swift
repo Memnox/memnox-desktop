@@ -1,8 +1,10 @@
+import AppKit
 import MemnoxVoiceCore
 import ServiceManagement
 import SwiftUI
 
-/// Step one, on one card: the service installing and starting by itself, the Touch ID key, and the agents found here.
+/// Connect this machine, on one card: the service installing and starting by itself, the Touch ID key, and the agents
+/// found here.
 /// Continue opens as soon as the service runs, since the rest finishes behind it.
 struct ConnectStep: View {
     @ObservedObject var flow: OnboardingFlow
@@ -10,7 +12,7 @@ struct ConnectStep: View {
 
     var body: some View {
         let ready = FirstRunLines.canContinueConnect(serviceRunning: setup.daemon == .done)
-        StepTitle(title: "Connect your agents",
+        StepTitle(title: FirstRunStepID.connect.title,
                   detail: "Memnox installs its service, makes your Touch ID key and finds your agents by itself. No account needed.")
         KitCard(symbol: "desktopcomputer", title: "Memnox on this Mac", detail: "Installed under your agents and kept up to date for you.") {
             KitRow(title: "Memnox service", detail: setup.runtime.doing.map { "\($0)…" } ?? "Installed, started and updated for you.",
@@ -30,7 +32,7 @@ struct ConnectStep: View {
             }
             KitDivider()
             if let agents = AppWindow.shared.shell.agents {
-                FoundAgents(screen: agents, setup: setup, home: SettingsWindow.shared.home)
+                FoundAgents(flow: flow, screen: agents, setup: setup, home: SettingsWindow.shared.home)
             } else {
                 InstalledAgents(setup: setup)
             }
@@ -49,8 +51,10 @@ struct ConnectStep: View {
     }
 }
 
-/// The agents the runtime found here, as rows of the connect card, each protected or one press from it.
+/// The agents the runtime found here, as rows of the connect card, each put under Memnox by itself once the service
+/// runs, the way setup does, and one press from it again only where that did not go through.
 private struct FoundAgents: View {
+    @ObservedObject var flow: OnboardingFlow
     @ObservedObject var screen: AgentsScreen
     @ObservedObject var setup: SetupModel
     let home: HomeModel?
@@ -84,6 +88,27 @@ private struct FoundAgents: View {
             }
         }
         .task { await screen.agents.refresh() }
+        .task(id: unprotected) { await protectByItself() }
+        if let failed = home?.protectFailed {
+            Text(failed)
+                .font(Memnox.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The agents found that still run outside Memnox, so a new one found later is put under it too.
+    private var unprotected: [String] {
+        (screen.agents.agents ?? []).filter { $0.agentStatus == .unprotected }.map(\.kind)
+    }
+
+    /// Puts what was found under Memnox once, with the same setup the service ran, while the service runs; a press of
+    /// Protect stays for what that could not reach.
+    private func protectByItself() async {
+        guard !unprotected.isEmpty, !flow.autoProtected, setup.daemon == .done, let home, !home.remote() else { return }
+        flow.autoProtected = true
+        _ = await home.protectNow()
+        await screen.agents.refresh()
     }
 }
 
@@ -122,235 +147,13 @@ private struct ProtectAgents: View {
     }
 }
 
-/// Step two: the servers and skills the agents already keep, every one ticked, brought into Memnox with one press.
-struct WorkspaceStep: View {
-    @ObservedObject var flow: OnboardingFlow
-
-    var body: some View {
-        StepTitle(title: "Bring in what your agents already use",
-                  detail: "Their own tools and skills, kept once in Memnox and shared with the agents you choose. Everything is ticked for you.")
-        if let hub = AppWindow.shared.shell.hub, let skills = AppWindow.shared.shell.skills {
-            BringIn(flow: flow, hub: hub, skills: skills)
-        } else {
-            Next(title: "Continue", flow: flow)
-        }
-    }
-}
-
-/// What the agents already keep, grouped by agent so ninety skills read as a few agents: a search over every row, a
-/// few rows each until Show all, every row ticked so any can be left where it is, and one Bring them in for the rest. The list
-/// scrolls inside a bounded region, so the step never grows past the window however much was found.
-private struct BringIn: View {
-    @ObservedObject var flow: OnboardingFlow
-    @ObservedObject var hub: McpHubScreen
-    @ObservedObject var skills: SkillsScreen
-    @State private var importing = false
-    @State private var said: String?
-    @State private var query = ""
-    /// The rows the person unticked from the import, by id; empty means everything found goes in.
-    @State private var leftOut: Set<String> = []
-    /// The agents whose every row shows.
-    @State private var expanded: Set<String> = []
-    /// The list's own height, read off the list, so the region is only as tall as it needs up to the cap.
-    @State private var contentHeight: CGFloat = 0
-
-    private enum Layout {
-        static let logo: CGFloat = 22
-        /// Tall enough for two agents with a few rows each, short enough that Import stays above the fold.
-        static let listHeight: CGFloat = 300
-        /// One row's worth, so the region has a size before the list is first measured.
-        static let minimumHeight: CGFloat = 32
-    }
-
-    /// The key the found line is said under, once in this first run.
-    private static let foundKey = "workspace.found"
-
-    var body: some View {
-        let read = hub.hub.hub != nil || skills.skills.hub != nil
-        let found = FirstRunLines.found(servers: hub.hub.hub?.found ?? [], skills: skills.skills.hub?.found ?? [])
-        let kept = FoundList.kept(found, leaving: leftOut)
-        let total = found.servers.count + found.skills.count
-        let keeping = kept.servers.count + kept.skills.count
-        KitCard(symbol: "square.stack.3d.up", title: read ? FirstRunLines.foundLine(found) : "Looking through your agents",
-                detail: "Brought in, a tool runs behind Memnox, so everything it does is checked against your rules and recorded.") {
-            if !read {
-                ProgressView().controlSize(.small)
-            } else if total > 0 {
-                VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-                    if total > FoundList.collapsed {
-                        SearchField(prompt: "Search \(total) skills and servers", text: $query)
-                    }
-                    chosenBar(keeping: keeping, of: total)
-                    bounded(FoundList.groups(found, matching: query))
-                }
-                .disabled(importing || said != nil)
-            }
-        }
-        .task {
-            async let servers: Void = hub.hub.refresh()
-            async let kept: Void = skills.skills.refresh()
-            _ = await (servers, kept)
-            let read = FirstRunLines.found(servers: hub.hub.hub?.found ?? [], skills: skills.skills.hub?.found ?? [])
-            flow.sayOnce(FirstRunGuide.found(read), key: Self.foundKey)
-        }
-        if let said {
-            Text(said)
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        if !found.isEmpty, said == nil {
-            Button { Task { await importAll(kept) } } label: {
-                Label(importing ? "Bringing them in" : FirstRunLines.bringIn, systemImage: "square.and.arrow.down")
-            }
-            .buttonStyle(KitButton(kind: .primary, wide: true))
-            .keyboardShortcut(.defaultAction)
-            .disabled(importing || keeping == 0)
-            Button("Skip") { flow.next() }
-                .buttonStyle(KitButton(kind: .secondary, wide: true))
-        } else {
-            Next(title: "Continue", flow: flow)
-        }
-    }
-
-    /// How many go in, so a row left out shows in the count before the press.
-    private func chosenBar(keeping: Int, of total: Int) -> some View {
-        Text(FoundList.importTitle(kept: keeping, of: total))
-            .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-            .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-            .monospacedDigit()
-    }
-
-    /// The groups at their own height while they fit, and scrolled inside a region no taller than the cap once they
-    /// do not, measured rather than guessed so a short list leaves no gap under it.
-    private func bounded(_ groups: [FoundGroup]) -> some View {
-        ScrollView {
-            list(groups)
-                .padding(.trailing, Memnox.Spacing.medium)
-                .background(GeometryReader { inside in
-                    Color.clear.preference(key: FoundListHeight.self, value: inside.size.height)
-                })
-        }
-        .scrollIndicators(.visible)
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(height: min(max(contentHeight, Layout.minimumHeight), Layout.listHeight))
-        .onPreferenceChange(FoundListHeight.self) { contentHeight = $0 }
-    }
-
-    @ViewBuilder private func list(_ groups: [FoundGroup]) -> some View {
-        if groups.isEmpty {
-            Text(FoundList.noMatch(query))
-                .font(Memnox.sans(Memnox.TextSize.footnote))
-                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                .padding(.vertical, Memnox.Spacing.regular)
-        } else {
-            VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
-                ForEach(groups) { group in
-                    if group.id != groups.first?.id { KitDivider() }
-                    section(group)
-                }
-            }
-        }
-    }
-
-    /// One agent: its name with what it holds and a tick for all of it, a few rows, and Show all where there is more.
-    private func section(_ group: FoundGroup) -> some View {
-        let open = expanded.contains(group.id) || !query.trimmingCharacters(in: .whitespaces).isEmpty
-        let ids = Set(group.items.map(\.id))
-        let label = McpHubLines.agentLabel(group.agent)
-        return VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
-            HStack(spacing: Memnox.Spacing.medium) {
-                BrandLogo(agent: group.agent, name: label, size: Layout.logo)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(label)
-                        .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
-                        .foregroundStyle(Memnox.Palette.ink)
-                    Text(FoundList.holds(group))
-                        .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                }
-                Spacer(minLength: Memnox.Spacing.small)
-                Toggle("All of \(label)", isOn: Binding(
-                    get: { leftOut.isDisjoint(with: ids) },
-                    set: { all in if all { leftOut.subtract(ids) } else { leftOut.formUnion(ids) } }
-                ))
-                .toggleStyle(.checkbox)
-                .labelsHidden()
-                .help("Choose every one \(label) keeps")
-            }
-            ForEach(FoundList.shown(group, expanded: open)) { item in row(item) }
-            if let more = FoundList.showAll(group, expanded: open) {
-                Button(more, systemImage: "chevron.down") { withAnimation(.snappy) { _ = expanded.insert(group.id) } }
-                    .buttonStyle(.plain)
-                    .pointingHand()
-                    .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                    .foregroundStyle(Memnox.Palette.primary)
-            } else if expanded.contains(group.id), group.items.count > FoundList.collapsed {
-                Button("Show fewer", systemImage: "chevron.up") { withAnimation(.snappy) { _ = expanded.remove(group.id) } }
-                    .buttonStyle(.plain)
-                    .pointingHand()
-                    .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                    .foregroundStyle(Memnox.Palette.primary)
-            }
-        }
-    }
-
-    /// One server or skill with its tick, and what kind it is on the right.
-    private func row(_ item: FoundItem) -> some View {
-        HStack(spacing: Memnox.Spacing.medium) {
-            Toggle(item.name, isOn: Binding(
-                get: { !leftOut.contains(item.id) },
-                set: { keep in if keep { leftOut.remove(item.id) } else { leftOut.insert(item.id) } }
-            ))
-            .toggleStyle(.checkbox)
-            .font(Memnox.sans(Memnox.TextSize.footnote))
-            .lineLimit(1)
-            Spacer(minLength: Memnox.Spacing.small)
-            Text(item.kind == .server ? "Tool" : "Skill")
-                .font(Memnox.sans(Memnox.TextSize.caption))
-                .foregroundStyle(Memnox.ink(Memnox.Ink.tertiary))
-        }
-        .padding(.leading, Layout.logo + Memnox.Spacing.medium)
-    }
-
-    /// Each one is its own request, so one that fails leaves the rest brought in.
-    private func importAll(_ found: FoundToImport) async {
-        importing = true
-        var imported = 0
-        var failed: [String] = []
-        for server in found.servers {
-            if case .failed(let why) = await hub.hub.importServer(agent: server.agent, server: server.name) {
-                failed.append("\(server.name): \(why)")
-            } else {
-                imported += 1
-            }
-        }
-        for skill in found.skills {
-            if case .failed(let why) = await skills.skills.importFound(id: skill.id, name: skill.name) {
-                failed.append("\(skill.name): \(why)")
-            } else {
-                imported += 1
-            }
-        }
-        importing = false
-        said = FirstRunLines.importedLine(imported, failed: failed)
-        flow.setup?.guide(FirstRunGuide.imported(imported))
-    }
-}
-
-/// The found list's height inside its scroll region.
-private struct FoundListHeight: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
-/// Step three: the recommended pack already chosen, the others one press away, and Finish proposing it through the
+/// Step two: the recommended pack already chosen, the others one press away, and Finish proposing it through the
 /// runtime so each rule is signed with Touch ID on the island.
-struct BoundariesStep: View {
+struct RulesStep: View {
     @ObservedObject var flow: OnboardingFlow
 
     var body: some View {
-        StepTitle(title: "Your starting rules",
+        StepTitle(title: FirstRunStepID.rules.title,
                   detail: "We chose the pack we recommend. Nothing holds until you confirm each rule with Touch ID on the island.")
         if let studio = AppWindow.shared.shell.studio {
             RulePacks(flow: flow, screen: studio)
@@ -391,7 +194,7 @@ private struct RulePacks: View {
                         .buttonStyle(.plain)
                         .pointingHand()
                         .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                        .foregroundStyle(Memnox.Palette.primary)
+                        .foregroundStyle(Memnox.Console.primary)
                         .padding(.top, Memnox.Spacing.regular)
                 }
             } else {
@@ -430,8 +233,8 @@ private struct RulePacks: View {
         return Button { picked = pack.id } label: {
             KitRow(symbol: "checklist", title: FirstRunLines.packTitle(pack), detail: pack.description) {
                 Circle()
-                    .strokeBorder(on ? Memnox.Palette.primary : Memnox.ink(Memnox.Ink.tertiary), lineWidth: Self.ring)
-                    .background(Circle().fill(on ? Memnox.Palette.primary : Color.clear))
+                    .strokeBorder(on ? Memnox.Console.primary : Memnox.ink(Memnox.Ink.tertiary), lineWidth: Self.ring)
+                    .background(Circle().fill(on ? Memnox.Console.primary : Color.clear))
                     .frame(width: Self.radio, height: Self.radio)
                     .accessibilityHidden(true)
             }
@@ -460,9 +263,9 @@ private struct RulePacks: View {
     }
 }
 
-/// The end: one next action, talking when the microphone is allowed and Home otherwise, then a short list of what is
-/// optional, each a link to the Settings page that holds it. The one thing left for the person, the microphone, is
-/// said and shown once, with Allow beside it.
+/// The end, in the order a person acts on it: the prompt to try, the one button that opens Memnox, then what Memnox
+/// covers and what is optional, both quiet. Nothing here opens the Memnox window but that button, since setup is
+/// still on screen until it is pressed.
 struct ReadyStep: View {
     @ObservedObject var flow: OnboardingFlow
     @ObservedObject var setup: SetupModel
@@ -472,27 +275,30 @@ struct ReadyStep: View {
 
     var body: some View {
         let hearing = setup.listening == .done
-        let next = FirstRunEnd.next(hearing: hearing)
         StepTitle(title: FirstRunEnd.title(name: setup.name), detail: FirstRunEnd.lead)
+        TryCard()
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-            switch next {
-            case .talk:
-                Button(next.title, systemImage: "mic.fill") { flow.menu?.talk() }
-                    .buttonStyle(KitButton(kind: .primary, wide: true))
-                    .keyboardShortcut(.defaultAction)
-                Text(FirstRunEnd.talkHint)
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                Button(FirstRunNext.openHome.title) { open() }
-                    .buttonStyle(KitButton(kind: .secondary, wide: true))
-            case .openHome:
-                Button(next.title, systemImage: "sparkles") { open() }
-                    .buttonStyle(KitButton(kind: .primary, wide: true))
-                    .keyboardShortcut(.defaultAction)
+            Button { open() } label: {
+                HStack(spacing: Memnox.Spacing.small) {
+                    Text(FirstRunNext.openHome.title)
+                    Image(systemName: "arrow.right")
+                }
             }
+            .buttonStyle(KitButton(kind: .primary, wide: true))
+            .keyboardShortcut(.defaultAction)
+            if FirstRunEnd.next(hearing: hearing) == .talk {
+                Button(FirstRunNext.talk.title, systemImage: "mic.fill") { flow.menu?.talk() }
+                    .buttonStyle(KitButton(kind: .secondary, wide: true))
+                    .help(FirstRunEnd.talkHint)
+            }
+            Text(FirstRunEnd.later)
+                .font(Memnox.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                .fixedSize(horizontal: false, vertical: true)
         }
-        KitCard(title: "Optional, in Settings") {
-            ForEach(Array(FirstRunEnd.extras(hearing: hearing, signedIn: signedIn, phonePaired: paired).enumerated()),
+        CoverageCard()
+        KitCard(title: "Optional, and you can skip all of it") {
+            ForEach(Array(FirstRunEnd.extras(hearing: hearing).enumerated()),
                     id: \.element.id) { index, extra in
                 if index > 0 { KitDivider() }
                 KitRow(symbol: Self.symbol(extra.id), title: extra.title, detail: extra.detail,
@@ -507,17 +313,13 @@ struct ReadyStep: View {
         }
     }
 
-    /// Allow for the microphone where it waits, a tick where the extra is in place, and a link to Settings otherwise.
+    /// Allow for the microphone where it waits and a tick where the extra is in place; the keys are only read.
     @ViewBuilder private func trailing(_ extra: FirstRunExtra) -> some View {
         if extra.id == .voice, !extra.done {
             Button("Allow", systemImage: "checkmark.shield") { Task { await setup.allowListening() } }
                 .buttonStyle(KitButton(kind: .secondary))
         } else if extra.done {
             CheckBox(state: .done)
-        } else {
-            Button("Settings", systemImage: "arrow.up.forward") { openSettings(extra.id.settingsTab) }
-                .buttonStyle(KitButton(kind: .secondary))
-                .help("Open \(extra.title) in Settings")
         }
     }
 
@@ -525,30 +327,36 @@ struct ReadyStep: View {
         switch id {
         case .voice: "waveform"
         case .keys: "keyboard"
-        case .workspace: "building.2"
-        case .phone: "iphone"
         }
-    }
-
-    private var signedIn: Bool {
-        if case .signedIn = flow.account?.step { return true }
-        return false
-    }
-
-    private var paired: Bool {
-        if case .paired = setup.phone { return true }
-        return false
     }
 
     /// Setup is done: the full screen scan of this Mac goes up, and closing it opens Memnox on Home.
     private func open() {
         setup.finish(scanning: true)
     }
+}
 
-    /// The Memnox window on one Settings page, beside this one, so the end stays to come back to.
-    private func openSettings(_ tab: String) {
-        SettingsWindow.shared.show()
-        AppWindow.shared.shell.go(WindowRoute(.settings, tab: tab))
+/// The one thing to try first: a prompt to paste into the agent that produces a real ask, so the first success is a
+/// minute away rather than a day; the same words on every surface, from the contract's `tryPrompt`.
+private struct TryCard: View {
+    @State private var copied = false
+
+    var body: some View {
+        KitCard(symbol: "sparkles", title: FirstRunLines.tryTitle, detail: FirstRunLines.tryDetail) {
+            HStack(spacing: Memnox.Spacing.medium) {
+                Text(FirstRunLines.tryPrompt)
+                    .font(Memnox.mono(Memnox.TextSize.footnote))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: Memnox.Spacing.medium)
+                Button(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(FirstRunLines.tryPrompt, forType: .string)
+                    copied = true
+                }
+                .buttonStyle(KitButton(kind: .secondary))
+            }
+        }
     }
 }
 

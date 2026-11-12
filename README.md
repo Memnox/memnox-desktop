@@ -118,8 +118,8 @@ cd memnox-desktop && sh dev.sh
 ```
 
 This repo is the only clone it needs, since every app runs the newest published runtime. The app
-installs and starts `memnox` from npm on its first run, `pnpm wire` takes the wire from the
-`@memnox/core` on npm, and the Mac's Noise framework comes from the newest
+installs and starts `memnox` from npm on its first run, the wire is the copy kept in `shared/wire`,
+and the Mac's Noise framework comes from the newest
 [memnox-runtime](https://github.com/Memnox/memnox-runtime) release. To work on the runtime too, clone
 it beside this repo, in a folder named exactly `memnox-runtime`, or name it with `MEMNOX_RUNTIME`, and
 every script builds and runs that checkout instead:
@@ -168,7 +168,7 @@ says, and run every step below from Git Bash, since `pnpm wire` is a shell scrip
 
 ```sh
 cd shared/tauri-core
-pnpm wire                 # the runtime's wire into .runtime, from npm or a checkout beside this repo
+pnpm wire                 # only after the runtime's wire changed: refreshes shared/wire from a checkout beside this repo
 pnpm install
 pnpm typecheck && pnpm test
 cargo test --workspace    # the key, the DER conversion, the Noise vectors, the daemon link, the voice

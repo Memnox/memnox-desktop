@@ -14,7 +14,7 @@ export const NOTICES_DETAIL = 'A system notification for each call held for you 
 export const NOTICES_DENIED = 'Notifications are turned off for Memnox in the system settings, so none can be shown.';
 
 /** Where a click on one lands. */
-export const NOTICE_OPENS = { destination: 'governance', tab: 'approvals' } as const;
+export const NOTICE_OPENS = { destination: 'needs-you', tab: 'decide-now' } as const;
 
 export interface NoticeCall {
   readonly subject: string;

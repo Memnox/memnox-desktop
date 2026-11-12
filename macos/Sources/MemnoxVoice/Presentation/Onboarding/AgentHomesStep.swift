@@ -180,17 +180,17 @@ private struct AgentHomePicker: View {
                 }
                 Text(home.name)
                     .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-                    .foregroundStyle(Memnox.Palette.ink)
+                    .foregroundStyle(Memnox.Console.ink)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, Memnox.Spacing.medium)
             .background(shape.fill(Memnox.ink(Layout.restingInk)))
-            .overlay(shape.strokeBorder(chosen ? Memnox.Palette.primary : Color.clear, lineWidth: Layout.chosenEdge))
+            .overlay(shape.strokeBorder(chosen ? Memnox.Console.primary : Color.clear, lineWidth: Layout.chosenEdge))
             .overlay(alignment: .topTrailing) {
                 if chosen {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Memnox.Palette.primary)
+                        .foregroundStyle(Memnox.Console.primary)
                         .padding(Memnox.Spacing.small)
                 }
             }
@@ -243,7 +243,7 @@ private struct AgentHomeCard: View {
         KitRow(symbol: "keyboard", title: "Type follow ups",
                detail: model.mayType
                    ? "Memnox types into its chat and checks the words landed before it presses Return."
-                   : "Allow Accessibility on the step before, so Memnox can type into \(home.name).") {
+                   : "Allow Accessibility in Settings, Permissions, so Memnox can type into \(home.name).") {
             CheckBox(state: model.mayType ? .done : .needs("Accessibility"))
         }
     }
@@ -294,7 +294,7 @@ private struct AgentHomeCard: View {
         }
         KitDivider()
         KitRow(symbol: "keyboard", title: "Type follow ups",
-               detail: model.mayType ? "Memnox types into the agent's prompt and reads the tab back." : "Allow Accessibility on the step before.") {
+               detail: model.mayType ? "Memnox types into the agent's prompt and reads the tab back." : "Allow Accessibility in Settings, Permissions.") {
             CheckBox(state: model.mayType ? .done : .needs("Accessibility"))
         }
     }

@@ -1,7 +1,7 @@
 import type { MemoryItemView, ProjectView, SessionCard } from '@memnox/core/wire';
-import { SIDEBAR_ROWS, shownPages, type Route, type SidebarRow, type Supports } from './destinations';
+import { destinationInfo, tabOf, visibleTabs, type Route, type Supports } from './destinations';
 import { agentLabel } from './mcp-hub-lines';
-import { counted, sharedBy } from './project-lines';
+import { sharedBy } from './project-lines';
 import { projectRoute, type ProjectPlace } from './destinations';
 import { ago, cardStatus, repositoryName } from './session-text';
 import { isActive } from './session-status';
@@ -26,85 +26,31 @@ export const REACH_HINT: Readonly<Record<ItemReach, string>> = {
   'every-project': 'Shared with every project, and changed on its own page',
 };
 
-// Shared with every project
+// Pages shared with every project
 
-export const SHARED_TITLE = 'Shared with every project';
-export const SHARED_NOTE = 'Set once for every project on this computer, and changed on its own page.';
-/** The shared group is left off a project's sidebar for now, since each item's badge already says where it is shared. */
-export const SHARED_SHOWN = false;
+/** A page every project shares, which a project's own page links to rather than repeating what it holds. */
+export type SharedPage = 'rules' | 'skills' | 'servers' | 'connectors' | 'memory' | 'agents';
 
-/** The shared pages, by the sidebar row that opens each. */
-export type SharedRow = 'protection' | 'skills' | 'servers' | 'connectors' | 'memory' | 'agents';
-
-/** The rows of the shared group, in the order the Mac lists them. */
-export const SHARED_ROWS: readonly SharedRow[] = ['protection', 'skills', 'servers', 'connectors', 'memory', 'agents'];
-
-const ROW_TITLE: Readonly<Record<SharedRow, string>> = {
-  protection: 'Protection settings',
-  skills: 'Skills',
-  servers: 'MCP servers',
-  connectors: 'Connectors',
-  memory: 'Memory',
-  agents: 'AI agents',
+const SHARED_PAGE_ROUTE: Readonly<Record<SharedPage, Route & { readonly tab: string }>> = {
+  rules: { destination: 'rules', tab: 'rules' },
+  skills: { destination: 'memory', tab: 'skills' },
+  servers: { destination: 'connectors', tab: 'mcp' },
+  connectors: { destination: 'connectors', tab: 'systems' },
+  memory: { destination: 'memory', tab: 'map' },
+  agents: { destination: 'agents', tab: 'agents' },
 };
 
-/** How much of each shared page applies to one project, each undefined while it is still being read. */
-export interface SharedCounts {
-  readonly rules?: number;
-  readonly skills?: number;
-  readonly servers?: number;
-  readonly connectors?: number;
-  readonly memory?: number;
-  readonly agents?: number;
+/** The page's word as the sidebar says it, or its tab's where the tab is the page a person thinks of. */
+export function sharedTitle(page: SharedPage): string {
+  const route = SHARED_PAGE_ROUTE[page];
+  if (page === 'skills' || page === 'servers') return tabOf(route)?.title ?? destinationInfo(route.destination).title;
+  return destinationInfo(route.destination).title;
 }
 
-/** One link in the shared group: the machine wide page it opens and how much of it applies to this project. */
-export interface SharedLink {
-  readonly row: SharedRow;
-  readonly title: string;
-  readonly symbol: SidebarRow['symbol'];
-  readonly count?: number;
-  /** Said on hover and to a screen reader: what of it applies here. */
-  readonly hint: string;
-  readonly route: Route;
-}
-
-const COUNT_OF: Readonly<Record<SharedRow, keyof SharedCounts>> = {
-  protection: 'rules',
-  skills: 'skills',
-  servers: 'servers',
-  connectors: 'connectors',
-  memory: 'memory',
-  agents: 'agents',
-};
-
-/** The shared group at the foot of a project's sidebar: only the pages the daemon answers, so no link leads nowhere. */
-export function shared(counts: SharedCounts, supports: Supports): SharedLink[] {
-  return SHARED_ROWS.flatMap((id) => {
-    const row = SIDEBAR_ROWS.find((each) => each.title === ROW_TITLE[id]);
-    const page = row === undefined ? undefined : shownPages(row, supports)[0];
-    if (row === undefined || page === undefined) return [];
-    const count = counts[COUNT_OF[id]];
-    return [{ row: id, title: row.title, symbol: row.symbol, ...(count === undefined ? {} : { count }), hint: sharedHint(id, count), route: page.route }];
-  });
-}
-
-function sharedHint(row: SharedRow, count: number | undefined): string {
-  if (count === undefined) return `${ROW_TITLE[row]}, shared with every project`;
-  switch (row) {
-    case 'protection':
-      return `${counted(count, 'rule holds', 'rules hold')} here and in every project`;
-    case 'skills':
-      return `${counted(count, 'skill', 'skills')} its agents carry in every project`;
-    case 'servers':
-      return `${counted(count, 'server', 'servers')} given to agents in every project`;
-    case 'connectors':
-      return `${counted(count, 'app', 'apps')} connected as you, reached from every project`;
-    case 'memory':
-      return `${counted(count, 'fact', 'facts')} known in every project`;
-    case 'agents':
-      return `${counted(count, 'agent', 'agents')} on this computer, set up once for every project`;
-  }
+/** Where a shared page opens now, undefined while the daemon answers none of it, so no link leads nowhere. */
+export function sharedTarget(page: SharedPage, supports: Supports): Route | undefined {
+  const route = SHARED_PAGE_ROUTE[page];
+  return visibleTabs(route.destination, supports).some((tab) => tab.id === route.tab) ? route : undefined;
 }
 
 // Which items belong where

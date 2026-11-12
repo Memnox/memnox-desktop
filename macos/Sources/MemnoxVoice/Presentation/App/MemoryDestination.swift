@@ -46,10 +46,6 @@ private enum MemoryLayout {
     static let searchWidth: CGFloat = 300
     /// How long typing rests before the search is asked, so each key is not a request.
     static let searchRest: Duration = .milliseconds(300)
-    /// The Connected tools tab the memory sources page is routed under, named Files there.
-    static let sourcesTab = "sources"
-    /// The tab the Skills Hub is routed under.
-    static let skillsTab = "skills"
     /// Whose memory the graph draws, remembered for the next visit.
     static let homeKey = "memnox.memory.home"
 }
@@ -127,8 +123,8 @@ struct MemoryDestination: View {
             } else if let place {
                 PlaceDetail(memory: memory, place: place, map: map, items: listed?.items ?? [], skills: shell.skills?.skills.hub,
                             rules: shell.studio?.studio.rules?.rules ?? [],
-                            manage: { shell.go(WindowRoute(.workspaces, tab: MemoryLayout.sourcesTab)) },
-                            openSkills: { shell.go(WindowRoute(.workspaces, tab: MemoryLayout.skillsTab)) },
+                            manage: { shell.go(WindowRoute(.connectors, tab: "files")) },
+                            openSkills: { shell.go(WindowRoute(.memory, tab: "skills")) },
                             open: { pick($0, on: map) })
                     .id(place.id)
             }
@@ -148,7 +144,7 @@ struct MemoryDestination: View {
 
     /// Where the sources went: a quiet line that takes the person to them under Connected tools.
     private var sourcesLink: some View {
-        Button { shell.go(WindowRoute(.workspaces, tab: MemoryLayout.sourcesTab)) } label: {
+        Button { shell.go(WindowRoute(.connectors, tab: "files")) } label: {
             HStack(spacing: Memnox.Spacing.small) {
                 Image(systemName: "books.vertical").accessibilityHidden(true)
                 Text("Add or manage files under Connected tools")
@@ -388,13 +384,17 @@ struct MemoryDestination: View {
         if memory.unreadable.facts {
             ReadFailed(what: "what was learned") { Task { await memory.show(memory.filter) } }
         }
+        if listed == nil, !memory.unreadable.facts {
+            // The first answer is still on its way, so the list says so rather than standing blank under its filters.
+            ProgressView().controlSize(.small).frame(maxWidth: .infinity)
+        }
         if let listed {
             let items = narrowed(listed)
             if choice == .shared { MemoryQuiet(ProjectContext.memoryEverywhereNote) }
             if items.isEmpty {
                 EmptyState(symbol: "brain",
                            title: filter.query == nil ? "Nothing \(MemoryLines.statusWord(status.rawValue).word.lowercased()) here" : "Nothing learned says that",
-                           detail: "Add a file under Connected tools and Memnox reads it with your own agent. What it finds waits in Learn until you confirm it.")
+                           detail: "Add a file under Files and Memnox reads it with your own agent. What it finds waits in Learn, under Governance, until you confirm it.")
             } else {
                 ShellPanel {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
@@ -431,7 +431,7 @@ enum MemoryView: String, CaseIterable {
     /// The view a tab of the Memory row draws, the map for any other.
     init(tab: String?) {
         switch tab {
-        case "memory": self = .list
+        case "list": self = .list
         case "layers": self = .layers
         default: self = .graph
         }
@@ -509,7 +509,7 @@ private struct PlaceDetail: View {
             }
             if place.kind == .source, let source {
                 FactList(facts: facts(source))
-                Button("Manage under Inputs", systemImage: "books.vertical", action: manage).buttonStyle(KitButton(kind: .secondary))
+                Button("Manage under Files", systemImage: "books.vertical", action: manage).buttonStyle(KitButton(kind: .secondary))
             }
             if let live = place.live { LiveDetail(node: live) }
             if let entry = place.workspace {
@@ -528,7 +528,7 @@ private struct PlaceDetail: View {
                     ShellPanel {
                         ForEach(Array(related.enumerated()), id: \.element.id) { index, item in
                             if index > 0 { ShellDivider() }
-                            ShellRow(title: item.statement, caption: MemoryLines.statusWord(item.status).word, action: {}) {
+                            ShellRow(title: item.statement, caption: MemoryLines.statusWord(item.status).word, action: nil) {
                                 EmptyView()
                             } trailing: {
                                 EmptyView()
@@ -922,7 +922,7 @@ private struct SkillPlace: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
             if let skill {
-                FactList(facts: [("Version", skill.version), ("Given to", skill.agents.isEmpty ? "No agent yet" : skill.agents.joined(separator: ", "))],
+                FactList(facts: [("Version", skill.version), ("Given to", skill.agents.isEmpty ? "No agent yet" : skill.agents.map(McpHubLines.agentLabel).joined(separator: ", "))],
                          agents: ["Given to": skill.agents])
             }
             if let path { PathRow(path: path) }
@@ -1067,9 +1067,6 @@ private struct MapPickCard: View {
     let open: (MemoryMapNode) -> Void
     let close: () -> Void
 
-    private static let sourcesTab = "sources"
-    private static let skillsTab = "skills"
-
     var body: some View {
         let node = pick.node
         VStack(alignment: .leading, spacing: 0) {
@@ -1116,8 +1113,8 @@ private struct MapPickCard: View {
                 PlaceLinks(node: node, map: pick.map, open: open)
             } else {
                 PlaceDetail(memory: screen.memory, place: node, map: pick.map, items: items, skills: skills, rules: rules,
-                            manage: { go(WindowRoute(.workspaces, tab: Self.sourcesTab)) },
-                            openSkills: { go(WindowRoute(.workspaces, tab: Self.skillsTab)) }, open: open)
+                            manage: { go(WindowRoute(.connectors, tab: "files")) },
+                            openSkills: { go(WindowRoute(.memory, tab: "skills")) }, open: open)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

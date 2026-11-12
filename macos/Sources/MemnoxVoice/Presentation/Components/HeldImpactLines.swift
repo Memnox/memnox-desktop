@@ -5,7 +5,7 @@ import SwiftUI
 /// How each is known sits behind "More about this", never on the face of the card. Drawn by whichever card holds it.
 struct HeldImpactLines: View {
     let impact: HeldImpact
-    var ink: Color = Memnox.Palette.ink
+    var ink: Color = Memnox.Console.ink
     var muted: Color = Memnox.ink(Memnox.Ink.secondary)
     var font: (CGFloat, Font.Weight) -> Font = { Memnox.sans($0, $1) }
 

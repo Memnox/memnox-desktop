@@ -2,6 +2,8 @@ import Foundation
 
 /// The counts Home's steps are read off, each one something the runtime or this Mac reports, never an estimate.
 public struct HomeStanding: Equatable, Sendable {
+    /// Whether the two onboarding steps were finished, which is the first rung until they are.
+    public var setupFinished = true
     public var agents = 0
     public var agentsProtected = 0
     public var rulesInForce = 0
@@ -76,6 +78,7 @@ public enum HomeTrack: String, CaseIterable, Sendable {
 
 /// Every step, in the order a Mac earns them.
 public enum HomeStepID: String, CaseIterable, Sendable {
+    case finishSetup
     case protectAgents
     case rulesInForce
     case actionsRecorded
@@ -132,6 +135,10 @@ public struct HomeSetup: Equatable, Sendable {
 /// Home's getting started steps, mirroring the cloud console's ladder in memnox-cloud's onboarding.ts: the same stage
 /// line, the same Do this next rung, the same two tracks and the same counts won, read off this Mac.
 public enum HomeSteps {
+    /// The card's title on every surface, from the contract's Home block of that name.
+    public static let cardTitle = "Do this next"
+    public static let allSteps = "Show all steps"
+    public static let fewerSteps = "Show fewer steps"
     public static let waitingLabel = "Waiting on an agent"
     public static let waitingMeans = "This closes the first time an agent on this Mac does something. Use one as you normally would."
 
@@ -154,6 +161,10 @@ public enum HomeSteps {
 
     static func steps(_ standing: HomeStanding) -> [HomeStep] {
         [
+            HomeStep(id: .finishSetup, title: "Finish setting up this Mac",
+                     value: "Two short steps put your agents under Memnox and give them starting rules, so the rest of these can start.",
+                     how: "Connect this Mac, then confirm your starting rules.",
+                     action: "Run setup", track: .mac, done: standing.setupFinished, waitsOnAnAgent: false),
             HomeStep(id: .protectAgents, title: "Put your agents under Memnox",
                      value: "Every agent on this Mac, Claude Code through Cursor, reports to one place under one rule set.",
                      how: "Press Protect, and Memnox puts itself under each agent it found. Nothing is stopped on the first day.",

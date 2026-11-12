@@ -57,7 +57,7 @@ struct ActivityDestination: View {
             .onChange(of: atTop) { activity.atTop(atTop) }
             .overlay(alignment: .top) { pill }
         } detail: {
-            if let decision { DecisionDetail(view: decision) { shell.go(WindowRoute(.governance, tab: "policies")) } }
+            if let decision { DecisionDetail(view: decision) { shell.go(WindowRoute(.rules, tab: "rules")) } }
         }
         .task(id: filter) { await activity.show(filter) }
     }

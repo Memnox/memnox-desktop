@@ -86,9 +86,9 @@ enforce:
     reason: what the person said goes whole to ask and nothing acts on a word
     instead: send the words to the daemon's ask and let the person's agent understand them
   - name: no-model-or-network-calls
-    files: ["macos/Sources/**", "!macos/Sources/MemnoxVoice/Platform/Kokoro.swift"]
+    files: ["macos/Sources/**", "!macos/Sources/MemnoxVoice/Platform/Kokoro.swift", "!macos/Sources/MemnoxVoiceCore/Infrastructure/Update/**"]
     forbid: ["*URLSession*", "*api.anthropic.com*", "*Process()*", "*NSTask*"]
-    reason: the daemon decides and the person's own agent CLI thinks, so this app makes no model call
+    reason: the daemon decides and the person's own agent CLI thinks, so this app makes no model call; the release feeds alone read two fixed public lists, the app's releases and the newest published runtime, to say a newer one is out
     instead: add a daemon method and reach it through DaemonLink
   - name: one-confirmation-message
     files: ["macos/Sources/**", "!macos/Sources/MemnoxVoiceCore/Domain/SharedKernel/DaemonProtocol.swift"]

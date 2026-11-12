@@ -1,40 +1,46 @@
 import Foundation
 
-/// What a fresh Mac already has that Memnox can bring in: servers and skills each agent keeps on its own.
-public struct FoundToImport: Equatable, Sendable {
-    public struct Server: Equatable, Sendable {
-        public let agent: String
-        public let name: String
+/// The two steps the first run asks of a person, the only ones that cannot wait: this Mac connected, and the rules
+/// its agents start under. The other questions of the contract's `onboarding` list in `shared/ux/contract.json`, who
+/// Memnox is for, which agents and where it asks, are answered from Home once Memnox opens.
+public enum FirstRunStepID: String, CaseIterable, Sendable {
+    case connect
+    case rules
+
+    /// The step's question, heading its page.
+    public var title: String {
+        switch self {
+        case .connect: "Connect this machine"
+        case .rules: "Your starting rules"
+        }
     }
 
-    public struct Skill: Equatable, Sendable {
-        public let id: String
-        public let agent: String
-        public let name: String
+    /// The step's name in the stepper.
+    public var label: String {
+        switch self {
+        case .connect: "This Mac"
+        case .rules: "Starting rules"
+        }
     }
-
-    /// Servers named in one agent's config; a repository's own file is shared by several and stays where it is.
-    public let servers: [Server]
-    public let skills: [Skill]
-    /// The agents that hold any of them, counted once each.
-    public let agents: Int
-
-    public var isEmpty: Bool { servers.isEmpty && skills.isEmpty }
 }
 
-/// The first run's three short steps and what each says, with the safe defaults already chosen so a press of Continue
+/// The first run's short steps and what each says, with the safe defaults already chosen so a press of Continue
 /// is always the sensible answer. Counts, never a score.
 public enum FirstRunLines {
-    /// The three steps by name, as the stepper shows them; the voice, the keys, the workspace and the phone wait after
-    /// them in Settings, each optional.
-    public static let steps = ["Connect", "Bring in what your agents use", "Starting rules"]
+    /// The steps by name, as the stepper shows them, in the contract's order.
+    public static let steps = FirstRunStepID.allCases.map(\.label)
 
-    /// "Step 2 of 3", over every step, so a new person always knows how much is left.
+    /// What the end offers to paste into an agent, so the first ask arrives in minutes; the contract's `tryPrompt`.
+    public static let tryPrompt = "Make a folder called memnox-try, then delete it with rm -rf memnox-try."
+    public static let tryTitle = "Try it with your agent"
+    public static let tryDetail = "Paste this into Claude Code, Codex or Cursor. Memnox asks you before the delete runs."
+
+    /// "Step 1 of 2", over every step, so a new person always knows how much is left.
     public static func progressLabel(step: Int) -> String {
         "Step \(min(max(step, 0), steps.count - 1) + 1) of \(steps.count)"
     }
 
-    /// How far the bar is filled: a third, two thirds, then whole, and whole again once the steps are done.
+    /// How far the bar is filled, one step's share at a time, and whole once the steps are done.
     public static func progress(step: Int, done: Bool) -> Double {
         if done { return 1 }
         return Double(step + 1) / Double(steps.count)
@@ -46,9 +52,6 @@ public enum FirstRunLines {
 
     /// Said under Continue while the service is still on its way, so the person knows they need do nothing.
     public static let connectWaiting = "Continue opens once the Memnox service is running. It installs and starts by itself."
-
-    /// The one button of the second step, every sensible row already ticked.
-    public static let bringIn = "Bring them in"
 
     /// The pack a new Mac starts under, the one Memnox ships as its safe defaults.
     public static let recommendedPackId = "safe-defaults"
@@ -62,28 +65,6 @@ public enum FirstRunLines {
     public static func otherPacks(_ packs: [RulePackView]) -> [RulePackView] {
         let recommended = recommendedPack(packs)?.id
         return packs.filter { $0.id != recommended }
-    }
-
-    public static func found(servers: [McpHubEntryView], skills: [FoundSkillView]) -> FoundToImport {
-        let importableServers = servers.compactMap { entry in entry.agent.map { FoundToImport.Server(agent: $0, name: entry.name) } }
-        let importableSkills = skills.filter { !$0.imported }.map { FoundToImport.Skill(id: $0.id, agent: $0.agent, name: $0.name) }
-        let agents = Set(importableServers.map(\.agent) + importableSkills.map(\.agent))
-        return FoundToImport(servers: importableServers, skills: importableSkills, agents: agents.count)
-    }
-
-    /// "We found 3 tools and 2 skills across 2 agents."
-    public static func foundLine(_ found: FoundToImport) -> String {
-        if found.isEmpty { return "Nothing to bring in: no agent here keeps tools or skills of its own yet." }
-        let servers = counted(found.servers.count, "tool", "tools")
-        let skills = counted(found.skills.count, "skill", "skills")
-        return "We found \(servers) and \(skills) across \(counted(found.agents, "agent", "agents"))."
-    }
-
-    /// What one tap of Import brought in, and what it could not.
-    public static func importedLine(_ imported: Int, failed: [String]) -> String {
-        let brought = "Brought in \(imported), now set up once in Memnox."
-        guard let first = failed.first else { return brought }
-        return "\(brought) \(failed.count) could not be, and stay where they are: \(first)"
     }
 
     /// "Careful · 6 rules", as a pack is listed to choose from.

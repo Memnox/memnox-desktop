@@ -5,10 +5,6 @@
 
 /** A held call's answers and what a press came to, said the same on every card that holds one. */
 export const HeldLines = {
-  deny: 'Deny',
-  allowSession: 'Allow this session',
-  allowOnce: 'Allow once',
-  allowAlways: 'Allow from now on',
   moreAnswers: 'More answers',
   olderCall: 'An older call',
   newerCall: 'A newer call',

@@ -230,6 +230,8 @@ function counted(count: number, one: string, many: string): string {
 /** The Agents list's own words. */
 export const AgentListLines = {
   readWhat: 'the agents',
+  noRuntime: 'No Memnox runtime is running on this computer, so only the agents your workspace reaches are listed. Start it to see and protect the agents here too.',
+  startRuntime: 'Start Memnox',
   emptyTitle: 'No agents found yet',
   emptyBody: 'Install Claude Code, Codex, Cursor or another agent and it appears here.',
   show: 'Show',
@@ -265,10 +267,6 @@ export const AgentListLines = {
 
 /** The Sessions tab's own words. */
 export const SessionsTabLines = {
-  needsYou: 'Needs you',
-  running: 'Running',
-  idle: 'Idle',
-  finished: 'Finished',
   grouped: (title: string, count: number) => `${title} · ${count}`,
   emptyTitle: 'No sessions yet',
   emptyBody: 'When an agent on this computer starts working, its session shows here with what it is doing and what it touched.',

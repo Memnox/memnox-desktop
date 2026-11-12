@@ -54,7 +54,7 @@ struct IslandDraftCard: View {
 
     var body: some View {
         let draft = card.draft
-        IslandCard(veil: Memnox.Palette.primary.opacity(Shade.veil)) {
+        IslandCard(veil: Memnox.Console.primary.opacity(Shade.veil)) {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 rule

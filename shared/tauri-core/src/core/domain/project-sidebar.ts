@@ -2,7 +2,7 @@ import type { MemoryItemView, ProjectDraft, ProjectView, ToolConnection } from '
 import { ALL_CATEGORIES, categoryCounts, matchesSearch, searchWords, type CategoryCount } from './catalog';
 import { PROJECT_PAGE_IDS, PROJECTS_ROUTE, projectRoute, sameRoute, type ProjectPage, type Route, type SidebarSymbol } from './destinations';
 import { agentLabel } from './mcp-hub-lines';
-import type { SharedRow } from './project-context';
+import type { SharedPage } from './project-context';
 import { counted, draftOf, sharedBy } from './project-lines';
 import { toolkitName } from './tool-brand';
 
@@ -30,7 +30,7 @@ interface ProjectPageInfo {
 const PAGE_INFO: Readonly<Record<ProjectPage, Omit<ProjectPageInfo, 'page'>>> = {
   overview: { title: 'Overview', symbol: 'house', summary: 'What this project is, what it still needs, and what it learned lately.' },
   // Left off the sidebar for now, and kept so an old route to it still has a name.
-  tools: { title: 'Tools', symbol: 'globe', summary: 'Where this project’s work happens, and what its agents learn from.' },
+  tools: { title: 'Tools', symbol: 'square.grid.2x2', summary: 'Where this project’s work happens, and what its agents learn from.' },
   agents: { title: 'Agents', symbol: 'cpu', summary: 'The agents that work in this project, and what each is given.' },
   memory: { title: 'Memory', symbol: 'brain', summary: 'What its agents learned in this project, and what they know in every project.' },
   autonomy: { title: 'What its AI may do', symbol: 'checkmark.shield', summary: 'The agents given this project, what they carry, and the rules that hold in it.' },
@@ -390,7 +390,7 @@ export interface CanUsePart {
 }
 
 /** Where a part of What its AI can use opens: one of the project's pages, or a page every project shares. */
-export type CanUseTarget = { readonly kind: 'page'; readonly page: ProjectPage } | { readonly kind: 'shared'; readonly row: SharedRow };
+export type CanUseTarget = { readonly kind: 'page'; readonly page: ProjectPage } | { readonly kind: 'shared'; readonly page: SharedPage };
 
 /**
  * What its AI can use, as Memnox Cloud's Overview says it: its agents, its skills and its apps. Alone on this computer
@@ -421,9 +421,9 @@ export function canUse(project: Pick<ProjectView, 'agents' | 'skills' | 'servers
         : 'Written know how its AI follows, such as how you review work or write an update.',
       counted: true,
       // The shared My Skills, which narrows to the project the switcher holds, as on the Mac.
-      target: { kind: 'shared', row: 'skills' },
+      target: { kind: 'shared', page: 'skills' },
     },
-    { kind: 'apps', title: 'Apps', names: apps, empty: 'None yet.', what: 'Tools its AI can reach and act in, such as Linear, a database or a design tool.', counted: true, target: { kind: 'shared', row: 'connectors' } },
+    { kind: 'apps', title: 'Apps', names: apps, empty: 'None yet.', what: 'Tools its AI can reach and act in, such as Linear, a database or a design tool.', counted: true, target: { kind: 'shared', page: 'connectors' } },
   ];
 }
 

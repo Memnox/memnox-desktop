@@ -54,7 +54,7 @@ runs the whole voice with no microphone.
 
 ```sh
 cd shared/tauri-core
-pnpm wire                 # the runtime's wire into .runtime, from npm or a checkout beside this repo
+pnpm wire                 # only after the runtime's wire changed: refreshes shared/wire from a checkout beside this repo
 pnpm install
 pnpm typecheck            # the webview and the core, on their own tsconfigs
 pnpm test                 # the core against a scripted daemon and the vectors

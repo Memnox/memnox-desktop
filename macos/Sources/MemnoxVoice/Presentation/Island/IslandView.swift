@@ -104,6 +104,12 @@ struct IslandView: View {
                         .padding(.top, Layout.drivenGap)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+                // Beside it, so a newer Memnox service is one press away too.
+                if let update = model.runtimeUpdate {
+                    IslandRuntimeUpdatePill(model: model, card: update)
+                        .padding(.top, Layout.drivenGap)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
                 // Under the island in every mode, so whose account a sign in reached is seen the moment it finishes.
                 if let signedIn = model.signedIn {
                     IslandSignedInPill(model: model, card: signedIn)
@@ -421,7 +427,7 @@ struct IslandWorkforce: View {
                 .frame(width: face * Self.logoScale, height: face * Self.logoScale)
                 .frame(width: face, height: face)
                 .background(shape.fill(IslandPalette.color(card.agent)))
-                .overlay(shape.strokeBorder(Memnox.Palette.warm, lineWidth: card.sessionId == waiting ? Self.waitingEdge : 0))
+                .overlay(shape.strokeBorder(Memnox.Console.warm, lineWidth: card.sessionId == waiting ? Self.waitingEdge : 0))
                 .modifier(LogoMood(bouncing: card.sessionId == waiting, stumbling: stumbling.contains(card.sessionId)))
                 .transition(.scale.combined(with: .opacity))
         } else if index == Self.desks - 1, unseated > 0 {

@@ -28,7 +28,6 @@ struct IslandHeldCall: View {
         static let answering = 0.55
     }
 
-    private static let touchIDSymbol = "touchid"
     private static let olderSymbol = "chevron.left"
     private static let newerSymbol = "chevron.right"
     private static let settledSymbol = "checkmark.circle.fill"
@@ -68,24 +67,8 @@ struct IslandHeldCall: View {
                     .padding(.vertical, Memnox.Spacing.medium)
                     .background(RoundedRectangle(cornerRadius: Layout.commandRadius).fill(Color.white.opacity(Memnox.Ink.faintFill)))
                     .overlay(RoundedRectangle(cornerRadius: Layout.commandRadius).strokeBorder(Color.white.opacity(Shade.commandEdge), lineWidth: Memnox.Stroke.hairline))
-                HStack(spacing: Memnox.Spacing.medium) {
-                    Button("Deny") { press(.deny) }.buttonStyle(IslandButton(primary: false))
-                    Button { press(.session) } label: { touchID("Allow this session") }
-                        .buttonStyle(IslandButton(primary: false))
-                    Button { press(.once) } label: { touchID("Allow once") }
-                        .buttonStyle(IslandButton(primary: true))
-                    // The answer that leaves a rule behind waits behind More, as on every other door.
-                    Menu {
-                        Button { press(.always) } label: { Label("Allow from now on", systemImage: "touchid") }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .accessibilityLabel("More answers")
-                    }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .fixedSize()
-                    .pointingHand()
-                }
+                // The answer that leaves a rule behind waits behind More, as on every other door.
+                HeldAnswers(size: .island, touchID: card.touchID, always: true) { press($0) }
                 .disabled(model.answering || model.settledNote != nil)
                 .opacity(model.answering || model.settledNote != nil ? Shade.answering : 1)
             }
@@ -131,14 +114,6 @@ struct IslandHeldCall: View {
     }
 
     /// An allow that reaches outside the session is signed, so the button says so before it is pressed.
-    private func touchID(_ title: String) -> some View {
-        HStack(spacing: Memnox.Spacing.small) {
-            if card.touchID {
-                Image(systemName: Self.touchIDSymbol).font(.system(size: Memnox.TextSize.footnote, weight: .medium))
-            }
-            Text(title)
-        }
-    }
 }
 
 /// A session that just finished, with its summary and a way back to it.

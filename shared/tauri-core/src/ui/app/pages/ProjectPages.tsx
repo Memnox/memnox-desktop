@@ -39,10 +39,10 @@ import {
   REACH_HINT,
   REACH_WORD,
   serverReach,
-  shared,
+  sharedTarget,
   skillReach,
   type ItemReach,
-  type SharedRow,
+  type SharedPage,
 } from '../../../core/domain/project-context';
 import { rowCaption } from '../../../core/domain/memory-lines';
 import { agentLabel } from '../../../core/domain/mcp-hub-lines';
@@ -154,8 +154,8 @@ export function ProjectGone({ back }: { back: () => void }) {
 }
 
 /** Where a shared page is changed, or undefined while the daemon does not answer it, so no link leads nowhere. */
-function sharedRoute(row: SharedRow, supports: Supports): Route | undefined {
-  return shared({}, supports).find((link) => link.row === row)?.route;
+function sharedRoute(page: SharedPage, supports: Supports): Route | undefined {
+  return sharedTarget(page, supports);
 }
 
 /** A quiet line of a project's pages, the Mac's ProjectMuted. */
@@ -395,7 +395,7 @@ function CanUse({ parts, project, team, go }: { parts: SettingsParts; project: P
 
 /** Where a part opens: a page of the project, or the shared page, which is undefined while the daemon answers none of it. */
 function canUseRoute(target: CanUseTarget, id: string, supports: Supports): Route | undefined {
-  return target.kind === 'page' ? projectRoute(id, target.page) : sharedRoute(target.row, supports);
+  return target.kind === 'page' ? projectRoute(id, target.page) : sharedRoute(target.page, supports);
 }
 
 function CanUsePartTile({ part, open, go }: { part: CanUsePart; open: Route | undefined; go: (route: Route) => void }) {
@@ -565,7 +565,7 @@ function Tools({ parts, project, go }: { parts: SettingsParts; project: ProjectV
   const shown = shownToolCards(cards, shelf, query);
   const busy = projects.busy !== undefined;
   const act = (action: ToolAction) => {
-    if (action.kind === 'connect') return go({ destination: 'mcp', tab: 'apps' });
+    if (action.kind === 'connect') return go({ destination: 'connectors', tab: 'systems' });
     const draft = draftOf(project);
     void projects.put(project.path, { ...draft, servers: [...(draft.servers ?? []), action.server] }).then((outcome) => setSaid(projectNote(outcome, words.keyTitle)));
   };
@@ -743,7 +743,7 @@ function AgentRows({ agents, marked }: { agents: readonly AgentOnProject[]; mark
 function Autonomy({ parts, project, go }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void }) {
   return (
     <>
-      <RulesHere parts={parts} project={project} open={() => go({ destination: 'governance', tab: 'policies' })} />
+      <RulesHere parts={parts} project={project} open={() => go({ destination: 'rules', tab: 'rules' })} />
       <Section title={ITS_AGENTS_TITLE}>
         <AgentsHere parts={parts} project={project} />
       </Section>

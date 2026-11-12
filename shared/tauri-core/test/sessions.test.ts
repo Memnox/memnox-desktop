@@ -60,17 +60,17 @@ const step = (surface: string, text: string, extra: Partial<SessionViewStep> = {
 
 describe('a session at a glance', () => {
   it('lets a pause, then a call waiting, outrank anything the session is doing', () => {
-    expect(sessionStatus({ state: 'working', thinking: true, paused: 'too many failures' })).toBe('paused');
+    expect(sessionStatus({ state: 'working', thinking: true, paused: 'too many failures' })).toBe('stopped');
     expect(sessionStatus({ state: 'working', thinking: true, waitingOnYou: 1 })).toBe('needs-you');
-    expect(sessionStatus({ state: 'idle', thinking: true })).toBe('thinking');
-    expect(sessionStatus({ state: 'open', thinking: false })).toBe('waiting-on-you');
-    expect(sessionStatus({ state: 'whatever', thinking: false })).toBe('quiet');
+    expect(sessionStatus({ state: 'idle', thinking: true })).toBe('working');
+    expect(sessionStatus({ state: 'open', thinking: false })).toBe('finished');
+    expect(sessionStatus({ state: 'whatever', thinking: false })).toBe('idle');
   });
 
-  it('counts only working and thinking as busy, and words each status as the badge does', () => {
+  it('counts only working as busy, and words each status as the badge does', () => {
     expect(isActive('working')).toBe(true);
-    expect(isActive('waiting-on-you')).toBe(false);
-    expect(statusLabel('waiting-on-you')).toBe('Waiting on you');
+    expect(isActive('finished')).toBe(false);
+    expect(statusLabel('finished')).toBe('Finished');
   });
 });
 
@@ -126,7 +126,7 @@ describe('how a session reads', () => {
     expect(viewPlace(session)).toBe('web on main');
     expect(detailPlace(session)).toBe('web · Windows Terminal');
     expect(viewContext(session, NOW)).toBe('Windows Terminal · started 30 min ago · active 2 min ago');
-    expect(badgeLabel(view({ state: 'quiet', lastActive: minutesAgo(9) }), NOW)).toBe('Quiet, 9 min ago');
+    expect(badgeLabel(view({ state: 'quiet', lastActive: minutesAgo(9) }), NOW)).toBe('Idle, 9 min ago');
   });
 
   it('shows the follow up when the person asked something after the task', () => {

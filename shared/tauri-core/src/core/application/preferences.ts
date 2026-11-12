@@ -8,15 +8,14 @@ export const PREFERENCE = {
   /** Set once the first run is finished, after which Settings stops offering Finish setup. */
   setupDone: 'memnox.setupDone',
   /** Which way the first run went, so the choice is offered once: mac or account. */
-  firstRun: 'memnox.firstRunPath',
   /** Light, dark or system, for every window but the island. */
   appearance: 'memnox.appearance',
   /** The first run's spoken guide, muted from its footer. */
   guideMuted: 'memnox.onboarding.muted',
+  /** The app version and the service version the person pressed Later on, each put off alone. */
+  skippedApp: 'memnox.update.skipped.app',
+  skippedRuntime: 'memnox.update.skipped.runtime',
 } as const;
-
-/** The first run's two ways in, stored as the Mac stores them. */
-export const FIRST_RUN = { thisComputer: 'mac', account: 'team' } as const;
 
 /** The person's name, the look, and where the first run stands, read and written through the store. */
 export class Preferences {
@@ -40,14 +39,6 @@ export class Preferences {
     this.write(PREFERENCE.setupDone, 'true');
   }
 
-  get firstRun(): string {
-    return this.read(PREFERENCE.firstRun) ?? '';
-  }
-
-  set firstRun(path: string) {
-    this.write(PREFERENCE.firstRun, path);
-  }
-
   get look(): Look {
     const stored = this.read(PREFERENCE.appearance);
     return stored !== undefined && isLook(stored) ? stored : 'system';
@@ -63,6 +54,15 @@ export class Preferences {
 
   set guideMuted(muted: boolean) {
     this.write(PREFERENCE.guideMuted, muted ? 'true' : undefined);
+  }
+
+  /** The version of the app or the service the person put off, so it is not offered again. */
+  skippedUpdate(kind: 'app' | 'runtime'): string | undefined {
+    return this.read(kind === 'app' ? PREFERENCE.skippedApp : PREFERENCE.skippedRuntime);
+  }
+
+  putOffUpdate(kind: 'app' | 'runtime', version: string): void {
+    this.write(kind === 'app' ? PREFERENCE.skippedApp : PREFERENCE.skippedRuntime, version);
   }
 
   private read(key: string): string | undefined {

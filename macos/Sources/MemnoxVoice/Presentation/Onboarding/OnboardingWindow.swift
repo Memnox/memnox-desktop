@@ -2,30 +2,35 @@ import AppKit
 import MemnoxVoiceCore
 import SwiftUI
 
-/// Where the first run stands: the opening over the whole screen, the name asked there, the three short steps every
-/// Mac needs, then the end with one next action and what is optional.
+/// Where the first run stands: the opening over the whole screen, the name asked there, the short steps every Mac
+/// needs, then the end with what Memnox can and cannot do, one next action and what is optional.
 enum OnboardingStage: Equatable {
     case intro
     case name
     case steps
-    /// The end: one next action, and the voice, the keys, the workspace and the phone as links to Settings.
+    /// The end: what Memnox covers, one next action, and the voice, the keys, Memnox Cloud and the phone, each optional.
     case ready
 }
 
-/// The three short steps a fresh Mac needs with no account, safe defaults already chosen in each; the notch plays beside
-/// all of them.
+/// The two steps the first run asks of a person, safe defaults already chosen in each; the notch plays beside
+/// both. Everything else a new Mac can do waits on Home, where Memnox opens.
 enum OnboardingStep: Int, CaseIterable, Identifiable {
-    /// The service, Touch ID, and the agents found here, on one card.
+    /// The service, Touch ID, and the agents found here, each put under Memnox by itself, on one card.
     case connect
-    /// The servers and skills the agents already keep, every one ticked and brought in with one press.
-    case workspace
     /// The recommended pack of rules, already chosen, proposed on Finish and signed on the island one by one.
-    case boundaries
+    case rules
 
     var id: Int { rawValue }
 
-    /// The step's name under the progress bar, so a new person always knows where they are and what is left.
-    var title: String { FirstRunLines.steps[rawValue] }
+    var contract: FirstRunStepID {
+        switch self {
+        case .connect: .connect
+        case .rules: .rules
+        }
+    }
+
+    /// The step's name in the stepper, so a new person always knows where they are and what is left.
+    var title: String { contract.label }
 }
 
 /// The first run's state, shared by the opening and the window so the name typed in one is the name in the other.
@@ -37,7 +42,6 @@ final class OnboardingFlow: ObservableObject {
     @Published var highlight: Highlight?
     @Published var setup: SetupModel?
     @Published var menu: MenuModel?
-    @Published var account: AccountModel?
     /// Told when the opening hands over to the window, so the controller swaps one window for the other.
     var opened: (() -> Void)?
     /// A part the notch is asked to jump to and play from.
@@ -46,6 +50,8 @@ final class OnboardingFlow: ObservableObject {
     var narrated: Set<Highlight> = []
     /// The lines a step said once what it waited on answered, such as what the second step found, so a return is quiet.
     var answered: Set<String> = []
+    /// Set once the first run put the agents found here under Memnox by itself, so it is tried once and then offered.
+    var autoProtected = false
 
     /// Says a step's line after the page's own, once in this first run.
     func sayOnce(_ line: String, key: String) {
@@ -60,7 +66,7 @@ final class OnboardingFlow: ObservableObject {
 
     var ready: Bool { stage == .ready }
 
-    /// The next step, or the end once the three are done.
+    /// The next step, or the end once they are done.
     func next() {
         if let following = OnboardingStep(rawValue: step.rawValue + 1) {
             step = following
@@ -94,6 +100,13 @@ final class OnboardingFlow: ObservableObject {
         stage = UserDefaults.standard.bool(forKey: Self.optionalKey) ? .ready : .steps
     }
 
+    /// Back to the first step, for Run setup again.
+    func restart() {
+        step = .connect
+        stage = .steps
+        remember()
+    }
+
     /// Forgets the step, once the first run is over.
     func forget() {
         UserDefaults.standard.removeObject(forKey: Self.stepKey)
@@ -111,8 +124,7 @@ final class OnboardingFlow: ObservableObject {
         case .intro, .name, .steps:
             switch step {
             case .connect: return .connect
-            case .workspace: return .workspace
-            case .boundaries: return .boundaries
+            case .rules: return .rules
             }
         }
     }
@@ -129,8 +141,9 @@ final class OnboardingFlow: ObservableObject {
     private static let guidedKey = "onboardingGuided"
 
     private func remember() {
-        UserDefaults.standard.set(step.rawValue, forKey: Self.stepKey)
-        UserDefaults.standard.set(ready, forKey: Self.optionalKey)
+        let defaults = UserDefaults.standard
+        defaults.set(step.rawValue, forKey: Self.stepKey)
+        defaults.set(ready, forKey: Self.optionalKey)
     }
 }
 
@@ -162,11 +175,11 @@ final class OnboardingWindow {
         flow.opened = { [weak self] in self?.showSteps() }
     }
 
-    func show(_ model: SetupModel) {
+    func show(_ model: SetupModel, again: Bool = false) {
         flow.setup = model
         flow.menu = SettingsWindow.shared.menu
-        flow.account = SettingsWindow.shared.account
         flow.recall()
+        if again { flow.restart() }
         if flow.stage == .steps || flow.ready { showSteps() } else { showVeil() }
         SetupAmbience.shared.start()
     }

@@ -43,9 +43,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let stayPutKey = "deliverInBackground"
     /// The version the person pressed Later on, which the notch does not offer again.
     private static let skippedUpdateKey = "skippedUpdate"
+    /// The Memnox service version the person pressed Later on, put off apart from the app's.
+    private static let skippedRuntimeUpdateKey = "skippedRuntimeUpdate"
     /// How often a running app looks for a newer release, often enough that one is seen the day it ships.
     private static let updateCheckSeconds: TimeInterval = 6 * 60 * 60
     private let updates = AppUpdates(feed: GitHubReleases(transport: URLSessionTransport()))
+    private let runtimeUpdates = RuntimeUpdates(feed: NpmRegistry())
     /// The demo world when the app was opened in demo mode, else this Mac's own daemon.
     private let link: DaemonLink = DemoLaunch.link ?? UnixSocketLink()
     /// One id source for every request, since a relay session refuses an id already in flight.
@@ -334,7 +337,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             revoke: { [weak self] device in self?.revoke(device) },
             letDrive: { [weak self] device, on in self?.letDrive(device, on) },
             loadDevices: { [weak self] in self?.loadDevices() },
-            loadOverview: { [weak self] in self?.loadOverview() },
             tools: tools
         )
         self.menu = menu
@@ -361,6 +363,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             later: { [weak self] card in self?.putOffUpdate(card) }
         )
         watchForUpdates()
+        panel.wireRuntimeUpdate(
+            install: { [weak self] card in self?.installRuntimeUpdate(card) },
+            later: { [weak self] card in self?.putOffRuntimeUpdate(card) }
+        )
+        watchForRuntimeUpdates()
         let home = HomeModel(
             load: { [weak self] in await self?.conversation.home() },
             handOver: { [weak self] action in await self?.conversation.handOver(action) ?? .unreachable },
@@ -370,9 +377,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self, let conversation = self.conversation else { return "Memnox is still starting up. Try again in a moment." }
                 return await self.runtime.updateNow(conversation)
             },
-            remote: { [target] in target.isRemote },
-            openWaiting: { [weak self] in self?.panel.openIsland() },
-            openSession: { [weak self] session in self?.watchLive(session) }
+            remote: { [target] in target.isRemote }
         )
         self.home = home
         SettingsWindow.shared.home = home
@@ -388,14 +393,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppWindow.shared.agents = Agents(link: pressing, ids: ids)
         AppWindow.shared.skills = SkillsHub(link: pressing, ids: ids)
         AppWindow.shared.projects = Projects(link: pressing, ids: ids)
-        AppWindow.shared.backup = Backup(link: pressing, ids: ids)
         AppWindow.shared.memory = Memory(link: pressing, ids: ids)
         AppWindow.shared.skillCare = SkillCare(link: pressing, ids: ids)
         AppWindow.shared.memoryLayers = MemoryLayers(link: pressing, ids: ids)
         AppWindow.shared.network = LocalNetwork(link: pressing, ids: ids)
-        AppWindow.shared.sync = PersonalSync(link: pressing, ids: ids)
         AppWindow.shared.index = CommunityIndex(link: pressing, ids: ids)
         AppWindow.shared.profiles = Profiles(link: pressing, ids: ids)
+        AppWindow.shared.work = AgentWorkDesk(link: pressing, ids: ids)
+        AppWindow.shared.workspaceAgents = WorkspaceAgents(reader: cloud, store: personCredential)
         let chosen = UserDefaults.standard.string(forKey: Self.voiceChoiceKey) ?? VoiceChoice.kokoro
         Task {
             await chooseVoice(chosen, announce: false)
@@ -671,6 +676,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             liveActivity(event)
             return
         }
+        // Work changes are for the window's agents and Work tab, never said.
+        if event.eventKind == .work {
+            if let changed = event.workChanged { AppWindow.shared.work?.heard(changed) }
+            return
+        }
         // Saying the name near the phone must not wake the Mac as well, so the name is not listened for while a phone holds the voice.
         if let voiceOn = event.voiceOn {
             phoneHoldsVoice = voiceOn.holding
@@ -706,7 +716,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         // Shown as taps while the voice reads it, so either a hand or a word answers it.
         case .notice where event.noticeKind == .question: panel.question(event)
-        case .notice, .proposal, .show, .activity, nil: break
+        case .notice, .proposal, .show, .activity, .work, nil: break
         }
         // Seen as well as said, and only from the daemon's facts, so a pass the ledger never saw is never celebrated.
         if let gesture = reaction(to: event) { panel.react(gesture, session: event.sessionId) }
@@ -1218,6 +1228,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Looks for a newer Memnox service at launch and every few hours after, and offers it under the notch. A runtime
+    /// built from a checkout keeps its version while its code moves, so only the published one is ever offered.
+    private func watchForRuntimeUpdates() {
+        guard runtime.runsPublished else { return }
+        Task { [weak self, runtimeUpdates] in
+            while !Task.isCancelled {
+                let skipped = UserDefaults.standard.string(forKey: Self.skippedRuntimeUpdateKey)
+                let running = await self?.conversation?.runtimeVersion()
+                if let version = await runtimeUpdates.offer(running: running, skipped: skipped) { self?.panel.offerRuntimeUpdate(version) }
+                try? await Task.sleep(nanoseconds: UInt64(Self.updateCheckSeconds * nanosecondsPerSecond))
+            }
+        }
+    }
+
+    /// Update on the service's pill: it is updated in place and restarted, and the pill goes once it answers again.
+    private func installRuntimeUpdate(_ card: RuntimeUpdateCard) {
+        guard !card.installing, let conversation else { return }
+        panel.runtimeUpdating(true)
+        Task { [weak self] in
+            guard let self else { return }
+            if let why = await self.runtime.updateNow(conversation) {
+                self.panel.runtimeUpdating(false, failed: why)
+            } else {
+                self.panel.runtimeUpdateDismissed()
+            }
+        }
+    }
+
+    /// Later on the service's pill: this version is put off for good, and the next one is offered when it ships.
+    private func putOffRuntimeUpdate(_ card: RuntimeUpdateCard) {
+        UserDefaults.standard.set(card.version, forKey: Self.skippedRuntimeUpdateKey)
+        panel.runtimeUpdateDismissed()
+    }
+
     /// Update on the pill: the app quits once the new one is ready, so only a failure ever comes back here.
     private func installUpdate(_ card: UpdateCard) {
         guard !card.installing else { return }
@@ -1326,15 +1370,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// The menu's four numbers, from the daemon's sessions and the calls still held.
-    private func loadOverview() {
-        Task { [weak self] in
-            guard let self, let conversation = self.conversation else { return }
-            let sessions = await conversation.sessionsList()
-            self.menu?.overview = MenuOverview(sessions: sessions, waiting: self.waitingCalls.count)
-        }
-    }
-
     /// The phones paired and not revoked, for the menu's list.
     private func loadDevices() {
         Task { [weak self] in
@@ -1419,6 +1454,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     // Live activity is asked for, since Activity pages through the chosen machine's ledger and shows its rows.
                     var subscribe = DaemonRequest(id: ids.next(), method: .subscribe)
                     subscribe.subscribeActivity = true
+                    // Work changes too, so a handoff or a done claim reaches the window without a read.
+                    subscribe.subscribeWork = true
                     for try await response in link.stream(subscribe) {
                         guard let event = response.event else { continue }
                         await deliver(event)

@@ -240,10 +240,4 @@ export const SkillsPageLines = {
   read: (name: string) => `Read ${name}`,
   view: 'View',
   import: 'Import',
-  nothingAssigned: 'Nothing assigned yet',
-  nothingAssignedBody: 'Once the hub holds a skill and an agent that takes skills is installed, who has what shows here.',
-  skill: 'Skill',
-  change: 'Change',
-  givenTo: (skill: string, agent: string) => `${skill} for ${agent}`,
-  notGivenTo: (agent: string) => `Not given to ${agent}`,
 } as const;

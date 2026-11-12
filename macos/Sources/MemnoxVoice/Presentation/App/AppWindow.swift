@@ -77,22 +77,12 @@ final class AppWindow {
         didSet { shell.memory = memory.map(MemoryScreen.init) }
     }
 
-    /// Making a backup and putting one back, read by the Backup page under Settings.
-    var backup: Backup? {
-        didSet { shell.backup = backup }
-    }
-
-    /// Whether paired phones reach this Mac over the local network, read by Local network and Phones under Settings.
+    /// Whether paired phones reach this Mac over the local network, read by Phones under Settings.
     var network: LocalNetwork? {
         didSet { shell.network = network.map(NetworkScreen.init) }
     }
 
-    /// The person's own setup carried between their machines, read by Personal sync under Settings.
-    var sync: PersonalSync? {
-        didSet { shell.sync = sync.map(SyncScreen.init) }
-    }
-
-    /// Skills and rule packs from the community index, read by Discover under Workspaces and the packs under Policies.
+    /// Rule packs from the community index, read by the packs under Rules.
     var index: CommunityIndex? {
         didSet { shell.index = index.map(IndexScreen.init) }
     }
@@ -100,6 +90,16 @@ final class AppWindow {
     /// Named bundles of skills, servers and a rule pack, read by Profiles under Workspaces and Launch on an agent's card.
     var profiles: Profiles? {
         didSet { shell.profiles = profiles.map(ProfilesScreen.init) }
+    }
+
+    /// Agent work joined to tracker issues, read by the agents list and the Work tab.
+    var work: AgentWorkDesk? {
+        didSet { shell.work = work.map(AgentWorkScreen.init) }
+    }
+
+    /// The agents Memnox Cloud reaches for the person signed in, read by the agents list and Needs your attention.
+    var workspaceAgents: WorkspaceAgents? {
+        didSet { shell.workspaceAgents = workspaceAgents.map(WorkspaceAgentsScreen.init) }
     }
 
     let shell = AppShellModel()
@@ -217,16 +217,18 @@ final class AppShellModel: ObservableObject {
     @Published var memory: MemoryScreen?
     /// The memory layers for the Memory page's Layers view, nil until the app wires it, which leaves that view out.
     @Published var memoryLayers: MemoryLayersScreen?
-    /// The Backup page's use case, nil until the app wires it, which leaves that page empty rather than broken.
-    @Published var backup: Backup?
-    /// The local network, nil until the app wires it, which leaves its page empty and Phones without its line.
+    /// The local network, nil until the app wires it, which leaves Phones without its line.
     @Published var network: NetworkScreen?
-    /// Personal sync, nil until the app wires it, which leaves its page empty rather than broken.
-    @Published var sync: SyncScreen?
-    /// The community index for Discover and the Policies packs, nil until the app wires it, which keeps both empty.
+    /// The community index for the rule packs under Rules, nil until the app wires it, which keeps them empty.
     @Published var index: IndexScreen?
     /// Profiles for their tab and Launch, nil until the app wires it, which keeps the tab empty and Launch without a choice.
     @Published var profiles: ProfilesScreen?
+    /// Agent work for the agents list and the Work tab, nil until the app wires it, which keeps both without work.
+    @Published var work: AgentWorkScreen?
+    /// The workspace's agents, nil until the app wires it; it holds nothing while nobody is signed in.
+    @Published var workspaceAgents: WorkspaceAgentsScreen?
+    /// The profile whose job the editor opens on, set by Give it a job on an agent's card.
+    @Published var jobFor: String?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.
     @Published private(set) var answers = 0
     private var support: DaemonSupport?

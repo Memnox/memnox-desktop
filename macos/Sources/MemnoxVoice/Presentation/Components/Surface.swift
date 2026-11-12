@@ -1,38 +1,17 @@
 import AppKit
 import SwiftUI
 
-/// The one flat card every window and panel stands its content on, in Vorssaint's card: one step off the page,
-/// rounded, and on a floating panel a hairline rim. A Settings page drops the rim, as Vorssaint's pages do.
+/// The one flat card every window and panel stands its content on, the console's: white or the dark card, radius 12,
+/// read by its border.
 struct Surface: ViewModifier {
-    var radius: CGFloat = SurfaceStyle.radius
     /// An edge in a colour of its own, for a card that must be found first, such as a call waiting.
     var accent: Color?
-    @Environment(\.rimlessCards) private var rimless
-    @Environment(\.look) private var look
 
     func body(content: Content) -> some View {
-        if look == .console {
-            // The console's card: white or the dark card, radius 12, read by its border.
-            let shape = RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous)
-            content
-                .background(shape.fill(Memnox.Console.card))
-                .overlay(shape.strokeBorder(accent ?? Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
-        } else {
-            mac(content)
-        }
-    }
-
-    private func mac(_ content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: rimless ? SettingsMetrics.cardRadius : radius, style: .continuous)
-        return content
-            .background(shape.fill(rimless ? Memnox.Palette.card : Memnox.Palette.surface))
-            .overlay {
-                if let accent {
-                    shape.strokeBorder(accent, lineWidth: Memnox.Stroke.hairline)
-                } else if !rimless {
-                    shape.strokeBorder(SurfaceStyle.border, lineWidth: SurfaceStyle.borderWidth)
-                }
-            }
+        let shape = RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous)
+        content
+            .background(shape.fill(Memnox.Console.card))
+            .overlay(shape.strokeBorder(accent ?? Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
     }
 }
 
@@ -53,7 +32,7 @@ enum SurfaceStyle {
 
 extension View {
     /// Sets the view on the shared flat surface, so every card outside the notch reads as the same material.
-    func surface(radius: CGFloat = SurfaceStyle.radius, accent: Color? = nil) -> some View {
-        modifier(Surface(radius: radius, accent: accent))
+    func surface(accent: Color? = nil) -> some View {
+        modifier(Surface(accent: accent))
     }
 }

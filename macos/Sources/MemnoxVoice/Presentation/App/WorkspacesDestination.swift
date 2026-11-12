@@ -45,7 +45,7 @@ private struct SeenWorkspacesPage: View {
                 }
             }
         } detail: {
-            if let picked { WorkspaceOverview(workspace: picked) { shell.go(WindowRoute(.agents, tab: "list")) } }
+            if let picked { WorkspaceOverview(workspace: picked) { shell.go(WindowRoute(.sessions)) } }
         }
     }
 }

@@ -241,6 +241,24 @@ public enum DaemonMethod: String, Sendable {
     case profileRemove = "profile-remove"
     /// Proposes giving an agent the profile's servers and skills, in a project, and its rule pack's rules.
     case profileApply = "profile-apply"
+    /// Binds a kept profile to one agent found here; its ledger key stays `agt_<kind>`.
+    case profileBind = "profile-bind"
+    /// Takes a binding off, which puts the agent back on its default profile.
+    case profileUnbind = "profile-unbind"
+    /// The catalog of job descriptions, none with an agent behind it.
+    case templates
+    /// Copies a template's job into a new profile, with only the suggested skills a person took.
+    case profileFromTemplate = "profile-from-template"
+    /// Every piece of agent work kept here, newest change first.
+    case agentWork = "agent-work"
+    /// A person pointing a profile's agent at an issue: `LIN-123`, a Jira key, or an issue link.
+    case workStart = "work-start"
+    /// A person stopping it, whatever the agent said.
+    case workStop = "work-stop"
+    /// A person closing it as done, usually once the agent claimed it.
+    case workClose = "work-close"
+    /// A person accepting or declining an agent's request to hand the work on.
+    case handoffAnswer = "handoff-answer"
     /// The community index, filtered by words and kind, read fresh or from what was last read.
     case indexList = "index-list"
     /// Fetches one version, checks its digest, and holds the skill or proposes the pack's rules.
@@ -260,6 +278,8 @@ public enum EventKind: String, Sendable {
     case notice
     /// Rows the ledger gained that a screen's activity view shows, names only, a burst at most once a second.
     case activity
+    /// A piece of agent work changed: started, reported on, handed on, stopped or closed.
+    case work
 }
 
 /// How a show event wants to be shown.
@@ -1283,6 +1303,8 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var companionOf: String?
     /// On subscribe: send live activity rows too, asked for, since an app built before them would say every row aloud.
     public var subscribeActivity: Bool?
+    /// On subscribe: send work changes too, asked for for the same reason.
+    public var subscribeWork: Bool?
     public var point: String?
     public var said: String?
     /// On ask: they were waited on for the rest and said nothing more, so `said` is the whole of it.
@@ -1458,12 +1480,34 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var syncFingerprint: String?
     /// On profile-put.
     public var profileDraft: ProfileDraft?
-    /// On profile-remove, profile-apply and agent-launch: the profile, by id or by name.
+    /// On profile-remove, profile-apply, profile-bind and agent-launch: the profile, by id or by name; on profile-from-template, the copy.
     public var profileName: String?
     /// On profile-apply: the agent, by kind.
     public var profileAgent: String?
     /// On profile-apply: the repository its skills are written into, absolute; absent is the home folder.
     public var profileProject: String?
+    /// On profile-from-template: the template, by id or name; `profileName` names the copy.
+    public var templateId: String?
+    /// On profile-from-template: the suggested skills the person took; the rest stay off.
+    public var templateSkills: [String]?
+    /// On profile-bind and profile-unbind: the agent, by id, kind or the name it goes by.
+    public var agentId: String?
+    /// On work-start: the profile whose agent carries it, by id or name.
+    public var workProfile: String?
+    /// On work-start: the issue, as a key or its link.
+    public var workTarget: String?
+    /// On work-start: which tracker a bare key is in; Linear when left out.
+    public var workTracker: String?
+    /// On work-start: a title to show beside the key, never fetched.
+    public var workTitle: String?
+    /// On work-start: the repository it is scoped to, absolute, which keeps its record there.
+    public var workProject: String?
+    /// On work-stop and work-close.
+    public var workId: String?
+    /// On handoff-answer.
+    public var handoffId: String?
+    /// On handoff-answer: accept or decline, as HandoffAnswerWord names them.
+    public var handoffAnswer: String?
     /// On index-list: words, each found in the name or the description.
     public var indexQuery: String?
     /// On index-list: only skills, or only rule packs.
@@ -1579,6 +1623,8 @@ public struct DaemonEvent: Decodable, Equatable, Sendable {
     public let activityRows: [LiveActivityRow]?
     /// On activity: rows of the same burst this event does not carry, at least this many.
     public let activityMissed: Int?
+    /// On work: the piece of work that changed, as it now stands.
+    public let workChanged: AgentWork?
     /// On a point, where on which screen picture the ring goes.
     public let point: ScreenSpot?
 
@@ -1938,6 +1984,10 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let profiles: [ProfileView]?
     /// On profile-apply, and on agent-launch with a profile.
     public let profileApplied: ProfileApplied?
+    /// On templates.
+    public let templates: [ProfileTemplate]?
+    /// On every work method, so a screen redraws from one answer.
+    public let agentWork: [AgentWork]?
     /// On index-list, and after an install.
     public let communityIndex: CommunityIndexView?
     /// On index-install.

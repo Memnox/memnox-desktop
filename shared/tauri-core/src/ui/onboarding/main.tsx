@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { OnboardingStage, OnboardingStep } from '../../core/domain/onboarding';
+import { STEP_NUMBERS, type OnboardingStage, type OnboardingStep } from '../../core/domain/onboarding';
 import '../styles.css';
 import '../settings/settings.css';
 import { paintLook } from '../settings/parts';
@@ -15,7 +15,7 @@ paintLook(parts.preferences.look);
 const asked = new URLSearchParams(window.location.search);
 const stage = (['intro', 'steps', 'done'] as const).find((each) => each === asked.get('stage')) satisfies OnboardingStage | undefined;
 const stepNumber = Number(asked.get('step') ?? '0');
-const step = ([0, 1, 2] as const).find((each) => each === stepNumber) satisfies OnboardingStep | undefined;
+const step = STEP_NUMBERS.find((each) => each === stepNumber) satisfies OnboardingStep | undefined;
 
 if (!inApp && (previewState === 'qr' || previewState === 'digits')) void parts.pairing.pair();
 

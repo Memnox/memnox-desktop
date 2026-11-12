@@ -225,7 +225,7 @@ private struct PlaceRow: View {
                 }
                 Spacer(minLength: 0)
                 Image(systemName: picked ? Symbol.picked : Symbol.unpicked)
-                    .foregroundStyle(picked ? Memnox.Palette.primary : Color.white.opacity(Memnox.Ink.tertiary))
+                    .foregroundStyle(picked ? Memnox.Console.primary : Color.white.opacity(Memnox.Ink.tertiary))
             }
             .padding(.horizontal, Layout.horizontal)
             .padding(.vertical, Layout.vertical)
@@ -235,7 +235,7 @@ private struct PlaceRow: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: Layout.radius)
-                    .strokeBorder(Memnox.Palette.primary.opacity(picked ? Shade.ring : 0), lineWidth: Memnox.Stroke.hairline)
+                    .strokeBorder(Memnox.Console.primary.opacity(picked ? Shade.ring : 0), lineWidth: Memnox.Stroke.hairline)
             )
             .contentShape(Rectangle())
         }

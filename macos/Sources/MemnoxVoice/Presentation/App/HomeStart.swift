@@ -2,10 +2,10 @@ import Combine
 import MemnoxVoiceCore
 import SwiftUI
 
-/// Home's getting started steps, drawn the way the cloud console's home draws its ladder: the stage this Mac is at and
-/// how many steps are done, the one thing to do next with its press, what waits on an agent, the rest of the steps
-/// under their two tracks, and the counts already won. Every tick is a count the runtime or this Mac reports, read
-/// again on opening; the block goes once every step is done, and folds to one line while the person hides it.
+/// Home's one Do this next card, the same on the console, this Mac, Windows and Linux: the stage this Mac is at and how
+/// many steps are done, the one thing to do next with its press, and what waits on an agent; Show all steps opens the
+/// rest under their two tracks with the counts already won. Every tick is a count the runtime or this Mac reports,
+/// read again on opening, and the card goes once every step is done.
 struct HomeStart: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var tools: ToolsModel
@@ -15,11 +15,12 @@ struct HomeStart: View {
     /// What the runtime's home said today, and whether it observes or enforces; zero and nil before it answered.
     let actions: Int
     let mode: HomeMode?
-    @AppStorage(Self.hiddenKey) private var hidden = false
+    /// Whether the two onboarding steps were finished, which is the first rung until they are.
+    let setupFinished: Bool
+    /// Opens onboarding where it was left, the press on the setup rung.
+    let openSetup: () -> Void
+    @State private var allSteps = false
     @StateObject private var reads = StartReads()
-
-    /// Remembered, so a person who hid it is not shown it again on every opening.
-    static let hiddenKey = "memnox.home.startHidden"
 
     private enum Layout {
         static let padding: CGFloat = 20
@@ -29,11 +30,7 @@ struct HomeStart: View {
     var body: some View {
         let setup = HomeSteps.setup(standing)
         Group {
-            if setup.climbed {
-                EmptyView()
-            } else if hidden {
-                folded(setup)
-            } else {
+            if !setup.climbed {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
                     header(setup)
                     if let next = setup.next { NextRung(step: next, busy: next.id == .enforce && home.enforcing) { press(next) } }
@@ -45,22 +42,24 @@ struct HomeStart: View {
                             .textSelection(.enabled)
                     }
                     ForEach(setup.waiting) { WaitingRung(step: $0) }
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: Layout.trackMinimum), spacing: Memnox.Spacing.xLarge, alignment: .top)],
-                              alignment: .leading, spacing: Memnox.Spacing.xLarge) {
-                        ForEach(HomeTrack.allCases, id: \.self) { track in
-                            TrackList(track: track, steps: setup.rest(of: track)) { id in
-                                if let step = setup.steps.first(where: { $0.id == id }) { press(step) }
+                    if allSteps {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: Layout.trackMinimum), spacing: Memnox.Spacing.xLarge, alignment: .top)],
+                                  alignment: .leading, spacing: Memnox.Spacing.xLarge) {
+                            ForEach(HomeTrack.allCases, id: \.self) { track in
+                                TrackList(track: track, steps: setup.rest(of: track)) { id in
+                                    if let step = setup.steps.first(where: { $0.id == id }) { press(step) }
+                                }
                             }
                         }
+                        Standing(counts: setup.standing)
                     }
-                    Standing(counts: setup.standing)
                 }
                 .padding(Layout.padding)
                 .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous)
                     .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
                 .accessibilityElement(children: .contain)
-                .accessibilityLabel("What to do next")
+                .accessibilityLabel(HomeSteps.cardTitle)
             }
         }
         .consoleSheet(isPresented: $home.askingEnforce) {
@@ -105,36 +104,19 @@ struct HomeStart: View {
         standing.sourcesLinked = shell.memory?.memory.sources?.count ?? 0
         standing.skillsShared = shell.skills?.skills.hub?.skills.count ?? 0
         standing.serversShared = shell.hub?.hub.hub?.servers.count ?? 0
+        standing.setupFinished = setupFinished
         return standing
     }
 
-    /// The block put away: one line with the stage and the steps done, and Show to open it again.
-    private func folded(_ setup: HomeSetup) -> some View {
-        HStack(alignment: .center, spacing: Memnox.Spacing.large) {
-            Text(setup.stage.label)
-                .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
-                .foregroundStyle(Memnox.Console.foreground)
-            Spacer(minLength: Memnox.Spacing.medium)
-            StepsDone(setup: setup)
-            toggle
-        }
-        .padding(.horizontal, Layout.padding)
-        .padding(.vertical, Memnox.Spacing.large)
-        .background(Memnox.Console.card, in: RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous)
-            .strokeBorder(Memnox.Console.panelEdge, lineWidth: Memnox.Stroke.hairline))
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("What to do next, hidden")
-    }
-
-    /// Hide and Show are one press, so the steps fold to a line and open again from it.
+    /// Show all steps and Show fewer steps are one press, so the rest of the ladder is there without crowding Home.
     private var toggle: some View {
-        Button(hidden ? "Show" : "Hide") { withAnimation(.easeOut(duration: Memnox.Motion.quick)) { hidden.toggle() } }
-            .buttonStyle(KitButton(kind: .secondary))
-            .help(hidden ? "Show the steps again" : "Fold these steps to one line until you want them again")
+        Button(allSteps ? HomeSteps.fewerSteps : HomeSteps.allSteps) {
+            withAnimation(.easeOut(duration: Memnox.Motion.quick)) { allSteps.toggle() }
+        }
+        .buttonStyle(KitButton(kind: .secondary))
     }
 
-    /// The stage and what it means, the steps done, and the way to put the block away.
+    /// The stage and what it means, the steps done, and the way to every step.
     private func header(_ setup: HomeSetup) -> some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
             HStack(alignment: .center, spacing: Memnox.Spacing.large) {
@@ -155,7 +137,9 @@ struct HomeStart: View {
 
     /// A step's press: stopping rather than watching is confirmed here first, every other step opens where it is done.
     private func press(_ step: HomeStep) {
-        if step.id == .enforce, !step.done {
+        if step.id == .finishSetup {
+            openSetup()
+        } else if step.id == .enforce, !step.done {
             home.askingEnforce = true
         } else {
             shell.go(Self.route(step.id))
@@ -165,13 +149,15 @@ struct HomeStart: View {
     /// Where each step's press goes in the window; for stopping, that is the record it is read off.
     static func route(_ step: HomeStepID) -> WindowRoute {
         switch step {
-        case .protectAgents: return WindowRoute(.agents, tab: "list")
-        case .rulesInForce: return WindowRoute(.governance, tab: "policies")
-        case .actionsRecorded, .enforce: return WindowRoute(.governance, tab: "activity")
+        // Run setup again stands in Help once setup is done, which is where its rung points.
+        case .finishSetup: return WindowRoute(.settings, tab: "help")
+        case .protectAgents: return WindowRoute(.agents, tab: "agents")
+        case .rulesInForce: return WindowRoute(.rules, tab: "rules")
+        case .actionsRecorded, .enforce: return WindowRoute(.activity, tab: "timeline")
         case .answerAway: return WindowRoute(.settings, tab: "phones")
-        case .connectApps: return WindowRoute(.mcp, tab: "apps")
-        case .linkSource: return WindowRoute(.workspaces, tab: "sources")
-        case .shareSkills: return WindowRoute(.workspaces, tab: "skills")
+        case .connectApps: return WindowRoute(.connectors, tab: "systems")
+        case .linkSource: return WindowRoute(.connectors, tab: "files")
+        case .shareSkills: return WindowRoute(.memory, tab: "skills")
         }
     }
 }
@@ -247,7 +233,7 @@ private struct NextRung: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Memnox.Console.cardRadius, style: .continuous)
         VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
-            Text("DO THIS NEXT")
+            Text(HomeSteps.cardTitle.uppercased())
                 .font(Memnox.mono(Memnox.Console.TextSize.label, .medium))
                 .tracking(Layout.tracking)
                 .foregroundStyle(Memnox.Console.primary)

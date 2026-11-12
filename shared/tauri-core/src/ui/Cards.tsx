@@ -8,6 +8,7 @@ import { SessionLogo } from './sessions/parts';
 import { note } from './ui';
 import { CardLines, HeldLines, RuleCardLines } from '../core/domain/island-lines';
 import { shownProposal } from '../core/domain/proposal-card';
+import { ALWAYS_ALLOW, ANSWER_LABEL } from '../core/domain/answer-words';
 
 /**
  * The island's cards, each the web twin of one Swift view in `Island/IslandCalls.swift`,
@@ -98,17 +99,18 @@ export function HeldCall({
         {/* Cut in the middle to fit, so the whole command is one hover away before anything is allowed. */}
         <MiddleCut text={card.what} className={`max-w-full self-start overflow-hidden rounded-command border border-white/[0.08] bg-white/[0.06] px-3 py-2 ${SYSTEM_MONO} text-body text-white`} />
         <div className={`flex items-center gap-2 ${busy ? ANSWERING_ROW : ''}`} aria-disabled={busy}>
-          <IslandButton inRow disabled={busy} onClick={() => void press(ANSWER.deny)}>
-            {HeldLines.deny}
+          {/* The contract's order on every surface: the narrowest yes first and Deny last. */}
+          <IslandButton kind="primary" inRow disabled={busy} symbol={card.touchID ? 'touchid' : undefined} onClick={() => void press(ANSWER.once)}>
+            {ANSWER_LABEL[HOLD_ANSWER.ONCE]}
           </IslandButton>
           <IslandButton inRow disabled={busy} symbol={card.touchID ? 'touchid' : undefined} onClick={() => void press(ANSWER.session)}>
-            {HeldLines.allowSession}
+            {ANSWER_LABEL[HOLD_ANSWER.SESSION]}
           </IslandButton>
-          <IslandButton kind="primary" inRow disabled={busy} symbol={card.touchID ? 'touchid' : undefined} onClick={() => void press(ANSWER.once)}>
-            {HeldLines.allowOnce}
+          <IslandButton inRow disabled={busy} onClick={() => void press(ANSWER.deny)}>
+            {ANSWER_LABEL[HOLD_ANSWER.DENY]}
           </IslandButton>
           {/* The answer that leaves a rule behind waits behind More, as on every other door. */}
-          <MoreAnswers disabled={busy} items={[{ label: HeldLines.allowAlways, symbol: 'touchid', choose: () => void press(ANSWER.always) }]} />
+          <MoreAnswers disabled={busy} items={[{ label: ALWAYS_ALLOW, symbol: 'touchid', choose: () => void press(ANSWER.always) }]} />
         </div>
         {said !== undefined && (
           <p className={`${note} -mt-1 mb-0`}>

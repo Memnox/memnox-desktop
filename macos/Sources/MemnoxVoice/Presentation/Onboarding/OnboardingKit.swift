@@ -9,10 +9,8 @@ enum Kit {
     static let tileSide: CGFloat = SettingsMetrics.tileSide
     static let tileRadius: CGFloat = SettingsMetrics.tileRadius
     static let checkSide: CGFloat = 20
-    static let checkRadius: CGFloat = 6
     /// Every button is this tall, whether it moves on or acts inside a row, as Vorssaint's capsule buttons are.
     static let buttonHeight: CGFloat = ControlMetrics.height
-    static let rowGap: CGFloat = 14
     /// Springs settle with a little give and no wobble.
     static let springDamping = 0.8
 }
@@ -39,7 +37,7 @@ struct KitCard<Content: View>: View {
                     VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                         Text(title)
                             .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                            .foregroundStyle(Memnox.Palette.ink)
+                            .foregroundStyle(Memnox.Console.ink)
                         if let detail {
                             Text(detail)
                                 .font(Memnox.sans(Memnox.TextSize.body))
@@ -53,7 +51,7 @@ struct KitCard<Content: View>: View {
         }
         .padding(Kit.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(shape.fill(Memnox.Palette.card))
+        .background(shape.fill(Memnox.Console.card))
     }
 }
 
@@ -81,7 +79,7 @@ struct KitRow<Leading: View, Trailing: View>: View {
             VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                 Text(title)
                     .font(Memnox.sans(Memnox.TextSize.callout, .semibold))
-                    .foregroundStyle(Memnox.Palette.ink)
+                    .foregroundStyle(Memnox.Console.ink)
                 if let detail {
                     Text(detail)
                         .font(Memnox.sans(Memnox.TextSize.footnote))
@@ -119,7 +117,7 @@ struct MemnoxTile: View {
     var body: some View {
         LogoMark(size: SettingsMetrics.tileSide * Self.markShare)
             .frame(width: SettingsMetrics.tileSide, height: SettingsMetrics.tileSide)
-            .background(Memnox.Palette.primary.opacity(SettingsMetrics.tileTint),
+            .background(Memnox.Console.primary.opacity(SettingsMetrics.tileTint),
                         in: RoundedRectangle(cornerRadius: SettingsMetrics.tileRadius, style: .continuous))
             .accessibilityHidden(true)
     }
@@ -150,7 +148,7 @@ struct CheckBox: View {
         ZStack {
             switch state {
             case .done:
-                Circle().fill(Memnox.Palette.primary)
+                Circle().fill(Memnox.Console.primary)
                 Image(systemName: "checkmark")
                     .font(.system(size: Kit.checkSide * Self.symbolShare, weight: .bold))
                     .foregroundStyle(Color.white)
@@ -158,7 +156,7 @@ struct CheckBox: View {
                 Circle().strokeBorder(Memnox.ink(Memnox.Ink.tertiary),
                                       style: StrokeStyle(lineWidth: Memnox.Stroke.emphasis, dash: Self.waitingDash))
             case .needs:
-                Circle().fill(Memnox.Palette.warm)
+                Circle().fill(Memnox.Console.warm)
                 Image(systemName: "exclamationmark")
                     .font(.system(size: Kit.checkSide * Self.symbolShare, weight: .bold))
                     .foregroundStyle(Color.white)
@@ -205,26 +203,19 @@ private struct KitButtonFace: View {
     let wide: Bool
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.look) private var look
     @State private var hovering = false
 
     private static let horizontalPadding: CGFloat = ControlMetrics.horizontalPadding
     private static let consolePadding: CGFloat = 12
     private static let pressedScale: CGFloat = 0.97
-    private static let disabledOpacity = 0.4
     private static let consoleDisabledOpacity = 0.5
     private static let glassFill = 0.1
     /// How much the face lifts under the pointer: a wash of ink over the grey ones, a little dimming of the solid one.
     private static let hoverWash = 0.08
-    private static let hoverDim = 0.88
     private static let consoleHoverDim = 0.9
 
     var body: some View {
-        if look == .console, kind != .glass {
-            console
-        } else {
-            mac
-        }
+        if kind == .glass { glass } else { console }
     }
 
     private var console: some View {
@@ -251,20 +242,20 @@ private struct KitButtonFace: View {
             .pointingHand()
     }
 
-    private var mac: some View {
+    /// The one face that keeps a capsule: white on the dark veil of the opening, where the console's cards would glare.
+    private var glass: some View {
         configuration.label
             .labelStyle(KitLabel())
-            .font(.system(size: ControlMetrics.textSize, weight: kind == .primary ? .semibold : .regular))
-            .foregroundStyle(isEnabled ? text : Memnox.Palette.faint)
+            .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall, .medium))
+            .foregroundStyle(isEnabled ? Color.white : Memnox.Console.faint)
             .lineLimit(1)
             .padding(.horizontal, Self.horizontalPadding)
             .frame(height: Kit.buttonHeight)
             .frame(maxWidth: wide ? .infinity : nil)
-            .background(Capsule().fill(fill).opacity(kind == .primary && hovering ? Self.hoverDim : 1))
-            .overlay(Capsule().fill(Memnox.ink(kind != .primary && hovering ? Self.hoverWash : 0)))
-            .overlay(Capsule().strokeBorder(edge, lineWidth: Memnox.Stroke.hairline))
+            .background(Capsule().fill(Color.white.opacity(Self.glassFill)))
+            .overlay(Capsule().fill(Memnox.ink(hovering ? Self.hoverWash : 0)))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(Memnox.Ink.edge * 2), lineWidth: Memnox.Stroke.hairline))
             .contentShape(Capsule())
-            .opacity(isEnabled || kind != .primary ? 1 : Self.disabledOpacity)
             // With Reduce Motion on, a press only dims, since the give of the spring is movement.
             .scaleEffect(configuration.isPressed && !reduceMotion ? Self.pressedScale : 1)
             .animation(reduceMotion ? nil : .spring(response: Memnox.Motion.quick, dampingFraction: Kit.springDamping), value: configuration.isPressed)
@@ -273,59 +264,15 @@ private struct KitButtonFace: View {
             .onDisappear { hovering = false }
             .pointingHand()
     }
-
-    private var text: Color {
-        switch kind {
-        case .primary: return Color.white
-        case .secondary: return Memnox.Palette.foreground
-        case .glass: return Color.white
-        }
-    }
-
-    private var fill: Color {
-        switch kind {
-        case .primary: return Memnox.Palette.primary
-        case .secondary: return Memnox.Palette.secondary.opacity(isEnabled ? 1 : ControlMetrics.disabledFill)
-        case .glass: return Color.white.opacity(Self.glassFill)
-        }
-    }
-
-    private var edge: Color {
-        switch kind {
-        case .primary: return .clear
-        case .secondary: return Memnox.Palette.controlEdge
-        case .glass: return Color.white.opacity(Memnox.Ink.edge * 2)
-        }
-    }
-}
-
-/// A picker as Vorssaint draws a select: the choice on a capsule with the up and down chevrons after it.
-struct KitMenu<Items: View>: View {
-    let current: String
-    /// The widest the capsule grows; it hugs its words when they are shorter.
-    var width: CGFloat = 200
-    @ViewBuilder let items: () -> Items
-
-    var body: some View {
-        Menu { items() } label: { SelectFace(text: current, maximumWidth: width) }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .pointingHand()
-            .menuIndicator(.hidden)
-            .fixedSize()
-    }
 }
 
 /// A button's icon before its word, a little smaller and at the same weight, so the two read as one label.
 struct KitLabel: LabelStyle {
-    @Environment(\.look) private var look
 
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: Memnox.Spacing.small) {
-            // The console's icon is 14 at the stroke of its words, where the Mac's was a small semibold.
-            configuration.icon.font(look == .console
-                ? .system(size: Memnox.TextSize.callout, weight: .regular)
-                : .system(size: Memnox.TextSize.footnote, weight: .semibold))
+            // The console's icon is 14 at the stroke of its words.
+            configuration.icon.font(.system(size: Memnox.TextSize.callout, weight: .regular))
             configuration.title
         }
     }
@@ -338,27 +285,25 @@ struct KitLabel: LabelStyle {
 struct KitField: ViewModifier {
     /// Held here so every field shows its focus without its caller tracking it.
     @FocusState private var focused: Bool
-    @Environment(\.look) private var look
 
     private static let horizontalPadding: CGFloat = 10
     private static let consolePadding: CGFloat = 12
     private static let radius: CGFloat = 7
 
     func body(content: Content) -> some View {
-        let console = look == .console
-        let shape = RoundedRectangle(cornerRadius: console ? Memnox.Console.controlRadius : Self.radius, style: .continuous)
-        let tokens = look.tokens
+        let shape = RoundedRectangle(cornerRadius: Memnox.Console.controlRadius, style: .continuous)
+        let tokens = LookTokens.console
         content
             .textFieldStyle(.plain)
             .focused($focused)
-            .font(look.sans(ControlMetrics.textSize))
+            .font(Memnox.Console.sans(ControlMetrics.textSize))
             .foregroundStyle(tokens.foreground)
-            .padding(.horizontal, console ? Self.consolePadding : Self.horizontalPadding)
-            .frame(minHeight: console ? Memnox.Console.fieldHeight : Kit.buttonHeight)
+            .padding(.horizontal, Self.consolePadding)
+            .frame(minHeight: Memnox.Console.fieldHeight)
             .background(shape.fill(tokens.raised))
-            // Focus turns the hairline blue, and in the console's look a soft ring sits outside it too.
+            // Focus turns the hairline blue, and a soft ring sits outside it too.
             .overlay(shape.strokeBorder(focused ? tokens.primary : tokens.controlEdge, lineWidth: Memnox.Stroke.hairline))
-            .background(shape.stroke(console && focused ? Memnox.Console.ring : Color.clear, lineWidth: Memnox.Console.ringWidth * 2))
+            .background(shape.stroke(focused ? Memnox.Console.ring : Color.clear, lineWidth: Memnox.Console.ringWidth * 2))
             .animation(.easeOut(duration: Memnox.Motion.quick), value: focused)
     }
 }

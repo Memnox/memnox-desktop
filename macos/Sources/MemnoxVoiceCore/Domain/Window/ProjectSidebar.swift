@@ -52,7 +52,7 @@ public enum ProjectSidebar {
     /// The switcher's own way back, said where a person picks which project to be in.
     public static let allTitle = "All projects"
     /// Where Back to Projects lands.
-    public static let list = WindowRoute(.workspaces, tab: "projects")
+    public static let list = WindowRoute(.projects)
     /// The pages the sidebar lists, with Tools left off for now.
     public static let pages: [ProjectPage] = [.overview, .agents, .memory, .rules]
     /// Said in place of a project's name while the projects are still being read, or once it is gone.
@@ -68,7 +68,7 @@ public enum ProjectSidebar {
 
     /// The project the window is inside, nil anywhere else, which keeps the usual sidebar.
     public static func place(of route: WindowRoute) -> ProjectPlace? {
-        guard route.destination == list.destination, route.tab == list.tab else { return nil }
+        guard route.destination == list.destination else { return nil }
         return route.project
     }
 

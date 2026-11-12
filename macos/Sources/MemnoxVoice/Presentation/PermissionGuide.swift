@@ -175,7 +175,7 @@ struct PermissionGuide<Actions: View>: View {
         HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.medium) {
             Text("\(number)")
                 .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
-                .foregroundStyle(Memnox.Palette.ink)
+                .foregroundStyle(Memnox.Console.ink)
                 .frame(width: Layout.numberSide, height: Layout.numberSide)
                 .background(Circle().fill(Memnox.ink(Memnox.Ink.edge)))
                 .accessibilityHidden(true)
@@ -199,7 +199,7 @@ struct PermissionGuide<Actions: View>: View {
             ForEach(Layout.barWidths, id: \.self) { width in otherApp(barWidth: width) }
             memnoxRow
         }
-        .background(Memnox.Palette.raised)
+        .background(Memnox.Console.raised)
     }
 
     private func otherApp(barWidth: CGFloat) -> some View {
@@ -223,18 +223,18 @@ struct PermissionGuide<Actions: View>: View {
                 .frame(width: Layout.tileSide, height: Layout.tileSide)
             Text("Memnox.app")
                 .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                .foregroundStyle(Memnox.Palette.ink)
+                .foregroundStyle(Memnox.Console.ink)
             Spacer(minLength: 0)
             toggle(on: on)
         }
         .padding(.horizontal, Layout.padding)
         .frame(height: Layout.rowHeight)
-        .background(Memnox.Palette.primary.opacity(Memnox.Ink.fill))
+        .background(Memnox.Console.primary.opacity(Memnox.Ink.fill))
     }
 
     private func toggle(on: Bool) -> some View {
         Capsule()
-            .fill(on ? Memnox.Palette.primary : Memnox.ink(Memnox.Ink.edge))
+            .fill(on ? Memnox.Console.primary : Memnox.ink(Memnox.Ink.edge))
             .frame(width: Layout.switchWidth, height: Layout.switchHeight)
             .overlay(alignment: on ? .trailing : .leading) {
                 Circle()

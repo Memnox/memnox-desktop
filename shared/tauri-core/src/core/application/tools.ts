@@ -11,6 +11,8 @@ export interface ToolsState {
   readonly connections: readonly ToolConnection[];
   /** Why the connected apps could not be read, said where they would be. */
   readonly connectionsNote: string | undefined;
+  /** Set when the agents could not be read, so a page says the service is away rather than that nothing is installed. */
+  readonly agentsNote?: string;
   /** True until the first read lands, so an empty list is not mistaken for none. */
   readonly reading: boolean;
 }
@@ -65,7 +67,7 @@ export class Tools {
 
   private async read(): Promise<void> {
     const [agents, connections] = await Promise.all([this.ask(DAEMON_METHOD.VOICE_AGENTS), this.ask(DAEMON_METHOD.CONNECTIONS_LIST)]);
-    let next: ToolsState = { ...this.current, reading: false };
+    let next: ToolsState = { ...this.current, reading: false, agentsNote: agents === undefined ? UNREACHABLE : undefined };
     if (agents?.ok === true && agents.voiceAgents !== undefined) {
       next = { ...next, agents: [...agents.voiceAgents].filter((each) => each.installed).sort((a, b) => Number(b.chosen) - Number(a.chosen)) };
     }

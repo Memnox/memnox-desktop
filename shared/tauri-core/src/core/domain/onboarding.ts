@@ -1,24 +1,56 @@
-import type { PermissionStep } from './permission-steps';
+import type { CapabilityLevel, CapabilityLevels } from './agent-wire';
+import { LEVEL_WORDS, levelRows, seamRows } from './capability-level-lines';
 import type { Platform } from './platform';
 import type { SettingsPage } from './settings-pages';
 
 /**
- * The first run on a fresh computer, with no account, cut to three short steps as the console's was: a veil with
- * the wordmark, then connect, the grants this system asks for, and the starting rules, each with a safe default
- * already chosen. The end screen offers one next action; the name, the voice, the workspace and the phone are
- * optional there and in Settings, never a step.
+ * The first run on a fresh computer, with no account, as the Mac's: a veil with the wordmark, then the two steps that
+ * cannot wait, this computer connected and the rules its agents start under, each with a safe default already chosen.
+ * The end screen offers one prompt to try and one button that opens Memnox, then says what Memnox can and cannot do.
  */
 export type OnboardingStage = 'intro' | 'steps' | 'done';
 
-export const ONBOARDING_STEPS = ['Connect', 'Permissions', 'Starting rules'] as const;
-export type OnboardingStep = 0 | 1 | 2;
+/**
+ * The two steps by their contract ids. The other questions of the contract's `onboarding` list in
+ * `shared/ux/contract.json`, who Memnox is for, which agents and where it asks, are answered from Home once Memnox opens.
+ */
+export const ONBOARDING_IDS = ['connect', 'rules'] as const;
+export type OnboardingId = (typeof ONBOARDING_IDS)[number];
 
-/** "Step 2 of 3", over each step's title. */
+/** Each step's question, heading its page, as the contract words it. */
+export const ONBOARDING_TITLE: Readonly<Record<OnboardingId, string>> = {
+  connect: 'Connect this machine',
+  rules: 'Your starting rules',
+};
+
+/** The steps by name under the progress bar, as the Mac's stepper names them with "Mac" said as "computer". */
+export const ONBOARDING_STEPS = ['This computer', 'Starting rules'] as const;
+export type OnboardingStep = 0 | 1;
+
+/** What the end offers to paste into an agent, so the first ask arrives in minutes; the contract's `tryPrompt`. */
+export const TRY_PROMPT = 'Make a folder called memnox-try, then delete it with rm -rf memnox-try.';
+export const TRY_TITLE = 'Try it with your agent';
+export const TRY_DETAIL = 'Paste this into Claude Code, Codex or Cursor. Memnox asks you before the delete runs.';
+
+/** Every step by its number, for a preview's ?step= and for moving on. */
+export const STEP_NUMBERS: readonly OnboardingStep[] = [0, 1];
+
+/** The step after this one, or undefined after the last. */
+export function nextStep(step: OnboardingStep): OnboardingStep | undefined {
+  return STEP_NUMBERS.find((each) => each === step + 1);
+}
+
+/** The step before this one, or undefined before the first. */
+export function previousStep(step: OnboardingStep): OnboardingStep | undefined {
+  return STEP_NUMBERS.find((each) => each === step - 1);
+}
+
+/** "Step 1 of 2", over each step's title. */
 export function stepCounter(step: OnboardingStep): string {
   return `Step ${step + 1} of ${ONBOARDING_STEPS.length}`;
 }
 
-/** How far the progress bar is filled: a third, two thirds, then whole, and whole again on the end screen. */
+/** How far the progress bar is filled: half, then whole, and whole again on the end screen. */
 export function progressOf(step: OnboardingStep, stage: OnboardingStage = 'steps'): number {
   if (stage === 'done') return 1;
   return (step + 1) / ONBOARDING_STEPS.length;
@@ -26,31 +58,13 @@ export function progressOf(step: OnboardingStep, stage: OnboardingStage = 'steps
 
 /** The title and the line under it on each step. */
 export function stepHeading(step: OnboardingStep, keyTitle: string): { readonly title: string; readonly detail: string } {
-  switch (step) {
-    case 0:
-      return { title: 'Connect your agents', detail: `The Memnox service starts by itself and ${keyTitle} becomes the key only you approve with. No account needed.` };
-    case 1:
-      return { title: 'Permissions', detail: 'Only what this computer asks you for. Everything else installs by itself.' };
-    case 2:
-      return { title: 'Starting rules', detail: `The recommended rules are chosen for you. Each one holds once you confirm it with ${keyTitle} on the island.` };
+  const id = ONBOARDING_IDS[step];
+  switch (id) {
+    case 'connect':
+      return { title: ONBOARDING_TITLE.connect, detail: `The Memnox service starts by itself and ${keyTitle} becomes the key only you approve with. No account needed.` };
+    case 'rules':
+      return { title: ONBOARDING_TITLE.rules, detail: `The recommended rules are chosen for you. Each one holds once you confirm it with ${keyTitle} on the island.` };
   }
-}
-
-/**
- * The grants this system actually asks the person for: a switch the system guards, such as the Windows microphone,
- * or anything still left to do. A row the system never asks about is not listed, since there is nothing to press.
- */
-export function permissionsAsked(steps: readonly PermissionStep[]): readonly PermissionStep[] {
-  return steps.filter((step) => step.state.kind !== 'done' || step.switchName !== undefined);
-}
-
-/** The line over the grants: still asking, nothing to grant, every one granted, or how many are left. */
-export function permissionsLine(asked: readonly PermissionStep[]): string {
-  if (asked.some((step) => step.state.kind === 'waiting')) return 'Asking this computer what it needs.';
-  const left = asked.filter((step) => step.state.kind === 'needs').length;
-  if (asked.length === 0) return 'Nothing to grant. This computer lets Memnox hear, type and see without asking.';
-  if (left === 0) return 'Everything this computer asks for is granted.';
-  return left === 1 ? 'One grant left. Memnox carries on without it, and asks again in Settings.' : `${left} grants left. Memnox carries on without them, and asks again in Settings.`;
 }
 
 /** The pack the first run starts on, the same safe defaults the runtime ships. */
@@ -62,9 +76,12 @@ export function startingPacks<Pack extends { readonly id: string }>(packs: reado
   return { recommended, others: packs.filter((pack) => pack !== recommended) };
 }
 
+/** Where the rest of setup went, said under the button that opens Memnox, so nobody looks for it here. */
+export const END_LATER = 'Pairing your phone waits on Home under Do this next, and Memnox Cloud is in Settings under Account.';
+
 /** One optional thing the end screen offers, opening the Settings page that holds it. */
 export interface EndLink {
-  readonly id: 'name' | 'voice' | 'workspace' | 'phone';
+  readonly id: 'name' | 'voice';
   readonly title: string;
   readonly detail: string;
   readonly page: SettingsPage;
@@ -75,8 +92,6 @@ export function endLinks(name: string | undefined): readonly EndLink[] {
   const all: readonly EndLink[] = [
     { id: 'name', title: 'Tell Memnox your name', detail: 'So it greets you by name.', page: 'account' },
     { id: 'voice', title: 'Pick a voice', detail: 'Who answers when you talk, and how it sounds.', page: 'voice' },
-    { id: 'workspace', title: 'Sign in to your workspace', detail: 'Share rules and approvals with your team.', page: 'account' },
-    { id: 'phone', title: 'Pair your phone', detail: 'Answer your agents when you are away.', page: 'phones' },
   ];
   return name === undefined || name.trim() === '' ? all : all.filter((link) => link.id !== 'name');
 }
@@ -121,28 +136,14 @@ export const GuideLines = {
   setup(platform: Platform): string {
     return `Here is what I will do on this computer. I install the Memnox service in your home folder and keep it running and up to date, and I connect it to the agents I find, like Claude Code, Codex and Cursor, so what they do passes your rules first. From you I need one thing now: ${KEY_SAID[platform]} so only you approve.`;
   },
-  /** Said over the second step, which lists only what this system asks for. */
-  permissions: 'Next, the few things this computer asks you to allow. Everything else I install myself.',
-  /** Said over the third step: a pack is only proposed, and each rule waits for the person. */
+  /** Said once before the first step, so a new person knows how short this is. */
+  twoSteps: 'Setup takes two short steps, and I will talk you through both.',
+  /** Said over the last step: a pack is only proposed, and each rule waits for the person. */
   boundaries(platform: Platform): string {
     return `Last, your starting rules. The recommended ones are already chosen, and each holds once you confirm it with ${KEY_SAID[platform]} on the island. You can change any of them later.`;
   },
   /** Said on the end screen, over its one next action and what is optional. */
-  done: 'That is everything your agents need. Your name, a voice and your phone are optional, and wait in Settings.',
-  /** Said when hearing waits on a switch the person has to turn on. */
-  microphone(platform: Platform): string {
-    return platform === 'windows'
-      ? 'Settings is opening. Under Privacy and security, Microphone, switch on Let desktop apps access your microphone, then come back here.'
-      : 'I cannot find a microphone on this computer. Plug one in or pick one in your sound settings, then press Check again.';
-  },
-  /** Said when typing waits on the person, which only Wayland asks. */
-  typing: 'Wayland lets me type into other apps only through uinput. Follow the steps on screen, then press Check again.',
-  /** Said when seeing waits on the person, as the Mac's seeing line, for what each Linux desktop lacks. */
-  seeing(why: 'portal' | 'accessibility'): string {
-    return why === 'portal'
-      ? 'Your desktop has no screen sharing portal answering, which is how Wayland lets me see a window. Follow the steps on screen, then press Check again.'
-      : 'The accessibility bus is off, so I cannot read the outline of a window. Follow the steps on screen, then press Check again.';
-  },
+  done: 'That is setup done. Paste the prompt on screen into your agent, and I will ask you before the delete runs. Below it is what I can and cannot do for your agents, in plain words. You can pair your phone or sign in to Memnox Cloud later, from Home and Settings, once Memnox opens.',
   ready(name: string | undefined, talkKeys: string): string {
     return `You’re all set${greeting(name)}. Press ${talkKeys} and say what you need. When an agent needs you, I will ask right here in the island.`;
   },
@@ -183,3 +184,43 @@ export class GuideMemory {
 export function setTitle(name: string | undefined): string {
   return name === undefined ? 'You’re set.' : `You’re set, ${name}.`;
 }
+
+/** One line of the closing card: a level in plain words and the things an agent does that sit at it. */
+export interface CoverageLine {
+  readonly level: CapabilityLevel;
+  readonly plain: string;
+  readonly things: readonly string[];
+  /** "Memnox stops this: Commands, Files and Git." */
+  readonly sentence: string;
+}
+
+/** The levels strongest first, so the card opens on what is held. */
+const STRONGEST_FIRST: readonly CapabilityLevel[] = ['enforced', 'mediated', 'advisory', 'observed', 'none'];
+
+/** "Commands, Files and Git", the way a sentence lists things. */
+export function joinedThings(things: readonly string[]): string {
+  if (things.length <= 1) return things[0] ?? '';
+  return `${things.slice(0, -1).join(', ')} and ${things[things.length - 1]}`;
+}
+
+/**
+ * What Memnox can and cannot do, said at the end of the first run in the five plain levels, as the Mac's
+ * `FirstRunCoverage`. Every level is one the service or the cloud stated; nothing here works one out.
+ */
+export const FirstRunCoverage = {
+  title: 'What Memnox can and cannot do',
+  lead: 'For each agent found here, from what Memnox has seen and proved so far.',
+  cannot: 'Memnox cannot see or stop anything an agent does outside the connections above, and it never acts on its own.',
+  noAgents: 'No agent is connected yet, so there is nothing for Memnox to stop or see. Each one you connect shows here and under AI agents.',
+  /** The press that opens and closes every agent's levels, since the whole list buries the one thing to do next. */
+  showDetails: 'Show what each covers',
+  hideDetails: 'Hide the details',
+  /** The agent's capabilities and seams grouped by level, strongest first, a level with nothing at it left out. */
+  lines(levels: CapabilityLevels): CoverageLine[] {
+    const rows = [...levelRows(levels), ...seamRows(levels)];
+    return STRONGEST_FIRST.flatMap((level) => {
+      const things = rows.filter((row) => row.level === level).map((row) => row.title);
+      return things.length === 0 ? [] : [{ level, plain: LEVEL_WORDS[level], things, sentence: `${LEVEL_WORDS[level]}: ${joinedThings(things)}.` }];
+    });
+  },
+} as const;

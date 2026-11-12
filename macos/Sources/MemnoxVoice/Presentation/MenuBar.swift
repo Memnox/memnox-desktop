@@ -17,8 +17,6 @@ final class MenuModel: ObservableObject {
     @Published var opened = 0
     /// The phones paired with this Mac and not revoked, fetched each time the panel opens.
     @Published var devices: [Device] = []
-    /// The four numbers at the top, fetched each time the panel opens.
-    @Published var overview = MenuOverview()
     /// The Kokoro voice saved, so the voice menu ticks the one speaking.
     @Published var kokoroVoice = KokoroVoice.chosen().voice
     /// The agents and connected apps, shared with the notch and Settings.
@@ -48,7 +46,6 @@ final class MenuModel: ObservableObject {
     /// Gives a phone the mac capability with Touch ID when on, and takes it back unsigned when off.
     let letDrive: (Device, Bool) -> Void
     let loadDevices: () -> Void
-    let loadOverview: () -> Void
 
     init(
         wakeOn: Bool,
@@ -76,7 +73,6 @@ final class MenuModel: ObservableObject {
         revoke: @escaping (Device) -> Void,
         letDrive: @escaping (Device, Bool) -> Void,
         loadDevices: @escaping () -> Void,
-        loadOverview: @escaping () -> Void = {},
         tools: ToolsModel? = nil
     ) {
         self.tools = tools ?? ToolsModel()
@@ -105,26 +101,6 @@ final class MenuModel: ObservableObject {
         self.revoke = revoke
         self.letDrive = letDrive
         self.loadDevices = loadDevices
-        self.loadOverview = loadOverview
-    }
-}
-
-/// What the agents add up to right now, counted only from what the daemon and the island report.
-struct MenuOverview: Equatable {
-    var needYou = 0
-    var working = 0
-    var agents = 0
-    var repositories = 0
-
-    init() {}
-
-    /// Ended sessions are left out, so the counts describe work that is still alive.
-    init(sessions: [SessionCard], waiting: Int) {
-        let live = sessions.filter { $0.sessionState != .ended }
-        needYou = waiting
-        working = live.filter(\.status.isActive).count
-        agents = Set(live.map { $0.agent ?? $0.agentName }).count
-        repositories = Set(live.compactMap(\.repository)).count
     }
 }
 
@@ -194,7 +170,6 @@ final class MenuBarPanel: NSObject {
         host.rootView.model.opened += 1
         host.rootView.model.kokoroVoice = KokoroVoice.chosen().voice
         host.rootView.model.loadDevices()
-        host.rootView.model.loadOverview()
         host.rootView.model.tools.refresh()
         watchForDismissal()
     }
@@ -310,7 +285,7 @@ struct MenuView: View {
             LogoMark(size: Layout.logoSize)
             Text("Memnox")
                 .font(Memnox.display(Layout.titleSize))
-                .foregroundStyle(Memnox.Palette.ink)
+                .foregroundStyle(Memnox.Console.ink)
             Spacer()
             HStack(spacing: Memnox.Spacing.small) {
                 Circle()
@@ -463,22 +438,16 @@ struct MemnoxSwitch: ToggleStyle {
     }
 }
 
-/// The switch in the look of its window: the Mac's capsule, or in the Memnox window the console's squircle track, blue
-/// when on and grey when off, its knob a tint of the blue on the dark.
+/// The switch in the console's squircle track on every surface, blue when on and grey when off, its knob a tint of the
+/// blue on the dark.
 private struct SwitchFace: View {
     let configuration: ToggleStyleConfiguration
-    @Environment(\.look) private var look
 
     private enum Layout {
-        static let trackWidth: CGFloat = 34
         static let trackHeight: CGFloat = 20
-        static let offTrackInk = 0.14
         /// The knob fills the track's height less its inset on each side.
         static let knobSize: CGFloat = 16
-        static let knobShadowOpacity = 0.25
-        static let knobShadowRadius: CGFloat = 1
         static let knobShadowDrop: CGFloat = 1
-        static let flip = Animation.spring(response: 0.25, dampingFraction: 0.75)
         static let consoleWidth: CGFloat = 36
         static let consoleTrackRadius: CGFloat = 5
         static let consoleKnobRadius: CGFloat = 4
@@ -488,9 +457,7 @@ private struct SwitchFace: View {
         static let consoleFlip = Animation.easeOut(duration: 0.2)
     }
 
-    var body: some View {
-        if look == .console { console } else { mac }
-    }
+    var body: some View { console }
 
     private var console: some View {
         let on = configuration.isOn
@@ -506,24 +473,6 @@ private struct SwitchFace: View {
                     .shadow(color: .black.opacity(Layout.consoleKnobShadow), radius: Layout.consoleShadowRadius, y: Layout.knobShadowDrop)
             }
             .animation(Layout.consoleFlip, value: on)
-        }
-        .buttonStyle(.plain)
-        .pointingHand()
-    }
-
-    private var mac: some View {
-        Button { configuration.isOn.toggle() } label: {
-            ZStack(alignment: configuration.isOn ? .trailing : .leading) {
-                Capsule()
-                    .fill(configuration.isOn ? Memnox.Palette.primary : Memnox.ink(Layout.offTrackInk))
-                    .frame(width: Layout.trackWidth, height: Layout.trackHeight)
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: Layout.knobSize, height: Layout.knobSize)
-                    .padding(Memnox.Spacing.xxSmall)
-                    .shadow(color: .black.opacity(Layout.knobShadowOpacity), radius: Layout.knobShadowRadius, y: Layout.knobShadowDrop)
-            }
-            .animation(Layout.flip, value: configuration.isOn)
         }
         .buttonStyle(.plain)
         .pointingHand()
@@ -636,7 +585,7 @@ struct MenuTools: View {
                 Button("Manage", action: open)
                     .buttonStyle(.plain)
                     .font(.system(size: Memnox.TextSize.micro, weight: .semibold))
-                    .foregroundStyle(Memnox.Palette.primary)
+                    .foregroundStyle(Memnox.Console.primary)
                     .pointingHand()
             }
             .padding(.horizontal, Memnox.Spacing.xSmall)
@@ -678,7 +627,7 @@ struct MenuTools: View {
                 mark()
                     .overlay(alignment: .bottomTrailing) {
                         Circle()
-                            .fill(ok ? Memnox.Palette.success : Memnox.Palette.warm)
+                            .fill(ok ? Memnox.Console.success : Memnox.Console.warm)
                             .frame(width: Layout.dotSide, height: Layout.dotSide)
                             .overlay(Circle().strokeBorder(Color.black.opacity(Layout.dotRingInk), lineWidth: Layout.dotRingWidth))
                     }
@@ -701,12 +650,8 @@ enum MenuLayout {
     static let iconColumnWidth: CGFloat = 18
     static let rowInset: CGFloat = 12
     static let rowCornerRadius: CGFloat = 11
-    static let titleDetailSpacing: CGFloat = 1
-    /// Every setting row is at least this tall, so a one line row and a two line row sit on the same rhythm.
-    static let settingRowHeight: CGFloat = 46
     /// White for secondary icons and labels, between the shared secondary ink and full white.
     static let mutedInk = 0.6
-    static let litInk = 0.75
     static let dimInk = 0.4
     /// The faint white behind a hovered row and the listening badge.
     static let softFill = 0.07

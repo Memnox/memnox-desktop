@@ -87,6 +87,6 @@ public enum TodayLines {
 
     /// How many distinct repositories have a session still open, which is what open projects counts.
     public static func openProjects(_ sessions: [SessionCard]) -> Int {
-        Set(sessions.filter { $0.status != .ended }.compactMap { SessionReading.repository($0.repository) }).count
+        Set(sessions.filter { $0.sessionState != .ended }.compactMap { SessionReading.repository($0.repository) }).count
     }
 }

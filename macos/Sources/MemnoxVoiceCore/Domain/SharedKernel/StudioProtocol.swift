@@ -429,6 +429,10 @@ public struct AgentStanding: Decodable, Equatable, Identifiable, Sendable {
     public let recent: [AgentAction]
     /// Whether agent-launch can open it, which only an agent with a known launch command can; absent reads as no.
     public let launchable: Bool?
+    /// The profile it works under: the one a person bound, or its own default; absent from a runtime before profiles.
+    public let profileId: String?
+    /// How sure Memnox is of each capability for it, from what holds it and what was proved.
+    public let levels: CapabilityLevels?
 
     public var id: String { kind }
     public var agentStatus: AgentStatus? { AgentStatus(rawValue: status) }

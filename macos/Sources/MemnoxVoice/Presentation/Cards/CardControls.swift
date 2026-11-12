@@ -29,7 +29,7 @@ struct CardButton: View {
         Button(action: action) {
             Label(title, systemImage: icon)
                 .font(Memnox.sans(Layout.textSize, .medium))
-                .foregroundStyle(primary ? IslandPalette.primaryText : Memnox.Palette.ink)
+                .foregroundStyle(primary ? IslandPalette.primaryText : Memnox.Console.ink)
                 .padding(.horizontal, Layout.horizontalPadding)
                 .padding(.vertical, Memnox.Spacing.medium)
                 .background(Capsule().fill(fill))
@@ -66,7 +66,7 @@ struct CloseButton: View {
         Button(action: action) {
             Image(systemName: Layout.symbol)
                 .font(.system(size: Memnox.TextSize.caption, weight: .semibold))
-                .foregroundStyle(hovered ? Memnox.Palette.foreground : Memnox.Palette.muted)
+                .foregroundStyle(hovered ? Memnox.Console.foreground : Memnox.Console.muted)
                 .frame(width: Layout.target, height: Layout.target)
                 .background(Circle().fill(Memnox.ink(hovered ? Layout.hoveredFill : 0)))
                 .contentShape(Circle())

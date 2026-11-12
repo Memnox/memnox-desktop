@@ -3,9 +3,8 @@ import Foundation
 /// The pages the first run walks through, as the guide speaks them.
 public enum FirstRunPage: Int, CaseIterable, Sendable {
     case connect
-    case workspace
-    case boundaries
-    /// The end, once the three steps are done.
+    case rules
+    /// The end, once the steps are done.
     case ready
 }
 
@@ -25,21 +24,9 @@ public enum FirstRunGuide {
     public static func lines(_ page: FirstRunPage) -> [String] {
         switch page {
         case .connect: return connect
-        case .workspace: return workspace
-        case .boundaries: return boundaries
+        case .rules: return rules
         case .ready: return ready
         }
-    }
-
-    /// Said on the second step once the agents' own servers and skills are counted, so the person hears how many.
-    public static func found(_ found: FoundToImport) -> String {
-        if found.isEmpty { return "None of your agents keeps skills or tools of its own yet, so there is nothing to bring in. Press Continue." }
-        return "\(FirstRunLines.foundLine(found)) I ticked every one. Press Bring them in, or untick any you want to leave where they are."
-    }
-
-    /// Said once Import has run, so the person knows what changed before moving on.
-    public static func imported(_ count: Int) -> String {
-        "Done. \(counted(count, "item is", "items are")) now kept once in Memnox, and shared with the agents you choose. Press Continue."
     }
 
     /// Said once a pack is chosen, while its rules wait on the island.
@@ -57,38 +44,29 @@ public enum FirstRunGuide {
     }
 
     private static let connect = [
-        "Setup takes three short steps, and I will talk you through each one.",
-        "Step one connects your agents. The Memnox service installs and starts by itself, and keeps itself up to date.",
+        "Setup takes two short steps, and I will talk you through both.",
+        "First I connect this Mac. The Memnox service installs and starts by itself, and keeps itself up to date.",
         "I put myself under the agents I find, like Claude Code, Codex and Cursor, so everything they do passes your rules first.",
         "Touch ID signs what you approve, and the key never leaves this Mac.",
         "Press Continue as soon as the service shows a tick.",
     ]
 
-    private static let workspace = [
-        "Step two brings in the skills and tools your agents already keep, each in its own folder.",
-        "Brought in once, they are shared with every agent you choose.",
-        "A tool brought in runs behind Memnox, so everything it does is checked against your rules and recorded.",
-    ]
-
-    private static let boundaries = [
-        "Step three sets your starting rules.",
+    private static let rules = [
+        "Last, your starting rules.",
         "Every action an agent takes meets a rule: allow, ask or deny. Ask waits for you on the notch island.",
         "I chose the pack I recommend. Press Finish, and confirm its rules with Touch ID on the island.",
-        "You can change any rule later, under Protection settings.",
+        "You can change any rule later, under Rules.",
     ]
 
     private static let ready = [
-        "That is the three steps done. Your agents now work inside your rules.",
-        "The rest is optional and waits in Settings: the voice, your workspace, and your iPhone.",
+        "That is setup done. Paste the prompt on screen into your agent, and I will ask you before the delete runs.",
+        "Below it is what I can and cannot do for each of your agents, in plain words.",
         "Memnox can also act in your apps, like Gmail, Slack and GitHub, through connectors. Nothing goes out until you approve it.",
+        "You can pair your iPhone or sign in to Memnox Cloud later, from Home and Settings, once Memnox opens.",
     ]
 
     private static func greeting(_ name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         return trimmed.isEmpty ? "" : " \(trimmed)"
-    }
-
-    private static func counted(_ count: Int, _ one: String, _ many: String) -> String {
-        count == 1 ? "1 \(one)" : "\(count) \(many)"
     }
 }

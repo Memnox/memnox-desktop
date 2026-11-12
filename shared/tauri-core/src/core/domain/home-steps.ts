@@ -1,4 +1,5 @@
 import type { HomeModeSet } from '@memnox/core/wire';
+import type { Route } from './destinations';
 
 /**
  * Home's getting started steps, ported from the Mac's `HomeSteps`, which mirrors the cloud console's ladder: the
@@ -8,6 +9,8 @@ import type { HomeModeSet } from '@memnox/core/wire';
 
 /** The counts the steps are read off. */
 export interface HomeStanding {
+  /** Whether the two onboarding steps were finished, which is the first rung until they are. */
+  readonly setupFinished: boolean;
   readonly agents: number;
   readonly agentsProtected: number;
   readonly rulesInForce: number;
@@ -22,6 +25,7 @@ export interface HomeStanding {
 }
 
 export const EMPTY_STANDING: HomeStanding = {
+  setupFinished: true,
   agents: 0,
   agentsProtected: 0,
   rulesInForce: 0,
@@ -74,7 +78,7 @@ export const TRACK_LEAD: Record<HomeTrack, string> = {
   work: 'What your agents can reach and start from. Linked where it is, and read on this computer.',
 };
 
-export type HomeStepId = 'protectAgents' | 'rulesInForce' | 'actionsRecorded' | 'answerAway' | 'enforce' | 'connectApps' | 'linkSource' | 'shareSkills';
+export type HomeStepId = 'finishSetup' | 'protectAgents' | 'rulesInForce' | 'actionsRecorded' | 'answerAway' | 'enforce' | 'connectApps' | 'linkSource' | 'shareSkills';
 
 export interface HomeStep {
   readonly id: HomeStepId;
@@ -110,8 +114,10 @@ export interface HomeSetup {
 export const WAITING_LABEL = 'Waiting on an agent';
 export const WAITING_MEANS = 'This closes the first time an agent on this computer does something. Use one as you normally would.';
 
-/** Remembered, so a person who hid the steps is not shown them again on every opening. */
-export const STEPS_HIDDEN_KEY = 'memnox.home.startHidden';
+/** The card's title on every surface, from the contract's Home block of that name. */
+export const CARD_TITLE = 'Do this next';
+export const ALL_STEPS = 'Show all steps';
+export const FEWER_STEPS = 'Show fewer steps';
 
 export function homeSetup(standing: HomeStanding, keyTitle: string): HomeSetup {
   const steps = homeSteps(standing, keyTitle);
@@ -145,19 +151,31 @@ export function stageOf(standing: HomeStanding): HomeStage {
 }
 
 /** Where each step's press goes in the window; for stopping, that is the record it is read off. */
-export const STEP_ROUTE: Record<HomeStepId, { readonly destination: 'agents' | 'governance' | 'settings' | 'mcp' | 'workspaces'; readonly tab: string }> = {
-  protectAgents: { destination: 'agents', tab: 'list' },
-  rulesInForce: { destination: 'governance', tab: 'policies' },
-  actionsRecorded: { destination: 'governance', tab: 'activity' },
-  enforce: { destination: 'governance', tab: 'activity' },
+export const STEP_ROUTE: Record<HomeStepId, Route & { readonly tab: string }> = {
+  // Run setup again stands in Help once setup is done, which is where its rung points.
+  finishSetup: { destination: 'settings', tab: 'help' },
+  protectAgents: { destination: 'agents', tab: 'agents' },
+  rulesInForce: { destination: 'rules', tab: 'rules' },
+  actionsRecorded: { destination: 'activity', tab: 'timeline' },
+  enforce: { destination: 'activity', tab: 'timeline' },
   answerAway: { destination: 'settings', tab: 'phones' },
-  connectApps: { destination: 'mcp', tab: 'apps' },
-  linkSource: { destination: 'workspaces', tab: 'sources' },
-  shareSkills: { destination: 'workspaces', tab: 'skills' },
+  connectApps: { destination: 'connectors', tab: 'systems' },
+  linkSource: { destination: 'connectors', tab: 'files' },
+  shareSkills: { destination: 'memory', tab: 'skills' },
 };
 
 function homeSteps(standing: HomeStanding, keyTitle: string): HomeStep[] {
   return [
+    {
+      id: 'finishSetup',
+      title: 'Finish setting up this computer',
+      value: 'Two short steps put your agents under Memnox and give them starting rules, so the rest of these can start.',
+      how: 'Connect this computer, then confirm your starting rules.',
+      action: 'Run setup',
+      track: 'computer',
+      done: standing.setupFinished,
+      waitsOnAnAgent: false,
+    },
     {
       id: 'protectAgents',
       title: 'Put your agents under Memnox',

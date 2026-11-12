@@ -93,28 +93,26 @@ struct AppShellView: View {
             }
             .padding(.horizontal, ShellScroll<EmptyView>.side(width))
             .accessibilityElement(children: .contain)
-            .accessibilityLabel(Sidebar.row(of: route)?.title ?? "")
+            .accessibilityLabel(Destinations.info(route.destination).title)
         }
     }
 
     /// Settings keeps its tree beside the page; every other page is reached from the sidebar, so it shows only its own
-    /// title and line, and Home and Today show neither, since Today writes its own line from what waits.
+    /// title and line, and Home neither, since its greeting says where things stand.
     private func heading(_ route: WindowRoute) -> PaneHeading? {
         // A project's Overview heads itself with the project's name; its other pages say their own title and line.
         if let place = ProjectSidebar.place(of: route) {
             return place.page == .overview ? nil : .page(title: place.page.title, subtitle: place.page.summary)
         }
         let info = Destinations.info(route.destination)
-        let tabs = Destinations.visibleTabs(route.destination, supports: shell.supports)
-        if route.destination != .settings, route.destination != .home, route.destination != .today, let shown = Destinations.tab(of: route) {
-            return .page(title: shown.tab.title, subtitle: shown.tab.summary)
+        if route.destination == .home { return nil }
+        guard let shown = Destinations.tab(of: route) else { return .page(title: info.title, subtitle: info.subtitle) }
+        if route.destination == .settings, let group = shown.group {
+            let context = SubNavContext(title: info.title, groups: Destinations.tabGroups(.settings, supports: shell.supports),
+                                        chosen: route.tab) { shell.go(WindowRoute(.settings, tab: $0)) }
+            return .subNav(context, tab: shown, group: group.title)
         }
-        if tabs.count > 1, let shown = Destinations.tab(of: route) {
-            let context = SubNavContext(title: info.title, groups: Destinations.tabGroups(route.destination, supports: shell.supports),
-                                        chosen: route.tab) { shell.go(WindowRoute(route.destination, tab: $0)) }
-            return .subNav(context, tab: shown.tab, group: shown.group)
-        }
-        return route.destination == .home || route.destination == .today ? nil : .page(title: info.title, subtitle: info.subtitle)
+        return .page(title: shown.title, subtitle: shown.summary)
     }
 
     private func topBar(_ route: WindowRoute, _ width: WidthClass) -> some View {
@@ -163,7 +161,7 @@ struct AppShellView: View {
         if let place = ProjectSidebar.place(of: route) {
             return ProjectSidebar.breadcrumb(place, name: shell.projects?.projects.projects?.first { $0.id == place.id }?.name)
         }
-        let row = Sidebar.row(of: route)?.title ?? Destinations.info(route.destination).title
+        let row = Destinations.info(route.destination).title
         let tab = Sidebar.strip(for: route, supports: shell.supports).first { $0.route == route }
         return [row] + (tab.map { [$0.title] } ?? [])
     }
@@ -234,10 +232,10 @@ struct AppShellView: View {
     private var keys: some View {
         ZStack {
             Button("Go to") { shell.palette = true }.keyboardShortcut("k", modifiers: .command)
-            ForEach(Destinations.all.filter { $0.key != nil }, id: \.id) { each in
-                if let key = each.key {
+            ForEach(Destinations.all, id: \.id) { each in
+                if let key = Destinations.key(each.id) {
                     Button(each.title) { shell.go(WindowRoute(each.id)) }
-                        .keyboardShortcut(KeyEquivalent(key), modifiers: .command)
+                        .keyboardShortcut(KeyEquivalent(Character(key)), modifiers: .command)
                 }
             }
             Button("Back", action: shell.back).keyboardShortcut("[", modifiers: .command)
@@ -263,59 +261,56 @@ private struct AppPage: View {
     var body: some View {
         if let menu = models.menu, let setup = models.setup, let island = shell.island {
             switch route.destination {
-            // An old link to Today settles on Home, which now holds what Today showed.
-            case .today, .home:
+            case .home:
                 HomeDestination(shell: shell, menu: menu, setup: setup, island: island, models: models, width: width)
+            case .needsYou:
+                NeedsYouDestination(shell: shell, island: island, width: width)
+            case .sessions:
+                SessionsDestination(shell: shell, island: island, width: width)
             case .agents:
-                if route.tab == "computer" {
+                if route.tab == "this-computer" {
                     SettingsPageColumn { ToolsPage(tools: menu.tools) }
-                } else if route.tab == "list", let agents = shell.agents {
+                } else if route.tab == "jobs", let profiles = shell.profiles {
+                    ProfilesDestination(shell: shell, screen: profiles, width: width)
+                } else if let agents = shell.agents {
                     AgentListDestination(screen: agents, island: island, home: models.home,
                                          profiles: shell.supports("profiles") == true ? shell.profiles : nil,
-                                         current: shell.currentProject, width: width)
-                } else {
-                    SessionsDestination(shell: shell, island: island, width: width)
+                                         current: shell.currentProject,
+                                         work: shell.supports("agent-work") == true ? shell.work : nil,
+                                         workspace: shell.workspaceAgents,
+                                         giveJob: { profile in
+                                             shell.jobFor = profile.id
+                                             shell.go(WindowRoute(.agents, tab: "jobs"))
+                                         }, width: width)
                 }
-            case .workspaces:
-                // Memory reads `memory-facts`, My Skills and Assigned `skills-hub`, and Discover `index-list`; until this Mac's runtime answers them only the projects show.
-                if route.tab == "skills" || route.tab == "assigned" {
-                    if let skills = shell.skills {
-                        SkillsDestination(screen: skills, island: island, tab: route.tab, current: shell.currentProject,
-                                          scope: shell.scope, width: width)
-                    }
-                } else if route.tab == "sources" {
-                    // Where memory is read from, as Files under Connected tools beside the connectors, as Memnox Cloud places its sources.
-                    if let memory = shell.memory { ShellScroll(width: width) { MemorySourcesPage(screen: memory, shell: shell) } }
-                } else if route.tab == "memory" || route.tab == "map" || route.tab == "layers" {
-                    if let memory = shell.memory {
-                        MemoryDestination(screen: memory, shell: shell, island: island, width: width, shown: MemoryView(tab: route.tab))
-                    }
-                } else if route.tab == "discover" {
-                    if let index = shell.index { DiscoverDestination(screen: index, width: width) }
-                } else {
-                    WorkspacesDestination(shell: shell, island: island, account: models.account, width: width)
-                }
-            case .mcp:
-                // Servers, Clients and Secrets read `mcp-hub`; until this Mac's runtime answers it only Your apps shows.
-                if route.tab == "apps" || route.tab == nil {
-                    SettingsPageColumn(wide: true) { YourAppsPage(tools: menu.tools) }
-                } else if let hub = shell.hub {
-                    McpHubDestination(shell: shell, screen: hub, island: island, tab: route.tab, width: width)
-                }
-            case .governance:
-                // Each tab past Approvals shows once this Mac's runtime answers the method it reads.
-                if route.tab == "policies", let studio = shell.studio {
+            case .projects:
+                WorkspacesDestination(shell: shell, island: island, account: models.account, width: width)
+            case .rules:
+                if let studio = shell.studio {
                     PoliciesDestination(shell: shell, screen: studio, island: island, home: models.home, width: width)
-                } else if route.tab == "activity", let activity = shell.activity {
-                    ActivityDestination(shell: shell, screen: activity, width: width)
-                } else if route.tab == "learn", let memory = shell.memory {
-                    LearnDestination(screen: memory, island: island, width: width)
-                } else if route.tab == "approvals" || route.tab == nil {
-                    ApprovalsDestination(island: island, projects: shell.projects?.projects.projects ?? [], width: width)
+                }
+            case .handOver:
+                if let home = models.home { HandOverDestination(home: home, width: width) }
+            case .activity:
+                if let activity = shell.activity { ActivityDestination(shell: shell, screen: activity, width: width) }
+            case .memory:
+                if route.tab == "skills" {
+                    if let skills = shell.skills {
+                        SkillsDestination(screen: skills, island: island, current: shell.currentProject, scope: shell.scope, width: width)
+                    }
+                } else if let memory = shell.memory {
+                    MemoryDestination(screen: memory, shell: shell, island: island, width: width, shown: MemoryView(tab: route.tab))
+                }
+            case .connectors:
+                if route.tab == "files" {
+                    if let memory = shell.memory { ShellScroll(width: width) { MemorySourcesPage(screen: memory, shell: shell) } }
+                } else if route.tab == "mcp" {
+                    if let hub = shell.hub { McpHubDestination(shell: shell, screen: hub, island: island, width: width) }
+                } else {
+                    SettingsPageColumn(wide: true) { YourAppsPage(tools: menu.tools) }
                 }
             case .settings:
-                SettingsDestination(models: models, menu: menu, setup: setup, tab: route.tab, backup: shell.backup,
-                                    network: shell.network, sync: shell.sync)
+                SettingsDestination(models: models, menu: menu, setup: setup, tab: route.tab, network: shell.network)
             }
         } else {
             ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -332,7 +327,6 @@ struct SettingsPageColumn<Content: View>: View {
 
     var body: some View {
         SettingsColumn(title: title, subtitle: subtitle, wide: wide) { content }
-            .environment(\.rimlessCards, true)
             // Any button a page leaves unstyled is the grey capsule, so no system button shows here.
             .buttonStyle(QuietButton())
     }

@@ -18,6 +18,10 @@ enum ToolName {
     static let openLink = "open_link"
     static let createFolder = "create_folder"
     static let signIn = "sign_in"
+    /// Points a job's agent at a tracker issue; a person's steer, so it goes unsigned and the daemon decides.
+    static let startAgentWork = "start_agent_work"
+    static let showAgentWork = "show_agent_work"
+    static let answerHandoff = "answer_handoff"
 }
 
 public final class Conversation {
@@ -132,6 +136,7 @@ public final class Conversation {
     static let actingTools: Set<String> = [
         ToolName.startSession, ToolName.sendInstruction, ToolName.watchFor, ToolName.pauseSession,
         ToolName.show, ToolName.walkThrough, ToolName.typeInApp, ToolName.controlApp, ToolName.answerQuestion,
+        ToolName.startAgentWork, ToolName.answerHandoff,
     ]
 
     /// The calls that change something the person can see, which the side panel lists; a lookup is left out as talk.
@@ -301,6 +306,12 @@ public final class Conversation {
     /// The person started talking: the brain starts now, so the answer skips its cold start.
     public func warm() async {
         _ = try? await link.request(newRequest(.warm))
+    }
+
+    /// The version the service answers a ping with, or nil while it is away, for offering a newer one.
+    public func runtimeVersion() async -> String? {
+        guard let pong = try? await link.request(DaemonRequest(id: takeId(), method: .ping)), pong.ok else { return nil }
+        return pong.version
     }
 
     /// Whether the daemon answers, and whether it speaks voice rather than only answering ok.
@@ -792,8 +803,8 @@ public final class Conversation {
                 if !isQuiet(event) { chimes?.play(.settled) }
                 face.show(.idle, caption: "answered elsewhere")
             }
-        // Live rows are for the window's screens, never said.
-        case .activity, .none:
+        // Live rows and work changes are for the window's screens, never said.
+        case .activity, .work, .none:
             break
         }
     }

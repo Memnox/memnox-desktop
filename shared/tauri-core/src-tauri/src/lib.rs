@@ -27,6 +27,7 @@ mod settings_windows;
 mod talk_key;
 mod tray;
 mod typing;
+mod updates;
 mod voice;
 
 use std::sync::Arc;
@@ -38,6 +39,9 @@ use tauri::Manager;
 pub(crate) const ISLAND: &str = "island";
 
 pub fn run() {
+    // GNOME on Wayland pins no window, so there the app goes through XWayland, chosen before GTK starts.
+    #[cfg(target_os = "linux")]
+    island::backend::choose();
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -110,6 +114,8 @@ pub fn run() {
             relay::relay_stream,
             relay::relay_done,
             cloud::cloud_send,
+            updates::release_feed,
+            updates::app_version,
             cloud::person_credential_load,
             cloud::person_credential_save,
             cloud::person_credential_delete,

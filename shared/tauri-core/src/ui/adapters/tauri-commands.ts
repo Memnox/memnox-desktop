@@ -14,6 +14,8 @@ export const TAURI_COMMAND = {
   closeSessionWindow: 'close_session_window',
   closeWindow: 'close_window',
   cloudSend: 'cloud_send',
+  releaseFeed: 'release_feed',
+  appVersion: 'app_version',
   confirmKeyPoint: 'confirm_key_point',
   confirmKeySign: 'confirm_key_sign',
   daemonStream: 'daemon_stream',

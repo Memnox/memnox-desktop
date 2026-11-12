@@ -77,9 +77,9 @@ describe('Today', () => {
     expect(ready?.choices[0]).toMatchObject({ key: 'A', title: 'Hand it over', recommended: true });
   });
 
-  it('offers a held call the island’s answers, leaving from now on off a teammate’s', () => {
-    expect(heldChoices(false).map((choice) => `${choice.key} ${choice.title}`)).toEqual(['A Allow once', 'B Allow this session', 'C Allow from now on', 'D Deny']);
-    expect(heldChoices(true).map((choice) => choice.title)).toEqual(['Allow once', 'Allow this session', 'Deny']);
+  it('offers a held call the contract’s answers, Deny last, leaving Always allow off a teammate’s', () => {
+    expect(heldChoices(false).map((choice) => `${choice.key} ${choice.title}`)).toEqual(['A Allow once', 'B Allow for this session', 'C Always allow', 'D Deny']);
+    expect(heldChoices(true).map((choice) => choice.title)).toEqual(['Allow once', 'Allow for this session', 'Deny']);
   });
 
   it('signs every allow unless the daemon placed the call inside its session, and never a deny', () => {

@@ -170,7 +170,7 @@ struct IslandLauncher: View {
         let working = model.working.count
         return LazyVGrid(columns: columns, spacing: NotchMetrics.tileSpacing) {
             NotchTile(title: "Talk", caption: "\u{2325} Space", action: model.tapped) {
-                NotchSymbol(name: Symbol.talk, tint: Memnox.Palette.sky)
+                NotchSymbol(name: Symbol.talk, tint: Memnox.Console.sky)
             }
             .notchArrival(order: 0)
             NotchTile(title: "Sessions", caption: working == 0 ? "None working" : "\(working) working", action: showSessions) {

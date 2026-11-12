@@ -22,9 +22,9 @@ export type ArmsApp = { slug: string; name: string };
 const MOST_LISTED = 12;
 
 /** Where the card's foot leads for a skill, a rule and an application. */
-const SKILLS_ROUTE: Route = { destination: "workspaces", tab: "skills" };
-const RULES_ROUTE: Route = { destination: "governance", tab: "policies" };
-const CONNECTORS_ROUTE: Route = { destination: "mcp", tab: "apps" };
+const SKILLS_ROUTE: Route = { destination: "memory", tab: "skills" };
+const RULES_ROUTE: Route = { destination: "rules", tab: "rules" };
+const CONNECTORS_ROUTE: Route = { destination: "connectors", tab: "systems" };
 
 const LINK = "text-body-sm font-medium text-primary hover:underline";
 const QUIET = "h-8 rounded-lg border border-panel-edge px-3 text-meta font-medium text-foreground transition-colors hover:bg-hover";

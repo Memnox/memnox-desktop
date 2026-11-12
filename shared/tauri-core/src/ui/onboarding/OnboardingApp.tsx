@@ -1,37 +1,19 @@
-import {
-  ArrowRight,
-  AudioLines,
-  Building2,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronUp,
-  Fingerprint,
-  Keyboard,
-  ListChecks,
-  Lock,
-  Mic,
-  Monitor,
-  RotateCw,
-  ScreenShare,
-  Settings as SettingsIcon,
-  Smartphone,
-  Sparkles,
-  UserRound,
-  UserRoundSearch,
-  Volume2,
-  VolumeX,
-  type LucideIcon,
-} from 'lucide-react';
+import { ArrowRight, AudioLines, Check, ChevronDown, ChevronLeft, ChevronUp, Fingerprint, ListChecks, Monitor, RotateCw, ShieldCheck, Settings as SettingsIcon, Sparkles, UserRound, UserRoundSearch, Volume2, VolumeX, type LucideIcon } from 'lucide-react';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+  END_LATER,
   endLinks,
   type EndLink,
+  FirstRunCoverage,
   GuideLines,
   GuideMemory,
+  nextStep,
+  ONBOARDING_IDS,
   ONBOARDING_STEPS,
-  permissionsAsked,
-  permissionsLine,
+  TRY_DETAIL,
+  TRY_PROMPT,
+  TRY_TITLE,
+  previousStep,
   progressOf,
   rowSpoken,
   setTitle,
@@ -42,24 +24,25 @@ import {
   type OnboardingStep,
   type WelcomeRow,
 } from '../../core/domain/onboarding';
-import type { PermissionStep } from '../../core/domain/permission-steps';
 import { agentsFoundLine, firstName, packTitle } from '../../core/domain/setup-steps';
 import type { StepState } from '../../core/domain/step-state';
-import { BrandLogo, MEMNOX_MARK } from '../kit/logos';
+import { BrandLogo, Wordmark } from '../kit/logos';
 import { IconTile, MemnoxTile, NeedsHint, QuietLine, StatusMark } from '../settings/kit';
 import { useLook, useObserved, usePreferences, type SettingsParts } from '../settings/parts';
-import { PermissionGuide } from '../settings/steps';
 import { IslandDemo, useDemoTour } from './IslandDemo';
 import { Button, Pressable, Spinner } from '../kit';
 import { OnboardingLines } from '../../core/domain/onboarding-lines';
+import { orderedProfiles } from '../../core/domain/agent-work-lines';
+import { LevelPill } from '../app/capability-strip';
+import { headlineLevel } from '../../core/domain/capability-level-lines';
 
-const PERMISSION_ICONS: Record<PermissionStep['id'], LucideIcon> = { hear: Mic, type: Keyboard, see: ScreenShare };
-const END_ICONS: Record<EndLink['id'], LucideIcon> = { name: UserRound, voice: AudioLines, workspace: Building2, phone: Smartphone };
+const END_ICONS: Record<EndLink['id'], LucideIcon> = { name: UserRound, voice: AudioLines };
 
 /**
- * The first run on a fresh computer, with no account: the wordmark and Get Started, then three short steps with a
- * progress bar (connect, the grants this system asks for, the starting rules), each with its safe default chosen,
- * and an end screen with one next action. A scrolling column sits beside the island, with Back and Mute at the foot.
+ * The first run on a fresh computer, with no account: the wordmark and Get Started, then two short steps with a
+ * progress bar (connect, then the starting rules), each with its safe default chosen, and an end screen with one next
+ * action. Everything else a new computer can do waits on Home, where Memnox opens. A scrolling column sits beside the
+ * island, with Back and Mute at the foot.
  * The veil lies over the whole screen as the Mac's does, dark over a blue wash, since nothing blurs the desktop here.
  */
 export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstStep = 0 }: { parts: SettingsParts; stage?: OnboardingStage; step?: OnboardingStep }) {
@@ -74,19 +57,20 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
   const [part] = useDemoTour((new URLSearchParams(location.search).get('part') ?? undefined) as WelcomeRow['id'] | undefined);
   // The part the island moved on to is said once, and only while the first step is on screen, as the Mac's `follow`.
   useEffect(() => {
-    if (stage === 'steps' && step === 0 && guideMemory.first(`part-${part}`)) guide(rowSpoken(part, parts.host.platform), false);
+    if (stage === 'steps' && ONBOARDING_IDS[step] === 'connect' && guideMemory.first(`part-${part}`)) guide(rowSpoken(part, parts.host.platform), false);
   }, [part, stage, step]);
 
   // Each stage is introduced once in a first run, as the Mac's `firstVisit`, so going Back stays quiet.
   useEffect(() => {
     const at = stage === 'steps' ? `step-${step}` : stage;
     if (!guideMemory.first(at)) return;
-    if (stage === 'steps' && step === 0) {
+    const id = ONBOARDING_IDS[step];
+    if (stage === 'steps' && id === 'connect') {
       guide(GuideLines.welcome(firstName(parts.preferences.name)));
+      guide(GuideLines.twoSteps, false);
       guide(GuideLines.setup(parts.host.platform), false);
     }
-    if (stage === 'steps' && step === 1) guide(GuideLines.permissions);
-    if (stage === 'steps' && step === 2) guide(GuideLines.boundaries(parts.host.platform));
+    if (stage === 'steps' && id === 'rules') guide(GuideLines.boundaries(parts.host.platform));
     if (stage === 'done') guide(GuideLines.done);
   }, [stage, step]);
 
@@ -97,8 +81,9 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
   useEffect(() => {
     const keys = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      const before = previousStep(step);
       if (stage === 'done') setStage('steps');
-      else if (stage === 'steps' && step > 0) setStep((step - 1) as OnboardingStep);
+      else if (stage === 'steps' && before !== undefined) setStep(before);
     };
     window.addEventListener('keydown', keys);
     return () => window.removeEventListener('keydown', keys);
@@ -110,7 +95,13 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
     parts.host.close();
   };
   const done = stage === 'done';
-  const back = () => (done ? setStage('steps') : setStep((step - 1) as OnboardingStep));
+  const id = ONBOARDING_IDS[step];
+  const back = () => (done ? setStage('steps') : setStep(previousStep(step) ?? step));
+  const forward = () => {
+    const after = nextStep(step);
+    if (after === undefined) setStage('done');
+    else setStep(after);
+  };
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
       <div className="flex flex-col gap-2 px-onboard-side pt-onboard-top">
@@ -129,9 +120,8 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
       <div className="flex min-h-0 flex-1 justify-center gap-12 px-14">
         <ScrollColumn key={done ? 'done' : step}>
           {done && <EndScreen parts={parts} proposed={proposed} finish={finish} />}
-          {!done && step === 0 && <ConnectStep parts={parts} next={() => setStep(1)} />}
-          {!done && step === 1 && <PermissionsStep parts={parts} next={() => setStep(2)} />}
-          {!done && step === 2 && (
+          {!done && id === 'connect' && <ConnectStep parts={parts} next={forward} />}
+          {!done && id === 'rules' && (
             <RulesStep
               parts={parts}
               next={(note) => {
@@ -156,6 +146,9 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
     </div>
   );
 }
+
+/** Set once the first run put the agents found here under Memnox by itself, so it is tried once and then offered. */
+let autoProtected = false;
 
 /** The lines said in this first run, kept for the window's life so every page reads the same memory. */
 const guideMemory = new GuideMemory();
@@ -197,10 +190,7 @@ function Veil({ next }: { next: () => void }) {
   return (
     <div className="relative flex h-full flex-col items-center justify-center bg-(image:--mx-onboard-veil) text-white">
       <div className="flex animate-[card-in_600ms_cubic-bezier(.2,.8,.2,1)_both] flex-col items-center gap-11">
-        <div className="flex items-center gap-4 drop-shadow-onboard-wordmark">
-          <img src={MEMNOX_MARK} alt="" className="h-onboard-wordmark w-auto" draggable={false} />
-          <span className="font-display text-onboard-wordmark leading-none font-semibold tracking-tight">{OnboardingLines.brand}</span>
-        </div>
+        <Wordmark height="var(--spacing-onboard-wordmark)" className="drop-shadow-onboard-wordmark" />
         <Button kind="glass" trailing={ArrowRight} onClick={next} autoFocus>
           {OnboardingLines.getStarted}
         </Button>
@@ -244,7 +234,7 @@ function ScrollColumn({ children }: { children: ReactNode }) {
   );
 }
 
-/** `StepTitle`: "Step N of 3" when it is a step, then 30 semibold over its line 15 at ink 62%. */
+/** `StepTitle`: "Step N of 2" when it is a step, then 30 semibold over its line 15 at ink 62%. */
 function StepTitle({ counter, title, detail }: { counter?: string; title: string; detail: string }) {
   return (
     <header className="flex flex-col gap-2">
@@ -313,7 +303,7 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
   useEffect(() => {
     void steps.refresh().then(() => steps.recheckOnce());
     void agents.refresh();
-    // The next step's grants are read now, so they are settled by the time it shows.
+    // The grants are read now, so they are settled by the time their step shows.
     void steps.readPermissions();
     // The voice is optional, but it is fetched now so it has arrived by the time anybody asks for it.
     if (steps.voiceInstall.kind === 'idle') void steps.installVoice();
@@ -321,6 +311,18 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
   const service = steps.service;
   const key = steps.keyState;
   const found = agents.agents;
+  // What was found is put under Memnox once by itself, the way setup does, while the service runs; Protect stays for
+  // what that could not reach, as on the Mac.
+  const unprotected = (found ?? []).filter((agent) => agent.status === 'unprotected').map((agent) => agent.kind);
+  const [protectedByItself, setProtectedByItself] = useState(false);
+  useEffect(() => {
+    if (unprotected.length === 0 || autoProtected || service.state.kind !== 'done' || home.protecting) return;
+    autoProtected = true;
+    void home.protect().then(async () => {
+      await agents.refresh();
+      setProtectedByItself(home.protectFailed === undefined);
+    });
+  }, [unprotected.join(), service.state.kind]);
   // Before the agents method answers, the agents the voice found stand in, so a fresh computer still shows its agents.
   const fallback = steps.agents.filter((agent) => agent.installed);
   const heading = stepHeading(0, words.keyTitle);
@@ -390,6 +392,8 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
         {found !== undefined && found.length === 0 && (
           <KitRow tile={<IconTile icon={UserRoundSearch} />} title={OnboardingLines.noAgent} detail={OnboardingLines.noAgentDetail} trailing={<Button onClick={() => void agents.refresh()}>{OnboardingLines.checkAgain}</Button>} />
         )}
+        {protectedByItself && <QuietLine size={12}>{OnboardingLines.protectedByItself}</QuietLine>}
+        {home.protectFailed !== undefined && <NeedsHint why={home.protectFailed} size={12} />}
       </KitCard>
       <Button kind="primary" wide trailing={ArrowRight} onClick={next}>
         {OnboardingLines.continue}
@@ -398,78 +402,55 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
   );
 }
 
-/** Step 2: only the grants this system asks the person for, each with its one button; installs need nobody. */
-function PermissionsStep({ parts, next }: { parts: SettingsParts; next: () => void }) {
-  const { steps, words, host } = parts;
-  useObserved(steps);
-  const guide = useGuide(parts);
+/**
+ * What Memnox can and cannot do, at the end: each agent a name and its weakest level as a pill, with the levels the
+ * service stated behind one press, so the list never buries the button above it.
+ */
+function CoverageCard({ parts }: { parts: SettingsParts }) {
+  const { profiles, support } = parts;
+  useObserved(profiles, support);
+  const [details, showDetails] = useState(false);
+  const offers = support.supports('profiles') === true;
   useEffect(() => {
-    void steps.readPermissions();
-  }, []);
-  const asked = permissionsAsked(steps.permissions);
-  // A grant that waits on the person is said once, with what to do, as the Mac's guide follows its typing and seeing.
-  const waitingOn = asked.filter((step) => step.state.kind === 'needs').map((step) => step.id);
-  useEffect(() => {
-    for (const step of asked) {
-      if (step.state.kind !== 'needs' || !guideMemory.first(`needs-${step.id}`)) continue;
-      if (step.id === 'hear') guide(GuideLines.microphone(host.platform), false);
-      if (step.id === 'type') guide(GuideLines.typing, false);
-      if (step.id === 'see') guide(GuideLines.seeing(step.guide.some((line) => line.includes('portal')) ? 'portal' : 'accessibility'), false);
-    }
-  }, [waitingOn.join()]);
-  const heading = stepHeading(1, words.keyTitle);
+    if (offers) void profiles.refresh();
+  }, [offers]);
+  const agents = orderedProfiles(profiles.profiles ?? []).filter((each) => each.connections.length > 0);
   return (
-    <>
-      <StepTitle counter={stepCounter(1)} title={heading.title} detail={heading.detail} />
-      <KitCard icon={Lock} title={OnboardingLines.asksFor} detail={permissionsLine(asked)}>
-        {asked.map((step, index) => {
-          const pane = step.pane;
-          return (
-            <Fragment key={step.id}>
-              {index > 0 && <KitDivider />}
-              <KitRow
-                tile={<IconTile icon={PERMISSION_ICONS[step.id]} />}
-                title={step.title}
-                detail={step.onboardingDetail}
-                trailing={
-                  <DoneOr state={step.state}>
-                    {step.state.kind === 'waiting' ? (
-                      <Spinner size={12} />
-                    ) : pane !== undefined && step.switchName !== undefined ? (
-                      <Button icon={SettingsIcon} onClick={() => void host.openPrivacy(pane).then(() => steps.readPermissions())}>
-                        {OnboardingLines.allow}
-                      </Button>
-                    ) : (
-                      <Button icon={RotateCw} onClick={() => void steps.readPermissions()}>
-                        {OnboardingLines.checkAgain}
-                      </Button>
-                    )}
-                  </DoneOr>
-                }
-              />
-              {step.state.kind === 'needs' && step.guide.length > 0 && (
-                <div className="pb-2.5 pl-settings-row-text">
-                  <PermissionGuide
-                    steps={step.guide}
-                    pane={pane === 'microphone' ? 'Microphone' : undefined}
-                    switchName={step.switchName}
-                    settingsApp={words.settingsApp}
-                    open={pane === undefined ? undefined : () => void host.openPrivacy(pane)}
-                  />
-                </div>
-              )}
-            </Fragment>
-          );
-        })}
-      </KitCard>
-      <Button kind="primary" wide trailing={ArrowRight} onClick={next}>
-        {OnboardingLines.continue}
-      </Button>
-    </>
+    <KitCard icon={ShieldCheck} title={FirstRunCoverage.title} detail={FirstRunCoverage.lead}>
+      {agents.map((profile, index) => (
+        <Fragment key={profile.id}>
+          {index > 0 && <KitDivider />}
+          <div className="flex flex-col gap-1.5 py-2.5">
+            <span className="flex items-center gap-2">
+              <BrandLogo agent={profile.connections[0]?.agentKind} name={profile.name} size={22} />
+              <span className="flex-1 text-callout font-semibold text-ink">{profile.name}</span>
+              <LevelPill level={headlineLevel(profile.levels)} />
+            </span>
+            {details &&
+              FirstRunCoverage.lines(profile.levels).map((line) => (
+                <span key={line.level} className="text-footnote text-ink-secondary">
+                  {line.sentence}
+                </span>
+              ))}
+          </div>
+        </Fragment>
+      ))}
+      {agents.length > 0 && (
+        <div className="py-1">
+          <Button kind="link" icon={details ? ChevronUp : ChevronDown} onClick={() => showDetails(!details)}>
+            {details ? FirstRunCoverage.hideDetails : FirstRunCoverage.showDetails}
+          </Button>
+        </div>
+      )}
+      {agents.length === 0 && <QuietLine size={13}>{FirstRunCoverage.noAgents}</QuietLine>}
+      <div className="pt-2">
+        <QuietLine size={12}>{FirstRunCoverage.cannot}</QuietLine>
+      </div>
+    </KitCard>
   );
 }
 
-/** Step 3: the recommended pack chosen already, the rest folded behind See other packs; Finish proposes the one chosen. */
+/** Step 2: the recommended pack chosen already, the rest folded behind See other packs; Finish proposes the one chosen. */
 function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: string | undefined) => void }) {
   const { studio, words } = parts;
   useObserved(studio);
@@ -505,10 +486,10 @@ function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: str
       </Pressable>
     </Fragment>
   );
-  const heading = stepHeading(2, words.keyTitle);
+  const heading = stepHeading(1, words.keyTitle);
   return (
     <>
-      <StepTitle counter={stepCounter(2)} title={heading.title} detail={heading.detail} />
+      <StepTitle counter={stepCounter(1)} title={heading.title} detail={heading.detail} />
       <KitCard icon={ListChecks} title={OnboardingLines.rulePacks} detail={OnboardingLines.rulePacksDetail}>
         {packs === undefined && <Spinner />}
         {packs !== undefined && packs.length === 0 && <QuietLine size={13}>{OnboardingLines.noPacks}</QuietLine>}
@@ -534,7 +515,10 @@ function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: str
   );
 }
 
-/** The end screen: one next action, then a short optional list, each row opening the Settings page that holds it. */
+/**
+ * The end screen, in the order a person acts on it: the prompt to try, the one button that opens Memnox with where the
+ * rest of setup went under it, then what Memnox covers and what is optional, both quiet.
+ */
 function EndScreen({ parts, proposed, finish }: { parts: SettingsParts; proposed: string | undefined; finish: () => void }) {
   const { words, host, preferences } = parts;
   usePreferences();
@@ -548,17 +532,46 @@ function EndScreen({ parts, proposed, finish }: { parts: SettingsParts; proposed
     <>
       <StepTitle title={setTitle(name)} detail={GuideLines.ready(name, words.talkKeysSaid)} />
       {proposed !== undefined && <QuietLine size={13}>{proposed}</QuietLine>}
-      <Button kind="primary" wide icon={Sparkles} onClick={finish}>
+      <TryCard />
+      <Button kind="primary" wide trailing={ArrowRight} onClick={finish}>
         {OnboardingLines.start}
       </Button>
-      <KitCard icon={SettingsIcon} title={OnboardingLines.optional} detail={OnboardingLines.optionalDetail}>
+      <QuietLine size={12}>{END_LATER}</QuietLine>
+      <CoverageCard parts={parts} />
+      <KitCard icon={SettingsIcon} title={OnboardingLines.optionalSkip} detail={OnboardingLines.optionalDetail}>
         {endLinks(name).map((link, index) => (
           <Fragment key={link.id}>
             {index > 0 && <KitDivider />}
-            <KitRow tile={<IconTile icon={END_ICONS[link.id]} />} title={link.title} detail={link.detail} trailing={<Button onClick={() => open(link.page)}>{OnboardingLines.open}</Button>} />
+            <KitRow
+              tile={<IconTile icon={END_ICONS[link.id]} />}
+              title={link.title}
+              detail={link.detail}
+              trailing={<Button onClick={() => open(link.page)}>{OnboardingLines.open}</Button>}
+            />
           </Fragment>
         ))}
       </KitCard>
     </>
+  );
+}
+
+/** The one thing to try first: a prompt that produces a real ask, the same words on every surface (the contract's `tryPrompt`). */
+function TryCard() {
+  const [copied, setCopied] = useState(false);
+  return (
+    <KitCard icon={Sparkles} title={TRY_TITLE} detail={TRY_DETAIL}>
+      <div className="flex items-center gap-3 py-2">
+        <code className="flex-1 font-code text-footnote text-ink select-text">{TRY_PROMPT}</code>
+        <Button
+          icon={copied ? Check : undefined}
+          onClick={() => {
+            void navigator.clipboard?.writeText(TRY_PROMPT);
+            setCopied(true);
+          }}
+        >
+          {copied ? OnboardingLines.copied : OnboardingLines.copy}
+        </Button>
+      </div>
+    </KitCard>
   );
 }

@@ -2,7 +2,6 @@ import { useEffect, useReducer } from 'react';
 import { Account } from '../../core/application/account';
 import { AgentHomes } from '../../core/application/agent-homes';
 import { AppConnections } from '../../core/application/app-connections';
-import { Backup } from '../../core/application/backup';
 import { CommunityIndex } from '../../core/application/community-index';
 import { DaemonAccount, DaemonSignIn } from '../../core/application/daemon-sign-in';
 import { DaemonSupport } from '../../core/application/daemon-support';
@@ -11,8 +10,8 @@ import { Home } from '../../core/application/home';
 import { McpHub } from '../../core/application/mcp-hub';
 import { LocalNetwork } from '../../core/application/local-network';
 import { Memory } from '../../core/application/memory';
-import { PersonalSync } from '../../core/application/personal-sync';
 import { Profiles } from '../../core/application/profiles';
+import { AgentWorkDesk } from '../../core/application/agent-work';
 import { Activity, Agents, Studio } from '../../core/application/studio';
 import { Sessions } from '../../core/application/sessions';
 import { SkillsHub } from '../../core/application/skills';
@@ -37,10 +36,13 @@ import type { Pairer } from '../../core/application/ports/pairer';
 import type { HttpTransport, PersonCredentialStore } from '../../core/application/ports/workspace-inbox';
 import { ServerPairing } from '../../core/application/server-pairing';
 import { WorkspaceSignIn } from '../../core/application/workspace-sign-in';
+import { WorkspaceAgents } from '../../core/application/workspace-agents';
 import { SERVERS_CHANGED, TALKING_TO, TEAM_CHANGED } from '../relay-keys';
 import { onPreferenceChange, type SettingsHost } from './host';
 import { TeamAccount } from './team-account';
 import { SetupModel } from './setup-model';
+import type { Updates } from '../../core/application/updates';
+import { updatesOver, type UpdateSeams } from '../adapters/tauri-updates';
 
 /** Everything a Settings page or a first run step draws from, built once per window. */
 export interface SettingsParts {
@@ -87,18 +89,20 @@ export interface SettingsParts {
   readonly skillCare: SkillCare;
   /** The projects on this computer and what each gives the agents opened in it. */
   readonly projects: Projects;
-  /** The setup sealed under a passphrase, and put back once signed on the island. */
-  readonly backup: Backup;
   /** The sources memory is read from, the Learn queue, and the facts a person confirmed. */
   readonly memory: Memory;
   /** Whether paired phones reach this computer over the local network, turned on only once signed. */
   readonly network: LocalNetwork;
-  /** The person's own setup carried between their machines, the key moved only once signed. */
-  readonly sync: PersonalSync;
   /** Skills and rule packs from the community index, installed only as held skills and proposed rules. */
   readonly index: CommunityIndex;
   /** Named bundles of skills, servers and a rule pack, applied through signed proposals. */
   readonly profiles: Profiles;
+  /** Agent work joined to tracker issues, each press an unsigned steer the daemon decides. */
+  readonly work: AgentWorkDesk;
+  /** The workspace's agents and handoffs while the person is signed in to Memnox Cloud; nothing with no account. */
+  readonly workspaceAgents: WorkspaceAgents;
+  /** A newer app or a newer Memnox service, offered until the person updates or puts it off. */
+  readonly updates: Updates;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -109,11 +113,14 @@ export interface RelayAdapters {
   readonly pairer: Pairer;
   readonly cloud: HttpTransport;
   readonly credentials: PersonCredentialStore;
+  /** Where a newer Memnox is learned of; a preview and a test hand none over and so are offered nothing. */
+  readonly updates?: UpdateSeams;
 }
 
 export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtime, key: ConfirmKey, store: PreferenceStore, relay: RelayAdapters): SettingsParts {
   const ids = new RequestIds();
   const setup = new Setup(link, runtime, ids, sleep);
+  const preferences = new Preferences(store);
   const signer = new Signer(link, key, ids);
   const voiceSettings = new VoiceSettings(link, ids);
   const person = new DaemonAccount(new DaemonSignIn(link, 'person', ids, sleep), sleep, (url) => host.openPage(url));
@@ -140,12 +147,12 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     skills: new SkillsHub(link, ids),
     skillCare: new SkillCare(link, ids),
     projects: new Projects(link, ids),
-    backup: new Backup(link, ids),
     memory: new Memory(link, ids),
     network: new LocalNetwork(link, ids),
-    sync: new PersonalSync(link, ids),
     index: new CommunityIndex(link, ids, platformWords(host.platform).keyTitle),
     profiles: new Profiles(link, ids, platformWords(host.platform).keyTitle),
+    work: new AgentWorkDesk(link, ids),
+    workspaceAgents: new WorkspaceAgents(new CloudInbox(relay.cloud), relay.credentials),
     host,
     words: platformWords(host.platform),
     setup,
@@ -153,7 +160,8 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     voiceSettings,
     voice: new VoicePreferences(store),
     dictation: new DictationWords(store),
-    preferences: new Preferences(store),
+    preferences,
+    updates: updatesOver(relay.updates ?? {}, host.platform, setup, runtime, preferences, (url) => host.openPage(url)),
     account,
     pairing: new PhonePairing(link, signer, key, ids, () => host.computerName()),
     home: new Home(

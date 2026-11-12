@@ -1,27 +1,27 @@
 import { done, overview, sectionOf, type TodayItem, type TodaySources } from './today-board';
 
 /**
- * The blocks Home reads top to bottom below the greeting, named and ordered as the console's home brief, so a person
- * moving between the two reads the same answer in the same words. The same blocks as the Mac's `HomeBrief`.
+ * The blocks Home reads top to bottom below the greeting, named and ordered as `shared/ux/contract.json` lists them
+ * for the console, the Mac, Windows and Linux. The same blocks as the Mac's `HomeBrief`.
  */
-export type HomeBriefBlock = 'waiting' | 'working' | 'today' | 'ready' | 'not-covered';
+export type HomeBriefBlock = 'waiting' | 'working' | 'ready' | 'today' | 'not-covered';
 
-export const HOME_BRIEF_BLOCKS: readonly HomeBriefBlock[] = ['waiting', 'working', 'today', 'ready', 'not-covered'];
+export const HOME_BRIEF_BLOCKS: readonly HomeBriefBlock[] = ['waiting', 'working', 'ready', 'today', 'not-covered'];
 
 /** The blocks Home draws: Not covered is left off for now, so Home stays on what a person acts on today. */
 export const HOME_BRIEF_SHOWN: readonly HomeBriefBlock[] = HOME_BRIEF_BLOCKS.filter((block) => block !== 'not-covered');
 
 export const HOME_BRIEF_TITLE: Record<HomeBriefBlock, string> = {
-  waiting: 'Waiting on you',
+  waiting: 'Needs you',
   working: 'Working now',
-  today: 'Today',
   ready: 'Ready to hand over',
+  today: 'Today',
   'not-covered': 'Not covered',
 };
 
 /** What a block says while it holds nothing, so an empty block still says where things stand. */
 export const HOME_BRIEF_NONE: Record<HomeBriefBlock, string> = {
-  waiting: 'Nothing is waiting on you.',
+  waiting: 'Nothing needs you. Agents keep working inside their rules.',
   working: 'No agent is working right now.',
   today: 'Nothing was recorded today.',
   ready: 'Nothing yet. This fills in once you approve the same action a few times.',

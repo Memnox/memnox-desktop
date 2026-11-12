@@ -32,8 +32,6 @@ final class HomeModel: ObservableObject {
     private let restartServiceAction: () async -> String?
     /// True while the voice talks to a server, whose agents this Mac's own CLI cannot put under Memnox.
     let remote: () -> Bool
-    let openWaiting: () -> Void
-    let openSession: (HomeWorking) -> Void
     private var reading: Task<Void, Never>?
     private var soon: Task<Void, Never>?
     private var again = false
@@ -47,9 +45,7 @@ final class HomeModel: ObservableObject {
         enforce: @escaping () async -> EnforceOutcome,
         protectAgents: @escaping () async -> String?,
         restartService: @escaping () async -> String?,
-        remote: @escaping () -> Bool,
-        openWaiting: @escaping () -> Void,
-        openSession: @escaping (HomeWorking) -> Void
+        remote: @escaping () -> Bool
     ) {
         self.load = load
         handOverAction = handOver
@@ -57,8 +53,6 @@ final class HomeModel: ObservableObject {
         self.protectAgents = protectAgents
         restartServiceAction = restartService
         self.remote = remote
-        self.openWaiting = openWaiting
-        self.openSession = openSession
     }
 
     /// Reads the home now, one read at a time.

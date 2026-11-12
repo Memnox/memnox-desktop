@@ -220,12 +220,12 @@ export function viewContext(view: SessionView, now: number): string | undefined 
   return parts.length === 0 ? undefined : parts.join(SEPARATOR);
 }
 
-/** The badge's words, with how long it has been quiet when that is all there is to say. */
+/** The badge's words, with how long it has been idle when that is all there is to say. */
 export function badgeLabel(view: SessionView, now: number): string {
   const status = viewStatus(view);
   const since = ago(view.lastActive, now);
-  if (status !== 'quiet' || since === undefined) return statusLabel(status);
-  return `Quiet, ${since}`;
+  if (status !== 'idle' || since === undefined) return statusLabel(status);
+  return `${statusLabel(status)}, ${since}`;
 }
 
 /** The repository and the app it runs in, which is what tells two sessions of one agent apart. */

@@ -3,10 +3,10 @@ import Foundation
 /// How a session reads on its detail card: its badge, where it runs, and its changed
 /// lines laid out the way a diff reads, kept apart from the view so each is tested without a window.
 public enum SessionDetailText {
-    /// The badge's words, with how long it has been quiet when that is all there is to say.
+    /// The badge's words, with how long it has been idle when that is all there is to say.
     public static func statusLabel(of session: SessionView, now: Date) -> String {
-        guard session.status == .quiet, let ago = SessionText.ago(session.lastActive, now: now) else { return session.status.label }
-        return "Quiet, \(ago)"
+        guard session.status == .idle, let ago = SessionText.ago(session.lastActive, now: now) else { return session.status.label }
+        return "\(session.status.label), \(ago)"
     }
 
     /// The repository and the app it runs in, which is what tells two sessions of one agent apart.

@@ -18,8 +18,8 @@ import { GuideLines, progressOf, setTitle } from '../src/core/domain/onboarding'
 import { deviceCaption, PairingLines } from '../src/core/domain/pairing-lines';
 import { permissionSteps } from '../src/core/domain/permission-steps';
 import { keyStep, platformOf } from '../src/core/domain/platform';
-import { matchingPages, PageHistory, pageNamed, SETTINGS_GROUPS, SETTINGS_PAGES } from '../src/core/domain/settings-pages';
-import { agentsDetail, agentsStep, greeting, openStep, overviewSteps, readyCount, serviceStep, voiceStep } from '../src/core/domain/setup-steps';
+import { pageNamed } from '../src/core/domain/settings-pages';
+import { agentsDetail, agentsStep, greeting, overviewSteps, serviceStep, voiceStep } from '../src/core/domain/setup-steps';
 import { DONE, needs, WAITING } from '../src/core/domain/step-state';
 import { PersonKey, registered, ScriptedDaemon } from './doubles';
 
@@ -40,41 +40,12 @@ class MemoryStore implements PreferenceStore {
 }
 
 describe('the Settings pages', () => {
-  it('lists fifteen pages in the Mac sidebar order, the overview alone first', () => {
-    expect(SETTINGS_PAGES).toEqual(['overview', 'account', 'permissions', 'connection', 'phones', 'appearance', 'sync', 'tools', 'apps', 'voice', 'listening', 'dictation', 'help']);
-    expect(SETTINGS_GROUPS[0]?.title).toBeUndefined();
-    expect(SETTINGS_GROUPS.map((group) => group.title).slice(1)).toEqual(['You', 'This computer', 'Agents and tools', 'Voice', 'Support']);
-  });
-
-  it('filters by title or the line under it, and lists all for an empty search', () => {
-    expect(matchingPages('')).toHaveLength(13);
-    expect(matchingPages('phone')).toEqual(['phones']);
-    expect(matchingPages('LISTENS')).toEqual(['listening']);
-    expect(matchingPages('nothing like this')).toEqual([]);
-  });
-
   it('reads a page from a link and ignores anything else', () => {
     expect(pageNamed('phones')).toBe('phones');
     expect(pageNamed('admin')).toBeUndefined();
     expect(pageNamed(null)).toBeUndefined();
   });
 
-  it('goes back and forward, and a new visit drops what was ahead', () => {
-    const history = new PageHistory();
-    history.visit('account');
-    history.visit('voice');
-    history.back();
-    expect(history.current).toBe('account');
-    expect(history.canGoForward).toBe(true);
-    history.visit('help');
-    expect(history.canGoForward).toBe(false);
-    history.back();
-    history.back();
-    expect(history.current).toBe('overview');
-    expect(history.canGoBack).toBe(false);
-    history.visit('overview');
-    expect(history.canGoForward).toBe(true);
-  });
 });
 
 describe('the home lines', () => {
@@ -147,11 +118,10 @@ describe('the overview checklist', () => {
     voiceDetail: '',
   };
 
-  it('lists eight steps, counts the done ones, and offers the first open one with its reason', () => {
+  it('lists eight steps, the first open one with its reason', () => {
     const steps = overviewSteps(facts);
     expect(steps).toHaveLength(8);
-    expect(readyCount(steps)).toBe(5);
-    expect(openStep(steps)).toMatchObject({ title: 'Let it type for you', page: 'permissions', hint: 'Wayland lets Memnox type only through uinput' });
+    expect(steps.find((each) => each.state.kind !== 'done')).toMatchObject({ title: 'Let it type for you', page: 'permissions', hint: 'Wayland lets Memnox type only through uinput' });
   });
 
   it('greets by first name, or says Memnox', () => {
@@ -431,9 +401,9 @@ describe('what the person chose', () => {
 });
 
 describe('the first run', () => {
-  it('fills a third a step and says the name when it has one', () => {
-    expect(progressOf(0)).toBeCloseTo(1 / 3);
-    expect(progressOf(2)).toBe(1);
+  it('fills half a step and says the name when it has one', () => {
+    expect(progressOf(0)).toBeCloseTo(1 / 2);
+    expect(progressOf(1)).toBe(1);
     expect(setTitle('Sam')).toBe('You’re set, Sam.');
     expect(setTitle(undefined)).toBe('You’re set.');
     expect(GuideLines.ready(undefined, 'Ctrl Alt Space')).toContain('Ctrl Alt Space');

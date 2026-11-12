@@ -67,21 +67,21 @@ struct LiveBrief: View {
                     label("Asked")
                     Text(asked)
                         .font(Memnox.sans(Memnox.TextSize.callout, .medium))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .foregroundStyle(Memnox.Console.foreground)
                         .lineLimit(Layout.askLineLimit)
                         .textSelection(.enabled)
                 }
             }
             if let followUp {
                 HStack(alignment: .top, spacing: Memnox.Spacing.medium) {
-                    Rectangle().fill(Memnox.Palette.primary).frame(width: Layout.accentWidth)
+                    Rectangle().fill(Memnox.Console.primary).frame(width: Layout.accentWidth)
                     VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
                         Label("Follow-up, on it now", systemImage: Symbol.followUp)
                             .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
-                            .foregroundStyle(Memnox.Palette.primary)
+                            .foregroundStyle(Memnox.Console.primary)
                         Text(followUp)
                             .font(Memnox.sans(Memnox.TextSize.body))
-                            .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
+                            .foregroundStyle(Memnox.Console.foreground.opacity(Memnox.Ink.primary))
                             .lineLimit(Layout.followUpLineLimit)
                             .textSelection(.enabled)
                     }
@@ -92,7 +92,7 @@ struct LiveBrief: View {
                 Label(view.waitingOnYou == 1 ? "One call is waiting on you" : "\(view.waitingOnYou) calls are waiting on you",
                       systemImage: Symbol.waiting)
                     .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-                    .foregroundStyle(Memnox.Palette.warm)
+                    .foregroundStyle(Memnox.Console.warm)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -134,7 +134,7 @@ struct LiveTabBar: View {
                         }
                     }
                     .font(Memnox.sans(Memnox.TextSize.footnote, tab == each ? .semibold : .medium))
-                    .foregroundStyle(tab == each ? Memnox.Palette.foreground : Memnox.Palette.muted)
+                    .foregroundStyle(tab == each ? Memnox.Console.foreground : Memnox.Console.muted)
                     .frame(maxWidth: .infinity)
                     .frame(height: Layout.height - Layout.inset * 2)
                     .background {
@@ -172,7 +172,7 @@ struct ReplyView: View {
                 switch block {
                 case .heading(let words):
                     inline(words).font(Memnox.sans(Memnox.TextSize.callout, .semibold))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .foregroundStyle(Memnox.Console.foreground)
                         .padding(.top, Memnox.Spacing.xSmall)
                 case .paragraph(let words):
                     inline(words)
@@ -183,7 +183,7 @@ struct ReplyView: View {
                 case .code(let code):
                     Text(code)
                         .font(.system(size: Memnox.TextSize.caption, design: .monospaced))
-                        .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
+                        .foregroundStyle(Memnox.Console.foreground.opacity(Memnox.Ink.primary))
                         .padding(Memnox.Spacing.medium)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(RoundedRectangle(cornerRadius: Layout.codeRadius, style: .continuous).fill(Memnox.ink(Layout.codeInk)))
@@ -191,7 +191,7 @@ struct ReplyView: View {
             }
         }
         .font(Memnox.sans(Memnox.TextSize.body))
-        .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
+        .foregroundStyle(Memnox.Console.foreground.opacity(Memnox.Ink.primary))
         .lineSpacing(Layout.lineSpacing)
         .fixedSize(horizontal: false, vertical: true)
         .textSelection(.enabled)
@@ -199,7 +199,7 @@ struct ReplyView: View {
 
     private func marked(_ mark: String, _ words: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
-            Text(mark).foregroundStyle(Memnox.Palette.muted).frame(width: Layout.bulletWidth, alignment: .leading)
+            Text(mark).foregroundStyle(Memnox.Console.muted).frame(width: Layout.bulletWidth, alignment: .leading)
             inline(words)
         }
     }
@@ -262,14 +262,14 @@ struct LiveTalk: View {
             VStack(alignment: .trailing, spacing: Memnox.Spacing.xSmall) {
                 Text(index == firstAsk ? "You asked" : "You")
                     .font(Memnox.sans(Memnox.TextSize.micro, .semibold))
-                    .foregroundStyle(index == firstAsk ? Memnox.Palette.muted : Memnox.Palette.primary)
+                    .foregroundStyle(index == firstAsk ? Memnox.Console.muted : Memnox.Console.primary)
                 Text(SessionReading.readable(line.text) ?? line.text)
                     .font(Memnox.sans(Memnox.TextSize.body))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .foregroundStyle(Memnox.Console.foreground)
                     .padding(.horizontal, Memnox.Spacing.regular)
                     .padding(.vertical, Memnox.Spacing.small)
                     .background(RoundedRectangle(cornerRadius: Layout.bubbleRadius, style: .continuous)
-                        .fill(Memnox.Palette.primary.opacity(Layout.bubbleInk)))
+                        .fill(Memnox.Console.primary.opacity(Layout.bubbleInk)))
                     .textSelection(.enabled)
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -278,7 +278,7 @@ struct LiveTalk: View {
             LiveToolRun(calls: calls)
         case .agent(let line):
             HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.medium) {
-                Circle().fill(Memnox.Palette.foreground).frame(width: LiveToolRun.dotSide, height: LiveToolRun.dotSide)
+                Circle().fill(Memnox.Console.foreground).frame(width: LiveToolRun.dotSide, height: LiveToolRun.dotSide)
                     .accessibilityHidden(true)
                 ReplyView(text: line.text)
             }
@@ -347,19 +347,19 @@ struct LiveToolRun: View {
         VStack(alignment: .leading, spacing: Layout.callSpacing) {
             Button { withAnimation(.snappy) { open.toggle() } } label: {
                 HStack(alignment: .firstTextBaseline, spacing: Memnox.Spacing.medium) {
-                    Circle().fill(Memnox.Palette.success).frame(width: Self.dotSide, height: Self.dotSide)
+                    Circle().fill(Memnox.Console.success).frame(width: Self.dotSide, height: Self.dotSide)
                     Text(calls.last?.text ?? "")
                         .font(.system(size: Memnox.TextSize.footnote, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Memnox.Palette.foreground.opacity(LiveStyle.softTextOpacity))
+                        .foregroundStyle(Memnox.Console.foreground.opacity(LiveStyle.softTextOpacity))
                         .lineLimit(1)
                         .truncationMode(.tail)
                     if calls.count > 1 {
                         Text(open ? "hide" : "+\(calls.count - 1)")
                             .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
-                            .foregroundStyle(Memnox.Palette.muted)
+                            .foregroundStyle(Memnox.Console.muted)
                         Image(systemName: open ? Symbol.opened : Symbol.closed)
                             .font(.system(size: Memnox.TextSize.micro, weight: .bold))
-                            .foregroundStyle(Memnox.Palette.muted)
+                            .foregroundStyle(Memnox.Console.muted)
                     }
                     Spacer(minLength: 0)
                 }
@@ -374,7 +374,7 @@ struct LiveToolRun: View {
                     ForEach(Array(calls.enumerated()), id: \.offset) { _, call in
                         Text(call.text)
                             .font(.system(size: Memnox.TextSize.caption, design: .monospaced))
-                            .foregroundStyle(Memnox.Palette.muted)
+                            .foregroundStyle(Memnox.Console.muted)
                             .textSelection(.enabled)
                     }
                 }
@@ -403,7 +403,7 @@ struct LiveWorkingLine: View {
             HStack(spacing: Memnox.Spacing.medium) {
                 Image(systemName: Self.star)
                     .font(.system(size: Memnox.TextSize.footnote, weight: .bold))
-                    .foregroundStyle(Memnox.Palette.warm)
+                    .foregroundStyle(Memnox.Console.warm)
                     .rotationEffect(.degrees(reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate / Self.turnSeconds * 360))
                 ShimmerText(text: words(at: timeline.date))
             }
@@ -455,7 +455,7 @@ struct LiveReply: View {
             if let replied {
                 Text(replied)
                     .font(Memnox.sans(Memnox.TextSize.caption))
-                    .foregroundStyle(Memnox.Palette.muted)
+                    .foregroundStyle(Memnox.Console.muted)
                     .lineLimit(1)
                     .padding(.leading, Memnox.Spacing.medium)
             }
@@ -503,7 +503,7 @@ struct LiveChanges: View {
             HStack(spacing: Memnox.Spacing.medium) {
                 Text(files.count == 1 ? "1 file changed" : "\(files.count) files changed")
                     .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-                    .foregroundStyle(Memnox.Palette.foreground)
+                    .foregroundStyle(Memnox.Console.foreground)
                 Spacer()
                 LineCounts(added: added, removed: removed)
             }
@@ -530,16 +530,16 @@ struct LiveChanges: View {
                 HStack(spacing: Memnox.Spacing.medium) {
                     Image(systemName: Symbol.chevron)
                         .font(.system(size: Memnox.TextSize.micro, weight: .bold))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                         .rotationEffect(.degrees(isOpen ? Layout.chevronTurn : 0))
-                    Image(systemName: Symbol.file).foregroundStyle(Memnox.Palette.muted)
+                    Image(systemName: Symbol.file).foregroundStyle(Memnox.Console.muted)
                     Text((file.path as NSString).lastPathComponent)
                         .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .foregroundStyle(Memnox.Console.foreground)
                         .lineLimit(1)
                     Text((file.path as NSString).deletingLastPathComponent)
                         .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                         .lineLimit(1)
                         .truncationMode(.head)
                     Spacer(minLength: Memnox.Spacing.medium)
@@ -569,12 +569,12 @@ struct LiveChanges: View {
         } else if missing.contains(path) {
             Text("The diff for this file is not readable now. It may have been committed or moved.")
                 .font(Memnox.sans(Memnox.TextSize.caption))
-                .foregroundStyle(Memnox.Palette.muted)
+                .foregroundStyle(Memnox.Console.muted)
                 .padding(Memnox.Spacing.medium)
         } else {
             HStack(spacing: Memnox.Spacing.small) {
                 ProgressView().controlSize(.small)
-                Text("Reading the diff").font(Memnox.sans(Memnox.TextSize.caption)).foregroundStyle(Memnox.Palette.muted)
+                Text("Reading the diff").font(Memnox.sans(Memnox.TextSize.caption)).foregroundStyle(Memnox.Console.muted)
             }
             .padding(Memnox.Spacing.medium)
         }
@@ -598,8 +598,8 @@ struct LineCounts: View {
 
     var body: some View {
         HStack(spacing: Memnox.Spacing.small) {
-            Text("+\(added)").foregroundStyle(Memnox.Palette.success)
-            Text("\u{2212}\(removed)").foregroundStyle(removed > 0 ? Memnox.Palette.destructive : Memnox.Palette.muted)
+            Text("+\(added)").foregroundStyle(Memnox.Console.success)
+            Text("\u{2212}\(removed)").foregroundStyle(removed > 0 ? Memnox.Console.destructive : Memnox.Console.muted)
         }
         .font(.system(size: Memnox.TextSize.caption, weight: .semibold, design: .monospaced))
         .monospacedDigit()
@@ -643,17 +643,17 @@ struct DiffView: View {
         switch line.kind {
         case .hunk:
             Text(line.text.isEmpty ? "\u{22EF}" : "\u{22EF}  \(line.text)")
-                .foregroundStyle(Memnox.Palette.primary)
+                .foregroundStyle(Memnox.Console.primary)
                 .padding(.leading, Layout.gutter * 2)
                 .frame(maxWidth: .infinity, minHeight: Layout.rowHeight + Memnox.Spacing.xSmall, alignment: .leading)
-                .background(Memnox.Palette.primary.opacity(Layout.hunkInk))
+                .background(Memnox.Console.primary.opacity(Layout.hunkInk))
         case .added, .removed, .context:
             HStack(spacing: 0) {
                 number(line.old)
                 number(line.new)
                 Text(sign(line.kind)).foregroundStyle(tint(line.kind)).frame(width: Memnox.Spacing.large)
                 Text(line.text.isEmpty ? " " : line.text)
-                    .foregroundStyle(line.kind == .context ? Memnox.Palette.foreground.opacity(Memnox.Ink.secondary) : Memnox.Palette.foreground)
+                    .foregroundStyle(line.kind == .context ? Memnox.Console.foreground.opacity(Memnox.Ink.secondary) : Memnox.Console.foreground)
                     .fixedSize()
                     .padding(.trailing, Memnox.Spacing.large)
             }
@@ -679,16 +679,16 @@ struct DiffView: View {
 
     private func tint(_ kind: DiffLine.Kind) -> Color {
         switch kind {
-        case .added: return Memnox.Palette.success
-        case .removed: return Memnox.Palette.destructive
-        case .hunk, .context: return Memnox.Palette.muted
+        case .added: return Memnox.Console.success
+        case .removed: return Memnox.Console.destructive
+        case .hunk, .context: return Memnox.Console.muted
         }
     }
 
     private func fill(_ kind: DiffLine.Kind) -> Color {
         switch kind {
-        case .added: return Memnox.Palette.success.opacity(Layout.addedInk)
-        case .removed: return Memnox.Palette.destructive.opacity(Layout.removedInk)
+        case .added: return Memnox.Console.success.opacity(Layout.addedInk)
+        case .removed: return Memnox.Console.destructive.opacity(Layout.removedInk)
         case .hunk, .context: return .clear
         }
     }

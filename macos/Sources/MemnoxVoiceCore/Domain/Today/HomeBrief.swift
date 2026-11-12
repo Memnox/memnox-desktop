@@ -1,20 +1,20 @@
 import Foundation
 
-/// The blocks Home reads top to bottom below the greeting, named and ordered as the console's home brief, so a person
-/// moving between the two reads the same answer in the same words.
+/// The blocks Home reads top to bottom below the greeting, named and ordered as `shared/ux/contract.json` lists them for
+/// the console, this Mac, Windows and Linux, so a person moving between them reads the same answer in the same words.
 public enum HomeBriefBlock: String, CaseIterable, Sendable {
     case waiting
     case working
-    case today
     case ready
+    case today
     case notCovered
 
     public var title: String {
         switch self {
-        case .waiting: "Waiting on you"
+        case .waiting: "Needs you"
         case .working: "Working now"
-        case .today: "Today"
         case .ready: "Ready to hand over"
+        case .today: "Today"
         case .notCovered: "Not covered"
         }
     }
@@ -22,7 +22,7 @@ public enum HomeBriefBlock: String, CaseIterable, Sendable {
     /// What the block says while it holds nothing, so an empty block still says where things stand.
     public var none: String {
         switch self {
-        case .waiting: "Nothing is waiting on you."
+        case .waiting: "Nothing needs you. Agents keep working inside their rules."
         case .working: "No agent is working right now."
         case .today: "Nothing was recorded today."
         case .ready: "Nothing yet. This fills in once you approve the same action a few times."

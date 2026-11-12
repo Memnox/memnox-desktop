@@ -264,7 +264,7 @@ export type MemoryView = 'graph' | 'list' | 'layers';
 
 /** The view each tab of the Memory row draws, the map for any tab not named, as the Mac's `MemoryView` maps them. */
 export function memoryViewOf(tab: string | undefined): MemoryView {
-  if (tab === 'memory') return 'list';
+  if (tab === 'list') return 'list';
   if (tab === 'layers') return 'layers';
   return 'graph';
 }

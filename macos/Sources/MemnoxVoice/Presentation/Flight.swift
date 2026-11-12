@@ -150,15 +150,15 @@ private struct FlightView: View {
                 ForEach(0..<Comet.dots, id: \.self) { index in
                     let behind = max(0, eased(progress) - Double(index) * Comet.lag)
                     Circle()
-                        .fill(index == 0 ? Color.white : Memnox.Palette.sky)
+                        .fill(index == 0 ? Color.white : Memnox.Console.sky)
                         .frame(width: Comet.headSize - CGFloat(index), height: Comet.headSize - CGFloat(index))
-                        .shadow(color: Memnox.Palette.primary, radius: index == 0 ? Comet.headGlow : Comet.tailGlow)
+                        .shadow(color: Memnox.Console.primary, radius: index == 0 ? Comet.headGlow : Comet.tailGlow)
                         .opacity(progress >= 1 ? 0 : 1 - Double(index) * Comet.fadePerDot)
                         .position(point(at: behind))
                 }
                 if landed > 0 {
                     Circle()
-                        .strokeBorder(Memnox.Palette.sky, lineWidth: Landing.lineWidth)
+                        .strokeBorder(Memnox.Console.sky, lineWidth: Landing.lineWidth)
                         .frame(width: Landing.startSize + landed * Landing.growth, height: Landing.startSize + landed * Landing.growth)
                         .opacity(max(0, 1 - landed / Landing.fade))
                         .position(to)

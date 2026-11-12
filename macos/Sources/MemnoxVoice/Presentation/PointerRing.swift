@@ -96,10 +96,10 @@ private struct PointerRingView: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(Memnox.Palette.primary.opacity(0.18))
+                .fill(Memnox.Console.primary.opacity(0.18))
                 .frame(width: PointerRing.ring, height: PointerRing.ring)
             Circle()
-                .stroke(Memnox.Palette.primary, lineWidth: 4)
+                .stroke(Memnox.Console.primary, lineWidth: 4)
                 .frame(width: PointerRing.ring, height: PointerRing.ring)
                 .scaleEffect(out ? 1.25 : 1)
                 .opacity(out ? 0.45 : 1)

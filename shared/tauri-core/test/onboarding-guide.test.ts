@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   endLinks,
+  FirstRunCoverage,
+  joinedThings,
+  nextStep,
+  previousStep,
   GuideLines,
   GuideMemory,
   ONBOARDING_STEPS,
-  permissionsAsked,
-  permissionsLine,
+  ONBOARDING_IDS,
+  TRY_PROMPT,
   progressOf,
   rowSpoken,
   startingPacks,
@@ -13,7 +17,6 @@ import {
   stepHeading,
   WELCOME_ROWS,
 } from '../src/core/domain/onboarding';
-import { permissionSteps, waitingSteps, type PermissionFacts } from '../src/core/domain/permission-steps';
 
 describe('the first run guide', () => {
   it('greets by name as the Mac does, and with no name at all', () => {
@@ -36,14 +39,23 @@ describe('the first run guide', () => {
     expect(rowSpoken('tools', 'linux')).toContain('send it with your password');
   });
 
-  it('runs three short steps for a fresh computer, then an end screen', () => {
-    expect(ONBOARDING_STEPS).toEqual(['Connect', 'Permissions', 'Starting rules']);
-    expect([0, 1, 2].map((step) => stepCounter(step as 0 | 1 | 2))).toEqual(['Step 1 of 3', 'Step 2 of 3', 'Step 3 of 3']);
-    expect(progressOf(0)).toBeCloseTo(1 / 3);
-    expect(progressOf(2)).toBe(1);
+  it('runs two of the contract’s steps, then an end screen', () => {
+    expect(ONBOARDING_IDS).toEqual(['connect', 'rules']);
+    expect(ONBOARDING_STEPS).toHaveLength(2);
+    expect(([0, 1] as const).map((step) => stepCounter(step))).toEqual(['Step 1 of 2', 'Step 2 of 2']);
+    expect(progressOf(0)).toBeCloseTo(1 / 2);
+    expect(progressOf(1)).toBe(1);
     expect(progressOf(0, 'done')).toBe(1);
+    expect(nextStep(0)).toBe(1);
+    expect(nextStep(1)).toBeUndefined();
+    expect(previousStep(0)).toBeUndefined();
     expect(stepHeading(0, 'Windows Hello').detail).toContain('Windows Hello becomes the key only you approve with');
-    expect(stepHeading(2, 'Windows Hello').detail).toContain('The recommended rules are chosen for you');
+    expect(stepHeading(1, 'Windows Hello').detail).toContain('The recommended rules are chosen for you');
+  });
+
+  it('says how short setup is, and where the phone and Memnox Cloud wait', () => {
+    expect(GuideLines.twoSteps).toBe('Setup takes two short steps, and I will talk you through both.');
+    expect(GuideLines.done).toContain('pair your phone or sign in to Memnox Cloud later');
   });
 
   it('introduces each step only once', () => {
@@ -51,28 +63,6 @@ describe('the first run guide', () => {
     expect(memory.first('step-1')).toBe(true);
     expect(memory.first('step-1')).toBe(false);
     expect(memory.first('step-2')).toBe(true);
-  });
-});
-
-describe('the grants step', () => {
-  const windows = (microphone: PermissionFacts['microphone']): PermissionFacts => ({ platform: 'windows', session: 'desktop', microphone, typing: true });
-
-  it('lists on Windows only the microphone switch, which is the one thing Windows asks for', () => {
-    expect(permissionsAsked(permissionSteps(windows('denied'))).map((step) => step.id)).toEqual(['hear']);
-    expect(permissionsLine(permissionsAsked(permissionSteps(windows('denied'))))).toBe('One grant left. Memnox carries on without it, and asks again in Settings.');
-    expect(permissionsLine(permissionsAsked(permissionSteps(windows('allowed'))))).toBe('Everything this computer asks for is granted.');
-  });
-
-  it('lists nothing on an X11 desktop that asks for nothing, and only what Wayland still lacks', () => {
-    const x11: PermissionFacts = { platform: 'linux', session: 'x11', microphone: 'allowed', typing: true, seeing: { portal: null, accessibility: true } };
-    expect(permissionsAsked(permissionSteps(x11))).toEqual([]);
-    expect(permissionsLine([])).toContain('Nothing to grant');
-    const wayland: PermissionFacts = { platform: 'linux', session: 'wayland', microphone: 'allowed', typing: false, seeing: { portal: true, accessibility: true } };
-    expect(permissionsAsked(permissionSteps(wayland)).map((step) => step.id)).toEqual(['type']);
-  });
-
-  it('says it is still asking before the facts arrive', () => {
-    expect(permissionsLine(permissionsAsked(waitingSteps()))).toBe('Asking this computer what it needs.');
   });
 });
 
@@ -91,16 +81,38 @@ describe('the starting rules step', () => {
 });
 
 describe('the end screen', () => {
-  it('offers the name, the voice, the workspace and the phone, each in Settings', () => {
+  it('offers the name and the voice, each in Settings', () => {
     expect(endLinks(undefined).map((link) => [link.id, link.page])).toEqual([
       ['name', 'account'],
       ['voice', 'voice'],
-      ['workspace', 'account'],
-      ['phone', 'phones'],
     ]);
+    expect(endLinks('Sam').map((link) => link.id)).toEqual(['voice']);
   });
 
-  it('stops asking for the name once it is given', () => {
-    expect(endLinks('Sam').map((link) => link.id)).toEqual(['voice', 'workspace', 'phone']);
+  it('offers the contract’s prompt to try first', () => {
+    expect(TRY_PROMPT).toBe('Make a folder called memnox-try, then delete it with rm -rf memnox-try.');
+  });
+});
+
+describe('what Memnox can and cannot do, at the end', () => {
+  const levels = {
+    context: 'mediated',
+    instructions: 'mediated',
+    tools: 'enforced',
+    activity: 'observed',
+    coordination: 'none',
+    approval: 'enforced',
+    enforcement: { shell: 'enforced', filesystem: 'enforced', git: 'mediated', network: 'none', browser: 'none', mcp: 'observed' },
+  } as const;
+
+  it('groups what an agent does by level in plain words, strongest first, a level with nothing left out', () => {
+    const lines = FirstRunCoverage.lines(levels);
+    expect(lines.map((line) => line.plain)).toEqual(['Memnox stops this', 'Memnox checks this', 'Memnox only sees this', 'Outside Memnox']);
+    expect(lines[0]?.sentence).toBe('Memnox stops this: Its tools, Asking you first, Commands and Files.');
+  });
+
+  it('lists things the way a sentence does', () => {
+    expect(joinedThings(['Git'])).toBe('Git');
+    expect(joinedThings([])).toBe('');
   });
 });

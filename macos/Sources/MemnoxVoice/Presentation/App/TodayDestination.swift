@@ -14,22 +14,18 @@ private enum TodayLayout {
     ]
 }
 
-/// What Today showed, drawn on Home below what `lead` puts first, as the console's home brief: waiting on you, working
-/// now, today, ready to hand over and not covered. Every answer to a held call goes through the island's own path, so
+/// Home's blocks below what `lead` puts first, in the contract's order: needs you, working now, ready to hand over and
+/// today, each with its count in its own header. Every answer to a held call goes through the island's own path, so
 /// an allow is signed with Touch ID exactly as there.
-struct TodayDestination<Lead: View, WaitingFoot: View, Trail: View>: View {
+struct TodayDestination<Lead: View>: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var island: IslandModel
     let home: HomeModel?
     let agents: AgentsScreen?
     let activity: ActivityScreen?
     let width: WidthClass
-    /// The greeting and the getting started steps, above every block.
+    /// The greeting and the one Do this next card, above every block.
     @ViewBuilder let lead: Lead
-    /// What else waits on the person and lives outside Today's items, under Waiting on you.
-    @ViewBuilder let waitingFoot: WaitingFoot
-    /// The counts and the sessions to carry on, below every block.
-    @ViewBuilder let trail: Trail
 
     @State private var hidden: Set<HomeBriefBlock> = []
     @State private var everyUrgent = false
@@ -67,10 +63,12 @@ struct TodayDestination<Lead: View, WaitingFoot: View, Trail: View>: View {
                 lead
                 strip(blocks.first { $0.block == .waiting }?.items ?? [], now: now)
                 notes
-                ForEach(blocks, id: \.block) { each in
-                    block(each.block, each.items, all: items, now: now)
+                // With the runtime away an empty block would read as all clear, so the blocks wait for it to answer.
+                if home?.unavailable != true {
+                    ForEach(blocks, id: \.block) { each in
+                        block(each.block, each.items, all: items, now: now)
+                    }
                 }
-                trail
             }
         } detail: {
             if let open { panel(open, in: items, now: now) }
@@ -144,7 +142,7 @@ struct TodayDestination<Lead: View, WaitingFoot: View, Trail: View>: View {
         let shown = cut ? Array(held.prefix(TodayBoard.urgentShown)) : held
         return ShellSection(title: held.isEmpty ? block.title : "\(block.title) \u{00B7} \(held.count)") {
             HStack(spacing: Memnox.Spacing.medium) {
-                if block == .today { GoLink("Activity") { shell.go(WindowRoute(.governance, tab: "activity")) } }
+                if block == .today { GoLink("Activity") { shell.go(WindowRoute(.activity, tab: "timeline")) } }
                 if !held.isEmpty {
                     Button(folded ? "Show" : "Hide") {
                         withAnimation(.snappy(duration: Memnox.Motion.quick)) {
@@ -172,7 +170,6 @@ struct TodayDestination<Lead: View, WaitingFoot: View, Trail: View>: View {
                     .font(Memnox.Console.sans(Memnox.TextSize.footnote))
                     .foregroundStyle(Memnox.Console.muted)
             }
-            if block == .waiting { waitingFoot }
         }
     }
 
@@ -314,7 +311,7 @@ struct TodayDestination<Lead: View, WaitingFoot: View, Trail: View>: View {
         case .findInApp:
             if let session = item.sessionId { island.openWindow(session, host(session)) }
         case .openActivity:
-            shell.go(WindowRoute(.governance, tab: "activity"))
+            shell.go(WindowRoute(.activity, tab: "timeline"))
         }
     }
 

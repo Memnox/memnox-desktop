@@ -203,15 +203,15 @@ private struct SessionTile: View {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
                     Text(card.agentName)
                         .font(Memnox.display(Layout.nameSize))
-                        .foregroundStyle(Memnox.Palette.foreground)
+                        .foregroundStyle(Memnox.Console.foreground)
                     Text(card.runningIn ?? "Somewhere unknown")
                         .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                 }
             }
             Text(card.title)
                 .font(Memnox.sans(Memnox.TextSize.body))
-                .foregroundStyle(Memnox.Palette.foreground.opacity(Layout.taskOpacity))
+                .foregroundStyle(Memnox.Console.foreground.opacity(Layout.taskOpacity))
                 .lineLimit(Layout.taskLineLimit)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 0)
@@ -220,7 +220,7 @@ private struct SessionTile: View {
                 Text(label).font(Memnox.sans(Memnox.TextSize.caption, .medium)).foregroundStyle(colour)
                 Spacer()
                 if let repository = card.repository {
-                    Text(repository).font(Memnox.sans(Memnox.TextSize.caption)).foregroundStyle(Memnox.Palette.muted).lineLimit(1)
+                    Text(repository).font(Memnox.sans(Memnox.TextSize.caption)).foregroundStyle(Memnox.Console.muted).lineLimit(1)
                 }
             }
         }

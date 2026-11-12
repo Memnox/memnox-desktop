@@ -73,10 +73,10 @@ struct DictationModeChip: View {
             Text("Dictating")
         }
         .font(Memnox.sans(Memnox.TextSize.footnote, .semibold))
-        .foregroundStyle(Memnox.Palette.primary.liftedTowardWhite)
+        .foregroundStyle(Memnox.Console.primary.liftedTowardWhite)
         .padding(.horizontal, Memnox.Spacing.regular)
         .padding(.vertical, Memnox.Spacing.xSmall)
-        .background(Capsule().fill(Memnox.Palette.primary.opacity(Self.fill)))
+        .background(Capsule().fill(Memnox.Console.primary.opacity(Self.fill)))
         .accessibilityElement(children: .combine)
     }
 }
@@ -227,7 +227,7 @@ struct ListeningCaret: View {
         TimelineView(.animation) { timeline in
             let phase = timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period
             Capsule()
-                .fill(Memnox.Palette.primary)
+                .fill(Memnox.Console.primary)
                 .frame(width: Self.width, height: height)
                 .opacity(Self.dimmest + (1 - Self.dimmest) * (sin(phase * 2 * .pi) + 1) / 2)
         }
@@ -345,7 +345,7 @@ struct AnswerCard: View {
     private static let fadeFrom = 0.86
 
     var body: some View {
-        IslandCard(veil: exchange.isAnswering ? Memnox.Palette.primary.opacity(Self.answeringVeil) : nil) {
+        IslandCard(veil: exchange.isAnswering ? Memnox.Console.primary.opacity(Self.answeringVeil) : nil) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.regular) {
                 header
                 bodyText
@@ -360,7 +360,7 @@ struct AnswerCard: View {
     private var header: some View {
         HStack(spacing: Memnox.Spacing.medium) {
             Circle()
-                .fill(Memnox.Palette.primary)
+                .fill(Memnox.Console.primary)
                 .frame(width: Layout.markSide, height: Layout.markSide)
             Text("Memnox")
                 .font(Memnox.sans(Memnox.TextSize.body, .semibold))

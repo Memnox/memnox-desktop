@@ -93,7 +93,7 @@ mod system {
 
     fn wayland() -> bool {
         let backend = std::env::var("GDK_BACKEND").unwrap_or_default();
-        if backend.starts_with("x11") {
+        if backend.starts_with("x11") || super::super::backend::through_x11() {
             return false;
         }
         std::env::var_os("WAYLAND_DISPLAY").is_some()

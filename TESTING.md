@@ -14,7 +14,7 @@ How to try each app on a real machine. For the unit tests every pull request run
 The Mac app builds and runs as [`macos/README.md`](macos/README.md) says.
 
 The Windows and Linux app also runs on a Mac for its screens and its voice, with no key, so it signs
-nothing: `cd shared/tauri-core && pnpm wire && pnpm install && pnpm tauri dev`. A debug build never adds
+nothing: `cd shared/tauri-core && pnpm install && pnpm tauri dev`. A debug build never adds
 itself to the login items. Quit the Mac app first, since both would answer the same daemon, and note
 that the talk key, Ctrl Alt Space, is taken while it runs.
 
@@ -36,6 +36,12 @@ Windows Hello set up, where a PIN is enough.
    Notepad and speak, and check nothing is typed into a password field.
 5. **Bring a session forward.** Start a session in WezTerm or in VS Code and open it from the island.
    From Windows Terminal, Memnox should say it cannot switch tabs rather than doing anything else.
+6. **Look at where the island hangs.** It sits flush with the top of the screen, centred. Move the taskbar
+   to the top with a tool that allows it, or dock another app bar there, and the island should hang under
+   that bar rather than behind it.
+7. **Watch a first run stay calm.** On a machine with no runtime yet, open the Memnox window while the
+   island still says it is installing. Home, Needs you and the sidebar should say Starting Memnox, with
+   no red line, and fill in by themselves once the service answers.
 
 ## Linux
 
@@ -57,8 +63,18 @@ sh memnox-desktop/linux/scripts/dev.sh
 
 Allow once raises polkit's prompt naming the call. Try both GNOME and KDE, on Wayland and on X11:
 
-- **The island** is a layer shell surface on KDE, Sway and Hyprland, and a window kept on top on GNOME.
-  Clicks beside it should reach the window underneath.
+- **The island** is a layer shell surface on KDE, Sway and Hyprland, right against the screen edge and
+  over any top panel. On GNOME it is a dock window at the top of the screen, through XWayland on a
+  Wayland session. Clicks beside it should reach the window underneath.
+- **On GNOME**, check four things, since none has run on real hardware. The island is centred at the very
+  top and stays above a window you click. GNOME's top bar does not hide its first lines, and if it does,
+  `MEMNOX_DOCK=0` hangs it under the bar. Typing into the island's question and a draft still works,
+  and a click on the island does not take the keyboard from the app you were typing in. Started from an
+  editor's terminal, which hands down `GDK_BACKEND=wayland`, it still lands at the top.
+  `MEMNOX_X11=0` keeps the Wayland window, to compare.
+- **A first run** on a machine with no runtime should say Starting Memnox on Home, Needs you and the
+  sidebar, with no red line, until the service answers.
+- **The logo** at the sidebar's head and on the first screen is the wordmark, the same image as the Mac's.
 - **The keys** go through the GlobalShortcuts portal on Wayland, which shows its own dialog once.
 - **Typing** asks once through the RemoteDesktop portal on GNOME, and needs `wtype` or `ydotool` on
   other Wayland desktops and `xdotool` on X11.

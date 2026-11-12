@@ -73,6 +73,30 @@ final class ProtocolVectorsTests: XCTestCase {
         XCTAssertEqual(Set(ProposalLines.phrases.keys), runtime)
     }
 
+    func testKnowsEveryWayAPersonAnswersAHandoff() throws {
+        let runtime = Set(try XCTUnwrap(vectors().values["handoffAnswers"]))
+        XCTAssertEqual(Set(HandoffAnswerWord.allCases.map(\.rawValue)), runtime)
+    }
+
+    func testKnowsEveryStateAgentWorkStandsIn() throws {
+        let runtime = Set(try XCTUnwrap(vectors().values["workStatuses"]))
+        XCTAssertEqual(Set(WorkStatus.allCases.map(\.rawValue)), runtime)
+    }
+
+    /// The profile and work methods this app sends, each one the runtime answers.
+    func testSendsOnlyProfileAndWorkMethodsTheRuntimeAnswers() throws {
+        let runtime = Set(try XCTUnwrap(vectors().values["methods"]))
+        let sent: [DaemonMethod] = [.profiles, .profilePut, .profileRemove, .profileApply, .profileBind, .profileUnbind,
+                                    .templates, .profileFromTemplate, .agentWork, .workStart, .workStop, .workClose,
+                                    .handoffAnswer]
+        for method in sent { XCTAssertTrue(runtime.contains(method.rawValue), method.rawValue) }
+    }
+
+    func testListensForTheWorkEventTheRuntimeSends() throws {
+        let runtime = Set(try XCTUnwrap(vectors().values["events"]))
+        XCTAssertTrue(runtime.contains(EventKind.work.rawValue))
+    }
+
     /// The Swift builder for one vector; a name nobody mirrors yet fails, so a new signed message cannot go unseen.
     private func built(_ vector: Message) throws -> String? {
         switch vector.name {

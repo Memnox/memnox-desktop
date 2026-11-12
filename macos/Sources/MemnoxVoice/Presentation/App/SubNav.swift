@@ -169,16 +169,6 @@ struct SubNavTree: View {
 
     static func symbol(_ group: TabGroupId) -> String {
         switch group {
-        case .agents: "cpu"
-        case .computer: "desktopcomputer"
-        case .projects: "folder"
-        case .knowledge: "brain"
-        case .skills: "sparkles"
-        case .hub: "powerplug"
-        case .apps: "macwindow"
-        case .review: "tray"
-        case .rules: "scroll"
-        case .record: "clock.arrow.circlepath"
         case .account: "person.crop.circle"
         case .devices: "laptopcomputer"
         case .voice: "mic"

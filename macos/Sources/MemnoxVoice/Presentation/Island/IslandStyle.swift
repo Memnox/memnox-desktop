@@ -80,7 +80,7 @@ struct IslandButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(Memnox.sans(Self.labelSize, .medium))
-            .foregroundStyle(primary ? IslandPalette.primaryText : Memnox.Palette.ink)
+            .foregroundStyle(primary ? IslandPalette.primaryText : Memnox.Console.ink)
             .padding(.horizontal, Self.horizontalPadding)
             .padding(.vertical, Self.verticalPadding)
             .background(Capsule().fill(primary ? IslandPalette.primaryFill : Memnox.ink(configuration.isPressed ? Self.pressedFill : Self.restingFill)))

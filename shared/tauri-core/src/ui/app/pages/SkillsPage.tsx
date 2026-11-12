@@ -24,9 +24,6 @@ const SKILL_CARD_WIDTH = 260;
 const AGENT_LOGO = 20;
 const ASSIGNED_LOGO = 22;
 
-/** The assigned grid's head logos and ticks, sized to its footnote head. */
-const GRID_LOGO = 18;
-const GRID_TICK = 15;
 
 /** The import bar, wide enough to read its progress beside the count. */
 const IMPORT_PROGRESS_WIDTH = PAGE_METRICS.skillProgress;
@@ -38,7 +35,7 @@ const SEPARATOR_DOT = '· ';
  * The Skills Hub: skills kept once and written into each agent's own format. Giving a skill to an agent
  * and accepting a folder that reaches further wait for a signature on the island; taking away is at once.
  */
-export function SkillsPage({ parts, tab, width }: { parts: SettingsParts; tab: 'skills' | 'assigned'; width: WidthClass }) {
+export function SkillsPage({ parts, width }: { parts: SettingsParts; width: WidthClass }) {
   const { skills } = parts;
   useObserved(skills);
   useEffect(() => {
@@ -56,7 +53,7 @@ export function SkillsPage({ parts, tab, width }: { parts: SettingsParts; tab: '
   return (
     <>
       {note !== undefined && <Note>{note}</Note>}
-      {tab === 'assigned' ? <AssignedGrid view={view} manage={setAssigning} /> : <MySkills parts={parts} view={view} width={width} said={said} manage={setAssigning} />}
+      <MySkills parts={parts} view={view} width={width} said={said} manage={setAssigning} />
       {assigned !== undefined && <AssignSkillDialog parts={parts} view={view} skill={assigned} close={() => setAssigning(undefined)} said={setNote} />}
     </>
   );
@@ -454,55 +451,6 @@ function FoundRow({ found, divided, busy, open, bring }: { found: FoundSkillView
       <Button disabled={busy} onClick={bring}>
         {SkillsPageLines.import}
       </Button>
-    </div>
-  );
-}
-
-/** Skills down, agents across: who has what at a glance, changed through Manage agents. */
-function AssignedGrid({ view, manage }: { view: SkillsHubView; manage: (name: string) => void }) {
-  const agents = view.agents.filter((each) => each.installed);
-  if (view.skills.length === 0 || agents.length === 0) {
-    return <EmptyState icon={Sparkles} title={SkillsPageLines.nothingAssigned} body={SkillsPageLines.nothingAssignedBody} />;
-  }
-  return (
-    <div className="overflow-x-auto rounded-card border border-panel-edge">
-      <table className="w-full border-collapse text-body">
-        <thead>
-          <tr className="bg-card">
-            <th scope="col" className="px-3.5 py-2.5 text-left text-footnote font-semibold text-muted">{SkillsPageLines.skill}</th>
-            {agents.map((agent) => (
-              <th key={agent.agent} scope="col" className="px-3 py-2.5 text-footnote font-semibold whitespace-nowrap text-muted">
-                <span className="inline-flex items-center gap-1.5">
-                  <BrandLogo agent={agent.agent} name={agent.label} size={GRID_LOGO} />
-                  {agent.label}
-                </span>
-              </th>
-            ))}
-            <th scope="col" className="px-3 py-2.5" aria-label={SkillsPageLines.change} />
-          </tr>
-        </thead>
-        <tbody>
-          {view.skills.map((skill) => (
-            <tr key={`${skill.scope}/${skill.project ?? ''}/${skill.name}`} className="border-t border-panel-edge">
-              <th scope="row" className="px-3.5 py-2.5 text-left font-medium whitespace-nowrap text-foreground">
-                {skill.name}
-                {!skill.enabled && <span className="pl-2 text-footnote font-normal text-muted">{SkillsPageLines.off}</span>}
-              </th>
-              {agents.map((agent) => {
-                const on = skill.agents.includes(agent.agent);
-                return (
-                  <td key={agent.agent} className="px-3 py-2.5 text-center">
-                    {on ? <Check size={GRID_TICK} className="inline text-success" aria-label={SkillsPageLines.givenTo(skill.name, agent.label)} /> : <span className="sr-only">{SkillsPageLines.notGivenTo(agent.label)}</span>}
-                  </td>
-                );
-              })}
-              <td className="px-3 py-2.5 text-right">
-                <Button onClick={() => manage(skill.name)}>{SkillsPageLines.manage}</Button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }

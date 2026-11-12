@@ -78,7 +78,7 @@ On Arch, build the `PKGBUILD` published beside each release, which installs that
 
 | | KDE Plasma | GNOME | Sway, Hyprland, COSMIC | X11 |
 |---|---|---|---|---|
-| **The island** | layer shell | a window kept on top, since GNOME has no layer shell | layer shell | a window kept on top |
+| **The island** | layer shell | a dock window through XWayland, since GNOME has no layer shell | layer shell | a window kept on top |
 | **Clicks through it** | the input region | the input region | the input region | the XShape input shape |
 | **A click outside closes it** | no, Escape and the idle close do | no | no | yes |
 | **Choosing its display** | yes | no | yes | yes |
@@ -152,7 +152,7 @@ Then, with Node 22 and `corepack enable` and rustup:
 
 ```sh
 cd shared/tauri-core
-pnpm wire                 # the runtime's wire into .runtime, from npm or a checkout beside this repo
+pnpm wire                 # only after the runtime's wire changed: refreshes shared/wire from a checkout beside this repo
 pnpm install
 pnpm typecheck && pnpm test
 cargo test --workspace    # from the repo root
@@ -188,8 +188,10 @@ machine, including an arm64 virtual machine on an Apple silicon Mac, follow the 
 - **The keyring is the weakest desktop key.** It is open to every process of the same user while the
   session is unlocked, so a process that reads it directly could sign without polkit. A paired phone
   stays the stronger place to say yes on Linux.
-- **GNOME has no layer shell**, so there the island is a window kept on top, and it cannot be pinned
-  to a chosen display.
+- **GNOME has no layer shell**, so there the island is a dock window at the top of the screen. On
+  GNOME's Wayland session Memnox runs through XWayland, because Wayland alone lets no window choose its
+  place or stay on top. `MEMNOX_X11=0` keeps the Wayland window, and `MEMNOX_DOCK=0` keeps the island an
+  ordinary window kept on top.
 - **Older GNOME and sway have no GlobalShortcuts portal**, so without the `input` group the keys are
   not seen there, and Memnox says so; the talk button and the wake word still work.
 - **A teammate's proposal answered by voice** asks polkit twice, where the Mac asks once.

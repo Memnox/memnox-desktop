@@ -27,6 +27,7 @@ final class ShellLayoutTests: XCTestCase {
 
     func testThePaletteListsTheNumberKeyBesideEachDestination() {
         let keyed = Destinations.commands { _ in true }.compactMap { each in each.key.map { "\($0) \(each.title)" } }
-        XCTAssertEqual(keyed, ["1 Home", "2 AI agents", "3 Projects", "4 MCP Hub", "5 Governance"])
+        XCTAssertEqual(keyed, ["1 Home", "2 Needs you", "3 Sessions", "4 Agents", "5 Projects", "6 Rules", "7 Hand over",
+                               "8 Activity", "9 Memory"])
     }
 }

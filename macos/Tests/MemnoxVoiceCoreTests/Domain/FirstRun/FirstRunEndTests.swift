@@ -10,20 +10,22 @@ final class FirstRunEndTests: XCTestCase {
         XCTAssertEqual(FirstRunNext.openHome.title, "Open Memnox")
     }
 
-    func testListsWhatIsOptionalShortlyEachLinkedToItsSettingsPage() {
-        let extras = FirstRunEnd.extras(hearing: false, signedIn: false, phonePaired: false)
-        XCTAssertEqual(extras.map(\.title), ["Talk to Memnox", "Keys to try", "Sign in to your workspace", "Pair your iPhone"])
-        XCTAssertEqual(extras.map(\.id.settingsTab), ["voice", "listening", "account", "phones"])
-        for tab in extras.map(\.id.settingsTab) {
-            XCTAssertEqual(Destinations.route(forPage: tab), WindowRoute(.settings, tab: tab))
-        }
+    func testListsWhatIsOptionalShortly() {
+        let extras = FirstRunEnd.extras(hearing: false)
+        XCTAssertEqual(extras.map(\.title), ["Talk to Memnox", "Keys to try"])
         XCTAssertTrue(extras.allSatisfy { !$0.done })
     }
 
+    func testSaysWhereTheRestOfSetupWaitsOnceMemnoxOpens() {
+        XCTAssertTrue(FirstRunEnd.later.contains("iPhone"))
+        XCTAssertTrue(FirstRunEnd.later.contains("Memnox Cloud"))
+        XCTAssertTrue(FirstRunEnd.later.contains(HomeSteps.cardTitle))
+    }
+
     func testTicksWhatIsAlreadyInPlace() {
-        let extras = FirstRunEnd.extras(hearing: true, signedIn: true, phonePaired: true)
-        XCTAssertEqual(extras.filter(\.done).map(\.id), [.voice, .workspace, .phone])
-        XCTAssertEqual(extras.first { $0.id == .workspace }?.title, "Your workspace")
+        let extras = FirstRunEnd.extras(hearing: true)
+        XCTAssertEqual(extras.filter(\.done).map(\.id), [.voice])
+        XCTAssertEqual(FirstRunLines.tryPrompt, "Make a folder called memnox-try, then delete it with rm -rf memnox-try.")
     }
 
     func testAsksThePersonOnlyForTheMicrophoneAndOnlyUntilItIsGranted() {
@@ -37,8 +39,8 @@ final class FirstRunEndTests: XCTestCase {
     }
 
     func testKeepsEveryWordFreeOfDashes() {
-        let words = [FirstRunEnd.lead, FirstRunEnd.talkHint] + FirstRunEnd.extras(hearing: false, signedIn: false, phonePaired: false)
-            .flatMap { [$0.title, $0.detail] }
+        let words = [FirstRunEnd.lead, FirstRunEnd.later, FirstRunEnd.talkHint, FirstRunLines.tryPrompt, FirstRunLines.tryDetail]
+            + FirstRunEnd.extras(hearing: false).flatMap { [$0.title, $0.detail] }
         for line in words {
             XCTAssertFalse(line.contains("\u{2014}") || line.contains("\u{2013}") || line.contains(" - "), line)
         }

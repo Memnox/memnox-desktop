@@ -281,13 +281,12 @@ public enum TodayBoard {
         return item.choices.first { $0.key == pressed }
     }
 
-    /// The answers a held call takes, as the island offers them. A teammate's call has no rule here to relax, so from
-    /// now on is left off it, since the runtime would take it as once.
+    /// The answers a held call takes, in the words and order every surface uses, Deny last. A teammate's call has no
+    /// rule here to relax, so Always allow is left off it, since the runtime would take it as once.
     public static func heldChoices(team: Bool) -> [TodayChoice] {
-        var answers: [(String, HoldAnswer)] = [("Allow once", .once), ("Allow this session", .session)]
-        if !team { answers.append(("Allow from now on", .always)) }
-        answers.append(("Deny", .deny))
-        return lettered(answers.map { ($0.0, TodayAction.answer($0.1), false) })
+        let yeses = AnswerWords.order.filter { $0 != .deny } + (team ? [] : [.always])
+        let answers = yeses + [.deny]
+        return lettered(answers.map { (AnswerWords.label($0), TodayAction.answer($0), false) })
     }
 
     // MARK: Reading each source
@@ -326,10 +325,10 @@ public enum TodayBoard {
             let kind: TodayKind
             let state: TodayState
             switch card.status {
-            case .paused: (kind, state) = (.paused, .stopped)
-            case .waitingOnYou, .needsYou: (kind, state) = (.handedBack, .needsYou)
-            case .working, .thinking: (kind, state) = (.working, .working)
-            case .quiet, .ended: return nil
+            case .stopped: (kind, state) = (.paused, .stopped)
+            case .finished, .needsYou: (kind, state) = (.handedBack, .needsYou)
+            case .working: (kind, state) = (.working, .working)
+            case .idle: return nil
             }
             var ways: [(String, TodayAction, Bool)] = [("Open conversation", .openConversation, false)]
             if card.host?.app != nil { ways.append(("Find in app", .findInApp, false)) }

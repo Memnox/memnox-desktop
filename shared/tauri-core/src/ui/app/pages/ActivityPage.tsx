@@ -137,7 +137,7 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
       </div>
       {activity.decision !== undefined && (
         <Inspector title={ActivityLines.why} width={width} close={() => activity.close()} item={activity.decision.row.id}>
-          <DecisionDetail key={activity.decision.row.id} view={activity.decision} change={() => go({ destination: 'governance', tab: 'policies' })} />
+          <DecisionDetail key={activity.decision.row.id} view={activity.decision} change={() => go({ destination: 'rules', tab: 'rules' })} />
         </Inspector>
       )}
     </div>

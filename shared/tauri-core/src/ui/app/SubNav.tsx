@@ -1,37 +1,12 @@
-import {
-  AppWindow,
-  Bot,
-  Brain,
-  FolderGit2,
-  History,
-  Inbox,
-  Laptop,
-  Mic,
-  Monitor,
-  Plug,
-  ScrollText,
-  Sparkles,
-  UserRound,
-  type LucideIcon,
-} from 'lucide-react';
+import { AppWindow, Laptop, Mic, UserRound, type LucideIcon } from 'lucide-react';
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
-import { tabOf, type Route, type TabGroup, type TabGroupId } from '../../core/domain/destinations';
+import { groupTitle, tabOf, type Route, type TabGroup, type TabGroupId } from '../../core/domain/destinations';
 import { Pressable } from '../kit';
 
 /** A group heading's glyph, callout sized as the Mac's `SubNav` draws it. */
 const GROUP_GLYPH = 14;
 
 const GROUP_ICONS: Record<TabGroupId, LucideIcon> = {
-  agents: Bot,
-  computer: Monitor,
-  projects: FolderGit2,
-  knowledge: Brain,
-  skills: Sparkles,
-  hub: Plug,
-  apps: AppWindow,
-  review: Inbox,
-  rules: ScrollText,
-  record: History,
   account: UserRound,
   devices: Laptop,
   voice: Mic,
@@ -64,9 +39,9 @@ export function SubNavFrame({
         <div className="flex min-w-0 flex-col">
           {shown !== undefined && (
             <header className="mb-6">
-              <p className="text-meta text-muted">{shown.group}</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-foreground">{shown.tab.title}</h2>
-              <p className="mt-1.5 max-w-2xl text-body-sm leading-relaxed text-muted">{shown.tab.summary}</p>
+              {shown.group !== undefined && <p className="text-meta text-muted">{groupTitle(shown.group)}</p>}
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-foreground">{shown.title}</h2>
+              <p className="mt-1.5 max-w-2xl text-body-sm leading-relaxed text-muted">{shown.summary}</p>
             </header>
           )}
           <div className="flex min-w-0 flex-col gap-5">{children}</div>

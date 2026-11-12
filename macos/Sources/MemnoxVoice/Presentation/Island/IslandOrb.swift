@@ -37,7 +37,7 @@ struct IslandWaveform: View {
             HStack(alignment: .center, spacing: Self.barSpacing) {
                 ForEach(values.indices, id: \.self) { index in
                     Capsule()
-                        .fill(Memnox.Palette.sky.opacity(Self.barOpacityFloor + Double(values[index]) * Self.barOpacityRise))
+                        .fill(Memnox.Console.sky.opacity(Self.barOpacityFloor + Double(values[index]) * Self.barOpacityRise))
                         .frame(width: Self.barWidth, height: Self.barFloor + CGFloat(values[index]) * Self.barRise)
                 }
             }

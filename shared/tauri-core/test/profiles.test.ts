@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { Profiles } from '../src/core/application/profiles';
 import { RequestIds } from '../src/core/application/request-ids';
 import { Agents } from '../src/core/application/studio';
-import { applyWhereLine, choiceNames, packChangeLine, profileAppliedLine, profileContents, profileDraftFrom, profileFormOf, profileSavedLine } from '../src/core/domain/profile-lines';
+import { applyWhereLine, choiceNames, copiedLine, jobFormFor, packChangeLine, profileAppliedLine, profileContents, profileDraftFrom, profileFormOf, profileSavedLine } from '../src/core/domain/profile-lines';
+import { NO_LEVELS } from '../src/core/domain/agent-wire';
 import { ScriptedDaemon } from './doubles';
 
 const backend: ProfileView = {
@@ -14,6 +15,10 @@ const backend: ProfileView = {
   rulePack: { name: 'Careful', rules: 6 },
   updatedAt: '2026-10-30T10:00:00Z',
   missing: [],
+  responsibilities: [],
+  projects: [],
+  connections: [],
+  levels: NO_LEVELS,
 };
 
 const packs = [{ id: 'careful', name: 'Careful', toml: '[[policies]]' }];
@@ -54,7 +59,19 @@ describe('editing a profile', () => {
   const offered = [{ id: 'careful', name: 'Careful', ruleCount: 6 }];
 
   it('opens with the profile as kept and its pack matched by name', () => {
-    expect(profileFormOf(backend, offered)).toEqual({ name: 'Backend Engineering', description: '', skills: new Set(['review-checklist', 'release-notes']), servers: new Set(['postgres']), pack: 'careful' });
+    expect(profileFormOf(backend, offered)).toEqual({
+      name: 'Backend Engineering',
+      description: '',
+      skills: new Set(['review-checklist', 'release-notes']),
+      servers: new Set(['postgres']),
+      pack: 'careful',
+      purpose: '',
+      role: '',
+      responsibilities: '',
+      instructions: '',
+      responsiblePerson: '',
+      projects: [],
+    });
     expect(profileFormOf(backend, []).pack).toBe('');
   });
 
@@ -115,5 +132,70 @@ describe('profiles', () => {
     const outcome = await agents.launch('claude-code', '/code/api', { name: 'Backend', keyTitle: 'Windows Hello' });
     expect(daemon.sent('agent-launch')[0]?.profileName).toBe('Backend');
     expect(outcome).toEqual({ kind: 'done', note: 'Opened claude-code in /code/api, typing claude. 2 proposals wait for your signature with Windows Hello on the island.' });
+  });
+});
+
+describe('jobs, as the job editor steers them', () => {
+  const job: ProfileView = { ...backend, id: 'backend', name: 'Backend', skills: [], mcpServers: [], rulePack: undefined, purpose: 'Builds the API' };
+  const template = { id: 'code-review', name: 'Code Review', purpose: 'Reads a change', role: 'reviewer', responsibilities: [], suggestedSkills: ['review'], suggestedRules: ['Never push.'], suggestedConnections: [] };
+
+  it('gives an agent’s default a job in one press, unsigned', async () => {
+    const daemon = new ScriptedDaemon({
+      'profile-put': (request) => [{ id: request.id, ok: true, profiles: [job] }],
+      'profile-bind': (request) => [{ id: request.id, ok: true, profiles: [job] }],
+    });
+    const profiles = new Profiles(daemon, new RequestIds(), 'Windows Hello');
+    expect(await profiles.putAndBind({ name: 'Backend', purpose: 'Builds the API' }, 'agt_claude-code')).toEqual({ kind: 'done', note: 'The agent now works under Backend.' });
+    expect(daemon.requests.map((each) => each.method)).toEqual(['profile-put', 'profile-bind']);
+    expect(daemon.sent('profile-bind')[0]).toMatchObject({ profileName: 'Backend', agentId: 'agt_claude-code' });
+    expect(daemon.sent('profile-bind')[0]?.signature).toBeUndefined();
+  });
+
+  it('stops before binding when the job was refused', async () => {
+    const daemon = new ScriptedDaemon({ 'profile-put': (request) => [{ id: request.id, ok: false, error: 'Give the profile a name.' }] });
+    const profiles = new Profiles(daemon, new RequestIds(), 'Windows Hello');
+    expect(await profiles.putAndBind({ name: '' }, 'claude-code')).toEqual({ kind: 'failed', why: 'Give the profile a name.' });
+    expect(daemon.requests.map((each) => each.method)).toEqual(['profile-put']);
+  });
+
+  it('copies a template with only the skills taken, then unbinds', async () => {
+    const daemon = new ScriptedDaemon({
+      templates: (request) => [{ id: request.id, ok: true, templates: [template] }],
+      'profile-from-template': (request) => [{ id: request.id, ok: true, profiles: [job] }],
+      'profile-unbind': (request) => [{ id: request.id, ok: true, profiles: [] }],
+    });
+    const profiles = new Profiles(daemon, new RequestIds(), 'Windows Hello');
+    await profiles.readTemplates();
+    expect(profiles.templates?.[0]?.suggestedRules).toEqual(['Never push.']);
+    expect(await profiles.fromTemplate('code-review', 'Reviewer', [])).toEqual({ kind: 'done', note: 'Reviewer is kept with no agent behind it yet. Its suggested rules wait for you to write them.' });
+    expect(daemon.sent('profile-from-template')[0]).toMatchObject({ templateId: 'code-review', profileName: 'Reviewer', templateSkills: [] });
+    expect(await profiles.unbind('agt_codex-cli', 'backend')).toEqual({ kind: 'done', note: 'The agent is back on its own default, with no job.' });
+    expect(daemon.sent('profile-unbind')[0]?.agentId).toBe('agt_codex-cli');
+    expect(profiles.profiles).toEqual([]);
+  });
+
+  it('fills in what a runtime from before jobs leaves out, raising no level', async () => {
+    const old = { id: 'docs', name: 'Docs', skills: ['a'], mcpServers: [], updatedAt: '', missing: [] };
+    const daemon = new ScriptedDaemon({ profiles: (request) => [{ id: request.id, ok: true, profiles: [old as unknown as ProfileView] }] });
+    const profiles = new Profiles(daemon, new RequestIds(), 'Windows Hello');
+    await profiles.refresh();
+    expect(profiles.profiles?.[0]).toMatchObject({ connections: [], responsibilities: [], projects: [], levels: NO_LEVELS });
+  });
+
+  it('leaves the templates unread from a runtime that has none', async () => {
+    const daemon = new ScriptedDaemon({ templates: (request) => [{ id: request.id, ok: false, error: 'unknown method' }] });
+    const profiles = new Profiles(daemon, new RequestIds(), 'Windows Hello');
+    await profiles.readTemplates();
+    expect(profiles.templates).toBeUndefined();
+  });
+
+  it('keeps a job with only its purpose and carries its fields through an edit', () => {
+    const form = { name: 'Backend', description: '', skills: new Set<string>(), servers: new Set<string>(), pack: '', purpose: ' Builds the API ', responsibilities: 'run the tests\n\n keep the fingerprint ', responsiblePerson: 'Bo', projects: ['/code/api'], templateOf: 'software-development' };
+    expect(profileDraftFrom(form, [])).toEqual({ name: 'Backend', purpose: 'Builds the API', responsibilities: ['run the tests', 'keep the fingerprint'], responsiblePerson: 'Bo', projects: ['/code/api'], templateOf: 'software-development' });
+    const kept = profileFormOf({ ...job, responsibilities: ['a', 'b'], projects: ['/code/api'] }, []);
+    expect(kept.responsibilities).toBe('a\nb');
+    expect(kept.projects).toEqual(['/code/api']);
+    expect(jobFormFor({ name: 'Claude Code', responsiblePerson: 'Bo' })).toMatchObject({ name: 'Claude Code', responsiblePerson: 'Bo', skills: new Set() });
+    expect(copiedLine(' ')).toBe('The job is kept with no agent behind it yet. Its suggested rules wait for you to write them.');
   });
 });

@@ -1,4 +1,4 @@
-import type { ActivityRow, AgentView, BackupSummary, CommunityIndexView, DaemonRequest, DaemonResponse, DeviceWire, HomeView, LanStatus, McpHubView, MemoryItemView, MemorySourceView, PersonalSyncConflict, PersonalSyncStatus, PolicyRulesView, ProfileView, ProgressView, ProjectView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
+import type { ActivityRow, AgentView, CommunityIndexView, DaemonRequest, DaemonResponse, DeviceWire, HomeView, LanStatus, McpHubView, MemoryItemView, MemorySourceView, PolicyRulesView, ProfileView, ProgressView, ProjectView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
@@ -8,6 +8,7 @@ import type { Platform } from '../../core/domain/platform';
 import type { SettingsHost } from './host';
 import type { Pairer } from '../../core/application/ports/pairer';
 import type { HttpTransport, PersonCredentialStore } from '../../core/application/ports/workspace-inbox';
+import { NO_LEVELS } from '../../core/domain/agent-wire';
 import { Base64URL } from '../../core/domain/base64url';
 import type { PairedServer } from '../../core/domain/paired-machines';
 import type { WorkspaceCredential } from '../../core/domain/workspace-wire';
@@ -276,7 +277,6 @@ const previewProjects: ProjectView[] = [
   },
 ];
 
-const previewBackup: BackupSummary = { createdAt: '2026-10-30T12:00:00.000Z', files: ['policies.toml', 'mcp-hub.json', 'skills/release-notes/SKILL.md', 'projects.json'], ledger: false };
 
 /** The packs Memnox ships, as the boundaries step lists them. */
 const previewPacks: RulePackView[] = [
@@ -349,44 +349,6 @@ const previewLan: LanStatus =
     ? { on: true, listening: true, addresses: ['192.168.1.20'], port: 47_820, advertised: true, instance: 'mx-7f3a', reachable: [{ deviceId: 'dev_1', name: 'Sam’s iPhone' }] }
     : { on: false, listening: false, addresses: [], advertised: false, reachable: [] };
 
-const syncKinds = [
-  { kind: 'servers', items: 3 },
-  { kind: 'skills', items: 2 },
-  { kind: 'projects', items: 2 },
-  { kind: 'rules', items: 5 },
-  { kind: 'memory', items: 7 },
-];
-
-/** Personal sync ready with a laptop waiting for the key, or the new machine's side: `state=key-arrived`, `state=not-on-plan`. */
-function previewSync(): PersonalSyncStatus {
-  const base = { kinds: syncKinds, conflicts: 0, skipped: [], openedElsewhere: [], waiting: [] };
-  if (previewState === 'key-arrived') return { ...base, state: 'key-arrived', said: 'A sync key arrived from another of your machines. Compare the fingerprint and accept it to start syncing.', arrivedFingerprint: '40917 22618 73501 09344 51872 66230' };
-  if (previewState === 'not-on-plan') return { ...base, state: 'not-on-plan', said: 'Your plan does not carry personal sync, so what is here stays on this machine.' };
-  return {
-    ...base,
-    state: 'ready',
-    said: 'Synced. Your other machines have everything this one carries.',
-    keyId: 'Hc2f9Qm1vT0aXr7LdPe4Zw',
-    lastSyncedAt: '2026-10-30T11:52:00Z',
-    conflicts: 1,
-    skipped: ['The skill design-review is larger than one item may be, so it stays on this machine.'],
-    openedElsewhere: ['github.com/acme/billing'],
-    waiting: [{ machineId: 'sam-laptop', fingerprint: '40917 22618 73501 09344 51872 66230', sealed: false }],
-  };
-}
-
-const previewConflicts: PersonalSyncConflict[] = [
-  { id: 'cfl_1', kind: 'skills', name: 'release-notes', writtenBy: 'sam-laptop', keptAt: '2026-10-30T10:15:00Z', theirs: 'Write the release notes from the merged pull requests, newest first.', mine: 'Write the release notes from the merged pull requests, grouped by area.' },
-];
-
-/** Every personal sync press answered from the scene: an offer or an accept waits on a signature. */
-function syncAnswer(request: DaemonRequest): Partial<DaemonResponse> {
-  const personalSync = previewSync();
-  if (request.method === 'personal-sync-conflicts') return { personalSync, syncConflicts: previewConflicts };
-  if (request.method === 'personal-sync-key-offer' || request.method === 'personal-sync-key-accept') return { personalSync, proposed: 'prp_preview' };
-  return { personalSync };
-}
-
 /** The community index: a skill already held at an older version, a pack, and a skill whose every version was marked unsafe. */
 const previewIndex: CommunityIndexView = {
   source: 'https://memnox.com/index.json',
@@ -418,13 +380,89 @@ function indexAnswer(request: DaemonRequest): Partial<DaemonResponse> {
 
 /** Two profiles: one whole, one naming a server the MCP Hub no longer holds. */
 const previewProfiles: ProfileView[] = [
-  { id: 'backend-engineering', name: 'Backend Engineering', description: 'Reviews, release notes and the local database, with careful pushes', skills: ['release-notes', 'review-checklist'], mcpServers: ['github', 'postgres'], rulePack: { name: 'Careful', rules: 6 }, updatedAt: '2026-10-28T09:00:00Z', missing: [] },
-  { id: 'docs-writer', name: 'Docs writer', skills: ['release-notes'], mcpServers: ['figma'], updatedAt: '2026-10-21T09:00:00Z', missing: ['figma is no longer in the MCP Hub.'] },
+  { id: 'backend-engineering', name: 'Backend Engineering', description: 'Reviews, release notes and the local database, with careful pushes', skills: ['release-notes', 'review-checklist'], mcpServers: ['github', 'postgres'], rulePack: { name: 'Careful', rules: 6 }, updatedAt: '2026-10-28T09:00:00Z', missing: [], responsibilities: [], projects: [], connections: [], levels: NO_LEVELS },
+  { id: 'docs-writer', name: 'Docs writer', skills: ['release-notes'], mcpServers: ['figma'], updatedAt: '2026-10-21T09:00:00Z', missing: ['figma is no longer in the MCP Hub.'], responsibilities: [], projects: [], connections: [], levels: NO_LEVELS },
+];
+
+/** Claude Code under a job, checked by Memnox through its own hook, with every seam but the network held. */
+const previewLevels = {
+  context: 'mediated',
+  instructions: 'mediated',
+  tools: 'enforced',
+  activity: 'enforced',
+  coordination: 'mediated',
+  approval: 'enforced',
+  enforcement: { shell: 'enforced', filesystem: 'enforced', git: 'enforced', network: 'observed', browser: 'none', mcp: 'mediated' },
+} as const;
+
+/** The jobs a person keeps, a default with no job yet, and the agent work they carry, for the Jobs and Work tabs. */
+const previewJobs: ProfileView[] = [
+  {
+    ...previewProfiles[0]!,
+    purpose: 'Builds and changes the API and the billing service.',
+    role: 'developer',
+    responsibilities: ['make the change the task asks for', 'run the tests before handing back'],
+    responsiblePerson: 'Sam Rivera',
+    connections: [{ id: 'con_claude', profileId: 'backend-engineering', kind: 'runtime_hook', agentKind: 'claude-code', agentId: 'agt_claude-code', mediation: 'interposed', firstSeen: '2026-10-01T09:00:00Z', lastSeen: '2026-10-30T11:50:00Z', status: 'live', levels: previewLevels }],
+    levels: previewLevels,
+  },
+  { ...previewProfiles[1]!, purpose: 'Writes the release notes and keeps the docs current.', responsiblePerson: 'Sam Rivera', templateOf: 'documentation' },
+  {
+    id: 'agt_codex-cli',
+    name: 'Codex',
+    skills: [],
+    mcpServers: [],
+    updatedAt: '2026-10-30T09:00:00Z',
+    missing: [],
+    responsibilities: [],
+    projects: [],
+    responsiblePerson: 'Sam Rivera',
+    isDefault: true,
+    connections: [{ id: 'con_codex', profileId: 'agt_codex-cli', kind: 'observed', agentKind: 'codex-cli', agentId: 'agt_codex-cli', mediation: 'observed', firstSeen: '2026-10-01T09:00:00Z', lastSeen: '2026-10-29T17:00:00Z', status: 'idle', levels: { ...NO_LEVELS, activity: 'observed' } }],
+    levels: { ...NO_LEVELS, activity: 'observed' },
+  },
+];
+
+const previewTemplates: NonNullable<DaemonResponse['templates']> = [
+  { id: 'code-review', name: 'Code Review', purpose: 'Reads a change before it is merged and says what is risky.', role: 'reviewer', responsibilities: ['read the diff', 'name what is risky'], suggestedSkills: ['review'], suggestedRules: ['Never push.', 'Never change files; only read them.'], suggestedConnections: ['claude-code', 'cursor'] },
+  { id: 'testing', name: 'Testing', purpose: 'Writes and runs tests, and says plainly what failed.', role: 'tester', responsibilities: ['write the missing tests', 'run the suite'], suggestedSkills: ['testing'], suggestedRules: ['Never push.'], suggestedConnections: ['claude-code'] },
+  { id: 'documentation', name: 'Documentation', purpose: 'Keeps the docs and the release notes true to the code.', role: 'writer', responsibilities: ['update the docs a change touches'], suggestedSkills: [], suggestedRules: ['Ask before changing code.'], suggestedConnections: ['claude-code'] },
+];
+
+const previewWork: NonNullable<DaemonResponse['agentWork']> = [
+  {
+    id: 'agw_1',
+    profileId: 'backend-engineering',
+    responsiblePerson: 'Sam Rivera',
+    target: { source: 'linear', externalId: 'PAY-42', url: 'https://linear.app/acme/issue/PAY-42', title: 'Retry failed card captures' },
+    sessions: ['s1'],
+    attempts: 1,
+    status: 'handoff_requested',
+    progress: [{ at: '2026-10-30T11:40:00Z', by: 's1', note: 'The retry is in; the docs need the new error codes.', refs: [] }],
+    handoffs: [{ id: 'hof_1', from: { profileId: 'backend-engineering' }, to: { profileId: 'docs-writer' }, reason: 'the docs need the new error codes', refs: [], state: 'requested', requestedAt: '2026-10-30T11:41:00Z' }],
+    createdAt: '2026-10-30T09:00:00Z',
+    updatedAt: '2026-10-30T11:41:00Z',
+  },
+  {
+    id: 'agw_2',
+    profileId: 'backend-engineering',
+    responsiblePerson: 'Sam Rivera',
+    target: { source: 'github', externalId: 'acme/api#17', title: 'Flaky checkout test' },
+    sessions: [],
+    attempts: 1,
+    status: 'done',
+    progress: [{ at: '2026-10-29T16:00:00Z', by: 's2', note: 'Fixed the clock in the test.', refs: [] }],
+    handoffs: [],
+    createdAt: '2026-10-29T09:00:00Z',
+    updatedAt: '2026-10-29T16:00:00Z',
+  },
 ];
 
 function profileAnswer(request: DaemonRequest): Partial<DaemonResponse> {
-  if (request.method === 'profile-apply') return { profiles: previewProfiles, profileApplied: { profile: request.profileName ?? '', agent: request.profileAgent ?? '', proposed: ['prp_preview_1', 'prp_preview_2'], already: ['github'], skipped: [] } };
-  return { profiles: previewProfiles };
+  if (previewState === 'empty') return request.method === 'templates' ? { templates: [] } : { profiles: [] };
+  if (request.method === 'templates') return { templates: previewTemplates };
+  if (request.method === 'profile-apply') return { profiles: previewJobs, profileApplied: { profile: request.profileName ?? '', agent: request.profileAgent ?? '', proposed: ['prp_preview_1', 'prp_preview_2'], already: ['github'], skipped: [] } };
+  return { profiles: previewJobs };
 }
 
 /** Every method a page asks, answered from the scene. */
@@ -432,10 +470,9 @@ function answer(request: DaemonRequest): DaemonResponse[] {
   const ok = { id: request.id, ok: true };
   if (request.method.startsWith('memory-')) return [{ ...ok, ...memoryAnswer(request) }];
   if (request.method.startsWith('index-')) return [{ ...ok, ...indexAnswer(request) }];
-  if (request.method === 'profiles' || request.method.startsWith('profile-')) return [{ ...ok, ...profileAnswer(request) }];
-  if (request.method.startsWith('personal-sync-')) return [{ ...ok, ...syncAnswer(request) }];
+  if (request.method === 'profiles' || request.method === 'templates' || request.method.startsWith('profile-')) return [{ ...ok, ...profileAnswer(request) }];
+  if (request.method === 'agent-work' || request.method.startsWith('work-') || request.method === 'handoff-answer') return [{ ...ok, agentWork: previewState === 'empty' ? [] : previewWork }];
   if (request.method === 'lan-status') return [{ ...ok, lan: previewLan }];
-  if (request.method === 'lan-set') return [{ ...ok, lan: previewLan, ...(request.lanOn === true ? { proposed: 'prp_preview' } : {}) }];
   if (request.method.startsWith('mcp-')) return [{ ...ok, mcpHub: previewHub, ...(request.method === 'mcp-assign' && request.mcpOn === true ? { proposed: 'prp_preview' } : {}) }];
   if (request.method === 'rules' || request.method === 'rule-remove') return [{ ...ok, policyRules: previewRules }];
   if (request.method === 'progress') return [{ ...ok, progress: previewProgress }];
@@ -448,8 +485,6 @@ function answer(request: DaemonRequest): DaemonResponse[] {
   }
   if (request.method === 'skills-hub' || request.method.startsWith('skill-')) return [{ ...ok, ...skillAnswer(request) }];
   if (request.method === 'projects' || request.method.startsWith('project-')) return [{ ...ok, ...projectAnswer(request) }];
-  if (request.method === 'backup-create') return [{ ...ok, backupArchive: 'memnox-backup:v1:preview-sealed-archive', backupSummary: { ...previewBackup, ledger: request.backupLedger === true } }];
-  if (request.method === 'backup-restore') return [{ ...ok, proposed: 'prp_preview', backupSummary: previewBackup }];
   if (request.method === 'rule-packs') return [{ ...ok, rulePacks: previewPacks }];
   if (request.method === 'rule-pack-import') return [{ ...ok, packProposed: ['prp_preview_1', 'prp_preview_2'] }];
   if (request.method === 'agent-launch') return [{ ...ok, agentLaunched: { agent: request.agentKind ?? '', workingDirectory: request.workingDirectory ?? '', line: request.agentKind === 'codex-cli' ? 'codex' : 'claude' }, ...(request.profileName === undefined ? {} : { proposed: 'prp_preview_1', ...profileAnswer({ ...request, method: 'profile-apply', profileAgent: request.agentKind }) }) }];
@@ -550,10 +585,9 @@ export class PreviewStore implements PreferenceStore {
 
 export function previewSeed(): Record<string, string> {
   const look = asked.get('theme');
-  const seed: Record<string, string> = { [PREFERENCE.name]: 'Sam Rivera', [PREFERENCE.firstRun]: 'mac' };
+  const seed: Record<string, string> = { [PREFERENCE.name]: 'Sam Rivera' };
   if (look === 'light' || look === 'dark') seed[PREFERENCE.appearance] = look;
   if (previewState === 'firstrun') {
-    delete seed[PREFERENCE.firstRun];
     delete seed[PREFERENCE.name];
   }
   if (previewState === 'home') seed[PREFERENCE.setupDone] = 'true';

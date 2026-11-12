@@ -59,7 +59,7 @@ if [ -f "$runtime/packages/core/src/wire.ts" ]; then
   # A debug build runs this checkout's CLI rather than an npm memnox, which a release never does.
   export MEMNOX_RUNTIME="$runtime" MEMNOX_RUNTIME_DIR="$runtime"
 else
-  echo "no checkout beside this repo, so the wire comes from npm and the app installs memnox on its first run"
+  echo "no checkout beside this repo, so the wire is the copy in shared/wire and the app installs memnox on its first run"
 fi
 
 step "Allow once through polkit"
@@ -83,7 +83,8 @@ export SHERPA_ONNX_LIB_DIR="$sherpa"
 
 step "The app"
 cd "$app"
-corepack pnpm wire
+# With a runtime checkout its wire is copied in, so a change there shows as a change to shared/wire here.
+if [ -n "${MEMNOX_RUNTIME:-}" ]; then corepack pnpm wire; fi
 corepack pnpm install --frozen-lockfile
 
 step "Opening Memnox: the tray icon opens the panel, and Ctrl Alt Space opens the island"

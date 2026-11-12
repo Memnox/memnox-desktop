@@ -25,6 +25,8 @@ export const COPY_WHAT_HAPPENED_EVENT = 'copy-what-happened';
 export const HOME_STALE_EVENT = 'home-stale';
 /** Told to every window with the rows the ledger gained, which Activity and Home show without reading again. */
 export const LIVE_ACTIVITY_EVENT = 'live-activity';
+/** Told to every window with a piece of agent work that changed, which the Work tab and Needs your attention put in place. */
+export const LIVE_WORK_EVENT = 'live-work';
 
 /** What the island's composition root hands in; everything the voice owns is optional. */
 export interface ExtrasParts {
@@ -70,6 +72,12 @@ export function islandExtras(parts: ExtrasParts): IslandExtras {
     // Live rows come once a second while anybody listens: handed to the windows, kept out of the diary and the home's reread.
     if (event.kind === DAEMON_EVENT.ACTIVITY) {
       void emit(LIVE_ACTIVITY_EVENT, { rows: event.activityRows ?? [], missed: event.activityMissed ?? 0 }).catch(() => undefined);
+      return;
+    }
+    // A work change is handed to the windows and noted, never said aloud or chimed, since nothing waits on it by itself.
+    if (event.kind === DAEMON_EVENT.WORK) {
+      diary.note(describe(event));
+      if (event.workChanged !== undefined) void emit(LIVE_WORK_EVENT, event.workChanged).catch(() => undefined);
       return;
     }
     notices.handle(event);

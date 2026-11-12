@@ -25,7 +25,7 @@ struct MarkdownText: View {
                 view(for: block)
             }
         }
-        .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
+        .foregroundStyle(Memnox.Console.foreground.opacity(Memnox.Ink.primary))
         .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -35,11 +35,11 @@ struct MarkdownText: View {
         case .heading(let line):
             Text(Self.inline(line))
                 .font(Memnox.sans(Memnox.TextSize.headline, .semibold))
-                .foregroundStyle(Memnox.Palette.foreground)
+                .foregroundStyle(Memnox.Console.foreground)
                 .padding(.top, Memnox.Spacing.xxSmall)
         case .bullet(let line):
             HStack(alignment: .firstTextBaseline, spacing: Layout.bulletGap) {
-                Text("•").font(Memnox.sans(Memnox.TextSize.body, .semibold)).foregroundStyle(Memnox.Palette.primary)
+                Text("•").font(Memnox.sans(Memnox.TextSize.body, .semibold)).foregroundStyle(Memnox.Console.primary)
                 Text(Self.inline(line)).font(Memnox.sans(Memnox.TextSize.body)).lineSpacing(Layout.bulletLineSpacing)
             }
         case .code(let code):

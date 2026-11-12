@@ -62,7 +62,6 @@ struct ImportProgress: Equatable {
 struct SkillsDestination: View {
     @ObservedObject var screen: SkillsScreen
     @ObservedObject var island: IslandModel
-    let tab: String?
     /// The project the top bar's switcher picked, nil for every project.
     var current: ProjectView?
     /// Whose skills show: both, the person's, or the organization's once Memnox Cloud hands any down.
@@ -73,7 +72,7 @@ struct SkillsDestination: View {
 
     var body: some View {
         page
-            .task(id: tab) { await screen.skills.refresh() }
+            .task { await screen.skills.refresh() }
             // A signature on the island changes what the hub holds, so it is read again.
             .onChange(of: island.waiting.count) { Task { await screen.skills.refresh() } }
     }
@@ -81,16 +80,7 @@ struct SkillsDestination: View {
     @ViewBuilder private var page: some View {
         let skills = screen.skills
         if let view = skills.hub {
-            Group {
-                if tab == "assigned" {
-                    ShellScroll(width: width) {
-                        NoteBanner(text: screen.note)
-                        AssignedGrid(view: view) { assigning = $0 }
-                    }
-                } else {
-                    MySkills(screen: screen, view: view, current: current, scope: scope, width: width) { assigning = $0 }
-                }
-            }
+            MySkills(screen: screen, view: view, current: current, scope: scope, width: width) { assigning = $0 }
             .consoleSheet(isPresented: Binding(get: { assigning != nil }, set: { if !$0 { assigning = nil } })) {
                 if let skill = view.skills.first(where: { $0.name == assigning }) {
                     AssignSkillSheet(screen: screen, view: view, skill: skill) { assigning = nil }
@@ -649,80 +639,5 @@ private struct FoundRow: View {
         }
         .padding(.horizontal, ShellMetrics.rowPaddingH)
         .padding(.vertical, ShellMetrics.rowPaddingV)
-    }
-}
-
-/// Skills down, agents across: who has what at a glance, changed through Manage agents.
-private struct AssignedGrid: View {
-    let view: SkillsHubView
-    let manage: (String) -> Void
-
-    var body: some View {
-        let agents = view.agents.filter(\.installed)
-        if view.skills.isEmpty || agents.isEmpty {
-            EmptyState(symbol: "sparkles", title: "Nothing assigned yet",
-                       detail: "Once the hub holds a skill and an agent that takes skills is installed, who has what shows here.")
-        } else {
-            ShellPanel {
-                ScrollView(.horizontal) {
-                    Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
-                        GridRow {
-                            header("Skill").frame(maxWidth: .infinity, alignment: .leading)
-                            ForEach(agents, id: \.agent) { agent in
-                                HStack(spacing: Memnox.Spacing.small) {
-                                    BrandLogo(agent: agent.agent, name: agent.label, size: SkillsLayout.smallLogo - 2)
-                                    header(agent.label)
-                                }
-                                .frame(minWidth: SkillsLayout.column)
-                            }
-                            Color.clear.frame(width: 1, height: 1)
-                        }
-                        .padding(.vertical, ShellMetrics.rowPaddingV)
-                        ForEach(view.skills) { skill in
-                            ShellDivider().gridCellUnsizedAxes(.horizontal)
-                            GridRow {
-                                HStack(spacing: Memnox.Spacing.medium) {
-                                    Text(skill.name)
-                                        .font(Memnox.Console.sans(Memnox.TextSize.body, .medium))
-                                        .foregroundStyle(Memnox.Console.foreground)
-                                        .lineLimit(1)
-                                    if !skill.enabled {
-                                        Text("Off").font(Memnox.Console.sans(Memnox.TextSize.footnote)).foregroundStyle(Memnox.Console.muted)
-                                    }
-                                }
-                                .padding(.horizontal, ShellMetrics.rowPaddingH)
-                                ForEach(agents, id: \.agent) { agent in
-                                    cell(skill, agent).frame(minWidth: SkillsLayout.column)
-                                }
-                                Button("Manage agents") { manage(skill.name) }
-                                    .buttonStyle(KitButton(kind: .secondary))
-                                    .padding(.horizontal, ShellMetrics.rowPaddingH)
-                            }
-                            .padding(.vertical, ShellMetrics.rowPaddingV)
-                        }
-                    }
-                }
-                .scrollIndicators(.automatic)
-            }
-        }
-    }
-
-    private func header(_ text: String) -> some View {
-        Text(text)
-            .font(Memnox.Console.sans(Memnox.TextSize.footnote, .semibold))
-            .foregroundStyle(Memnox.Console.muted)
-            .lineLimit(1)
-            .padding(.horizontal, ShellMetrics.rowPaddingH)
-    }
-
-    @ViewBuilder private func cell(_ skill: SkillView, _ agent: SkillAgentView) -> some View {
-        if skill.agents.contains(agent.agent) {
-            Image(systemName: "checkmark")
-                .font(.system(size: Memnox.TextSize.footnote, weight: .semibold))
-                .foregroundStyle(Memnox.Console.success)
-                .accessibilityLabel("\(skill.name) for \(agent.label)")
-        } else {
-            Color.clear.frame(width: 1, height: 1).accessibilityLabel("Not given to \(agent.label)")
-        }
     }
 }

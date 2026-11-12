@@ -31,6 +31,10 @@ const TOOL_FILES: Record<string, string> = {
 
 /** Memnox's own mark in white, for the menu panel's header and the answer's disc. */
 export const MEMNOX_MARK = new URL('../assets/memnox-mark-white.png', import.meta.url).href;
+/** The name set in the brand's own letters, the Mac's `memnox-wordmark-template`, drawn in whatever ink the surface asks for. */
+export const MEMNOX_WORDMARK = new URL('../assets/memnox-wordmark-template.png', import.meta.url).href;
+/** The wordmark's own shape, 576 by 94, so its width follows whatever height it is given. */
+const WORDMARK_ASPECT = 576 / 94;
 
 /** The URL of an agent's own logo, or undefined where it has none. */
 export function agentLogoUrl(agent: string | undefined): string | undefined {
@@ -200,4 +204,10 @@ export function ToolMark({ toolkit, size = 22, online = true, className }: { too
 export function LogoMark({ size = 24, className }: { size?: number; className?: string }) {
   const mask = `url("${MEMNOX_MARK}") center / contain no-repeat`;
   return <span className={`inline-block shrink-0 bg-current ${className ?? ''}`} style={{ width: size, height: size, mask, WebkitMask: mask }} aria-hidden />;
+}
+
+/** The wordmark in flat ink, as the Mac's `Wordmark`: the sidebar's top and the first screen, wherever the name is shown. */
+export function Wordmark({ height, className }: { height: number | string; className?: string }) {
+  const mask = `url("${MEMNOX_WORDMARK}") center / contain no-repeat`;
+  return <span role="img" aria-label="Memnox" className={`inline-block shrink-0 bg-current ${className ?? ''}`} style={{ height, aspectRatio: WORDMARK_ASPECT, mask, WebkitMask: mask }} />;
 }

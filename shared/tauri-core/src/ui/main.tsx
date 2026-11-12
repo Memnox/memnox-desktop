@@ -27,6 +27,7 @@ import type { VoiceChoices } from '../core/application/voice-preferences';
 import { firstName } from '../core/domain/setup-steps';
 import { displayCaption, keyCaption } from '../core/domain/caption-lines';
 import { platformOf } from '../core/domain/platform';
+import { tauriAppVersion, tauriReleaseFeed, updatesOver } from './adapters/tauri-updates';
 import { DAEMON_EVENT } from '@memnox/core/wire';
 import { HeldCallNotices } from '../core/application/held-call-notices';
 import { tauriNotices } from './adapters/tauri-notices';
@@ -68,7 +69,7 @@ const signer = new Signer(link, key, ids, (status) => calls?.keyChanged(status))
 // Paired servers and the team's inbox: `target` sends each request to the machine it belongs to.
 const relay = islandRelay({ local: link, ids, key, timer, store: localPreferences });
 // The island's feed is the one that hands live activity rows to the windows, so it alone asks for them.
-calls = new HeldCalls(link, signer, ids, { timer, ...relay.heldOptions, liveActivity: true });
+calls = new HeldCalls(link, signer, ids, { timer, ...relay.heldOptions, liveActivity: true, liveWork: true });
 const heldCalls: HeldCalls = calls;
 // The voice: Kokoro behind a mouth that remembers what it said and honours the mute, the ear, the keys and the typist.
 const voicePreferences = new VoicePreferences(localPreferences);
@@ -122,6 +123,8 @@ const voiceTurns = new VoiceTurns({
 const wakefulness = new Wakefulness(link, new TauriPower(), ids);
 const setup = new Setup(link, runtime(), ids, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
 const voiceSettings = new VoiceSettings(link, ids);
+// A newer app or Memnox service, offered under the island until the person updates or presses Later.
+const updates = updatesOver({ feed: tauriReleaseFeed, appVersion: tauriAppVersion }, platform, setup, runtime(), personal, (url) => void invoke(TAURI_COMMAND.openPage, { url }).catch(() => undefined));
 // What waits on the person is said in its turn and listened for; the rest goes straight to the talking.
 calls.observeEvents((event) => voiceTurns.arrived(event));
 // The sessions, an agent's own questions, what the daemon asks to show, and every question asked kept.
@@ -221,6 +224,7 @@ function Root() {
       cards={cards}
       setup={setup}
       voiceSettings={voiceSettings}
+      updates={updates}
       sessions={sessions}
       questions={questions}
       onOpenSession={openOwnApp}

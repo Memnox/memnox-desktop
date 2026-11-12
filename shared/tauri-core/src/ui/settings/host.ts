@@ -5,6 +5,7 @@ import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notif
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
 import type { LiveActivityRow } from '@memnox/core/wire';
 import type { FoundHome } from '../../core/domain/agent-homes';
+import type { AgentWork } from '../../core/domain/agent-wire';
 import type { Look } from '../../core/domain/appearance';
 import type { PermissionFacts, PrivacyPane } from '../../core/domain/permission-steps';
 import type { PathLook } from '../../core/domain/memory-import';
@@ -59,6 +60,8 @@ export interface SettingsHost {
   onHomeStale?(listener: () => void): () => void;
   /** Told the rows the ledger gained, as the island hears them at most once a second, and how many it did not carry. */
   onLiveActivity?(listener: (rows: readonly LiveActivityRow[], missed: number) => void): () => void;
+  /** Told each piece of agent work that changed, as the island hears it, so the Work tab moves without reading again. */
+  onLiveWork?(listener: (work: AgentWork) => void): () => void;
   /** The first run's window over the whole screen for the opening, or the steps window after it; nothing in a preview. */
   onboardingVeil?(on: boolean): void;
   close(): void;
@@ -137,6 +140,11 @@ export const tauriHost: SettingsHost = {
   onLiveActivity: (listener) => {
     // The name matches `LIVE_ACTIVITY_EVENT`, which the island sends.
     const stop = listen<{ rows: LiveActivityRow[]; missed: number }>('live-activity', (event) => listener(event.payload.rows, event.payload.missed));
+    return () => void stop.then((unlisten) => unlisten(), () => undefined);
+  },
+  onLiveWork: (listener) => {
+    // The name matches `LIVE_WORK_EVENT`, which the island sends.
+    const stop = listen<AgentWork>('live-work', (event) => listener(event.payload));
     return () => void stop.then((unlisten) => unlisten(), () => undefined);
   },
   onboardingVeil: (on) => void invoke(TAURI_COMMAND.onboardingVeil, { on }).catch(() => undefined),

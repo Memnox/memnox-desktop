@@ -27,6 +27,8 @@ import {
   type ProtectResult,
 } from '../../../core/domain/agent-lines';
 import { folderProblem } from '../../../core/domain/launch-lines';
+import { AgentProfileCards } from './AgentProfileCards';
+import { WorkspaceAgentsSection } from './WorkspaceAgents';
 import { ago } from '../../../core/domain/session-text';
 import { workspacesFrom } from '../../../core/domain/workspaces';
 import { EFFECT_WORDS, activityLine, effectTone, isEffect } from '../../../core/domain/studio-lines';
@@ -110,13 +112,23 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
   };
   const followUp = { restarting: home.restarting, busy: home.restarting || home.protecting, restart };
 
-  if (list === undefined) return agents.unreadable ? <ReadFailed what={AgentListLines.readWhat} retry={() => void agents.refresh()} /> : null;
+  // The workspace's agents stand under whatever this computer shows, so a hosted agent is listed even here alone.
+  if (list === undefined) {
+    if (!agents.unreadable) return null;
+    return (
+      <div className="flex flex-col gap-6">
+        {parts.workspaceAgents.signedIn ? <NoRuntime parts={parts} /> : <ReadFailed what={AgentListLines.readWhat} retry={() => void agents.refresh()} />}
+        <WorkspaceAgentsSection parts={parts} />
+      </div>
+    );
+  }
   const noteLine = note !== undefined && <Note>{note}</Note>;
   if (list.length === 0) {
     return (
       <div className="flex flex-col gap-6">
         {noteLine}
         <EmptyState icon={Bot} title={AgentListLines.emptyTitle} body={AgentListLines.emptyBody} />
+        <WorkspaceAgentsSection parts={parts} />
       </div>
     );
   }
@@ -126,6 +138,8 @@ export function AgentListTab({ parts }: { parts: SettingsParts }) {
   return (
     <div className="flex flex-col gap-6">
       {noteLine}
+      {offersProfiles && <AgentProfileCards parts={parts} />}
+      <WorkspaceAgentsSection parts={parts} />
       <div className="flex items-center gap-3 max-narrow:flex-col max-narrow:items-start">
         <span className="min-w-0 flex-1 truncate text-body-sm text-muted">{agentsSummary(list)}</span>
         <ChipGroup label={AgentListLines.show} role="group">
@@ -431,3 +445,29 @@ function LaunchForm({
   );
 }
 
+
+/** No daemon here while signed in: the workspace's agents stand alone, with the same start setup runs everywhere else. */
+function NoRuntime({ parts }: { parts: SettingsParts }) {
+  const { steps, setup, agents, support, workspaceAgents } = parts;
+  useObserved(steps, setup, workspaceAgents);
+  const doing = setup.state.doing;
+  return (
+    <Note>
+      <span className="flex flex-col items-start gap-2">
+        <span>{AgentListLines.noRuntime}</span>
+        <Button
+          kind="primary"
+          busy={doing !== undefined}
+          onClick={() =>
+            void steps.checkService().then(() => {
+              support.forget();
+              void agents.refresh();
+            })
+          }
+        >
+          {doing ?? AgentListLines.startRuntime}
+        </Button>
+      </span>
+    </Note>
+  );
+}

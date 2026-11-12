@@ -250,7 +250,28 @@ pub fn place(window: &WebviewWindow) {
     };
     let origin = monitor.position();
     let x = origin.x + (monitor.size().width as i32 - size.width as i32) / 2;
-    let _ = window.set_position(PhysicalPosition::new(x, origin.y));
+    // Linux hangs the island from the screen's own edge, over any top bar, as the Mac's sits in the notch.
+    let inset = if cfg!(windows) {
+        top_inset(origin.y, monitor.work_area().position.y)
+    } else {
+        0
+    };
+    let _ = window.set_position(PhysicalPosition::new(x, origin.y + inset));
+}
+
+/// The tallest bar at the top of a display that is believed; anything more is a misread work area.
+const TALLEST_TOP_BAR: i32 = 200;
+
+/// How far a taskbar docked at the top of a display on Windows, or another app bar there, pushes the
+/// island down, read off the display's work area, so the island hangs under it rather than behind it.
+/// An auto hidden taskbar takes no work area and so moves nothing.
+fn top_inset(monitor_y: i32, work_y: i32) -> i32 {
+    let inset = work_y - monitor_y;
+    if (0..TALLEST_TOP_BAR).contains(&inset) {
+        inset
+    } else {
+        0
+    }
 }
 
 /// What changes when a display is plugged in, unplugged or rearranged.
@@ -329,6 +350,15 @@ mod tests {
         }
         assert_eq!(Choice::parse(""), Choice::Notch);
         assert_eq!(Choice::parse("display:"), Choice::Notch);
+    }
+
+    #[test]
+    fn hangs_under_a_bar_at_the_top_and_ignores_a_misread_one() {
+        assert_eq!(top_inset(0, 0), 0);
+        assert_eq!(top_inset(0, 48), 48);
+        assert_eq!(top_inset(-1080, -1032), 48);
+        assert_eq!(top_inset(0, -20), 0);
+        assert_eq!(top_inset(0, 900), 0);
     }
 
     #[test]

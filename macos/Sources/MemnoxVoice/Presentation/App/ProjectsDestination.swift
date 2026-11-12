@@ -358,11 +358,9 @@ private struct ProjectCard: View {
                 Button(ProjectPageLines.renameInCloud, systemImage: "pencil") { openURL(url) }
                 Button(ProjectPageLines.removeInCloud, systemImage: "trash") { openURL(url) }
             } else {
+                // No remove is offered, since the runtime keeps no way to forget a project and a button that never
+                // works is a dead end.
                 Button(ProjectPageLines.renameTitle, systemImage: "pencil") { renaming = project.name }
-                Section {
-                    Button(ProjectPageLines.removeTitle, systemImage: "trash") {}.disabled(true)
-                    Text(ProjectPageLines.removeLine)
-                }
             }
         } label: {
             Image(systemName: "ellipsis")

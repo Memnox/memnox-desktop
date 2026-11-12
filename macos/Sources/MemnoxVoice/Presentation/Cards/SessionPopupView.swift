@@ -47,7 +47,7 @@ struct SessionPopupView: View {
                     LiveSection(title: "Where it stands") {
                         Text(said)
                             .font(Memnox.sans(Memnox.TextSize.callout))
-                            .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
+                            .foregroundStyle(Memnox.Console.foreground.opacity(Memnox.Ink.primary))
                             .lineLimit(Layout.lastSaidLineLimit)
                     }
                 } else if !talk.isEmpty {
@@ -85,23 +85,23 @@ struct SessionPopupView: View {
                 if let task = model.view?.task ?? card.task {
                     Text(task)
                         .font(Memnox.sans(Memnox.TextSize.callout, .medium))
-                        .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.primary))
+                        .foregroundStyle(Memnox.Console.foreground.opacity(Memnox.Ink.primary))
                         .lineLimit(Layout.taskLineLimit)
                 } else {
                     Text("No request recorded for this session yet")
                         .font(Memnox.sans(Memnox.TextSize.callout))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                 }
                 if let lastAsk = model.view?.lastAsk {
                     Text("Latest ask: \(lastAsk)")
                         .font(Memnox.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Palette.foreground.opacity(Memnox.Ink.secondary))
+                        .foregroundStyle(Memnox.Console.foreground.opacity(Memnox.Ink.secondary))
                         .lineLimit(Layout.lastAskLineLimit)
                 }
                 if let context = model.view?.context(now: Date()) ?? meta {
                     Text(context)
                         .font(Memnox.sans(Memnox.TextSize.caption))
-                        .foregroundStyle(Memnox.Palette.muted)
+                        .foregroundStyle(Memnox.Console.muted)
                         .lineLimit(Layout.contextLineLimit)
                 }
             }

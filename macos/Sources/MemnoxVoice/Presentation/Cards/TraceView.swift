@@ -27,7 +27,7 @@ struct TraceView: View {
             } accessory: {
                 Text(SessionText.duration(milliseconds: trace.totalMs))
                     .font(.system(size: Memnox.TextSize.body, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Memnox.Palette.primary)
+                    .foregroundStyle(Memnox.Console.primary)
             }
             VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
                 ForEach(Array(trace.rows.enumerated()), id: \.offset) { index, row in
@@ -77,7 +77,7 @@ struct TraceRow: View {
         HStack(spacing: Memnox.Spacing.regular) {
             Text(SessionText.traceStepName(row.name))
                 .font(Memnox.sans(Memnox.TextSize.footnote, row.depth == 0 ? .semibold : .regular))
-                .foregroundStyle(Memnox.Palette.foreground.opacity(row.depth == 0 ? 1 : Layout.nestedOpacity))
+                .foregroundStyle(Memnox.Console.foreground.opacity(row.depth == 0 ? 1 : Layout.nestedOpacity))
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .padding(.leading, CGFloat(min(row.depth, Layout.deepestIndent)) * Layout.indentStep)
@@ -92,16 +92,16 @@ struct TraceRow: View {
             .frame(width: track, alignment: .leading)
             Text(SessionText.duration(milliseconds: row.durationMs))
                 .font(.system(size: Memnox.TextSize.caption, design: .monospaced))
-                .foregroundStyle(Memnox.Palette.muted)
+                .foregroundStyle(Memnox.Console.muted)
                 .frame(width: Layout.durationWidth, alignment: .trailing)
         }
     }
 
     private var colour: Color {
         switch Status(rawValue: row.status) {
-        case .error: return Memnox.Palette.destructive
-        case .refused: return Memnox.Palette.warm
-        case nil: return row.depth == 0 ? Memnox.Palette.primary : Memnox.Palette.success
+        case .error: return Memnox.Console.destructive
+        case .refused: return Memnox.Console.warm
+        case nil: return row.depth == 0 ? Memnox.Console.primary : Memnox.Console.success
         }
     }
 }

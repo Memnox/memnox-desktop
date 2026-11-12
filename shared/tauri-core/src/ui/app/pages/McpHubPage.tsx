@@ -3,10 +3,9 @@ import { CircleCheck, Clock, Fingerprint, Folder, KeyRound, Plug, Plus, RefreshC
 import { useEffect, useState, type ReactNode } from 'react';
 import { McpHub, type HubOutcome, type McpPress } from '../../../core/application/mcp-hub';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
-import { agentLabel, agentsOnce, McpHubPageLines, BRING_IN, BRINGING_IN, SERVER_CARD_MIN, pressLine, transportWord, usedBy, callsLine, fromOrganization, headerLines, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectOnlyHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
+import { agentLabel, agentsOnce, McpHubPageLines, BRING_IN, BRINGING_IN, SERVER_CARD_MIN, pressLine, transportWord, usedBy, callsLine, fromOrganization, headerLines, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
 import { ago } from '../../../core/domain/session-text';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { YourAppsPage } from '../../settings/pages/YourAppsPage';
 import { AddServerDialog } from './AddServerDialog';
 import { Inspector, ScopeChip } from '../widgets';
 import { serverScope } from '../../../core/domain/scope-lines';
@@ -14,7 +13,7 @@ import { GoLink } from './HomePage';
 import { usePicked } from '../inspector-host';
 import { useShellChoices } from '../shell-choices';
 import { inScope, NO_ORGANIZATION_ITEMS, ORGANIZATION_READ_ONLY } from '../../../core/domain/shell-lines';
-import { BrandLogo, Button, CardGrid, Checkbox, EmptyState, Input, Note, Panel, Pressable, ReadFailed, Row, SearchInput, Section, Spinner, StatusWord, TruncatedText } from '../../kit';
+import { BrandLogo, Button, CardGrid, EmptyState, Input, Note, Panel, Pressable, ReadFailed, Row, SearchInput, Section, Spinner, StatusWord, TruncatedText } from '../../kit';
 import { PAGE_METRICS } from '../page-metrics';
 
 /** The Mac's server search grows to its width and no further. */
@@ -44,28 +43,27 @@ const SECRET_FIELD = 192;
  * by the runtime, a change that gives an agent more waits for a signature on the island, and a secret
  * is kept by this computer and never shown again.
  */
-export function McpHubPage({ parts, tab, width, go }: { parts: SettingsParts; tab: string | undefined; width: WidthClass; go: (route: Route) => void }) {
+export function McpHubPage({ parts, width, go }: { parts: SettingsParts; width: WidthClass; go: (route: Route) => void }) {
   const { hub } = parts;
   useObserved(hub);
   useEffect(() => {
-    if (tab !== 'apps') void hub.refresh();
-  }, [tab]);
+    void hub.refresh();
+  }, []);
   // A signed proposal or a call through a hub server changes the stream, and the hub is read again.
   useEffect(() => parts.host.onHomeStale?.(() => void hub.refresh()), []);
   const [note, setNote] = useState<string | undefined>(undefined);
   const said = (outcome: HubOutcome) => setNote(noteOf(outcome, parts.words.keyTitle));
-  // A server given in one project only is changed in that project's settings, which Workspaces shows.
-  const workspaces = () => go({ destination: 'workspaces', tab: 'projects' });
+  // A server given in one project only is changed in that project's settings, which Projects shows.
+  const workspaces = () => go({ destination: 'projects' });
 
-  if (tab === 'apps') return <YourAppsPage parts={parts} />;
   const view = hub.hub;
   if (view === undefined) return hub.unreadable ? <ReadFailed what={McpHubPageLines.readWhat} retry={() => void hub.refresh()} /> : null;
   return (
     <>
       {note !== undefined && <Note>{note}</Note>}
-      {tab === 'clients' && <Clients parts={parts} view={view} said={said} workspaces={workspaces} />}
-      {tab === 'secrets' && <Secrets parts={parts} view={view} said={said} />}
-      {(tab === 'servers' || tab === undefined) && <Servers parts={parts} view={view} width={width} said={said} noted={setNote} workspaces={workspaces} />}
+      <Servers parts={parts} view={view} width={width} said={said} noted={setNote} workspaces={workspaces} />
+      {/* A server that needs a secret is set up only here, so the secrets stand under the servers. */}
+      <Secrets parts={parts} view={view} said={said} />
     </>
   );
 }
@@ -431,87 +429,6 @@ function Drift({ view }: { view: McpHubView }) {
   );
 }
 
-/** Agents across, servers down: one place to see and change who has what. */
-function Clients({ parts, view, said, workspaces }: { parts: SettingsParts; view: McpHubView; said: (outcome: HubOutcome) => void; workspaces: () => void }) {
-  const { hub } = parts;
-  if (view.servers.length === 0 || view.agents.length === 0) {
-    return <EmptyState icon={Plug} title={McpHubPageLines.nothingTitle} body={McpHubPageLines.nothingBody} />;
-  }
-  const inProjects = view.servers.some((server) => (server.projects ?? []).length > 0);
-  return (
-    <>
-      <div className="overflow-x-auto rounded-card border border-panel-edge">
-        <table className="w-full border-collapse text-body">
-          <thead>
-            <tr className="bg-card">
-              <th scope="col" className="px-3.5 py-2.5 text-left text-footnote font-semibold text-muted">{McpHubPageLines.server}</th>
-              {view.agents.map(({ agent }) => (
-                <th key={agent} scope="col" className="px-3 py-2.5 text-footnote font-semibold whitespace-nowrap text-muted">
-                  <span className="inline-flex items-center gap-1.5">
-                    <BrandLogo agent={agent} name={agentLabel(agent)} size={SMALL_LOGO} />
-                    {agentLabel(agent)}
-                  </span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {view.servers.map((server) => (
-              <tr key={server.name} className="border-t border-panel-edge">
-                <th scope="row" className="px-3.5 py-2.5 text-left font-medium whitespace-nowrap text-foreground">{server.name}</th>
-                {view.agents.map(({ agent }) => {
-                  const reach = reachOf(server, agent);
-                  const on = reach === 'everywhere';
-                  if (reach === 'projects') {
-                    const help = projectOnlyHelp(server, agent);
-                    // Unticked, since ticking gives it everywhere; the project assignment is changed in Projects.
-                    return (
-                      <td key={agent} className="px-3 py-2.5 text-center">
-                        <span className="inline-flex items-center gap-1.5">
-                          <Checkbox
-                            checked={false}
-                            disabled={fromOrganization(server) || hub.busy === `${server.name}/${agent}`}
-                            title={fromOrganization(server) ? ORGANIZATION_LINE : GIVE_EVERYWHERE}
-                            label={`${GIVE_EVERYWHERE}: ${McpHubPageLines.serverFor(server.name, agentLabel(agent))}`}
-                            onToggle={() => void hub.assign(server.name, agent, true).then(said)}
-                          />
-                          <Pressable title={help} aria-label={help} className="mx-focus inline-flex cursor-pointer items-center gap-1.5" onClick={workspaces}>
-                            <ProjectChips server={server} agent={agent} />
-                          </Pressable>
-                        </span>
-                      </td>
-                    );
-                  }
-                  return (
-                    <td key={agent} className="px-3 py-2.5 text-center">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Checkbox
-                          checked={on}
-                          disabled={fromOrganization(server) || hub.busy === `${server.name}/${agent}`}
-                          title={fromOrganization(server) ? ORGANIZATION_LINE : undefined}
-                          label={McpHubPageLines.serverFor(server.name, agentLabel(agent))}
-                          onToggle={() => void hub.assign(server.name, agent, !on).then(said)}
-                        />
-                        <ProjectChips server={server} agent={agent} />
-                      </span>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {inProjects && (
-        <div className="flex flex-col gap-1.5">
-          <p className="text-footnote text-muted">{PROJECT_ONLY_LINE}</p>
-          <GoLink onClick={workspaces}>{WORKSPACES_LINK}</GoLink>
-        </div>
-      )}
-    </>
-  );
-}
-
 /** One repository an agent was given a server in: its folder name, with whose it is and the full path on hover. */
 function ProjectChip({ agent, name, path }: { agent: string; name: string; path: string }) {
   const help = projectHelp(agent, path);
@@ -539,15 +456,16 @@ function ProjectChips({ server, agent }: { server: McpHubServerView; agent: stri
 /** Each secret by name, where it is used and whether this computer holds it. A value is typed in once and never read back. */
 function Secrets({ parts, view, said }: { parts: SettingsParts; view: McpHubView; said: (outcome: HubOutcome) => void }) {
   const secrets = secretsAcross(view.servers);
-  if (secrets.length === 0) {
-    return <EmptyState icon={KeyRound} title={McpHubPageLines.noSecretsTitle} body={McpHubPageLines.noSecretsBody} />;
-  }
+  // Under the servers, a page with no secret says nothing about them; one is marked while adding a server.
+  if (secrets.length === 0) return null;
   return (
-    <Panel>
-      {secrets.map((secret) => (
-        <SecretRow key={secret.name} name={secret.name} held={secret.held} usedBy={secret.usedBy} parts={parts} said={said} />
-      ))}
-    </Panel>
+    <Section title={McpHubPageLines.secretsTitle}>
+      <Panel>
+        {secrets.map((secret) => (
+          <SecretRow key={secret.name} name={secret.name} held={secret.held} usedBy={secret.usedBy} parts={parts} said={said} />
+        ))}
+      </Panel>
+    </Section>
   );
 }
 

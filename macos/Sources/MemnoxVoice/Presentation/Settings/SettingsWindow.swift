@@ -40,7 +40,6 @@ final class SettingsWindow {
     /// Whether the window is on screen, so the home is read on stream events only while somebody can see it.
     var isShowing: Bool { AppWindow.shared.isShowing }
 
-    let navigation = SettingsNavigation()
     /// The models every page reads, which the Memnox window shares.
     let models = SettingsModels()
 
@@ -53,7 +52,6 @@ final class SettingsWindow {
         // The numbers, the phones and the voice are read fresh each time the window comes forward.
         menu?.kokoroVoice = KokoroVoice.chosen().voice
         menu?.loadDevices()
-        menu?.loadOverview()
         menu?.tools.refresh()
         home?.refresh()
         let route = page.map { Destinations.route(forPage: $0.rawValue) ?? WindowRoute(.settings, tab: $0.rawValue) }
@@ -65,36 +63,6 @@ final class SettingsWindow {
     }
 }
 
-/// Which page the window shows, kept outside the view so the menu and setup can open it on a page.
-@MainActor
-final class SettingsNavigation: ObservableObject {
-    @Published private(set) var page: SettingsPage = .overview
-    /// The pages left behind and the ones gone back from, so Back and Forward retrace them as a browser does.
-    @Published private var behind: [SettingsPage] = []
-    @Published private var ahead: [SettingsPage] = []
-
-    var canGoBack: Bool { !behind.isEmpty }
-    var canGoForward: Bool { !ahead.isEmpty }
-
-    func go(_ next: SettingsPage) {
-        guard next != page else { return }
-        behind.append(page)
-        ahead.removeAll()
-        page = next
-    }
-
-    func goBack() {
-        guard let last = behind.popLast() else { return }
-        ahead.append(page)
-        page = last
-    }
-
-    func goForward() {
-        guard let next = ahead.popLast() else { return }
-        behind.append(page)
-        page = next
-    }
-}
 
 /// The two models the pages read, published so a page fills in once setup hands its model over.
 @MainActor

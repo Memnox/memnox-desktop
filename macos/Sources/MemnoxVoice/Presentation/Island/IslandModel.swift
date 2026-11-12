@@ -166,6 +166,15 @@ struct UpdateCard: Equatable, Sendable {
     var failed: String?
 }
 
+/// A newer Memnox service as its pill under the notch offers it, until the person updates or puts it off.
+struct RuntimeUpdateCard: Equatable, Sendable {
+    let version: String
+    /// Set while the service updates and restarts, so Update cannot be pressed twice.
+    var installing = false
+    /// Why the last try stopped short, shown in place of the version until they try again.
+    var failed: String?
+}
+
 /// A proposed rule as the island shows it, with the subject a confirm signs.
 struct RuleCard: Equatable, Sendable {
     let subject: String
@@ -288,6 +297,8 @@ final class IslandModel: ObservableObject {
     @Published var signedIn: SignedInCard?
     /// A newer Memnox, under the notch in every mode until the person updates or presses Later.
     @Published var update: UpdateCard?
+    /// A newer Memnox service, under the notch in every mode until the person updates or presses Later.
+    @Published var runtimeUpdate: RuntimeUpdateCard?
     /// Where the pills that take a click sit under the island, top left origin, so the window lets those clicks in.
     var clickableBelow: CGRect = .zero
     /// Set while Touch ID is up for a draft's Send or a rule's Enforce, so a second press cannot raise a second sheet.
@@ -341,6 +352,10 @@ final class IslandModel: ObservableObject {
     var installUpdate: (UpdateCard) -> Void = { _ in }
     /// Later on the update pill: this version is not offered again, though a newer one will be.
     var laterUpdate: (UpdateCard) -> Void = { _ in }
+    /// Update on the service's pill: the service is updated in place and restarted.
+    var installRuntimeUpdate: (RuntimeUpdateCard) -> Void = { _ in }
+    /// Later on the service's pill: this version is not offered again, though a newer one will be.
+    var laterRuntimeUpdate: (RuntimeUpdateCard) -> Void = { _ in }
     var answerRule: (RuleCard, RuleScope?) -> Void = { _, _ in }
     var forgetHistory: () -> Void = {}
     var toggleSide: () -> Void = {}

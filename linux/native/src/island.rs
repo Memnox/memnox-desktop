@@ -1,7 +1,8 @@
 //! The island on Linux: a layer shell surface on the top edge on KDE, Sway, Hyprland and COSMIC,
-//! which stays above windows and never takes the keyboard. GNOME has no layer shell, so there the
-//! window stays an ordinary undecorated one kept on top. The side panel and the card wall are made
-//! the same way on their own edges, and every one of them takes clicks only inside its input region.
+//! which stays above windows, sits over any top panel as the Mac's sits in the notch, and never takes
+//! the keyboard. GNOME has no layer shell, so there the app runs through XWayland and the island is a
+//! dock window at the top of the screen. The side panel and the card wall are made the same way on
+//! their own edges, and every one of them takes clicks only inside its input region.
 
 use gtk::cairo::{RectangleInt, Region};
 use gtk::glib::translate::ToGlibPtr;
@@ -28,9 +29,40 @@ pub enum Hang {
     TopLeft,
 }
 
+/// Set to `0` to keep the island an ordinary window where there is no layer shell, should a window
+/// manager treat a dock badly.
+const DOCK_VAR: &str = "MEMNOX_DOCK";
+
+/// Sends every window of the app through XWayland. GDK is told which backend it may use rather than
+/// through `GDK_BACKEND`, so nothing the app starts, a browser or a terminal, inherits the choice.
+/// Call it before GTK opens a display.
+pub fn through_x11() {
+    gtk::gdk::set_allowed_backends("x11");
+}
+
 /// Turns the app's GTK window into the island where the compositor allows it.
 pub fn make_island(window: &gtk::ApplicationWindow) {
     make_floating(window, Hang::Top, "memnox-island");
+    if gtk_layer_shell::is_supported() {
+        // Right against the screen edge, over any top panel, the way the Mac's island sits in the notch.
+        window.set_exclusive_zone(-1);
+        return;
+    }
+    // On GNOME a dock is the one kind of window Mutter does not push below its top bar, keeps above
+    // everything, and leaves alone on show desktop. Elsewhere a dock is left out, since a tiling window
+    // manager sets aside the whole height of one. It takes the keyboard only when asked to.
+    if on_gnome() && std::env::var(DOCK_VAR).as_deref() != Ok("0") {
+        window.set_type_hint(gtk::gdk::WindowTypeHint::Dock);
+    }
+    window.set_accept_focus(false);
+}
+
+fn on_gnome() -> bool {
+    std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|desktop| {
+        desktop
+            .split(':')
+            .any(|each| each.eq_ignore_ascii_case("gnome"))
+    })
 }
 
 /// Makes a window of Memnox a layer surface on its edge that never takes the keyboard, or keeps it on
@@ -71,6 +103,8 @@ pub fn island_keyboard(window: &gtk::ApplicationWindow, on: bool) {
         } else {
             KeyboardMode::None
         });
+    } else {
+        window.set_accept_focus(on);
     }
 }
 

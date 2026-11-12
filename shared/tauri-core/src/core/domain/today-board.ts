@@ -5,6 +5,7 @@ import { HomeLines } from './home-lines';
 import { cardStatus, cardTitle, readable, repositoryName, SEPARATOR } from './session-text';
 import { activityWords } from './activity-words';
 import { activityLine, answeredWords, EFFECT_WORDS, isEffect } from './studio-lines';
+import { ALWAYS_ALLOW, ANSWER_LABEL } from './answer-words';
 
 /**
  * Today, ported from the Mac's `TodayBoard` and `TodayLines`: what needs the person, most urgent first, read off what
@@ -242,16 +243,16 @@ export function choiceFor(key: string, item: TodayItem): TodayChoice | undefined
 }
 
 /**
- * The answers a held call takes, as the island offers them. A teammate's call has no rule here to relax, so from now
- * on is left off it, since the runtime would take it as once.
+ * The answers a held call takes, in the words and order every surface uses, Deny last. A teammate's call has no rule
+ * here to relax, so Always allow is left off it, since the runtime would take it as once.
  */
 export function heldChoices(team: boolean): TodayChoice[] {
   const answers: [string, HeldAnswer][] = [
-    ['Allow once', HOLD_ANSWER.ONCE],
-    ['Allow this session', HOLD_ANSWER.SESSION],
+    [ANSWER_LABEL[HOLD_ANSWER.ONCE], HOLD_ANSWER.ONCE],
+    [ANSWER_LABEL[HOLD_ANSWER.SESSION], HOLD_ANSWER.SESSION],
   ];
-  if (!team) answers.push(['Allow from now on', FROM_NOW_ON]);
-  answers.push(['Deny', HOLD_ANSWER.DENY]);
+  if (!team) answers.push([ALWAYS_ALLOW, FROM_NOW_ON]);
+  answers.push([ANSWER_LABEL[HOLD_ANSWER.DENY], HOLD_ANSWER.DENY]);
   return lettered(answers.map(([title, answer]) => [title, { kind: 'answer', answer }, false]));
 }
 
@@ -322,22 +323,20 @@ function sessionItems(cards: readonly SessionCard[], projects: readonly ProjectV
     let kind: TodayKind;
     let state: TodayState;
     switch (cardStatus(card)) {
-      case 'paused':
+      case 'stopped':
         kind = { kind: 'paused' };
         state = 'stopped';
         break;
-      case 'waiting-on-you':
+      case 'finished':
       case 'needs-you':
         kind = { kind: 'handed-back' };
         state = 'needs-you';
         break;
       case 'working':
-      case 'thinking':
         kind = { kind: 'working' };
         state = 'working';
         break;
-      case 'quiet':
-      case 'ended':
+      case 'idle':
         return [];
     }
     const ways: [string, TodayAction, boolean][] = [['Open conversation', { kind: 'open-conversation' }, false]];
@@ -522,5 +521,5 @@ export function under(item: TodayItem): string | undefined {
 
 /** How many distinct repositories have a session still open, which is what open projects counts. */
 export function openProjects(cards: readonly SessionCard[]): number {
-  return new Set(cards.filter((card) => cardStatus(card) !== 'ended').flatMap((card) => repositoryName(card.repository) ?? [])).size;
+  return new Set(cards.filter((card) => card.state !== 'ended').flatMap((card) => repositoryName(card.repository) ?? [])).size;
 }

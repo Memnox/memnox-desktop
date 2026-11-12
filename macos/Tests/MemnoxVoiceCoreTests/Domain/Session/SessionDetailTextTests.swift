@@ -10,11 +10,11 @@ final class SessionDetailTextTests: XCTestCase {
         return try JSONDecoder().decode(SessionView.self, from: Data(json.utf8))
     }
 
-    func testSaysHowLongAQuietSessionHasRestedAndLeavesTheOtherBadgesAsTheyAre() throws {
+    func testSaysHowLongAnIdleSessionHasRestedAndLeavesTheOtherBadgesAsTheyAre() throws {
         let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-10-05T01:00:00Z"))
-        XCTAssertEqual(SessionDetailText.statusLabel(of: try session(#","lastActive":"2026-10-05T00:50:00Z""#), now: now), "Quiet, 10 min ago")
-        XCTAssertEqual(SessionDetailText.statusLabel(of: try session(""), now: now), "Quiet")
-        XCTAssertEqual(SessionDetailText.statusLabel(of: try session(#","paused":"too many failures""#), now: now), "Paused")
+        XCTAssertEqual(SessionDetailText.statusLabel(of: try session(#","lastActive":"2026-10-05T00:50:00Z""#), now: now), "Idle, 10 min ago")
+        XCTAssertEqual(SessionDetailText.statusLabel(of: try session(""), now: now), "Idle")
+        XCTAssertEqual(SessionDetailText.statusLabel(of: try session(#","paused":"too many failures""#), now: now), "Stopped")
     }
 
     func testPlacesASessionByItsRepositoryAndTheAppItRunsIn() throws {

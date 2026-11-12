@@ -1,32 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { agentsFoundLine, foundLine, foundToImport, importedLine, packTitle } from '../src/core/domain/setup-steps';
+import { agentsFoundLine, packTitle } from '../src/core/domain/setup-steps';
+import { END_LATER, ONBOARDING_STEPS, stepHeading } from '../src/core/domain/onboarding';
+import { CARD_TITLE } from '../src/core/domain/home-steps';
 
-describe('setting up a workspace on a fresh computer', () => {
-  const servers = [
-    { agent: 'cursor', path: '~/.cursor/mcp.json', name: 'notion' },
-    { agent: 'claude-code', path: '~/.claude.json', name: 'github' },
-    { path: '/code/app/.mcp.json', name: 'playwright' },
-  ];
-  const skills = [
-    { id: 'f1', name: 'frontend-design', agent: 'claude-code', kind: 'skill', path: 'p', tools: [], grant: 'g', imported: false },
-    { id: 'f2', name: 'old', agent: 'codex-cli', kind: 'skill', path: 'p', tools: [], grant: 'g', imported: true },
-  ];
+/** The Mac's first run, `FirstRunLines.steps`, which these steps keep in step with, "Mac" said as "computer". */
+const MAC_STEPS = ['This Mac', 'Starting rules'];
 
-  it('counts what one agent keeps and leaves a repository file where it is', () => {
-    const found = foundToImport(servers, skills);
-    expect(found.servers.map((each) => each.name)).toEqual(['notion', 'github']);
-    expect(found.skills.map((each) => each.id)).toEqual(['f1']);
-    expect(found.agents).toBe(2);
-    expect(foundLine(found)).toBe('We found 2 tools and 1 skill across 2 agents.');
+describe('the first run, in the Mac’s order', () => {
+  it('walks the same two steps as the Mac, ending on the rules', () => {
+    expect(ONBOARDING_STEPS.map((step) => step.replace('This computer', 'This Mac'))).toEqual(MAC_STEPS);
+    expect(stepHeading(0, 'Windows Hello').title).toBe('Connect this machine');
+    expect(stepHeading(1, 'Windows Hello').title).toBe('Your starting rules');
   });
 
-  it('says plainly when there is nothing to bring in', () => {
-    expect(foundLine(foundToImport([], []))).toBe('Nothing to bring in: no agent here keeps tools or skills of its own yet.');
-  });
-
-  it('says what an import brought in and what it left', () => {
-    expect(importedLine(3, [])).toBe('Brought in 3, now set up once in Memnox.');
-    expect(importedLine(1, ['notion: no such file'])).toBe('Brought in 1, now set up once in Memnox. 1 could not be, and stay where they are: notion: no such file');
+  it('says where the rest of setup waits once Memnox opens', () => {
+    expect(END_LATER).toContain('phone');
+    expect(END_LATER).toContain('Memnox Cloud');
+    expect(END_LATER).toContain(CARD_TITLE);
   });
 });
 

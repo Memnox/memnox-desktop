@@ -2,10 +2,7 @@ import Foundation
 
 /// The pages the first run walks through, as the guide speaks them.
 public enum FirstRunPage: Int, CaseIterable, Sendable {
-    case who
-    case agents
     case connect
-    case askWhere
     case rules
     /// The end, once the steps are done.
     case ready
@@ -26,10 +23,7 @@ public enum FirstRunGuide {
     /// What each page says when it first opens, in the order it is said.
     public static func lines(_ page: FirstRunPage) -> [String] {
         switch page {
-        case .who: return who
-        case .agents: return agents
         case .connect: return connect
-        case .askWhere: return askWhere
         case .rules: return rules
         case .ready: return ready
         }
@@ -49,26 +43,12 @@ public enum FirstRunGuide {
         ]
     }
 
-    private static let who = [
-        "Setup takes five short steps, and I will talk you through each one.",
-        "First, who is Memnox for? Just you, you with agents working while you are away, or a team. It only picks what I suggest next.",
-    ]
-
-    private static let agents = [
-        "Where does your agent run? On this Mac, I find it and put it under Memnox by myself.",
-        "Hosted agents, agents inside apps and no code agents reach me through Memnox Cloud, which is optional.",
-    ]
-
     private static let connect = [
-        "Now I connect this Mac. The Memnox service installs and starts by itself, and keeps itself up to date.",
+        "Setup takes two short steps, and I will talk you through both.",
+        "First I connect this Mac. The Memnox service installs and starts by itself, and keeps itself up to date.",
         "I put myself under the agents I find, like Claude Code, Codex and Cursor, so everything they do passes your rules first.",
         "Touch ID signs what you approve, and the key never leaves this Mac.",
         "Press Continue as soon as the service shows a tick.",
-    ]
-
-    private static let askWhere = [
-        "Where should I ask you when an agent needs a yes? Touch ID on this Mac is always on.",
-        "Pair your iPhone for when you are away, or sign in to Memnox Cloud so a question reaches you in the browser or chat.",
     ]
 
     private static let rules = [
@@ -82,6 +62,7 @@ public enum FirstRunGuide {
         "That is setup done. Paste the prompt on screen into your agent, and I will ask you before the delete runs.",
         "Below it is what I can and cannot do for each of your agents, in plain words.",
         "Memnox can also act in your apps, like Gmail, Slack and GitHub, through connectors. Nothing goes out until you approve it.",
+        "You can pair your iPhone or sign in to Memnox Cloud later, from Home and Settings, once Memnox opens.",
     ]
 
     private static func greeting(_ name: String) -> String {

@@ -80,7 +80,7 @@ struct OnboardingCard: View {
 }
 
 /// The steps as numbered marks joined by a line, as a stepper reads: a done step is a blue mark with a tick, the
-/// step on screen a blue ring around its number with its name in full ink, and what is left an outline. Step N of 3
+/// step on screen a blue ring around its number with its name in full ink, and what is left an outline. Step N of 2
 /// stands at the end, so a new person always sees where they are and how much is left.
 private struct OnboardingStepper: View {
     @ObservedObject var flow: OnboardingFlow
@@ -177,10 +177,7 @@ private struct OnboardingStepView: View {
                 ReadyStep(flow: flow, setup: setup)
             } else {
                 switch flow.step {
-                case .who: WhoStep(flow: flow)
-                case .agents: AgentsStep(flow: flow)
                 case .connect: ConnectStep(flow: flow, setup: setup)
-                case .askWhere: AskWhereStep(flow: flow, setup: setup)
                 case .rules: RulesStep(flow: flow)
                 }
             }

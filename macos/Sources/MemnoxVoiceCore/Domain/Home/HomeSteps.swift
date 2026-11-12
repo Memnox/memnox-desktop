@@ -2,7 +2,7 @@ import Foundation
 
 /// The counts Home's steps are read off, each one something the runtime or this Mac reports, never an estimate.
 public struct HomeStanding: Equatable, Sendable {
-    /// Whether the five onboarding steps were finished, which is the first rung until they are.
+    /// Whether the two onboarding steps were finished, which is the first rung until they are.
     public var setupFinished = true
     public var agents = 0
     public var agentsProtected = 0
@@ -162,8 +162,8 @@ public enum HomeSteps {
     static func steps(_ standing: HomeStanding) -> [HomeStep] {
         [
             HomeStep(id: .finishSetup, title: "Finish setting up this Mac",
-                     value: "Five short steps put your agents under Memnox and choose where it asks you, so the rest of these can start.",
-                     how: "Who it is for, your agents, this Mac, where Memnox asks you, and your starting rules.",
+                     value: "Two short steps put your agents under Memnox and give them starting rules, so the rest of these can start.",
+                     how: "Connect this Mac, then confirm your starting rules.",
                      action: "Run setup", track: .mac, done: standing.setupFinished, waitsOnAnAgent: false),
             HomeStep(id: .protectAgents, title: "Put your agents under Memnox",
                      value: "Every agent on this Mac, Claude Code through Cursor, reports to one place under one rule set.",

@@ -147,7 +147,7 @@ private struct ProtectAgents: View {
     }
 }
 
-/// Step three: the recommended pack already chosen, the others one press away, and Finish proposing it through the
+/// Step two: the recommended pack already chosen, the others one press away, and Finish proposing it through the
 /// runtime so each rule is signed with Touch ID on the island.
 struct RulesStep: View {
     @ObservedObject var flow: OnboardingFlow
@@ -263,9 +263,9 @@ private struct RulePacks: View {
     }
 }
 
-/// The end: one next action, talking when the microphone is allowed and Home otherwise, then a short list of what is
-/// optional, each a link to the Settings page that holds it. The one thing left for the person, the microphone, is
-/// said and shown once, with Allow beside it.
+/// The end, in the order a person acts on it: the prompt to try, the one button that opens Memnox, then what Memnox
+/// covers and what is optional, both quiet. Nothing here opens the Memnox window but that button, since setup is
+/// still on screen until it is pressed.
 struct ReadyStep: View {
     @ObservedObject var flow: OnboardingFlow
     @ObservedObject var setup: SetupModel
@@ -275,27 +275,28 @@ struct ReadyStep: View {
 
     var body: some View {
         let hearing = setup.listening == .done
-        let next = FirstRunEnd.next(hearing: hearing)
         StepTitle(title: FirstRunEnd.title(name: setup.name), detail: FirstRunEnd.lead)
         TryCard()
-        CoverageCard(flow: flow)
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
-            switch next {
-            case .talk:
-                Button(next.title, systemImage: "mic.fill") { flow.menu?.talk() }
-                    .buttonStyle(KitButton(kind: .primary, wide: true))
-                    .keyboardShortcut(.defaultAction)
-                Text(FirstRunEnd.talkHint)
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                Button(FirstRunNext.openHome.title) { open() }
-                    .buttonStyle(KitButton(kind: .secondary, wide: true))
-            case .openHome:
-                Button(next.title, systemImage: "sparkles") { open() }
-                    .buttonStyle(KitButton(kind: .primary, wide: true))
-                    .keyboardShortcut(.defaultAction)
+            Button { open() } label: {
+                HStack(spacing: Memnox.Spacing.small) {
+                    Text(FirstRunNext.openHome.title)
+                    Image(systemName: "arrow.right")
+                }
             }
+            .buttonStyle(KitButton(kind: .primary, wide: true))
+            .keyboardShortcut(.defaultAction)
+            if FirstRunEnd.next(hearing: hearing) == .talk {
+                Button(FirstRunNext.talk.title, systemImage: "mic.fill") { flow.menu?.talk() }
+                    .buttonStyle(KitButton(kind: .secondary, wide: true))
+                    .help(FirstRunEnd.talkHint)
+            }
+            Text(FirstRunEnd.later)
+                .font(Memnox.sans(Memnox.TextSize.footnote))
+                .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                .fixedSize(horizontal: false, vertical: true)
         }
+        CoverageCard()
         KitCard(title: "Optional, and you can skip all of it") {
             ForEach(Array(FirstRunEnd.extras(hearing: hearing).enumerated()),
                     id: \.element.id) { index, extra in
@@ -312,17 +313,13 @@ struct ReadyStep: View {
         }
     }
 
-    /// Allow for the microphone where it waits, a tick where the extra is in place, and a link to Settings otherwise.
+    /// Allow for the microphone where it waits and a tick where the extra is in place; the keys are only read.
     @ViewBuilder private func trailing(_ extra: FirstRunExtra) -> some View {
         if extra.id == .voice, !extra.done {
             Button("Allow", systemImage: "checkmark.shield") { Task { await setup.allowListening() } }
                 .buttonStyle(KitButton(kind: .secondary))
         } else if extra.done {
             CheckBox(state: .done)
-        } else {
-            Button("Settings", systemImage: "arrow.up.forward") { openSettings(extra.id.settingsTab) }
-                .buttonStyle(KitButton(kind: .secondary))
-                .help("Open \(extra.title) in Settings")
         }
     }
 
@@ -336,12 +333,6 @@ struct ReadyStep: View {
     /// Setup is done: the full screen scan of this Mac goes up, and closing it opens Memnox on Home.
     private func open() {
         setup.finish(scanning: true)
-    }
-
-    /// The Memnox window on one Settings page, beside this one, so the end stays to come back to.
-    private func openSettings(_ tab: String) {
-        SettingsWindow.shared.show()
-        AppWindow.shared.shell.go(WindowRoute(.settings, tab: tab))
     }
 }
 

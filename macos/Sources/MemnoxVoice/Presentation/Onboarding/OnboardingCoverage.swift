@@ -1,36 +1,38 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// The end's card of what Memnox can and cannot do, in the five plain levels: each agent found here with the levels
-/// the service stated, and the agent the person said runs elsewhere. It shows only
-/// what the service said, so it can say less than is true and never more.
+/// The end's card of what Memnox can and cannot do: each agent found here with its weakest level as a pill, and the
+/// levels the service stated behind one press, so the list never buries the button above it. It shows only what the
+/// service said, so it can say less than is true and never more.
 struct CoverageCard: View {
-    @ObservedObject var flow: OnboardingFlow
+    @State private var details = false
 
     var body: some View {
         KitCard(symbol: "checkmark.shield", title: FirstRunCoverage.title, detail: FirstRunCoverage.lead) {
             if let agents = AppWindow.shared.shell.agents {
-                LocalCoverage(screen: agents)
-            }
-            if let place = flow.place, !place.isLocal, place != .noneYet {
-                KitDivider()
-                KitRow(symbol: "cloud", title: place.title, detail: FirstRunCoverage.place(place)) {
-                    LevelPill(level: .noEvidence)
+                LocalCoverage(screen: agents, details: details)
+                Button(details ? FirstRunCoverage.hideDetails : FirstRunCoverage.showDetails,
+                       systemImage: details ? "chevron.up" : "chevron.down") {
+                    withAnimation(.snappy) { details.toggle() }
                 }
+                .buttonStyle(.plain)
+                .pointingHand()
+                .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
+                .foregroundStyle(Memnox.Console.primary)
+                .padding(.vertical, Memnox.Spacing.regular)
             }
-            KitDivider()
             Text(FirstRunCoverage.cannot)
                 .font(Memnox.sans(Memnox.TextSize.footnote))
                 .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, Memnox.Spacing.regular)
         }
     }
 }
 
-/// The agents found on this Mac, each with its weakest level as a pill and what sits at each level under it.
+/// The agents found on this Mac, each a name and a pill, with what sits at each level under it once asked for.
 private struct LocalCoverage: View {
     @ObservedObject var screen: AgentsScreen
+    let details: Bool
 
     private static let logo: CGFloat = 26
 
@@ -38,22 +40,32 @@ private struct LocalCoverage: View {
         let found = screen.agents.agents ?? []
         VStack(alignment: .leading, spacing: 0) {
             if found.isEmpty {
-                KitRow(symbol: "desktopcomputer", title: "On this Mac", detail: FirstRunQuestions.nothingFound) { EmptyView() }
+                KitRow(symbol: "desktopcomputer", title: "On this Mac", detail: FirstRunCoverage.nothingFound) { EmptyView() }
             }
             ForEach(Array(found.enumerated()), id: \.element.kind) { index, agent in
                 if index > 0 { KitDivider() }
-                KitRow(title: agent.name, detail: detail(agent),
+                KitRow(title: agent.name, detail: details ? nil : FirstRunLines.agentDetail(agent),
                        leading: { BrandLogo(agent: agent.kind, name: agent.name, size: Self.logo) }) {
                     if let levels = agent.levels { LevelPill(level: CapabilityLevelLines.headline(levels)) }
                 }
+                if details, let levels = agent.levels { sentences(levels) }
             }
         }
         .task { await screen.agents.refresh() }
     }
 
-    /// Each level the service stated for it in a sentence, or, from a service that states none, what it said instead.
-    private func detail(_ agent: AgentStanding) -> String {
-        guard let levels = agent.levels else { return FirstRunLines.agentDetail(agent) }
-        return FirstRunCoverage.lines(levels).map(\.sentence).joined(separator: " ")
+    /// Each level the service stated in a sentence of its own, the full width of the card, so none is squeezed
+    /// beside the pill.
+    private func sentences(_ levels: CapabilityLevels) -> some View {
+        VStack(alignment: .leading, spacing: Memnox.Spacing.xxSmall) {
+            ForEach(FirstRunCoverage.lines(levels)) { line in
+                Text(line.sentence)
+                    .font(Memnox.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.leading, Kit.tileSide + Memnox.Spacing.large)
+        .padding(.bottom, Memnox.Spacing.regular)
     }
 }

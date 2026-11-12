@@ -1,90 +1,25 @@
 import Foundation
 
-/// The five onboarding steps, the same ids and words on the console, this Mac, Windows and Linux, from the
-/// contract's `onboarding` list in `shared/ux/contract.json`.
+/// The two steps the first run asks of a person, the only ones that cannot wait: this Mac connected, and the rules
+/// its agents start under. The other questions of the contract's `onboarding` list in `shared/ux/contract.json`, who
+/// Memnox is for, which agents and where it asks, are answered from Home once Memnox opens.
 public enum FirstRunStepID: String, CaseIterable, Sendable {
-    case who
-    case agents
     case connect
-    case askWhere = "ask-where"
     case rules
 
     /// The step's question, heading its page.
     public var title: String {
         switch self {
-        case .who: "Who is Memnox for?"
-        case .agents: "Which agents do you run?"
         case .connect: "Connect this machine"
-        case .askWhere: "Where should Memnox ask you?"
         case .rules: "Your starting rules"
         }
     }
 
-    /// The step's name under the progress bar, short enough for five side by side.
+    /// The step's name in the stepper.
     public var label: String {
         switch self {
-        case .who: "Who it is for"
-        case .agents: "Your agents"
         case .connect: "This Mac"
-        case .askWhere: "Where you are asked"
         case .rules: "Starting rules"
-        }
-    }
-}
-
-/// Who Memnox is for, the first question, which only picks what is suggested next: where Memnox asks first.
-public enum FirstRunAudience: String, CaseIterable, Identifiable, Sendable {
-    case me
-    case away
-    case team
-
-    public var id: String { rawValue }
-
-    public var title: String {
-        switch self {
-        case .me: "Just me"
-        case .away: "Just me, with agents working while I'm away"
-        case .team: "A team"
-        }
-    }
-
-    public var detail: String {
-        switch self {
-        case .me: "My agents on this Mac, answered here."
-        case .away: "Agents that keep going when I step out, answered from my phone."
-        case .team: "Agents across people and machines, under the same rules."
-        }
-    }
-
-    /// Where asking suggests itself first: here, the phone, or Memnox Cloud where a team answers.
-    public var suggested: FirstRunAskRoute {
-        switch self {
-        case .me: .here
-        case .away: .phone
-        case .team: .cloud
-        }
-    }
-}
-
-/// The places Memnox asks a person, each one more way in beside Touch ID on this Mac, which is always on.
-public enum FirstRunAskRoute: String, CaseIterable, Sendable {
-    case here
-    case phone
-    case cloud
-
-    public var title: String {
-        switch self {
-        case .here: "Touch ID on this Mac"
-        case .phone: "Your iPhone"
-        case .cloud: "Memnox Cloud, in the browser or chat"
-        }
-    }
-
-    public var detail: String {
-        switch self {
-        case .here: "Always on. The island asks, and your finger signs the yes."
-        case .phone: "Pair it with a code here, and answer with Face ID wherever you are."
-        case .cloud: "Sign in, and a question reaches you in the browser or chat your workspace uses."
         }
     }
 }
@@ -100,7 +35,7 @@ public enum FirstRunLines {
     public static let tryTitle = "Try it with your agent"
     public static let tryDetail = "Paste this into Claude Code, Codex or Cursor. Memnox asks you before the delete runs."
 
-    /// "Step 2 of 5", over every step, so a new person always knows how much is left.
+    /// "Step 1 of 2", over every step, so a new person always knows how much is left.
     public static func progressLabel(step: Int) -> String {
         "Step \(min(max(step, 0), steps.count - 1) + 1) of \(steps.count)"
     }

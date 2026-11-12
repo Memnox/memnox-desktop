@@ -15,19 +15,11 @@ public enum FirstRunNext: Equatable, Sendable {
     }
 }
 
-/// What is optional after the steps, each done from the end itself or a link to the Settings page that holds it; the
-/// phone and Memnox Cloud are offered on Where should Memnox ask you.
+/// What is optional after the steps, each done or read on the end itself, so nothing there opens the Memnox window
+/// over a setup that is still on screen.
 public enum FirstRunExtraId: String, CaseIterable, Sendable {
     case voice
     case keys
-
-    /// The Settings tab it opens, as `Destinations.settingsTabs` names it.
-    public var settingsTab: String {
-        switch self {
-        case .voice: "voice"
-        case .keys: "listening"
-        }
-    }
 }
 
 public struct FirstRunExtra: Equatable, Sendable {
@@ -46,7 +38,10 @@ public enum FirstRunEnd {
         return trimmed.isEmpty ? "You're set." : "You're set, \(trimmed)."
     }
 
-    public static let lead = "Your agents work inside your starting rules now. Try one ask, then see what that covers."
+    public static let lead = "Your agents work inside your starting rules now. Try one ask, then open Memnox."
+
+    /// Where the rest of setup went, said under the button that opens Memnox, so nobody looks for it here.
+    public static let later = "Pairing your iPhone waits on Home under Do this next, and Memnox Cloud is in Settings under Account."
 
     /// Talking once the microphone is allowed, since it shows Memnox at work in a second; Home otherwise.
     public static func next(hearing: Bool) -> FirstRunNext {

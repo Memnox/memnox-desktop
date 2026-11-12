@@ -109,7 +109,7 @@ struct HelpPage: View {
     var body: some View {
         SettingsCard {
             SettingsRow(symbol: "arrow.counterclockwise", title: "Run setup again",
-                        caption: "The five steps from the start, with what you answered before already chosen.") {
+                        caption: "The two steps from the start.") {
                 Button("Run setup") { OnboardingWindow.shared.show(setup, again: true) }
             }
             SettingsDivider()

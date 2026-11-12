@@ -12,17 +12,11 @@ enum OnboardingStage: Equatable {
     case ready
 }
 
-/// The five steps every surface walks a person through, in the contract's order, safe defaults already chosen in
-/// each and one question at a time; the notch plays beside all of them.
+/// The two steps the first run asks of a person, safe defaults already chosen in each; the notch plays beside
+/// both. Everything else a new Mac can do waits on Home, where Memnox opens.
 enum OnboardingStep: Int, CaseIterable, Identifiable {
-    /// Who Memnox is for, which picks where it suggests asking.
-    case who
-    /// Where the person's agent runs, and the agents found here.
-    case agents
     /// The service, Touch ID, and the agents found here, each put under Memnox by itself, on one card.
     case connect
-    /// Where Memnox asks: Touch ID here, the phone, or Memnox Cloud.
-    case askWhere
     /// The recommended pack of rules, already chosen, proposed on Finish and signed on the island one by one.
     case rules
 
@@ -30,15 +24,12 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
 
     var contract: FirstRunStepID {
         switch self {
-        case .who: .who
-        case .agents: .agents
         case .connect: .connect
-        case .askWhere: .askWhere
         case .rules: .rules
         }
     }
 
-    /// The step's name under the progress bar, so a new person always knows where they are and what is left.
+    /// The step's name in the stepper, so a new person always knows where they are and what is left.
     var title: String { contract.label }
 }
 
@@ -46,12 +37,11 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
 @MainActor
 final class OnboardingFlow: ObservableObject {
     @Published var stage: OnboardingStage = .intro
-    @Published var step: OnboardingStep = .who
+    @Published var step: OnboardingStep = .connect
     /// The part of Memnox the notch beside the steps is playing, said on the first step.
     @Published var highlight: Highlight?
     @Published var setup: SetupModel?
     @Published var menu: MenuModel?
-    @Published var account: AccountModel?
     /// Told when the opening hands over to the window, so the controller swaps one window for the other.
     var opened: (() -> Void)?
     /// A part the notch is asked to jump to and play from.
@@ -60,14 +50,6 @@ final class OnboardingFlow: ObservableObject {
     var narrated: Set<Highlight> = []
     /// The lines a step said once what it waited on answered, such as what the second step found, so a return is quiet.
     var answered: Set<String> = []
-    /// Who Memnox is for; nil until they answer.
-    @Published var audience: FirstRunAudience? {
-        didSet { remember() }
-    }
-    /// Where the person said their agent runs; nil until they answer, or when they skip.
-    @Published var place: AgentPlace? {
-        didSet { remember() }
-    }
     /// Set once the first run put the agents found here under Memnox by itself, so it is tried once and then offered.
     var autoProtected = false
 
@@ -114,16 +96,13 @@ final class OnboardingFlow: ObservableObject {
     func recall() {
         guard stage == .intro, UserDefaults.standard.object(forKey: Self.stepKey) != nil,
               let kept = OnboardingStep(rawValue: UserDefaults.standard.integer(forKey: Self.stepKey)) else { return }
-        let defaults = UserDefaults.standard
         step = kept
-        stage = defaults.bool(forKey: Self.optionalKey) ? .ready : .steps
-        place = defaults.string(forKey: Self.placeKey).flatMap(AgentPlace.init(rawValue:))
-        audience = defaults.string(forKey: Self.audienceKey).flatMap(FirstRunAudience.init(rawValue:))
+        stage = UserDefaults.standard.bool(forKey: Self.optionalKey) ? .ready : .steps
     }
 
-    /// Back to the first step, for Run setup again, with what was answered kept as the defaults.
+    /// Back to the first step, for Run setup again.
     func restart() {
-        step = .who
+        step = .connect
         stage = .steps
         remember()
     }
@@ -133,12 +112,7 @@ final class OnboardingFlow: ObservableObject {
         UserDefaults.standard.removeObject(forKey: Self.stepKey)
         UserDefaults.standard.removeObject(forKey: Self.optionalKey)
         UserDefaults.standard.removeObject(forKey: Self.guidedKey)
-        for key in [Self.placeKey, Self.audienceKey] { UserDefaults.standard.removeObject(forKey: key) }
     }
-
-    /// The answers to the two questions, kept so a reopen for Screen Recording still ends on what they said.
-    private static let placeKey = "onboardingPlace"
-    private static let audienceKey = "onboardingAudience"
 
     /// The page on screen, a step or the end, so each is introduced once.
     var page: Int { guidePage.rawValue }
@@ -149,10 +123,7 @@ final class OnboardingFlow: ObservableObject {
         case .ready: return .ready
         case .intro, .name, .steps:
             switch step {
-            case .who: return .who
-            case .agents: return .agents
             case .connect: return .connect
-            case .askWhere: return .askWhere
             case .rules: return .rules
             }
         }
@@ -173,8 +144,6 @@ final class OnboardingFlow: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.set(step.rawValue, forKey: Self.stepKey)
         defaults.set(ready, forKey: Self.optionalKey)
-        defaults.set(place?.rawValue, forKey: Self.placeKey)
-        defaults.set(audience?.rawValue, forKey: Self.audienceKey)
     }
 }
 
@@ -209,7 +178,6 @@ final class OnboardingWindow {
     func show(_ model: SetupModel, again: Bool = false) {
         flow.setup = model
         flow.menu = SettingsWindow.shared.menu
-        flow.account = SettingsWindow.shared.account
         flow.recall()
         if again { flow.restart() }
         if flow.stage == .steps || flow.ready { showSteps() } else { showVeil() }

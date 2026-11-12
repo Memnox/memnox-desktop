@@ -15,7 +15,7 @@ struct HomeStart: View {
     /// What the runtime's home said today, and whether it observes or enforces; zero and nil before it answered.
     let actions: Int
     let mode: HomeMode?
-    /// Whether the five onboarding steps were finished, which is the first rung until they are.
+    /// Whether the two onboarding steps were finished, which is the first rung until they are.
     let setupFinished: Bool
     /// Opens onboarding where it was left, the press on the setup rung.
     let openSetup: () -> Void

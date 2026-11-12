@@ -30,16 +30,14 @@ jobs:
       - name: Check out
         uses: actions/checkout@v7
 
-      # The one Noise build lives in the runtime, so the Mac, the phone and the runtime run the same crate.
+      # The one Noise build lives in the runtime, so the Mac, the phone and the runtime run the same crate. It is the
+      # only thing taken from the runtime here: every other copy this repo keeps is built as it stands, and the
+      # Runtime copies workflow says apart from pull requests when one fell behind.
       - name: Check out memnox-runtime
         uses: actions/checkout@v7
         with:
           repository: Memnox/memnox-runtime
           path: memnox-runtime
-
-      # The tests read shared/vectors, so a copy that fell behind the runtime fails here rather than passing on old bytes.
-      - name: The protocol vectors match the runtime
-        run: cmp ../shared/vectors/protocol.json ../memnox-runtime/vectors/protocol.json
 
       - name: Select the newest stable Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -100,13 +98,8 @@ jobs:
       - name: Check out
         uses: actions/checkout@v7
 
-      # The app imports the wire from the runtime's own build, so it is built from the runtime's main.
-      - name: Check out memnox-runtime
-        uses: actions/checkout@v7
-        with:
-          repository: Memnox/memnox-runtime
-          path: memnox-runtime
-
+      # No runtime is checked out: the app imports the wire from shared/wire, the copy this repo keeps, so a pull
+      # request passes or fails on what it holds and never on where the runtime's main happens to stand.
       - name: Install the Linux libraries Tauri, the layer shell and the microphone build against
         if: runner.os == 'Linux'
         working-directory: .
@@ -131,11 +124,6 @@ jobs:
       # The cache keeps a build script output that names target/sherpa-onnx-prebuilt but deletes that folder, so the libraries live outside target.
       - name: Fetch the sherpa-onnx libraries
         run: sh scripts/sherpa-libs.sh
-
-      - name: Copy the wire from the runtime
-        env:
-          MEMNOX_RUNTIME: ${{ github.workspace }}/memnox-runtime
-        run: pnpm wire
 
       - name: Install
         run: pnpm install --frozen-lockfile

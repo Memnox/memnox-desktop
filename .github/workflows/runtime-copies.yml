@@ -1,0 +1,46 @@
+# This repo keeps copies of what memnox-runtime owns: the vision, the protocol vectors, the ux contract, the
+# Noise layer and the built wire. A pull request is built from those copies alone, so a contribution here
+# never waits on the runtime's main, and one there never breaks a pull request here. This run is the other
+# half: it says, apart from any pull request, when a copy and the runtime's main have parted.
+name: Runtime copies
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Each morning, since the runtime's main moves without anything happening here.
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-copies-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  copies:
+    name: The copies match the runtime's main
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Check out memnox-runtime
+        uses: actions/checkout@v7
+        with:
+          repository: Memnox/memnox-runtime
+          path: memnox-runtime
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Compare every copy
+        env:
+          MEMNOX_RUNTIME: ${{ github.workspace }}/memnox-runtime
+        run: |
+          command -v corepack >/dev/null 2>&1 || npm install -g corepack
+          sh scripts/check-runtime-copies.sh

@@ -79,10 +79,14 @@ jobs:
         if: runner.os == 'Windows' && env.SIGNS == 'true'
         run: cargo install trusted-signing-cli --locked
 
-      - name: Copy the wire from the runtime
+      # A release ships what the runtime's main speaks, so a copy that parted from it stops the release here.
+      - name: Every copy of the runtime matches its main
+        working-directory: .
         env:
           MEMNOX_RUNTIME: ${{ github.workspace }}/memnox-runtime
-        run: pnpm wire
+        run: |
+          command -v corepack >/dev/null 2>&1 || npm install -g corepack
+          sh scripts/check-runtime-copies.sh
 
       - name: Install
         run: pnpm install --frozen-lockfile

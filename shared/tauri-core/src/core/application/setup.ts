@@ -10,6 +10,8 @@ export interface SetupState {
   readonly runtime: RuntimeState | undefined;
   readonly doing: string | undefined;
   readonly failed: string | undefined;
+  /** The version the daemon last answered a ping with, for offering a newer one. */
+  readonly version?: string | undefined;
 }
 
 /** Long enough for a daemon on a cold computer to load its rules and answer, asked once a second. */
@@ -55,7 +57,7 @@ export class Setup {
     // A runtime built from a checkout keeps its version while it gains methods, so the newest ones this app
     // needs are asked for too, as the Mac's `daemonVoice` does; only a plain unknown method counts.
     if (state.kind === 'ready' && (await this.lacks(DAEMON_METHOD.WAITING) || await this.lacks(DAEMON_METHOD.MACHINE))) state = { kind: 'too-old' };
-    this.update({ runtime: state });
+    this.update({ runtime: state, version: pong?.version });
     return state;
   }
 

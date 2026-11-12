@@ -12,6 +12,9 @@ export const PREFERENCE = {
   appearance: 'memnox.appearance',
   /** The first run's spoken guide, muted from its footer. */
   guideMuted: 'memnox.onboarding.muted',
+  /** The app version and the service version the person pressed Later on, each put off alone. */
+  skippedApp: 'memnox.update.skipped.app',
+  skippedRuntime: 'memnox.update.skipped.runtime',
 } as const;
 
 /** The person's name, the look, and where the first run stands, read and written through the store. */
@@ -51,6 +54,15 @@ export class Preferences {
 
   set guideMuted(muted: boolean) {
     this.write(PREFERENCE.guideMuted, muted ? 'true' : undefined);
+  }
+
+  /** The version of the app or the service the person put off, so it is not offered again. */
+  skippedUpdate(kind: 'app' | 'runtime'): string | undefined {
+    return this.read(kind === 'app' ? PREFERENCE.skippedApp : PREFERENCE.skippedRuntime);
+  }
+
+  putOffUpdate(kind: 'app' | 'runtime', version: string): void {
+    this.write(kind === 'app' ? PREFERENCE.skippedApp : PREFERENCE.skippedRuntime, version);
   }
 
   private read(key: string): string | undefined {

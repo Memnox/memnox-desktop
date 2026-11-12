@@ -5,6 +5,7 @@ import { cloudProfileView, cloudWorkAll, WorkspaceAgentsLines } from '../domain/
 import type { WorkOutcome } from './agent-work';
 import type { Diary } from './diary';
 import { Observed } from './observed';
+import type { WorkCorrelation } from '../domain/work-correlations';
 import { WorkspaceInboxError, type PersonCredentialStore, type WorkspaceAgentsReader } from './ports/workspace-inbox';
 
 /** One workspace's agents as last read. */
@@ -76,6 +77,25 @@ export class WorkspaceAgents extends Observed {
     }
     this.kept = fresh;
     this.changed();
+  }
+
+  /**
+   * Which issue each of these sessions concerns, across every workspace the person is in. With no account it asks
+   * nothing and answers nothing, and a workspace that cannot answer is left out rather than guessed for.
+   */
+  async workOf(sessionIds: readonly string[]): Promise<readonly WorkCorrelation[]> {
+    if (sessionIds.length === 0) return [];
+    const credential = await this.store.load().catch(() => undefined);
+    if (credential === undefined) return [];
+    const found: WorkCorrelation[] = [];
+    for (const workspace of credential.workspaces) {
+      try {
+        found.push(...(await this.reader.workCorrelations(workspace, sessionIds, credential.token)));
+      } catch (error) {
+        this.diary?.note(`reading the issues sessions are on for ${workspace} failed: ${String(error)}`);
+      }
+    }
+    return found;
   }
 
   /** The person's answer to a handoff, unsigned since it only moves who carries the work; the workspace decides. */

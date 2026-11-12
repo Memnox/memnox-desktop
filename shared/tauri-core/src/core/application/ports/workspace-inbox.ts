@@ -1,3 +1,4 @@
+import type { WorkCorrelation } from '../../domain/work-correlations';
 import type { HoldAnswer } from '@memnox/core/wire';
 import type { CloudMyWork, CloudProfileView } from '../../domain/workspace-agents';
 import type { InboxAnswerReply, PersonCode, PersonToken, RegisteredDevice, WorkspaceCredential, WorkspaceHeldCall, WorkspaceRef } from '../../domain/workspace-wire';
@@ -57,6 +58,8 @@ export interface WorkspaceAgentsReader {
   agentProfiles(workspace: string, token: string): Promise<readonly CloudProfileView[]>;
   myAgentWork(workspace: string, token: string): Promise<CloudMyWork>;
   answerHandoff(handoff: string, workspace: string, accept: boolean, token: string): Promise<void>;
+  /** Which issue each of these sessions concerns, as the workspace matched it. */
+  workCorrelations(workspace: string, sessionIds: readonly string[], token: string): Promise<readonly WorkCorrelation[]>;
 }
 
 /** Where the signed in person's credential is kept between launches; a bearer token, so the real one is the system's credential store. */

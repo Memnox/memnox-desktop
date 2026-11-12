@@ -1,6 +1,7 @@
 import type { HoldAnswer } from '@memnox/core/wire';
 import { PERSON_DEVICE_KIND, readHeldCall, type InboxAnswerReply, type PersonCode, type PersonToken, type RegisteredDevice, type WorkspaceHeldCall, type WorkspaceRef } from '../domain/workspace-wire';
 import { readCloudMyWork, readCloudProfiles, type CloudMyWork, type CloudProfileView } from '../domain/workspace-agents';
+import { readWorkCorrelations, type WorkCorrelation } from '../domain/work-correlations';
 import { WorkspaceInboxError, type CodeRedemption, type HttpTransport, type WorkspaceAgentsReader, type WorkspaceInbox } from './ports/workspace-inbox';
 
 /** Still waiting on the console is the one refusal that keeps the asking going. */
@@ -60,6 +61,12 @@ export class CloudInbox implements WorkspaceInbox, WorkspaceAgentsReader {
 
   async myAgentWork(workspace: string, token: string): Promise<CloudMyWork> {
     return readCloudMyWork(await this.call<unknown>('GET', `v1/workspaces/${segment(workspace)}/me/agent-work`, undefined, token));
+  }
+
+  async workCorrelations(workspace: string, sessionIds: readonly string[], token: string): Promise<readonly WorkCorrelation[]> {
+    if (sessionIds.length === 0) return [];
+    const sessions = encodeURIComponent([...sessionIds].sort().join(','));
+    return readWorkCorrelations(await this.call<unknown>('GET', `v1/workspaces/${segment(workspace)}/work-correlations?session=${sessions}`, undefined, token));
   }
 
   /** The answer goes as the cloud's own boolean, unsigned, since it only moves who carries the work. */

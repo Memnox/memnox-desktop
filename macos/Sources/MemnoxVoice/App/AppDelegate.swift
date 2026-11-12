@@ -43,9 +43,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let stayPutKey = "deliverInBackground"
     /// The version the person pressed Later on, which the notch does not offer again.
     private static let skippedUpdateKey = "skippedUpdate"
+    /// The Memnox service version the person pressed Later on, put off apart from the app's.
+    private static let skippedRuntimeUpdateKey = "skippedRuntimeUpdate"
     /// How often a running app looks for a newer release, often enough that one is seen the day it ships.
     private static let updateCheckSeconds: TimeInterval = 6 * 60 * 60
     private let updates = AppUpdates(feed: GitHubReleases(transport: URLSessionTransport()))
+    private let runtimeUpdates = RuntimeUpdates(feed: NpmRegistry())
     /// The demo world when the app was opened in demo mode, else this Mac's own daemon.
     private let link: DaemonLink = DemoLaunch.link ?? UnixSocketLink()
     /// One id source for every request, since a relay session refuses an id already in flight.
@@ -360,6 +363,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             later: { [weak self] card in self?.putOffUpdate(card) }
         )
         watchForUpdates()
+        panel.wireRuntimeUpdate(
+            install: { [weak self] card in self?.installRuntimeUpdate(card) },
+            later: { [weak self] card in self?.putOffRuntimeUpdate(card) }
+        )
+        watchForRuntimeUpdates()
         let home = HomeModel(
             load: { [weak self] in await self?.conversation.home() },
             handOver: { [weak self] action in await self?.conversation.handOver(action) ?? .unreachable },
@@ -1218,6 +1226,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try? await Task.sleep(nanoseconds: UInt64(Self.updateCheckSeconds * nanosecondsPerSecond))
             }
         }
+    }
+
+    /// Looks for a newer Memnox service at launch and every few hours after, and offers it under the notch. A runtime
+    /// built from a checkout keeps its version while its code moves, so only the published one is ever offered.
+    private func watchForRuntimeUpdates() {
+        guard runtime.runsPublished else { return }
+        Task { [weak self, runtimeUpdates] in
+            while !Task.isCancelled {
+                let skipped = UserDefaults.standard.string(forKey: Self.skippedRuntimeUpdateKey)
+                let running = await self?.conversation?.runtimeVersion()
+                if let version = await runtimeUpdates.offer(running: running, skipped: skipped) { self?.panel.offerRuntimeUpdate(version) }
+                try? await Task.sleep(nanoseconds: UInt64(Self.updateCheckSeconds * nanosecondsPerSecond))
+            }
+        }
+    }
+
+    /// Update on the service's pill: it is updated in place and restarted, and the pill goes once it answers again.
+    private func installRuntimeUpdate(_ card: RuntimeUpdateCard) {
+        guard !card.installing, let conversation else { return }
+        panel.runtimeUpdating(true)
+        Task { [weak self] in
+            guard let self else { return }
+            if let why = await self.runtime.updateNow(conversation) {
+                self.panel.runtimeUpdating(false, failed: why)
+            } else {
+                self.panel.runtimeUpdateDismissed()
+            }
+        }
+    }
+
+    /// Later on the service's pill: this version is put off for good, and the next one is offered when it ships.
+    private func putOffRuntimeUpdate(_ card: RuntimeUpdateCard) {
+        UserDefaults.standard.set(card.version, forKey: Self.skippedRuntimeUpdateKey)
+        panel.runtimeUpdateDismissed()
     }
 
     /// Update on the pill: the app quits once the new one is ready, so only a failure ever comes back here.

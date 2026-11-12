@@ -564,6 +564,31 @@ final class IslandPanel: NSPanel, Face {
         withAnimation(.snappy) { model.update = nil }
     }
 
+    /// What the service's update pill does, wired by the app delegate.
+    @MainActor func wireRuntimeUpdate(install: @escaping (RuntimeUpdateCard) -> Void, later: @escaping (RuntimeUpdateCard) -> Void) {
+        model.installRuntimeUpdate = install
+        model.laterRuntimeUpdate = later
+    }
+
+    /// A newer Memnox service was published, so its pill offers it under the notch until it is answered.
+    @MainActor func offerRuntimeUpdate(_ version: String) {
+        guard model.runtimeUpdate?.version != version else { return }
+        withAnimation(.snappy) { model.runtimeUpdate = RuntimeUpdateCard(version: version) }
+    }
+
+    /// Update was pressed, so the pill says it is working, or why it stopped, in place of its buttons.
+    @MainActor func runtimeUpdating(_ installing: Bool, failed: String? = nil) {
+        guard var card = model.runtimeUpdate else { return }
+        card.installing = installing
+        card.failed = failed
+        withAnimation(.snappy) { model.runtimeUpdate = card }
+    }
+
+    /// The service is on the new version, or Later was pressed, so the pill goes.
+    @MainActor func runtimeUpdateDismissed() {
+        withAnimation(.snappy) { model.runtimeUpdate = nil }
+    }
+
     /// Not me was pressed, so the pill goes at once and a fresh sign in takes its place.
     @MainActor func signedInDismissed(_ card: SignedInCard) {
         guard model.signedIn == card else { return }

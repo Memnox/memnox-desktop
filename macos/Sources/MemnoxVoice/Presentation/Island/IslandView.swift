@@ -104,6 +104,12 @@ struct IslandView: View {
                         .padding(.top, Layout.drivenGap)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+                // Beside it, so a newer Memnox service is one press away too.
+                if let update = model.runtimeUpdate {
+                    IslandRuntimeUpdatePill(model: model, card: update)
+                        .padding(.top, Layout.drivenGap)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
                 // Under the island in every mode, so whose account a sign in reached is seen the moment it finishes.
                 if let signedIn = model.signedIn {
                     IslandSignedInPill(model: model, card: signedIn)

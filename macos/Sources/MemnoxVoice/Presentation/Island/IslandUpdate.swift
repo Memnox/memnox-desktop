@@ -57,3 +57,60 @@ struct IslandUpdatePill: View {
         return card.installing ? "Updating to Memnox \(card.release.version)" : "Memnox \(card.release.version) is ready"
     }
 }
+
+/// Under the notch while a newer Memnox service is published: its version, Update and Later. The service is updated
+/// in place, so the pill shows a spinner while it restarts, and a try that stopped short says why.
+struct IslandRuntimeUpdatePill: View {
+    @ObservedObject var model: IslandModel
+    let card: RuntimeUpdateCard
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private enum Layout {
+        static let horizontalPadding: CGFloat = 12
+        static let verticalPadding: CGFloat = 6
+        /// Wide enough for a reason in two short lines, so a failure never pushes the pill past the island.
+        static let failedWidth: CGFloat = 300
+    }
+
+    private enum Symbol {
+        static let ready = "arrow.triangle.2.circlepath.circle.fill"
+        static let failed = "exclamationmark.circle.fill"
+    }
+
+    var body: some View {
+        HStack(spacing: Memnox.Spacing.small) {
+            Image(systemName: card.failed == nil ? Symbol.ready : Symbol.failed)
+                .font(.system(size: Memnox.TextSize.caption))
+                .foregroundStyle(card.failed == nil ? IslandPalette.green : IslandPalette.amber)
+                .accessibilityHidden(true)
+            Text(words)
+                .font(Memnox.sans(Memnox.TextSize.caption, .semibold))
+                .foregroundStyle(Color.white)
+                .lineLimit(card.failed == nil ? 1 : 2)
+                .frame(maxWidth: card.failed == nil ? nil : Layout.failedWidth, alignment: .leading)
+                .fixedSize(horizontal: card.failed == nil, vertical: true)
+            if card.installing {
+                ProgressView().controlSize(.mini)
+            } else {
+                Button("Later") { model.laterRuntimeUpdate(card) }
+                    .buttonStyle(IslandButton(primary: false))
+                    .help(RuntimeUpdateLines.later)
+                Button(card.failed == nil ? "Update" : "Try again") { model.installRuntimeUpdate(card) }
+                    .buttonStyle(IslandButton(primary: true))
+                    .help(RuntimeUpdateLines.help(card.version))
+            }
+        }
+        .padding(.horizontal, Layout.horizontalPadding)
+        .padding(.vertical, Layout.verticalPadding)
+        .background(Capsule().fill(Color.black))
+        .overlay(Capsule().strokeBorder(Color.white.opacity(Memnox.Ink.edge)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(words)
+        .animation(reduceMotion ? nil : .snappy, value: card)
+    }
+
+    private var words: String {
+        if let failed = card.failed { return failed }
+        return card.installing ? RuntimeUpdateLines.updating(card.version) : RuntimeUpdateLines.ready(card.version)
+    }
+}

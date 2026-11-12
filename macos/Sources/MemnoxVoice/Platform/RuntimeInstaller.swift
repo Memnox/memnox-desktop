@@ -14,6 +14,9 @@ final class RuntimeInstaller: ObservableObject {
     @Published private(set) var failed: String?
     private var running: Task<DaemonVoice, Never>?
     private let source = RuntimeSource.ofThisApp()
+
+    /// Whether this app runs the runtime published to npm, the only one a newer published version is offered to.
+    var runsPublished: Bool { source == .npm }
     /// Set in demo mode, which never installs, starts or updates anything: each step says this instead.
     var demoOnly: String?
 

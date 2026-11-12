@@ -38,6 +38,9 @@ use tauri::Manager;
 pub(crate) const ISLAND: &str = "island";
 
 pub fn run() {
+    // GNOME on Wayland pins no window, so there the app goes through XWayland, chosen before GTK starts.
+    #[cfg(target_os = "linux")]
+    island::backend::choose();
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,

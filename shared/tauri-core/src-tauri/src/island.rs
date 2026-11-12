@@ -5,6 +5,7 @@
 //! the compositor routes the clicks itself, which is the one way that works on Wayland. The side panel
 //! and the card wall are followed the same way.
 
+pub mod backend;
 mod pointer;
 pub mod screens;
 

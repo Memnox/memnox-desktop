@@ -32,7 +32,8 @@ final class DestinationsTests: XCTestCase {
         XCTAssertEqual(Destinations.route(forPage: "phones"), WindowRoute(.settings, tab: "phones"))
         XCTAssertEqual(Destinations.route(forPage: "tools"), WindowRoute(.agents, tab: "this-computer"))
         XCTAssertEqual(Destinations.route(forPage: "apps"), WindowRoute(.connectors, tab: "systems"))
-        XCTAssertEqual(Destinations.route(forPage: "connection"), WindowRoute(.machines))
+        XCTAssertEqual(Destinations.route(forPage: "connection"), WindowRoute(.settings, tab: "connection"))
+        XCTAssertEqual(Destinations.route(forPage: "machines"), WindowRoute(.settings, tab: "connection"))
         XCTAssertEqual(Destinations.route(forPage: "learn"), WindowRoute(.needsYou, tab: "decide-now"))
         XCTAssertEqual(Destinations.route(forPage: "governance"), WindowRoute(.needsYou, tab: "decide-now"))
         XCTAssertEqual(Destinations.route(forPage: "needs-you"), WindowRoute(.needsYou))
@@ -43,7 +44,7 @@ final class DestinationsTests: XCTestCase {
         let groups = Destinations.tabGroups(.settings, supports: everything).map { [$0.title] + $0.tabs.map(\.id) }
         XCTAssertEqual(groups, [
             ["Account", "account", "permissions"],
-            ["Devices", "phones"],
+            ["Devices", "connection", "phones"],
             ["Voice", "voice", "listening", "dictation"],
             ["App", "appearance", "help"],
         ])

@@ -17,7 +17,6 @@ import { PoliciesPage } from './PoliciesPage';
 import { ProjectsPage } from './ProjectsPage';
 import { SessionsPage } from './SessionsPage';
 import { SkillsPage } from './SkillsPage';
-import { WorkTab } from './WorkTab';
 
 /** The page a route draws, one per page of the contract, shared by the window and the test that draws every one. */
 export function RoutePage({ parts, route, width, go }: { parts: SettingsParts; route: Route; width: WidthClass; go: (route: Route) => void }): ReactNode {
@@ -34,8 +33,6 @@ export function RoutePage({ parts, route, width, go }: { parts: SettingsParts; r
       return <AgentListTab parts={parts} />;
     case 'projects':
       return <ProjectsPage parts={parts} width={width} go={go} />;
-    case 'work':
-      return <WorkTab parts={parts} />;
     case 'rules':
       return <PoliciesPage parts={parts} width={width} />;
     case 'hand-over':
@@ -49,8 +46,6 @@ export function RoutePage({ parts, route, width, go }: { parts: SettingsParts; r
       if (route.tab === 'files') return <MemorySourcesPage parts={parts} />;
       if (route.tab === 'mcp') return <McpHubPage parts={parts} width={width} go={go} />;
       return <YourAppsPage parts={parts} />;
-    case 'machines':
-      return <PageBody page="connection" parts={parts} />;
     case 'settings': {
       const page = pageNamed(route.tab) ?? 'account';
       // The pane header above it names the page, as the console's settings pane does.

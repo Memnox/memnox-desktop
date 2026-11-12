@@ -16,7 +16,7 @@ struct ToolsPage: View {
                     if let away = tools.agentsNote, !tools.loading {
                         SettingsRow(symbol: "exclamationmark.triangle", title: away,
                                     caption: "Open Connection in Settings, where Check again starts it.") {
-                            Button("Open Connection") { AppWindow.shared.shell.go(WindowRoute(.machines)) }
+                            Button("Open Connection") { AppWindow.shared.shell.go(WindowRoute(.settings, tab: "connection")) }
                         }
                     } else {
                         SettingsRow(symbol: "terminal", title: tools.loading ? "Looking for agents" : "No agents found",

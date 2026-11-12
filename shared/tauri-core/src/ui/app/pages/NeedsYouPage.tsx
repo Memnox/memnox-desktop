@@ -13,7 +13,7 @@ import { BrandLogo, Button, EmptyState, StatusWord, Switch } from '../../kit';
 import { handHeld, heldBusy } from '../held-hand';
 import { needsYou, openWork } from '../../../core/domain/agent-work-lines';
 import { waitingHandoffs } from '../../../core/domain/workspace-agents';
-import { WorkNeedingYou } from './WorkTab';
+import { WorkNeedingYou } from './WorkCards';
 import { WorkspaceHandoffs } from './WorkspaceAgents';
 import { ANSWER_LABEL } from '../../../core/domain/answer-words';
 

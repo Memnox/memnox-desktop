@@ -57,7 +57,7 @@ struct AppSidebar: View {
             .scrollIndicators(.never)
             VStack(alignment: rail ? .center : .leading, spacing: Memnox.Spacing.xxSmall) {
                 if let home {
-                    RuntimeStanding(home: home, rail: rail) { shell.go(WindowRoute(.machines)) }
+                    RuntimeStanding(home: home, rail: rail) { shell.go(WindowRoute(.settings, tab: "connection")) }
                 } else {
                     RuntimeWord(tone: .quiet, words: RuntimeStanding.reaching, rail: rail)
                 }

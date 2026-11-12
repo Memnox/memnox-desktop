@@ -9,7 +9,7 @@ import { useObserved, type SettingsParts } from '../../settings/parts';
 import { CapabilityStrip, ConnectionPill, LevelPill } from '../capability-strip';
 import { BrandLogo, Button, Card, CardGrid, Note, Section, StatusWord } from '../../kit';
 import { JobSheet } from './JobsTab';
-import { WorkLine } from './WorkTab';
+import { WorkLine } from './WorkCards';
 
 /** As the Mac's agent grid sets it. */
 const CARD_WIDTH = 300;

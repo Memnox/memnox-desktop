@@ -11,13 +11,11 @@ export type Destination =
   | 'sessions'
   | 'agents'
   | 'projects'
-  | 'work'
   | 'rules'
   | 'hand-over'
   | 'activity'
   | 'memory'
   | 'connectors'
-  | 'machines'
   | 'settings';
 
 /** The heading a page sits under in the sidebar: none for the top rows, Govern, Knowledge, or the foot. */
@@ -100,16 +98,16 @@ const MOVED: Partial<Record<SettingsPage, Route>> = {
   overview: { destination: 'home' },
   tools: { destination: 'agents', tab: 'this-computer' },
   apps: { destination: 'connectors', tab: 'systems' },
-  connection: { destination: 'machines' },
 };
 
-/** What stays under Settings, in the order its tree groups them; Connection stands as Machines now. */
-export const SETTINGS_TABS: readonly SettingsPage[] = ['account', 'permissions', 'phones', 'voice', 'listening', 'dictation', 'appearance', 'help'];
+/** What stays under Settings, in the order its tree groups them; this computer is the one machine here, so it is a setting. */
+export const SETTINGS_TABS: readonly SettingsPage[] = ['account', 'permissions', 'connection', 'phones', 'voice', 'listening', 'dictation', 'appearance', 'help'];
 
 /** Who a settings change is about: the person, their devices, the voice, or this app. */
 const SETTINGS_GROUP: Partial<Record<SettingsPage, TabGroupId>> = {
   account: 'account',
   permissions: 'account',
+  connection: 'devices',
   phones: 'devices',
   voice: 'voice',
   listening: 'voice',
@@ -155,12 +153,11 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
     group: 'top',
     tabs: [
       { id: 'agents', title: 'Agents', summary: 'The agents on this computer and what each can reach.', needs: 'agents' },
-      { id: 'jobs', title: 'Jobs', summary: 'What each agent is for, who answers for it, and the agents each job works through.', needs: 'profiles' },
+      { id: 'jobs', title: 'Jobs', summary: 'Ready made jobs and the ones you wrote. Pick one, then connect a real agent to do it.', needs: 'profiles' },
       { id: 'this-computer', title: 'On this computer', summary: 'The agents on this computer and the apps Memnox can act in as you.' },
     ],
   },
   { id: 'projects', title: 'Projects', subtitle: 'Your projects, with the skills, tools, memory and rules each one carries.', symbol: 'folder', group: 'top', tabs: [] },
-  { id: 'work', title: 'Work', subtitle: 'Which agent carries which issue, where it stands, and what waits on you.', symbol: 'checklist', group: 'top', needs: 'agent-work', tabs: [] },
   {
     id: 'rules',
     title: 'Rules',
@@ -220,7 +217,6 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
       { id: 'mcp', title: 'MCP servers', summary: 'Servers set up once and given to the agents you choose, and the secrets they use.', needs: 'mcp-hub' },
     ],
   },
-  { id: 'machines', title: 'Machines', subtitle: 'The Memnox service on this computer, and the key that signs your yes.', symbol: 'desktopcomputer', group: 'foot', tabs: [] },
   {
     id: 'settings',
     title: 'Settings',

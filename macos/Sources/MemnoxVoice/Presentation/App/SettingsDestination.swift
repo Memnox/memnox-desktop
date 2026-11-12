@@ -1,8 +1,8 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// What stays under Settings: the Settings window's own pages, less the overview, the agents, the apps and the
-/// connection, which moved to Home, Agents, Connectors and Machines.
+/// What stays under Settings: the Settings window's own pages, less the overview, the agents and the apps, which
+/// moved to Home, Agents and Connectors.
 struct SettingsDestination: View {
     @ObservedObject var models: SettingsModels
     @ObservedObject var menu: MenuModel
@@ -20,6 +20,7 @@ struct SettingsDestination: View {
             case .account:
                 if let account = models.account { AccountPage(account: account, setup: setup) }
             case .permissions: SetupPermissionsCard(model: setup)
+            case .connection: SetupMacCard(model: setup)
             case .phones:
                 PhonesPage(menu: menu, setup: setup)
                 if let network { PairsWithoutAccountLine(screen: network) }
@@ -30,7 +31,7 @@ struct SettingsDestination: View {
                 if let dictations = models.dictations { DictationPage(store: dictations) }
             case .help: HelpPage(menu: menu, setup: setup)
             // These moved to pages of their own, so a stale tab naming one lands on Account instead.
-            case .overview, .tools, .apps, .connection:
+            case .overview, .tools, .apps:
                 if let account = models.account { AccountPage(account: account, setup: setup) }
             }
         }

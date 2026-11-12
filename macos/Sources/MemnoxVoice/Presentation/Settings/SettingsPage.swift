@@ -22,7 +22,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .overview: return "Overview"
         case .account: return "Account"
         case .permissions: return "Permissions"
-        case .connection: return "Connection"
+        case .connection: return "This Mac"
         case .phones: return "Phones"
         case .tools: return "Agents"
         case .apps: return "Connectors"

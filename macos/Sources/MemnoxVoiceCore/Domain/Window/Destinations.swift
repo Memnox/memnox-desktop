@@ -9,13 +9,11 @@ public enum Destination: String, CaseIterable, Sendable {
     case sessions
     case agents
     case projects
-    case work
     case rules
     case handOver = "hand-over"
     case activity
     case memory
     case connectors
-    case machines
     case settings
 }
 
@@ -140,11 +138,13 @@ public struct PaletteCommand: Equatable, Identifiable, Sendable {
 
 public enum Destinations {
     /// What stays under Settings, grouped by who a change is about: the person, their devices, the voice, or this app.
-    /// Connection stands as Machines now, since this Mac's runtime is the machine a person checks.
+    /// This Mac is the one machine here, so its service and signing key are a setting rather than a Machines page.
     public static let settingsTabs: [TabInfo] = [
         TabInfo(id: "account", title: "Account", group: .account,
                 summary: "Your name, who you are in Memnox Cloud, and what that lets Memnox do on this Mac."),
         TabInfo(id: "permissions", title: "Permissions", group: .account, summary: "What this Mac lets Memnox hear, type and see."),
+        TabInfo(id: "connection", title: "This Mac", group: .devices,
+                summary: "The Memnox service on this Mac, and the key Touch ID signs with."),
         TabInfo(id: "phones", title: "Phones", group: .devices, summary: "Phones paired with this Mac and what each may do."),
         TabInfo(id: "voice", title: "Voice", group: .voice, summary: "Who thinks for the voice, and the voice it answers in."),
         TabInfo(id: "listening", title: "Listening", group: .voice, summary: "When Memnox listens and how it speaks up."),
@@ -160,7 +160,7 @@ public enum Destinations {
         "today": WindowRoute(.home),
         "tools": WindowRoute(.agents, tab: "this-computer"),
         "apps": WindowRoute(.connectors, tab: "systems"),
-        "connection": WindowRoute(.machines),
+        "machines": WindowRoute(.settings, tab: "connection"),
         "approvals": WindowRoute(.needsYou, tab: "decide-now"),
         "learn": WindowRoute(.needsYou, tab: "decide-now"),
         "governance": WindowRoute(.needsYou, tab: "decide-now"),
@@ -194,7 +194,7 @@ public enum Destinations {
                             TabInfo(id: "agents", title: "Agents", summary: "The agents on this Mac and what each can reach.",
                                     needs: "agents"),
                             TabInfo(id: "jobs", title: "Jobs",
-                                    summary: "What each agent is for, who answers for it, and the agents each job works through.",
+                                    summary: "Ready made jobs and the ones you wrote. Pick one, then connect a real agent to do it.",
                                     needs: "profiles"),
                             TabInfo(id: "this-computer", title: "On this computer",
                                     summary: "The agents on this Mac and the apps Memnox can act in as you."),
@@ -202,8 +202,6 @@ public enum Destinations {
         DestinationInfo(id: .projects, title: "Projects",
                         subtitle: "Your projects, with the skills, tools, memory and rules each one carries.",
                         symbol: "folder", group: .top),
-        DestinationInfo(id: .work, title: "Work", subtitle: "Which agent carries which issue, where it stands, and what waits on you.",
-                        symbol: "checklist", group: .top, needs: "agent-work"),
         DestinationInfo(id: .rules, title: "Rules",
                         subtitle: "For each thing your AI might do, choose Allow, Ask or Deny. Nothing changes until you save and the change is approved.",
                         symbol: "checkmark.shield", group: .govern, tabs: [
@@ -255,9 +253,6 @@ public enum Destinations {
                                     summary: "Servers set up once and given to the agents you choose, and the secrets they use.",
                                     needs: "mcp-hub"),
                         ]),
-        DestinationInfo(id: .machines, title: "Machines",
-                        subtitle: "The Memnox service on this Mac, and the key Touch ID signs with.",
-                        symbol: "desktopcomputer", group: .foot),
         DestinationInfo(id: .settings, title: "Settings", subtitle: "This Mac, your account, and the voice.",
                         symbol: "gearshape", group: .foot, tabs: settingsTabs),
     ]

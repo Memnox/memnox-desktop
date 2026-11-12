@@ -4,7 +4,7 @@ import { waitingHandoffs, WorkspaceAgentsLines } from '../../../core/domain/work
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { Button, Card, CardGrid, Note, Section } from '../../kit';
 import { AgentProfileCard } from './AgentProfileCards';
-import { WorkLine } from './WorkTab';
+import { WorkLine } from './WorkCards';
 
 /** As the Mac's agent grid sets it. */
 const CARD_WIDTH = 300;

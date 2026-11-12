@@ -27,7 +27,7 @@ const INFO: Record<SettingsPage, Omit<SettingsPageInfo, 'page'>> = {
   overview: { title: 'Overview', subtitle: 'What your agents are doing, and what is left to set up.' },
   account: { title: 'Account', subtitle: 'Your name, who you are in Memnox Cloud, and what that lets Memnox do on this computer.' },
   permissions: { title: 'Permissions', subtitle: 'What this computer lets Memnox hear, type and see.' },
-  connection: { title: 'Connection', subtitle: 'The Memnox service your agents talk to, and the key your approvals are signed with.' },
+  connection: { title: 'This computer', subtitle: 'The Memnox service on this computer, and the key that signs your yes.' },
   phones: { title: 'Phones', subtitle: 'Phones paired with this computer and what each may do.' },
   appearance: { title: 'Appearance', subtitle: 'Light, dark, or the same as this computer.' },
   tools: { title: 'Connected tools', subtitle: 'The agents on this computer and the apps Memnox can act in as you.' },

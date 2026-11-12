@@ -285,8 +285,6 @@ private struct AppPage: View {
                 }
             case .projects:
                 WorkspacesDestination(shell: shell, island: island, account: models.account, width: width)
-            case .work:
-                if let work = shell.work { WorkDestination(screen: work, profiles: shell.profiles, width: width) }
             case .rules:
                 if let studio = shell.studio {
                     PoliciesDestination(shell: shell, screen: studio, island: island, home: models.home, width: width)
@@ -311,8 +309,6 @@ private struct AppPage: View {
                 } else {
                     SettingsPageColumn(wide: true) { YourAppsPage(tools: menu.tools) }
                 }
-            case .machines:
-                SettingsPageColumn { SetupMacCard(model: setup) }
             case .settings:
                 SettingsDestination(models: models, menu: menu, setup: setup, tab: route.tab, network: shell.network)
             }

@@ -46,6 +46,6 @@ describe('the palette', () => {
 
   it('lists the number key beside each destination', () => {
     const keyed = commands(() => true).filter((each) => each.key !== undefined).map((each) => `${each.key} ${each.title}`);
-    expect(keyed).toEqual(['1 Home', '2 Needs you', '3 Sessions', '4 Agents', '5 Projects', '6 Work', '7 Rules', '8 Hand over', '9 Activity']);
+    expect(keyed).toEqual(['1 Home', '2 Needs you', '3 Sessions', '4 Agents', '5 Projects', '6 Rules', '7 Hand over', '8 Activity', '9 Memory']);
   });
 });

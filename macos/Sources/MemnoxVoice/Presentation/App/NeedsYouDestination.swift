@@ -161,7 +161,7 @@ private struct NothingWaiting: View {
         if home.unavailable {
             EmptyState(symbol: "exclamationmark.triangle", title: "The Memnox service is not answering",
                        detail: "Nothing an agent asks can reach you until it runs again.")
-            Button("Open Connection", systemImage: "arrow.up.forward") { AppWindow.shared.shell.go(WindowRoute(.machines)) }
+            Button("Open Connection", systemImage: "arrow.up.forward") { AppWindow.shared.shell.go(WindowRoute(.settings, tab: "connection")) }
                 .buttonStyle(KitButton(kind: .secondary))
         } else {
             Self.empty

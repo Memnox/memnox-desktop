@@ -10,11 +10,11 @@ final class SidebarTests: XCTestCase {
     func testReadsAsTheConsolesSidebarDoes() {
         let sections = Sidebar.sections.map { [$0.title ?? ""] + $0.rows.map { Destinations.info($0).title } }
         XCTAssertEqual(sections, [
-            ["", "Home", "Needs you", "Sessions", "Agents", "Projects", "Work"],
+            ["", "Home", "Needs you", "Sessions", "Agents", "Projects"],
             ["Govern", "Rules", "Hand over", "Activity"],
             ["Knowledge", "Memory", "Connectors"],
         ])
-        XCTAssertEqual(Sidebar.foot.map { Destinations.info($0).title }, ["Machines", "Settings"])
+        XCTAssertEqual(Sidebar.foot.map { Destinations.info($0).title }, ["Settings"])
     }
 
     func testLandsOnHomeWithNoStrip() {
@@ -28,8 +28,6 @@ final class SidebarTests: XCTestCase {
     }
 
     func testLeavesARowOutUntilTheDaemonAnswersOneOfItsPages() {
-        XCTAssertNil(Sidebar.target(.work, supports: nothingNew))
-        XCTAssertEqual(Sidebar.target(.work, supports: everything), WindowRoute(.work))
         XCTAssertNil(Sidebar.target(.rules, supports: nothingNew))
         XCTAssertEqual(Sidebar.target(.rules, supports: everything), WindowRoute(.rules, tab: "rules"))
     }

@@ -51,7 +51,7 @@ describe('the window’s pages', () => {
     const groups = tabGroups('settings', everything).map((group) => [group.title, ...group.tabs.map((tab) => tab.id)]);
     expect(groups).toEqual([
       ['Account', 'account', 'permissions'],
-      ['Devices', 'phones'],
+      ['Devices', 'connection', 'phones'],
       ['Voice', 'voice', 'listening', 'dictation'],
       ['App', 'appearance', 'help'],
     ]);
@@ -75,7 +75,7 @@ describe('the window’s pages', () => {
     expect(routeFrom('?page=phones')).toEqual({ destination: 'settings', tab: 'phones' });
     expect(routeFrom('?page=tools')).toEqual({ destination: 'agents', tab: 'this-computer' });
     expect(routeFrom('?page=apps')).toEqual({ destination: 'connectors', tab: 'systems' });
-    expect(routeFrom('?page=connection')).toEqual({ destination: 'machines' });
+    expect(routeFrom('?page=connection')).toEqual({ destination: 'settings', tab: 'connection' });
     expect(routeFrom('?dest=governance&tab=approvals')).toEqual(LANDING);
     expect(routeFrom('')).toEqual(LANDING);
     expect(routeForPage('learn')).toEqual({ destination: 'needs-you', tab: 'decide-now' });
@@ -101,7 +101,7 @@ describe('the window’s pages', () => {
 
   it('opens the first nine rows with a digit, and the palette says which one', () => {
     const rows: readonly Destination[] = ['home', 'needs-you', 'sessions', 'activity'];
-    expect(rows.map(keyOf)).toEqual(['1', '2', '3', '9']);
+    expect(rows.map(keyOf)).toEqual(['1', '2', '3', '8']);
     expect(keyOf('settings')).toBeUndefined();
     expect(commands(nothingNew).find((each) => each.title === 'Sessions')?.key).toBe('3');
   });
@@ -140,11 +140,11 @@ describe('the sidebar', () => {
   it('reads as the console’s sidebar does', () => {
     const sections = SIDEBAR_SECTIONS.map((section) => [section.title ?? '', ...section.rows.map((id) => destinationInfo(id).title)]);
     expect(sections).toEqual([
-      ['', 'Home', 'Needs you', 'Sessions', 'Agents', 'Projects', 'Work'],
+      ['', 'Home', 'Needs you', 'Sessions', 'Agents', 'Projects'],
       ['Govern', 'Rules', 'Hand over', 'Activity'],
       ['Knowledge', 'Memory', 'Connectors'],
     ]);
-    expect(SIDEBAR_FOOT.map((id) => destinationInfo(id).title)).toEqual(['Machines', 'Settings']);
+    expect(SIDEBAR_FOOT.map((id) => destinationInfo(id).title)).toEqual(['Settings']);
   });
 
   it('opens Needs you on Decide now whatever the runtime answers', () => {
@@ -153,9 +153,8 @@ describe('the sidebar', () => {
   });
 
   it('leaves a row out until the daemon answers one of its pages', () => {
-    expect(rowTarget('work', nothingNew)).toBeUndefined();
-    expect(rowTarget('work', everything)).toEqual({ destination: 'work' });
     expect(rowTarget('rules', nothingNew)).toBeUndefined();
+    expect(rowTarget('rules', everything)).toMatchObject({ destination: 'rules' });
   });
 
   it('gathers memory and its skills as one row that opens on the map', () => {

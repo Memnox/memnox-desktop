@@ -45,6 +45,8 @@ import { IslandButton, IslandCard, IslandTab, type Movement, NotchShape, Pressab
 import { Orb, type OrbHandle } from './Orb';
 import { Settings } from './Settings';
 import { Hearing, useConversation, voiceFacts, VoicePills } from './Talk';
+import type { Updates } from '../core/application/updates';
+import { UpdatePills } from './UpdateOffers';
 import { PhoneTurn } from './voice/PhoneTurn';
 import { AnswerCard, IslandConversation } from './voice/Conversation';
 import { shownProposal } from '../core/domain/proposal-card';
@@ -133,6 +135,8 @@ export interface IslandParts {
   onOpenAnswer?: (exchange: Exchange) => void;
   /** The pills under the island, the chimes and the diary, wired by `islandExtras`. */
   extras?: IslandExtras;
+  /** A newer app or Memnox service, offered under the island; a preview hands none over. */
+  updates?: Updates;
   preview?: IslandPreview;
 }
 
@@ -176,6 +180,7 @@ export function Island({
   liveWords = true,
   onOpenAnswer = (exchange) => void showSummary({ title: exchange.question, text: exchange.answer, files: [] }).catch(() => undefined),
   extras,
+  updates,
   preview: scripted,
 }: IslandParts) {
   const previewing = scripted !== undefined;
@@ -673,6 +678,7 @@ export function Island({
           </UnderPill>
         )}
         {!previewing && <VoicePills conversation={conversation} starting={setupState.doing !== undefined || (setupState.failed === undefined && !held.connected)} />}
+        {updates !== undefined && !previewing && <UpdatePills updates={updates} />}
         {extras !== undefined && <UnderIsland notices={extras.notices} onSignIn={extras.onSignIn} onNotMe={extras.onNotMe} online={!previewing} />}
         </div>
       </div>

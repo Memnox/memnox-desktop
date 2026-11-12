@@ -41,6 +41,8 @@ import { SERVERS_CHANGED, TALKING_TO, TEAM_CHANGED } from '../relay-keys';
 import { onPreferenceChange, type SettingsHost } from './host';
 import { TeamAccount } from './team-account';
 import { SetupModel } from './setup-model';
+import type { Updates } from '../../core/application/updates';
+import { updatesOver, type UpdateSeams } from '../adapters/tauri-updates';
 
 /** Everything a Settings page or a first run step draws from, built once per window. */
 export interface SettingsParts {
@@ -99,6 +101,8 @@ export interface SettingsParts {
   readonly work: AgentWorkDesk;
   /** The workspace's agents and handoffs while the person is signed in to Memnox Cloud; nothing with no account. */
   readonly workspaceAgents: WorkspaceAgents;
+  /** A newer app or a newer Memnox service, offered until the person updates or puts it off. */
+  readonly updates: Updates;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -109,11 +113,14 @@ export interface RelayAdapters {
   readonly pairer: Pairer;
   readonly cloud: HttpTransport;
   readonly credentials: PersonCredentialStore;
+  /** Where a newer Memnox is learned of; a preview and a test hand none over and so are offered nothing. */
+  readonly updates?: UpdateSeams;
 }
 
 export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtime, key: ConfirmKey, store: PreferenceStore, relay: RelayAdapters): SettingsParts {
   const ids = new RequestIds();
   const setup = new Setup(link, runtime, ids, sleep);
+  const preferences = new Preferences(store);
   const signer = new Signer(link, key, ids);
   const voiceSettings = new VoiceSettings(link, ids);
   const person = new DaemonAccount(new DaemonSignIn(link, 'person', ids, sleep), sleep, (url) => host.openPage(url));
@@ -153,7 +160,8 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     voiceSettings,
     voice: new VoicePreferences(store),
     dictation: new DictationWords(store),
-    preferences: new Preferences(store),
+    preferences,
+    updates: updatesOver(relay.updates ?? {}, host.platform, setup, runtime, preferences, (url) => host.openPage(url)),
     account,
     pairing: new PhonePairing(link, signer, key, ids, () => host.computerName()),
     home: new Home(

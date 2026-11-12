@@ -1,5 +1,6 @@
 import { CONNECTION_PAGE, RuntimeAwayLines, type RuntimeStanding } from '../../../core/domain/runtime-away';
 import { useRuntimeStanding } from '../runtime-standing';
+import { UpdateBanner } from '../../UpdateOffers';
 import { ArrowRight } from 'lucide-react';
 import { useEffect } from 'react';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
@@ -59,6 +60,8 @@ export function HomePage({ parts, width, go }: { parts: SettingsParts; width: Wi
           <GoLink onClick={() => host.openSettings(CONNECTION_PAGE)}>{RuntimeAwayLines.openConnection}</GoLink>
         </div>
       )}
+
+      <UpdateBanner updates={parts.updates} />
 
       {/* The one Do this next card, setup first until it is done, then the getting started steps until every one is. */}
       <HomeStart parts={parts} go={go} actions={view?.today.actions ?? 0} mode={homeMode(view?.mode)} openSetup={() => host.openOnboarding()} />

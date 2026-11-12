@@ -4,6 +4,7 @@ import { confirmKey, daemonLink, demoCloud, demoCredentials, demoOn, demoPairer,
 import { tellIsland } from '../adapters/tauri-presses';
 import { tauriCloud, tauriPersonCredential } from '../adapters/tauri-cloud';
 import { tauriPairer } from '../adapters/tauri-relay';
+import { tauriAppVersion, tauriReleaseFeed } from '../adapters/tauri-updates';
 import { LocalPreferenceStore, tauriHost } from './host';
 import { PREFERENCE } from '../../core/application/preferences';
 import { buildParts, type SettingsParts } from './parts';
@@ -24,7 +25,7 @@ export function worldParts(): SettingsParts {
   }
   if (inApp) {
     // Every press here tells the island the proposals it raised, so they are confirmed there as asked for.
-    const parts = buildParts(new PressingLink(daemonLink(), tellIsland, () => crypto.randomUUID()), tauriHost, runtime(), confirmKey(), new LocalPreferenceStore(), { pairer: tauriPairer, cloud: tauriCloud, credentials: tauriPersonCredential });
+    const parts = buildParts(new PressingLink(daemonLink(), tellIsland, () => crypto.randomUUID()), tauriHost, runtime(), confirmKey(), new LocalPreferenceStore(), { pairer: tauriPairer, cloud: tauriCloud, credentials: tauriPersonCredential, updates: { feed: tauriReleaseFeed, appVersion: tauriAppVersion } });
     // The island and the tray switch the voice too, so a change there shows on the Listening page.
     window.addEventListener('storage', (event) => {
       const key = event.key?.startsWith(VOICE_KEY_PREFIX) === true ? (event.key.slice(VOICE_KEY_PREFIX.length) as keyof VoiceChoices) : undefined;

@@ -194,7 +194,6 @@ export const JobsLines = {
   emptyTitle: 'No jobs yet',
   emptyBody: 'Write what an agent is for, who answers for it and what it needs, or start from a template below.',
   jobs: 'Jobs',
-  defaults: 'Agents with no job yet',
   templates: 'Start from a template',
   giveJob: 'Give it a job',
   editJob: 'Edit the job',

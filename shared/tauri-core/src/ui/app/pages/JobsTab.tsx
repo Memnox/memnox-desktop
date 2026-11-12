@@ -20,7 +20,6 @@ import {
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { CapabilityStrip, ConnectionPill } from '../capability-strip';
 import { BrandLogo, Button, Card, CardGrid, Checkbox, Dialog, EmptyState, Field, Input, Note, ReadFailed, Section, Select, StatusWord, Textarea } from '../../kit';
-import { AgentProfileCard } from './AgentProfileCards';
 
 /** As the Mac's profile grid sets it. */
 const CARD_WIDTH = 280;
@@ -52,7 +51,6 @@ export function JobsTab({ parts }: { parts: SettingsParts }) {
   const list = profiles.profiles;
   if (list === undefined) return profiles.unreadable ? <ReadFailed what={JobsLines.readWhat} retry={() => void profiles.refresh()} /> : null;
   const kept = orderedProfiles(list.filter((each) => each.isDefault !== true));
-  const defaults = list.filter((each) => each.isDefault === true);
   const templates = profiles.templates ?? [];
   return (
     <div className="flex flex-col gap-6">
@@ -63,21 +61,12 @@ export function JobsTab({ parts }: { parts: SettingsParts }) {
           {JobsLines.create}
         </Button>
       </div>
-      {kept.length === 0 && defaults.length === 0 && <EmptyState icon={Briefcase} title={JobsLines.emptyTitle} body={JobsLines.emptyBody} />}
+      {kept.length === 0 && <EmptyState icon={Briefcase} title={JobsLines.emptyTitle} body={JobsLines.emptyBody} />}
       {kept.length > 0 && (
         <Section title={JobsLines.jobs}>
           <CardGrid min={CARD_WIDTH}>
             {kept.map((profile) => (
               <JobCard key={profile.id} parts={parts} profile={profile} said={said} edit={() => setSheet({ kind: 'edit', profile })} />
-            ))}
-          </CardGrid>
-        </Section>
-      )}
-      {defaults.length > 0 && (
-        <Section title={JobsLines.defaults}>
-          <CardGrid min={CARD_WIDTH}>
-            {defaults.map((profile) => (
-              <AgentProfileCard key={profile.id} profile={profile} giveJob={() => setSheet({ kind: 'job-for', profile })} />
             ))}
           </CardGrid>
         </Section>

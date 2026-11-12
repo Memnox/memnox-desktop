@@ -32,8 +32,8 @@ private enum ProfilesLayout {
     static let templateOpacity = 0.75
 }
 
-/// The profile editor under AI agents: each job with who answers for it and the agents it works through, an agent's
-/// default offered a job, and the templates, which are jobs with no agent behind them. Keeping or binding one grants
+/// The Jobs tab, as the console's: the jobs written here and the templates, which are jobs with no agent behind them.
+/// An agent with no job yet stands under Agents, whose Give it a job opens the editor here. Keeping or binding one grants
 /// nothing; applying one raises a proposal for each piece, and each waits for Touch ID on the island.
 struct ProfilesDestination: View {
     @ObservedObject var shell: AppShellModel
@@ -90,7 +90,6 @@ struct ProfilesDestination: View {
         let profiles = screen.profiles
         if let list = profiles.profiles {
             let kept = AgentProfileLines.ordered(list.filter { !$0.isDefault })
-            let defaults = list.filter(\.isDefault)
             ShellScroll(width: width) {
                 NoteBanner(text: screen.note)
                 HStack(alignment: .top, spacing: Memnox.Spacing.regular) {
@@ -99,19 +98,12 @@ struct ProfilesDestination: View {
                     Button { creating = true } label: { Label("New job", systemImage: "plus") }
                         .buttonStyle(KitButton(kind: .primary))
                 }
-                if kept.isEmpty && defaults.isEmpty {
+                if kept.isEmpty {
                     EmptyState(symbol: "briefcase", title: "No jobs yet",
                                detail: "Write what an agent is for, who answers for it and what it needs, or start from a template below.")
                 }
                 if !kept.isEmpty {
                     ShellSection(title: "Jobs") { grid(kept) { ProfileCard(shell: shell, screen: screen, profile: $0) } }
-                }
-                if !defaults.isEmpty {
-                    ShellSection(title: "Agents with no job yet") {
-                        grid(defaults) { profile in
-                            AgentProfileCard(profile: profile, work: nil) { givingJob = $0 }
-                        }
-                    }
                 }
                 if let templates = profiles.templates, !templates.isEmpty {
                     ShellSection(title: "Start from a template") {

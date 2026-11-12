@@ -2,7 +2,7 @@
 
 export const HelpPageLines = {
   setupAgain: 'Run setup again',
-  setupAgainCaption: 'The five steps from the start, with what you answered before already chosen.',
+  setupAgainCaption: 'The two steps from the start.',
   runSetup: 'Run setup',
   sayRule: 'Say a rule',
   saySomething: 'Say something',

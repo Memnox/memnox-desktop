@@ -1,50 +1,18 @@
-import {
-  ArrowRight,
-  AudioLines,
-  Briefcase,
-  Building2,
-  Cloud,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronUp,
-  Fingerprint,
-  ListChecks,
-  Monitor,
-  Network,
-  RotateCw,
-  ShieldCheck,
-  Settings as SettingsIcon,
-  Smartphone,
-  Sparkles,
-  UserRound,
-  UserRoundSearch,
-  Volume2,
-  VolumeX,
-  type LucideIcon,
-} from 'lucide-react';
+import { ArrowRight, AudioLines, Check, ChevronDown, ChevronLeft, ChevronUp, Fingerprint, ListChecks, Monitor, RotateCw, ShieldCheck, Settings as SettingsIcon, Sparkles, UserRound, UserRoundSearch, Volume2, VolumeX, type LucideIcon } from 'lucide-react';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  AGENT_PLACES,
+  END_LATER,
   endLinks,
-  type AgentPlace,
   type EndLink,
   FirstRunCoverage,
-  FirstRunQuestions,
   GuideLines,
   GuideMemory,
-  askOrder,
-  askRoutes,
-  AUDIENCES,
   nextStep,
   ONBOARDING_IDS,
   ONBOARDING_STEPS,
   TRY_DETAIL,
   TRY_PROMPT,
   TRY_TITLE,
-  type AskRoute,
-  type Audience,
-  placeInfo,
   previousStep,
   progressOf,
   rowSpoken,
@@ -52,15 +20,13 @@ import {
   startingPacks,
   stepCounter,
   stepHeading,
-  suggestedPlace,
-  throughCloud,
   type OnboardingStage,
   type OnboardingStep,
   type WelcomeRow,
 } from '../../core/domain/onboarding';
 import { agentsFoundLine, firstName, packTitle } from '../../core/domain/setup-steps';
 import type { StepState } from '../../core/domain/step-state';
-import { BrandLogo, MEMNOX_MARK } from '../kit/logos';
+import { BrandLogo, Wordmark } from '../kit/logos';
 import { IconTile, MemnoxTile, NeedsHint, QuietLine, StatusMark } from '../settings/kit';
 import { useLook, useObserved, usePreferences, type SettingsParts } from '../settings/parts';
 import { IslandDemo, useDemoTour } from './IslandDemo';
@@ -68,15 +34,15 @@ import { Button, Pressable, Spinner } from '../kit';
 import { OnboardingLines } from '../../core/domain/onboarding-lines';
 import { orderedProfiles } from '../../core/domain/agent-work-lines';
 import { LevelPill } from '../app/capability-strip';
+import { headlineLevel } from '../../core/domain/capability-level-lines';
 
 const END_ICONS: Record<EndLink['id'], LucideIcon> = { name: UserRound, voice: AudioLines };
-const AUDIENCE_ICONS: Record<Audience, LucideIcon> = { me: UserRound, away: Smartphone, team: Building2 };
-const ASK_ICONS: Record<AskRoute, LucideIcon> = { here: Fingerprint, phone: Smartphone, cloud: Building2 };
 
 /**
- * The first run on a fresh computer, with no account: the wordmark and Get Started, then three short steps with a
- * progress bar (connect, the grants this system asks for, the starting rules), each with its safe default chosen,
- * and an end screen with one next action. A scrolling column sits beside the island, with Back and Mute at the foot.
+ * The first run on a fresh computer, with no account: the wordmark and Get Started, then two short steps with a
+ * progress bar (connect, then the starting rules), each with its safe default chosen, and an end screen with one next
+ * action. Everything else a new computer can do waits on Home, where Memnox opens. A scrolling column sits beside the
+ * island, with Back and Mute at the foot.
  * The veil lies over the whole screen as the Mac's does, dark over a blue wash, since nothing blurs the desktop here.
  */
 export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstStep = 0 }: { parts: SettingsParts; stage?: OnboardingStage; step?: OnboardingStep }) {
@@ -85,9 +51,6 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
   const [step, setStep] = useState<OnboardingStep>(firstStep);
   // What the starting rules step proposed, said again on the end screen.
   const [proposed, setProposed] = useState<string | undefined>(undefined);
-  // The answers to the two questions, each skippable, which the end screen says back.
-  const [answers, setAnswers] = useState<Answers>({});
-  const answer = (change: Partial<Answers>) => setAnswers((before) => ({ ...before, ...change }));
   const guide = useGuide(parts);
   // The real island plays each part beside the steps, round and round; a row pressed plays its part at once.
   // A preview can start on one part with ?part=, so each part can be looked at.
@@ -102,13 +65,11 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
     const at = stage === 'steps' ? `step-${step}` : stage;
     if (!guideMemory.first(at)) return;
     const id = ONBOARDING_IDS[step];
-    if (stage === 'steps' && id === 'who') {
+    if (stage === 'steps' && id === 'connect') {
       guide(GuideLines.welcome(firstName(parts.preferences.name)));
-      guide(GuideLines.who, false);
+      guide(GuideLines.twoSteps, false);
+      guide(GuideLines.setup(parts.host.platform), false);
     }
-    if (stage === 'steps' && id === 'agents') guide(GuideLines.place);
-    if (stage === 'steps' && id === 'connect') guide(GuideLines.setup(parts.host.platform));
-    if (stage === 'steps' && id === 'ask-where') guide(GuideLines.askWhere);
     if (stage === 'steps' && id === 'rules') guide(GuideLines.boundaries(parts.host.platform));
     if (stage === 'done') guide(GuideLines.done);
   }, [stage, step]);
@@ -158,11 +119,8 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
       </div>
       <div className="flex min-h-0 flex-1 justify-center gap-12 px-14">
         <ScrollColumn key={done ? 'done' : step}>
-          {done && <EndScreen parts={parts} proposed={proposed} answers={answers} finish={finish} />}
-          {!done && id === 'who' && <WhoStep answers={answers} answer={answer} next={forward} />}
-          {!done && id === 'agents' && <AgentsStep parts={parts} answers={answers} answer={answer} next={forward} />}
+          {done && <EndScreen parts={parts} proposed={proposed} finish={finish} />}
           {!done && id === 'connect' && <ConnectStep parts={parts} next={forward} />}
-          {!done && id === 'ask-where' && <AskWhereStep parts={parts} answers={answers} next={forward} />}
           {!done && id === 'rules' && (
             <RulesStep
               parts={parts}
@@ -187,12 +145,6 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
       </footer>
     </div>
   );
-}
-
-/** What the two questions were answered with; each stays undefined until answered. */
-interface Answers {
-  readonly audience?: Audience;
-  readonly place?: AgentPlace;
 }
 
 /** Set once the first run put the agents found here under Memnox by itself, so it is tried once and then offered. */
@@ -238,10 +190,7 @@ function Veil({ next }: { next: () => void }) {
   return (
     <div className="relative flex h-full flex-col items-center justify-center bg-(image:--mx-onboard-veil) text-white">
       <div className="flex animate-[card-in_600ms_cubic-bezier(.2,.8,.2,1)_both] flex-col items-center gap-11">
-        <div className="flex items-center gap-4 drop-shadow-onboard-wordmark">
-          <img src={MEMNOX_MARK} alt="" className="h-onboard-wordmark w-auto" draggable={false} />
-          <span className="font-display text-onboard-wordmark leading-none font-semibold tracking-tight">{OnboardingLines.brand}</span>
-        </div>
+        <Wordmark height="var(--spacing-onboard-wordmark)" className="drop-shadow-onboard-wordmark" />
         <Button kind="glass" trailing={ArrowRight} onClick={next} autoFocus>
           {OnboardingLines.getStarted}
         </Button>
@@ -285,7 +234,7 @@ function ScrollColumn({ children }: { children: ReactNode }) {
   );
 }
 
-/** `StepTitle`: "Step N of 3" when it is a step, then 30 semibold over its line 15 at ink 62%. */
+/** `StepTitle`: "Step N of 2" when it is a step, then 30 semibold over its line 15 at ink 62%. */
 function StepTitle({ counter, title, detail }: { counter?: string; title: string; detail: string }) {
   return (
     <header className="flex flex-col gap-2">
@@ -376,10 +325,10 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
   }, [unprotected.join(), service.state.kind]);
   // Before the agents method answers, the agents the voice found stand in, so a fresh computer still shows its agents.
   const fallback = steps.agents.filter((agent) => agent.installed);
-  const heading = stepHeading(2, words.keyTitle);
+  const heading = stepHeading(0, words.keyTitle);
   return (
     <>
-      <StepTitle counter={stepCounter(2)} title={heading.title} detail={heading.detail} />
+      <StepTitle counter={stepCounter(0)} title={heading.title} detail={heading.detail} />
       <KitCard icon={Monitor} title={OnboardingLines.onComputer} detail={OnboardingLines.onComputerDetail}>
         <KitRow
           tile={<MemnoxTile />}
@@ -443,7 +392,7 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
         {found !== undefined && found.length === 0 && (
           <KitRow tile={<IconTile icon={UserRoundSearch} />} title={OnboardingLines.noAgent} detail={OnboardingLines.noAgentDetail} trailing={<Button onClick={() => void agents.refresh()}>{OnboardingLines.checkAgain}</Button>} />
         )}
-        {protectedByItself && <QuietLine size={12}>{FirstRunQuestions.protectedByItself}</QuietLine>}
+        {protectedByItself && <QuietLine size={12}>{OnboardingLines.protectedByItself}</QuietLine>}
         {home.protectFailed !== undefined && <NeedsHint why={home.protectFailed} size={12} />}
       </KitCard>
       <Button kind="primary" wide trailing={ArrowRight} onClick={next}>
@@ -453,193 +402,19 @@ function ConnectStep({ parts, next }: { parts: SettingsParts; next: () => void }
   );
 }
 
-/** One answer of a question as a row pressed whole, with the radio mark the rule packs wear. */
-function AnswerRow({ icon, title, detail, on, disabled, pick }: { icon: LucideIcon; title: string; detail: string; on: boolean; disabled?: boolean; pick: () => void }) {
-  return (
-    <Pressable role="radio" aria-checked={on} disabled={disabled} onClick={pick} className="cursor-pointer text-left disabled:cursor-default">
-      <KitRow tile={<IconTile icon={icon} />} title={title} detail={detail} trailing={<span aria-hidden className={`size-4 rounded-full border-2 ${on ? 'border-primary bg-primary' : 'border-ink-edge'}`} />} />
-    </Pressable>
-  );
-}
-
-const PLACE_ICONS: Record<AgentPlace, LucideIcon> = {
-  'computer-coding': Monitor,
-  'computer-app': Monitor,
-  hosted: Cloud,
-  'inside-app': Network,
-  'no-code': Network,
-  'own-code': Network,
-  'none-yet': Briefcase,
-};
-
 /**
- * Step 3, the second question: where the person's agent runs. On this computer the agents found are already under
- * Memnox and the job can go to one of them; anywhere else the agent reaches Memnox through Memnox Cloud, offered and
- * never required.
+ * What Memnox can and cannot do, at the end: each agent a name and its weakest level as a pill, with the levels the
+ * service stated behind one press, so the list never buries the button above it.
  */
-function AgentsStep({ parts, answers, answer, next }: { parts: SettingsParts; answers: Answers; answer: (change: Partial<Answers>) => void; next: () => void }) {
-  const { agents, words } = parts;
-  useObserved(agents);
-  const found = agents.agents ?? [];
-  const place = answers.place ?? suggestedPlace(found.length);
-  useEffect(() => {
-    if (agents.agents === undefined) void agents.refresh();
-  }, []);
-  const info = place === undefined ? undefined : placeInfo(place);
-  const heading = stepHeading(1, words.keyTitle);
-  return (
-    <>
-      <StepTitle counter={stepCounter(1)} title={heading.title} detail={heading.detail} />
-      <KitCard icon={Network} title={FirstRunQuestions.placeTitle}>
-        <div role="radiogroup" aria-label={FirstRunQuestions.placeTitle} className="flex flex-col">
-          {AGENT_PLACES.map((each, index) => (
-            <Fragment key={each.id}>
-              {index > 0 && <KitDivider />}
-              <AnswerRow icon={PLACE_ICONS[each.id]} title={each.title} detail={each.detail} on={place === each.id} pick={() => answer({ place: each.id })} />
-            </Fragment>
-          ))}
-        </div>
-      </KitCard>
-      {info !== undefined && (
-        <KitCard icon={info.local ? Monitor : Cloud} title={FirstRunQuestions.reaches} detail={info.connects}>
-          {info.local && <QuietLine size={13}>{found.length === 0 ? FirstRunQuestions.nothingFound : agentsFoundLine(found)}</QuietLine>}
-          {place !== undefined && throughCloud(place) && (
-            <div className="flex flex-col gap-2 py-2">
-              <QuietLine size={13}>{FirstRunQuestions.cloudOptional}</QuietLine>
-              <CloudSignIn parts={parts} />
-            </div>
-          )}
-        </KitCard>
-      )}
-      <Button
-        kind="primary"
-        wide
-        trailing={ArrowRight}
-        onClick={() => {
-          if (place !== undefined && answers.place === undefined) answer({ place });
-          next();
-        }}
-      >
-        {OnboardingLines.continue}
-      </Button>
-    </>
-  );
-}
-
-/** Who Memnox is for, which only picks where Where should Memnox ask you suggests first. */
-function WhoStep({ answers, answer, next }: { answers: Answers; answer: (change: Partial<Answers>) => void; next: () => void }) {
-  const audience = answers.audience ?? 'me';
-  const heading = stepHeading(0, '');
-  return (
-    <>
-      <StepTitle counter={stepCounter(0)} title={heading.title} detail={heading.detail} />
-      <KitCard icon={UserRound} title={FirstRunQuestions.placeCard}>
-        <div role="radiogroup" aria-label={heading.title} className="flex flex-col">
-          {AUDIENCES.map((each, index) => (
-            <Fragment key={each.id}>
-              {index > 0 && <KitDivider />}
-              <AnswerRow icon={AUDIENCE_ICONS[each.id]} title={each.title} detail={each.detail} on={audience === each.id} pick={() => answer({ audience: each.id })} />
-            </Fragment>
-          ))}
-        </div>
-      </KitCard>
-      <Button
-        kind="primary"
-        wide
-        trailing={ArrowRight}
-        onClick={() => {
-          if (answers.audience === undefined) answer({ audience });
-          next();
-        }}
-      >
-        {OnboardingLines.continue}
-      </Button>
-    </>
-  );
-}
-
-/** Where Memnox asks: this computer's key, always on, then the phone and Memnox Cloud, the suggested one first. */
-function AskWhereStep({ parts, answers, next }: { parts: SettingsParts; answers: Answers; next: () => void }) {
-  const { words, host, steps, pairing } = parts;
-  useObserved(steps, pairing);
-  const heading = stepHeading(3, words.keyTitle);
-  const routes = askRoutes(words.keyTitle);
-  return (
-    <>
-      <StepTitle counter={stepCounter(3)} title={heading.title} detail={heading.detail} />
-      <KitCard icon={Smartphone} title={OnboardingLines.askMe}>
-        {askOrder(answers.audience).map((id, index) => {
-          const route = routes.find((each) => each.id === id);
-          if (route === undefined) return null;
-          return (
-            <Fragment key={id}>
-              {index > 0 && <KitDivider />}
-              <KitRow
-                tile={<IconTile icon={ASK_ICONS[id]} />}
-                title={route.title}
-                detail={route.detail}
-                trailing={
-                  id === 'here' ? (
-                    <StatusMark state={steps.keyState} />
-                  ) : id === 'phone' ? (
-                    pairing.devices.length > 0 ? <StatusMark state={{ kind: 'done' }} /> : <Button onClick={() => host.openSettings('phones')}>{OnboardingLines.pair}</Button>
-                  ) : (
-                    <CloudSignIn parts={parts} />
-                  )
-                }
-              />
-            </Fragment>
-          );
-        })}
-      </KitCard>
-      <Button kind="primary" wide trailing={ArrowRight} onClick={next}>
-        {OnboardingLines.continue}
-      </Button>
-    </>
-  );
-}
-
-/** Sign in to Memnox Cloud from the first run, waiting on the console page it opens; cancelling changes nothing. */
-function CloudSignIn({ parts }: { parts: SettingsParts }) {
-  const { team } = parts;
-  useObserved(team);
-  useEffect(() => {
-    void team.load();
-  }, []);
-  const step = team.step;
-  if (step.kind === 'signed-in') return <StatusMark state={{ kind: 'done' }} />;
-  if (step.kind === 'starting' || step.kind === 'showing-code') {
-    return (
-      <span className="flex items-center gap-2">
-        {step.kind === 'showing-code' && <span className="font-mono text-callout text-ink">{step.code}</span>}
-        <Button onClick={() => team.cancel()}>{OnboardingLines.cancelSignIn}</Button>
-      </span>
-    );
-  }
-  return (
-    <span className="flex flex-col items-start gap-1">
-      <Button icon={UserRound} onClick={() => void team.start()}>
-        {OnboardingLines.signIn}
-      </Button>
-      {step.kind === 'failed' && <NeedsHint why={step.why} size={12} />}
-    </span>
-  );
-}
-
-/**
- * What Memnox can and cannot do, at the end, in the five plain levels: each agent's levels as the service states them,
- * the place the person named until its own connection reports, and a job with nobody behind it saying so.
- */
-function CoverageCard({ parts, answers }: { parts: SettingsParts; answers: Answers }) {
+function CoverageCard({ parts }: { parts: SettingsParts }) {
   const { profiles, support } = parts;
   useObserved(profiles, support);
+  const [details, showDetails] = useState(false);
   const offers = support.supports('profiles') === true;
   useEffect(() => {
     if (offers) void profiles.refresh();
   }, [offers]);
   const agents = orderedProfiles(profiles.profiles ?? []).filter((each) => each.connections.length > 0);
-  const place = answers.place;
-  const elsewhere = place !== undefined && !placeInfo(place).local;
   return (
     <KitCard icon={ShieldCheck} title={FirstRunCoverage.title} detail={FirstRunCoverage.lead}>
       {agents.map((profile, index) => (
@@ -648,19 +423,26 @@ function CoverageCard({ parts, answers }: { parts: SettingsParts; answers: Answe
           <div className="flex flex-col gap-1.5 py-2.5">
             <span className="flex items-center gap-2">
               <BrandLogo agent={profile.connections[0]?.agentKind} name={profile.name} size={22} />
-              <span className="text-callout font-semibold text-ink">{profile.name}</span>
+              <span className="flex-1 text-callout font-semibold text-ink">{profile.name}</span>
+              <LevelPill level={headlineLevel(profile.levels)} />
             </span>
-            {FirstRunCoverage.lines(profile.levels).map((line) => (
-              <span key={line.level} className="flex items-start gap-2">
-                <LevelPill level={line.level} />
-                <span className="text-footnote text-ink-secondary">{line.things.join(', ')}</span>
-              </span>
-            ))}
+            {details &&
+              FirstRunCoverage.lines(profile.levels).map((line) => (
+                <span key={line.level} className="text-footnote text-ink-secondary">
+                  {line.sentence}
+                </span>
+              ))}
           </div>
         </Fragment>
       ))}
-      {elsewhere && place !== undefined && place !== 'none-yet' && <KitRow tile={<IconTile icon={Cloud} />} title={placeInfo(place).title} detail={FirstRunCoverage.place(place)} trailing={<LevelPill level="none" />} />}
-      {agents.length === 0 && !elsewhere && <QuietLine size={13}>{FirstRunCoverage.noAgents}</QuietLine>}
+      {agents.length > 0 && (
+        <div className="py-1">
+          <Button kind="link" icon={details ? ChevronUp : ChevronDown} onClick={() => showDetails(!details)}>
+            {details ? FirstRunCoverage.hideDetails : FirstRunCoverage.showDetails}
+          </Button>
+        </div>
+      )}
+      {agents.length === 0 && <QuietLine size={13}>{FirstRunCoverage.noAgents}</QuietLine>}
       <div className="pt-2">
         <QuietLine size={12}>{FirstRunCoverage.cannot}</QuietLine>
       </div>
@@ -668,7 +450,7 @@ function CoverageCard({ parts, answers }: { parts: SettingsParts; answers: Answe
   );
 }
 
-/** Step 5: the recommended pack chosen already, the rest folded behind See other packs; Finish proposes the one chosen. */
+/** Step 2: the recommended pack chosen already, the rest folded behind See other packs; Finish proposes the one chosen. */
 function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: string | undefined) => void }) {
   const { studio, words } = parts;
   useObserved(studio);
@@ -704,10 +486,10 @@ function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: str
       </Pressable>
     </Fragment>
   );
-  const heading = stepHeading(4, words.keyTitle);
+  const heading = stepHeading(1, words.keyTitle);
   return (
     <>
-      <StepTitle counter={stepCounter(4)} title={heading.title} detail={heading.detail} />
+      <StepTitle counter={stepCounter(1)} title={heading.title} detail={heading.detail} />
       <KitCard icon={ListChecks} title={OnboardingLines.rulePacks} detail={OnboardingLines.rulePacksDetail}>
         {packs === undefined && <Spinner />}
         {packs !== undefined && packs.length === 0 && <QuietLine size={13}>{OnboardingLines.noPacks}</QuietLine>}
@@ -733,8 +515,11 @@ function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: str
   );
 }
 
-/** The end screen: one next action, then a short optional list, each row opening the Settings page that holds it. */
-function EndScreen({ parts, proposed, answers, finish }: { parts: SettingsParts; proposed: string | undefined; answers: Answers; finish: () => void }) {
+/**
+ * The end screen, in the order a person acts on it: the prompt to try, the one button that opens Memnox with where the
+ * rest of setup went under it, then what Memnox covers and what is optional, both quiet.
+ */
+function EndScreen({ parts, proposed, finish }: { parts: SettingsParts; proposed: string | undefined; finish: () => void }) {
   const { words, host, preferences } = parts;
   usePreferences();
   const name = firstName(preferences.name);
@@ -748,10 +533,11 @@ function EndScreen({ parts, proposed, answers, finish }: { parts: SettingsParts;
       <StepTitle title={setTitle(name)} detail={GuideLines.ready(name, words.talkKeysSaid)} />
       {proposed !== undefined && <QuietLine size={13}>{proposed}</QuietLine>}
       <TryCard />
-      <CoverageCard parts={parts} answers={answers} />
-      <Button kind="primary" wide icon={Sparkles} onClick={finish}>
+      <Button kind="primary" wide trailing={ArrowRight} onClick={finish}>
         {OnboardingLines.start}
       </Button>
+      <QuietLine size={12}>{END_LATER}</QuietLine>
+      <CoverageCard parts={parts} />
       <KitCard icon={SettingsIcon} title={OnboardingLines.optionalSkip} detail={OnboardingLines.optionalDetail}>
         {endLinks(name).map((link, index) => (
           <Fragment key={link.id}>

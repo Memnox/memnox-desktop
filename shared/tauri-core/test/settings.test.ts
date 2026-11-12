@@ -401,9 +401,9 @@ describe('what the person chose', () => {
 });
 
 describe('the first run', () => {
-  it('fills a fifth a step and says the name when it has one', () => {
-    expect(progressOf(0)).toBeCloseTo(1 / 5);
-    expect(progressOf(4)).toBe(1);
+  it('fills half a step and says the name when it has one', () => {
+    expect(progressOf(0)).toBeCloseTo(1 / 2);
+    expect(progressOf(1)).toBe(1);
     expect(setTitle('Sam')).toBe('You’re set, Sam.');
     expect(setTitle(undefined)).toBe('You’re set.');
     expect(GuideLines.ready(undefined, 'Ctrl Alt Space')).toContain('Ctrl Alt Space');

@@ -1,22 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { agentsFoundLine, packTitle } from '../src/core/domain/setup-steps';
-import { FirstRunCoverage, ONBOARDING_STEPS, stepHeading } from '../src/core/domain/onboarding';
+import { END_LATER, ONBOARDING_STEPS, stepHeading } from '../src/core/domain/onboarding';
+import { CARD_TITLE } from '../src/core/domain/home-steps';
 
 /** The Mac's first run, `FirstRunLines.steps`, which these steps keep in step with, "Mac" said as "computer". */
-const MAC_STEPS = ['Who it is for', 'Your agents', 'This Mac', 'Where you are asked', 'Starting rules'];
+const MAC_STEPS = ['This Mac', 'Starting rules'];
 
 describe('the first run, in the Mac’s order', () => {
-  it('walks the same five steps as the Mac, ending on the rules', () => {
+  it('walks the same two steps as the Mac, ending on the rules', () => {
     expect(ONBOARDING_STEPS.map((step) => step.replace('This computer', 'This Mac'))).toEqual(MAC_STEPS);
-    expect(stepHeading(1, 'Windows Hello').title).toBe('Which agents do you run?');
-    expect(stepHeading(2, 'Windows Hello').title).toBe('Connect this machine');
+    expect(stepHeading(0, 'Windows Hello').title).toBe('Connect this machine');
+    expect(stepHeading(1, 'Windows Hello').title).toBe('Your starting rules');
   });
 
-  it('never shows an agent elsewhere as stopped, only outside Memnox until it is connected', () => {
-    for (const place of ['hosted', 'inside-app', 'no-code', 'own-code'] as const) {
-      expect(FirstRunCoverage.place(place)).toMatch(/^Outside Memnox until it is connected\./);
-      expect(FirstRunCoverage.place(place)).not.toContain('Memnox stops this');
-    }
+  it('says where the rest of setup waits once Memnox opens', () => {
+    expect(END_LATER).toContain('phone');
+    expect(END_LATER).toContain('Memnox Cloud');
+    expect(END_LATER).toContain(CARD_TITLE);
   });
 });
 

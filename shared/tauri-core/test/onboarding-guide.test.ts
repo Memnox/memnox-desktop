@@ -1,17 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AGENT_PLACES,
   endLinks,
   FirstRunCoverage,
   joinedThings,
   nextStep,
   previousStep,
-  suggestedPlace,
-  throughCloud,
   GuideLines,
   GuideMemory,
   ONBOARDING_STEPS,
-  askOrder,
   ONBOARDING_IDS,
   TRY_PROMPT,
   progressOf,
@@ -43,21 +39,23 @@ describe('the first run guide', () => {
     expect(rowSpoken('tools', 'linux')).toContain('send it with your password');
   });
 
-  it('runs the contract’s five steps, then an end screen', () => {
-    expect(ONBOARDING_IDS).toEqual(['who', 'agents', 'connect', 'ask-where', 'rules']);
-    expect(ONBOARDING_STEPS).toHaveLength(5);
-    expect(([0, 2, 4] as const).map((step) => stepCounter(step))).toEqual(['Step 1 of 5', 'Step 3 of 5', 'Step 5 of 5']);
-    expect(progressOf(0)).toBeCloseTo(1 / 5);
-    expect(progressOf(4)).toBe(1);
+  it('runs two of the contract’s steps, then an end screen', () => {
+    expect(ONBOARDING_IDS).toEqual(['connect', 'rules']);
+    expect(ONBOARDING_STEPS).toHaveLength(2);
+    expect(([0, 1] as const).map((step) => stepCounter(step))).toEqual(['Step 1 of 2', 'Step 2 of 2']);
+    expect(progressOf(0)).toBeCloseTo(1 / 2);
+    expect(progressOf(1)).toBe(1);
     expect(progressOf(0, 'done')).toBe(1);
-    expect(nextStep(3)).toBe(4);
-    expect(nextStep(4)).toBeUndefined();
+    expect(nextStep(0)).toBe(1);
+    expect(nextStep(1)).toBeUndefined();
     expect(previousStep(0)).toBeUndefined();
-    expect(stepHeading(0, 'Windows Hello').title).toBe('Who is Memnox for?');
-    expect(stepHeading(1, 'Windows Hello').title).toBe('Which agents do you run?');
-    expect(stepHeading(2, 'Windows Hello').detail).toContain('Windows Hello becomes the key only you approve with');
-    expect(stepHeading(3, 'Windows Hello').title).toBe('Where should Memnox ask you?');
-    expect(stepHeading(4, 'Windows Hello').detail).toContain('The recommended rules are chosen for you');
+    expect(stepHeading(0, 'Windows Hello').detail).toContain('Windows Hello becomes the key only you approve with');
+    expect(stepHeading(1, 'Windows Hello').detail).toContain('The recommended rules are chosen for you');
+  });
+
+  it('says how short setup is, and where the phone and Memnox Cloud wait', () => {
+    expect(GuideLines.twoSteps).toBe('Setup takes two short steps, and I will talk you through both.');
+    expect(GuideLines.done).toContain('pair your phone or sign in to Memnox Cloud later');
   });
 
   it('introduces each step only once', () => {
@@ -65,14 +63,6 @@ describe('the first run guide', () => {
     expect(memory.first('step-1')).toBe(true);
     expect(memory.first('step-1')).toBe(false);
     expect(memory.first('step-2')).toBe(true);
-  });
-});
-
-describe('where Memnox asks', () => {
-  it('lists the route who it is for suggests first, this computer first when nobody said', () => {
-    expect(askOrder('away')).toEqual(['phone', 'here', 'cloud']);
-    expect(askOrder('team')).toEqual(['cloud', 'here', 'phone']);
-    expect(askOrder(undefined)).toEqual(['here', 'phone', 'cloud']);
   });
 });
 
@@ -91,7 +81,7 @@ describe('the starting rules step', () => {
 });
 
 describe('the end screen', () => {
-  it('offers the name and the voice, each in Settings, the phone and Memnox Cloud having their own step', () => {
+  it('offers the name and the voice, each in Settings', () => {
     expect(endLinks(undefined).map((link) => [link.id, link.page])).toEqual([
       ['name', 'account'],
       ['voice', 'voice'],
@@ -102,18 +92,6 @@ describe('the end screen', () => {
   it('offers the contract’s prompt to try first', () => {
     expect(TRY_PROMPT).toBe('Make a folder called memnox-try, then delete it with rm -rf memnox-try.');
   });
-});
-
-describe('the two questions', () => {
-  it('offers every place an agent can run, this computer first, and suggests it when agents were found here', () => {
-    expect(AGENT_PLACES.map((place) => place.id)).toEqual(['computer-coding', 'computer-app', 'hosted', 'inside-app', 'no-code', 'own-code', 'none-yet']);
-    expect(suggestedPlace(2)).toBe('computer-coding');
-    expect(suggestedPlace(0)).toBeUndefined();
-    expect(throughCloud('hosted')).toBe(true);
-    expect(throughCloud('computer-app')).toBe(false);
-    expect(throughCloud('none-yet')).toBe(false);
-  });
-
 });
 
 describe('what Memnox can and cannot do, at the end', () => {
@@ -133,9 +111,7 @@ describe('what Memnox can and cannot do, at the end', () => {
     expect(lines[0]?.sentence).toBe('Memnox stops this: Its tools, Asking you first, Commands and Files.');
   });
 
-  it('says a place elsewhere is outside Memnox until it reports', () => {
-    expect(FirstRunCoverage.place('inside-app')).toBe('Outside Memnox until it is connected. Connected this way, expect: The agent asks Memnox.');
-    expect(FirstRunCoverage.place('none-yet')).toBe('Nothing yet. Connect an agent whenever you are ready.');
+  it('lists things the way a sentence does', () => {
     expect(joinedThings(['Git'])).toBe('Git');
     expect(joinedThings([])).toBe('');
   });

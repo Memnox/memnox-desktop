@@ -9,7 +9,7 @@ import type { Route } from './destinations';
 
 /** The counts the steps are read off. */
 export interface HomeStanding {
-  /** Whether the five onboarding steps were finished, which is the first rung until they are. */
+  /** Whether the two onboarding steps were finished, which is the first rung until they are. */
   readonly setupFinished: boolean;
   readonly agents: number;
   readonly agentsProtected: number;
@@ -169,8 +169,8 @@ function homeSteps(standing: HomeStanding, keyTitle: string): HomeStep[] {
     {
       id: 'finishSetup',
       title: 'Finish setting up this computer',
-      value: 'Five short steps put your agents under Memnox and choose where it asks you, so the rest of these can start.',
-      how: 'Who it is for, your agents, this computer, where Memnox asks you, and your starting rules.',
+      value: 'Two short steps put your agents under Memnox and give them starting rules, so the rest of these can start.',
+      how: 'Connect this computer, then confirm your starting rules.',
       action: 'Run setup',
       track: 'computer',
       done: standing.setupFinished,

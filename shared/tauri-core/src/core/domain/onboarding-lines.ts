@@ -18,10 +18,11 @@ export const OnboardingLines = {
   protected: 'Every action passes your boundaries first.',
   protect: 'Protect',
   foundHere: 'Found on this computer.',
+  /** Said under the found agents once the first run put them under Memnox by itself. */
+  protectedByItself: 'Memnox put the agents it found under itself, the way setup does. Nothing else was changed.',
   noAgent: 'No agent found yet',
   noAgentDetail: 'Install one, then check again.',
   continue: 'Continue',
-  askMe: 'Ask me',
   copy: 'Copy',
   copied: 'Copied',
   rulesWait: 'Your starting rules wait for you on the island.',
@@ -36,9 +37,6 @@ export const OnboardingLines = {
   optional: 'Optional',
   optionalDetail: 'Each waits in Settings whenever you want it.',
   open: 'Open',
-  pair: 'Pair',
-  signIn: 'Sign in',
-  cancelSignIn: 'Cancel',
   optionalSkip: 'Optional, and you can skip all of it',
   recommendedPack: (pack: string) => `${pack} · Recommended`,
 } as const;

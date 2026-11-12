@@ -24,7 +24,7 @@
     "baseUrl": ".",
     "paths": {
       "@memnox/core/wire": [
-        "./.runtime/packages/core/dist/wire.d.ts"
+        "../wire/wire.d.ts"
       ]
     }
   },

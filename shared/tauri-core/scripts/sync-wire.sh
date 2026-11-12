@@ -1,16 +1,24 @@
 #!/bin/sh
-# Puts memnox-runtime's built core into .runtime, so `@memnox/core/wire` resolves to the runtime's own
-# build and the wire is imported rather than copied by hand. A copy rather than a link, since Git Bash
-# on Windows copies a link anyway.
+# Refreshes shared/wire, the copy of memnox-runtime's built wire this repo keeps, so `@memnox/core/wire`
+# resolves inside this repo and a clone builds with no second repo and no network. Run it when the
+# runtime's wire changed, and commit what it changes along with the code that needs it.
 # With a memnox-runtime checkout, named by MEMNOX_RUNTIME or beside memnox-desktop, it builds that one,
-# for working on both at once. Without one it takes the core published to npm, the same release the
-# app installs on its first run, so working on the desktop alone needs no second clone.
-# MEMNOX_CORE_VERSION picks another published version than latest.
+# for working on both at once. MEMNOX_CORE_VERSION takes a core published to npm instead, by version or
+# `latest`. With neither there is nothing newer to copy, so the copy this repo keeps stands.
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 runtime=${MEMNOX_RUNTIME:-$here/../../../memnox-runtime}
+out="$here/../wire"
 
-if [ -f "$runtime/packages/core/src/wire.ts" ]; then
+if [ -n "${MEMNOX_CORE_VERSION:-}" ]; then
+  # Only the package is unpacked and none of its dependencies installed, since the wire imports none of them.
+  work=$(mktemp -d "${TMPDIR:-/tmp}/memnox-wire.XXXXXX")
+  trap 'rm -rf "$work"' EXIT
+  tarball=$(cd "$work" && npm pack --silent "@memnox/core@$MEMNOX_CORE_VERSION")
+  tar -xzf "$work/$tarball" -C "$work"
+  dist="$work/package/dist"
+  from="npm, $(node -p 'require(process.argv[1]).version' "$work/package/package.json")"
+elif [ -f "$runtime/packages/core/src/wire.ts" ]; then
   runtime=$(cd "$runtime" && pwd)
   if ! command -v corepack >/dev/null 2>&1; then
     echo "corepack is not on PATH, and the runtime needs the pnpm it pins; Node 25 and later need npm install -g corepack" >&2
@@ -28,16 +36,9 @@ elif [ -n "${MEMNOX_RUNTIME:-}" ]; then
   echo "MEMNOX_RUNTIME names $runtime, which has no packages/core/src/wire.ts" >&2
   exit 1
 else
-  # Only the package is unpacked and none of its dependencies installed, since the wire imports none of them.
-  work=$(mktemp -d "${TMPDIR:-/tmp}/memnox-wire.XXXXXX")
-  trap 'rm -rf "$work"' EXIT
-  tarball=$(cd "$work" && npm pack --silent "@memnox/core@${MEMNOX_CORE_VERSION:-latest}")
-  tar -xzf "$work/$tarball" -C "$work"
-  dist="$work/package/dist"
-  from="npm, $(node -p 'require(process.argv[1]).version' "$work/package/package.json")"
+  echo "no memnox-runtime checkout and no MEMNOX_CORE_VERSION, so shared/wire stays as this repo keeps it"
+  exit 0
 fi
 
-rm -rf "$here/.runtime"
-mkdir -p "$here/.runtime/packages/core"
-cp -R "$dist" "$here/.runtime/packages/core/dist"
-echo "copied the wire from $from"
+node "$here/scripts/copy-wire.mjs" "$dist" "$out" >/dev/null
+echo "copied the wire from $from into shared/wire"

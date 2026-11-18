@@ -3,7 +3,7 @@ import { CircleCheck, Clock, Fingerprint, Folder, KeyRound, Plug, Plus, RefreshC
 import { useEffect, useState, type ReactNode } from 'react';
 import { McpHub, type HubOutcome, type McpPress } from '../../../core/application/mcp-hub';
 import type { Route, WidthClass } from '../../../core/domain/destinations';
-import { agentLabel, agentsOnce, McpHubPageLines, BRING_IN, BRINGING_IN, SERVER_CARD_MIN, pressLine, transportWord, usedBy, callsLine, fromOrganization, headerLines, healthWords, launchLine, missingSecrets, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
+import { agentLabel, agentsOnce, McpHubPageLines, BRING_IN, BRINGING_IN, SERVER_CARD_MIN, pressLine, transportWord, usedBy, callsLine, fromOrganization, headerLines, healthWords, launchLine, mendsOffered, missingSecrets, needsSignIn, reachedByAgents, ORGANIZATION_LINE, ORGANIZATION_WORD, GIVE_EVERYWHERE, PROJECT_ONLY_LINE, projectHelp, projectsFor, reachCaption, reachOf, secretsAcross, toolsLine, WORKSPACES_LINK } from '../../../core/domain/mcp-hub-lines';
 import { ago } from '../../../core/domain/session-text';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { AddServerDialog } from './AddServerDialog';
@@ -167,10 +167,18 @@ function ServerCard({ parts, server, chosen, pick, said }: { parts: SettingsPart
       </div>
       <div className="border-t border-panel-edge" />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        {missing.length > 0 ? <StatusWord tone="bad">{McpHubPageLines.needsSecret}</StatusWord> : <StatusWord tone={words.tone}>{words.word}</StatusWord>}
-        <span className="whitespace-nowrap text-meta text-faint">{toolsLine(health.tools?.length ?? server.toolCount)}</span>
+        {reachedByAgents(server) ? (
+          <StatusWord tone="quiet">{McpHubPageLines.byAgents}</StatusWord>
+        ) : missing.length > 0 ? (
+          <StatusWord tone="bad">{McpHubPageLines.needsSecret}</StatusWord>
+        ) : needsSignIn(server) ? (
+          <StatusWord tone="bad">{McpHubPageLines.needsSignIn}</StatusWord>
+        ) : (
+          <StatusWord tone={words.tone}>{words.word}</StatusWord>
+        )}
+        {!reachedByAgents(server) && <span className="whitespace-nowrap text-meta text-faint">{toolsLine(health.tools?.length ?? server.toolCount)}</span>}
         <span className="flex-1" />
-        <Pressable
+        {!reachedByAgents(server) && <Pressable
           disabled={testing}
           title={McpHubPageLines.testHelp}
           onClick={(event) => {
@@ -181,7 +189,7 @@ function ServerCard({ parts, server, chosen, pick, said }: { parts: SettingsPart
         >
           {testing && <Spinner size={SMALL_SPINNER} />}
           {testing ? McpHubPageLines.testing : McpHubPageLines.test}
-        </Pressable>
+        </Pressable>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -238,6 +246,70 @@ function PressLine({ press, keyTitle }: { press: McpPress | undefined; keyTitle:
   );
 }
 
+/** How often the hub is read again while a sign in is open in the browser, and for how long at most. */
+const SIGN_IN_LOOK_MS = 3_000;
+const SIGN_IN_WATCH_MS = 5 * 60 * 1_000;
+
+/** The ways out of a server that wants a sign in: through Memnox, which keeps it ruled on, or back to the agents. */
+function ServerMend({ parts, server, said }: { parts: SettingsParts; server: McpHubServerView; said: (outcome: HubOutcome) => void }) {
+  const { hub } = parts;
+  const offered = mendsOffered(server);
+  const subject = McpHub.mend(server.name);
+  const press = hub.press(subject);
+  const [watching, setWatching] = useState(false);
+  // The sign in ends in the browser, so the hub is read again until the card shows what it came to.
+  useEffect(() => {
+    if (!watching) return undefined;
+    const look = window.setInterval(() => void hub.refresh(), SIGN_IN_LOOK_MS);
+    const stop = window.setTimeout(() => setWatching(false), SIGN_IN_WATCH_MS);
+    return () => {
+      window.clearInterval(look);
+      window.clearTimeout(stop);
+    };
+  }, [watching]);
+  useEffect(() => {
+    if (!offered.signIn) setWatching(false);
+  }, [offered.signIn]);
+  if (!offered.signIn && !offered.handBack) return null;
+  const working = press?.kind === 'working';
+  return (
+    <div className="flex flex-col gap-2">
+      {!server.governed && <p className="text-footnote text-muted">{McpHubPageLines.directNote}</p>}
+      <div className="flex flex-wrap gap-2">
+        {offered.signIn && (
+          <Button
+            disabled={working}
+            title={McpHubPageLines.signInHelp}
+            onClick={() => {
+              hub.clear(subject);
+              void hub.signIn(server.name).then((outcome) => {
+                setWatching(outcome.kind === 'done');
+                said(outcome);
+              });
+            }}
+          >
+            {McpHubPageLines.signIn}
+          </Button>
+        )}
+        {offered.handBack && (
+          <Button
+            disabled={working}
+            title={McpHubPageLines.handBackHelp(parts.words.keyTitle)}
+            onClick={() => {
+              hub.clear(subject);
+              void hub.handBack(server.name).then(said);
+            }}
+          >
+            {McpHubPageLines.handBack}
+          </Button>
+        )}
+      </div>
+      {offered.handBack && <p className="text-footnote text-muted">{McpHubPageLines.handBackHelp(parts.words.keyTitle)}</p>}
+      <PressLine press={press} keyTitle={parts.words.keyTitle} />
+    </div>
+  );
+}
+
 function ServerDetail({ parts, view, server, said, removed, workspaces }: { parts: SettingsParts; view: McpHubView; server: McpHubServerView; said: (outcome: HubOutcome) => void; removed: () => void; workspaces: () => void }) {
   const { hub } = parts;
   const health = hub.testOf(server.name) ?? server.health;
@@ -247,15 +319,22 @@ function ServerDetail({ parts, view, server, said, removed, workspaces }: { part
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <StatusWord tone={missing.length > 0 ? 'bad' : words.tone}>{missing.length > 0 ? McpHubPageLines.needs(missing) : words.word}</StatusWord>
+        {reachedByAgents(server) ? (
+          <StatusWord tone="quiet">{McpHubPageLines.byAgents}</StatusWord>
+        ) : (
+          <StatusWord tone={missing.length > 0 ? 'bad' : words.tone}>{missing.length > 0 ? McpHubPageLines.needs(missing) : words.word}</StatusWord>
+        )}
         {health.checkedAt !== undefined && <span className="text-footnote text-muted">{McpHubPageLines.tested(ago(health.checkedAt, Date.now()))}</span>}
         {health.error !== undefined && <span className="text-footnote break-words text-destructive">{health.error}</span>}
         <span className="font-code text-micro break-all text-muted">{[launchLine(server), ...(server.args ?? [])].join(' ')}</span>
         <span className="text-footnote text-muted">{callsLine(server.callsThisWeek)}</span>
       </div>
-      <Button disabled={hub.busy === server.name} onClick={() => void hub.test(server.name).then(said)}>
-        {hub.busy === server.name ? McpHubPageLines.testing : McpHubPageLines.testConnection}
-      </Button>
+      {!reachedByAgents(server) && (
+        <Button disabled={hub.busy === server.name} onClick={() => void hub.test(server.name).then(said)}>
+          {hub.busy === server.name ? McpHubPageLines.testing : McpHubPageLines.testConnection}
+        </Button>
+      )}
+      <ServerMend parts={parts} server={server} said={said} />
 
       {fromOrganization(server) ? (
         <Section title="Agents">
@@ -341,7 +420,9 @@ function ServerDetail({ parts, view, server, said, removed, workspaces }: { part
       )}
 
       <Section title={McpHubPageLines.tools}>
-        {tools.length === 0 ? (
+        {reachedByAgents(server) ? (
+          <p className="text-footnote text-muted">{McpHubPageLines.byAgentsTools}</p>
+        ) : tools.length === 0 ? (
           <p className="text-footnote text-muted">{McpHubPageLines.noTools}</p>
         ) : (
           <Panel>

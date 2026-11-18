@@ -2,7 +2,7 @@ import type { DaemonRequest, McpHubView } from '@memnox/core/wire';
 import { describe, expect, it } from 'vitest';
 import { McpHub, syncedLine } from '../src/core/application/mcp-hub';
 import { RequestIds } from '../src/core/application/request-ids';
-import { fromOrganization, GIVE_EVERYWHERE, headerLines, headerProblem, headerReference, headersOf, headerSecretName, isCredentialHeader, remoteAddressProblem, PROJECT_ONLY_LINE, missingSecrets, projectFolder, projectHelp, projectOnlyHelp, pressLine, projectsFor, reachCaption, reachOf, secretsAcross, serverNameFrom, splitCommand, transportWord, usedBy } from '../src/core/domain/mcp-hub-lines';
+import { fromOrganization, GIVE_EVERYWHERE, headerLines, headerProblem, headerReference, headersOf, headerSecretName, isCredentialHeader, mendsOffered, needsSignIn, reachedByAgents, remoteAddressProblem, PROJECT_ONLY_LINE, missingSecrets, projectFolder, projectHelp, projectOnlyHelp, pressLine, projectsFor, reachCaption, reachOf, secretsAcross, serverNameFrom, splitCommand, transportWord, usedBy } from '../src/core/domain/mcp-hub-lines';
 import { ScriptedDaemon } from './doubles';
 
 const view: McpHubView = {
@@ -232,5 +232,55 @@ describe('the line after Add server', () => {
     expect(addedLine({ kind: 'waiting', note: undefined }, 'git', [], 'Windows Hello')).toBe('git waits for Windows Hello on the island.');
     expect(addedLine({ kind: 'done', line: 'git is in the hub.' }, 'git', [], 'Windows Hello')).toBe('git is in the hub.');
     expect(COMMAND_HINT).toContain('Memnox starts it with the runner that installs it.');
+  });
+});
+
+describe('a server that asks for a sign in', () => {
+  const remote = { transport: 'http', scope: 'personal', governed: true } as const;
+
+  it('offers a sign in through Memnox, and a hand back while it is still behind Memnox', () => {
+    expect(needsSignIn({ trouble: 'sign-in' })).toBe(true);
+    expect(mendsOffered({ ...remote, trouble: 'sign-in' })).toEqual({ signIn: true, handBack: true });
+  });
+
+  it('offers only the sign in for a server the agents already reach themselves', () => {
+    expect(mendsOffered({ ...remote, governed: false })).toEqual({ signIn: true, handBack: false });
+  });
+
+  it('offers nothing for a server that connects, a local one, or the organization’s', () => {
+    const none = { signIn: false, handBack: false };
+    expect(mendsOffered(remote)).toEqual(none);
+    expect(mendsOffered({ ...remote, transport: 'stdio', trouble: 'not-started' })).toEqual(none);
+    expect(mendsOffered({ ...remote, scope: 'organization', trouble: 'sign-in' })).toEqual(none);
+  });
+
+  it('says the page is opening in the runtime’s own words, and reads the card from the runtime after', async () => {
+    const daemon = new ScriptedDaemon({ 'mcp-sign-in': (request) => [{ id: request.id, ok: true, outcome: 'The sign in page of videos is opening in your browser.' }] });
+    const hub = new McpHub(daemon, new RequestIds());
+    const outcome = await hub.signIn('videos');
+    expect(outcome).toEqual({ kind: 'done', note: 'The sign in page of videos is opening in your browser.' });
+    expect(hub.press(McpHub.mend('videos'))).toEqual({ kind: 'done', line: 'The sign in page of videos is opening in your browser.' });
+  });
+
+  it('passes on why a sign in could not start', async () => {
+    const daemon = new ScriptedDaemon({ 'mcp-sign-in': (request) => [{ id: request.id, ok: false, error: 'A sign in to videos is already open in your browser.' }] });
+    const hub = new McpHub(daemon, new RequestIds());
+    expect(await hub.signIn('videos')).toEqual({ kind: 'failed', why: 'A sign in to videos is already open in your browser.' });
+  });
+
+  it('waits for a signature before it is handed back, since it stops being ruled on', async () => {
+    const daemon = new ScriptedDaemon({ 'mcp-hand-back': (request) => [{ id: request.id, ok: true, proposed: 'prp_1' }] });
+    const hub = new McpHub(daemon, new RequestIds());
+    expect(await hub.handBack('videos')).toEqual({ kind: 'proposed', id: 'prp_1' });
+    expect(hub.press(McpHub.mend('videos'))?.kind).toBe('waiting');
+  });
+});
+
+describe('a server the agents reach themselves', () => {
+  it('is told apart from one Memnox governs or one the organization gave', () => {
+    expect(reachedByAgents({ transport: 'http', governed: false, scope: 'personal' })).toBe(true);
+    expect(reachedByAgents({ transport: 'http', governed: true, scope: 'personal' })).toBe(false);
+    expect(reachedByAgents({ transport: 'stdio', governed: false, scope: 'personal' })).toBe(false);
+    expect(reachedByAgents({ transport: 'http', governed: false, scope: 'organization' })).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { MCP_HUB_METHOD, type DaemonRequest, type DaemonResponse, type McpHubView, type McpServerHealth } from '@memnox/core/wire';
-import { agentLabel, reachOf } from '../domain/mcp-hub-lines';
+import { agentLabel, McpHubPageLines, reachOf } from '../domain/mcp-hub-lines';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
@@ -83,6 +83,11 @@ export class McpHub extends Observed {
     return `found/${agent}/${server}`;
   }
 
+  /** The key a press to sign in to one server, or to hand it back, is kept under, apart from its test. */
+  static mend(server: string): string {
+    return `mend/${server}`;
+  }
+
   /** A test run here, newer than the one the view carries. */
   testOf(server: string): McpServerHealth | undefined {
     return this.tests.get(server);
@@ -158,6 +163,26 @@ export class McpHub extends Observed {
     if (response.mcpHub !== undefined) this.see(response.mcpHub);
     this.changed();
     return { kind: 'done', note: line };
+  }
+
+  /** Opens the server's sign in page in this computer's browser. What it came to is on the card once the hub is read again. */
+  async signIn(server: string): Promise<HubOutcome> {
+    const subject = McpHub.mend(server);
+    this.begin(subject);
+    const response = await this.ask({ method: MCP_HUB_METHOD.SIGN_IN, mcpServerName: server });
+    if (response === undefined || !response.ok) return this.refused(subject, failure(response));
+    const line = response.outcome ?? McpHubPageLines.signInOpened;
+    // The runtime writes what the sign in came to, which an older test kept here would hide.
+    this.tests.delete(server);
+    this.presses.set(subject, { kind: 'done', line });
+    this.changed();
+    return { kind: 'done', note: line };
+  }
+
+  /** Hands the server back to its agents to sign in to. It stops being ruled on, so it waits for a signature. */
+  handBack(server: string): Promise<HubOutcome> {
+    const landed = (hub: McpHubView) => hub.servers.find((each) => each.name === server)?.governed === false;
+    return this.change(McpHub.mend(server), { method: MCP_HUB_METHOD.HAND_BACK, mcpServerName: server }, McpHubPageLines.handedBack(server), landed);
   }
 
   /** The value goes straight to the runtime over this computer's own socket, and the window keeps no copy. */

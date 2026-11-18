@@ -106,6 +106,10 @@ public enum DaemonMethod: String, Sendable {
     case mcpSync = "mcp-sync"
     /// Asks one server for its tools, on request and never on a timer.
     case mcpTest = "mcp-test"
+    /// Signs in to a remote server through Memnox, in the browser on this Mac, so it connects and stays ruled on.
+    case mcpSignIn = "mcp-sign-in"
+    /// Hands a remote server back to its agents to sign in to; it stops being ruled on, so the person signs it.
+    case mcpHandBack = "mcp-hand-back"
     /// Keeps a credential in the OS store, typed on this Mac and refused from afar.
     case mcpSecretSet = "mcp-secret-set"
     case mcpSecretRemove = "mcp-secret-remove"
@@ -529,6 +533,8 @@ public enum NoticeKind: String, CaseIterable, Sendable {
     case signInStalled = "sign-in-stalled"
     /// An agent stopped in its own terminal to ask its person something, answered by keys pressed there.
     case asking
+    /// A server behind the proxy would not connect, so the agent shows it as disconnected.
+    case serverTrouble = "server-trouble"
 }
 
 /// How a finished turn left its tests, as the runtime's TURN_TESTS in session/turn-tests.ts names it.
@@ -1382,7 +1388,7 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var query: String?
     /// On mcp-server-put: the server as the form filled it, secrets as names only.
     public var mcpServer: HubServer?
-    /// On mcp-server-remove, mcp-assign, mcp-import and mcp-test: the server, by name.
+    /// On mcp-server-remove, mcp-assign, mcp-import, mcp-test, mcp-sign-in and mcp-hand-back: the server, by name.
     public var mcpServerName: String?
     /// On mcp-assign and mcp-import: the agent, by its kind.
     public var mcpAgent: String?

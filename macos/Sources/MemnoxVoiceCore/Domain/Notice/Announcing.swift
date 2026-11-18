@@ -4,7 +4,7 @@ extension NoticeKind {
     /// Said whatever the speak up setting, because the person asked for it or somebody waits on them.
     public var isAlwaysSaid: Bool {
         switch self {
-        case .watched, .question, .asking, .collision, .message, .gone, .signedIn, .signInStalled: true
+        case .watched, .question, .asking, .collision, .message, .gone, .signedIn, .signInStalled, .serverTrouble: true
         case .finished, .committed, .pushed, .wouldHave, .ended, .started, .closed, .together: false
         }
     }
@@ -13,7 +13,8 @@ extension NoticeKind {
     public var awaitsAnswer: Bool {
         switch self {
         case .question, .asking, .collision, .message: true
-        case .finished, .committed, .pushed, .watched, .wouldHave, .ended, .started, .closed, .together, .gone, .signedIn, .signInStalled: false
+        case .finished, .committed, .pushed, .watched, .wouldHave, .ended, .started, .closed, .together, .gone, .signedIn, .signInStalled,
+             .serverTrouble: false
         }
     }
 }

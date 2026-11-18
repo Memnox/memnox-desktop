@@ -41,6 +41,41 @@ public enum McpHubLines {
         }
     }
 
+    /// The runtime's word for a server that asks for a sign in nobody has done through Memnox.
+    private static let signInTrouble = "sign-in"
+
+    /// Whether an agent shows this server disconnected because it wants a sign in.
+    public static func needsSignIn(_ server: McpHubServerView) -> Bool {
+        server.trouble == signInTrouble
+    }
+
+    /// The ways out a card offers: a sign in through Memnox for a remote server that wants one or that the agents reach
+    /// themselves, and a hand back only for one still behind Memnox. Never for an organization's server.
+    public static func mends(_ server: McpHubServerView) -> (signIn: Bool, handBack: Bool) {
+        guard server.hubTransport == .http, !fromOrganization(server) else { return (false, false) }
+        let asked = needsSignIn(server)
+        return (asked || !server.governed, asked && server.governed)
+    }
+
+    /// A remote server handed back to the agents, which they sign in to and reach themselves, so Memnox can neither
+    /// test it nor list its tools.
+    public static func reachedByAgents(_ server: McpHubServerView) -> Bool {
+        server.hubTransport == .http && !server.governed && !fromOrganization(server)
+    }
+
+    public static let byAgentsWord = "Your agents reach it"
+    public static let byAgentsTools = "Your agents reach this server themselves, so Memnox does not list its tools. Sign in through Memnox to see them here."
+    public static let needsSignInWord = "Needs a sign in"
+    public static let signIn = "Sign in through Memnox"
+    public static let signInOpened = "The sign in page is opening in your browser. Approve it there."
+    public static let handBack = "Hand back to my agents"
+    public static let handBackHelp = "Your agents then sign in to it themselves and Memnox stops ruling on its calls, so it waits for your signature with Touch ID."
+    public static let directNote = "Your agents sign in to this server themselves, so Memnox does not rule on its calls. Sign in through Memnox to rule on them."
+
+    public static func handedBack(_ server: String) -> String {
+        "\(server) is back with your agents, which sign in to it themselves."
+    }
+
     public static func tools(_ count: Int) -> String {
         if count == 0 { return "No tools listed yet" }
         return count == 1 ? "1 tool" : "\(count) tools"

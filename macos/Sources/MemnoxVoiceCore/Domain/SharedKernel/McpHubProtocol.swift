@@ -85,6 +85,8 @@ public struct McpHubServerView: Decodable, Equatable, Identifiable, Sendable {
     public let headerNames: [String]?
     /// Behind the proxy, so every call is ruled on and recorded.
     public let governed: Bool
+    /// Why an agent shows it disconnected, as the runtime's SERVER_TROUBLE names it; absent while it connects.
+    public let trouble: String?
     public let toolCount: Int
     public let tools: [McpToolSummary]?
     public let health: McpServerHealth

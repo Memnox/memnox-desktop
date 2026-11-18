@@ -92,8 +92,9 @@ final class McpHubProtocolTests: XCTestCase {
 
     func testNamesEveryHubMethodAsTheRuntimeDoes() {
         let methods: [DaemonMethod] = [.mcpHub, .mcpServerPut, .mcpServerRemove, .mcpAssign, .mcpImport, .mcpSync, .mcpTest,
-                                       .mcpSecretSet, .mcpSecretRemove]
+                                       .mcpSignIn, .mcpHandBack, .mcpSecretSet, .mcpSecretRemove]
         XCTAssertEqual(methods.map(\.rawValue), ["mcp-hub", "mcp-server-put", "mcp-server-remove", "mcp-assign", "mcp-import",
-                                                 "mcp-sync", "mcp-test", "mcp-secret-set", "mcp-secret-remove"])
+                                                 "mcp-sync", "mcp-test", "mcp-sign-in", "mcp-hand-back", "mcp-secret-set",
+                                                 "mcp-secret-remove"])
     }
 }

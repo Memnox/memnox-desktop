@@ -170,6 +170,10 @@ var MCP_HUB_METHOD = {
   SYNC: "mcp-sync",
   /** Asks one server for its tools, on request and never on a timer. */
   TEST: "mcp-test",
+  /** Signs in to a remote server through Memnox, in the browser on this computer, so it connects and stays ruled on. */
+  SIGN_IN: "mcp-sign-in",
+  /** Hands a remote server back to its agents to sign in to; it stops being ruled on, so the person signs it. */
+  HAND_BACK: "mcp-hand-back",
   /** Keeps a credential in the OS store, typed on this machine and never sent from afar. */
   SECRET_SET: "mcp-secret-set",
   SECRET_REMOVE: "mcp-secret-remove"
@@ -1006,6 +1010,7 @@ var PROPOSING_METHODS = [
   SPOKEN_RULE_METHOD.RULE,
   MCP_HUB_METHOD.SERVER_PUT,
   MCP_HUB_METHOD.ASSIGN,
+  MCP_HUB_METHOD.HAND_BACK,
   POLICY_METHOD.RULE_PROPOSE,
   POLICY_METHOD.RULE_REMOVE,
   POLICY_METHOD.RULE_PACK_IMPORT,

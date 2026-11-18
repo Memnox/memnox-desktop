@@ -32,7 +32,7 @@ public func reaction(to event: DaemonEvent) -> Reaction? {
             case .stale, .untested, nil: return .settle
             }
         case .committed, .pushed: return .settle
-        case .collision, .gone, .signInStalled: return .stumble
+        case .collision, .gone, .signInStalled, .serverTrouble: return .stumble
         case .signedIn: return .settle
         // Seen as it comes and goes, so a session appearing or closing is never only in a list.
         case .started, .closed, .together: return .settle

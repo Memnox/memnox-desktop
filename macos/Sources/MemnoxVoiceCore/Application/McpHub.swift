@@ -184,6 +184,37 @@ public final class McpHub: @unchecked Sendable {
         return .done(line)
     }
 
+    /// Opens the server's sign in page in this Mac's browser. What it came to is on the card once the hub is read again.
+    public func signIn(_ server: String) async -> McpHubOutcome {
+        var request = DaemonRequest(id: ids.next(), method: .mcpSignIn)
+        request.mcpServerName = server
+        let subject = Self.mend(server)
+        begin(subject)
+        let response = await ask(request)
+        guard let response, response.ok else {
+            let why = Self.failure(response)
+            settle(subject, .failed(why))
+            return .failed(why)
+        }
+        let line = response.outcome ?? McpHubLines.signInOpened
+        lock.withLock {
+            presses[subject] = .done(line)
+            // The runtime writes what the sign in came to, which an older test kept here would hide.
+            tests[server] = nil
+        }
+        changed?()
+        return .done(line)
+    }
+
+    /// Hands the server back to its agents to sign in to. It stops being ruled on, so it waits for a signature.
+    public func handBack(_ server: String) async -> McpHubOutcome {
+        var request = DaemonRequest(id: ids.next(), method: .mcpHandBack)
+        request.mcpServerName = server
+        return await change(Self.mend(server), request, done: McpHubLines.handedBack(server)) { hub in
+            hub.servers.first { $0.name == server }?.governed == false
+        }
+    }
+
     /// The value goes straight to the runtime over this Mac's own socket, and nothing here keeps a copy.
     public func setSecret(_ name: String, value: String) async -> McpHubOutcome {
         var request = DaemonRequest(id: ids.next(), method: .mcpSecretSet)
@@ -203,6 +234,9 @@ public final class McpHub: @unchecked Sendable {
 
     /// What `busy` reads while one server is given to or taken from one agent.
     public static func pair(_ server: String, _ agent: String) -> String { "\(server)/\(agent)" }
+
+    /// What a press to sign in to one server, or to hand it back, is kept under, apart from its test.
+    public static func mend(_ server: String) -> String { "mend/\(server)" }
 
     /// What a press on one found line is kept under, apart from a hub server of the same name.
     public static func found(_ server: String, _ agent: String) -> String { "found/\(agent)/\(server)" }

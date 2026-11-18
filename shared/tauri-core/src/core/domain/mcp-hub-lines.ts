@@ -261,6 +261,29 @@ export function waitingForKey(keyTitle: string): string {
   return `Waiting for ${keyTitle} on the island`;
 }
 
+/** A remote server handed back to the agents, which they sign in to and reach themselves, so Memnox can neither test it nor list its tools. */
+export function reachedByAgents(server: Pick<McpHubServerView, 'governed' | 'transport' | 'scope'>): boolean {
+  return server.transport === 'http' && !server.governed && server.scope !== 'organization';
+}
+
+/** The runtime's word for a server that asks for a sign in nobody has done through Memnox, as SERVER_TROUBLE names it. */
+const SIGN_IN_TROUBLE = 'sign-in';
+
+/** Whether an agent shows this server disconnected because it wants a sign in. */
+export function needsSignIn(server: Pick<McpHubServerView, 'trouble'>): boolean {
+  return server.trouble === SIGN_IN_TROUBLE;
+}
+
+/**
+ * The ways out a card offers: a sign in through Memnox for a remote server that wants one or that the agents
+ * reach themselves, and a hand back only for one still behind Memnox. Never for an organization's server.
+ */
+export function mendsOffered(server: Pick<McpHubServerView, 'trouble' | 'governed' | 'transport' | 'scope'>): { signIn: boolean; handBack: boolean } {
+  if (server.transport !== 'http' || server.scope === 'organization') return { signIn: false, handBack: false };
+  const asked = needsSignIn(server);
+  return { signIn: asked || !server.governed, handBack: asked && server.governed };
+}
+
 /** The line one row says about its last press, and its tone; nothing while the runtime still works on it. */
 export function pressLine(press: { kind: 'working' } | { kind: 'waiting'; note: string | undefined } | { kind: 'done'; line: string } | { kind: 'failed'; why: string } | undefined, keyTitle: string): { text: string; tone: 'good' | 'bad' | 'quiet' } | undefined {
   if (press === undefined) return undefined;
@@ -363,6 +386,16 @@ export const McpHubPageLines = {
   test: 'Test',
   governed: 'Governed',
   notGoverned: 'Not governed',
+  needsSignIn: 'Needs a sign in',
+  byAgents: 'Your agents reach it',
+  byAgentsTools: 'Your agents reach this server themselves, so Memnox does not list its tools. Sign in through Memnox to see them here.',
+  signIn: 'Sign in through Memnox',
+  signInHelp: 'Opens the sign in page in your browser. The server then connects, and its calls stay ruled on.',
+  signInOpened: 'The sign in page is opening in your browser. Approve it there.',
+  handBack: 'Hand back to my agents',
+  handBackHelp: (keyTitle: string) => `Your agents then sign in to it themselves and Memnox stops ruling on its calls, so it waits for your signature with ${keyTitle}.`,
+  handedBack: (server: string) => `${server} is back with your agents, which sign in to it themselves.`,
+  directNote: 'Your agents sign in to this server themselves, so Memnox does not rule on its calls. Sign in through Memnox to rule on them.',
   asking: 'Asking the runtime',
   needs: (names: readonly string[]) => `Needs ${names.join(', ')}`,
   tested: (when: string | undefined) => `Tested ${when ?? 'just now'}`,

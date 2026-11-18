@@ -68,6 +68,44 @@ final class McpHubTests: XCTestCase {
         XCTAssertEqual(outcome, .done("Wrote 2 configs: 1 added, 2 removed."))
     }
 
+    private static func remote(_ fields: String) throws -> McpHubServerView {
+        let json = #"{"name":"videos","transport":"http","url":"https://videos.example.com/mcp","envNames":[],"toolCount":0,"health":{"state":"unknown"},"agents":["claude-code"],"secretsHeld":{},"callsThisWeek":0,"# + fields + "}"
+        return try JSONDecoder().decode(McpHubServerView.self, from: Data(json.utf8))
+    }
+
+    func testOffersASignInThroughMemnoxAndAHandBackOnlyWhileStillBehindMemnox() throws {
+        let asking = try Self.remote(#""governed":true,"trouble":"sign-in""#)
+        XCTAssertTrue(McpHubLines.needsSignIn(asking))
+        XCTAssertTrue(McpHubLines.mends(asking) == (true, true))
+        let direct = try Self.remote(#""governed":false"#)
+        XCTAssertTrue(McpHubLines.mends(direct) == (true, false))
+        let connected = try Self.remote(#""governed":true"#)
+        XCTAssertTrue(McpHubLines.mends(connected) == (false, false))
+        XCTAssertTrue(McpHubLines.reachedByAgents(direct))
+        XCTAssertFalse(McpHubLines.reachedByAgents(connected))
+        let organizations = try Self.remote(#""governed":true,"trouble":"sign-in","scope":"organization""#)
+        XCTAssertTrue(McpHubLines.mends(organizations) == (false, false))
+    }
+
+    func testSaysTheSignInPageIsOpeningInTheRuntimesOwnWords() async throws {
+        let link = ScriptedLink()
+        link.answers["mcp-sign-in"] = [try line(#"{"id":1,"ok":true,"outcome":"The sign in page of videos is opening in your browser."}"#)]
+        let hub = McpHub(link: link)
+        let outcome = await hub.signIn("videos")
+        XCTAssertEqual(outcome, .done("The sign in page of videos is opening in your browser."))
+        XCTAssertEqual(link.sent.first?.mcpServerName, "videos")
+        XCTAssertEqual(hub.press(McpHub.mend("videos")), .done("The sign in page of videos is opening in your browser."))
+    }
+
+    func testWaitsForASignatureBeforeAServerIsHandedBack() async throws {
+        let link = ScriptedLink()
+        link.answers["mcp-hand-back"] = [try line(#"{"id":1,"ok":true,"proposed":"prp_1"}"#)]
+        let hub = McpHub(link: link)
+        let outcome = await hub.handBack("videos")
+        XCTAssertEqual(outcome, .proposed("prp_1"))
+        XCTAssertEqual(link.sent.first?.method, "mcp-hand-back")
+    }
+
     func testKeepsATestNewerThanTheViewAndSaysWhetherItAnswered() async throws {
         let link = ScriptedLink()
         link.answers["mcp-test"] = [try line(#"{"id":1,"ok":true,"mcpHealth":{"state":"healthy","tools":[{"name":"create_issue"}]}}"#)]

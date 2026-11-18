@@ -76,7 +76,7 @@ public final class Presses: @unchecked Sendable {
 /// check, so only a press of one makes a proposal wait and a page's background read never does.
 public enum ProposingMethods {
     public static let all: Set<String> = Set([
-        DaemonMethod.handOver, .rule, .mcpServerPut, .mcpAssign, .rulePropose, .ruleRemove, .rulePackImport,
+        DaemonMethod.handOver, .rule, .mcpServerPut, .mcpAssign, .mcpHandBack, .rulePropose, .ruleRemove, .rulePackImport,
         .agentResume, .agentLaunch, .skillImport, .skillPut, .skillAssign, .skillAccept, .skillRollback,
         .projectOpen, .projectApply, .backupRestore, .memoryConfirm, .lanSet, .personalSyncKeyOffer,
         .personalSyncKeyAccept, .profileApply, .indexInstall, .indexSourceSet,

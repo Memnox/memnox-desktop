@@ -221,10 +221,14 @@ private struct McpServerCard: View {
     }
 
     /// How it stands with how many tools it listed beside it, and Test at the end; the count goes first when it is narrow.
-    private var standing: some View {
+    @ViewBuilder private var standing: some View {
         let health = screen.hub.testOf(server.name) ?? server.health
         let tools = McpHubLines.tools(health.tools?.count ?? server.toolCount)
-        return ViewThatFits(in: .horizontal) {
+        // Reached by the agents themselves, so there is nothing to test and no tools to count.
+        if McpHubLines.reachedByAgents(server) {
+            StatusWord(.quiet, McpHubLines.byAgentsWord)
+        } else {
+            ViewThatFits(in: .horizontal) {
             HStack(spacing: Memnox.Spacing.medium) {
                 state
                 Text(tools)
@@ -240,16 +244,19 @@ private struct McpServerCard: View {
                 Spacer(minLength: Memnox.Spacing.small)
                 test
             }
+            }
         }
     }
 
     @ViewBuilder private var state: some View {
         let health = screen.hub.testOf(server.name) ?? server.health
         let words = McpHubLines.health(health)
-        if McpHubLines.missingSecrets(server).isEmpty {
-            StatusWord(Tone(words.tone), words.word)
-        } else {
+        if !McpHubLines.missingSecrets(server).isEmpty {
             StatusWord(.bad, "Needs a secret")
+        } else if McpHubLines.needsSignIn(server) {
+            StatusWord(.bad, McpHubLines.needsSignInWord)
+        } else {
+            StatusWord(Tone(words.tone), words.word)
         }
     }
 
@@ -365,6 +372,63 @@ private struct McpPressLine: View {
     }
 }
 
+/// The ways out of a server that wants a sign in: through Memnox, which keeps it ruled on, or back to the agents.
+private struct McpServerMend: View {
+    @ObservedObject var screen: McpHubScreen
+    let server: McpHubServerView
+
+    /// How often the hub is read again while a sign in is open in the browser, and how many times at most.
+    private static let lookEvery: Duration = .seconds(3)
+    private static let mostLooks = 100
+
+    var body: some View {
+        let offered = McpHubLines.mends(server)
+        let press = screen.hub.press(McpHub.mend(server.name))
+        if offered.signIn || offered.handBack {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+                if !server.governed { help(McpHubLines.directNote) }
+                HStack(spacing: Memnox.Spacing.small) {
+                    if offered.signIn {
+                        Button(McpHubLines.signIn) { signIn() }
+                            .buttonStyle(KitButton(kind: .secondary))
+                            .disabled(press == .working)
+                    }
+                    if offered.handBack {
+                        Button(McpHubLines.handBack) { screen.press { await $0.handBack(server.name) } }
+                            .buttonStyle(KitButton(kind: .secondary))
+                            .disabled(press == .working)
+                    }
+                }
+                if offered.handBack { help(McpHubLines.handBackHelp) }
+                McpPressLine(press: press)
+            }
+        }
+    }
+
+    private func help(_ text: String) -> some View {
+        Text(text)
+            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+            .foregroundStyle(Memnox.Console.muted)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// The sign in ends in the browser, so the hub is read again until the card shows what it came to.
+    private func signIn() {
+        let name = server.name
+        let hub = screen.hub
+        Task {
+            let outcome = await hub.signIn(name)
+            screen.said(outcome)
+            guard case .done = outcome else { return }
+            for _ in 0..<Self.mostLooks {
+                try? await Task.sleep(for: Self.lookEvery)
+                await hub.refresh()
+                guard let now = hub.hub?.servers.first(where: { $0.name == name }), McpHubLines.mends(now).signIn else { return }
+            }
+        }
+    }
+}
+
 /// One server's health, who has it, which credentials it holds by name, its tools, and Remove set apart at the end.
 private struct McpServerDetail: View {
     @ObservedObject var screen: McpHubScreen
@@ -384,7 +448,9 @@ private struct McpServerDetail: View {
         let busy = hub.busy == server.name
         VStack(alignment: .leading, spacing: Memnox.Spacing.xxLarge) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
-                if missing.isEmpty {
+                if McpHubLines.reachedByAgents(server) {
+                    StatusWord(.quiet, McpHubLines.byAgentsWord)
+                } else if missing.isEmpty {
                     StatusWord(Tone(words.tone), words.word)
                 } else {
                     StatusWord(.bad, "Needs \(missing.joined(separator: ", "))")
@@ -406,9 +472,12 @@ private struct McpServerDetail: View {
                     .textSelection(.enabled)
                 quiet(McpHubLines.calls(server.callsThisWeek))
             }
-            Button(busy ? "Testing" : "Test connection") { screen.press { await $0.test(server.name) } }
-                .buttonStyle(KitButton(kind: .secondary))
-                .disabled(busy)
+            if !McpHubLines.reachedByAgents(server) {
+                Button(busy ? "Testing" : "Test connection") { screen.press { await $0.test(server.name) } }
+                    .buttonStyle(KitButton(kind: .secondary))
+                    .disabled(busy)
+            }
+            McpServerMend(screen: screen, server: server)
 
             if McpHubLines.fromOrganization(server) {
                 // Given by the organization, so who has it is changed in Memnox Cloud and only shown here.
@@ -478,7 +547,9 @@ private struct McpServerDetail: View {
             }
 
             ShellSection(title: "Tools") {
-                if tools.isEmpty {
+                if McpHubLines.reachedByAgents(server) {
+                    quiet(McpHubLines.byAgentsTools)
+                } else if tools.isEmpty {
                     quiet("Test the connection to list what this server can do.")
                 } else {
                     ShellPanel {

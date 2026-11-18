@@ -7,6 +7,7 @@
 #   MEMNOX_RUNTIME_SOURCE=npm ./scripts/bundle.sh    the package published to npm, for a release
 # MEMNOX_RUNTIME_DIR names the checkout when it is not ../../memnox-runtime, beside memnox-desktop,
 # and MEMNOX_RUNTIME, which every other script reads, is taken when it is unset.
+# MEMNOX_SIGN_IDENTITY names a Developer ID Application identity, which signs a release for notarizing instead.
 set -e
 # The Noise framework, the bundled Node and the voice's Python are all arm64, so an Intel Mac stops here rather than at a link error.
 [ "$(uname -m)" = arm64 ] || { echo "the Mac app builds on Apple silicon only, and this Mac is $(uname -m)" >&2; exit 1; }
@@ -96,6 +97,21 @@ if [ -n "${MEMNOX_RUNTIME_PACK:-}" ]; then
   mkdir -p "$APP/Contents/Resources/runtime"
   cp "$MEMNOX_RUNTIME_PACK/memnox-runtime.tar.xz" "$MEMNOX_RUNTIME_PACK/memnox-runtime.version" Support/runtime/unpack.sh \
     "$APP/Contents/Resources/runtime/"
+fi
+if [ -n "${MEMNOX_SIGN_IDENTITY:-}" ]; then
+  # A release: a Developer ID with the hardened runtime and a secure timestamp, which notarizing requires of every
+  # piece of code in the app, so each Mach-O the voice carries is found by what it is rather than by its name.
+  security find-identity -v -p codesigning | grep -qF "$MEMNOX_SIGN_IDENTITY" \
+    || { echo "no valid signing identity named $MEMNOX_SIGN_IDENTITY in the keychain" >&2; exit 1; }
+  RELEASE_SIGN="--force --options runtime --timestamp --sign"
+  find "$KOKORO" -type f ! -name python3.12 -exec sh -c 'file -b "$1" | grep -q "^Mach-O"' _ {} \; -print \
+    | while IFS= read -r code; do codesign $RELEASE_SIGN "$MEMNOX_SIGN_IDENTITY" "$code"; done
+  find "$KOKORO" -type f -name python3.12 -exec codesign $RELEASE_SIGN "$MEMNOX_SIGN_IDENTITY" \
+    --entitlements Support/kokoro/python.entitlements {} +
+  codesign $RELEASE_SIGN "$MEMNOX_SIGN_IDENTITY" --entitlements Support/Memnox.entitlements "$APP"
+  codesign --verify --deep --strict "$APP"
+  echo "Built $APP against the $SOURCE runtime, signed for release by $MEMNOX_SIGN_IDENTITY."
+  exit 0
 fi
 IDENTITY="Memnox Local Signing"
 # Only a valid identity signs; one left without its trust is made again here, since a build signed ad hoc is a

@@ -4,6 +4,8 @@
 # own, so the app does the rest on its first launch with no download: it puts memnox into ~/.memnox/node and starts its
 # daemon, while the voice already speaks from inside the app. A Mac that already has memnox keeps its own.
 # The image is signed with the local identity, so a Mac other than this one needs it notarized before Gatekeeper opens it.
+# A release sets MEMNOX_SIGN_IDENTITY to a Developer ID Application identity, and the app and then the image are each
+# notarized and stapled with the credentials scripts/notarize.sh reads; MEMNOX_NOTARIZE=0 signs without notarizing.
 # MEMNOX_RUNTIME_VERSION pins the runtime to one release; it is the latest otherwise.
 set -e
 cd "$(dirname "$0")/.."
@@ -18,6 +20,12 @@ MEMNOX_RUNTIME_SOURCE=npm MEMNOX_VOICE_DIR="$PWD/$VOICE" MEMNOX_RUNTIME_PACK="$P
   sh scripts/bundle.sh
 
 APP=build/Memnox.app
+NOTARIZE=no
+if [ -n "${MEMNOX_SIGN_IDENTITY:-}" ] && [ "${MEMNOX_NOTARIZE:-1}" != 0 ]; then
+  NOTARIZE=yes
+  # The app is stapled before it goes into the image, so the copy a person drags out opens offline too.
+  sh scripts/notarize.sh "$APP"
+fi
 VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist")"
 DMG="build/Memnox-$VERSION.dmg"
 # The window the image opens on: the app beside a link to Applications over a background with an arrow between them,
@@ -61,9 +69,19 @@ hdiutil detach "$MOUNT" -quiet
 hdiutil convert "$RW" -format ULMO -o "$DMG"
 rm -rf "$STAGE" "$RW"
 
-IDENTITY="Memnox Local Signing"
-if security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
-  codesign --force --sign "$IDENTITY" "$DMG"
+if [ -n "${MEMNOX_SIGN_IDENTITY:-}" ]; then
+  codesign --force --timestamp --sign "$MEMNOX_SIGN_IDENTITY" "$DMG"
+  if [ "$NOTARIZE" = yes ]; then
+    sh scripts/notarize.sh "$DMG"
+    # What a person's Mac asks before it opens either, so a release that Gatekeeper would refuse never ships.
+    spctl --assess --type exec --verbose "$APP"
+    spctl --assess --type open --context context:primary-signature --verbose "$DMG"
+  fi
+else
+  IDENTITY="Memnox Local Signing"
+  if security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
+    codesign --force --sign "$IDENTITY" "$DMG"
+  fi
 fi
 shasum -a 256 "$DMG" | cut -d' ' -f1 > "$DMG.sha256"
 # The same image under a name with no version, which a GitHub release serves at one lasting address for install.sh.

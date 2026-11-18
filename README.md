@@ -214,28 +214,55 @@ build), and refuses a dash in copy. A pull request is built from this repo alone
 one of this repo's copies of the runtime (the vision, the vectors, the ux contract, the Noise suite and
 the wire in `shared/wire`) parted from the runtime's `main`.
 
-[`release-app.yml`](.github/workflows/release-app.yml) releases the Windows and Linux app from a tag
-`app-v<version>` that matches `shared/tauri-core/src-tauri/tauri.conf.json`. It builds the NSIS and
-MSI installers, signed with Azure Trusted Signing once its secrets are set and unsigned until then,
-and the AppImage, deb and rpm on Ubuntu 22.04 so older glibc runs them, then publishes them with
-SHA256SUMS, the polkit policy, a PKGBUILD and `Memnox-setup.exe`, and marks the release latest. Run by
-hand without a tag, it builds the installers as workflow artifacts and publishes nothing.
+[`release-app.yml`](.github/workflows/release-app.yml) releases every desktop app on every merge to
+`main` that changes more than docs, under a tag `app-v<version>` it makes on the merged commit. The
+version is the one `tauri.conf.json` declares when nothing was released under it yet, and the newest
+release with one added to its patch otherwise, and `scripts/stamp-version.sh` writes it into the build
+without a commit back to `main`. Pushing a tag `app-v<version>` by hand releases that version. It builds the NSIS and MSI installers, signed with Azure Trusted Signing
+once its secrets are set and unsigned until then, the AppImage, deb and rpm on Ubuntu 22.04 so older
+glibc runs them, and `Memnox.dmg` on Apple silicon, signed with a Developer ID and notarized once its
+secrets are set. It publishes them with SHA256SUMS, the polkit policy, a PKGBUILD and
+`Memnox-setup.exe`, and marks the release latest. Run by hand without a tag, it builds the installers
+as workflow artifacts and publishes nothing.
 
-A release is five steps, because the Mac app is built on a Mac:
+A patch release needs nothing but the merge. For a minor or a major, raise the version in
+`shared/tauri-core/src-tauri/tauri.conf.json` in the pull request, and `sh scripts/stamp-version.sh
+<version>` writes it into the other two files. The release runs the Runtime copies check before it
+builds and stops when a copy differs from the runtime's `main`, so the runtime's side lands first.
 
-0. See that Runtime copies is green on `main`. The release runs the same check before it builds and
-   stops when a copy differs from the runtime's `main`, so the runtime's side lands first.
-1. Raise the version in `shared/tauri-core/src-tauri/tauri.conf.json` and in
-   `CFBundleShortVersionString` in `macos/Support/Info.plist`, and commit.
-2. Tag `app-v<version>` and push the tag, which builds and publishes the Windows and Linux release.
-3. Run `macos/scripts/dmg.sh` on an Apple silicon Mac, which builds `macos/build/Memnox.dmg` with the
-   newest `memnox` from npm.
-4. Attach it once the release exists:
-   `gh release upload app-v<version> macos/build/Memnox.dmg macos/build/Memnox.dmg.sha256`.
+memnox.com/download/windows and memnox.com/download/mac redirect to the latest release by the two
+fixed names `Memnox-setup.exe` and `Memnox.dmg`, which is why every release carries them.
 
-Until step 4, memnox.com/download/mac finds no image on the latest release, so do it straight away.
-memnox.com/download/windows and memnox.com/download/mac redirect to the latest release by those two
-fixed names, which is why every release carries them.
+The Mac is shipped outside the App Store, because the App Sandbox forbids what the app is for: typing
+into other apps, unpacking and running the runtime and the voice, reaching the daemon's socket, and
+updating itself. Notarizing is what lets Gatekeeper open it, and it needs these secrets.
+
+Every signing secret, the Mac's and Windows' alike, belongs in the `release` environment under
+Settings, Environments, rather than in the repository's secrets, with its deployment branches and tags
+limited to `main` and `app-v*`. Only the two build jobs name that environment, so a pull request, a
+fork or any other branch never reaches a certificate, and a required reviewer added there makes every
+release wait for a yes.
+
+| Secret | Holds |
+|---|---|
+| `MACOS_CERTIFICATE_P12` | the Developer ID Application certificate and its key, exported as .p12 and base64 encoded |
+| `MACOS_CERTIFICATE_PASSWORD` | the password the .p12 was exported with |
+| `MACOS_SIGN_IDENTITY` | its name, such as `Developer ID Application: Memnox Inc (TEAMID)` |
+| `APPLE_API_KEY_P8` | an App Store Connect API key with the Developer role, the .p8 file's text |
+| `APPLE_API_KEY_ID` and `APPLE_API_ISSUER` | that key's id and its issuer id |
+
+On a Mac with the certificate in its keychain, the same release builds by hand with
+`xcrun notarytool store-credentials memnox` once, then
+`MEMNOX_SIGN_IDENTITY="Developer ID Application: ..." MEMNOX_NOTARY_PROFILE=memnox macos/scripts/dmg.sh`.
+
+The secrets live only in the repository's settings, so the code is the same open source a person builds
+for themselves, and a fork's release runs unsigned with a warning rather than failing. Every published
+file also carries a build attestation, so anyone can check that a download was built by this workflow
+from the tagged commit rather than on somebody's own machine:
+
+```sh
+gh attestation verify Memnox.dmg --repo Memnox/memnox-desktop
+```
 
 </details>
 

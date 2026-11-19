@@ -1,20 +1,76 @@
-# The Windows and Linux app is released from a tag named app-v<version>, matching tauri.conf.json.
+# Every merge to main releases every desktop app under a tag named app-v<version>. The version is the one
+# tauri.conf.json declares when nothing was released under it yet, and the newest release with one added to its patch
+# otherwise, so raising it by hand is only needed for a minor or a major. It is stamped into the build, never committed.
+# Pushing a tag app-v<version> by hand releases that version; running it by hand builds and publishes nothing.
+# Every secret lives in the release environment, which only main and app-v tags may deploy to, so no other branch,
+# and no pull request from a fork, ever reaches a certificate.
 # Windows installers are signed with Azure Trusted Signing once its secrets are set, and ship unsigned as a preview until then;
 # the Linux packages ship with SHA256SUMS beside them and a PKGBUILD that installs the deb.
-# The Mac app is built on a Mac and added to the same release as Memnox.dmg, which its installer finds among these releases.
-name: Release the Windows and Linux app
+# The Mac app is built on Apple silicon into Memnox.dmg, signed with a Developer ID and notarized once its secrets are
+# set, and its installer finds it among these releases.
+name: Release the desktop apps
 
 on:
   push:
+    branches: [main]
     tags: ['app-v*']
+    # A merge that changes only words or the other workflows ships nothing new, so it releases nothing.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '**/docs/**'
+      - 'LICENSE*'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/runtime-copies.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Two merges close together release one after the other, so the second never takes the version the first is building.
+concurrency:
+  group: release-desktop
+  cancel-in-progress: false
+
 jobs:
+  version:
+    name: Choose the version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.pick.outputs.version }}
+      publish: ${{ steps.pick.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Pick the version
+        id: pick
+        run: |
+          released=$(git tag -l 'app-v*' | sed 's/^app-v//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          declared=$(node -p "require('./shared/tauri-core/src-tauri/tauri.conf.json').version")
+          publish=true
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version="${GITHUB_REF_NAME#app-v}"
+          elif [ -z "$released" ] || { [ "$declared" != "$released" ] && [ "$(printf '%s\n%s\n' "$released" "$declared" | sort -V | tail -1)" = "$declared" ]; }; then
+            version="$declared"
+          else
+            version=$(echo "$released" | awk -F. '{ printf "%d.%d.%d", $1, $2, $3 + 1 }')
+          fi
+          # A run started again on a commit already released publishes nothing, so it never makes a second release of it.
+          if [ "$GITHUB_REF_TYPE" = branch ] && [ -n "$(git tag --points-at HEAD -l 'app-v*')" ]; then
+            publish=false
+            echo "::notice::$(git tag --points-at HEAD -l 'app-v*') already released this commit"
+          fi
+          [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && publish=false
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "::notice::version $version, publish $publish"
+
   build:
     name: Build on ${{ matrix.os }}
+    needs: version
+    environment: release
     strategy:
       fail-fast: true
       matrix:
@@ -41,15 +97,13 @@ jobs:
           repository: Memnox/memnox-runtime
           path: memnox-runtime
 
-      - name: The tag names the version tauri.conf.json carries
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          [ "${GITHUB_REF_NAME}" = "app-v${version}" ] || { echo "::error::tag ${GITHUB_REF_NAME} but tauri.conf.json says ${version}"; exit 1; }
+      - name: Stamp the version
+        working-directory: .
+        run: sh scripts/stamp-version.sh ${{ needs.version.outputs.version }}
 
       # SmartScreen warns about an unsigned installer, so the run says so plainly until the signing account is set up.
       - name: Say when the Windows release is unsigned
-        if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/') && env.SIGNS != 'true'
+        if: runner.os == 'Windows' && needs.version.outputs.publish == 'true' && env.SIGNS != 'true'
         run: echo "::warning::the Windows installers are unsigned; set AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT and AZURE_SIGNING_PROFILE to sign them"
 
       - name: Install the Linux libraries
@@ -121,13 +175,108 @@ jobs:
           path: out/*
           if-no-files-found: error
 
+  mac:
+    name: Build the Mac app
+    needs: version
+    environment: release
+    # The app uses macOS 26 APIs behind availability checks, so it needs the macOS 26 SDK, and the runner is Apple silicon.
+    runs-on: macos-26
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: macos
+    env:
+      SIGNS: ${{ secrets.MACOS_CERTIFICATE_P12 != '' && secrets.APPLE_API_KEY_P8 != '' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Only for the Noise framework, the one thing the Mac still builds from a runtime checkout.
+      - name: Check out memnox-runtime
+        uses: actions/checkout@v7
+        with:
+          repository: Memnox/memnox-runtime
+          path: memnox-runtime
+
+      - name: Stamp the version
+        working-directory: .
+        run: sh scripts/stamp-version.sh ${{ needs.version.outputs.version }}
+
+      # Gatekeeper refuses an image that is not notarized when it is opened from a browser download, so the run says so.
+      - name: Say when the Mac release is not notarized
+        if: needs.version.outputs.publish == 'true' && env.SIGNS != 'true'
+        run: echo "::warning::the Mac app is not notarized; set MACOS_CERTIFICATE_P12, MACOS_CERTIFICATE_PASSWORD, MACOS_SIGN_IDENTITY, APPLE_API_KEY_P8, APPLE_API_KEY_ID and APPLE_API_ISSUER"
+
+      - name: Select the newest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install uv, which builds the voice's Python
+        run: brew install uv
+
+      - name: Vendor the Noise framework
+        env:
+          MEMNOX_RUNTIME: ${{ github.workspace }}/memnox-runtime
+        run: ./scripts/vendor-noise.sh
+
+      - name: Run the tests
+        run: swift test
+
+      # A keychain of its own for the run, deleted at the end, so the certificate never outlives the job.
+      - name: Import the Developer ID certificate and the notary key
+        if: env.SIGNS == 'true'
+        env:
+          P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          API_KEY: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          keychain="$RUNNER_TEMP/release.keychain-db"
+          password="$(uuidgen)"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+          printf '%s' "$API_KEY" > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Build the disk image
+        env:
+          MEMNOX_SIGN_IDENTITY: ${{ env.SIGNS == 'true' && secrets.MACOS_SIGN_IDENTITY || '' }}
+          MEMNOX_NOTARY_KEY: ${{ runner.temp }}/AuthKey.p8
+          MEMNOX_NOTARY_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          MEMNOX_NOTARY_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: ./scripts/dmg.sh
+
+      - name: Forget the certificate and the key
+        if: always() && env.SIGNS == 'true'
+        run: |
+          security delete-keychain "$RUNNER_TEMP/release.keychain-db" || true
+          rm -f "$RUNNER_TEMP/AuthKey.p8"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: installers-macos
+          path: |
+            macos/build/Memnox.dmg
+            macos/build/Memnox.dmg.sha256
+          if-no-files-found: error
+
   publish:
     name: Publish the release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [version, build, mac]
+    if: needs.version.outputs.publish == 'true'
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: app-v${{ needs.version.outputs.version }}
     permissions:
       contents: write
+      # The attestation below is signed with the run's own identity, so it needs these two and nothing else.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v7
 
@@ -138,25 +287,36 @@ jobs:
 
       - name: Checksums and the PKGBUILD
         run: |
-          version="${GITHUB_REF_NAME#app-v}"
           # The AppImage cannot install the polkit policy itself, so the policy ships beside it, checked like the rest.
           cp linux/packaging/org.memnox.desktop.policy out/
           # A name that never changes, so memnox.com/download/windows is one link to releases/latest.
           cp out/*_x64-setup.exe out/Memnox-setup.exe
-          (cd out && sha256sum * > SHA256SUMS)
+          # Memnox.dmg.sha256 is what install.sh and the app's updater check; SHA256SUMS covers every other file.
+          (cd out && sha256sum $(ls | grep -v '\.sha256$') > SHA256SUMS)
           deb=$(cd out && ls *.deb | head -1)
           sum=$(cd out && sha256sum "$deb" | cut -d' ' -f1)
-          sed -e "s/@VERSION@/$version/" -e "s/@DEB@/$deb/" -e "s/@SHA256@/$sum/" -e "s/@TAG@/$GITHUB_REF_NAME/" \
+          sed -e "s/@VERSION@/$VERSION/" -e "s/@DEB@/$deb/" -e "s/@SHA256@/$sum/" -e "s/@TAG@/$TAG/" \
             linux/packaging/PKGBUILD.in > out/PKGBUILD
           cat out/SHA256SUMS
 
+      # The app is open source, so anyone can prove a download was built by this workflow from the tagged commit rather
+      # than by somebody's own machine: gh attestation verify Memnox.dmg --repo Memnox/memnox-desktop
+      - name: Attest where every file was built
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: out/*
+
+      # The tag is made here on the commit that was built, by the workflow's own token, which starts no workflow, so a
+      # release never sets off another. The notes list what was merged since the release before it.
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" out/* --latest \
-            --title "Memnox ${GITHUB_REF_NAME#app-v} developer preview" \
+          gh release create "$TAG" out/* --latest --target "$GITHUB_SHA" --generate-notes \
+            --title "Memnox $VERSION developer preview" \
             --notes "Memnox for macOS, Windows and Linux. Check each download against SHA256SUMS.
 
           On a Mac or Linux: curl -fsSL https://memnox.com/install | sh
+          On a Mac you can also download https://memnox.com/download/mac, open it and drag Memnox to Applications.
+          Every file here was built from this tag by the release workflow, which you can check with: gh attestation verify <file> --repo ${{ github.repository }}
           On Windows: download https://memnox.com/download/windows and run it. A preview that is not signed yet makes SmartScreen ask first, so choose More info, then Run anyway."

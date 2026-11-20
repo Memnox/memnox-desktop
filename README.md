@@ -46,7 +46,8 @@ curl -fsSL https://memnox.com/install | sh
 ```
 
 On Windows, download [memnox.com/download/windows](https://memnox.com/download/windows) and open it.
-The preview is not signed yet, so SmartScreen asks first: choose **More info**, then **Run anyway**.
+A release whose notes say the installer is not signed yet makes SmartScreen ask first: choose
+**More info**, then **Run anyway**.
 
 Each installer checks its download against the checksum published with the release before it
 installs anything. Arch users can build the PKGBUILD published beside the Linux packages. The phone
@@ -222,7 +223,9 @@ without a commit back to `main`. Pushing a tag `app-v<version>` by hand releases
 once its secrets are set and unsigned until then, the AppImage, deb and rpm on Ubuntu 22.04 so older
 glibc runs them, and `Memnox.dmg` on Apple silicon, signed with a Developer ID and notarized once its
 secrets are set. It publishes them with SHA256SUMS, the polkit policy, a PKGBUILD and
-`Memnox-setup.exe`, and marks the release latest. Run by hand without a tag, it builds the installers
+`Memnox-setup.exe`, and marks the release latest. Its title says developer preview, and its notes
+say which download still warns, until the Mac image is notarized and the Windows installers are
+signed in the same run. Run by hand without a tag, it builds the installers
 as workflow artifacts and publishes nothing.
 
 A patch release needs nothing but the merge. For a minor or a major, raise the version in

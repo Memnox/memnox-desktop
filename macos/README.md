@@ -161,10 +161,10 @@ curl -fsSL https://memnox.com/install | sh
 
 It downloads the newest release, checks it against the checksum published with it, puts Memnox in
 Applications and opens it. The first run asks for its permissions and installs `memnox`, its daemon
-and the Kokoro voice, with no Node needed. The preview is signed with the project's own certificate
-rather than an Apple Developer ID and is not notarized yet, which is why it installs through
-`curl`: a disk image downloaded in a browser is stopped by Gatekeeper, and opens only after
-**Open Anyway** under System Settings, Privacy & Security.
+and the Kokoro voice, with no Node needed. A release signed with Memnox's Developer ID and
+notarized by Apple also opens from a browser download like any Mac app. One whose notes say it is
+not notarized yet installs through `curl` instead, since Gatekeeper stops that image from a browser
+and opens it only after **Open Anyway** under System Settings, Privacy & Security.
 
 The builds released here are the project's own. The code is yours under MIT to read, change and
 build; the Memnox name and artwork are not, as [LICENSE-ASSETS.md](../LICENSE-ASSETS.md) says.
@@ -196,7 +196,8 @@ Where it gets `memnox` is chosen when it is built, and written into its Info.pli
   starts the daemon, all with no Node on the Mac and no connection. A Mac with its own `memnox` keeps using
   it, and `memnox update` updates the one in `~/.memnox/node` in place. It also writes
   `build/Memnox.dmg` and its `.sha256`, the two names a release carries for `scripts/install.sh`.
-  Until the image is notarized, a browser download of it needs Open Anyway. Apple silicon only.
+  With `MEMNOX_SIGN_IDENTITY` set to a Developer ID it signs and notarizes both the app and the
+  image, and without one a browser download of the image needs Open Anyway. Apple silicon only.
 
 ```sh
 scripts/signing-setup.sh   # once: a local signing identity, so macOS remembers your permissions
@@ -305,7 +306,6 @@ Good places to start:
 | A launch token so only the app can use the speech server | `Platform/Kokoro.swift`, `Support/kokoro/server.py` | Small |
 | Pin SHA-256 checksums for the voice model download | `scripts/kokoro-setup.sh` | Small |
 | Localize the interface (the copy is already `Text` keys) | `Presentation/` | Medium |
-| Notarized release builds | `scripts/bundle.sh` | Medium |
 | More recognizer spellings of "Memnox" from your own Mac | `Domain/Speech/WakeWord.swift`, with a test | Small |
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for how a change gets in and the rules a review checks.

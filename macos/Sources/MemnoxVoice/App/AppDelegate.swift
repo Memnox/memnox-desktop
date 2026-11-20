@@ -47,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let skippedRuntimeUpdateKey = "skippedRuntimeUpdate"
     /// How often a running app looks for a newer release, often enough that one is seen the day it ships.
     private static let updateCheckSeconds: TimeInterval = 6 * 60 * 60
+    /// The service is looked at hourly, since a withdrawn version should not keep running for most of a day.
+    private static let runtimeCheckSeconds: TimeInterval = 60 * 60
     private let updates = AppUpdates(feed: GitHubReleases(transport: URLSessionTransport()))
     private let runtimeUpdates = RuntimeUpdates(feed: NpmRegistry())
     /// The demo world when the app was opened in demo mode, else this Mac's own daemon.
@@ -1232,8 +1234,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             while !Task.isCancelled {
                 let skipped = UserDefaults.standard.string(forKey: Self.skippedRuntimeUpdateKey)
                 let running = await self?.conversation?.runtimeVersion()
-                if let version = await runtimeUpdates.offer(running: running, skipped: skipped) { self?.panel.offerRuntimeUpdate(version) }
-                try? await Task.sleep(nanoseconds: UInt64(Self.updateCheckSeconds * nanosecondsPerSecond))
+                // A version the team withdrew is replaced at once, with no Later, before anything is merely offered.
+                if let withdrawal = await runtimeUpdates.withdrawal(running: running) {
+                    self?.replaceWithdrawnRuntime(withdrawal)
+                } else if let version = await runtimeUpdates.offer(running: running, skipped: skipped) {
+                    self?.panel.offerRuntimeUpdate(version)
+                }
+                try? await Task.sleep(nanoseconds: UInt64(Self.runtimeCheckSeconds * nanosecondsPerSecond))
+            }
+        }
+    }
+
+    /// The running service was withdrawn with `npm deprecate`, so it is updated as if Update had been pressed, and the
+    /// pill shows it happening; a failure stays on the pill and the next look tries again.
+    private func replaceWithdrawnRuntime(_ withdrawal: Withdrawal) {
+        guard let conversation else { return }
+        diary.note("\(RuntimeUpdateLines.withdrawn(withdrawal.running, withdrawal.version)): \(withdrawal.reason)")
+        panel.offerRuntimeUpdate(withdrawal.version)
+        panel.runtimeUpdating(true)
+        Task { [weak self] in
+            guard let self else { return }
+            if let why = await self.runtime.updateNow(conversation) {
+                self.panel.runtimeUpdating(false, failed: why)
+            } else {
+                self.panel.runtimeUpdateDismissed()
             }
         }
     }

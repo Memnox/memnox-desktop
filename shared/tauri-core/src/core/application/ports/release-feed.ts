@@ -5,4 +5,6 @@ export type ReleaseList = 'app' | 'runtime';
 export interface ReleaseFeed {
   /** The list's answer as it came, or undefined when it could not be read. */
   read(list: ReleaseList): Promise<string | undefined>;
+  /** One runtime version's own registry entry, where `npm deprecate` leaves its reason; undefined when unread. */
+  readRuntimeVersion(version: string): Promise<string | undefined>;
 }

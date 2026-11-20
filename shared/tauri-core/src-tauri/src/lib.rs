@@ -115,6 +115,7 @@ pub fn run() {
             relay::relay_done,
             cloud::cloud_send,
             updates::release_feed,
+            updates::runtime_version_entry,
             updates::app_version,
             cloud::person_credential_load,
             cloud::person_credential_save,

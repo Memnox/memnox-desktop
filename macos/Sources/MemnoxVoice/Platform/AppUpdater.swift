@@ -47,7 +47,7 @@ enum AppUpdater {
     }
 
     private enum Failure: Error {
-        case download, checksum, image, notMemnox
+        case download, checksum, image, notMemnox, brokenSeal, strangerTeam
 
         var why: String {
             switch self {
@@ -55,6 +55,8 @@ enum AppUpdater {
             case .checksum: return "The download does not match its published checksum, so nothing was installed."
             case .image: return "The disk image would not open, so nothing was installed."
             case .notMemnox: return "The disk image does not hold Memnox, so nothing was installed."
+            case .brokenSeal: return "The new Memnox was changed after it was signed, so nothing was installed."
+            case .strangerTeam: return "The new Memnox is not signed by the team that signs this one, so nothing was installed."
             }
         }
     }
@@ -85,7 +87,17 @@ enum AppUpdater {
         _ = await run(Tool.hdiutil, ["detach", mount.path, "-quiet"])
         guard isMemnox else { throw Failure.notMemnox }
         guard copied else { throw Failure.image }
-        return staged
+        // Checked off the main actor, since it hashes every file the voice and the runtime carry.
+        let candidate = await Task.detached { BuildSignature.of(staged) }.value
+        switch UpdateTrust.verdict(for: candidate, running: BuildSignature.running, pinned: BuildSignature.pinnedTeam) {
+        case .trusted:
+            return staged
+        case .broken:
+            throw Failure.brokenSeal
+        case .strangerTeam(let expected, let found):
+            diary.note("the update was signed by team \(found ?? "none") rather than \(expected), so it was refused")
+            throw Failure.strangerTeam
+        }
     }
 
     /// Starts the script that waits for this copy to quit, swaps the new app in, and opens it. The old app is kept

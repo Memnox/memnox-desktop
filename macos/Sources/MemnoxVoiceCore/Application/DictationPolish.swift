@@ -37,6 +37,8 @@ public final class DictationPolish: @unchecked Sendable {
         _ said: String, family: DictationFamily, vocabulary: [String], selection: String? = nil,
         textBefore: String? = nil, patience: TimeInterval = DictationPolish.patience
     ) async -> String? {
+        // A stale early polish let go before it began never reaches the daemon, so Claude Code does no wasted turn.
+        if Task.isCancelled { return nil }
         var request = DaemonRequest(id: ids.next(), method: .polish)
         request.said = said
         request.family = family.rawValue

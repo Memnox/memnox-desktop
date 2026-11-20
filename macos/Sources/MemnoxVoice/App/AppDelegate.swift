@@ -173,15 +173,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.panel.show(.listening, caption: "Sorry, say that again?")
         }
         Task { [ears] in await ears.prepare() }
-        let key: ConfirmKey
-        do {
-            // A demo signs nothing anybody verifies, so it keeps a key in memory rather than asking for Touch ID.
-            key = DemoLaunch.link == nil ? ForegroundKey(try SecureEnclaveConfirmKey()) : SoftwareConfirmKey()
-        } catch {
-            // No Secure Enclave or no keychain: nothing can ever be confirmed from this Mac.
-            NSLog("Memnox: no confirmation key, so allows stay in the terminal: \(error)")
-            key = RefusingKey()
-        }
+        // A demo signs nothing anybody verifies, so it keeps a key in memory rather than asking for Touch ID. A key
+        // that will not open, as when macOS asked about a newly signed Memnox and was told no, is tried again later.
+        let key: ConfirmKey = DemoLaunch.link == nil
+            ? ForegroundKey(RetryingConfirmKey { try SecureEnclaveConfirmKey() })
+            : SoftwareConfirmKey()
         teamCalls = WorkspaceAnswering(inbox: cloud, store: personCredential, key: key)
         // A reply typed in a session's detail goes as the phone's composer sends one: signed, and never read by the brain.
         let following = FollowingUp(link: target, key: key, ids: ids)
@@ -1634,10 +1630,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.dismiss()
         }
     }
-}
-
-/// Stands in when this Mac cannot hold a confirmation key: every allow is declined, never faked.
-private final class RefusingKey: ConfirmKey {
-    var publicPoint: String { "" }
-    func sign(_ message: String, reason: String) async throws -> String? { nil }
 }

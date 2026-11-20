@@ -175,6 +175,18 @@ jobs:
           path: out/*
           if-no-files-found: error
 
+      # Whether the installers were signed, which the publish job cannot see since only this environment holds the secrets.
+      - name: Note whether Windows was signed
+        if: runner.os == 'Windows'
+        working-directory: .
+        run: mkdir -p signing && echo "$SIGNS" > signing/windows
+
+      - uses: actions/upload-artifact@v7
+        if: runner.os == 'Windows'
+        with:
+          name: signing-windows
+          path: signing/windows
+
   mac:
     name: Build the Mac app
     needs: version
@@ -264,6 +276,16 @@ jobs:
             macos/build/Memnox.dmg.sha256
           if-no-files-found: error
 
+      # dmg.sh stops before this when Apple refuses the image, so reaching here signed means notarized.
+      - name: Note whether the Mac was notarized
+        working-directory: .
+        run: mkdir -p signing && echo "$SIGNS" > signing/mac
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: signing-mac
+          path: signing/mac
+
   publish:
     name: Publish the release
     needs: [version, build, mac]
@@ -282,7 +304,14 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
+          pattern: installers-*
           path: out
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: signing-*
+          path: signing
           merge-multiple: true
 
       - name: Checksums and the PKGBUILD
@@ -312,11 +341,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          mac="$(cat signing/mac)"
+          windows="$(cat signing/windows)"
+          # A release stays a preview until Gatekeeper and SmartScreen both open it with no warning, so the title never claims more.
+          title="Memnox $VERSION"
+          [ "$mac" = true ] && [ "$windows" = true ] || title="$title developer preview"
+          mac_note="On a Mac you can also download https://memnox.com/download/mac, open it and drag Memnox to Applications."
+          [ "$mac" = true ] || mac_note="$mac_note This image is not notarized yet, so a browser download opens only after Open Anyway under System Settings, Privacy and Security."
+          windows_note="On Windows: download https://memnox.com/download/windows and run it."
+          [ "$windows" = true ] || windows_note="$windows_note The installer is not signed yet, so SmartScreen asks first: choose More info, then Run anyway."
           gh release create "$TAG" out/* --latest --target "$GITHUB_SHA" --generate-notes \
-            --title "Memnox $VERSION developer preview" \
+            --title "$title" \
             --notes "Memnox for macOS, Windows and Linux. Check each download against SHA256SUMS.
 
           On a Mac or Linux: curl -fsSL https://memnox.com/install | sh
-          On a Mac you can also download https://memnox.com/download/mac, open it and drag Memnox to Applications.
-          Every file here was built from this tag by the release workflow, which you can check with: gh attestation verify <file> --repo ${{ github.repository }}
-          On Windows: download https://memnox.com/download/windows and run it. A preview that is not signed yet makes SmartScreen ask first, so choose More info, then Run anyway."
+          $mac_note
+          $windows_note
+          Every file here was built from this tag by the release workflow, which you can check with: gh attestation verify <file> --repo ${{ github.repository }}"

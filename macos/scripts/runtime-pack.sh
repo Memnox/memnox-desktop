@@ -34,6 +34,8 @@ PACKAGE="$NODE/lib/node_modules/memnox/package.json"
 VERSION="$("$NODE/bin/node" -p "JSON.parse(require('fs').readFileSync(process.argv[1])).version" "$PACKAGE")"
 # Proved before it ships: the CLI answers under the Node it rides with.
 "$NODE/bin/node" "$NODE/lib/node_modules/memnox/dist/index.js" --version >/dev/null
+# An image whose runtime lacks a method the app calls would ship features that answer "unknown method".
+sh "$HERE/check-runtime-methods.sh" "$NODE/lib/node_modules/memnox"
 
 XZ_OPT="-T0 -6" tar -C "$NODE" -cJf "$OUT/memnox-runtime.tar.xz" .
 echo "$VERSION" > "$OUT/memnox-runtime.version"

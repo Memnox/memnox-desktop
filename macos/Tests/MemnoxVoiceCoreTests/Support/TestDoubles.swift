@@ -6,13 +6,25 @@ import XCTest
 // Fakes for the ports, so every test runs with no socket, no audio and no Secure Enclave.
 
 /// A daemon that answers each method from a script and remembers every request it was sent.
-final class ScriptedLink: DaemonLink {
-    var sent: [DaemonRequest] = []
+final class ScriptedLink: DaemonLink, @unchecked Sendable {
+    /// Requests can arrive from several tasks at once, as an early polish does, so the record is locked.
+    private let lock = NSLock()
+    private var record: [DaemonRequest] = []
+    var sent: [DaemonRequest] {
+        get { lock.withLock { record } }
+        set { lock.withLock { record = newValue } }
+    }
     var answers: [String: [DaemonResponse]] = [:]
     var unreachable = false
 
+    /// Waits until `count` requests arrived, for a request a test started in a task of its own.
+    func waitForSent(_ count: Int, within seconds: TimeInterval = 2) async {
+        let deadline = Date().addingTimeInterval(seconds)
+        while sent.count < count, Date() < deadline { await Task.yield() }
+    }
+
     func stream(_ request: DaemonRequest) -> AsyncThrowingStream<DaemonResponse, Error> {
-        sent.append(request)
+        lock.withLock { record.append(request) }
         let scripted = answers[request.method] ?? []
         let unreachable = self.unreachable
         return AsyncThrowingStream { continuation in

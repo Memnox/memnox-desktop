@@ -103,6 +103,10 @@ if [ -n "${MEMNOX_SIGN_IDENTITY:-}" ]; then
   # piece of code in the app, so each Mach-O the voice carries is found by what it is rather than by its name.
   security find-identity -v -p codesigning | grep -qF "$MEMNOX_SIGN_IDENTITY" \
     || { echo "no valid signing identity named $MEMNOX_SIGN_IDENTITY in the keychain" >&2; exit 1; }
+  # The team a Developer ID names in its last parentheses, written in so the updater refuses an app any other team signed.
+  TEAM="${MEMNOX_TEAM_ID:-$(echo "$MEMNOX_SIGN_IDENTITY" | sed -n 's/.*(\([A-Z0-9]\{10\}\))$/\1/p')}"
+  [ -n "$TEAM" ] || { echo "no team in $MEMNOX_SIGN_IDENTITY; set MEMNOX_TEAM_ID to the ten characters Apple gave it" >&2; exit 1; }
+  /usr/libexec/PlistBuddy -c "Add :MemnoxTeamIdentifier string $TEAM" "$APP/Contents/Info.plist"
   RELEASE_SIGN="--force --options runtime --timestamp --sign"
   find "$KOKORO" -type f ! -name python3.12 -exec sh -c 'file -b "$1" | grep -q "^Mach-O"' _ {} \; -print \
     | while IFS= read -r code; do codesign $RELEASE_SIGN "$MEMNOX_SIGN_IDENTITY" "$code"; done

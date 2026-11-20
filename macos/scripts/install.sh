@@ -11,6 +11,9 @@ REPO="Memnox/memnox-desktop"
 APP_NAME="Memnox.app"
 BUNDLE_ID="com.memnox.voice"
 MIN_MACOS=14
+# The Apple Developer team that signs every release, ten characters from developer.apple.com, Membership details.
+# Once set, an image signed by anybody else is refused even when its checksum matches, since both live in one release.
+TEAM_ID=""
 
 fail() { printf 'memnox install: %s\n' "$1" >&2; exit 1; }
 
@@ -45,6 +48,13 @@ fi
 mkdir -p "$MOUNT"
 hdiutil attach "$WORK/Memnox.dmg" -mountpoint "$MOUNT" -nobrowse -readonly -quiet || fail "could not open the disk image"
 [ -d "$MOUNT/$APP_NAME" ] || fail "the disk image holds no $APP_NAME"
+# A local image is the builder's own; a released one is held to the team and to Apple's notarization.
+if [ -n "$TEAM_ID" ] && [ -z "${MEMNOX_DMG_URL:-}" ]; then
+  codesign --verify --deep --strict "$MOUNT/$APP_NAME" 2>/dev/null || fail "the app in the image was changed after it was signed, so it was not installed."
+  SIGNED_BY="$(codesign -dv "$MOUNT/$APP_NAME" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+  [ "$SIGNED_BY" = "$TEAM_ID" ] || fail "the app is signed by team ${SIGNED_BY:-none} rather than $TEAM_ID, so it was not installed."
+  spctl --assess --type exec "$MOUNT/$APP_NAME" 2>/dev/null || fail "Apple has not notarized this app, so it was not installed."
+fi
 
 # Applications when this account may write there, else the one in the home folder, which macOS treats the same way.
 TARGET=/Applications

@@ -28,6 +28,8 @@ final class EarlyDictationPolishTests: XCTestCase {
         let spoke = Date()
         early.hear("send the report", at: spoke)
         early.look(at: spoke.addingTimeInterval(0.5))
+        // A person says more only after the pause, by which time the early polish has long reached the daemon.
+        await link.waitForSent(1)
         _ = await early.answer(for: "send the report to the team")
         XCTAssertEqual(link.sent.last?.said, "send the report to the team")
     }

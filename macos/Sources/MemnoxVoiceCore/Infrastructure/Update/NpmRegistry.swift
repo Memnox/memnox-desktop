@@ -13,10 +13,22 @@ public struct NpmRegistry: RuntimeFeed {
     }
 
     public func newest() async -> String? {
-        var request = URLRequest(url: latest)
+        guard let data = await read(latest) else { return nil }
+        return RuntimeRelease.newest(in: data)
+    }
+
+    /// Read from the version's own entry beside `latest`; only a plain version is ever put in the address.
+    public func deprecation(of version: String) async -> String? {
+        guard RuntimeRelease.isPlainVersion(version),
+              let data = await read(latest.deletingLastPathComponent().appendingPathComponent(version)) else { return nil }
+        return RuntimeRelease.deprecation(in: data)
+    }
+
+    private func read(_ url: URL) async -> Data? {
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         guard let (data, status) = try? await transport.send(request), status == 200 else { return nil }
-        return RuntimeRelease.newest(in: data)
+        return data
     }
 }

@@ -10,6 +10,7 @@ import { TAURI_COMMAND } from './tauri-commands';
 /** The app's releases and the runtime's newest version through `updates.rs`, which reaches those two lists and nothing else. */
 export const tauriReleaseFeed: ReleaseFeed = {
   read: (list) => invoke<string>(TAURI_COMMAND.releaseFeed, { list }).catch(() => undefined),
+  readRuntimeVersion: (version) => invoke<string>(TAURI_COMMAND.runtimeVersionEntry, { version }).catch(() => undefined),
 };
 
 /** The version this app was built as. */

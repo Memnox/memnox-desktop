@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ReleaseFeed } from '../src/core/application/ports/release-feed';
 import { Updates, type UpdateFacts } from '../src/core/application/updates';
-import { isNewer, newestAppRelease, newestRuntimeVersion, offered, UpdateLines } from '../src/core/domain/updates';
+import { isNewer, isPlainVersion, newestAppRelease, newestRuntimeVersion, offered, runtimeDeprecation, UpdateLines } from '../src/core/domain/updates';
 
 /** A newer Memnox is offered once, put off one version at a time, and never decided for the person. */
 
@@ -51,7 +51,11 @@ describe('reading what is out', () => {
   });
 });
 
-function world(over: Partial<UpdateFacts> = {}, lists: Partial<Record<'app' | 'runtime', string>> = { app: LISTED, runtime: '{"version":"0.16.0"}' }) {
+function world(
+  over: Partial<UpdateFacts> = {},
+  lists: Partial<Record<'app' | 'runtime', string>> = { app: LISTED, runtime: '{"version":"0.16.0"}' },
+  entries: Record<string, string> = {},
+) {
   const skipped = new Map<string, string>();
   const opened: string[] = [];
   const asked: string[] = [];
@@ -60,6 +64,7 @@ function world(over: Partial<UpdateFacts> = {}, lists: Partial<Record<'app' | 'r
       asked.push(list);
       return lists[list];
     },
+    readRuntimeVersion: async (version) => entries[version] ?? `{"version":"${version}"}`,
   };
   const facts: UpdateFacts = {
     platform: 'windows',
@@ -154,5 +159,60 @@ describe('offering an update', () => {
     for (const line of [...offers.flatMap((offer) => [UpdateLines.title(offer), UpdateLines.detail(offer)]), UpdateLines.updatingRuntime, UpdateLines.failed('x')]) {
       expect(line).not.toMatch(/[\u2014\u2013]| - /);
     }
+  });
+});
+
+describe('a service the team withdrew with npm deprecate', () => {
+  const withdrawn = (reason: string) => JSON.stringify({ version: '0.15.0', deprecated: reason });
+
+  it('updates at once to the newest, with no Later, and says why', async () => {
+    let ran = 0;
+    const { updates, skipped } = world({ updateRuntime: async () => void (ran += 1) }, undefined, { '0.15.0': withdrawn('signature check fault') });
+    await updates.look();
+    expect(ran).toBe(1);
+    expect(updates.offers.map((offer) => offer.kind)).toEqual(['app']);
+    const offer = { kind: 'runtime' as const, version: '0.16.0', withdrawn: 'signature check fault' };
+    expect(UpdateLines.title(offer)).toBe('Memnox service is updating to 0.16.0');
+    expect(UpdateLines.detail(offer)).toBe('The version running was withdrawn for a fault: signature check fault');
+    updates.later(offer);
+    expect(skipped.get('runtime')).toBeUndefined();
+  });
+
+  it('updates even a version the person put off before it was withdrawn', async () => {
+    let ran = 0;
+    const { updates, skipped } = world({ updateRuntime: async () => void (ran += 1) }, undefined, { '0.15.0': withdrawn('fault') });
+    skipped.set('runtime', '0.16.0');
+    await updates.look();
+    expect(ran).toBe(1);
+  });
+
+  it('keeps the offer and its reason when the update fails, and tries again at the next look', async () => {
+    let ran = 0;
+    const { updates } = world({ updateRuntime: async () => ((ran += 1), 'npm could not be reached') }, undefined, { '0.15.0': withdrawn('fault') });
+    await updates.lookAtRuntime();
+    expect(updates.failed).toBe('npm could not be reached');
+    expect(updates.offers.find((offer) => offer.kind === 'runtime')?.withdrawn).toBe('fault');
+    await updates.lookAtRuntime();
+    expect(ran).toBe(2);
+  });
+
+  it('waits while nothing newer is out, or when the newest was withdrawn too', async () => {
+    let ran = 0;
+    const update = { updateRuntime: async () => void (ran += 1) };
+    const nothingNewer = world({ ...update, runtimeVersion: async () => '0.16.0' }, undefined, { '0.16.0': withdrawn('fault') });
+    await nothingNewer.updates.look();
+    const both = world(update, undefined, { '0.15.0': withdrawn('fault'), '0.16.0': withdrawn('fault as well') });
+    await both.updates.look();
+    expect(ran).toBe(0);
+    expect(both.updates.offers.find((offer) => offer.kind === 'runtime')?.withdrawn).toBeUndefined();
+  });
+
+  it('reads a deprecation, takes an empty one as lifted, and puts only a plain version in an address', () => {
+    expect(runtimeDeprecation('{"deprecated":"fault"}')).toBe('fault');
+    expect(runtimeDeprecation('{"deprecated":""}')).toBeUndefined();
+    expect(runtimeDeprecation('{"version":"0.15.0"}')).toBeUndefined();
+    expect(runtimeDeprecation('<html>')).toBeUndefined();
+    expect(isPlainVersion('0.15.1')).toBe(true);
+    for (const odd of ['../latest', '0.15', '0.15.1-beta', 'latest', '']) expect(isPlainVersion(odd)).toBe(false);
   });
 });

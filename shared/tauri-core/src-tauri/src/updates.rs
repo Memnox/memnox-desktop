@@ -10,6 +10,8 @@ const APP_RELEASES: &str =
     "https://api.github.com/repos/Memnox/memnox-desktop/releases?per_page=30";
 /// The newest runtime npm serves, the same package the first run installs as `memnox@latest`.
 const RUNTIME_LATEST: &str = "https://registry.npmjs.org/memnox/latest";
+/// Where one published runtime version's own entry is read, with the version after it.
+const RUNTIME_ENTRY: &str = "https://registry.npmjs.org/memnox/";
 /// Long enough for a slow network, short enough that a look never hangs the pill it would draw.
 const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 /// GitHub refuses a request that names no client.
@@ -51,6 +53,27 @@ fn read(address: &str) -> Result<String, String> {
         .map_err(|why| why.to_string())
 }
 
+/// One runtime version's own registry entry, where `npm deprecate` leaves why the team withdrew it. Only a plain
+/// version is put in the address, so nothing the webview sends can make this reach any other page.
+#[tauri::command]
+pub async fn runtime_version_entry(version: String) -> Result<String, String> {
+    let address =
+        runtime_entry_address(&version).ok_or_else(|| format!("{version} is not a version"))?;
+    tokio::task::spawn_blocking(move || read(&address))
+        .await
+        .map_err(|why| why.to_string())?
+}
+
+/// The registry's page for `version`, or None for anything but digits in three dotted parts.
+fn runtime_entry_address(version: &str) -> Option<String> {
+    let parts: Vec<&str> = version.split('.').collect();
+    let plain = parts.len() == 3
+        && parts
+            .iter()
+            .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()));
+    plain.then(|| format!("{RUNTIME_ENTRY}{version}"))
+}
+
 /// The version this app was built as, which `tauri.conf.json` carries and a release's tag names.
 #[tauri::command]
 pub fn app_version(app: tauri::AppHandle) -> String {
@@ -59,7 +82,26 @@ pub fn app_version(app: tauri::AppHandle) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::List;
+    use super::{runtime_entry_address, List};
+
+    #[test]
+    fn reads_only_a_plain_version_entry() {
+        assert_eq!(
+            runtime_entry_address("0.15.1").as_deref(),
+            Some("https://registry.npmjs.org/memnox/0.15.1")
+        );
+        for odd in [
+            "../latest",
+            "0.15",
+            "0.15.1-beta",
+            "0..1",
+            "latest",
+            "",
+            "0.15.1/../../x",
+        ] {
+            assert_eq!(runtime_entry_address(odd), None, "{odd}");
+        }
+    }
 
     #[test]
     fn reaches_only_the_two_lists_it_names() {

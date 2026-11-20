@@ -1,7 +1,7 @@
 import { ArrowUpCircle } from 'lucide-react';
 import { useEffect, useSyncExternalStore } from 'react';
 import type { Updates } from '../core/application/updates';
-import { UPDATE_CHECK_MS, UpdateLines, type UpdateOffer } from '../core/domain/updates';
+import { RUNTIME_CHECK_MS, UPDATE_CHECK_MS, UpdateLines, type UpdateOffer } from '../core/domain/updates';
 import { Button, IslandButton, Note, Spinner, UnderPill } from './kit';
 
 /**
@@ -27,7 +27,11 @@ function useOffers(updates: Updates): { offers: readonly UpdateOffer[]; busy: bo
   useEffect(() => {
     void updates.look();
     const timer = setInterval(() => void updates.look(), UPDATE_CHECK_MS);
-    return () => clearInterval(timer);
+    const service = setInterval(() => void updates.lookAtRuntime(), RUNTIME_CHECK_MS);
+    return () => {
+      clearInterval(timer);
+      clearInterval(service);
+    };
   }, [updates]);
   return { offers, busy, failed };
 }
@@ -45,7 +49,7 @@ export function UpdatePills({ updates }: { updates: Updates }) {
             {!working && (
               <>
                 <IslandButton onClick={() => void updates.update(offer)}>{UpdateLines.action(offer)}</IslandButton>
-                <IslandButton onClick={() => updates.later(offer)}>{UpdateLines.later}</IslandButton>
+                {offer.withdrawn === undefined && <IslandButton onClick={() => updates.later(offer)}>{UpdateLines.later}</IslandButton>}
               </>
             )}
           </UnderPill>
@@ -80,7 +84,7 @@ export function UpdateBanner({ updates }: { updates: Updates }) {
                   <Button kind="primary" onClick={() => void updates.update(offer)}>
                     {UpdateLines.action(offer)}
                   </Button>
-                  <Button onClick={() => updates.later(offer)}>{UpdateLines.later}</Button>
+                  {offer.withdrawn === undefined && <Button onClick={() => updates.later(offer)}>{UpdateLines.later}</Button>}
                 </span>
               )}
             </span>

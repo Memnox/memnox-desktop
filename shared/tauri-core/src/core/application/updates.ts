@@ -1,5 +1,5 @@
 import type { Platform } from '../domain/platform';
-import { newestAppRelease, newestRuntimeVersion, offered, type UpdateKind, type UpdateOffer } from '../domain/updates';
+import { isNewer, isPlainVersion, newestAppRelease, newestRuntimeVersion, offered, runtimeDeprecation, type UpdateKind, type UpdateOffer } from '../domain/updates';
 import { Observed } from './observed';
 import type { ReleaseFeed } from './ports/release-feed';
 
@@ -55,6 +55,22 @@ export class Updates extends Observed {
     const [app, runtime] = await Promise.all([this.appOffer(this.feed), this.runtimeOffer(this.feed)]);
     this.found = [app, runtime].filter((offer): offer is UpdateOffer => offer !== undefined);
     this.changed();
+    await this.replaceWithdrawn();
+  }
+
+  /** Looks at the service alone, hourly, so a withdrawn one is replaced well before the next full look. */
+  async lookAtRuntime(): Promise<void> {
+    if (this.feed === undefined) return;
+    const runtime = await this.runtimeOffer(this.feed);
+    this.found = [...this.found.filter((each) => each.kind !== 'runtime'), ...(runtime === undefined ? [] : [runtime])];
+    this.changed();
+    await this.replaceWithdrawn();
+  }
+
+  /** A withdrawn service is updated as if Update had been pressed; a failure stays on the offer for the next look. */
+  private async replaceWithdrawn(): Promise<void> {
+    const withdrawn = this.found.find((each) => each.kind === 'runtime' && each.withdrawn !== undefined);
+    if (withdrawn !== undefined && this.working === undefined) await this.update(withdrawn);
   }
 
   private async appOffer(feed: ReleaseFeed): Promise<UpdateOffer | undefined> {
@@ -71,7 +87,25 @@ export class Updates extends Observed {
     if (running === undefined) return undefined;
     const body = await feed.read('runtime').catch(() => undefined);
     const newest = body === undefined ? undefined : newestRuntimeVersion(body);
+    const withdrawn = newest === undefined ? undefined : await this.withdrawal(feed, running, newest);
+    if (withdrawn !== undefined && newest !== undefined) return { kind: 'runtime', version: newest, withdrawn };
     return offered(newest, running, this.facts.skipped('runtime')) && newest !== undefined ? { kind: 'runtime', version: newest } : undefined;
+  }
+
+  /**
+   * Why the running service was withdrawn, when a newer one stands to replace it. Nothing while it stands, while
+   * nothing newer is out, or when the newest was withdrawn too, so it never moves to another faulty version.
+   */
+  private async withdrawal(feed: ReleaseFeed, running: string, newest: string): Promise<string | undefined> {
+    if (!isPlainVersion(running) || !isNewer(newest, running)) return undefined;
+    const reason = await this.deprecation(feed, running);
+    if (reason === undefined || (await this.deprecation(feed, newest)) !== undefined) return undefined;
+    return reason;
+  }
+
+  private async deprecation(feed: ReleaseFeed, version: string): Promise<string | undefined> {
+    const entry = await feed.readRuntimeVersion(version).catch(() => undefined);
+    return entry === undefined ? undefined : runtimeDeprecation(entry);
   }
 
   /** The offer's press: the app's installer opens in the browser, and the service is updated here and now. */
@@ -91,8 +125,9 @@ export class Updates extends Observed {
     this.changed();
   }
 
-  /** Later: this version is not offered again, though the next one will be. */
+  /** Later: this version is not offered again, though the next one will be. A withdrawal has no Later. */
   later(offer: UpdateOffer): void {
+    if (offer.withdrawn !== undefined) return;
     this.facts.putOff(offer.kind, offer.version);
     this.found = this.found.filter((each) => each.kind !== offer.kind);
     this.why = undefined;

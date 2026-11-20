@@ -14,6 +14,11 @@ export interface UpdateOffer {
   readonly version: string;
   /** Where the app's installer is fetched; the service updates in place and has none. */
   readonly url?: string;
+  /**
+   * Why the team withdrew the service running, with `npm deprecate`. Such an offer is taken at once and has no
+   * Later, since the version it replaces has a fault the team will not leave running.
+   */
+  readonly withdrawn?: string;
 }
 
 /** A release of the app as its feed lists it: the version and where this system gets it. */
@@ -31,6 +36,8 @@ const LINUX_ASSET = /\.(deb|rpm|AppImage)$/;
 
 /** How often a running app looks again, the Mac's `updateCheckSeconds`. */
 export const UPDATE_CHECK_MS = 6 * 60 * 60 * 1000;
+/** The service is looked at hourly, the Mac's `runtimeCheckSeconds`, so a withdrawn one does not run for most of a day. */
+export const RUNTIME_CHECK_MS = 60 * 60 * 1000;
 
 /** Whether `version` is one the build at `running` should move to. */
 export function isNewer(version: string, running: string): boolean {
@@ -78,6 +85,18 @@ export function newestRuntimeVersion(body: string): string | undefined {
   return typeof version === 'string' && /^\d+\.\d+\.\d+/.test(version) ? version : undefined;
 }
 
+/** The reason `npm deprecate` left on one version's entry; npm writes a string, and an empty one lifts it. */
+export function runtimeDeprecation(body: string): string | undefined {
+  const entry = parsed(body);
+  const reason = isObject(entry) ? entry['deprecated'] : undefined;
+  return typeof reason === 'string' && reason.trim() !== '' ? reason.trim() : undefined;
+}
+
+/** Digits and dots only, so a version read from the service can never steer the registry address elsewhere. */
+export function isPlainVersion(version: string): boolean {
+  return /^\d+\.\d+\.\d+$/.test(version);
+}
+
 /**
  * What to offer: only a version newer than the one running, and never the one the person put off, though a newer
  * one after it is offered again, as the Mac's `AppUpdates.offer`.
@@ -92,11 +111,18 @@ export const UpdateLines = {
   download: 'Download',
   later: 'Later',
   updatingRuntime: 'Updating the Memnox service',
-  title: (offer: UpdateOffer): string => (offer.kind === 'app' ? `Memnox ${offer.version} is out` : `Memnox service ${offer.version} is out`),
+  title: (offer: UpdateOffer): string =>
+    offer.kind === 'app'
+      ? `Memnox ${offer.version} is out`
+      : offer.withdrawn !== undefined
+        ? `Memnox service is updating to ${offer.version}`
+        : `Memnox service ${offer.version} is out`,
   detail: (offer: UpdateOffer): string =>
     offer.kind === 'app'
       ? 'A newer Memnox app is ready. Download it and run the installer, and it replaces this one.'
-      : 'A newer Memnox service is ready. Updating takes a moment, and your agents carry on under the same rules.',
+      : offer.withdrawn !== undefined
+        ? `The version running was withdrawn for a fault: ${offer.withdrawn}`
+        : 'A newer Memnox service is ready. Updating takes a moment, and your agents carry on under the same rules.',
   /** What the press says: the app is fetched in the browser, the service updates in place. */
   action: (offer: UpdateOffer): string => (offer.kind === 'app' ? UpdateLines.download : UpdateLines.update),
   failed: (why: string): string => `The update did not finish: ${why}`,

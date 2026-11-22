@@ -2188,7 +2188,7 @@ public struct HomeNotCovered: Decodable, Equatable, Sendable {
 /// The oldest memnox this app works with: the first to say its version on ping, so any daemon that
 /// says none is older. Raised whenever the app comes to need something a newer runtime added.
 public enum MinimumRuntime: Sendable {
-    public static let version = "0.13.14"
+    public static let version = "0.15.2"
 }
 
 /// Whether a version is this one or newer, by major, minor and patch as numbers; none at all is older.

@@ -1,5 +1,5 @@
 /** The oldest runtime this app works with, the same floor the Mac app holds. */
-export const MINIMUM_RUNTIME = '0.13.14';
+export const MINIMUM_RUNTIME = '0.15.2';
 
 /** Where the daemon stands for this app. */
 export type RuntimeState =

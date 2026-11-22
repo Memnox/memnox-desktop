@@ -413,7 +413,7 @@ final class ConversationTests: XCTestCase {
     }
 
     func testTellsADaemonThatSpeaksVoiceFromOneThatOnlySaysOk() async throws {
-        link.answers["ping"] = [try line(#"{"id":1,"ok":true,"version":"0.13.14"}"#)]
+        link.answers["ping"] = [try line(#"{"id":1,"ok":true,"version":"\#(MinimumRuntime.version)"}"#)]
         link.answers["waiting"] = [try line(#"{"id":1,"ok":true}"#)]
         let old = await conversation.daemonVoice()
         XCTAssertEqual(old, .tooOld)
@@ -423,7 +423,7 @@ final class ConversationTests: XCTestCase {
     }
 
     func testCallsADaemonThatCannotConnectTheMacTooOld() async throws {
-        link.answers["ping"] = [try line(#"{"id":1,"ok":true,"version":"0.13.14"}"#)]
+        link.answers["ping"] = [try line(#"{"id":1,"ok":true,"version":"\#(MinimumRuntime.version)"}"#)]
         link.answers["waiting"] = [try line(#"{"id":2,"ok":true,"waiting":[]}"#)]
         link.answers["machine"] = [try line(#"{"id":3,"ok":false,"error":"no method machine"}"#)]
         let old = await conversation.daemonVoice()

@@ -520,7 +520,6 @@ const MAC_CONSTANTS: readonly MacConstant[] = [
   { module: "src/ui/app/page-metrics.ts", name: "PAGE_METRICS", key: "skillVersion", file: "App/SkillSheets.swift", pattern: "static let versionWidth: CGFloat = ([\\d.]+)" },
   { module: "src/ui/app/page-metrics.ts", name: "PAGE_METRICS", key: "skillInstructions", file: "App/SkillSheets.swift", pattern: "static let instructionsHeight: CGFloat = ([\\d.]+)" },
   { module: "src/ui/app/page-metrics.ts", name: "PAGE_METRICS", key: "activitySearch", file: "App/ActivityDestination.swift", pattern: "static let searchWidth: CGFloat = ([\\d.]+)" },
-  { module: "src/ui/app/page-metrics.ts", name: "PAGE_METRICS", key: "activityKind", file: "App/ActivityDestination.swift", pattern: "static let kindWidth: CGFloat = ([\\d.]+)" },
   { module: "src/ui/app/page-metrics.ts", name: "PAGE_METRICS", key: "hubSearch", file: "App/McpHubDestination.swift", pattern: "static let searchWidth: CGFloat = ([\\d.]+)" },
   { module: "src/ui/app/page-metrics.ts", name: "PAGE_METRICS", key: "skillProgress", file: "App/SkillsDestination.swift", pattern: "static let progressWidth: CGFloat = ([\\d.]+)" },
   { module: "src/ui/app/page-metrics.ts", name: "PAGE_METRICS", key: "homeTrack", file: "App/HomeStart.swift", pattern: "static let trackMinimum: CGFloat = ([\\d.]+)" },

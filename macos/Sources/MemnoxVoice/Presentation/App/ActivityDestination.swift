@@ -10,18 +10,13 @@ struct ActivityDestination: View {
     let width: WidthClass
 
     @State private var effect: RuleEffect?
-    @State private var kind: ActivityKind?
     @State private var text = ""
     /// Whether the list is scrolled to its top, so live rows go up there or wait behind the pill.
     @State private var atTop = true
     /// Bumped by the pill, which scrolls the list back to its top.
     @State private var scrollUp = 0
 
-    private static let kinds: [(ActivityKind?, String)] = [
-        (nil, "Everything"), (.command, "Commands"), (.file, "Files"), (.mcp, "MCP tools"), (.tool, "Other tools"),
-    ]
     private static let searchWidth: CGFloat = 280
-    private static let kindWidth: CGFloat = 150
     private static let logo: CGFloat = 24
     private static let topID = "activity-top"
     private static let space = "activity-scroll"
@@ -64,26 +59,29 @@ struct ActivityDestination: View {
 
     private var filter: ActivityFilter {
         let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return ActivityFilter(effect: effect, kind: kind, text: words.isEmpty ? nil : words)
+        return ActivityFilter(effect: effect, text: words.isEmpty ? nil : words)
     }
 
     private var toolbar: some View {
         HStack(spacing: Memnox.Spacing.medium) {
             SearchField(prompt: "Search actions and targets", text: $text).frame(maxWidth: Self.searchWidth)
             HStack(spacing: Memnox.Spacing.small) {
-                FilterChip(title: "Any", chosen: effect == nil) { effect = nil }
+                FilterChip(title: StudioLines.everything, chosen: effect == nil) { effect = nil }
                 ForEach(RuleEffect.allCases, id: \.self) { each in
-                    FilterChip(title: StudioLines.words(each).title, chosen: effect == each) { effect = each }
+                    FilterChip(title: StudioLines.happened(each), chosen: effect == each) { effect = each }
                 }
             }
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Decided")
-            ConsoleSelect(label: "Kind", selection: $kind, options: Self.kinds.map { SelectOption(value: $0.0, title: $0.1) })
-                .frame(maxWidth: Self.kindWidth)
+            .accessibilityLabel("What happened")
             Spacer(minLength: Memnox.Spacing.medium)
-            Button(action: copyRecord) { Label("Copy signed record", systemImage: "doc.on.doc") }
-                .buttonStyle(KitButton(kind: .secondary))
-                .help("Copy what this view shows as a signed record that memnox verify checks")
+            Menu {
+                Button(action: copyRecord) { Label("Copy signed record", systemImage: "doc.on.doc") }
+                    .help("Copy what this view shows as a signed record that memnox verify checks")
+            } label: {
+                Image(systemName: "ellipsis.circle").accessibilityLabel("More")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
         }
     }
 

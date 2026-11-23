@@ -33,6 +33,18 @@ public enum StudioLines {
         }
     }
 
+    /// What happened to an action, as Activity filters by it: what went ahead, what waited, and what was stopped.
+    public static func happened(_ effect: RuleEffect) -> String {
+        switch effect {
+        case .allow: "Went ahead"
+        case .ask: "Waited for you"
+        case .deny: "Stopped"
+        }
+    }
+
+    /// The filter that shows every action, whatever happened to it.
+    public static let everything = "Everything"
+
     /// An effect's name, or the runtime's own word for one this app does not know yet.
     public static func title(_ effect: String) -> String {
         RuleEffect(rawValue: effect).map { words($0).title } ?? effect

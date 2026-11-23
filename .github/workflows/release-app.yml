@@ -331,7 +331,7 @@ jobs:
       # The app is open source, so anyone can prove a download was built by this workflow from the tagged commit rather
       # than by somebody's own machine: gh attestation verify Memnox.dmg --repo Memnox/memnox-desktop
       - name: Attest where every file was built
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: out/*
 

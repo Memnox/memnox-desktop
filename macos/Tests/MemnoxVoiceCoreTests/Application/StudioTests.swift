@@ -38,7 +38,7 @@ final class StudioTests: XCTestCase {
         await lost.refresh()
         XCTAssertTrue(lost.unreadable)
         let removed = await lost.remove("mine")
-        XCTAssertEqual(removed, .failed("The runtime is not answering."))
+        XCTAssertEqual(removed, .failed("Memnox is not answering on this Mac."))
     }
 
     func testRemovingAnAllowIsDoneAtOnceAndRedrawsFromTheAnswer() async throws {

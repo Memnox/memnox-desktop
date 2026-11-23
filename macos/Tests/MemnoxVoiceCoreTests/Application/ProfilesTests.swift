@@ -97,6 +97,6 @@ final class ProfileBindingTests: XCTestCase {
         guard case .failure(let problem) = ProfileLines.draft(ProfileForm(name: "Backend"), packs: []) else {
             return XCTFail("a profile with nothing in it was kept")
         }
-        XCTAssertEqual(problem.why, "Choose at least one skill, server or rule pack.")
+        XCTAssertEqual(problem.why, "Choose at least one skill, tool server or set of starter rules.")
     }
 }

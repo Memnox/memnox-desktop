@@ -418,17 +418,17 @@ private struct RuntimeStanding: View {
     /// Opens Connection, where Check again installs or starts the service, so a runtime that stopped is one press away.
     let fix: () -> Void
 
-    static let reaching = "Reaching the runtime"
+    static let reaching = "Reaching Memnox"
 
     var body: some View {
         // The last read decides, since the home kept from an earlier read outlives a runtime that stopped since.
         if home.unavailable {
-            Button(action: fix) { RuntimeWord(tone: .bad, words: "Runtime not answering", rail: rail) }
+            Button(action: fix) { RuntimeWord(tone: .bad, words: "Memnox not answering", rail: rail) }
                 .buttonStyle(.plain)
                 .pointingHand()
                 .help("Open Connection, where Check again starts the Memnox service")
         } else if home.home != nil {
-            RuntimeWord(tone: .good, words: "Runtime running", rail: rail)
+            RuntimeWord(tone: .good, words: "Memnox running", rail: rail)
         } else {
             RuntimeWord(tone: .quiet, words: Self.reaching, rail: rail)
         }

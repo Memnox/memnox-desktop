@@ -262,18 +262,18 @@ describe('with the runtime away', () => {
     // A window newly open is still waiting on a service being set up, so it says that and shows no fault.
     const starting = renderToString(createElement('div', null, pageNamed('home/').draw(parts), createElement(RuntimeStatus, { parts, rail: false })));
     expect(starting).toContain('Starting Memnox');
-    for (const fault of ['could not read', 'not answering', 'Open Connection', 'Runtime running']) expect(starting, `starting says ${fault}`).not.toContain(fault);
+    for (const fault of ['could not read', 'not answering', 'Open Connection', 'Memnox running']) expect(starting, `starting says ${fault}`).not.toContain(fault);
     // Once the wait has run out, a service still away is said to be away.
     const openedAt = windowOpened.at;
     windowOpened.at = Date.now() - START_GRACE_MS;
     const drawn = ['home/', 'needs-you/decide-now'].map((name) => [name, renderToString(createElement('div', null, pageNamed(name).draw(parts)))] as const);
     drawn.push(['sidebar', renderToString(createElement(RuntimeStatus, { parts, rail: false }))]);
     for (const [name, html] of drawn) {
-      for (const clear of ['Nothing is waiting', 'Nothing needs you', 'No agents found', 'Runtime running']) expect(html, `${name} says ${clear}`).not.toContain(clear);
+      for (const clear of ['Nothing is waiting', 'Nothing needs you', 'No agents found', 'Memnox running']) expect(html, `${name} says ${clear}`).not.toContain(clear);
     }
     expect(drawn.find(([name]) => name === 'home/')?.[1]).toContain('Open Connection');
     expect(drawn.find(([name]) => name === 'needs-you/decide-now')?.[1]).toContain('The Memnox service is not answering');
-    expect(drawn.find(([name]) => name === 'sidebar')?.[1]).toContain('Runtime not answering');
+    expect(drawn.find(([name]) => name === 'sidebar')?.[1]).toContain('Memnox not answering');
     windowOpened.at = openedAt;
     memory.delete(PREFERENCE.setupDone);
   });

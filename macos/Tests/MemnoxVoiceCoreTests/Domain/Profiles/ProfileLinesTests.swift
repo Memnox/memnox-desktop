@@ -10,7 +10,7 @@ final class ProfileLinesTests: XCTestCase {
         let backend = ProfileView(id: "backend-engineering", name: "Backend Engineering", skills: ["review-checklist", "release-notes"],
                                   mcpServers: ["postgres"], rulePack: ProfilePackSummary(name: "Careful", rules: 6), updatedAt: "2026-10-30T10:00:00Z")
         XCTAssertEqual(ProfileLines.contents(backend), "2 skills · 1 server · Careful, 6 rules")
-        XCTAssertEqual(ProfileLines.contents(ProfileView(id: "a", name: "a", skills: ["a"], updatedAt: "")), "1 skill · 0 servers · No rule pack")
+        XCTAssertEqual(ProfileLines.contents(ProfileView(id: "a", name: "a", skills: ["a"], updatedAt: "")), "1 skill · 0 servers · No starter rules")
     }
 
     func testSaysWhatAnApplyRaisedWhatWasAlreadyGivenAndWhatWasSkipped() {
@@ -60,10 +60,10 @@ final class ProfileLinesTests: XCTestCase {
     func testSaysWhatIsMissing() {
         let form = ProfileForm(name: "Backend", skills: ["a"], pack: "careful")
         XCTAssertEqual(problem(ProfileForm(name: "", skills: ["a"])), "Give the profile a name.")
-        XCTAssertEqual(problem(ProfileForm(name: "Backend")), "Choose at least one skill, server or rule pack.")
+        XCTAssertEqual(problem(ProfileForm(name: "Backend")), "Choose at least one skill, tool server or set of starter rules.")
         var gone = form
         gone.pack = "gone"
-        XCTAssertEqual(problem(gone), "That rule pack is no longer offered. Choose another.")
+        XCTAssertEqual(problem(gone), "Those starter rules are no longer offered. Choose others.")
     }
 
     private func problem(_ form: ProfileForm) -> String? {

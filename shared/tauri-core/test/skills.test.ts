@@ -137,7 +137,7 @@ describe('the Skills Hub', () => {
     const daemon = new ScriptedDaemon({ 'skill-sync': (request) => [{ id: request.id, ok: true, skillsSynced: { written: 2, removed: 0, files: [], skipped: [] } }] });
     const hub = new SkillsHub(daemon, new RequestIds());
     expect(await hub.sync()).toEqual({ kind: 'done', note: 'Wrote 2.' });
-    expect(await hub.accept('release-notes')).toEqual({ kind: 'failed', why: 'The runtime is not answering.' });
+    expect(await hub.accept('release-notes')).toEqual({ kind: 'failed', why: 'Memnox is not answering on this Mac.' });
   });
 
   it('removes a personal skill from every agent at once', async () => {

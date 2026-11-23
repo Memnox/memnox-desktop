@@ -5,7 +5,7 @@ import { filled } from './agent-work-lines';
 export function profileContents(profile: Pick<ProfileView, 'skills' | 'mcpServers' | 'rulePack'>): string {
   const parts = [counted(profile.skills.length, 'skill', 'skills'), counted(profile.mcpServers.length, 'server', 'servers')];
   if (profile.rulePack !== undefined) parts.push(`${profile.rulePack.name}, ${counted(profile.rulePack.rules, 'rule', 'rules')}`);
-  else parts.push('No rule pack');
+  else parts.push('No starter rules');
   return parts.join(' · ');
 }
 
@@ -39,8 +39,8 @@ export function profileDraftFrom(form: ProfileForm, packs: readonly Pick<RulePac
   const name = form.name.trim();
   if (name === '') return 'Give the profile a name.';
   const pack = packs.find((each) => each.id === form.pack);
-  if (form.pack !== '' && pack === undefined) return 'That rule pack is no longer offered. Choose another.';
-  if (form.skills.size === 0 && form.servers.size === 0 && pack === undefined) return 'Choose at least one skill, server or rule pack.';
+  if (form.pack !== '' && pack === undefined) return 'Those starter rules are no longer offered. Choose others.';
+  if (form.skills.size === 0 && form.servers.size === 0 && pack === undefined) return 'Choose at least one skill, tool server or set of starter rules.';
   const role = filled(form.role);
   const responsible = filled(form.responsiblePerson);
   const projects = form.projects ?? [];
@@ -147,8 +147,8 @@ export const ProfilesLines = {
   noSkills: 'The Skills Hub holds no skill yet.',
   hubServers: 'Servers from the MCP Hub',
   noServers: 'The MCP Hub holds no server yet.',
-  rulePack: 'Rule pack',
-  noRulePack: 'No rule pack',
+  rulePack: 'Starter rules',
+  noRulePack: 'No starter rules',
   packOption: (name: string, rules: number) => `${name}, ${rules === 1 ? '1 rule' : `${rules} rules`}`,
 } as const;
 

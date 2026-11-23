@@ -117,7 +117,7 @@ describe('the layers as the runtime reads and writes them', () => {
     const memory = new Memory(new ScriptedDaemon(), new RequestIds());
     await memory.refreshLayers();
     expect(memory.layersUnreadable).toBe(true);
-    expect(await memory.previewLayers('/r/acme', [])).toBe('The runtime is not answering.');
+    expect(await memory.previewLayers('/r/acme', [])).toBe('Memnox is not answering on this Mac.');
     expect(await memory.confirmLayers()).toEqual({ kind: 'failed', why: 'There is no plan to confirm.' });
   });
 

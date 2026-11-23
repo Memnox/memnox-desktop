@@ -109,7 +109,7 @@ final class AgentLinesTests: XCTestCase {
         XCTAssertFalse(result.held)
         XCTAssertEqual(result.followUp, .restartService)
         XCTAssertEqual(result.line, "The Memnox service on this Mac is older than this app, so it cannot see that Claude Desktop is held. "
-            + "Restart it to run the newer runtime.")
+            + "Restart it to run the newer Memnox.")
         let again = AgentLines.afterProtect(["claude-desktop"], agents: old, failed: nil, restarted: true)
         XCTAssertTrue(again.line.hasPrefix("The Memnox service restarted but still runs a runtime older than this app"))
         XCTAssertEqual(again.followUp, .restartService)

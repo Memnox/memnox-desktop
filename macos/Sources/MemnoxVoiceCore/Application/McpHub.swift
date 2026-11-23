@@ -288,7 +288,7 @@ public final class McpHub: @unchecked Sendable {
     }
 
     private static func failure(_ response: DaemonResponse?) -> String {
-        guard let response else { return "The runtime is not answering." }
-        return response.error ?? "The runtime refused this."
+        guard let response else { return "Memnox is not answering on this Mac." }
+        return response.error ?? "Memnox refused this."
     }
 }

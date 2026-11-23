@@ -40,8 +40,8 @@ async function ask(link: DaemonLink, ids: RequestIds, fields: Omit<DaemonRequest
 }
 
 function outcomeOf(response: DaemonResponse | undefined, done: string): StudioOutcome {
-  if (response === undefined) return { kind: 'failed', why: 'The runtime is not answering.' };
-  if (!response.ok) return { kind: 'failed', why: response.error ?? 'The runtime refused this.' };
+  if (response === undefined) return { kind: 'failed', why: 'Memnox is not answering on this Mac.' };
+  if (!response.ok) return { kind: 'failed', why: response.error ?? 'Memnox refused this.' };
   if (response.proposed !== undefined) return { kind: 'proposed', id: response.proposed };
   return { kind: 'done', note: done };
 }
@@ -132,7 +132,7 @@ export class Studio extends Observed {
   async test(input: RuleTestInput): Promise<RuleVerdictView | string> {
     const response = await ask(this.link, this.ids, { method: POLICY_METHOD.RULE_TEST, ruleTest: input });
     if (response?.ruleVerdict !== undefined) return response.ruleVerdict;
-    return response?.error ?? 'The runtime is not answering.';
+    return response?.error ?? 'Memnox is not answering on this Mac.';
   }
 
   async exportToml(): Promise<string | undefined> {

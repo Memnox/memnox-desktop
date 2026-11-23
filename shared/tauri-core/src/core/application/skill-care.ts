@@ -5,8 +5,8 @@ import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
 import type { SkillOutcome } from './skills';
 
-const SILENT = 'The runtime is not answering.';
-const REFUSED = 'The runtime refused this.';
+const SILENT = 'Memnox is not answering on this Mac.';
+const REFUSED = 'Memnox refused this.';
 
 /**
  * Skills that improve with use, ported from the Mac's `SkillCare`: each skill's uses, failures and refusals, its fix

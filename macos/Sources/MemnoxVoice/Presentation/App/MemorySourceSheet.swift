@@ -89,7 +89,7 @@ struct AddMemorySourceSheet: View {
                     }
                 }
             case .server:
-                if let hub { HubServerPick(hub: hub, form: $form) } else { MemoryQuiet("Reading the MCP Hub.") }
+                if let hub { HubServerPick(hub: hub, form: $form) } else { MemoryQuiet("Reading your tool servers.") }
             }
             labelled("Name it, or leave it to be named for you") {
                 TextField("Team notes", text: $form.name).kitField()
@@ -451,9 +451,9 @@ private struct HubServerPick: View {
         let view = hub.hub.hub
         let servers = view?.servers ?? []
         if view == nil, hub.hub.unreadable {
-            ReadFailed(what: "the MCP Hub") { Task { await hub.hub.refresh() } }
+            ReadFailed(what: "your tool servers") { Task { await hub.hub.refresh() } }
         } else if servers.isEmpty {
-            MemoryQuiet(view == nil ? "Reading the MCP Hub." : "The MCP Hub on this Mac has no servers yet. Add the memory server there first.")
+            MemoryQuiet(view == nil ? "Reading your tool servers." : "No tool server is set up on this Mac yet. Add the memory server under Tool servers first.")
         } else {
             let server = servers.first { $0.name == form.server }
             let tools = server?.tools ?? []

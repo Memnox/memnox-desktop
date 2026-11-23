@@ -5,9 +5,9 @@
  */
 export const HomePageLines = {
   lead: 'What your agents are doing, what needs you, and what you can safely let them do next.',
-  protecting: 'Runtime protecting this computer',
-  away: 'The runtime is not answering',
-  readFailed: 'the runtime',
+  protecting: 'Memnox is protecting this computer',
+  away: 'Memnox is not answering on this computer',
+  readFailed: 'Memnox on this computer',
 };
 
 /** The getting started block's own words, beside the steps that `home-steps` names. */

@@ -187,5 +187,5 @@ public enum DaemonSignInLines {
     public static let stopped = "Memnox stopped waiting on that code. Start again for a new one."
     public static let tooOld = "The Memnox running on this Mac is older than the app. Update brings it up to date, with no terminal."
     public static let machineTooOld = "The Memnox running on this Mac is older than the app. Update brings it up to date, with no terminal."
-    public static let unreachable = "The Memnox daemon did not answer. Check Connection and try again."
+    public static let unreachable = "Memnox did not answer. Check Connection and try again."
 }

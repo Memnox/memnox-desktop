@@ -290,6 +290,6 @@ private struct RestartServiceButton: View {
         }
         .buttonStyle(KitButton(kind: .secondary))
         .disabled(home.restarting || home.protecting)
-        .help("Starts the Memnox service again on the newest runtime on this Mac, then reads your agents again")
+        .help("Starts the Memnox service again on the newest Memnox on this Mac, then reads your agents again")
     }
 }

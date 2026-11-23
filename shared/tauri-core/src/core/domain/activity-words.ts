@@ -78,7 +78,7 @@ export const ActivityLines = {
   any: 'Everything',
   /** What happened to an action, as the Mac's `StudioLines.happened` says it. */
   outcome: { allow: 'Went ahead', ask: 'Waited for you', deny: 'Stopped' },
-  noRecord: 'The runtime did not hand over a record.',
+  noRecord: 'Memnox did not hand over a record.',
   copied: 'Copied the signed record of what this view shows. memnox verify checks it.',
   copyRecord: 'Copy signed record',
   refresh: 'Refresh',

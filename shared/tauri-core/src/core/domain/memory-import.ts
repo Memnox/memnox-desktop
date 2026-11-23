@@ -90,7 +90,7 @@ export const ImportLines = {
   keyWaiting: 'Waiting for your signature on the island before the key is kept.',
   keyKept: (name: string) => `${name} is kept by this computer now.`,
   keyNote: 'Kept by this computer’s own store with the MCP Hub’s secrets. The source keeps only its name, and it is read as untrusted.',
-  readingHub: 'Reading the MCP Hub.',
+  readingHub: 'Reading your tool servers.',
   noHubServers: 'The MCP Hub on this computer has no servers yet. Add the memory server there first.',
   hubServer: 'The hub server',
   chooseServer: 'Choose a server',

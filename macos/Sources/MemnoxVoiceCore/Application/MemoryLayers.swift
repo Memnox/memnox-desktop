@@ -55,9 +55,9 @@ public final class MemoryLayers: @unchecked Sendable {
         request.memoryLayersAgent = agent
         request.memoryKeep = keep
         let response = await working(project) { await self.ask(request) }
-        guard let response else { return .failed("The runtime is not answering.") }
+        guard let response else { return .failed("Memnox is not answering on this Mac.") }
         guard response.ok, let plan = response.memoryLayersPlan else {
-            return .failed(response.error ?? "The runtime could not plan the layers.")
+            return .failed(response.error ?? "Memnox could not plan the layers.")
         }
         lock.withLock {
             shownPlan = plan
@@ -78,8 +78,8 @@ public final class MemoryLayers: @unchecked Sendable {
         request.memoryKeep = asked.keep
         request.memoryLayersDigest = plan.digest
         let response = await working(asked.project) { await self.ask(request) }
-        guard let response else { return .failed("The runtime is not answering.") }
-        guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
+        guard let response else { return .failed("Memnox is not answering on this Mac.") }
+        guard response.ok else { return .failed(response.error ?? "Memnox refused this.") }
         lock.withLock {
             shownPlan = nil
             planAsk = nil

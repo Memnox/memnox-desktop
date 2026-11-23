@@ -201,11 +201,11 @@ public final class Memory: @unchecked Sendable {
         }
         guard let response else {
             changed?()
-            return .failed("The runtime is not answering.")
+            return .failed("Memnox is not answering on this Mac.")
         }
         guard response.ok else {
             changed?()
-            return .failed(response.error ?? "The runtime refused this.")
+            return .failed(response.error ?? "Memnox refused this.")
         }
         let note = done(response)
         changed?()

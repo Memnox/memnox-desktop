@@ -169,7 +169,7 @@ describe('a project the organization shares', () => {
 
   it('says its rule pack with a count and where its memory is kept', () => {
     expect(organizationRulesLine(organization)).toBe('Release rules, 4 rules');
-    expect(organizationRulesLine({ rules: 0 })).toBe('No rule pack from the organization.');
+    expect(organizationRulesLine({ rules: 0 })).toBe('No starter rules from the organization.');
     expect(organizationMemoryLine('none')).toBe('Its agents keep no memory from this project.');
     expect(organizationMemoryLine('project')).toBe('What its agents learn is kept under the organization’s project rather than this folder.');
   });

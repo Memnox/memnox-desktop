@@ -503,7 +503,7 @@ struct OrganizationPanel: View {
         [("Repository", organization.repository),
          ("MCP servers", names(organization.servers)),
          ("Skills", names(organization.skills)),
-         ("Rule pack", ProjectLines.organizationRulesLine(organization)),
+         ("Starter rules", ProjectLines.organizationRulesLine(organization)),
          ("Memory", ProjectLines.organizationMemoryLine(organization.memory))]
     }
 

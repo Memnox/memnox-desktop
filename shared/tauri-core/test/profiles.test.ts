@@ -25,7 +25,7 @@ const packs = [{ id: 'careful', name: 'Careful', toml: '[[policies]]' }];
 describe('what a profile says', () => {
   it('counts what it bundles, never a score', () => {
     expect(profileContents(backend)).toBe('2 skills · 1 server · Careful, 6 rules');
-    expect(profileContents({ skills: ['a'], mcpServers: [] })).toBe('1 skill · 0 servers · No rule pack');
+    expect(profileContents({ skills: ['a'], mcpServers: [] })).toBe('1 skill · 0 servers · No starter rules');
   });
 
   it('says what an apply raised, what was already given and what was skipped', () => {
@@ -49,8 +49,8 @@ describe('the New profile dialog', () => {
 
   it('says what is missing', () => {
     expect(profileDraftFrom({ ...form, name: '' }, packs)).toBe('Give the profile a name.');
-    expect(profileDraftFrom({ ...form, skills: new Set(), pack: '' }, packs)).toBe('Choose at least one skill, server or rule pack.');
-    expect(profileDraftFrom({ ...form, pack: 'gone' }, packs)).toBe('That rule pack is no longer offered. Choose another.');
+    expect(profileDraftFrom({ ...form, skills: new Set(), pack: '' }, packs)).toBe('Choose at least one skill, tool server or set of starter rules.');
+    expect(profileDraftFrom({ ...form, pack: 'gone' }, packs)).toBe('Those starter rules are no longer offered. Choose others.');
   });
 });
 

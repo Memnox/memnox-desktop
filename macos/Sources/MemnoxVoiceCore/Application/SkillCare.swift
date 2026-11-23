@@ -40,8 +40,8 @@ public final class SkillCare: @unchecked Sendable {
         request.skillName = name
         request.skillNote = line
         let response = await working(name) { await self.ask(request) }
-        guard let response else { return .failed("The runtime is not answering.") }
-        guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
+        guard let response else { return .failed("Memnox is not answering on this Mac.") }
+        guard response.ok else { return .failed(response.error ?? "Memnox refused this.") }
         take(response)
         changed?()
         return .done("Noted for \(name).")
@@ -52,8 +52,8 @@ public final class SkillCare: @unchecked Sendable {
         var request = DaemonRequest(id: ids.next(), method: .skillCalibrate)
         request.skillName = name
         let response = await working(name) { await self.ask(request) }
-        guard let response else { return .failed("The runtime is not answering.") }
-        guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
+        guard let response else { return .failed("Memnox is not answering on this Mac.") }
+        guard response.ok else { return .failed(response.error ?? "Memnox refused this.") }
         lock.withLock { suggested = response.skillCalibration }
         changed?()
         return response.skillCalibration == nil
@@ -68,8 +68,8 @@ public final class SkillCare: @unchecked Sendable {
         request.skillScope = scope.rawValue
         request.skillProject = project
         let response = await working(calibration.name) { await self.ask(request) }
-        guard let response else { return .failed("The runtime is not answering.") }
-        guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
+        guard let response else { return .failed("Memnox is not answering on this Mac.") }
+        guard response.ok else { return .failed(response.error ?? "Memnox refused this.") }
         lock.withLock { suggested = nil }
         changed?()
         if let proposed = response.proposed { return .proposed(proposed) }

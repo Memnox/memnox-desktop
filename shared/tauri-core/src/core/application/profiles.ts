@@ -82,8 +82,8 @@ export class Profiles extends Observed {
     this.busyWith = undefined;
     if (response?.profiles !== undefined) this.list = response.profiles.map(whole);
     this.changed();
-    if (response === undefined) return { kind: 'failed', why: 'The runtime is not answering.' };
-    if (!response.ok) return { kind: 'failed', why: response.error ?? 'The runtime refused this.' };
+    if (response === undefined) return { kind: 'failed', why: 'Memnox is not answering on this Mac.' };
+    if (!response.ok) return { kind: 'failed', why: response.error ?? 'Memnox refused this.' };
     return { kind: 'done', note: done(response) };
   }
 

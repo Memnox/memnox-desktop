@@ -180,7 +180,7 @@ struct ActivityDestination: View {
     private func copyRecord() {
         Task {
             guard let bundle = await screen.activity.exportBundle() else {
-                screen.note = "The runtime did not hand over a record."
+                screen.note = "Memnox did not hand over a record."
                 return
             }
             NSPasteboard.general.clearContents()

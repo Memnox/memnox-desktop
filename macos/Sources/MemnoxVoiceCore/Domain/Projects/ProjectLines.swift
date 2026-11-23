@@ -198,7 +198,7 @@ public enum ProjectLines {
 
     /// "Release rules, 4 rules", or that the organization gives this project no rule pack.
     public static func organizationRulesLine(_ organization: ProjectOrganizationView) -> String {
-        guard let pack = organization.rulePack else { return "No rule pack from the organization." }
+        guard let pack = organization.rulePack else { return "No starter rules from the organization." }
         return "\(pack), \(counted(organization.rules, "rule", "rules"))"
     }
 

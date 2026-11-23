@@ -36,7 +36,7 @@ export const RULE_BUILDER = {
   targetsHint: 'Hosts, paths or repositories, comma separated. Start one with ! to leave it out, so !api.stripe.com is an approved destination.',
   carries: 'Only when it carries',
   carriesPlaceholder: 'secret, financial',
-  carriesHint: 'What the action carries, as the runtime classifies it. Pick a word below, or type a name your team gave its own patterns.',
+  carriesHint: 'What the action carries, as Memnox classifies it. Pick a word below, or type a name your team gave its own patterns.',
   carriesChips: 'Data it carries',
   classes: 'Only when it is',
   classesPlaceholder: 'destructive',

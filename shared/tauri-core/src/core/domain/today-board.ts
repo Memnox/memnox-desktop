@@ -438,7 +438,7 @@ function optional<K extends string, V>(key: K, value: V | undefined): { [P in K]
 // The words around Today's table: the line under its title, the strip over it, and the panel's own.
 
 /** What the panel says where neither the runtime nor the agent recommended anything, rather than guessing one. */
-export const NO_RECOMMENDATION = 'Neither the runtime nor the agent recommended anything for this, so the choice is yours.';
+export const NO_RECOMMENDATION = 'Neither Memnox nor the agent recommended anything for this, so the choice is yours.';
 export const NO_CHOICES = 'There is nothing to decide here; it is shown so you know it is there.';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

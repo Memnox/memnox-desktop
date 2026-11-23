@@ -236,8 +236,8 @@ export class McpHub extends Observed {
 }
 
 function failure(response: DaemonResponse | undefined): string {
-  if (response === undefined) return 'The runtime is not answering.';
-  return response.error ?? 'The runtime refused this.';
+  if (response === undefined) return 'Memnox is not answering on this Mac.';
+  return response.error ?? 'Memnox refused this.';
 }
 
 /** "Wrote 2 configs: 1 added, 1 removed." or that nothing needed writing. */

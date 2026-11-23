@@ -22,8 +22,8 @@ private func ask(_ link: DaemonLink, _ request: DaemonRequest) async -> DaemonRe
 }
 
 private func outcome(_ response: DaemonResponse?, done: String) -> StudioOutcome {
-    guard let response else { return .failed("The runtime is not answering.") }
-    guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
+    guard let response else { return .failed("Memnox is not answering on this Mac.") }
+    guard response.ok else { return .failed(response.error ?? "Memnox refused this.") }
     if let proposed = response.proposed { return .proposed(proposed) }
     return .done(done)
 }
@@ -126,7 +126,7 @@ public final class Studio: @unchecked Sendable {
         request.ruleTest = input
         let response = await ask(link, request)
         if let verdict = response?.ruleVerdict { return .verdict(verdict) }
-        return .failed(response?.error ?? "The runtime is not answering.")
+        return .failed(response?.error ?? "Memnox is not answering on this Mac.")
     }
 
     /// The rules a person added here, as TOML text.

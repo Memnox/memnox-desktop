@@ -36,7 +36,7 @@ public enum ProfileLines {
         if let pack = profile.rulePack {
             parts.append("\(pack.name), \(ProjectLines.counted(pack.rules, "rule", "rules"))")
         } else {
-            parts.append("No rule pack")
+            parts.append("No starter rules")
         }
         return parts.joined(separator: " · ")
     }
@@ -57,9 +57,9 @@ public enum ProfileLines {
         let name = form.name.trimmingCharacters(in: .whitespacesAndNewlines)
         if name.isEmpty { return .failure(ProfileFormProblem("Give the profile a name.")) }
         let pack = packs.first { $0.id == form.pack }
-        if !form.pack.isEmpty && pack == nil { return .failure(ProfileFormProblem("That rule pack is no longer offered. Choose another.")) }
+        if !form.pack.isEmpty && pack == nil { return .failure(ProfileFormProblem("Those starter rules are no longer offered. Choose others.")) }
         if form.skills.isEmpty && form.servers.isEmpty && pack == nil {
-            return .failure(ProfileFormProblem("Choose at least one skill, server or rule pack."))
+            return .failure(ProfileFormProblem("Choose at least one skill, tool server or set of starter rules."))
         }
         let description = form.description.trimmingCharacters(in: .whitespacesAndNewlines)
         return .success(ProfileDraft(

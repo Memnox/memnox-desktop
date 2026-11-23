@@ -170,8 +170,8 @@ export function afterProtect(kinds: readonly string[], agents: readonly Standing
   const one = names.length === 1;
   if (runtimePredatesSeams(agents)) {
     const line = options.restarted === true
-      ? `The Memnox service restarted but still runs a runtime older than this app, so it counts ${listed(names)} as outside. Update the runtime, then restart the service.`
-      : `The Memnox service on this computer is older than this app, so it cannot see that ${listed(names)} ${one ? 'is' : 'are'} held. Restart it to run the newer runtime.`;
+      ? `The Memnox service restarted but still runs a runtime older than this app, so it counts ${listed(names)} as outside. Update Memnox, then restart the service.`
+      : `The Memnox service on this computer is older than this app, so it cannot see that ${listed(names)} ${one ? 'is' : 'are'} held. Restart it to run the newer Memnox.`;
     return { kinds, line, held: false, restartService: true, ...at };
   }
   let line: string;

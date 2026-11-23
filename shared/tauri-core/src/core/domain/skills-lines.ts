@@ -63,7 +63,7 @@ export function assignmentChanges(current: readonly string[], chosen: ReadonlySe
 
 /** What a Continue that gave and took said in one line, the gives waiting on the island. */
 export function assignedNote(results: { proposed: number; done: number; failed: string[] }, keyTitle: string): string {
-  if (results.failed.length > 0) return results.failed[0] ?? 'The runtime refused this.';
+  if (results.failed.length > 0) return results.failed[0] ?? 'Memnox refused this.';
   const waits = results.proposed === 0 ? '' : results.proposed === 1 ? `1 agent waits for your signature with ${keyTitle} on the island.` : `${results.proposed} agents wait for your signature with ${keyTitle} on the island.`;
   const now = results.done === 0 ? '' : results.done === 1 ? '1 change made at once.' : `${results.done} changes made at once.`;
   const said = [waits, now].filter((part) => part !== '').join(' ');

@@ -65,8 +65,8 @@ public final class Projects: @unchecked Sendable {
             if let projects = response?.projects { view = projects.projects }
         }
         changed?()
-        guard let response else { return .failed("The runtime is not answering.") }
-        guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
+        guard let response else { return .failed("Memnox is not answering on this Mac.") }
+        guard response.ok else { return .failed(response.error ?? "Memnox refused this.") }
         let note = response.projectApplied.map(ProjectLines.appliedLine) ?? done
         if let proposed = response.proposed { return .proposed(id: proposed, note: note) }
         if let applied = response.projectApplied, ProjectLines.upToDate(applied) { return .upToDate(note) }

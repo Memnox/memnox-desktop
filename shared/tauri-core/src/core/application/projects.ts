@@ -71,8 +71,8 @@ export class Projects extends Observed {
     this.busyWith = undefined;
     if (response?.projects !== undefined) this.view = response.projects.projects;
     this.changed();
-    if (response === undefined) return { kind: 'failed', why: 'The runtime is not answering.' };
-    if (!response.ok) return { kind: 'failed', why: response.error ?? 'The runtime refused this.' };
+    if (response === undefined) return { kind: 'failed', why: 'Memnox is not answering on this Mac.' };
+    if (!response.ok) return { kind: 'failed', why: response.error ?? 'Memnox refused this.' };
     const note = response.projectApplied === undefined ? done : appliedLine(response.projectApplied);
     if (response.proposed !== undefined) return { kind: 'proposed', id: response.proposed, note };
     if (response.projectApplied !== undefined && upToDate(response.projectApplied)) return { kind: 'up-to-date', note };

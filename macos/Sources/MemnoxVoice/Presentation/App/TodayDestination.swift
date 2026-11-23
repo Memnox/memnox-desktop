@@ -24,7 +24,7 @@ struct TodayDestination<Lead: View>: View {
     let agents: AgentsScreen?
     let activity: ActivityScreen?
     let width: WidthClass
-    /// The greeting and the one Do this next card, above every block.
+    /// The greeting and the one Get set up card, above every block.
     @ViewBuilder let lead: Lead
 
     @State private var hidden: Set<HomeBriefBlock> = []

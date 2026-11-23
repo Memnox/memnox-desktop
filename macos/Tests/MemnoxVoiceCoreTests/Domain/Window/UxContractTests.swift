@@ -34,8 +34,30 @@ final class UxContractTests: XCTestCase {
             let reasons: [String: String]
         }
 
+        struct Care: Decodable {
+            struct Level: Decodable {
+                let label: String
+                let line: String
+                let mode: String
+                let pack: String?
+            }
+
+            let order: [String]
+            let recommended: String
+            let levels: [String: Level]
+        }
+
+        struct Step: Decodable {
+            let id: String
+            let title: String
+            let platforms: [String]?
+        }
+
         let pages: [Page]
         let groups: [String: String]
+        let careful: Care
+        let onboarding: [Step]
+        let modes: [String: String]
         let answers: Answers
         let sessionStatus: Statuses
     }
@@ -89,5 +111,30 @@ final class UxContractTests: XCTestCase {
         XCTAssertEqual(SessionStatus.allCases.map(\.rawValue), words.sessionStatus.order)
         for status in SessionStatus.allCases { XCTAssertEqual(status.label, words.sessionStatus.labels[status.rawValue]) }
         for reason in SessionReason.allCases { XCTAssertEqual(reason.label, words.sessionStatus.reasons[reason.rawValue]) }
+    }
+
+    func testOffersTheContractsLevelsOfCareInItsWords() throws {
+        let care = try contract().careful
+        XCTAssertEqual(CareLevel.allCases.map(\.rawValue), care.order)
+        XCTAssertEqual(CareLevel.recommended.rawValue, care.recommended)
+        for level in CareLevel.allCases {
+            let written = try XCTUnwrap(care.levels[level.rawValue])
+            XCTAssertEqual(level.label, written.label)
+            XCTAssertEqual(level.line, written.line)
+            XCTAssertEqual(level.enforces, written.mode == "enforce")
+            XCTAssertEqual(level.packId, written.pack)
+        }
+    }
+
+    func testTitlesTheFirstRunStepsAsTheContractDoes() throws {
+        let steps = try contract().onboarding
+        XCTAssertEqual(FirstRunStepID.connect.title, steps.first { $0.id == "agents" }?.title)
+        XCTAssertEqual(FirstRunStepID.rules.title, steps.first { $0.id == "careful" }?.title)
+    }
+
+    func testNamesTheModesInTheContractsWords() throws {
+        let modes = try contract().modes
+        XCTAssertEqual(HomeMode.observe.badge, modes["observe"])
+        XCTAssertEqual(HomeMode.enforce.badge, modes["enforce"])
     }
 }

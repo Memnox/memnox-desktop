@@ -27,8 +27,8 @@ public enum HomeMode: String, Sendable {
     /// The badge beside Home's greeting, so the mode the runtime reported is read at a glance.
     public var badge: String {
         switch self {
-        case .observe: return "Observing on this Mac"
-        case .enforce: return "Enforcing on this Mac"
+        case .observe: return "Watching only"
+        case .enforce: return "Protecting"
         }
     }
 }
@@ -41,17 +41,17 @@ public enum HomeStage: String, CaseIterable, Sendable {
 
     public var label: String {
         switch self {
-        case .ungoverned: return "Nothing governed yet"
-        case .observing: return "Observing"
-        case .enforcing: return "Enforcing"
+        case .ungoverned: return "Not set up yet"
+        case .observing: return "Watching only"
+        case .enforcing: return "Protecting"
         }
     }
 
     public var means: String {
         switch self {
-        case .ungoverned: return "No agent on this Mac is under Memnox yet, so Memnox decides nothing here. Protecting them takes one press."
-        case .observing: return "Your agents record what a rule would have stopped, and nothing is blocked. Read a week before enforcing."
-        case .enforcing: return "This Mac applies the verdict rather than recording it, on the rules you put in force."
+        case .ungoverned: return "Memnox cannot see your agents yet. Connecting them takes one press, and nothing is stopped."
+        case .observing: return "Memnox writes down what your agents do and stops nothing yet."
+        case .enforcing: return "Memnox stops anything risky until you say yes, and lets the rest run."
         }
     }
 }
@@ -63,30 +63,24 @@ public enum HomeTrack: String, CaseIterable, Sendable {
 
     public var label: String {
         switch self {
-        case .mac: return "The agents on this Mac"
+        case .mac: return "Your agents"
         case .work: return "Where your work lives"
         }
     }
 
     public var lead: String {
         switch self {
-        case .mac: return "Where a verdict is reached. Decided on this Mac, with no network in the path."
+        case .mac: return "What Memnox sees and stops, decided on this Mac with no network in the path."
         case .work: return "What your agents can reach and start from. Linked where it is, and read on this Mac."
         }
     }
 }
 
-/// Every step, in the order a Mac earns them.
+/// Every step, in the order a Mac earns them: three at most, so getting started never reads as a project.
 public enum HomeStepID: String, CaseIterable, Sendable {
-    case finishSetup
     case protectAgents
-    case rulesInForce
-    case actionsRecorded
+    case chooseCare
     case answerAway
-    case enforce
-    case connectApps
-    case linkSource
-    case shareSkills
 }
 
 /// One rung: what it is, what it gives, how to do it, and whether it is done.
@@ -133,10 +127,10 @@ public struct HomeSetup: Equatable, Sendable {
 }
 
 /// Home's getting started steps, mirroring the cloud console's ladder in memnox-cloud's onboarding.ts: the same stage
-/// line, the same Do this next rung, the same two tracks and the same counts won, read off this Mac.
+/// line, the same Get set up rung, the same tracks and the same counts won, read off this Mac.
 public enum HomeSteps {
     /// The card's title on every surface, from the contract's Home block of that name.
-    public static let cardTitle = "Do this next"
+    public static let cardTitle = "Get set up"
     public static let allSteps = "Show all steps"
     public static let fewerSteps = "Show fewer steps"
     public static let waitingLabel = "Waiting on an agent"
@@ -161,44 +155,20 @@ public enum HomeSteps {
 
     static func steps(_ standing: HomeStanding) -> [HomeStep] {
         [
-            HomeStep(id: .finishSetup, title: "Finish setting up this Mac",
-                     value: "Two short steps put your agents under Memnox and give them starting rules, so the rest of these can start.",
-                     how: "Connect this Mac, then confirm your starting rules.",
-                     action: "Run setup", track: .mac, done: standing.setupFinished, waitsOnAnAgent: false),
-            HomeStep(id: .protectAgents, title: "Put your agents under Memnox",
-                     value: "Every agent on this Mac, Claude Code through Cursor, reports to one place under one rule set.",
-                     how: "Press Protect, and Memnox puts itself under each agent it found. Nothing is stopped on the first day.",
+            HomeStep(id: .protectAgents, title: "Connect your agents",
+                     value: "Memnox sees what each agent does and can stop what is risky, from Claude Code to Cursor.",
+                     how: "Press Connect, and Memnox puts itself beside each agent it found. Nothing is stopped yet.",
                      action: "Open Agents", track: .mac,
                      done: standing.agents > 0 && standing.agentsProtected == standing.agents, waitsOnAnAgent: false),
-            HomeStep(id: .rulesInForce, title: "Let your rules reach them",
-                     value: "Memnox decides on this Mac with no network in the path. This is the moment it controls something rather than watching it.",
-                     how: "Add a ready-made pack, then confirm each rule with Touch ID on the island.",
-                     action: "Add rules", track: .mac, done: standing.rulesInForce > 0, waitsOnAnAgent: false),
-            HomeStep(id: .actionsRecorded, title: "See what your agents actually did",
-                     value: "Every action, the verdict it met and the rule that decided, in one record rather than one terminal's scrollback.",
-                     how: "Use an agent as you normally would. What it does shows up in Activity.",
-                     action: "Open Activity", track: .mac, done: standing.actionsRecorded > 0, waitsOnAnAgent: true),
-            HomeStep(id: .answerAway, title: "Answer an agent without going to its terminal",
-                     value: "An agent stops for a question and you answer it from the notch, out loud with Option Space, or from your iPhone when you are away.",
-                     how: "Pair your iPhone, so a question reaches you with Face ID wherever you are.",
+            HomeStep(id: .chooseCare, title: "Choose how careful Memnox is",
+                     value: "Just watch, ask before risky things, or ask about almost everything. You can change it any time.",
+                     how: "Pick one, then confirm each rule with Touch ID on the island.",
+                     action: "Choose", track: .mac,
+                     done: standing.setupFinished || standing.rulesInForce > 0, waitsOnAnAgent: false),
+            HomeStep(id: .answerAway, title: "Answer from your phone",
+                     value: "When an agent waits for you and you are away, the question reaches your iPhone and you answer with Face ID.",
+                     how: "Pair your iPhone once.",
                      action: "Pair your iPhone", track: .mac, done: standing.phonesPaired > 0, waitsOnAnAgent: false),
-            HomeStep(id: .enforce, title: "Turn this Mac from watching to stopping",
-                     value: "Observe mode records what it would have stopped. Enforce mode stops it. Do this once a week of the record reads right.",
-                     how: "Read the record in Activity for what would have been stopped, then turn on stopping here.",
-                     action: "Turn on stopping", track: .mac, done: standing.mode == .enforce, waitsOnAnAgent: false),
-            HomeStep(id: .connectApps, title: "Connect the apps you work in",
-                     value: "Gmail, Slack, GitHub and the rest. Agents act in them as you, and ask before anything goes out.",
-                     how: "Pick an app under Connectors and sign in to it once.",
-                     action: "Connect an app", track: .work, done: standing.appsConnected > 0, waitsOnAnAgent: false),
-            HomeStep(id: .linkSource, title: "Give your agents memory",
-                     value: "Your notes and instruction files, linked where they are and read only on this Mac, so every agent starts from what you know.",
-                     how: "Add a folder or an instruction file as a source.",
-                     action: "Add a source", track: .work, done: standing.sourcesLinked > 0, waitsOnAnAgent: false),
-            HomeStep(id: .shareSkills, title: "Share skills and servers across agents",
-                     value: "Kept once in Memnox and written into each agent's own format, so one added once reaches every agent you choose.",
-                     how: "Bring in the skills your agents already keep, then give them to the agents you choose.",
-                     action: "Open Skills", track: .work,
-                     done: standing.skillsShared + standing.serversShared > 0, waitsOnAnAgent: false),
         ]
     }
 

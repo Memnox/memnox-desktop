@@ -2,7 +2,7 @@ import Combine
 import MemnoxVoiceCore
 import SwiftUI
 
-/// Home's one Do this next card, the same on the console, this Mac, Windows and Linux: the stage this Mac is at and how
+/// Home's one Get set up card, the same on the console, this Mac, Windows and Linux: the stage this Mac is at and how
 /// many steps are done, the one thing to do next with its press, and what waits on an agent; Show all steps opens the
 /// rest under their two tracks with the counts already won. Every tick is a count the runtime or this Mac reports,
 /// read again on opening, and the card goes once every step is done.
@@ -33,7 +33,7 @@ struct HomeStart: View {
             if !setup.climbed {
                 VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
                     header(setup)
-                    if let next = setup.next { NextRung(step: next, busy: next.id == .enforce && home.enforcing) { press(next) } }
+                    if let next = setup.next { NextRung(step: next, busy: false) { press(next) } }
                     if let note = home.enforceNote {
                         Text(note)
                             .font(Memnox.Console.sans(Memnox.Console.TextSize.bodySmall))
@@ -45,7 +45,7 @@ struct HomeStart: View {
                     if allSteps {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: Layout.trackMinimum), spacing: Memnox.Spacing.xLarge, alignment: .top)],
                                   alignment: .leading, spacing: Memnox.Spacing.xLarge) {
-                            ForEach(HomeTrack.allCases, id: \.self) { track in
+                            ForEach(HomeTrack.allCases.filter { !setup.rest(of: $0).isEmpty }, id: \.self) { track in
                                 TrackList(track: track, steps: setup.rest(of: track)) { id in
                                     if let step = setup.steps.first(where: { $0.id == id }) { press(step) }
                                 }
@@ -68,7 +68,7 @@ struct HomeStart: View {
                            aside: HomeEnforce.readFirst,
                            asideAct: {
                                home.askingEnforce = false
-                               shell.go(Self.route(.enforce))
+                               shell.go(WindowRoute(.activity, tab: "timeline"))
                            },
                            cancel: { home.askingEnforce = false },
                            act: {
@@ -135,12 +135,10 @@ struct HomeStart: View {
         }
     }
 
-    /// A step's press: stopping rather than watching is confirmed here first, every other step opens where it is done.
+    /// A step's press: choosing how careful opens setup where it was left, every other step opens where it is done.
     private func press(_ step: HomeStep) {
-        if step.id == .finishSetup {
+        if step.id == .chooseCare, !setupFinished {
             openSetup()
-        } else if step.id == .enforce, !step.done {
-            home.askingEnforce = true
         } else {
             shell.go(Self.route(step.id))
         }
@@ -149,15 +147,9 @@ struct HomeStart: View {
     /// Where each step's press goes in the window; for stopping, that is the record it is read off.
     static func route(_ step: HomeStepID) -> WindowRoute {
         switch step {
-        // Run setup again stands in Help once setup is done, which is where its rung points.
-        case .finishSetup: return WindowRoute(.settings, tab: "help")
         case .protectAgents: return WindowRoute(.agents, tab: "agents")
-        case .rulesInForce: return WindowRoute(.rules, tab: "rules")
-        case .actionsRecorded, .enforce: return WindowRoute(.activity, tab: "timeline")
+        case .chooseCare: return WindowRoute(.rules, tab: "rules")
         case .answerAway: return WindowRoute(.settings, tab: "phones")
-        case .connectApps: return WindowRoute(.connectors, tab: "systems")
-        case .linkSource: return WindowRoute(.connectors, tab: "files")
-        case .shareSkills: return WindowRoute(.memory, tab: "skills")
         }
     }
 }
@@ -216,7 +208,7 @@ private final class StartReads: ObservableObject {
     }
 }
 
-/// The one thing to do now, and the only part of the block with a filled press, as the cloud's Do this next rung.
+/// The one thing to do now, and the only part of the block with a filled press, as the cloud's Get set up rung.
 private struct NextRung: View {
     let step: HomeStep
     /// True while the press is under way, so it waits rather than being pressed twice.

@@ -10,9 +10,9 @@ final class FirstRunLinesTests: XCTestCase {
     }
 
     func testRunsTwoShortStepsCountedOnBoth() {
-        XCTAssertEqual(FirstRunLines.steps, ["This Mac", "Starting rules"])
+        XCTAssertEqual(FirstRunLines.steps, ["Your agents", "How careful"])
         XCTAssertEqual(FirstRunStepID.allCases.map(\.rawValue), ["connect", "rules"])
-        XCTAssertEqual(FirstRunStepID.allCases.map(\.title), ["Connect this machine", "Your starting rules"])
+        XCTAssertEqual(FirstRunStepID.allCases.map(\.title), ["Your agents", "How careful should Memnox be?"])
         XCTAssertEqual((0..<2).map { FirstRunLines.progressLabel(step: $0) }, ["Step 1 of 2", "Step 2 of 2"])
         XCTAssertEqual(FirstRunLines.progressLabel(step: 7), "Step 2 of 2")
         XCTAssertEqual(FirstRunLines.progress(step: 0, done: false), 1.0 / 2.0, accuracy: 0.0001)

@@ -41,7 +41,7 @@ public enum FirstRunEnd {
     public static let lead = "Your agents work inside your starting rules now. Try one ask, then open Memnox."
 
     /// Where the rest of setup went, said under the button that opens Memnox, so nobody looks for it here.
-    public static let later = "Pairing your iPhone waits on Home under Do this next, and Memnox Cloud is in Settings under Account."
+    public static let later = "Pairing your iPhone waits on Home under Get set up, and Memnox Cloud is in Settings under Account."
 
     /// Talking once the microphone is allowed, since it shows Memnox at work in a second; Home otherwise.
     public static func next(hearing: Bool) -> FirstRunNext {

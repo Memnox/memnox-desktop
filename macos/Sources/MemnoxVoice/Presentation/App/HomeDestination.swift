@@ -2,7 +2,7 @@ import MemnoxVoiceCore
 import SwiftUI
 
 /// Home is the one page the window opens on, the same on the console, this Mac, Windows and Linux: the greeting and
-/// mode, one Do this next card, then the blocks in the contract's order, each counting what it holds in its header.
+/// mode, one Get set up card, then the blocks in the contract's order, each counting what it holds in its header.
 /// No charts and no tiles, and every number is a count the ledger can show.
 struct HomeDestination: View {
     @ObservedObject var shell: AppShellModel
@@ -34,7 +34,7 @@ private struct HomeAtAGlance: View {
         TodayDestination(shell: shell, island: island, home: home, agents: shell.agents, activity: shell.todayActivity, width: width) {
             header(view)
             if home.unavailable { ReadFailed(what: "the runtime", retry: home.refresh) }
-            // The one Do this next card, setup first until it is done, then the getting started steps until every one is.
+            // The one Get set up card, setup first until it is done, then the getting started steps until every one is.
             HomeStart(shell: shell, tools: menu.tools, menu: menu, home: home, actions: view?.today.actions ?? 0,
                       mode: view.flatMap { HomeMode(rawValue: $0.mode) }, setupFinished: setup.isFinished) {
                 OnboardingWindow.shared.show(setup)

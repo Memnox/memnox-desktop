@@ -28,7 +28,7 @@ final class ProtectionLinesTests: XCTestCase {
         XCTAssertEqual(ProtectionLines.simplerTitle, "Want the simple version?")
         XCTAssertEqual(ProtectionLines.startTitle, "Start from a ready-made rule")
         XCTAssertEqual(ProtectionLines.handOver, "See what to hand over")
-        XCTAssertEqual(ProtectionLines.readyToHandOver, "Ready to hand over")
+        XCTAssertEqual(ProtectionLines.readyToHandOver, "You could let go of")
         XCTAssertEqual(ProtectionLines.stopAsking, "Stop asking")
     }
 

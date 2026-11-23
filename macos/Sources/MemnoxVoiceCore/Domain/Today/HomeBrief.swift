@@ -13,7 +13,7 @@ public enum HomeBriefBlock: String, CaseIterable, Sendable {
         switch self {
         case .waiting: "Needs you"
         case .working: "Working now"
-        case .ready: "Ready to hand over"
+        case .ready: "You could let go of"
         case .today: "Today"
         case .notCovered: "Not covered"
         }
@@ -25,7 +25,7 @@ public enum HomeBriefBlock: String, CaseIterable, Sendable {
         case .waiting: "Nothing needs you. Agents keep working inside their rules."
         case .working: "No agent is working right now."
         case .today: "Nothing was recorded today."
-        case .ready: "Nothing yet. This fills in once you approve the same action a few times."
+        case .ready: "Nothing yet. Once you say yes to the same thing a few times, Memnox offers to stop asking."
         case .notCovered: "Every agent on this Mac is under Memnox."
         }
     }

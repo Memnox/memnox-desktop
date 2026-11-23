@@ -14,7 +14,7 @@ final class HomeBriefTests: XCTestCase {
 
     func testReadsTheBlocksInTheConsolesOrderAndWords() {
         let blocks = HomeBrief.blocks(TodaySources(), now: now, calendar: calendar)
-        XCTAssertEqual(blocks.map(\.block.title), ["Needs you", "Working now", "Ready to hand over", "Today"])
+        XCTAssertEqual(blocks.map(\.block.title), ["Needs you", "Working now", "You could let go of", "Today"])
         XCTAssertTrue(blocks.allSatisfy { $0.items.isEmpty })
         XCTAssertEqual(HomeBriefBlock.waiting.none, "Nothing needs you. Agents keep working inside their rules.")
     }

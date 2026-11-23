@@ -14,7 +14,7 @@ public enum ProtectionTab: String, CaseIterable, Sendable {
         }
     }
 
-    /// The tabs drawn. Autonomy is left off for now, since Ready to hand over on Home already offers the same.
+    /// The tabs drawn. Autonomy is left off for now, since You could let go of on Home already offers the same.
     public static let shown: [ProtectionTab] = [.readyMade, .allRules]
 }
 
@@ -74,7 +74,7 @@ public enum ProtectionLines {
 
     // Autonomy, as the console's hand over page.
     public static let autonomyIntro = "What your agents could start doing on their own, based on what you keep saying yes to."
-    public static let readyToHandOver = "Ready to hand over"
+    public static let readyToHandOver = "You could let go of"
     public static let stopAsking = "Stop asking"
     public static let proposing = "Proposing"
     public static let nothingReady = "Nothing ready yet"

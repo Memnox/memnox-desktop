@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { HOLD_ANSWER } from '@memnox/core/wire';
 import { ACTIVITY_ROUTE, type Route, type WidthClass } from '../../../core/domain/destinations';
 import type { HeldCard } from '../../../core/domain/held-card';
-import { briefItems, HOME_BRIEF_NONE, HOME_BRIEF_TITLE, homeBrief, type HomeBriefBlock } from '../../../core/domain/home-brief';
+import { briefItems, HOME_BRIEF_NONE, HOME_BRIEF_TITLE, homeBrief, homeOpenerOf, type HomeBriefBlock } from '../../../core/domain/home-brief';
 import { HomeLines } from '../../../core/domain/home-lines';
 import { heldSigningLine, TodayNotes, TodayPageLines } from '../../../core/domain/home-page-lines';
 import {
@@ -231,6 +231,7 @@ export function TodayPage({
         {/* With the runtime away an empty block would read as all clear, so the strip and the blocks wait for it. */}
         {!home.unavailable && (
         <>
+        <p className="text-headline text-foreground">{homeOpenerOf(blocks, home.home?.today.refused ?? 0)}</p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-panel-edge bg-hover px-4 py-2.5 text-meta text-muted">
           <span className={needYou.length === 0 ? 'invisible' : ''}>
             <StateMark state={needYou.length === 0 ? 'done' : 'needs-you'} />

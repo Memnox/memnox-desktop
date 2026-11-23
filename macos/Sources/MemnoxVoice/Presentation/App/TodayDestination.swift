@@ -61,6 +61,13 @@ struct TodayDestination<Lead: View>: View {
         return InspectorLayout(width: width, title: TodayLines.position(of: open?.id, in: items), close: { shell.inspecting = nil }) {
             ShellScroll(width: width) {
                 lead
+                // With the runtime away the counts would all read zero, which is not the truth.
+                if home?.unavailable != true {
+                    Text(HomeOpener.line(blocks, stoppedToday: home?.home?.today.refused ?? 0))
+                        .font(Memnox.Console.sans(Memnox.Console.TextSize.large))
+                        .foregroundStyle(Memnox.Console.foreground)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 strip(blocks.first { $0.block == .waiting }?.items ?? [], now: now)
                 notes
                 // With the runtime away an empty block would read as all clear, so the blocks wait for it to answer.

@@ -58,3 +58,29 @@ public enum HomeBrief {
         blocks.flatMap(\.items)
     }
 }
+
+/// Home's first sentence, so a person who reads nothing else still knows where things stand:
+/// "3 agents working. 1 needs you. Nothing was stopped today."
+public enum HomeOpener {
+    public static func line(working: Int, needsYou: Int, stoppedToday: Int) -> String {
+        let busy = switch working {
+        case 0: "No agent is working right now."
+        case 1: "1 agent working."
+        default: "\(working) agents working."
+        }
+        let waiting = needsYou == 0 ? "Nothing needs you." : "\(needsYou) \(needsYou == 1 ? "needs" : "need") you."
+        let stopped = switch stoppedToday {
+        case 0: "Nothing was stopped today."
+        case 1: "Memnox stopped 1 risky action today."
+        default: "Memnox stopped \(stoppedToday) risky actions today."
+        }
+        return [busy, waiting, stopped].joined(separator: " ")
+    }
+
+    /// The same sentence read off Home's blocks, counting each working agent once.
+    public static func line(_ blocks: [(block: HomeBriefBlock, items: [TodayItem])], stoppedToday: Int) -> String {
+        let items = { (block: HomeBriefBlock) in blocks.first { $0.block == block }?.items ?? [] }
+        let agents = Set(items(.working).map { $0.agent ?? $0.agentName })
+        return line(working: agents.count, needsYou: items(.waiting).count, stoppedToday: stoppedToday)
+    }
+}

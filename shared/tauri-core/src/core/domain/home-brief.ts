@@ -53,3 +53,24 @@ export function homeBrief(sources: TodaySources, now: number): { block: HomeBrie
 export function briefItems(blocks: readonly { items: readonly TodayItem[] }[]): TodayItem[] {
   return blocks.flatMap((each) => each.items);
 }
+
+/**
+ * Home's first sentence, so a person who reads nothing else still knows where things stand:
+ * "3 agents working. 1 needs you. Nothing was stopped today." Ported from the Mac's `HomeOpener`.
+ */
+export function homeOpener(working: number, needsYou: number, stoppedToday: number): string {
+  const busy = working === 0 ? 'No agent is working right now.' : working === 1 ? '1 agent working.' : `${working} agents working.`;
+  const waiting = needsYou === 0 ? 'Nothing needs you.' : `${needsYou} ${needsYou === 1 ? 'needs' : 'need'} you.`;
+  const stopped =
+    stoppedToday === 0
+      ? 'Nothing was stopped today.'
+      : `Memnox stopped ${stoppedToday} risky ${stoppedToday === 1 ? 'action' : 'actions'} today.`;
+  return [busy, waiting, stopped].join(' ');
+}
+
+/** The same sentence read off Home's blocks, counting each working agent once. */
+export function homeOpenerOf(blocks: readonly { block: HomeBriefBlock; items: readonly TodayItem[] }[], stoppedToday: number): string {
+  const items = (block: HomeBriefBlock) => blocks.find((each) => each.block === block)?.items ?? [];
+  const agents = new Set(items('working').map((item) => item.agent ?? item.agentName));
+  return homeOpener(agents.size, items('waiting').length, stoppedToday);
+}

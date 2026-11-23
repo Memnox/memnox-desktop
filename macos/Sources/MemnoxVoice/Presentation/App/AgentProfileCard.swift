@@ -8,6 +8,8 @@ struct AgentProfileCard: View {
     let profile: ProfileView
     /// The open work its agent carries, newest first; nil where this Mac's runtime keeps no work.
     let work: AgentWork?
+    /// Where it meets other agents now, one plain line each; empty where it meets none.
+    var meetings: [String] = []
 
     private static let logo: CGFloat = 30
     /// How faint a card with nobody behind it is drawn, so it never reads as an agent at work.
@@ -40,6 +42,19 @@ struct AgentProfileCard: View {
             if bound {
                 connections
                 if let work { WorkLine(work: work) }
+                if !meetings.isEmpty {
+                    VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
+                        Text(AgentMeetings.title)
+                            .font(Memnox.Console.sans(Memnox.Console.TextSize.label, .medium))
+                            .foregroundStyle(Memnox.Console.muted)
+                        ForEach(meetings, id: \.self) { line in
+                            Label(line, systemImage: "person.2")
+                                .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                                .foregroundStyle(Memnox.Console.foreground)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
                 if let kind = profile.connections.first?.agentKind, let studio = AppWindow.shared.shell.studio {
                     AgentPresetRow(studio: studio, agent: kind)
                 }

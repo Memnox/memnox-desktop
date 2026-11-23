@@ -4,6 +4,7 @@ import {
   POLICY_METHOD,
   type ActivityFilter,
   type ActivityRow,
+  type AgentOverlapsView,
   type AgentView,
   type DaemonRequest,
   type DaemonResponse,
@@ -337,6 +338,12 @@ export class Agents extends Observed {
     this.failedRead = response === undefined || !response.ok;
     if (response?.agentsView !== undefined) this.view = response.agentsView;
     this.changed();
+  }
+
+  /** Where the agents here meet now; undefined from a runtime too old to say, so the cards say nothing rather than all clear. */
+  async overlaps(): Promise<AgentOverlapsView | undefined> {
+    const response = await ask(this.link, this.ids, { method: AGENTS_METHOD.AGENT_OVERLAPS });
+    return response?.ok === true ? response.agentOverlaps : undefined;
   }
 
   pause(kind: string): Promise<StudioOutcome> {

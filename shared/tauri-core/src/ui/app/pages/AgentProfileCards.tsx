@@ -1,4 +1,5 @@
-import type { ProfileView } from '@memnox/core/wire';
+import type { AgentOverlapsView, ProfileView } from '@memnox/core/wire';
+import { AGENT_MEETINGS_TITLE, meetingLines } from '../../../core/domain/agent-meetings';
 import { useEffect, useState, type ReactNode } from 'react';
 import { AgentPresetLines, startedPack } from '../../../core/domain/agent-presets';
 import type { AgentWork } from '../../../core/domain/agent-wire';
@@ -9,6 +10,9 @@ import { useObserved, type SettingsParts } from '../../settings/parts';
 import { CapabilityStrip, ConnectionPill, LevelPill } from '../capability-strip';
 import { BrandLogo, Card, CardGrid, Section, Select, StatusWord } from '../../kit';
 import { WorkLine } from './WorkCards';
+
+/** Read again this often while the cards are on screen, since two agents meet and part within minutes. */
+const OVERLAPS_REREAD_MS = 30_000;
 
 /** As the Mac's agent grid sets it. */
 const CARD_WIDTH = 300;
@@ -28,6 +32,19 @@ export function AgentProfileCards({ parts }: { parts: SettingsParts }) {
   const kept = profiles.profiles ?? [];
   const local = kept.some((each) => each.connections.length > 0 || each.isDefault === true);
   const all = offersWork ? (work.work ?? []) : [];
+  // Where the agents meet, read once for every card; undefined until read, or from a runtime too old to say.
+  const [overlaps, setOverlaps] = useState<AgentOverlapsView | undefined>(undefined);
+  useEffect(() => {
+    const read = () => void parts.agents.overlaps().then(setOverlaps);
+    read();
+    const timer = setInterval(read, OVERLAPS_REREAD_MS);
+    return () => clearInterval(timer);
+  }, []);
+  const meetings = (profile: ProfileView): string[] => {
+    const kind = profile.connections[0]?.agentKind;
+    if (overlaps === undefined || kind === undefined) return [];
+    return meetingLines(overlaps, kind, (other) => kept.find((each) => each.connections.some((connection) => connection.agentKind === other))?.name ?? other);
+  };
   return (
     <>
       {local && (
@@ -39,6 +56,7 @@ export function AgentProfileCards({ parts }: { parts: SettingsParts }) {
                 profile={profile}
                 work={currentWork(profile.id, all)}
                 open={(url) => host.openPage(url)}
+                meetings={meetings(profile)}
                 presets={profile.connections[0]?.agentKind === undefined ? undefined : <AgentPresetRow parts={parts} agent={profile.connections[0].agentKind} />}
               />
             ))}
@@ -53,7 +71,7 @@ export function AgentProfileCards({ parts }: { parts: SettingsParts }) {
  * One agent: its name, whether Memnox can stop it, who answers for it, each way Memnox reaches it as a pill wearing
  * its level, and the work it carries now. One with no agent behind it stays grey with no activity.
  */
-export function AgentProfileCard({ profile, work, open, presets }: { profile: ProfileView; work?: AgentWork | undefined; open?: (url: string) => void; presets?: ReactNode }) {
+export function AgentProfileCard({ profile, work, open, presets, meetings = [] }: { profile: ProfileView; work?: AgentWork | undefined; open?: (url: string) => void; presets?: ReactNode; meetings?: readonly string[] }) {
   const bound = profile.connections.length > 0;
   const responsible = responsibleLine(profile);
   return (
@@ -79,6 +97,14 @@ export function AgentProfileCard({ profile, work, open, presets }: { profile: Pr
             ))}
           </div>
           {work !== undefined && <WorkLine work={work} {...(open === undefined ? {} : { open })} />}
+          {meetings.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-label font-medium text-muted">{AGENT_MEETINGS_TITLE}</span>
+              {meetings.map((line) => (
+                <span key={line} className="text-meta text-foreground">{line}</span>
+              ))}
+            </div>
+          )}
           {presets}
           <details>
             <summary className="mx-focus cursor-pointer text-footnote font-medium text-muted select-none">{AgentCardLines.howSure}</summary>

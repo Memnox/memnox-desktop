@@ -231,7 +231,12 @@ var AGENTS_METHOD = {
    * Every agent the scan finds now, with the counted facts the full screen scan draws, read and never shown, so a
    * screen draws it without asking the voice. A server never asked starts one full count behind the answer.
    */
-  AGENTS_SCAN: "agents-scan"
+  AGENTS_SCAN: "agents-scan",
+  /**
+   * Where agents meet: the files each holds now, the files two are in at once, and the
+   * writes held lately because another agent had them. A read, so a card can say it.
+   */
+  AGENT_OVERLAPS: "agent-overlaps"
 };
 var AGENT_STATUS = {
   /** Its hook is in, or every server it starts runs through Memnox, so whatever Memnox can see of it is ruled on. */

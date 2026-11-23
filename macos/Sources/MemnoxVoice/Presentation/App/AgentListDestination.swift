@@ -102,10 +102,29 @@ private struct WorkingProfiles: View {
 struct ProfileGrid: View {
     let profiles: [ProfileView]
     let work: [AgentWork]
+    /// Where the agents meet, read once for every card; nil until read, or from a runtime too old to say.
+    @State private var overlaps: AgentOverlapsView?
+
+    /// Read again this often while the grid is on screen, since two agents meet and part within minutes.
+    private static let rereadEvery: Duration = .seconds(30)
 
     var body: some View {
         EqualRowsGrid(items: AgentProfileLines.ordered(profiles), cardWidth: AgentGridMetrics.cardWidth) { profile in
-            AgentProfileCard(profile: profile, work: AgentWorkLines.current(for: profile.id, in: work))
+            AgentProfileCard(profile: profile, work: AgentWorkLines.current(for: profile.id, in: work),
+                             meetings: meetings(of: profile))
+        }
+        .task {
+            while !Task.isCancelled {
+                overlaps = await AppWindow.shared.shell.agents?.agents.overlaps()
+                try? await Task.sleep(for: Self.rereadEvery)
+            }
+        }
+    }
+
+    private func meetings(of profile: ProfileView) -> [String] {
+        guard let overlaps, let kind = profile.connections.first?.agentKind else { return [] }
+        return AgentMeetings.lines(overlaps, agent: kind) { other in
+            profiles.first { $0.connections.contains { $0.agentKind == other } }?.name ?? other
         }
     }
 }

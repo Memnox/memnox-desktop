@@ -340,6 +340,13 @@ public final class Agents: @unchecked Sendable {
         return response?.agentsScan
     }
 
+    /// Where the agents here meet now; nil from a daemon too old to say, so the cards say nothing rather than all clear.
+    public func overlaps() async -> AgentOverlapsView? {
+        let response = await ask(link, DaemonRequest(id: ids.next(), method: .agentOverlaps))
+        guard response?.ok == true else { return nil }
+        return response?.agentOverlaps
+    }
+
     /// Holds the agent at once, since that only narrows.
     public func pause(_ kind: String) async -> StudioOutcome {
         var request = DaemonRequest(id: ids.next(), method: .agentPause)

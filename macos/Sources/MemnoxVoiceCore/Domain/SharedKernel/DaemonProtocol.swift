@@ -149,6 +149,7 @@ public enum DaemonMethod: String, Sendable {
     case agentLaunch = "agent-launch"
     /// Every agent the scan finds now, with the counted facts the full screen scan draws; Mac only, since it can start servers to count them.
     case agentsScan = "agents-scan"
+    case agentOverlaps = "agent-overlaps"
     /// Skills, the agents that take them, and skills found on this machine to import.
     case skillsHub = "skills-hub"
     /// Takes a skill found in an agent's folder into the hub, its files with it.
@@ -729,6 +730,62 @@ public struct AgentNode: Decodable, Equatable, Identifiable, Sendable {
         self.mcp = mcp
         self.clis = clis
         self.capabilities = capabilities
+    }
+}
+
+/// Where agents meet on this Mac: the files each holds, the files two are in at once, and the writes held lately.
+public struct AgentOverlapsView: Decodable, Equatable, Sendable {
+    public let holds: [AgentHold]
+    public let together: [AgentsTogether]
+    public let heldBack: [AgentHeldBack]
+
+    public init(holds: [AgentHold] = [], together: [AgentsTogether] = [], heldBack: [AgentHeldBack] = []) {
+        self.holds = holds
+        self.together = together
+        self.heldBack = heldBack
+    }
+}
+
+/// A file or folder an agent holds now, so no other agent changes it under it.
+public struct AgentHold: Decodable, Equatable, Sendable {
+    public let agent: String
+    public let path: String
+    public let repository: String?
+    public let until: String
+
+    public init(agent: String, path: String, repository: String? = nil, until: String) {
+        self.agent = agent
+        self.path = path
+        self.repository = repository
+        self.until = until
+    }
+}
+
+/// One file two or more agents are in at once, at least one of them writing, by the agents' kinds.
+public struct AgentsTogether: Decodable, Equatable, Sendable {
+    public let target: String
+    public let agents: [String]
+    public let at: String
+
+    public init(target: String, agents: [String], at: String) {
+        self.target = target
+        self.agents = agents
+        self.at = at
+    }
+}
+
+/// A write held lately because another agent had it, said as the agent was told.
+public struct AgentHeldBack: Decodable, Equatable, Sendable {
+    public let agent: String
+    public let what: String
+    public let said: String
+    public let at: String
+
+    public init(agent: String, what: String, said: String, at: String) {
+        self.agent = agent
+        self.what = what
+        self.said = said
+        self.at = at
     }
 }
 
@@ -1887,6 +1944,8 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let agentLaunched: AgentLaunched?
     /// On agents-scan; absent from an older daemon, which has no such method.
     public let agentsScan: AgentsScanView?
+    /// On agent-overlaps.
+    public let agentOverlaps: AgentOverlapsView?
     /// On rule-packs.
     public let rulePacks: [RulePackView]?
     /// On skills-hub, and after every skill change, so a screen redraws from one answer.

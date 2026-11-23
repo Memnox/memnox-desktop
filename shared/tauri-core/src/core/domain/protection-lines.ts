@@ -34,7 +34,7 @@ export const PROTECTION = {
   changedAtSource: 'This rule is changed where it came from',
   openInForce: 'Open the rule in force',
   answersUntil: (date: string) => `The autopilot answers this until ${date}`,
-  indexPacks: 'Rule packs from the community index',
+  indexPacks: 'Starter rules from others',
   unsafe: 'Marked unsafe',
   install: 'Install',
   export: 'Export',

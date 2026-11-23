@@ -211,7 +211,7 @@ describe('the workspace’s agents', () => {
     const supports = withWorkspaceAgents((method) => parts.support.supports(method), parts.workspaceAgents.signedIn);
     expect(visibleTabs('agents', supports).map((tab) => tab.id)).toContain('agents');
     const list = renderToString(createElement('div', null, pageNamed('agents/agents').draw(parts)));
-    expect(list).toContain('No Memnox runtime is running on this computer');
+    expect(list).toContain('Memnox is not running on this computer');
     expect(list).toContain('Start Memnox');
     expect(list).toContain('In your workspace');
     expect(list).toContain('Content Agent');

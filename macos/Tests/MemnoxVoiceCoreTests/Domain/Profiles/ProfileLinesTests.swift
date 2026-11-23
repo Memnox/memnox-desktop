@@ -15,7 +15,7 @@ final class ProfileLinesTests: XCTestCase {
 
     func testSaysWhatAnApplyRaisedWhatWasAlreadyGivenAndWhatWasSkipped() {
         XCTAssertEqual(ProfileLines.applied(ProfileApplied(profile: "p", agent: "a", proposed: ["p1", "p2"], already: ["postgres"]), keyTitle: "Touch ID"),
-                       "2 proposals wait for your signature with Touch ID on the island. 1 was already given.")
+                       "2 changes wait for your OK with Touch ID on the island. 1 was already given.")
         XCTAssertEqual(ProfileLines.applied(ProfileApplied(profile: "p", agent: "a", skipped: ["figma is not in the MCP Hub."]), keyTitle: "Touch ID"),
                        "Skipped: figma is not in the MCP Hub.")
         XCTAssertEqual(ProfileLines.applied(ProfileApplied(profile: "p", agent: "a"), keyTitle: "Touch ID"), "The profile holds nothing to give.")

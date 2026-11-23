@@ -372,8 +372,8 @@ export const AddServerLines = {
 
 /** The MCP Hub page's own words. */
 export const McpHubPageLines = {
-  readWhat: 'the MCP Hub',
-  waiting: (keyTitle: string) => `Waiting for you on the island: confirm it with ${keyTitle} and the runtime writes it.`,
+  readWhat: 'your tool servers',
+  waiting: (keyTitle: string) => `Waiting for you on the island: confirm it with ${keyTitle} and Memnox writes it.`,
   search: 'Search servers',
   syncHelp: 'Write what the hub gives each agent into its config again',
   sync: 'Sync',
@@ -396,7 +396,7 @@ export const McpHubPageLines = {
   handBackHelp: (keyTitle: string) => `Your agents then sign in to it themselves and Memnox stops ruling on its calls, so it waits for your signature with ${keyTitle}.`,
   handedBack: (server: string) => `${server} is back with your agents, which sign in to it themselves.`,
   directNote: 'Your agents sign in to this server themselves, so Memnox does not rule on its calls. Sign in through Memnox to rule on them.',
-  asking: 'Asking the runtime',
+  asking: 'Asking Memnox',
   needs: (names: readonly string[]) => `Needs ${names.join(', ')}`,
   tested: (when: string | undefined) => `Tested ${when ?? 'just now'}`,
   testConnection: 'Test connection',

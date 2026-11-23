@@ -18,7 +18,7 @@ final class ProfilesTests: XCTestCase {
         let kept = await profiles.put(ProfileDraft(name: "Backend Engineering"))
         XCTAssertEqual(kept, .done("Backend Engineering is kept. It gives nothing until you apply it."))
         let applied = await profiles.apply("backend-engineering", agent: "claude-code", project: " /code/api ")
-        XCTAssertEqual(applied, .done("1 proposal waits for your signature with Touch ID on the island."))
+        XCTAssertEqual(applied, .done("1 change waits for your OK with Touch ID on the island."))
         let apply = try XCTUnwrap(link.sent.first { $0.method == "profile-apply" })
         XCTAssertEqual(apply.profileName, "backend-engineering")
         XCTAssertEqual(apply.profileAgent, "claude-code")
@@ -51,7 +51,7 @@ final class ProfilesTests: XCTestCase {
         let agents = Agents(link: link)
         let outcome = await agents.launch("claude-code", in: "/code/api", profile: "Backend")
         XCTAssertEqual(link.sent.first?.profileName, "Backend")
-        XCTAssertEqual(outcome, .done("Opened claude-code in /code/api, typing claude. 2 proposals wait for your signature with Touch ID on the island."))
+        XCTAssertEqual(outcome, .done("Opened claude-code in /code/api, typing claude. 2 changes wait for your OK with Touch ID on the island."))
     }
 
     func testRemovesAPersonalSkillFromEveryAgentAtOnce() async throws {

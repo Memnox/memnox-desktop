@@ -26,7 +26,7 @@ export const OnboardingLines = {
   copy: 'Copy',
   copied: 'Copied',
   rulesWait: 'Your starting rules wait for you on the island.',
-  rulePacks: 'Rule packs',
+  rulePacks: 'Starter rules',
   rulePacksDetail: 'A starting point. Change any rule later under Rules.',
   noPacks: 'Memnox has no rule sets to pick from yet. The rules it starts with stay on.',
   hideOthers: 'Hide other packs',

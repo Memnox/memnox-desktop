@@ -170,7 +170,7 @@ export function afterProtect(kinds: readonly string[], agents: readonly Standing
   const one = names.length === 1;
   if (runtimePredatesSeams(agents)) {
     const line = options.restarted === true
-      ? `The Memnox service restarted but still runs a runtime older than this app, so it counts ${listed(names)} as outside. Update Memnox, then restart the service.`
+      ? `The Memnox service restarted but still runs a Memnox older than this app, so it counts ${listed(names)} as outside. Update Memnox, then restart the service.`
       : `The Memnox service on this computer is older than this app, so it cannot see that ${listed(names)} ${one ? 'is' : 'are'} held. Restart it to run the newer Memnox.`;
     return { kinds, line, held: false, restartService: true, ...at };
   }
@@ -230,7 +230,7 @@ function counted(count: number, one: string, many: string): string {
 /** The Agents list's own words. */
 export const AgentListLines = {
   readWhat: 'the agents',
-  noRuntime: 'No Memnox runtime is running on this computer, so only the agents your workspace reaches are listed. Start it to see and protect the agents here too.',
+  noRuntime: 'Memnox is not running on this computer, so only the agents your workspace reaches are listed. Start it to see and protect the agents here too.',
   startRuntime: 'Start Memnox',
   emptyTitle: 'No agents found yet',
   emptyBody: 'Install Claude Code, Codex, Cursor or another agent and it appears here.',
@@ -241,7 +241,7 @@ export const AgentListLines = {
   protect: 'Protect',
   restartService: 'Restart Memnox service',
   restartingService: 'Restarting Memnox service',
-  restartHelp: 'Starts the Memnox service again on the newest runtime on this computer, then reads your agents again',
+  restartHelp: 'Starts the Memnox service again on the newest Memnox on this computer, then reads your agents again',
   servers: (names: readonly string[]) => `Servers: ${names.join(', ')}`,
   skills: (names: readonly string[]) => `Skills: ${names.join(', ')}`,
   resumeHelp: (keyTitle: string) => `Lets it carry on once you confirm with ${keyTitle}`,

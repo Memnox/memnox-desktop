@@ -29,7 +29,7 @@ describe('what a profile says', () => {
   });
 
   it('says what an apply raised, what was already given and what was skipped', () => {
-    expect(profileAppliedLine({ proposed: ['p1', 'p2'], already: ['postgres'], skipped: [] }, 'Windows Hello')).toBe('2 proposals wait for your signature with Windows Hello on the island. 1 was already given.');
+    expect(profileAppliedLine({ proposed: ['p1', 'p2'], already: ['postgres'], skipped: [] }, 'Windows Hello')).toBe('2 changes wait for your OK with Windows Hello on the island. 1 was already given.');
     expect(profileAppliedLine({ proposed: [], already: [], skipped: ['figma is not in the MCP Hub.'] }, 'Windows Hello')).toBe('Skipped: figma is not in the MCP Hub.');
     expect(profileAppliedLine({ proposed: [], already: [], skipped: [] }, 'Windows Hello')).toBe('The profile holds nothing to give.');
   });
@@ -105,7 +105,7 @@ describe('profiles', () => {
     expect(await profiles.put({ name: 'Backend Engineering' })).toEqual({ kind: 'done', note: 'Backend Engineering is kept. It gives nothing until you apply it.' });
     expect(await profiles.put({ name: 'Backend Engineering', skills: ['review-checklist'] }, true)).toEqual({ kind: 'done', note: 'Backend Engineering is saved. What it already gave stays, and the change gives nothing until you apply it again.' });
     expect(daemon.sent('profile-put')[1]?.profileDraft).toEqual({ name: 'Backend Engineering', skills: ['review-checklist'] });
-    expect(await profiles.apply('backend-engineering', 'claude-code', ' /code/api ')).toEqual({ kind: 'done', note: '1 proposal waits for your signature with Windows Hello on the island.' });
+    expect(await profiles.apply('backend-engineering', 'claude-code', ' /code/api ')).toEqual({ kind: 'done', note: '1 change waits for your OK with Windows Hello on the island.' });
     expect(daemon.sent('profile-apply')[0]).toMatchObject({ profileName: 'backend-engineering', profileAgent: 'claude-code', profileProject: '/code/api' });
     expect(await profiles.remove('backend-engineering')).toEqual({ kind: 'done', note: 'backend-engineering is forgotten. What it already gave stays where it was given.' });
     expect(profiles.profiles).toEqual([]);
@@ -127,7 +127,7 @@ describe('profiles', () => {
     const agents = new Agents(daemon, new RequestIds());
     const outcome = await agents.launch('claude-code', '/code/api', { name: 'Backend', keyTitle: 'Windows Hello' });
     expect(daemon.sent('agent-launch')[0]?.profileName).toBe('Backend');
-    expect(outcome).toEqual({ kind: 'done', note: 'Opened claude-code in /code/api, typing claude. 2 proposals wait for your signature with Windows Hello on the island.' });
+    expect(outcome).toEqual({ kind: 'done', note: 'Opened claude-code in /code/api, typing claude. 2 changes wait for your OK with Windows Hello on the island.' });
   });
 });
 

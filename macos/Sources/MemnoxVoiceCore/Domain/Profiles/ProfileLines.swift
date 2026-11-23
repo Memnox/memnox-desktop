@@ -44,8 +44,8 @@ public enum ProfileLines {
     /// What applying a profile raised, in a line: the proposals waiting on the island, what was already given, what was skipped.
     public static func applied(_ applied: ProfileApplied, keyTitle: String) -> String {
         let count = applied.proposed.count
-        let waits = count == 0 ? "" : count == 1 ? "1 proposal waits for your signature with \(keyTitle) on the island."
-            : "\(count) proposals wait for your signature with \(keyTitle) on the island."
+        let waits = count == 0 ? "" : count == 1 ? "1 change waits for your OK with \(keyTitle) on the island."
+            : "\(count) changes wait for your OK with \(keyTitle) on the island."
         let already = applied.already.isEmpty ? "" : applied.already.count == 1 ? "1 was already given." : "\(applied.already.count) were already given."
         let skipped = applied.skipped.isEmpty ? "" : "Skipped: \(applied.skipped.joined(separator: " "))"
         let said = [waits, already, skipped].filter { !$0.isEmpty }.joined(separator: " ")

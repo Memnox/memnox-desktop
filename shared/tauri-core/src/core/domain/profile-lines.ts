@@ -12,7 +12,7 @@ export function profileContents(profile: Pick<ProfileView, 'skills' | 'mcpServer
 /** What applying a profile raised, in a line: the proposals waiting on the island, what was already given, what was skipped. */
 export function profileAppliedLine(applied: Pick<ProfileApplied, 'proposed' | 'already' | 'skipped'>, keyTitle: string): string {
   const count = applied.proposed.length;
-  const waits = count === 0 ? '' : count === 1 ? `1 proposal waits for your signature with ${keyTitle} on the island.` : `${count} proposals wait for your signature with ${keyTitle} on the island.`;
+  const waits = count === 0 ? '' : count === 1 ? `1 change waits for your OK with ${keyTitle} on the island.` : `${count} changes wait for your OK with ${keyTitle} on the island.`;
   const already = applied.already.length === 0 ? '' : applied.already.length === 1 ? '1 was already given.' : `${applied.already.length} were already given.`;
   const skipped = applied.skipped.length === 0 ? '' : `Skipped: ${applied.skipped.join(' ')}`;
   const said = [waits, already, skipped].filter((part) => part !== '').join(' ');
@@ -120,7 +120,7 @@ export const ProfilesLines = {
   create: 'New profile',
   intro: (keyTitle: string) => `A profile gives nothing until you apply it. Applying it waits for your signature with ${keyTitle} on the island, once for each piece.`,
   emptyTitle: 'No profiles yet',
-  emptyBody: 'Bundle the skills, servers and rule pack one kind of work needs, such as Backend Engineering, and apply it to any agent in one go.',
+  emptyBody: 'Bundle the skills, tool servers and starter rules one kind of work needs, such as Backend Engineering, and apply it to any agent in one go.',
   skills: (names: readonly string[]) => `Skills: ${names.join(', ')}`,
   servers: (names: readonly string[]) => `Servers: ${names.join(', ')}`,
   apply: 'Apply',
@@ -143,10 +143,10 @@ export const ProfilesLines = {
   nameStays: 'The name stays, since a new name would keep a second profile beside this one.',
   description: 'What it is for, optional',
   descriptionPlaceholder: 'Reviews, release notes and the local database',
-  hubSkills: 'Skills from the Skills Hub',
-  noSkills: 'The Skills Hub holds no skill yet.',
-  hubServers: 'Servers from the MCP Hub',
-  noServers: 'The MCP Hub holds no server yet.',
+  hubSkills: 'Skills you keep',
+  noSkills: 'You keep no skill yet.',
+  hubServers: 'Tool servers you set up',
+  noServers: 'No tool server is set up yet.',
   rulePack: 'Starter rules',
   noRulePack: 'No starter rules',
   packOption: (name: string, rules: number) => `${name}, ${rules === 1 ? '1 rule' : `${rules} rules`}`,

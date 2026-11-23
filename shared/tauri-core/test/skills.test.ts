@@ -108,7 +108,7 @@ describe('the New skill form', () => {
   });
 });
 
-describe('the Skills Hub', () => {
+describe('your skills', () => {
   it('reads the hub and redraws from every answer', async () => {
     const daemon = new ScriptedDaemon({ 'skills-hub': (request) => [{ id: request.id, ok: true, skillsHub: view }] });
     const hub = new SkillsHub(daemon, new RequestIds());

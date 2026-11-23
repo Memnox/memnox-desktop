@@ -188,8 +188,8 @@ export const SkillSheetLines = {
 
 /** The Skills Hub page's own words, as the Mac's Skills page says them. */
 export const SkillsPageLines = {
-  theHub: 'the Skills Hub',
-  waiting: (keyTitle: string) => `Waiting for you on the island: confirm it with ${keyTitle} and the runtime writes it.`,
+  theHub: 'your skills',
+  waiting: (keyTitle: string) => `Waiting for you on the island: confirm it with ${keyTitle} and Memnox writes it.`,
   search: 'Search skills and what agents have',
   sync: 'Sync',
   syncHint: 'Write what the hub gives each agent into its folder again',

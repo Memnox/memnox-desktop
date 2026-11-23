@@ -3,13 +3,11 @@ import type { Route, WidthClass } from '../../../core/domain/destinations';
 import { pageNamed } from '../../../core/domain/settings-pages';
 import type { SettingsParts } from '../../settings/parts';
 import { PageBody } from '../../settings/PageBody';
-import { ToolsPage } from '../../settings/pages/ToolsPage';
 import { YourAppsPage } from '../../settings/pages/YourAppsPage';
 import { ActivityPage } from './ActivityPage';
 import { AgentListTab } from './AgentListTab';
 import { HandOverPage } from './HandOverPage';
 import { HomePage } from './HomePage';
-import { JobsTab } from './JobsTab';
 import { McpHubPage } from './McpHubPage';
 import { MemoryPage, MemorySourcesPage } from './MemoryPage';
 import { NeedsYouPage } from './NeedsYouPage';
@@ -28,15 +26,12 @@ export function RoutePage({ parts, route, width, go }: { parts: SettingsParts; r
     case 'sessions':
       return <SessionsPage parts={parts} width={width} />;
     case 'agents':
-      if (route.tab === 'this-computer') return <ToolsPage parts={parts} />;
-      if (route.tab === 'jobs') return <JobsTab parts={parts} />;
       return <AgentListTab parts={parts} />;
     case 'projects':
       return <ProjectsPage parts={parts} width={width} go={go} />;
     case 'rules':
+      if (route.tab === 'hand-over') return <HandOverPage parts={parts} />;
       return <PoliciesPage parts={parts} width={width} />;
-    case 'hand-over':
-      return <HandOverPage parts={parts} />;
     case 'activity':
       return <ActivityPage parts={parts} width={width} go={go} />;
     case 'memory':

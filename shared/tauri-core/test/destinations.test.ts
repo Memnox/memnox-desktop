@@ -36,8 +36,8 @@ const everything: Supports = () => true;
 
 describe('the window’s pages', () => {
   it('shows the agents list with no daemon only while the person is signed in to Memnox Cloud', () => {
-    expect(visibleTabs('agents', withWorkspaceAgents(nothingNew, true)).map((tab) => tab.id)).toEqual(['agents', 'this-computer']);
-    expect(visibleTabs('agents', withWorkspaceAgents(nothingNew, false)).map((tab) => tab.id)).toEqual(['this-computer']);
+    expect(visibleTabs('agents', withWorkspaceAgents(nothingNew, true)).map((tab) => tab.id)).toEqual(['agents']);
+    expect(visibleTabs('agents', withWorkspaceAgents(nothingNew, false)).map((tab) => tab.id)).toEqual([]);
     expect(withWorkspaceAgents(nothingNew, true)('profiles')).toBe(false);
   });
 
@@ -73,7 +73,7 @@ describe('the window’s pages', () => {
   it('keeps every old link working', () => {
     expect(routeFrom('?page=overview')).toEqual({ destination: 'home' });
     expect(routeFrom('?page=phones')).toEqual({ destination: 'settings', tab: 'phones' });
-    expect(routeFrom('?page=tools')).toEqual({ destination: 'agents', tab: 'this-computer' });
+    expect(routeFrom('?page=tools')).toEqual({ destination: 'agents', tab: 'agents' });
     expect(routeFrom('?page=apps')).toEqual({ destination: 'connectors', tab: 'systems' });
     expect(routeFrom('?page=connection')).toEqual({ destination: 'settings', tab: 'connection' });
     expect(routeFrom('?dest=governance&tab=approvals')).toEqual(LANDING);
@@ -93,7 +93,7 @@ describe('the window’s pages', () => {
   });
 
   it('finds a place by any word of it, titles that start with it first', () => {
-    expect(matchCommands('dec', nothingNew)[0]?.title).toBe('Decide now');
+    expect(matchCommands('wait', nothingNew)[0]?.title).toBe('Waiting for you');
     expect(matchCommands('conn', nothingNew).map((each) => each.title)).toContain('Connectors');
     expect(matchCommands('mcp', nothingNew)).toEqual([]);
     expect(matchCommands('  ', nothingNew)).toEqual(commands(nothingNew));
@@ -101,7 +101,7 @@ describe('the window’s pages', () => {
 
   it('opens the first nine rows with a digit, and the palette says which one', () => {
     const rows: readonly Destination[] = ['home', 'needs-you', 'sessions', 'activity'];
-    expect(rows.map(keyOf)).toEqual(['1', '2', '3', '8']);
+    expect(rows.map(keyOf)).toEqual(['1', '2', '3', '7']);
     expect(keyOf('settings')).toBeUndefined();
     expect(commands(nothingNew).find((each) => each.title === 'Sessions')?.key).toBe('3');
   });
@@ -141,7 +141,7 @@ describe('the sidebar', () => {
     const sections = SIDEBAR_SECTIONS.map((section) => [section.title ?? '', ...section.rows.map((id) => destinationInfo(id).title)]);
     expect(sections).toEqual([
       ['', 'Home', 'Needs you', 'Sessions', 'Agents', 'Projects'],
-      ['Govern', 'Rules', 'Hand over', 'Activity'],
+      ['Govern', 'Rules', 'Activity'],
       ['Knowledge', 'Memory', 'Connectors'],
     ]);
     expect(SIDEBAR_FOOT.map((id) => destinationInfo(id).title)).toEqual(['Settings']);

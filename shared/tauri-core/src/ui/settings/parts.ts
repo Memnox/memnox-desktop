@@ -2,7 +2,6 @@ import { useEffect, useReducer } from 'react';
 import { Account } from '../../core/application/account';
 import { AgentHomes } from '../../core/application/agent-homes';
 import { AppConnections } from '../../core/application/app-connections';
-import { CommunityIndex } from '../../core/application/community-index';
 import { DaemonAccount, DaemonSignIn } from '../../core/application/daemon-sign-in';
 import { DaemonSupport } from '../../core/application/daemon-support';
 import { HeldCalls } from '../../core/application/held-calls';
@@ -93,8 +92,6 @@ export interface SettingsParts {
   readonly memory: Memory;
   /** Whether paired phones reach this computer over the local network, turned on only once signed. */
   readonly network: LocalNetwork;
-  /** Skills and rule packs from the community index, installed only as held skills and proposed rules. */
-  readonly index: CommunityIndex;
   /** Named bundles of skills, servers and a rule pack, applied through signed proposals. */
   readonly profiles: Profiles;
   /** Agent work joined to tracker issues, each press an unsigned steer the daemon decides. */
@@ -149,7 +146,6 @@ export function buildParts(link: DaemonLink, host: SettingsHost, runtime: Runtim
     projects: new Projects(link, ids),
     memory: new Memory(link, ids),
     network: new LocalNetwork(link, ids),
-    index: new CommunityIndex(link, ids, platformWords(host.platform).keyTitle),
     profiles: new Profiles(link, ids, platformWords(host.platform).keyTitle),
     work: new AgentWorkDesk(link, ids),
     workspaceAgents: new WorkspaceAgents(new CloudInbox(relay.cloud), relay.credentials),

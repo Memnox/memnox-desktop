@@ -17,14 +17,17 @@ import {
   progressOf,
   rowSpoken,
   setTitle,
-  startingPacks,
+  CARE,
+  CARE_LEVELS,
+  RECOMMENDED_CARE,
   stepCounter,
   stepHeading,
+  type CareLevel,
   type OnboardingStage,
   type OnboardingStep,
   type WelcomeRow,
 } from '../../core/domain/onboarding';
-import { agentsFoundLine, firstName, packTitle } from '../../core/domain/setup-steps';
+import { agentsFoundLine, firstName } from '../../core/domain/setup-steps';
 import type { StepState } from '../../core/domain/step-state';
 import { BrandLogo, Wordmark } from '../kit/logos';
 import { IconTile, MemnoxTile, NeedsHint, QuietLine, StatusMark } from '../settings/kit';
@@ -450,65 +453,50 @@ function CoverageCard({ parts }: { parts: SettingsParts }) {
   );
 }
 
-/** Step 2: the recommended pack chosen already, the rest folded behind See other packs; Finish proposes the one chosen. */
+/** Step 2: how careful Memnox is, the recommended level chosen; Finish proposes its pack and stops where it asks to. */
 function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: string | undefined) => void }) {
-  const { studio, words } = parts;
+  const { studio, words, home } = parts;
   useObserved(studio);
-  const [picked, pick] = useState<string | undefined>(undefined);
-  const [others, showOthers] = useState(false);
+  const [chosen, choose] = useState<CareLevel>(RECOMMENDED_CARE);
   const [failed, fail] = useState<string | undefined>(undefined);
   const [sending, setSending] = useState(false);
   useEffect(() => {
     void studio.readPacks();
   }, []);
-  const packs = studio.packs;
-  const starting = startingPacks(packs ?? []);
-  const chosen = picked ?? starting.recommended?.id;
-  const pack = packs?.find((each) => each.id === chosen);
+  const level = CARE[chosen];
   const finish = async () => {
+    const pack = level.pack === undefined ? undefined : studio.packs?.find((each) => each.id === level.pack);
     if (pack === undefined) return next(undefined);
     setSending(true);
     const outcome = await studio.importPack(pack.toml);
     setSending(false);
     if (outcome.kind === 'failed') return fail(outcome.why);
+    if (level.enforces) void home.enforce();
     next(outcome.kind === 'proposed' ? OnboardingLines.rulesWait : outcome.note);
   };
-  const row = (each: NonNullable<typeof packs>[number], index: number, recommended: boolean) => (
-    <Fragment key={each.id}>
-      {index > 0 && <KitDivider />}
-      <Pressable role="radio" aria-checked={chosen === each.id} disabled={sending} onClick={() => pick(each.id)} className="cursor-pointer text-left disabled:cursor-default">
-        <KitRow
-          tile={<IconTile icon={ListChecks} />}
-          title={recommended ? OnboardingLines.recommendedPack(packTitle(each)) : packTitle(each)}
-          detail={each.description}
-          trailing={<span aria-hidden className={`size-4 rounded-full border-2 ${chosen === each.id ? 'border-primary bg-primary' : 'border-ink-edge'}`} />}
-        />
-      </Pressable>
-    </Fragment>
-  );
   const heading = stepHeading(1, words.keyTitle);
   return (
     <>
       <StepTitle counter={stepCounter(1)} title={heading.title} detail={heading.detail} />
-      <KitCard icon={ListChecks} title={OnboardingLines.rulePacks} detail={OnboardingLines.rulePacksDetail}>
-        {packs === undefined && <Spinner />}
-        {packs !== undefined && packs.length === 0 && <QuietLine size={13}>{OnboardingLines.noPacks}</QuietLine>}
-        {starting.recommended !== undefined && (
-          <div role="radiogroup" aria-label={OnboardingLines.rulePacks} className="flex flex-col">
-            {row(starting.recommended, 0, true)}
-            {others && starting.others.map((each, index) => row(each, index + 1, false))}
-          </div>
-        )}
-        {starting.others.length > 0 && (
-          <div className="pt-2">
-            <Button icon={others ? ChevronUp : ChevronDown} onClick={() => showOthers(!others)}>
-              {others ? OnboardingLines.hideOthers : OnboardingLines.seeOthers}
-            </Button>
-          </div>
-        )}
+      <KitCard icon={ShieldCheck} title={level.label} detail={level.line}>
+        <div role="radiogroup" aria-label={heading.title} className="flex flex-col">
+          {CARE_LEVELS.map((each, index) => (
+            <Fragment key={each}>
+              {index > 0 && <KitDivider />}
+              <Pressable role="radio" aria-checked={chosen === each} disabled={sending} onClick={() => choose(each)} className="cursor-pointer text-left disabled:cursor-default">
+                <KitRow
+                  tile={<IconTile icon={ListChecks} />}
+                  title={each === RECOMMENDED_CARE ? `${CARE[each].label}, recommended` : CARE[each].label}
+                  detail={CARE[each].line}
+                  trailing={<span aria-hidden className={`size-4 rounded-full border-2 ${chosen === each ? 'border-primary bg-primary' : 'border-ink-edge'}`} />}
+                />
+              </Pressable>
+            </Fragment>
+          ))}
+        </div>
       </KitCard>
       {failed !== undefined && <NeedsHint why={failed} size={12} />}
-      <Button kind="primary" wide trailing={ArrowRight} disabled={sending || packs === undefined} onClick={() => void finish()}>
+      <Button kind="primary" wide trailing={ArrowRight} disabled={sending} onClick={() => void finish()}>
         {sending ? OnboardingLines.proposing : OnboardingLines.finish}
       </Button>
     </>

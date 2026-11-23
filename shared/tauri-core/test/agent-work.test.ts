@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { AgentWorkDesk } from '../src/core/application/agent-work';
 import { RequestIds } from '../src/core/application/request-ids';
 import { NO_LEVELS, type AgentWork } from '../src/core/domain/agent-wire';
-import { currentWork, issueLine, needsYou, orderedProfiles, purposeLine, workLink } from '../src/core/domain/agent-work-lines';
+import { currentWork, issueLine, needsYou, orderedProfiles, summaryLine, workLink } from '../src/core/domain/agent-work-lines';
 import { ScriptedDaemon } from './doubles';
 
 function work(id: string, status: AgentWork['status'] = 'active', extra: Partial<AgentWork> = {}): AgentWork {
@@ -24,7 +24,7 @@ function work(id: string, status: AgentWork['status'] = 'active', extra: Partial
 }
 
 function profile(id: string, extra: Partial<ProfileView> = {}): ProfileView {
-  return { id, name: id, skills: [], mcpServers: [], updatedAt: '', missing: [], responsibilities: [], projects: [], connections: [], levels: NO_LEVELS, ...extra };
+  return { id, name: id, skills: [], mcpServers: [], updatedAt: '', missing: [], projects: [], connections: [], levels: NO_LEVELS, ...extra };
 }
 
 describe('agent work on Windows and Linux', () => {
@@ -54,10 +54,11 @@ describe('agent work on Windows and Linux', () => {
     expect(needsYou(work('b', 'done_claimed'))).toBe(true);
   });
 
-  it('orders jobs before defaults before jobs with nobody behind them', () => {
+  it('orders kept profiles before defaults before profiles with nobody behind them', () => {
     const connection = { id: 'con_c', profileId: 'p', kind: 'runtime_hook', mediation: 'interposed', firstSeen: '', lastSeen: '', status: 'live' } as const;
     const ordered = orderedProfiles([profile('review'), profile('default:codex', { isDefault: true, connections: [connection] }), profile('backend', { connections: [connection] })]);
     expect(ordered.map((each) => each.id)).toEqual(['backend', 'default:codex', 'review']);
-    expect(purposeLine(profile('x', { isDefault: true }))).toBe('No job yet.');
+    expect(summaryLine(profile('x', { isDefault: true, connections: [connection] }))).toBe('Memnox can only watch it.');
+    expect(summaryLine(profile('y'))).toBe('No agent behind it yet');
   });
 });

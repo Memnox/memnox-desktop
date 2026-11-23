@@ -98,7 +98,7 @@ describe('what belongs to one project and what is shared', () => {
     // The Overview's Skills part opens Skills under Memory rather than one of the project's own pages.
     expect(sharedTarget('skills', () => true)).toEqual({ destination: 'memory', tab: 'skills' });
     const pages = ['rules', 'skills', 'servers', 'connectors', 'memory', 'agents'] as const;
-    expect(pages.map(sharedTitle)).toEqual(['Rules', 'Skills', 'MCP servers', 'Connectors', 'Memory', 'Agents']);
+    expect(pages.map(sharedTitle)).toEqual(['Rules', 'Skills', 'Tool servers', 'Connectors', 'Memory', 'Agents']);
   });
 
 });

@@ -4,18 +4,15 @@ import { NO_LEVELS, type AgentConnection, type AgentWork, type CapabilityLevel, 
 // Agent profiles and agent work as Memnox Cloud sends them, field for field from memnox-cloud's src/agent-profiles and
 // src/agent-work, for agents hosted elsewhere that no daemon here reaches. Mirrors the Mac's `WorkspaceAgentsWire`.
 
-/** A job as the workspace keeps it. */
+/** An agent profile as the workspace keeps it: who it is, its role and who answers for it. */
 export interface CloudProfile {
   readonly id: string;
   readonly name: string;
-  readonly purpose?: string;
   readonly role?: string;
-  readonly responsibilities?: readonly string[];
   readonly responsiblePersonId?: string;
   /** Read only as a fallback; the cloud sends the name on the view, beside `needsResponsiblePerson`. */
   readonly responsiblePersonName?: string;
   readonly projects?: readonly string[];
-  readonly templateOf?: string;
 }
 
 /** One way the workspace reaches a profile's agent, and how sure it is through it. */
@@ -125,12 +122,9 @@ export function cloudProfileView(view: CloudProfileView, you: string | undefined
     mcpServers: [],
     updatedAt: '',
     missing: [],
-    ...(profile.purpose === undefined ? {} : { purpose: profile.purpose }),
     ...(profile.role === undefined ? {} : { role: profile.role }),
-    responsibilities: [...(profile.responsibilities ?? [])],
     ...(responsible === undefined ? {} : { responsiblePerson: responsible }),
     projects: [...(profile.projects ?? [])],
-    ...(profile.templateOf === undefined ? {} : { templateOf: profile.templateOf }),
     connections,
     levels: cloudLevels(view.levels),
   };

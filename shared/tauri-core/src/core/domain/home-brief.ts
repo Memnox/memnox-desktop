@@ -14,7 +14,7 @@ export const HOME_BRIEF_SHOWN: readonly HomeBriefBlock[] = HOME_BRIEF_BLOCKS.fil
 export const HOME_BRIEF_TITLE: Record<HomeBriefBlock, string> = {
   waiting: 'Needs you',
   working: 'Working now',
-  ready: 'Ready to hand over',
+  ready: 'You could let go of',
   today: 'Today',
   'not-covered': 'Not covered',
 };
@@ -24,7 +24,7 @@ export const HOME_BRIEF_NONE: Record<HomeBriefBlock, string> = {
   waiting: 'Nothing needs you. Agents keep working inside their rules.',
   working: 'No agent is working right now.',
   today: 'Nothing was recorded today.',
-  ready: 'Nothing yet. This fills in once you approve the same action a few times.',
+  ready: 'Nothing yet. Once you say yes to the same thing a few times, Memnox offers to stop asking.',
   'not-covered': 'Every agent on this computer is under Memnox.',
 };
 

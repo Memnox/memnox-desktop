@@ -97,7 +97,7 @@ export function TodayPage({
   parts: SettingsParts;
   width: WidthClass;
   go: (route: Route) => void;
-  /** The greeting and the one Do this next card, above every block. */
+  /** The greeting and the one Get set up card, above every block. */
   lead: ReactNode;
 }) {
   const { calls, sessions, home, agents, activity, support, words, projects } = parts;

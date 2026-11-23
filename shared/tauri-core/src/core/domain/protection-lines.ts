@@ -10,7 +10,7 @@ import { EFFECT_WORDS, effectTone, isEffect, type Effect } from './studio-lines'
 
 export type ProtectionTab = 'readyMade' | 'allRules' | 'autonomy';
 
-/** The tabs drawn. Autonomy is left off for now, since Ready to hand over on Home already offers the same. */
+/** The tabs drawn. Autonomy is left off for now, since You could let go of on Home already offers the same. */
 export const PROTECTION_TABS: readonly { id: ProtectionTab; title: string }[] = [
   { id: 'readyMade', title: 'Ready-made rules' },
   { id: 'allRules', title: 'All rules' },
@@ -68,7 +68,7 @@ export const PROTECTION = {
   noRulesBody: 'A rule comes from an Always allow answer, a ready-made rule, or one proposed here.',
   // Autonomy, as the console's hand over page.
   autonomyIntro: 'What your agents could start doing on their own, based on what you keep saying yes to.',
-  readyToHandOver: 'Ready to hand over',
+  readyToHandOver: 'You could let go of',
   stopAsking: 'Stop asking',
   proposing: 'Proposing',
   nothingReady: 'Nothing ready yet',

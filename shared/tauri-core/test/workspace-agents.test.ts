@@ -24,7 +24,7 @@ class Cloud implements HttpTransport {
 const store = (kept: WorkspaceCredential | undefined): PersonCredentialStore => ({ load: async () => kept, save: async () => undefined, delete: async () => undefined });
 
 const hosted: CloudProfileView = {
-  profile: { id: 'prf_1', name: 'Content Agent', purpose: 'Drafts the campaign briefs', responsiblePersonId: 'psn_me', projects: [] },
+  profile: { id: 'prf_1', name: 'Content Agent', responsiblePersonId: 'psn_me', projects: [] },
   connected: true,
   connections: [{ machineId: 'mch_1', connection: 'gateway', label: 'openai', live: true, levels: { context: 'mediated', enforcement: 'observed' } }],
   levels: { context: 'mediated', instructions: 'advisory', tools: 'mediated', activity: 'observed', coordination: 'none', approval: 'mediated', enforcement: 'observed' },

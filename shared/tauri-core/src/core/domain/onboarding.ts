@@ -5,7 +5,7 @@ import type { SettingsPage } from './settings-pages';
 
 /**
  * The first run on a fresh computer, with no account, as the Mac's: a veil with the wordmark, then the two steps that
- * cannot wait, this computer connected and the rules its agents start under, each with a safe default already chosen.
+ * cannot wait, the agents found and how careful Memnox is with them, each with a safe default already chosen.
  * The end screen offers one prompt to try and one button that opens Memnox, then says what Memnox can and cannot do.
  */
 export type OnboardingStage = 'intro' | 'steps' | 'done';
@@ -19,12 +19,12 @@ export type OnboardingId = (typeof ONBOARDING_IDS)[number];
 
 /** Each step's question, heading its page, as the contract words it. */
 export const ONBOARDING_TITLE: Readonly<Record<OnboardingId, string>> = {
-  connect: 'Connect this machine',
-  rules: 'Your starting rules',
+  connect: 'Your agents',
+  rules: 'How careful should Memnox be?',
 };
 
 /** The steps by name under the progress bar, as the Mac's stepper names them with "Mac" said as "computer". */
-export const ONBOARDING_STEPS = ['This computer', 'Starting rules'] as const;
+export const ONBOARDING_STEPS = ['Your agents', 'How careful'] as const;
 export type OnboardingStep = 0 | 1;
 
 /** What the end offers to paste into an agent, so the first ask arrives in minutes; the contract's `tryPrompt`. */
@@ -61,11 +61,25 @@ export function stepHeading(step: OnboardingStep, keyTitle: string): { readonly 
   const id = ONBOARDING_IDS[step];
   switch (id) {
     case 'connect':
-      return { title: ONBOARDING_TITLE.connect, detail: `The Memnox service starts by itself and ${keyTitle} becomes the key only you approve with. No account needed.` };
+      return { title: ONBOARDING_TITLE.connect, detail: `Memnox finds the agents on this computer and sets itself up beside them, with ${keyTitle} as the key only you approve with. Nothing to type, and no account needed.` };
     case 'rules':
-      return { title: ONBOARDING_TITLE.rules, detail: `The recommended rules are chosen for you. Each one holds once you confirm it with ${keyTitle} on the island.` };
+      return { title: ONBOARDING_TITLE.rules, detail: `You can change this any time under Rules. Every rule still waits for your ${keyTitle} before it holds.` };
   }
 }
+
+/** How careful Memnox is with the agents, chosen once in the first run, as the contract's `careful` and the Mac's `CareLevel` say it. */
+export type CareLevel = 'watch' | 'ask' | 'strict';
+
+export const CARE_LEVELS: readonly CareLevel[] = ['watch', 'ask', 'strict'];
+
+/** The one already chosen, so a press of Finish is always the sensible answer. */
+export const RECOMMENDED_CARE: CareLevel = 'ask';
+
+export const CARE: Readonly<Record<CareLevel, { readonly label: string; readonly line: string; readonly enforces: boolean; readonly pack?: string }>> = {
+  watch: { label: 'Just watch', line: 'Memnox writes down what your agents do and stops nothing.', enforces: false },
+  ask: { label: 'Ask me before risky things', line: 'Agents work freely and wait for you before they delete, publish or change somebody else\'s system.', enforces: true, pack: 'safe-defaults' },
+  strict: { label: 'Ask me about almost everything', line: 'Agents read and explain freely and wait for you before they change anything.', enforces: true, pack: 'read-only-agents' },
+};
 
 /** The pack the first run starts on, the same safe defaults the runtime ships. */
 export const RECOMMENDED_PACK = 'safe-defaults';
@@ -77,7 +91,7 @@ export function startingPacks<Pack extends { readonly id: string }>(packs: reado
 }
 
 /** Where the rest of setup went, said under the button that opens Memnox, so nobody looks for it here. */
-export const END_LATER = 'Pairing your phone waits on Home under Do this next, and Memnox Cloud is in Settings under Account.';
+export const END_LATER = 'Pairing your phone waits on Home under Get set up, and Memnox Cloud is in Settings under Account.';
 
 /** One optional thing the end screen offers, opening the Settings page that holds it. */
 export interface EndLink {

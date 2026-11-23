@@ -1,3 +1,4 @@
+import { canStop } from './capability-level-lines';
 import type { ProfileView } from '@memnox/core/wire';
 import type { AgentWork, WorkHandoff } from './agent-wire';
 
@@ -91,9 +92,12 @@ export function filled(text: string | undefined): string | undefined {
   return trimmed === undefined || trimmed === '' ? undefined : trimmed;
 }
 
-/** The line under an agent's name: the job's purpose, else what it was kept for, else that it has no job yet. */
-export function purposeLine(profile: ProfileView): string {
-  return filled(profile.purpose) ?? filled(profile.description) ?? (profile.isDefault === true ? 'No job yet.' : 'No purpose written yet.');
+/** The line under an agent's name: what it was kept for, else whether Memnox can stop it or only watch it. */
+export function summaryLine(profile: ProfileView): string {
+  const description = filled(profile.description);
+  if (description !== undefined) return description;
+  if (profile.connections.length === 0) return NO_AGENT;
+  return canStop(profile.levels) ? 'Memnox can stop it.' : 'Memnox can only watch it.';
 }
 
 export function responsibleLine(profile: ProfileView): string | undefined {
@@ -101,7 +105,7 @@ export function responsibleLine(profile: ProfileView): string | undefined {
   return person === undefined ? undefined : `Answers to ${person}`;
 }
 
-/** The agents with a job first, then the defaults, then the jobs with nobody behind them, each by name. */
+/** The agents under a kept profile first, then the defaults, then the profiles with nobody behind them, each by name. */
 export function orderedProfiles(profiles: readonly ProfileView[]): ProfileView[] {
   const rank = (profile: ProfileView) => (profile.isDefault === true ? 1 : profile.connections.length > 0 ? 0 : 2);
   return [...profiles].sort((one, two) => rank(one) - rank(two) || one.name.toLowerCase().localeCompare(two.name.toLowerCase()));

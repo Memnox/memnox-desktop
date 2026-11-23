@@ -50,7 +50,7 @@ describe('Protection settings in the console words', () => {
     expect(PROTECTION.simplerTitle).toBe('Want the simple version?');
     expect(PROTECTION.startTitle).toBe('Start from a ready-made rule');
     expect(PROTECTION.handOver).toBe('See what to hand over');
-    expect(PROTECTION.readyToHandOver).toBe('Ready to hand over');
+    expect(PROTECTION.readyToHandOver).toBe('You could let go of');
     expect(PROTECTION.stopAsking).toBe('Stop asking');
   });
 

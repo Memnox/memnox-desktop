@@ -340,7 +340,6 @@ const MAC_METRICS: readonly MacMetric[] = [
   { token: "--spacing-settings-look-width", file: "Settings/AppearancePage.swift", pattern: "static let width: CGFloat = ([\\d.]+)" },
   { token: "--spacing-settings-look-height", file: "Settings/AppearancePage.swift", pattern: "static let height: CGFloat = ([\\d.]+)" },
   { token: "--shadow-settings-look-picked", file: "Settings/AppearancePage.swift", pattern: "static let ring: CGFloat = ([\\d.]+)", part: 3 },
-  { token: "--spacing-settings-tool-dot", file: "Tools/ToolsPage.swift", pattern: "private let toolRowDotSide: CGFloat = ([\\d.]+)" },
   { token: "--spacing-settings-agent-label", file: "Setup.swift", pattern: "static let labelWidth: CGFloat = ([\\d.]+)" },
   { token: "--spacing-settings-menu-divider", file: "MenuBar.swift", pattern: "static let rowInset: CGFloat = ([\\d.]+)" },
   { token: "--spacing-settings-menu-divider", file: "MenuBar.swift", pattern: "static let iconColumnWidth: CGFloat = ([\\d.]+)", part: 1 },

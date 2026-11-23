@@ -1,4 +1,4 @@
-import type { ActivityRow, AgentView, CommunityIndexView, DaemonRequest, DaemonResponse, DeviceWire, HomeView, LanStatus, McpHubView, MemoryItemView, MemorySourceView, PolicyRulesView, ProfileView, ProgressView, ProjectView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
+import type { ActivityRow, AgentView, DaemonRequest, DaemonResponse, DeviceWire, HomeView, LanStatus, McpHubView, MemoryItemView, MemorySourceView, PolicyRulesView, ProfileView, ProgressView, ProjectView, RulePackView, SessionCard, SkillsHubView, VoiceAgentStatus } from '@memnox/core/wire';
 import type { ConfirmKey } from '../../core/application/ports/confirm-key';
 import type { DaemonLink } from '../../core/application/ports/daemon-link';
 import type { PreferenceStore } from '../../core/application/ports/preference-store';
@@ -349,39 +349,10 @@ const previewLan: LanStatus =
     ? { on: true, listening: true, addresses: ['192.168.1.20'], port: 47_820, advertised: true, instance: 'mx-7f3a', reachable: [{ deviceId: 'dev_1', name: 'Sam’s iPhone' }] }
     : { on: false, listening: false, addresses: [], advertised: false, reachable: [] };
 
-/** The community index: a skill already held at an older version, a pack, and a skill whose every version was marked unsafe. */
-const previewIndex: CommunityIndexView = {
-  source: 'https://memnox.com/index.json',
-  marketplace: true,
-  fetchedAt: '2026-10-30T11:40:00Z',
-  complete: true,
-  ...(previewState === 'offline' ? { said: 'The index could not be reached, so this is what was read this morning.' } : {}),
-  entries: [
-    { id: 'lst_review', name: 'review-checklist', kind: 'skill', description: 'Walks a pull request against the team checklist before it is sent for review', category: 'Code review', publisher: { kind: 'organization', name: 'Acme' }, license: 'MIT', agents: ['claude-code', 'codex-cli'], latest: { version: '2.1.0', digest: 'sha256:9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b' }, yanked: ['2.0.0'], unsafe: false, installed: '1.4.0', needs: { filesystem: ['./.github/pull_request_template.md'], network: [], commands: ['git diff', 'gh pr view'], mcpServers: ['github'], tools: ['Read', 'Bash'] }, warnings: [] },
-    { id: 'lst_pushes', name: 'careful-pushes', kind: 'rule_pack', description: 'Asks before a push to main, a force push or a deleted branch', category: 'Git', publisher: { kind: 'member', name: 'Priya Shah' }, license: 'Apache-2.0', agents: [], latest: { version: '1.0.2', digest: 'sha256:1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c' }, yanked: [], unsafe: false, needs: { filesystem: [], network: [], commands: [], mcpServers: [], tools: [] }, warnings: [] },
-    { id: 'lst_scrape', name: 'site-scraper', kind: 'skill', description: 'Fetches pages and keeps their text for later', category: 'Research', publisher: { kind: 'member', name: 'jdoe' }, agents: ['claude-code'], yanked: ['0.3.0', '0.3.1'], unsafe: true, needs: { filesystem: ['~/.cache/site-scraper'], network: ['*'], commands: ['curl'], mcpServers: [], tools: ['WebFetch'] }, warnings: ['It reaches any host on the internet, not only the sites you name.', 'It runs curl, which can send what it reads anywhere.'] },
-    { id: 'lst_standup', name: 'standup-notes', kind: 'skill', description: 'Writes yesterday into three lines for the morning standup', category: 'Writing', publisher: { kind: 'member', name: 'Lee' }, agents: [], latest: { version: '0.4.0', digest: 'sha256:5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f' }, yanked: [], unsafe: false, warnings: ['Its publisher is a member rather than an organization, and nobody has reviewed it yet.'] },
-  ],
-};
-
-/** Index answers from the scene: the words and kind filter as the runtime would, and an install says what waits. */
-function indexAnswer(request: DaemonRequest): Partial<DaemonResponse> {
-  const words = (request.indexQuery ?? '').toLowerCase();
-  const entries = previewIndex.entries.filter((entry) => (request.indexKind === undefined || entry.kind === request.indexKind) && `${entry.name} ${entry.description}`.toLowerCase().includes(words));
-  const communityIndex = { ...previewIndex, entries };
-  // Another index only waits on the island, so the scene keeps showing the marketplace, as the runtime does.
-  if (request.method === 'index-source-set') return { communityIndex: previewIndex, ...(request.indexSource === undefined || request.indexSource === 'marketplace' ? {} : { proposed: 'prp_preview' }) };
-  if (request.method !== 'index-install') return { communityIndex };
-  const entry = previewIndex.entries.find((each) => each.name === request.indexName || each.id === request.indexName);
-  if (entry === undefined || entry.latest === undefined) return { communityIndex };
-  const pack = entry.kind === 'rule_pack';
-  return { communityIndex: previewIndex, indexInstalled: { id: entry.id, name: entry.name, kind: entry.kind, version: request.indexVersion ?? entry.latest.version, digest: entry.latest.digest, proposed: pack ? ['prp_preview_1', 'prp_preview_2', 'prp_preview_3'] : [], held: !pack, said: '' } };
-}
-
 /** Two profiles: one whole, one naming a server the MCP Hub no longer holds. */
 const previewProfiles: ProfileView[] = [
-  { id: 'backend-engineering', name: 'Backend Engineering', description: 'Reviews, release notes and the local database, with careful pushes', skills: ['release-notes', 'review-checklist'], mcpServers: ['github', 'postgres'], rulePack: { name: 'Careful', rules: 6 }, updatedAt: '2026-10-28T09:00:00Z', missing: [], responsibilities: [], projects: [], connections: [], levels: NO_LEVELS },
-  { id: 'docs-writer', name: 'Docs writer', skills: ['release-notes'], mcpServers: ['figma'], updatedAt: '2026-10-21T09:00:00Z', missing: ['figma is no longer in the MCP Hub.'], responsibilities: [], projects: [], connections: [], levels: NO_LEVELS },
+  { id: 'backend-engineering', name: 'Backend Engineering', description: 'Reviews, release notes and the local database, with careful pushes', skills: ['release-notes', 'review-checklist'], mcpServers: ['github', 'postgres'], rulePack: { name: 'Careful', rules: 6 }, updatedAt: '2026-10-28T09:00:00Z', missing: [], projects: [], connections: [], levels: NO_LEVELS },
+  { id: 'docs-writer', name: 'Docs writer', skills: ['release-notes'], mcpServers: ['figma'], updatedAt: '2026-10-21T09:00:00Z', missing: ['figma is no longer in the MCP Hub.'], projects: [], connections: [], levels: NO_LEVELS },
 ];
 
 /** Claude Code under a job, checked by Memnox through its own hook, with every seam but the network held. */
@@ -395,18 +366,16 @@ const previewLevels = {
   enforcement: { shell: 'enforced', filesystem: 'enforced', git: 'enforced', network: 'observed', browser: 'none', mcp: 'mediated' },
 } as const;
 
-/** The jobs a person keeps, a default with no job yet, and the agent work they carry, for the Jobs and Work tabs. */
+/** The profiles a person keeps, a default, and the agent work they carry, for the agents list and its work. */
 const previewJobs: ProfileView[] = [
   {
     ...previewProfiles[0]!,
-    purpose: 'Builds and changes the API and the billing service.',
     role: 'developer',
-    responsibilities: ['make the change the task asks for', 'run the tests before handing back'],
     responsiblePerson: 'Sam Rivera',
     connections: [{ id: 'con_claude', profileId: 'backend-engineering', kind: 'runtime_hook', agentKind: 'claude-code', agentId: 'agt_claude-code', mediation: 'interposed', firstSeen: '2026-10-01T09:00:00Z', lastSeen: '2026-10-30T11:50:00Z', status: 'live', levels: previewLevels }],
     levels: previewLevels,
   },
-  { ...previewProfiles[1]!, purpose: 'Writes the release notes and keeps the docs current.', responsiblePerson: 'Sam Rivera', templateOf: 'documentation' },
+  { ...previewProfiles[1]!, responsiblePerson: 'Sam Rivera' },
   {
     id: 'agt_codex-cli',
     name: 'Codex',
@@ -414,19 +383,12 @@ const previewJobs: ProfileView[] = [
     mcpServers: [],
     updatedAt: '2026-10-30T09:00:00Z',
     missing: [],
-    responsibilities: [],
     projects: [],
     responsiblePerson: 'Sam Rivera',
     isDefault: true,
     connections: [{ id: 'con_codex', profileId: 'agt_codex-cli', kind: 'observed', agentKind: 'codex-cli', agentId: 'agt_codex-cli', mediation: 'observed', firstSeen: '2026-10-01T09:00:00Z', lastSeen: '2026-10-29T17:00:00Z', status: 'idle', levels: { ...NO_LEVELS, activity: 'observed' } }],
     levels: { ...NO_LEVELS, activity: 'observed' },
   },
-];
-
-const previewTemplates: NonNullable<DaemonResponse['templates']> = [
-  { id: 'code-review', name: 'Code Review', purpose: 'Reads a change before it is merged and says what is risky.', role: 'reviewer', responsibilities: ['read the diff', 'name what is risky'], suggestedSkills: ['review'], suggestedRules: ['Never push.', 'Never change files; only read them.'], suggestedConnections: ['claude-code', 'cursor'] },
-  { id: 'testing', name: 'Testing', purpose: 'Writes and runs tests, and says plainly what failed.', role: 'tester', responsibilities: ['write the missing tests', 'run the suite'], suggestedSkills: ['testing'], suggestedRules: ['Never push.'], suggestedConnections: ['claude-code'] },
-  { id: 'documentation', name: 'Documentation', purpose: 'Keeps the docs and the release notes true to the code.', role: 'writer', responsibilities: ['update the docs a change touches'], suggestedSkills: [], suggestedRules: ['Ask before changing code.'], suggestedConnections: ['claude-code'] },
 ];
 
 const previewWork: NonNullable<DaemonResponse['agentWork']> = [
@@ -459,8 +421,7 @@ const previewWork: NonNullable<DaemonResponse['agentWork']> = [
 ];
 
 function profileAnswer(request: DaemonRequest): Partial<DaemonResponse> {
-  if (previewState === 'empty') return request.method === 'templates' ? { templates: [] } : { profiles: [] };
-  if (request.method === 'templates') return { templates: previewTemplates };
+  if (previewState === 'empty') return { profiles: [] };
   if (request.method === 'profile-apply') return { profiles: previewJobs, profileApplied: { profile: request.profileName ?? '', agent: request.profileAgent ?? '', proposed: ['prp_preview_1', 'prp_preview_2'], already: ['github'], skipped: [] } };
   return { profiles: previewJobs };
 }
@@ -469,8 +430,7 @@ function profileAnswer(request: DaemonRequest): Partial<DaemonResponse> {
 function answer(request: DaemonRequest): DaemonResponse[] {
   const ok = { id: request.id, ok: true };
   if (request.method.startsWith('memory-')) return [{ ...ok, ...memoryAnswer(request) }];
-  if (request.method.startsWith('index-')) return [{ ...ok, ...indexAnswer(request) }];
-  if (request.method === 'profiles' || request.method === 'templates' || request.method.startsWith('profile-')) return [{ ...ok, ...profileAnswer(request) }];
+  if (request.method === 'profiles' || request.method.startsWith('profile-')) return [{ ...ok, ...profileAnswer(request) }];
   if (request.method === 'agent-work' || request.method.startsWith('work-') || request.method === 'handoff-answer') return [{ ...ok, agentWork: previewState === 'empty' ? [] : previewWork }];
   if (request.method === 'lan-status') return [{ ...ok, lan: previewLan }];
   if (request.method.startsWith('mcp-')) return [{ ...ok, mcpHub: previewHub, ...(request.method === 'mcp-assign' && request.mcpOn === true ? { proposed: 'prp_preview' } : {}) }];

@@ -49,8 +49,8 @@ describe('the first run guide', () => {
     expect(nextStep(0)).toBe(1);
     expect(nextStep(1)).toBeUndefined();
     expect(previousStep(0)).toBeUndefined();
-    expect(stepHeading(0, 'Windows Hello').detail).toContain('Windows Hello becomes the key only you approve with');
-    expect(stepHeading(1, 'Windows Hello').detail).toContain('The recommended rules are chosen for you');
+    expect(stepHeading(0, 'Windows Hello').detail).toContain('with Windows Hello as the key only you approve with');
+    expect(stepHeading(1, 'Windows Hello').detail).toContain('Every rule still waits for your Windows Hello');
   });
 
   it('says how short setup is, and where the phone and Memnox Cloud wait', () => {

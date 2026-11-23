@@ -4,7 +4,7 @@
  * "Mac" becomes "computer" and Touch ID becomes this platform's key.
  */
 export const HomePageLines = {
-  lead: 'What your agents can do on their own, and what still needs you.',
+  lead: 'What your agents are doing, what needs you, and what you can safely let them do next.',
   protecting: 'Runtime protecting this computer',
   away: 'The runtime is not answering',
   readFailed: 'the runtime',

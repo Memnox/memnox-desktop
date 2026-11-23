@@ -28,12 +28,12 @@ interface ProjectPageInfo {
 }
 
 const PAGE_INFO: Readonly<Record<ProjectPage, Omit<ProjectPageInfo, 'page'>>> = {
-  overview: { title: 'Overview', symbol: 'house', summary: 'What this project is, what it still needs, and what it learned lately.' },
+  overview: { title: 'Overview', symbol: 'house', summary: 'Who is working here, what waits for you here, and how careful agents are here.' },
   // Left off the sidebar for now, and kept so an old route to it still has a name.
   tools: { title: 'Tools', symbol: 'square.grid.2x2', summary: 'Where this project’s work happens, and what its agents learn from.' },
   agents: { title: 'Agents', symbol: 'cpu', summary: 'The agents that work in this project, and what each is given.' },
-  memory: { title: 'Memory', symbol: 'brain', summary: 'What its agents learned in this project, and what they know in every project.' },
-  autonomy: { title: 'What its AI may do', symbol: 'checkmark.shield', summary: 'The agents given this project, what they carry, and the rules that hold in it.' },
+  memory: { title: 'What agents here should know', symbol: 'brain', summary: 'What agents in this project already know, so you never repeat yourself.' },
+  autonomy: { title: 'Rules here', symbol: 'checkmark.shield', summary: 'What agents may do here, what they ask you first, and what they never do.' },
 };
 
 export function projectPageInfo(page: ProjectPage): ProjectPageInfo {

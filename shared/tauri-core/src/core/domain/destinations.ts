@@ -219,7 +219,7 @@ export interface Route {
 export type ProjectPage = 'overview' | 'tools' | 'agents' | 'memory' | 'autonomy';
 
 /** Tools is left off for now, since its folder shows on the Overview and Files and Connectors are pages of their own. */
-export const PROJECT_PAGE_IDS: readonly ProjectPage[] = ['overview', 'agents', 'memory', 'autonomy'];
+export const PROJECT_PAGE_IDS: readonly ProjectPage[] = ['overview', 'autonomy', 'memory'];
 
 /** One project by its id, and which of its pages is shown. */
 export interface ProjectPlace {

@@ -4,12 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { projectRoute, type Route, type WidthClass } from '../../../core/domain/destinations';
 import { folderProblem } from '../../../core/domain/launch-lines';
 import { insideProject } from '../../../core/domain/shell-lines';
-import { foldersToOpen, FROM_ORGANIZATION, OPEN_LINE, projectCard, projectNote, ProjectsPageLines, projectStanding } from '../../../core/domain/project-lines';
+import { foldersToOpen, FROM_ORGANIZATION, OPEN_LINE, projectCard, projectNote, projectRules, ProjectsPageLines, projectStanding } from '../../../core/domain/project-lines';
+import { carePack, PROJECT_CARE, PROJECT_EXAMPLES, projectCareOf, ProjectWhy, type ProjectCare, type ProjectExample } from '../../../core/domain/project-care';
 import {
   ADD_TITLE,
   CHOOSE_TITLE,
-  EMPTY_LINE,
-  EMPTY_TITLE,
   matching,
   pulse,
   recent,
@@ -69,8 +68,8 @@ const HELD_RECONNECT_MS = 2_000;
  * sidebar for that project's own pages.
  */
 function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) => void }) {
-  const { projects, sessions, calls } = parts;
-  useObserved(projects, sessions, calls);
+  const { projects, sessions, calls, studio } = parts;
+  useObserved(projects, sessions, calls, studio);
   useEffect(() => {
     void projects.refresh();
     // The folders the sessions ran in are offered as projects to add.
@@ -109,7 +108,16 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
     go(projectRoute(id));
   };
   // Takes a folder in through the daemon's own open, then opens the project it became, as the Mac does.
-  const add = (folder: string) => {
+  // Proposes the starter rules a level names for one folder only; Relaxed proposes nothing.
+  const startOn = (folder: string, care: ProjectCare) => {
+    const id = carePack(care);
+    if (id === undefined) return;
+    void studio.readPacks().then(() => {
+      const pack = studio.packs?.find((each) => each.id === id);
+      if (pack !== undefined) void studio.importPack(pack.toml, { project: folder });
+    });
+  };
+  const add = (folder: string, care: ProjectCare = 'relaxed') => {
     const wrong = folderProblem(folder);
     if (wrong !== undefined) return setNote(wrong);
     setAdding(folder);
@@ -120,14 +128,15 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
       setOpening(false);
       const made = projects.projects?.find((each) => insideProject(folder, each) && insideProject(each.path, { path: folder }));
       if (made !== undefined) openProject(made.id);
+      startOn(folder, care);
     });
   };
   // The system's own folder dialog, as the Mac opens Finder's; the typed form stands in only in the browser preview.
-  const choose = () => {
+  const choose = (care: ProjectCare = 'relaxed') => {
     const pick = parts.host.pickProjectFolder;
     if (pick === undefined) return setOpening(!opening);
     void pick().then(
-      (folder) => folder !== undefined && add(folder),
+      (folder) => folder !== undefined && add(folder, care),
       (why: unknown) => setNote(String(why)),
     );
   };
@@ -145,7 +154,7 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
           kind={all.length === 0 ? 'primary' : 'secondary'}
           icon={FolderPlus}
           disabled={busy}
-          onClick={choose}
+          onClick={() => choose()}
           title={OPEN_LINE}
           {...(parts.host.pickProjectFolder === undefined ? { 'aria-expanded': opening } : {})}
         >
@@ -155,13 +164,13 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
       {opening && <OpenFolderForm busy={busy} cancel={() => setOpening(false)} open={add} />}
       {note !== undefined && <Note roomy>{note}</Note>}
       {all.length === 0 ? (
-        <EmptyState icon={FolderPlus} title={EMPTY_TITLE} body={EMPTY_LINE} />
+        <WhyProjects start={(example) => choose(example.care)} />
       ) : list.length === 0 ? (
         <EmptyState icon={Search} title={ProjectsPageLines.noMatch} body={ProjectsPageLines.noMatchBody} />
       ) : (
         <CardGrid min={PROJECT_CARD_MIN}>
           {list.map((each) => (
-            <ProjectCard key={each.id} parts={parts} project={each} pulse={pulse(each, sessions.state.cards, places, Date.now())} pick={() => openProject(each.id)} said={setNote} />
+            <ProjectCard key={each.id} parts={parts} project={each} care={projectCareOf(projectRules(studio.rules?.rules ?? [], each).here)} pulse={pulse(each, sessions.state.cards, places, Date.now())} pick={() => openProject(each.id)} said={setNote} />
           ))}
         </CardGrid>
       )}
@@ -228,7 +237,7 @@ function PulseLine({ tone, children }: { tone: 'good' | 'attention' | 'quiet'; c
  * now and what waits there, a memory chip and the agents given it, and a menu to rename or remove it. A press anywhere
  * else opens it. An organization's project is renamed and removed in Memnox Cloud, since this computer cannot change it.
  */
-function ProjectCard({ parts, project, pulse, pick, said }: { parts: SettingsParts; project: ProjectView; pulse: ProjectPulse; pick: () => void; said: (note: string) => void }) {
+function ProjectCard({ parts, project, care, pulse, pick, said }: { parts: SettingsParts; project: ProjectView; care: ProjectCare; pulse: ProjectPulse; pick: () => void; said: (note: string) => void }) {
   const { projects, words } = parts;
   const standing = projectStanding(project);
   const card = projectCard(project);
@@ -274,6 +283,7 @@ function ProjectCard({ parts, project, pulse, pick, said }: { parts: SettingsPar
           {/* Room for the menu laid over the corner, outside the card's own button. */}
           <span className="w-6 shrink-0" aria-hidden />
         </span>
+        <span className="text-meta text-muted">{`${PROJECT_CARE[care].label}. ${PROJECT_CARE[care].line}`}</span>
         <span className="truncate text-meta text-muted" title={project.path}>
           {project.path}
         </span>
@@ -432,5 +442,36 @@ function WorkspaceOverview({ workspace, go }: { workspace: SeenWorkspace; go: (r
       <GoLink onClick={() => go(SESSIONS_ROUTE)}>{ProjectsPageLines.itsSessions}</GoLink>
       <p className="text-footnote text-muted">{ProjectsPageLines.lastActive(ago(workspace.lastActiveAt, Date.now()))}</p>
     </div>
+  );
+}
+
+/** The empty Projects page: why keeping work apart helps, and three example projects each one press from starting, as the Mac's `WhyProjects`. */
+function WhyProjects({ start }: { start: (example: ProjectExample) => void }) {
+  return (
+    <Section title={ProjectWhy.title}>
+      <ul className="flex flex-col gap-1.5">
+        {ProjectWhy.lines.map((line) => (
+          <li key={line} className="text-footnote text-foreground">
+            {line}
+          </li>
+        ))}
+      </ul>
+      <CardGrid min={PROJECT_CARD_MIN}>
+        {PROJECT_EXAMPLES.map((example) => (
+          <Card key={example.name} label={example.name} className="flex flex-col gap-3">
+            <span className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-body font-semibold text-foreground">{example.name}</span>
+              <StatusWord tone="quiet">{PROJECT_CARE[example.care].label}</StatusWord>
+            </span>
+            <span className="text-footnote text-muted">{example.line}</span>
+            <span>
+              <Button icon={FolderPlus} onClick={() => start(example)}>
+                {ProjectWhy.start}
+              </Button>
+            </span>
+          </Card>
+        ))}
+      </CardGrid>
+    </Section>
   );
 }

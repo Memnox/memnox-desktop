@@ -27,6 +27,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
+import { carePack, PROJECT_CARE, PROJECT_CARES, projectCareOf, ProjectWhy, type ProjectCare } from '../../../core/domain/project-care';
+import { pulse, workingLine } from '../../../core/domain/project-context';
 import type { ProjectOutcome } from '../../../core/application/projects';
 import { projectRoute, type ProjectPage, type Route, type Supports } from '../../../core/domain/destinations';
 import {
@@ -49,7 +51,6 @@ import { agentLabel } from '../../../core/domain/mcp-hub-lines';
 import { draftOf, everywhereLine, FROM_ORGANIZATION, grantLine, pressLine, ProjectPageLines, projectNote, projectRules, projectStanding, rulesLine, sessionsLine, sharedBy } from '../../../core/domain/project-lines';
 import { ALL_CATEGORIES, settledCategory } from '../../../core/domain/catalog';
 import {
-  AGENTS_SHARED_LINE,
   BACK_TO_PROJECTS,
   GONE_LINE,
   GONE_TITLE,
@@ -127,14 +128,13 @@ export function ProjectPages({ parts, project, page, go }: { parts: SettingsPart
   const body = (
     <div className="flex flex-col gap-6">
       {page === 'tools' && PROJECT_TOOLS_SHOWN && <Tools parts={parts} project={project} go={go} />}
-      {(page === 'overview' || (page === 'tools' && !PROJECT_TOOLS_SHOWN)) && <Overview parts={parts} project={project} go={go} />}
-      {page === 'agents' && <Agents parts={parts} project={project} go={go} />}
+      {(page === 'overview' || page === 'agents' || (page === 'tools' && !PROJECT_TOOLS_SHOWN)) && <Overview parts={parts} project={project} go={go} />}
       {page === 'memory' && <ProjectMemory parts={parts} project={project} go={go} />}
       {page === 'autonomy' && <Autonomy parts={parts} project={project} go={go} />}
     </div>
   );
   // The Overview heads itself with the project's name; every other page says its own title and line, as on the Mac.
-  if (page === 'overview' || page === 'tools') return <div className="flex w-full flex-col">{body}</div>;
+  if (page === 'overview' || page === 'agents' || page === 'tools') return <div className="flex w-full flex-col">{body}</div>;
   return (
     <div className="flex w-full flex-col gap-5">
       <PageTitle title={info.title} subtitle={info.summary} />
@@ -280,6 +280,9 @@ function Overview({ parts, project, go }: { parts: SettingsParts; project: Proje
   return (
     <>
       <OverviewHeader project={project} />
+      <ProjectNow parts={parts} project={project} go={go} />
+      <ProjectCarePanel parts={parts} project={project} />
+      <AgentsHere parts={parts} project={project} />
       {showReady(counts) && (
         <Section title={READY_TITLE}>
           <Panel>
@@ -637,21 +640,63 @@ function ToolCard({ card, busy, act, reach, openShared }: { card: ProjectToolCar
 }
 
 
-/** The agents that work in this project, each with what the project gives it, and the way to where every agent on this computer is set up. */
-function Agents({ parts, project, go }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void }) {
-  const { support } = parts;
-  useObserved(support);
-  const agentsPage = sharedRoute('agents', (method) => support.supports(method));
+/** Who works here now and what waits for you here, each a press away from the page that holds it, as the Mac's `ProjectNow`. */
+function ProjectNow({ parts, project, go }: { parts: SettingsParts; project: ProjectView; go: (route: Route) => void }) {
+  const { sessions, calls } = parts;
+  useObserved(sessions, calls);
+  const now = pulse(project, sessions.state.cards, calls.state.waiting.entries.map((entry) => entry.card.place), Date.now());
   return (
-    <>
-      <AgentsHere parts={parts} project={project} />
-      {agentsPage !== undefined && (
-        <div className="flex items-center gap-2">
-          <ReachBadge reach="every-project" open={() => go(agentsPage)} />
-          <p className="min-w-0 flex-1 text-footnote text-muted">{AGENTS_SHARED_LINE}</p>
+    <Section title={ProjectWhy.nowTitle}>
+      <Panel>
+        <Row onClick={() => go({ destination: 'sessions' })} title={workingLine(now) ?? ProjectWhy.nobodyWorking} caption={now.lastActivity} />
+        <Row
+          onClick={() => go({ destination: 'needs-you' })}
+          title={now.waiting === 0 ? ProjectWhy.nothingWaits : ProjectWhy.waits(now.waiting)}
+          caption={ProjectWhy.waitsHow}
+        />
+      </Panel>
+    </Section>
+  );
+}
+
+/** How careful agents are here, and the press that starts this project on another level, as the Mac's `ProjectCarePanel`. */
+function ProjectCarePanel({ parts, project }: { parts: SettingsParts; project: ProjectView }) {
+  const { studio } = parts;
+  useObserved(studio);
+  const [note, setNote] = useState<string | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void studio.readPacks();
+  }, []);
+  const care = projectCareOf(projectRules(studio.rules?.rules ?? [], project).here);
+  const start = (other: ProjectCare) => {
+    const pack = studio.packs?.find((each) => each.id === carePack(other));
+    if (pack === undefined) return;
+    setBusy(true);
+    void studio.importPack(pack.toml, { project: project.path }).then((outcome) => {
+      setBusy(false);
+      setNote(outcome.kind === 'failed' ? outcome.why : ProjectWhy.eachRuleWaits);
+    });
+  };
+  return (
+    <Section title={ProjectWhy.careTitle}>
+      <Panel>
+        <div className="flex flex-col gap-3 p-4">
+          <span className="flex items-center gap-2">
+            <StatusWord tone={care === 'relaxed' ? 'quiet' : 'good'}>{PROJECT_CARE[care].label}</StatusWord>
+            <span className="text-footnote text-muted">{PROJECT_CARE[care].line}</span>
+          </span>
+          <span className="flex flex-wrap gap-2">
+            {PROJECT_CARES.filter((other) => other !== 'relaxed' && other !== care).map((other) => (
+              <Button key={other} disabled={busy} title={PROJECT_CARE[other].line} onClick={() => start(other)}>
+                {ProjectWhy.makeIt(other)}
+              </Button>
+            ))}
+          </span>
+          {note !== undefined && <span className="text-footnote text-muted">{note}</span>}
         </div>
-      )}
-    </>
+      </Panel>
+    </Section>
   );
 }
 

@@ -114,8 +114,14 @@ export class Studio extends Observed {
     return this.change(grantId, { method: POLICY_METHOD.AUTOPILOT_REVOKE, grantId }, 'Taken back. Your agents ask about it again.');
   }
 
-  async importPack(toml: string): Promise<StudioOutcome> {
-    const response = await this.send('pack', { method: POLICY_METHOD.RULE_PACK_IMPORT, rulePack: toml });
+  /** Each rule in the pack becomes its own proposal; a project folder or an agent's kind narrows where they hold. */
+  async importPack(toml: string, scope: { readonly project?: string; readonly agent?: string } = {}): Promise<StudioOutcome> {
+    const response = await this.send('pack', {
+      method: POLICY_METHOD.RULE_PACK_IMPORT,
+      rulePack: toml,
+      ...(scope.project === undefined ? {} : { rulePackProject: scope.project }),
+      ...(scope.agent === undefined ? {} : { rulePackAgent: scope.agent }),
+    });
     if (response?.ok === true && response.packProposed !== undefined) {
       const count = response.packProposed.length;
       return { kind: 'done', note: count === 1 ? '1 rule waits for your signature on the island.' : `${count} rules wait for your signature on the island.` };

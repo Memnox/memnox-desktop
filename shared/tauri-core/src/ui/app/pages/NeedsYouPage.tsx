@@ -9,7 +9,8 @@ import { LearnPage } from './LearnPage';
 import { projectNameOfPlace } from '../../../core/domain/project-context';
 import { heldFacts, NOTHING_WAITING, NOTHING_WAITING_DETAIL, waitingLine } from '../../../core/domain/approvals-lines';
 import { GovernanceLines } from '../../../core/domain/governance-lines';
-import { BrandLogo, Button, EmptyState, StatusWord, Switch } from '../../kit';
+import { BrandLogo, Button, Chip, ChipGroup, EmptyState, Panel, Row, StatusWord, Switch } from '../../kit';
+import { decidedLines, NEEDS_YOU_VIEWS, NeedsYouLines, type NeedsYouView } from '../../../core/domain/needs-you-lines';
 import { handHeld, heldBusy } from '../held-hand';
 import { needsYou, openWork } from '../../../core/domain/agent-work-lines';
 import { waitingHandoffs } from '../../../core/domain/workspace-agents';
@@ -29,13 +30,51 @@ const CARD_LOGO = 26;
  * be confirmed, as the Mac's `NeedsYouDestination` lays them out.
  */
 export function NeedsYouPage({ parts }: { parts: SettingsParts }) {
-  const { support } = parts;
-  useObserved(support);
+  const { support, calls } = parts;
+  useObserved(support, calls);
+  const [view, setView] = useState<NeedsYouView>('waiting');
+  // Decided reads the record, so it is offered only where the runtime keeps one.
+  const decides = support.supports('activity') === true;
   return (
     <div className="flex flex-col gap-8">
-      <Approvals parts={parts} />
-      {support.supports('memory-learn') === true && <LearnPage parts={parts} />}
+      {decides && (
+        <ChipGroup label="Needs you" role="group">
+          {NEEDS_YOU_VIEWS.map((each) => (
+            <Chip key={each} role="toggle" on={view === each} pick={() => setView(each)} {...(each === 'waiting' ? { count: calls.state.waiting.entries.length } : {})}>
+              {NeedsYouLines.view[each]}
+            </Chip>
+          ))}
+        </ChipGroup>
+      )}
+      {decides && view === 'decided' ? (
+        <DecidedToday parts={parts} />
+      ) : (
+        <>
+          <Approvals parts={parts} />
+          {support.supports('memory-learn') === true && <LearnPage parts={parts} />}
+        </>
+      )}
     </div>
+  );
+}
+
+/** What the person allowed or stopped today, read off the same record Home's Today reads, newest first. */
+function DecidedToday({ parts }: { parts: SettingsParts }) {
+  const { activity } = parts;
+  useObserved(activity);
+  useEffect(() => {
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    void activity.show({ since: midnight.toISOString() });
+  }, []);
+  const decided = decidedLines(activity.rows);
+  if (decided.length === 0) return <EmptyState icon={ShieldCheck} title={NeedsYouLines.noneDecided} body={NeedsYouLines.noneDecidedDetail} />;
+  return (
+    <Panel>
+      {decided.map((line) => (
+        <Row key={line.id} title={line.title} caption={line.caption} trailing={<StatusWord tone={line.allowed ? 'good' : 'quiet'}>{line.outcome}</StatusWord>} />
+      ))}
+    </Panel>
   );
 }
 

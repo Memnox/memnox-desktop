@@ -8,15 +8,61 @@ struct NeedsYouDestination: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var island: IslandModel
     let width: WidthClass
+    @State private var view = NeedsYouView.waiting
 
     var body: some View {
         ShellScroll(width: width) {
-            HeldCalls(island: island, projects: shell.projects?.projects.projects ?? [],
-                      work: shell.supports("agent-work") == true ? shell.work : nil,
-                      profiles: shell.profiles?.profiles.profiles ?? [], workspace: shell.workspaceAgents)
-            if shell.supports("memory-learn") == true, let memory = shell.memory {
-                LearnQueue(screen: memory, island: island)
+            // Decided reads the record, so it is offered only where the runtime keeps one.
+            if shell.supports("activity") == true, let today = shell.todayActivity {
+                HStack(spacing: Memnox.Spacing.small) {
+                    ForEach(NeedsYouView.allCases, id: \.self) { each in
+                        FilterChip(title: each.title, chosen: view == each,
+                                   count: each == .waiting ? island.waiting.entries.count : nil) { view = each }
+                    }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Needs you")
+                if view == .decided {
+                    DecidedToday(screen: today)
+                }
             }
+            if view == .waiting {
+                HeldCalls(island: island, projects: shell.projects?.projects.projects ?? [],
+                          work: shell.supports("agent-work") == true ? shell.work : nil,
+                          profiles: shell.profiles?.profiles.profiles ?? [], workspace: shell.workspaceAgents)
+                if shell.supports("memory-learn") == true, let memory = shell.memory {
+                    LearnQueue(screen: memory, island: island)
+                }
+            }
+        }
+    }
+}
+
+/// What the person allowed or stopped today, read off the same record Home's Today reads, newest first.
+private struct DecidedToday: View {
+    @ObservedObject var screen: ActivityScreen
+
+    var body: some View {
+        let decided = NeedsYouLines.decided(screen.activity.rows)
+        Group {
+            if decided.isEmpty {
+                EmptyState(symbol: "checkmark.circle", title: NeedsYouLines.noneDecided, detail: NeedsYouLines.noneDecidedDetail)
+            } else {
+                ShellPanel {
+                    ForEach(Array(decided.enumerated()), id: \.element.id) { index, line in
+                        if index > 0 { ShellDivider() }
+                        ShellRow(title: line.title, caption: line.caption) {
+                            EmptyView()
+                        } trailing: {
+                            StatusWord(line.allowed ? .good : .quiet, line.outcome)
+                        }
+                    }
+                }
+            }
+        }
+        .task {
+            let midnight = Calendar.current.startOfDay(for: Date())
+            await screen.activity.show(ActivityFilter(since: ISO8601DateFormatter().string(from: midnight)))
         }
     }
 }

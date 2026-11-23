@@ -5,7 +5,7 @@ import XCTest
 final class ProposalLinesTests: XCTestCase {
     func testPutsTheKindBeforeItsOwnWordsAtTouchID() {
         XCTAssertEqual(ProposalLines.prompt(kind: "mcp-hub", summary: "Add the MCP server github"),
-                       "A change to your MCP servers: Add the MCP server github")
+                       "A change to your tool servers: Add the MCP server github")
         XCTAssertEqual(ProposalLines.caption(kind: "lan", summary: "Let paired phones in"),
                        "Touch ID for opening this Mac to your local network")
     }

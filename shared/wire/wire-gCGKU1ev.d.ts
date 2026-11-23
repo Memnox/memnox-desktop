@@ -2307,122 +2307,6 @@ interface MemoryLayersResponseFields {
 }
 
 /**
- * The community index as screens browse it: skills and rule packs from Memnox Cloud's marketplace
- * or a git repository's `index.json`. A download is checked against its digest before it is
- * written, and an install is only a skill held for acceptance or a pack's rules proposed.
- */
-declare const INDEX_METHOD: {
-    /** The index, filtered by words and kind, read fresh or from what was last read. */
-    readonly INDEX_LIST: "index-list";
-    /** Fetches one version, checks its digest, and holds the skill or proposes the pack's rules. */
-    readonly INDEX_INSTALL: "index-install";
-    /** Where the index is read from: a new one is a proposal the Mac signs, the marketplace again is at once. */
-    readonly INDEX_SOURCE_SET: "index-source-set";
-};
-/** The source named by a word rather than a URL. */
-declare const INDEX_SOURCE: {
-    /** Memnox Cloud's marketplace, of the workspace this machine is on: the default. */
-    readonly MARKETPLACE: "marketplace";
-};
-/** What a listing is, in the marketplace's own words. */
-declare const INDEX_KIND: {
-    readonly SKILL: "skill";
-    readonly RULE_PACK: "rule_pack";
-};
-type IndexKind = (typeof INDEX_KIND)[keyof typeof INDEX_KIND];
-interface IndexPublisherView {
-    /** An organization or a member, as the marketplace says. */
-    kind: string;
-    name: string;
-}
-/** What a listing declares it needs, as its manifest in the index says; read before anything is installed. */
-interface IndexNeedsView {
-    /** Paths it reads or writes. */
-    filesystem: string[];
-    /** Hosts it reaches. */
-    network: string[];
-    /** Commands it runs. */
-    commands: string[];
-    /** MCP servers it uses, by name. */
-    mcpServers: string[];
-    /** Tools it asks its agent for, by name. */
-    tools: string[];
-}
-/** One listing as a screen browses it. */
-interface IndexEntryView {
-    id: string;
-    name: string;
-    kind: IndexKind;
-    description: string;
-    category?: string;
-    publisher: IndexPublisherView;
-    license?: string;
-    /** Agent kinds it supports; empty is every agent. */
-    agents: string[];
-    /** The newest version not marked unsafe, and the digest its content must match. */
-    latest?: {
-        version: string;
-        digest: string;
-    };
-    /** Versions marked unsafe since they were published, which nothing installs. */
-    yanked: string[];
-    /** Every published version is marked unsafe, so the listing offers nothing to install. */
-    unsafe: boolean;
-    /** The version of this skill the Skills Hub holds here, where it holds one. */
-    installed?: string;
-    /** What it declares it needs; absent where the index carries no manifest for it. */
-    needs?: IndexNeedsView;
-    /** What a person should know before installing it, each in a sentence; empty where nothing stands out. */
-    warnings: string[];
-}
-interface CommunityIndexView {
-    /** Where the index was read from. */
-    source: string;
-    /** Whether that is a Memnox Cloud marketplace, the default, rather than an index somebody named. */
-    marketplace: boolean;
-    /** When it was read; absent before it was ever read. */
-    fetchedAt?: string;
-    /** False where the index held more than it carries. */
-    complete: boolean;
-    entries: IndexEntryView[];
-    /** Why what is shown is not fresh, or why there is nothing, in a sentence. */
-    said?: string;
-}
-/** What an install did, so a screen says it in a line and opens what waits on the person. */
-interface IndexInstalled {
-    id: string;
-    name: string;
-    kind: IndexKind;
-    version: string;
-    digest: string;
-    /** For a pack: one proposal per rule, each signed on its own. */
-    proposed: string[];
-    /** For a skill: it is in the Skills Hub, held until the person accepts it. */
-    held: boolean;
-    said: string;
-}
-interface IndexRequestFields {
-    /** On INDEX_LIST: words, each found in the name or the description. */
-    indexQuery?: string;
-    /** On INDEX_LIST: only skills, or only rule packs. */
-    indexKind?: IndexKind;
-    /** On INDEX_LIST: read again now rather than from what was last read. */
-    indexRefresh?: boolean;
-    /** On INDEX_SOURCE_SET, from this machine only: an https URL to an `index.json`, or `marketplace`; absent is `marketplace`. */
-    indexSource?: string;
-    /** On INDEX_INSTALL: the listing, by id or by name. */
-    indexName?: string;
-    /** On INDEX_INSTALL: the version; absent is the newest not marked unsafe. */
-    indexVersion?: string;
-}
-interface IndexResponseFields {
-    /** On INDEX_LIST, and after an install. */
-    communityIndex?: CommunityIndexView;
-    /** On INDEX_INSTALL. */
-    indexInstalled?: IndexInstalled;
-}
-
-/**
  * What this machine learned from the sources a person pointed it at: candidates a model read out
  * of them, facts a person confirmed, and the evidence each one carries. Nothing here promotes
  * itself: a model proposes and only a person's confirm makes a fact verified.
@@ -4486,39 +4370,6 @@ interface ProjectsResponseFields {
 }
 
 /**
- * Backing up what a person set up on this machine and restoring it: rules, hubs, skills, projects
- * and memory, sealed under a passphrase, and never a secret. Both are the local socket's alone.
- */
-declare const BACKUP_METHOD: {
-    /** Seals the setup under a passphrase and hands the archive back as text. */
-    readonly BACKUP_CREATE: "backup-create";
-    /** Opens an archive and proposes putting it back, which holds once the person signs it. */
-    readonly BACKUP_RESTORE: "backup-restore";
-};
-/** What an archive holds, so a screen says it before anything is restored. */
-interface BackupSummary {
-    createdAt: string;
-    /** Under the Memnox home, by path. */
-    files: string[];
-    /** The ledger rides along; it is only ever restored where there is none. */
-    ledger: boolean;
-}
-interface BackupRequestFields {
-    /** On CREATE and RESTORE. Never stored, never logged. */
-    backupPassphrase?: string;
-    /** On RESTORE: the archive as CREATE handed it back. */
-    backupArchive?: string;
-    /** On CREATE: carry the ledger too. */
-    backupLedger?: boolean;
-}
-interface BackupResponseFields {
-    /** On CREATE. */
-    backupArchive?: string;
-    /** On CREATE and RESTORE: what the archive holds. */
-    backupSummary?: BackupSummary;
-}
-
-/**
  * Reaching this machine over the local network rather than the relay: off until the person turns
  * it on, the same Noise sessions either way, and only ever a private address.
  */
@@ -4558,135 +4409,6 @@ interface LanResponseFields {
 }
 
 /**
- * Personal sync as every screen reads and drives it: one person's servers, skills, projects, rules
- * and verified memory carried blind across their own machines. It runs when asked and after a
- * local change, never on a timer, and the key moves only behind a fingerprint the Mac signs.
- */
-declare const PERSONAL_SYNC_METHOD: {
-    /** Where sync stands here: the key, the last run, what was left out, and any machine waiting. */
-    readonly PERSONAL_SYNC_STATUS: "personal-sync-status";
-    /** Pulls what the person's other machines sent, then sends what changed here. */
-    readonly PERSONAL_SYNC_NOW: "personal-sync-now";
-    /** The copies a sync replaced without having seen them, opened for the person to choose from. */
-    readonly PERSONAL_SYNC_CONFLICTS: "personal-sync-conflicts";
-    /** Keeps one side of a conflict: the copy taken back here, or this machine's own. */
-    readonly PERSONAL_SYNC_RESOLVE: "personal-sync-resolve";
-    /** On a machine holding the key: proposes sealing it to a waiting machine whose fingerprint the person compared. */
-    readonly PERSONAL_SYNC_KEY_OFFER: "personal-sync-key-offer";
-    /** On a new machine: proposes taking the key sealed to it, once the person compared the same fingerprint. */
-    readonly PERSONAL_SYNC_KEY_ACCEPT: "personal-sync-key-accept";
-};
-/** Where personal sync stands on this machine. */
-declare const PERSONAL_SYNC_STATE: {
-    /** Not on Memnox Cloud, so there is nowhere to carry anything. */
-    readonly OFF: "off";
-    /** No sync key here yet: another of the person's machines has to seal it to this one. */
-    readonly WAITING_FOR_KEY: "waiting-for-key";
-    /** A key sealed to this machine arrived and waits for the person to compare and accept it. */
-    readonly KEY_ARRIVED: "key-arrived";
-    readonly READY: "ready";
-    /** The plan does not carry personal sync; what is here stays here. */
-    readonly NOT_ON_PLAN: "not-on-plan";
-    /** The credential speaks for no person, so it has nothing of its own to sync. */
-    readonly NO_PERSON: "no-person";
-};
-type PersonalSyncState = (typeof PERSONAL_SYNC_STATE)[keyof typeof PERSONAL_SYNC_STATE];
-/** Which side of a conflict to keep. */
-declare const SYNC_KEEP: {
-    /** The copy the cloud kept, put back here and sent as the newest. */
-    readonly THEIRS: "theirs";
-    /** What this machine holds now; the kept copy is let go. */
-    readonly MINE: "mine";
-};
-type SyncKeep = (typeof SYNC_KEEP)[keyof typeof SYNC_KEEP];
-/** One of the person's machines, as far as the sync key goes. */
-interface PersonalSyncMachine {
-    machineId: string;
-    /** Compared with what the other machine shows before the key moves either way. */
-    fingerprint: string;
-    /** Another of the person's machines already sealed the key to it. */
-    sealed: boolean;
-}
-/** How many items of one kind this machine carries. */
-interface PersonalSyncKindCount {
-    kind: string;
-    items: number;
-}
-interface PersonalSyncStatus {
-    state: PersonalSyncState;
-    /** Where it stands, in one sentence a screen shows as it is. */
-    said: string;
-    /** Which sync key this machine holds, never the key. */
-    keyId?: string;
-    lastSyncedAt?: string;
-    kinds: PersonalSyncKindCount[];
-    conflicts: number;
-    /** Items left out of the last run, each said: too large, sealed under another key, or waiting on a signature. */
-    skipped: string[];
-    /** Repositories opened on the person's other machines and not here. */
-    openedElsewhere: string[];
-    /** On a machine holding the key: the person's machines still waiting for it. */
-    waiting: PersonalSyncMachine[];
-    /** On a machine waiting: the fingerprint of the key that arrived, to compare before accepting it. */
-    arrivedFingerprint?: string;
-}
-/** A conflict copy opened here, beside what this machine holds of the same item now. */
-interface PersonalSyncConflict {
-    id: string;
-    kind: string;
-    name: string;
-    /** Which machine wrote the copy that lost. */
-    writtenBy: string;
-    keptAt: string;
-    /** The copy, as text a screen shows. */
-    theirs: string;
-    /** What this machine holds now, absent where it holds nothing by that name. */
-    mine?: string;
-}
-interface PersonalSyncRequestFields {
-    /** On RESOLVE. */
-    syncConflictId?: string;
-    /** On RESOLVE. */
-    syncKeep?: SyncKeep;
-    /** On KEY_OFFER: the waiting machine to seal the key to. */
-    syncMachineId?: string;
-    /** On KEY_OFFER and KEY_ACCEPT: the fingerprint the person compared, which must be the one shown. */
-    syncFingerprint?: string;
-}
-interface PersonalSyncResponseFields {
-    /** On every personal sync method, so a screen redraws from one answer. */
-    personalSync?: PersonalSyncStatus;
-    /** On CONFLICTS. */
-    syncConflicts?: PersonalSyncConflict[];
-}
-
-/**
- * Job descriptions with no agent behind them. A template carries no activity, no session and no
- * standing; using one copies its job into a new profile, and every suggestion stays off until taken.
- */
-interface ProfileTemplate {
-    id: string;
-    name: string;
-    purpose: string;
-    /** Matched by `roles:` once a profile copied from it is bound; a role grants nothing by itself. */
-    role: string;
-    responsibilities: string[];
-    /** Skills a person may add, by name only, never installed by the template. */
-    suggestedSkills: string[];
-    /** Rules in plain words, shown for a person to write as rules; none is ever applied by a template. */
-    suggestedRules: string[];
-    /** Only agents `memnox scan` can find, so a template never names a connection nobody can make. */
-    suggestedConnections: DiscoveredAgentKind[];
-}
-declare const PROFILE_TEMPLATES: readonly ProfileTemplate[];
-declare function templateNamed(named: string): ProfileTemplate | undefined;
-/** What a template copies into a new profile: its job, and only the skills a person took. */
-declare function draftFromTemplate(template: ProfileTemplate, chosen: {
-    name?: string;
-    skills?: readonly string[];
-}): ProfileDraft;
-
-/**
  * Profiles as every screen reads and applies them: one named bundle of Skills Hub skills, MCP Hub
  * servers and a rule pack, such as Backend Engineering, kept under the Memnox home. Applying one
  * to an agent and a project raises the signed proposals each piece raises on its own.
@@ -4704,10 +4426,6 @@ declare const PROFILES_METHOD: {
     readonly PROFILE_BIND: "profile-bind";
     /** Takes a binding off, which puts the agent back on its default profile. */
     readonly PROFILE_UNBIND: "profile-unbind";
-    /** The catalog of job descriptions, none with an agent behind it. */
-    readonly TEMPLATES: "templates";
-    /** Copies a template's job into a new profile, with only the suggested skills a person took. */
-    readonly PROFILE_FROM_TEMPLATE: "profile-from-template";
 };
 /** A rule pack as a profile carries it: its name and its TOML, imported as any pack is. */
 interface ProfileRulePack {
@@ -4723,25 +4441,17 @@ interface ProfileDraft {
     /** MCP Hub servers, by name. */
     mcpServers?: string[];
     rulePack?: ProfileRulePack;
-    /** The job, each field optional so a version 1 form still fills a profile in. */
-    purpose?: string;
+    /** Each optional, so a version 1 form still fills a profile in. */
     role?: string;
-    responsibilities?: string[];
-    instructions?: string;
     responsiblePerson?: string;
     projects?: string[];
-    templateOf?: string;
 }
-/** The job fields a profile shows beside what it bundles. */
+/** Who answers for a profile and where it works, shown beside what it bundles. */
 interface ProfileJob {
-    purpose?: string;
     role?: string;
-    responsibilities: string[];
-    instructions?: string;
     /** Who answers for it; on a view, the person at this machine when none was named. */
     responsiblePerson?: string;
     projects: string[];
-    templateOf?: string;
 }
 interface ProfileView extends ProfileJob {
     /** The name made safe for a file, which every method names the profile by too. */
@@ -4784,10 +4494,6 @@ interface ProfilesRequestFields {
     profileName?: string;
     /** On PROFILE_APPLY: the agent, by kind. */
     profileAgent?: string;
-    /** On PROFILE_FROM_TEMPLATE: the template, by id or name; `profileName` names the copy. */
-    templateId?: string;
-    /** On PROFILE_FROM_TEMPLATE: the suggested skills the person took; the rest stay off. */
-    templateSkills?: string[];
     /** On PROFILE_BIND and PROFILE_UNBIND: the agent, by id, kind or the name it goes by. */
     agentId?: string;
     /** On PROFILE_APPLY: the repository its skills are written into and its rules hold in, as an absolute path; absent is the home folder and the whole machine. */
@@ -4796,8 +4502,6 @@ interface ProfilesRequestFields {
 interface ProfilesResponseFields {
     /** On every profile method, so a screen redraws from one answer. */
     profiles?: ProfileView[];
-    /** On TEMPLATES. */
-    templates?: ProfileTemplate[];
     /** On PROFILE_APPLY, and on AGENT_LAUNCH with a profile. */
     profileApplied?: ProfileApplied;
 }
@@ -5415,9 +5119,9 @@ interface WorkEventFields {
     /** On a SIGNED_IN or SIGN_IN_STALLED notice, which tool, as whom, and what to carry on with. */
     signedIn?: SignedIn;
 }
-interface ExtensionRequestFields extends RemoteRequestFields, FilesRequestFields, SpeechRequestFields, TeamRequestFields, WorkRequestFields, AccountRequestFields, SubscribeRequestFields, QuestionRequestFields, ConnectionsRequestFields, InterceptRequestFields, SpokenRuleRequestFields, McpHubRequestFields, PolicyRequestFields, ActivityRequestFields, AgentsRequestFields, SkillsRequestFields, HeldActionRequestFields, ProjectsRequestFields, BackupRequestFields, MemoryRequestFields, LanRequestFields, PersonalSyncRequestFields, ProfilesRequestFields, AgentWorkRequestFields, IndexRequestFields {
+interface ExtensionRequestFields extends RemoteRequestFields, FilesRequestFields, SpeechRequestFields, TeamRequestFields, WorkRequestFields, AccountRequestFields, SubscribeRequestFields, QuestionRequestFields, ConnectionsRequestFields, InterceptRequestFields, SpokenRuleRequestFields, McpHubRequestFields, PolicyRequestFields, ActivityRequestFields, AgentsRequestFields, SkillsRequestFields, HeldActionRequestFields, ProjectsRequestFields, MemoryRequestFields, LanRequestFields, ProfilesRequestFields, AgentWorkRequestFields {
 }
-interface ExtensionResponseFields extends RemoteResponseFields, FilesResponseFields, SpeechResponseFields, HomeResponseFields, ConnectionsResponseFields, InterceptResponseFields, SpokenRuleResponseFields, McpHubResponseFields, PolicyResponseFields, ActivityResponseFields, AgentsResponseFields, SkillsResponseFields, ProjectsResponseFields, BackupResponseFields, MemoryResponseFields, LanResponseFields, PersonalSyncResponseFields, ProfilesResponseFields, AgentWorkResponseFields, IndexResponseFields {
+interface ExtensionResponseFields extends RemoteResponseFields, FilesResponseFields, SpeechResponseFields, HomeResponseFields, ConnectionsResponseFields, InterceptResponseFields, SpokenRuleResponseFields, McpHubResponseFields, PolicyResponseFields, ActivityResponseFields, AgentsResponseFields, SkillsResponseFields, ProjectsResponseFields, MemoryResponseFields, LanResponseFields, ProfilesResponseFields, AgentWorkResponseFields {
 }
 interface ExtensionEventFields extends RemoteEventFields, TeamEventFields, WorkEventFields, QuestionEventFields, HeldActionEventFields, ProposalEventFields, ActivityEventFields, AgentWorkEventFields {
 }
@@ -5548,9 +5252,6 @@ interface DisplayHost {
  */
 
 declare const DAEMON_METHOD: {
-    readonly INDEX_LIST: "index-list";
-    readonly INDEX_INSTALL: "index-install";
-    readonly INDEX_SOURCE_SET: "index-source-set";
     readonly WORK: "agent-work";
     readonly WORK_START: "work-start";
     readonly WORK_STOP: "work-stop";
@@ -5562,14 +5263,6 @@ declare const DAEMON_METHOD: {
     readonly PROFILE_APPLY: "profile-apply";
     readonly PROFILE_BIND: "profile-bind";
     readonly PROFILE_UNBIND: "profile-unbind";
-    readonly TEMPLATES: "templates";
-    readonly PROFILE_FROM_TEMPLATE: "profile-from-template";
-    readonly PERSONAL_SYNC_STATUS: "personal-sync-status";
-    readonly PERSONAL_SYNC_NOW: "personal-sync-now";
-    readonly PERSONAL_SYNC_CONFLICTS: "personal-sync-conflicts";
-    readonly PERSONAL_SYNC_RESOLVE: "personal-sync-resolve";
-    readonly PERSONAL_SYNC_KEY_OFFER: "personal-sync-key-offer";
-    readonly PERSONAL_SYNC_KEY_ACCEPT: "personal-sync-key-accept";
     readonly LAN_STATUS: "lan-status";
     readonly LAN_SET: "lan-set";
     readonly MEMORY_LAYERS: "memory-layers";
@@ -5589,8 +5282,6 @@ declare const DAEMON_METHOD: {
     readonly MEMORY_FORGET: "memory-forget";
     readonly WORKSPACE_MEMORY: "workspace-memory";
     readonly WORKSPACE_GRAPH: "workspace-graph";
-    readonly BACKUP_CREATE: "backup-create";
-    readonly BACKUP_RESTORE: "backup-restore";
     readonly PROJECTS: "projects";
     readonly PROJECT_OPEN: "project-open";
     readonly PROJECT_PUT: "project-put";
@@ -6143,4 +5834,4 @@ type RemoteCapability = (typeof REMOTE_CAPABILITY)[keyof typeof REMOTE_CAPABILIT
  */
 declare const PROPOSING_METHODS: readonly string[];
 
-export { type RuleDraftInput as $, type AgentRef as A, INDEX_KIND as B, type CapabilityTally as C, type DetectionContext as D, type IndexNeedsView as E, type MemoryItem as F, type MemoryRule as G, type HardenWriter as H, type IndexKind as I, type MemoryStatus as J, type MemoryScope as K, type MemoryKind as L, type MachineReader as M, type NetworkProbe as N, type MemorySourceRecord as O, type ProjectManifest as P, type MemoryEvidence as Q, type Resource as R, type SkillManifest as S, type SourcePassage as T, type MemorySearchMode as U, type MemorySourceKind as V, type MemorySource as W, type SourceDocumentRef as X, type SourceDocument as Y, type SourceTrust as Z, type SpokenRuleReading as _, type Reachability as a, AGENT_SEAM as a$, type SessionTask as a0, type DaemonEvent as a1, type ActivityKind as a2, type ActivityRow as a3, type AnsweredHow as a4, type DecisionStep as a5, type DecisionTrace as a6, type LiveActivityRow as a7, type ActivityFilter as a8, type WorkClaims as a9, type Delivery as aA, type DeliveryProof as aB, type Witness as aC, type CardFile as aD, type CardExcerpt as aE, type WalkPage as aF, type AgentNode as aG, type TraceCard as aH, type DisplayVia as aI, type ToolSignIn as aJ, type Sight as aK, type DaemonRequest as aL, type DaemonResponse as aM, type WorkspaceMemory as aN, type WorkspaceSaid as aO, type WorkspaceGraphFallback as aP, type WorkspaceGraphView as aQ, type ModelPriceView as aR, type SessionCostView as aS, ACTIVITY_KIND as aT, ACTIVITY_METHOD as aU, AGENTS_METHOD as aV, AGENT_ID_PREFIX as aW, AGENT_QUESTIONS_DIR as aX, AGENT_QUESTION_MOST_MS as aY, AGENT_QUESTION_PREFIX as aZ, AGENT_QUESTION_WAIT_MS as a_, type AgentWork as aa, type ExternalTaskRef as ab, type Tracker as ac, type ProfileRulePack as ad, type Delegation as ae, type HoldAnswer as af, type TaskIntent as ag, type WorkClaim as ah, type RunTally as ai, type SessionTurn as aj, type TurnWindow as ak, type ProgressAlmost as al, type AutonomyLevel as am, type ProgressLadder as an, type ProgressWeek as ao, type ChainLink as ap, type RuleScope as aq, type WorkAccount as ar, type HubChange as as, type SkillsChange as at, type ProjectChange as au, type ProposalAnswer as av, type RemoteCapability as aw, type DisplayKind as ax, type DaemonEventKind as ay, type DeviceWire as az, type AgentChains as b, CONNECTION_STATUS as b$, AGENT_STATUS as b0, ALWAYS_ALLOW_LABEL as b1, ALWAYS_DENY_LABEL as b2, ANSWERED_HOW as b3, ANY_ACTION as b4, APPROVAL_STATE as b5, APPROVED_DESTINATIONS_QUESTION as b6, AREA_WORDS as b7, ASK_ENDS as b8, ASK_INTENT as b9, type AgentWorkResponseFields as bA, type AgentsRequestFields as bB, type AgentsResponseFields as bC, type AgentsScanView as bD, type AppUse as bE, type ApprovalPosture as bF, type AreaCount as bG, type Arrival as bH, type AskIntent as bI, type AudioPiece as bJ, type AuthenticatedCli as bK, type AwaitedSession as bL, BACKUP_METHOD as bM, BRIEFING as bN, BROWSER_LAUNCHERS as bO, BULK_ARRIVAL as bP, type BackupRequestFields as bQ, type BackupResponseFields as bR, type BackupSummary as bS, type BrowserFinding as bT, BrowserHosts as bU, CALL_SOURCE_KINDS as bV, CAPABILITY_AREA as bW, CAPABILITY_LEVEL as bX, CHAIN_LINK as bY, COMMIT_READ_TIMEOUT_MS as bZ, CONNECTION_KIND as b_, ASSIST_ASK_RATE as ba, AUTONOMY as bb, AUTONOMY_ORDER as bc, type AcceptedSkillVersion as bd, type ActivityEventFields as be, type ActivityPage as bf, type ActivityRequestFields as bg, type ActivityResponseFields as bh, type AgentAction as bi, type AgentConnection as bj, type AgentHost as bk, type AgentLaunched as bl, type AgentProof as bm, type AgentQuestion as bn, type AgentQuestionInput as bo, type AgentQuestionItem as bp, type AgentQuestionOption as bq, AgentQuestions as br, type AgentSeam as bs, type AgentServer as bt, type AgentSessions as bu, type AgentStatus as bv, type AgentToday as bw, type AgentView as bx, type AgentWorkEventFields as by, type AgentWorkRequestFields as bz, type AgentDetector as c, type FilesResponseFields as c$, CONNECTOR_SOURCE as c0, CONNECTOR_WEIGHT as c1, CONNECT_STATE as c2, CONTEXT_DOMAIN as c3, CONTEXT_SIGNAL_PREFIX as c4, type CandidateFound as c5, type CapabilityArea as c6, type CapabilityLevel as c7, type CapabilityLevels as c8, type CombinedCapability as c9, type DecisionView as cA, type DefinitionKind as cB, type DiscoveredHook as cC, type DiscoveredSkill as cD, type DiscoveredTool as cE, type DiscoveryOptions as cF, type DisplayHost as cG, type DraftMode as cH, type DrivenBy as cI, EMPTY_CONTEXT as cJ, ENFORCEMENT_SEAM as cK, ENTRY_KIND as cL, ENV_FILE_NAMES as cM, ENV_FILE_PATTERN as cN, EXCLUDE as cO, EXTRACTOR_STATE as cP, type EnforcementSeam as cQ, type EntryKind as cR, type EnvFinding as cS, type ExtractorState as cT, FAST_INTERCEPT_VERSION as cU, FINGERPRINTED_HOME_PATHS as cV, FOLLOW_UP_OUTCOME as cW, type FactFound as cX, type FactQuery as cY, type FileEntry as cZ, type FilesRequestFields as c_, type CommunityIndexView as ca, type ConnectState as cb, type ConnectionEvidence as cc, type ConnectionKind as cd, type ConnectionSignIn as ce, type ConnectionStatus as cf, type ConnectionsRequestFields as cg, type ConnectionsResponseFields as ch, type ConnectorSource as ci, type ContextDomain as cj, type ContextPart as ck, type ConversationLine as cl, type CoverageFacts as cm, type CredentialFinding as cn, DAEMON_EVENT as co, DAEMON_METHOD as cp, DEFAULT_COLLISION_WINDOW_MINUTES as cq, DEFINITION_KIND as cr, DELIVERY as cs, DISPLAY as ct, DISPLAY_VIA as cu, DRAFT_MODE as cv, type DaemonAskChunk as cw, type DaemonLocation as cx, type DaemonMethod as cy, type DecisionRule as cz, type DetectionResult as d, type LanRequestFields as d$, type FollowUpOutcome as d0, type FoundSkillView as d1, GRANT as d2, type GrantKind as d3, HANDOFF_ANSWER_WORD as d4, HANDOFF_STATE as d5, HELD_BY as d6, HOLD_ANSWER as d7, HOLD_ANSWER_LABEL as d8, HOLD_ANSWER_ORDER as d9, type HubAssignment as dA, type HubSkill as dB, type HubTransport as dC, INDEX_METHOD as dD, INDEX_SOURCE as dE, INTERCEPT_METHOD as dF, INTERCEPT_PLAN as dG, INVENTORY_HOOK_SCHEMA as dH, type IndexEntryView as dI, type IndexInstalled as dJ, type IndexPublisherView as dK, type IndexRequestFields as dL, type IndexResponseFields as dM, type InterceptLine as dN, type InterceptPlanKind as dO, type InterceptRequestFields as dP, type InterceptResponseFields as dQ, LAN_METHOD as dR, LEDGER_LATEST_ONLY as dS, LEDGER_LOOKUP_LIMIT as dT, LEDGER_RECENT_LIMIT as dU, LEDGER_SCAN_LIMIT as dV, LEDGER_SESSION_LIMIT as dW, LEDGER_WINDOW_LIMIT as dX, LIVE_STATUSES as dY, LONG_TURN_MS as dZ, type LanPhone as d_, HOLD_OUTCOME_WORD as da, HOME_METHOD as db, HOOK_HOST as dc, HOST_LOCATION as dd, HOST_SIGNATURE as de, HUB_TRANSPORT as df, HUB_VERSION as dg, type HandOverVerdict as dh, type HandoffAnswerWord as di, type HandoffParty as dj, type HandoffState as dk, type Harness as dl, type HeldActionEventFields as dm, type HeldActionRequestFields as dn, type HeldBy as dp, type HomeModeSet as dq, type HomeNotCovered as dr, type HomeReady as ds, type HomeResponseFields as dt, type HomeToday as du, type HomeView as dv, type HomeWorking as dw, type HookHost as dx, type HostSearch as dy, type HostedAgents as dz, type McpLister as e, type MemoryRouterLayerView as e$, type LanResponseFields as e0, type LanStatus as e1, type LevelEvidence as e2, MAIL_SERVICE as e3, MCP_HEALTH as e4, MCP_HUB_METHOD as e5, MCP_SCOPE as e6, MEDIATION as e7, MEMORY_KIND as e8, MEMORY_KINDS as e9, type McpHubEntryView as eA, type McpHubRequestFields as eB, type McpHubResponseFields as eC, type McpHubServerView as eD, type McpHubView as eE, type McpProjectAssignment as eF, type McpScope as eG, type McpSyncSummary as eH, type McpToolSummary as eI, type Mediation as eJ, type MemoryCallView as eK, type MemoryEditInput as eL, type MemoryEvidenceView as eM, type MemoryIndexLayerView as eN, type MemoryItemView as eO, type MemoryItemsView as eP, type MemoryLayer as eQ, type MemoryLayersApplied as eR, type MemoryLayersPlan as eS, type MemoryLayersRequestFields as eT, type MemoryLayersResponseFields as eU, type MemoryLayersView as eV, type MemoryOrigin as eW, type MemoryPassageView as eX, type MemoryReadSummary as eY, type MemoryRequestFields as eZ, type MemoryResponseFields as e_, MEMORY_LAYER as ea, MEMORY_LAYERS_METHOD as eb, MEMORY_METHOD as ec, MEMORY_ORIGIN as ed, MEMORY_SCOPE as ee, MEMORY_SEARCH_MODE as ef, MEMORY_SOURCE_KIND as eg, MEMORY_SOURCE_KINDS as eh, MEMORY_STATUS as ei, MEMORY_STATUSES as ej, MINIMUM_EVIDENCE as ek, MINIMUM_SHARED_TARGETS as el, MOST_HANDED_TARGETS as em, MOST_LIVE_ACTIVITY_ROWS as en, MOST_PRESSED_KEYS as eo, MOST_PROGRESS_CHARS as ep, MOST_PROGRESS_NOTES as eq, MOST_SKILL_BYTES as er, MOST_SKILL_FILES as es, MOST_TOOLKITS_FOUND as et, type MacSpan as eu, type MachineStanding as ev, type MailDraft as ew, type MailService as ex, type McpHealthState as ey, type McpHubAgentView as ez, type ApprovalState as f, type ProjectInstructionView as f$, type MemoryRuleView as f0, type MemorySkillLayerView as f1, type MemorySourceCounts as f2, type MemorySourceInput as f3, type MemorySourceView as f4, type MemoryValueView as f5, NOTICE_KIND as f6, type NetworkProbeInput as f7, type NoticeKind as f8, type NoticeWatch as f9, type PersonalSyncKindCount as fA, type PersonalSyncMachine as fB, type PersonalSyncRequestFields as fC, type PersonalSyncResponseFields as fD, type PersonalSyncState as fE, type PersonalSyncStatus as fF, type PhoneTurn as fG, type PolicyLoadProblem as fH, type PolicyRequestFields as fI, type PolicyResponseFields as fJ, type PolicyRuleMatch as fK, type PolicyRuleView as fL, type PolicyRulesView as fM, type ProfileApplied as fN, type ProfileBinding as fO, type ProfileDraft as fP, type ProfileJob as fQ, type ProfileTemplate as fR, type ProfileView as fS, type ProfilesRequestFields as fT, type ProfilesResponseFields as fU, type ProgressGrant as fV, type ProgressReady as fW, type ProgressView as fX, type ProjectApplySummary as fY, type ProjectDraft as fZ, type ProjectGrantView as f_, OPEN_STATUSES as fa, OUTBOUND_STATE as fb, type OutboundState as fc, PAIRING_STATE as fd, PERSONAL_SYNC_METHOD as fe, PERSONAL_SYNC_STATE as ff, POLICY_METHOD as fg, PROFILES_METHOD as fh, PROFILE_TEMPLATES as fi, PROJECTS_DIR as fj, PROJECTS_METHOD as fk, PROJECT_CREDENTIAL_FILES as fl, PROJECT_FILE as fm, PROJECT_SCOPE as fn, PROMOTION_THRESHOLD as fo, PROOF as fp, PROOF_RECORD_VERSION as fq, PROPOSAL_ANSWER as fr, PROPOSING_METHODS as fs, PROVABLE_SEAMS as ft, type PairingPhone as fu, type PairingState as fv, type PairingWire as fw, type PersonSignInCode as fx, type PersonStanding as fy, type PersonalSyncConflict as fz, type HostLocation as g, SessionTurns as g$, type ProjectLayersView as g0, type ProjectMissionView as g1, type ProjectOrganizationView as g2, type ProjectRulesView as g3, type ProjectScope as g4, type ProjectView as g5, type ProjectsRequestFields as g6, type ProjectsResponseFields as g7, type ProjectsView as g8, type ProofRecord as g9, SEAM_STATE as gA, SEAM_TEST as gB, SERVER_TROUBLE as gC, SETTLED_STATUSES as gD, SKILLS_HUB_VERSION as gE, SKILLS_METHOD as gF, SKILL_INSTRUCTIONS as gG, SKILL_MANIFEST as gH, SKILL_SCOPE as gI, SKILL_STANDING as gJ, SKIP_REASON as gK, SOURCE_TRUST as gL, SPEAKER as gM, SPEECH_METHOD as gN, SPOKEN_RULE_METHOD as gO, SUPERVISED_ASK_RATE as gP, SYNC_KEEP as gQ, type SeamCoverage as gR, type SeamProof as gS, type SeamState as gT, type SeamTestResult as gU, type ServerTrouble as gV, type ServerTroubleKind as gW, ServerTroubles as gX, type SessionCard as gY, type SessionNotice as gZ, SessionTasks as g_, type ProofState as ga, REF_KIND as gb, REMOTE_CAPABILITY as gc, REMOTE_METHOD as gd, REMOTE_OUTCOME as ge, REPAIR_COMMAND as gf, REPOSITORY_TASK_HOURS as gg, RULE_DRAFTED_BY as gh, RULE_SCOPE as gi, RULE_SOURCE as gj, type ReachingCapability as gk, type RefKind as gl, type RemoteEventFields as gm, type RemoteRequestFields as gn, type RemoteResponseFields as go, type RepositoryTask as gp, RepositoryTasks as gq, type RuleDraft as gr, type RuleDraftedBy as gs, type RulePackView as gt, type RuleScopeKind as gu, type RuleSource as gv, type RuleTestInput as gw, type RuleVerdictView as gx, SANDBOX_PATHS as gy, SCANNED_CREDENTIAL_FILES as gz, type HostSignatureState as h, WORK_ACCOUNT_CHECK as h$, type SessionView as h0, type SessionViewStep as h1, type SessionWatch as h2, SessionWatches as h3, type SignedIn as h4, type SkillAgentView as h5, type SkillAssignment as h6, type SkillAssignmentView as h7, type SkillCompatibility as h8, type SkillDraft as h9, TOOLKIT_SUPPORT as hA, TRACKER as hB, TURNS_DIR as hC, TURN_TESTS as hD, type TaskDeclaration as hE, type TeamAnswerBrief as hF, type TeamCallBrief as hG, type TerminalKey as hH, type TestRun as hI, type ToolConnection as hJ, type ToolGrant as hK, type ToolkitKind as hL, type ToolkitSummary as hM, type ToolkitSupport as hN, type TurnSpan as hO, type TurnTests as hP, type VoiceAgentStatus as hQ, type VoiceHolder as hR, type VoiceOn as hS, WATCHES_DIR as hT, WATCH_FOR as hU, WATCH_TTL_MS as hV, WORKSPACE_GRAPH_FALLBACK as hW, WORKSPACE_GRAPH_SOURCE as hX, WORKSPACE_LINK_KIND as hY, WORKSPACE_NODE_KIND as hZ, WORKSPACE_NODE_STATUS as h_, type SkillFinding as ha, type SkillHold as hb, type SkillPermissions as hc, type SkillPermissionsView as hd, type SkillStanding as he, type SkillStandingNow as hf, type SkillVersionView as hg, type SkillWritten as hh, type SkillsHubView as hi, type SkillsRequestFields as hj, type SkillsResponseFields as hk, type SkillsSyncSummary as hl, type SkipReason as hm, type SkippedDocument as hn, type Speaker as ho, type SpeechRequestFields as hp, type SpeechResponseFields as hq, type SpokenRuleAnswer as hr, type SpokenRuleDraft as hs, type SpokenRuleRequestFields as ht, type SpokenRuleResponseFields as hu, type SyncKeep as hv, TASK_DIR as hw, TASK_INTENT as hx, TERMINAL_KEY as hy, TOOLKIT_KIND as hz, type DiscoveryReport as i, connectorSourceOf as i$, WORK_CLAIM_FORM as i0, WORK_CLAIM_SOURCE as i1, WORK_DRAFT_KIND as i2, WORK_METHOD as i3, WORK_STATUS as i4, type WatchFacts as i5, type WatchFired as i6, type WatchFor as i7, type WatchInput as i8, type WorkAccountCheck as i9, agentProofOf as iA, agentRefOf as iB, agentsOf as iC, agentsReachingPath as iD, answerFor as iE, approvalPostureOf as iF, areaOf as iG, areaPhrase as iH, attributeResources as iI, authenticatedClis as iJ, bulkArrivals as iK, candidateOrigin as iL, candidatesAbout as iM, capabilitiesOf as iN, carriesCredential as iO, chainLinkOfName as iP, chainsFor as iQ, changedOf as iR, classifyResourceKind as iS, classifySensitivity as iT, combinedCapabilities as iU, commitClaimsAt as iV, compareVersions as iW, computeReachability as iX, confirmationMessage as iY, connectionKindOf as iZ, connectionsFor as i_, type WorkDraft as ia, type WorkDraftExtras as ib, type WorkDraftKind as ic, type WorkField as id, type WorkHandoff as ie, type WorkOutcome as ig, type WorkProgress as ih, type WorkRef as ii, type WorkStart as ij, type WorkStatus as ik, type WorkspaceCandidate as il, type WorkspaceFact as im, type WorkspaceGraphLink as io, type WorkspaceGraphNode as ip, type WorkspaceGraphSource as iq, type WorkspaceLinkKind as ir, type WorkspaceNodeKind as is, type WorkspaceNodeStatus as it, actionConfirmationMessage as iu, actionContextOf as iv, agentHostOf as iw, agentIdFor as ix, agentNameIn as iy, agentPatterns as iz, type AcceptedSkill as j, isBrowserLauncher as j$, countLogins as j0, coverageFor as j1, coverageSummary as j2, creditedTallies as j3, databasesIn as j4, decisionsBearingOn as j5, delegations as j6, describeBrowser as j7, describeCandidate as j8, describeCombined as j9, emptySkillsHub as jA, encode as jB, encodeInterceptLine as jC, enforcementFailed as jD, evidenceRef as jE, factOrigin as jF, factsAbout as jG, findBrowserAutomation as jH, findCredentials as jI, findEnvFiles as jJ, fingerprint as jK, finishedWork as jL, followUpMessage as jM, foreignHooks as jN, fullyAnswered as jO, grantMessage as jP, grantOf as jQ, grantWidened as jR, handOverVerdict as jS, handable as jT, harnessOf as jU, hasRecordedContext as jV, hasServerIn as jW, hubServerProblems as jX, interruptions as jY, isAddress as jZ, isAgentQuestionId as j_, describeDrift as ja, describeFact as jb, describeGrant as jc, describeHandedReach as jd, describeHarness as je, describeHooks as jf, describeLevel as jg, describeNetwork as jh, describeProof as ji, describeRun as jj, describeSkill as jk, describeTrouble as jl, detectTools as jm, deviceProofMessage as jn, disagrees as jo, discover as jp, discoverAgents as jq, discoverDefinitions as jr, discoverHooks as js, discoverSkills as jt, draftFromTemplate as ju, driveMessage as jv, editedArguments as jw, editedRecipients as jx, emptyHub as jy, emptyManifest as jz, type HostInspector as k, skillStandingOf as k$, isCallSource as k0, isCredentialPath as k1, isEmptyScope as k2, isFileSource as k3, isFinished as k4, isInsideFolder as k5, isInterceptMethod as k6, isOutdated as k7, isProjectId as k8, isSkillName as k9, programOf as kA, projectIdOf as kB, projectToml as kC, projectsOf as kD, promotable as kE, proxyIsBypassedEntirely as kF, quarantined as kG, rankedBySource as kH, reachOf as kI, reachesOf as kJ, readBackOfSpokenRule as kK, readEnvFile as kL, recipientsOf as kM, remoteAddressProblem as kN, restates as kO, reviewSkills as kP, runTally as kQ, scopeOf as kR, seamConfigDigestOf as kS, seamTestsOf as kT, secretsOfServer as kU, serversFor as kV, sessionTaskOfWork as kW, signInCommand as kX, skillNameOf as kY, skillNamed as kZ, skillProblems as k_, isTestCommand as ka, joinedBy as kb, keysInText as kc, levelsOf as kd, locationOf as ke, looksLikeCredential as kf, manifestProblems as kg, mediationOf as kh, navigationHost as ki, needsOf as kj, networkReach as kk, newestCandidates as kl, newestFacts as km, noLevels as kn, noticeSubject as ko, noticesFrom as kp, numberClaimOfBranch as kq, pairMessage as kr, parseProjectToml as ks, parseWorkspaceMemory as kt, policyOfSpokenRule as ku, principalCount as kv, probeNetwork as kw, productionLooking as kx, profileIdFor as ky, profileLevelsOf as kz, type HostSignature as l, spokenRuleFromModel as l0, spokenRuleProblems as l1, standingOf as l2, startWatch as l3, startedWork as l4, statementKey as l5, subjectOf as l6, summarize as l7, summarizeProof as l8, tallyOf as l9, workDraftOf as lA, workspaceCandidateId as lB, workspaceFactId as lC, workspaceSourceId as lD, taskDirFor as la, taskFor as lb, templateNamed as lc, terminalKeys as ld, termsOf as le, troubleForAgent as lf, troubleOfStatus as lg, trustOf as lh, turnTests as li, urlArgumentIn as lj, watchFired as lk, wentIn as ll, withAccepted as lm, withAssignment as ln, withChange as lo, withHandoffAnswer as lp, withHandoffRequest as lq, withProgress as lr, withServer as ls, withSkill as lt, withSkillAssignment as lu, withoutServer as lv, withoutSkill as lw, wordOverlap as lx, workClaimsAt as ly, workDraftFromText as lz, type DiscoveredAgent as m, type HubServer as n, type Hub as o, type HubWritten as p, type McpServerHealth as q, type CanonicalSkill as r, type SkillScope as s, type SkillFile as t, type SkillsHub as u, type SkillView as v, type SkillStatsView as w, type SkillCalibration as x, type MemoryLayerFilePlan as y, type ProfileBindings as z };
+export { type ActivityKind as $, type AgentRef as A, type MemoryItem as B, type CapabilityTally as C, type DetectionContext as D, type MemoryRule as E, type MemoryStatus as F, type MemoryScope as G, type HardenWriter as H, type MemoryKind as I, type MemorySourceRecord as J, type MemoryEvidence as K, type SourcePassage as L, type MachineReader as M, type NetworkProbe as N, type MemorySearchMode as O, type ProjectManifest as P, type MemorySourceKind as Q, type Resource as R, type SkillManifest as S, type MemorySource as T, type SourceDocumentRef as U, type SourceDocument as V, type SourceTrust as W, type SpokenRuleReading as X, type RuleDraftInput as Y, type SessionTask as Z, type DaemonEvent as _, type Reachability as a, ALWAYS_DENY_LABEL as a$, type ActivityRow as a0, type AnsweredHow as a1, type DecisionStep as a2, type DecisionTrace as a3, type LiveActivityRow as a4, type ActivityFilter as a5, type WorkClaims as a6, type AgentWork as a7, type ExternalTaskRef as a8, type Tracker as a9, type CardFile as aA, type CardExcerpt as aB, type WalkPage as aC, type AgentNode as aD, type TraceCard as aE, type DisplayVia as aF, type ToolSignIn as aG, type Sight as aH, type DaemonRequest as aI, type DaemonResponse as aJ, type WorkspaceMemory as aK, type WorkspaceSaid as aL, type WorkspaceGraphFallback as aM, type WorkspaceGraphView as aN, type ModelPriceView as aO, type SessionCostView as aP, ACTIVITY_KIND as aQ, ACTIVITY_METHOD as aR, AGENTS_METHOD as aS, AGENT_ID_PREFIX as aT, AGENT_QUESTIONS_DIR as aU, AGENT_QUESTION_MOST_MS as aV, AGENT_QUESTION_PREFIX as aW, AGENT_QUESTION_WAIT_MS as aX, AGENT_SEAM as aY, AGENT_STATUS as aZ, ALWAYS_ALLOW_LABEL as a_, type ProfileRulePack as aa, type Delegation as ab, type HoldAnswer as ac, type TaskIntent as ad, type WorkClaim as ae, type RunTally as af, type SessionTurn as ag, type TurnWindow as ah, type ProgressAlmost as ai, type AutonomyLevel as aj, type ProgressLadder as ak, type ProgressWeek as al, type ChainLink as am, type RuleScope as an, type WorkAccount as ao, type HubChange as ap, type SkillsChange as aq, type ProjectChange as ar, type ProposalAnswer as as, type RemoteCapability as at, type DisplayKind as au, type DaemonEventKind as av, type DeviceWire as aw, type Delivery as ax, type DeliveryProof as ay, type Witness as az, type AgentChains as b, type CapabilityArea as b$, ANSWERED_HOW as b0, ANY_ACTION as b1, APPROVAL_STATE as b2, APPROVED_DESTINATIONS_QUESTION as b3, AREA_WORDS as b4, ASK_ENDS as b5, ASK_INTENT as b6, ASSIST_ASK_RATE as b7, AUTONOMY as b8, AUTONOMY_ORDER as b9, type AgentsScanView as bA, type AppUse as bB, type ApprovalPosture as bC, type AreaCount as bD, type Arrival as bE, type AskIntent as bF, type AudioPiece as bG, type AuthenticatedCli as bH, type AwaitedSession as bI, BRIEFING as bJ, BROWSER_LAUNCHERS as bK, BULK_ARRIVAL as bL, type BrowserFinding as bM, BrowserHosts as bN, CALL_SOURCE_KINDS as bO, CAPABILITY_AREA as bP, CAPABILITY_LEVEL as bQ, CHAIN_LINK as bR, COMMIT_READ_TIMEOUT_MS as bS, CONNECTION_KIND as bT, CONNECTION_STATUS as bU, CONNECTOR_SOURCE as bV, CONNECTOR_WEIGHT as bW, CONNECT_STATE as bX, CONTEXT_DOMAIN as bY, CONTEXT_SIGNAL_PREFIX as bZ, type CandidateFound as b_, type AcceptedSkillVersion as ba, type ActivityEventFields as bb, type ActivityPage as bc, type ActivityRequestFields as bd, type ActivityResponseFields as be, type AgentAction as bf, type AgentConnection as bg, type AgentHost as bh, type AgentLaunched as bi, type AgentProof as bj, type AgentQuestion as bk, type AgentQuestionInput as bl, type AgentQuestionItem as bm, type AgentQuestionOption as bn, AgentQuestions as bo, type AgentSeam as bp, type AgentServer as bq, type AgentSessions as br, type AgentStatus as bs, type AgentToday as bt, type AgentView as bu, type AgentWorkEventFields as bv, type AgentWorkRequestFields as bw, type AgentWorkResponseFields as bx, type AgentsRequestFields as by, type AgentsResponseFields as bz, type AgentDetector as c, HOLD_ANSWER as c$, type CapabilityLevel as c0, type CapabilityLevels as c1, type CombinedCapability as c2, type ConnectState as c3, type ConnectionEvidence as c4, type ConnectionKind as c5, type ConnectionSignIn as c6, type ConnectionStatus as c7, type ConnectionsRequestFields as c8, type ConnectionsResponseFields as c9, type DrivenBy as cA, EMPTY_CONTEXT as cB, ENFORCEMENT_SEAM as cC, ENTRY_KIND as cD, ENV_FILE_NAMES as cE, ENV_FILE_PATTERN as cF, EXCLUDE as cG, EXTRACTOR_STATE as cH, type EnforcementSeam as cI, type EntryKind as cJ, type EnvFinding as cK, type ExtractorState as cL, FAST_INTERCEPT_VERSION as cM, FINGERPRINTED_HOME_PATHS as cN, FOLLOW_UP_OUTCOME as cO, type FactFound as cP, type FactQuery as cQ, type FileEntry as cR, type FilesRequestFields as cS, type FilesResponseFields as cT, type FollowUpOutcome as cU, type FoundSkillView as cV, GRANT as cW, type GrantKind as cX, HANDOFF_ANSWER_WORD as cY, HANDOFF_STATE as cZ, HELD_BY as c_, type ConnectorSource as ca, type ContextDomain as cb, type ContextPart as cc, type ConversationLine as cd, type CoverageFacts as ce, type CredentialFinding as cf, DAEMON_EVENT as cg, DAEMON_METHOD as ch, DEFAULT_COLLISION_WINDOW_MINUTES as ci, DEFINITION_KIND as cj, DELIVERY as ck, DISPLAY as cl, DISPLAY_VIA as cm, DRAFT_MODE as cn, type DaemonAskChunk as co, type DaemonLocation as cp, type DaemonMethod as cq, type DecisionRule as cr, type DecisionView as cs, type DefinitionKind as ct, type DiscoveredHook as cu, type DiscoveredSkill as cv, type DiscoveredTool as cw, type DiscoveryOptions as cx, type DisplayHost as cy, type DraftMode as cz, type DetectionResult as d, MEMORY_SCOPE as d$, HOLD_ANSWER_LABEL as d0, HOLD_ANSWER_ORDER as d1, HOLD_OUTCOME_WORD as d2, HOME_METHOD as d3, HOOK_HOST as d4, HOST_LOCATION as d5, HOST_SIGNATURE as d6, HUB_TRANSPORT as d7, HUB_VERSION as d8, type HandOverVerdict as d9, type InterceptRequestFields as dA, type InterceptResponseFields as dB, LAN_METHOD as dC, LEDGER_LATEST_ONLY as dD, LEDGER_LOOKUP_LIMIT as dE, LEDGER_RECENT_LIMIT as dF, LEDGER_SCAN_LIMIT as dG, LEDGER_SESSION_LIMIT as dH, LEDGER_WINDOW_LIMIT as dI, LIVE_STATUSES as dJ, LONG_TURN_MS as dK, type LanPhone as dL, type LanRequestFields as dM, type LanResponseFields as dN, type LanStatus as dO, type LevelEvidence as dP, MAIL_SERVICE as dQ, MCP_HEALTH as dR, MCP_HUB_METHOD as dS, MCP_SCOPE as dT, MEDIATION as dU, MEMORY_KIND as dV, MEMORY_KINDS as dW, MEMORY_LAYER as dX, MEMORY_LAYERS_METHOD as dY, MEMORY_METHOD as dZ, MEMORY_ORIGIN as d_, type HandoffAnswerWord as da, type HandoffParty as db, type HandoffState as dc, type Harness as dd, type HeldActionEventFields as de, type HeldActionRequestFields as df, type HeldBy as dg, type HomeModeSet as dh, type HomeNotCovered as di, type HomeReady as dj, type HomeResponseFields as dk, type HomeToday as dl, type HomeView as dm, type HomeWorking as dn, type HookHost as dp, type HostSearch as dq, type HostedAgents as dr, type HubAssignment as ds, type HubSkill as dt, type HubTransport as du, INTERCEPT_METHOD as dv, INTERCEPT_PLAN as dw, INVENTORY_HOOK_SCHEMA as dx, type InterceptLine as dy, type InterceptPlanKind as dz, type McpLister as e, POLICY_METHOD as e$, MEMORY_SEARCH_MODE as e0, MEMORY_SOURCE_KIND as e1, MEMORY_SOURCE_KINDS as e2, MEMORY_STATUS as e3, MEMORY_STATUSES as e4, MINIMUM_EVIDENCE as e5, MINIMUM_SHARED_TARGETS as e6, MOST_HANDED_TARGETS as e7, MOST_LIVE_ACTIVITY_ROWS as e8, MOST_PRESSED_KEYS as e9, type MemoryItemsView as eA, type MemoryLayer as eB, type MemoryLayersApplied as eC, type MemoryLayersPlan as eD, type MemoryLayersRequestFields as eE, type MemoryLayersResponseFields as eF, type MemoryLayersView as eG, type MemoryOrigin as eH, type MemoryPassageView as eI, type MemoryReadSummary as eJ, type MemoryRequestFields as eK, type MemoryResponseFields as eL, type MemoryRouterLayerView as eM, type MemoryRuleView as eN, type MemorySkillLayerView as eO, type MemorySourceCounts as eP, type MemorySourceInput as eQ, type MemorySourceView as eR, type MemoryValueView as eS, NOTICE_KIND as eT, type NetworkProbeInput as eU, type NoticeKind as eV, type NoticeWatch as eW, OPEN_STATUSES as eX, OUTBOUND_STATE as eY, type OutboundState as eZ, PAIRING_STATE as e_, MOST_PROGRESS_CHARS as ea, MOST_PROGRESS_NOTES as eb, MOST_SKILL_BYTES as ec, MOST_SKILL_FILES as ed, MOST_TOOLKITS_FOUND as ee, type MacSpan as ef, type MachineStanding as eg, type MailDraft as eh, type MailService as ei, type McpHealthState as ej, type McpHubAgentView as ek, type McpHubEntryView as el, type McpHubRequestFields as em, type McpHubResponseFields as en, type McpHubServerView as eo, type McpHubView as ep, type McpProjectAssignment as eq, type McpScope as er, type McpSyncSummary as es, type McpToolSummary as et, type Mediation as eu, type MemoryCallView as ev, type MemoryEditInput as ew, type MemoryEvidenceView as ex, type MemoryIndexLayerView as ey, type MemoryItemView as ez, type ApprovalState as f, type RepositoryTask as f$, PROFILES_METHOD as f0, PROJECTS_DIR as f1, PROJECTS_METHOD as f2, PROJECT_CREDENTIAL_FILES as f3, PROJECT_FILE as f4, PROJECT_SCOPE as f5, PROMOTION_THRESHOLD as f6, PROOF as f7, PROOF_RECORD_VERSION as f8, PROPOSAL_ANSWER as f9, type ProjectGrantView as fA, type ProjectInstructionView as fB, type ProjectLayersView as fC, type ProjectMissionView as fD, type ProjectOrganizationView as fE, type ProjectRulesView as fF, type ProjectScope as fG, type ProjectView as fH, type ProjectsRequestFields as fI, type ProjectsResponseFields as fJ, type ProjectsView as fK, type ProofRecord as fL, type ProofState as fM, REF_KIND as fN, REMOTE_CAPABILITY as fO, REMOTE_METHOD as fP, REMOTE_OUTCOME as fQ, REPAIR_COMMAND as fR, REPOSITORY_TASK_HOURS as fS, RULE_DRAFTED_BY as fT, RULE_SCOPE as fU, RULE_SOURCE as fV, type ReachingCapability as fW, type RefKind as fX, type RemoteEventFields as fY, type RemoteRequestFields as fZ, type RemoteResponseFields as f_, PROPOSING_METHODS as fa, PROVABLE_SEAMS as fb, type PairingPhone as fc, type PairingState as fd, type PairingWire as fe, type PersonSignInCode as ff, type PersonStanding as fg, type PhoneTurn as fh, type PolicyLoadProblem as fi, type PolicyRequestFields as fj, type PolicyResponseFields as fk, type PolicyRuleMatch as fl, type PolicyRuleView as fm, type PolicyRulesView as fn, type ProfileApplied as fo, type ProfileBinding as fp, type ProfileDraft as fq, type ProfileJob as fr, type ProfileView as fs, type ProfilesRequestFields as ft, type ProfilesResponseFields as fu, type ProgressGrant as fv, type ProgressReady as fw, type ProgressView as fx, type ProjectApplySummary as fy, type ProjectDraft as fz, type HostLocation as g, type SpeechResponseFields as g$, RepositoryTasks as g0, type RuleDraft as g1, type RuleDraftedBy as g2, type RulePackView as g3, type RuleScopeKind as g4, type RuleSource as g5, type RuleTestInput as g6, type RuleVerdictView as g7, SANDBOX_PATHS as g8, SCANNED_CREDENTIAL_FILES as g9, SessionTurns as gA, type SessionView as gB, type SessionViewStep as gC, type SessionWatch as gD, SessionWatches as gE, type SignedIn as gF, type SkillAgentView as gG, type SkillAssignment as gH, type SkillAssignmentView as gI, type SkillCompatibility as gJ, type SkillDraft as gK, type SkillFinding as gL, type SkillHold as gM, type SkillPermissions as gN, type SkillPermissionsView as gO, type SkillStanding as gP, type SkillStandingNow as gQ, type SkillVersionView as gR, type SkillWritten as gS, type SkillsHubView as gT, type SkillsRequestFields as gU, type SkillsResponseFields as gV, type SkillsSyncSummary as gW, type SkipReason as gX, type SkippedDocument as gY, type Speaker as gZ, type SpeechRequestFields as g_, SEAM_STATE as ga, SEAM_TEST as gb, SERVER_TROUBLE as gc, SETTLED_STATUSES as gd, SKILLS_HUB_VERSION as ge, SKILLS_METHOD as gf, SKILL_INSTRUCTIONS as gg, SKILL_MANIFEST as gh, SKILL_SCOPE as gi, SKILL_STANDING as gj, SKIP_REASON as gk, SOURCE_TRUST as gl, SPEAKER as gm, SPEECH_METHOD as gn, SPOKEN_RULE_METHOD as go, SUPERVISED_ASK_RATE as gp, type SeamCoverage as gq, type SeamProof as gr, type SeamState as gs, type SeamTestResult as gt, type ServerTrouble as gu, type ServerTroubleKind as gv, ServerTroubles as gw, type SessionCard as gx, type SessionNotice as gy, SessionTasks as gz, type HostSignatureState as h, type WorkspaceNodeStatus as h$, type SpokenRuleAnswer as h0, type SpokenRuleDraft as h1, type SpokenRuleRequestFields as h2, type SpokenRuleResponseFields as h3, TASK_DIR as h4, TASK_INTENT as h5, TERMINAL_KEY as h6, TOOLKIT_KIND as h7, TOOLKIT_SUPPORT as h8, TRACKER as h9, WORK_CLAIM_FORM as hA, WORK_CLAIM_SOURCE as hB, WORK_DRAFT_KIND as hC, WORK_METHOD as hD, WORK_STATUS as hE, type WatchFacts as hF, type WatchFired as hG, type WatchFor as hH, type WatchInput as hI, type WorkAccountCheck as hJ, type WorkDraft as hK, type WorkDraftExtras as hL, type WorkDraftKind as hM, type WorkField as hN, type WorkHandoff as hO, type WorkOutcome as hP, type WorkProgress as hQ, type WorkRef as hR, type WorkStart as hS, type WorkStatus as hT, type WorkspaceCandidate as hU, type WorkspaceFact as hV, type WorkspaceGraphLink as hW, type WorkspaceGraphNode as hX, type WorkspaceGraphSource as hY, type WorkspaceLinkKind as hZ, type WorkspaceNodeKind as h_, TURNS_DIR as ha, TURN_TESTS as hb, type TaskDeclaration as hc, type TeamAnswerBrief as hd, type TeamCallBrief as he, type TerminalKey as hf, type TestRun as hg, type ToolConnection as hh, type ToolGrant as hi, type ToolkitKind as hj, type ToolkitSummary as hk, type ToolkitSupport as hl, type TurnSpan as hm, type TurnTests as hn, type VoiceAgentStatus as ho, type VoiceHolder as hp, type VoiceOn as hq, WATCHES_DIR as hr, WATCH_FOR as hs, WATCH_TTL_MS as ht, WORKSPACE_GRAPH_FALLBACK as hu, WORKSPACE_GRAPH_SOURCE as hv, WORKSPACE_LINK_KIND as hw, WORKSPACE_NODE_KIND as hx, WORKSPACE_NODE_STATUS as hy, WORK_ACCOUNT_CHECK as hz, type DiscoveryReport as i, discoverDefinitions as i$, actionConfirmationMessage as i0, actionContextOf as i1, agentHostOf as i2, agentIdFor as i3, agentNameIn as i4, agentPatterns as i5, agentProofOf as i6, agentRefOf as i7, agentsOf as i8, agentsReachingPath as i9, countLogins as iA, coverageFor as iB, coverageSummary as iC, creditedTallies as iD, databasesIn as iE, decisionsBearingOn as iF, delegations as iG, describeBrowser as iH, describeCandidate as iI, describeCombined as iJ, describeDrift as iK, describeFact as iL, describeGrant as iM, describeHandedReach as iN, describeHarness as iO, describeHooks as iP, describeLevel as iQ, describeNetwork as iR, describeProof as iS, describeRun as iT, describeSkill as iU, describeTrouble as iV, detectTools as iW, deviceProofMessage as iX, disagrees as iY, discover as iZ, discoverAgents as i_, answerFor as ia, approvalPostureOf as ib, areaOf as ic, areaPhrase as id, attributeResources as ie, authenticatedClis as ig, bulkArrivals as ih, candidateOrigin as ii, candidatesAbout as ij, capabilitiesOf as ik, carriesCredential as il, chainLinkOfName as im, chainsFor as io, changedOf as ip, classifyResourceKind as iq, classifySensitivity as ir, combinedCapabilities as is, commitClaimsAt as it, compareVersions as iu, computeReachability as iv, confirmationMessage as iw, connectionKindOf as ix, connectionsFor as iy, connectorSourceOf as iz, type AcceptedSkill as j, parseProjectToml as j$, discoverHooks as j0, discoverSkills as j1, driveMessage as j2, editedArguments as j3, editedRecipients as j4, emptyHub as j5, emptyManifest as j6, emptySkillsHub as j7, encode as j8, encodeInterceptLine as j9, isCredentialPath as jA, isEmptyScope as jB, isFileSource as jC, isFinished as jD, isInsideFolder as jE, isInterceptMethod as jF, isOutdated as jG, isProjectId as jH, isSkillName as jI, isTestCommand as jJ, joinedBy as jK, keysInText as jL, levelsOf as jM, locationOf as jN, looksLikeCredential as jO, manifestProblems as jP, mediationOf as jQ, navigationHost as jR, needsOf as jS, networkReach as jT, newestCandidates as jU, newestFacts as jV, noLevels as jW, noticeSubject as jX, noticesFrom as jY, numberClaimOfBranch as jZ, pairMessage as j_, enforcementFailed as ja, evidenceRef as jb, factOrigin as jc, factsAbout as jd, findBrowserAutomation as je, findCredentials as jf, findEnvFiles as jg, fingerprint as jh, finishedWork as ji, followUpMessage as jj, foreignHooks as jk, fullyAnswered as jl, grantMessage as jm, grantOf as jn, grantWidened as jo, handOverVerdict as jp, handable as jq, harnessOf as jr, hasRecordedContext as js, hasServerIn as jt, hubServerProblems as ju, interruptions as jv, isAddress as jw, isAgentQuestionId as jx, isBrowserLauncher as jy, isCallSource as jz, type HostInspector as k, withSkill as k$, parseWorkspaceMemory as k0, policyOfSpokenRule as k1, principalCount as k2, probeNetwork as k3, productionLooking as k4, profileIdFor as k5, profileLevelsOf as k6, programOf as k7, projectIdOf as k8, projectToml as k9, spokenRuleProblems as kA, standingOf as kB, startWatch as kC, startedWork as kD, statementKey as kE, subjectOf as kF, summarize as kG, summarizeProof as kH, tallyOf as kI, taskDirFor as kJ, taskFor as kK, terminalKeys as kL, termsOf as kM, troubleForAgent as kN, troubleOfStatus as kO, trustOf as kP, turnTests as kQ, urlArgumentIn as kR, watchFired as kS, wentIn as kT, withAccepted as kU, withAssignment as kV, withChange as kW, withHandoffAnswer as kX, withHandoffRequest as kY, withProgress as kZ, withServer as k_, projectsOf as ka, promotable as kb, proxyIsBypassedEntirely as kc, quarantined as kd, rankedBySource as ke, reachOf as kf, reachesOf as kg, readBackOfSpokenRule as kh, readEnvFile as ki, recipientsOf as kj, remoteAddressProblem as kk, restates as kl, reviewSkills as km, runTally as kn, scopeOf as ko, seamConfigDigestOf as kp, seamTestsOf as kq, secretsOfServer as kr, serversFor as ks, sessionTaskOfWork as kt, signInCommand as ku, skillNameOf as kv, skillNamed as kw, skillProblems as kx, skillStandingOf as ky, spokenRuleFromModel as kz, type HostSignature as l, withSkillAssignment as l0, withoutServer as l1, withoutSkill as l2, wordOverlap as l3, workClaimsAt as l4, workDraftFromText as l5, workDraftOf as l6, workspaceCandidateId as l7, workspaceFactId as l8, workspaceSourceId as l9, type DiscoveredAgent as m, type HubServer as n, type Hub as o, type HubWritten as p, type McpServerHealth as q, type CanonicalSkill as r, type SkillScope as s, type SkillFile as t, type SkillsHub as u, type SkillView as v, type SkillStatsView as w, type SkillCalibration as x, type MemoryLayerFilePlan as y, type ProfileBindings as z };

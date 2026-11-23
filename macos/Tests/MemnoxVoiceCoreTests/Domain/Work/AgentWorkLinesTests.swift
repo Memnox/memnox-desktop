@@ -24,15 +24,16 @@ final class AgentWorkLinesTests: XCTestCase {
         XCTAssertEqual(AgentWorkLines.targetProblem("  "), "Paste the issue key, such as LIN-123, or its link.")
     }
 
-    func testOrdersJobsBeforeDefaultsBeforeJobsWithNobodyBehindThem() {
+    func testOrdersKeptProfilesBeforeDefaultsBeforeProfilesWithNobodyBehindThem() {
         let connection = AgentConnection(id: "con_c", profileId: "p", kind: "runtime_hook", agentKind: "claude-code", mediation: "interposed",
                                          firstSeen: "", lastSeen: "", status: "live")
-        let job = ProfileView(id: "backend", name: "Backend", updatedAt: "", purpose: "Builds the API", connections: [connection])
+        let job = ProfileView(id: "backend", name: "Backend", description: "Builds the API", updatedAt: "", connections: [connection])
         let fallback = ProfileView(id: "default:codex-cli", name: "Codex", updatedAt: "", isDefault: true, connections: [connection])
         let template = ProfileView(id: "review", name: "Review", updatedAt: "")
         XCTAssertEqual(AgentProfileLines.ordered([template, fallback, job]).map(\.id), ["backend", "default:codex-cli", "review"])
-        XCTAssertEqual(AgentProfileLines.purpose(fallback), "No job yet.")
-        XCTAssertEqual(AgentProfileLines.purpose(job), "Builds the API")
+        XCTAssertEqual(AgentProfileLines.summary(fallback), "Memnox can only watch it.")
+        XCTAssertEqual(AgentProfileLines.summary(job), "Builds the API")
+        XCTAssertEqual(AgentProfileLines.summary(template), AgentProfileLines.noAgent)
         XCTAssertFalse(template.hasAgent)
     }
 }

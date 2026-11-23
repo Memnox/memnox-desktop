@@ -8,13 +8,12 @@ import XCTest
 final class AgentWorkProtocolTests: XCTestCase {
     private static let levels = #"{"context":"mediated","instructions":"mediated","tools":"enforced","activity":"mediated","coordination":"mediated","approval":"enforced","enforcement":{"shell":"observed","filesystem":"enforced","git":"none","network":"none","browser":"none","mcp":"enforced"}}"#
 
-    func testReadsAProfileWithItsJobConnectionsAndLevels() throws {
+    func testReadsAProfileWithWhoAnswersItsConnectionsAndLevelsAndLeavesJobTextUnread() throws {
         let connection = #"{"id":"con_claude-code","profileId":"backend","kind":"runtime_hook","agentKind":"claude-code","agentId":"agt_claude-code","mediation":"interposed","firstSeen":"2026-11-01T10:00:00Z","lastSeen":"2026-11-07T10:00:00Z","status":"live","levels":"# + Self.levels + "}"
         let profile = #"{"id":"backend","name":"Backend","skills":[],"mcpServers":[],"updatedAt":"2026-11-07T10:00:00Z","missing":[],"purpose":"Builds the API","role":"developer","responsibilities":["run the tests"],"responsiblePerson":"Bo","projects":["/code/api"],"connections":["# + connection + #"],"levels":"# + Self.levels + "}"
         let response = try decode(#"{"id":1,"ok":true,"profiles":["# + profile + "]}")
         let read = try XCTUnwrap(response.profiles?.first)
-        XCTAssertEqual(read.purpose, "Builds the API")
-        XCTAssertEqual(read.responsibilities, ["run the tests"])
+        XCTAssertEqual(read.role, "developer")
         XCTAssertEqual(read.responsiblePerson, "Bo")
         XCTAssertFalse(read.isDefault)
         XCTAssertTrue(read.hasAgent)
@@ -38,11 +37,6 @@ final class AgentWorkProtocolTests: XCTestCase {
         let levels = try JSONDecoder().decode(CapabilityLevels.self, from: Data(odd.utf8))
         XCTAssertEqual(levels.context, .noEvidence)
         XCTAssertEqual(levels.instructions, .mediated)
-    }
-
-    func testReadsTemplates() throws {
-        let response = try decode(#"{"id":1,"ok":true,"templates":[{"id":"code-review","name":"Code Review","purpose":"Reads a change","role":"reviewer","responsibilities":["read the diff"],"suggestedSkills":["review"],"suggestedRules":["Never push."],"suggestedConnections":["claude-code"]}]}"#)
-        XCTAssertEqual(response.templates?.first?.suggestedRules, ["Never push."])
     }
 
     func testReadsAgentWorkWithAWaitingHandoff() throws {
@@ -74,10 +68,6 @@ final class AgentWorkProtocolTests: XCTestCase {
         bind.profileName = "backend"
         bind.agentId = "agt_claude-code"
         XCTAssertTrue(try written(bind).contains(#""agentId":"agt_claude-code""#))
-        var copy = DaemonRequest(id: 4, method: .profileFromTemplate)
-        copy.templateId = "code-review"
-        copy.templateSkills = ["review"]
-        XCTAssertTrue(try written(copy).contains(#""templateSkills":["review"]"#))
     }
 
     private func decode(_ text: String) throws -> DaemonResponse {

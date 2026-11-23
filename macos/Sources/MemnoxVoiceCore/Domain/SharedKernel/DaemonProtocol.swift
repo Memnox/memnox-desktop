@@ -183,10 +183,6 @@ public enum DaemonMethod: String, Sendable {
     case projectPut = "project-put"
     /// Hands the project's instructions to its agents at once, and proposes its servers, skills and rules.
     case projectApply = "project-apply"
-    /// Seals the setup under a passphrase and hands the archive back as text.
-    case backupCreate = "backup-create"
-    /// Opens an archive and proposes putting it back, which holds once the person signs it.
-    case backupRestore = "backup-restore"
     /// Every memory source with where it is, its trust, when it was last read and what it taught.
     case memorySources = "memory-sources"
     /// Adds a folder, a repository's instruction files, an export, Supermemory or a hub server.
@@ -225,18 +221,6 @@ public enum DaemonMethod: String, Sendable {
     case lanStatus = "lan-status"
     /// Turns it off at once, or proposes turning it on, which holds once the person signs it here.
     case lanSet = "lan-set"
-    /// Where personal sync stands here: the key, the last run, what was left out, and any machine waiting.
-    case personalSyncStatus = "personal-sync-status"
-    /// Pulls what the person's other machines sent, then sends what changed here.
-    case personalSyncNow = "personal-sync-now"
-    /// The copies a sync replaced without having seen them, opened for the person to choose from.
-    case personalSyncConflicts = "personal-sync-conflicts"
-    /// Keeps one side of a conflict: the copy taken back here, or this Mac's own.
-    case personalSyncResolve = "personal-sync-resolve"
-    /// On a Mac holding the key: proposes sealing it to a waiting machine whose fingerprint the person compared.
-    case personalSyncKeyOffer = "personal-sync-key-offer"
-    /// On a new Mac: proposes taking the key sealed to it, once the person compared the same fingerprint.
-    case personalSyncKeyAccept = "personal-sync-key-accept"
     /// Every profile kept here, with what of each the hubs no longer hold.
     case profiles
     /// Adds a profile or replaces one of the same name; it grants nothing until it is applied.
@@ -249,10 +233,6 @@ public enum DaemonMethod: String, Sendable {
     case profileBind = "profile-bind"
     /// Takes a binding off, which puts the agent back on its default profile.
     case profileUnbind = "profile-unbind"
-    /// The catalog of job descriptions, none with an agent behind it.
-    case templates
-    /// Copies a template's job into a new profile, with only the suggested skills a person took.
-    case profileFromTemplate = "profile-from-template"
     /// Every piece of agent work kept here, newest change first.
     case agentWork = "agent-work"
     /// A person pointing a profile's agent at an issue: `LIN-123`, a Jira key, or an issue link.
@@ -263,12 +243,6 @@ public enum DaemonMethod: String, Sendable {
     case workClose = "work-close"
     /// A person accepting or declining an agent's request to hand the work on.
     case handoffAnswer = "handoff-answer"
-    /// The community index, filtered by words and kind, read fresh or from what was last read.
-    case indexList = "index-list"
-    /// Fetches one version, checks its digest, and holds the skill or proposes the pack's rules.
-    case indexInstall = "index-install"
-    /// Where the index is read from: another index is a proposal signed on this Mac, the marketplace again is at once.
-    case indexSourceSet = "index-source-set"
 }
 
 public enum EventKind: String, Sendable {
@@ -1444,12 +1418,6 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var projectId: String?
     /// On project-put.
     public var projectDraft: ProjectDraft?
-    /// On backup-create and backup-restore. Never stored, never logged.
-    public var backupPassphrase: String?
-    /// On backup-restore: the archive as backup-create handed it back.
-    public var backupArchive: String?
-    /// On backup-create: carry the ledger too.
-    public var backupLedger: Bool?
     /// On memory-source-add.
     public var memorySource: MemorySourceInput?
     /// On memory-source-remove and memory-source-read.
@@ -1476,14 +1444,6 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var memoryLayersDigest: String?
     /// On lan-set: true proposes turning it on, false turns it off now.
     public var lanOn: Bool?
-    /// On personal-sync-resolve.
-    public var syncConflictId: String?
-    /// On personal-sync-resolve: theirs or mine.
-    public var syncKeep: String?
-    /// On personal-sync-key-offer: the waiting machine to seal the key to.
-    public var syncMachineId: String?
-    /// On personal-sync-key-offer and personal-sync-key-accept: the fingerprint the person compared.
-    public var syncFingerprint: String?
     /// On profile-put.
     public var profileDraft: ProfileDraft?
     /// On profile-remove, profile-apply, profile-bind and agent-launch: the profile, by id or by name; on profile-from-template, the copy.
@@ -1492,10 +1452,6 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var profileAgent: String?
     /// On profile-apply: the repository its skills are written into, absolute; absent is the home folder.
     public var profileProject: String?
-    /// On profile-from-template: the template, by id or name; `profileName` names the copy.
-    public var templateId: String?
-    /// On profile-from-template: the suggested skills the person took; the rest stay off.
-    public var templateSkills: [String]?
     /// On profile-bind and profile-unbind: the agent, by id, kind or the name it goes by.
     public var agentId: String?
     /// On work-start: the profile whose agent carries it, by id or name.
@@ -1514,18 +1470,6 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var handoffId: String?
     /// On handoff-answer: accept or decline, as HandoffAnswerWord names them.
     public var handoffAnswer: String?
-    /// On index-list: words, each found in the name or the description.
-    public var indexQuery: String?
-    /// On index-list: only skills, or only rule packs.
-    public var indexKind: String?
-    /// On index-list: read again now rather than from what was last read.
-    public var indexRefresh: Bool?
-    /// On index-source-set, from this machine only: an https address to an index.json, or marketplace; absent is marketplace.
-    public var indexSource: String?
-    /// On index-install: the listing, by id or by name.
-    public var indexName: String?
-    /// On index-install: the version; absent is the newest not marked unsafe.
-    public var indexVersion: String?
 
     public init(id: Int, method: DaemonMethod) {
         self.id = id
@@ -1948,10 +1892,6 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let projects: ProjectsView?
     /// On project-open and project-apply: what was done at once.
     public let projectApplied: ProjectApplySummary?
-    /// On backup-create.
-    public let backupArchive: String?
-    /// On backup-create and backup-restore: what the archive holds.
-    public let backupSummary: BackupSummary?
     /// On every memory source method, so a screen redraws from one answer.
     public let memorySources: [MemorySourceView]?
     /// On memory-source-read, and on memory-source-add, which reads the source once.
@@ -1982,22 +1922,12 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let memoryPassages: [MemoryPassageView]?
     /// On lan-status and lan-set.
     public let lan: LanStatus?
-    /// On every personal sync method, so a screen redraws from one answer.
-    public let personalSync: PersonalSyncStatus?
-    /// On personal-sync-conflicts.
-    public let syncConflicts: [PersonalSyncConflict]?
     /// On every profile method, so a screen redraws from one answer.
     public let profiles: [ProfileView]?
     /// On profile-apply, and on agent-launch with a profile.
     public let profileApplied: ProfileApplied?
-    /// On templates.
-    public let templates: [ProfileTemplate]?
     /// On every work method, so a screen redraws from one answer.
     public let agentWork: [AgentWork]?
-    /// On index-list, and after an install.
-    public let communityIndex: CommunityIndexView?
-    /// On index-install.
-    public let indexInstalled: IndexInstalled?
 
     /// The outcome as a known case, or nil for one this app does not know yet.
     public var outcomeKind: Outcome? { outcome.flatMap(Outcome.init(rawValue:)) }

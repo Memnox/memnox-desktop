@@ -3,16 +3,13 @@ import Foundation
 // Agent profiles and agent work as Memnox Cloud sends them, field for field from memnox-cloud's
 // src/agent-profiles and src/agent-work, for agents hosted elsewhere that no daemon here reaches.
 
-/// A job as the workspace keeps it.
+/// An agent profile as the workspace keeps it: who it is, its role and who answers for it.
 public struct CloudProfile: Decodable, Equatable, Sendable {
     public let id: String
     public let name: String
-    public let purpose: String?
     public let role: String?
-    public let responsibilities: [String]?
     public let responsiblePersonId: String?
     public let projects: [String]?
-    public let templateOf: String?
 }
 
 /// One way the workspace reaches a profile's agent, and how sure it is through it.
@@ -92,10 +89,8 @@ public enum WorkspaceAgentsLines {
                             agentKind: each.label, mediation: "", firstSeen: "", lastSeen: "", status: each.live ? "live" : "idle",
                             levels: levels(each.levels))
         }
-        return ProfileView(id: profile.id, name: profile.name, updatedAt: "", purpose: profile.purpose, role: profile.role,
-                           responsibilities: profile.responsibilities ?? [], responsiblePerson: responsible,
-                           projects: profile.projects ?? [], templateOf: profile.templateOf, connections: connections,
-                           levels: levels(cloud.levels))
+        return ProfileView(id: profile.id, name: profile.name, updatedAt: "", role: profile.role, responsiblePerson: responsible,
+                           projects: profile.projects ?? [], connections: connections, levels: levels(cloud.levels))
     }
 
     /// Who answers for a job, as a card says it: you when it is the person signed in, else the name the cloud sent,

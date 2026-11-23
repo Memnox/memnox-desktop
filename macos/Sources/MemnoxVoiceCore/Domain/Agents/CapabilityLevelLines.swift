@@ -82,6 +82,11 @@ public enum CapabilityLevelLines {
         rows(levels).map(\.level).reduce(.enforced, weaker)
     }
 
+    /// Whether Memnox sits in the path of the agent asking first, so it can stop a call rather than only see it.
+    public static func canStop(_ levels: CapabilityLevels) -> Bool {
+        levels.approval == .enforced || levels.approval == .mediated
+    }
+
     /// The level a connection's pill wears: its own levels, or, from a runtime that sends none, what its mediation says.
     public static func headline(_ connection: AgentConnection) -> CapabilityLevel {
         if let levels = connection.levels { return headline(levels) }

@@ -18,8 +18,6 @@ struct AgentListDestination: View {
     var work: AgentWorkScreen?
     /// The agents Memnox Cloud reaches, shown only while the person is signed in.
     var workspace: WorkspaceAgentsScreen?
-    /// Opens a profile's job, from Give it a job or Edit the job on its card.
-    var giveJob: (ProfileView) -> Void = { _ in }
     let width: WidthClass
     @State private var launching: String?
     @State private var filter = AgentFilter.all
@@ -37,7 +35,7 @@ struct AgentListDestination: View {
         if let list = agents.agents {
             ShellScroll(width: width) {
                 NoteBanner(text: screen.note)
-                if let profiles { ProfileCards(profiles: profiles, work: work, giveJob: giveJob) }
+                if let profiles { ProfileCards(profiles: profiles, work: work) }
                 if let workspace { WorkspaceAgentsSection(screen: workspace) }
                 if list.isEmpty {
                     EmptyState(symbol: "cpu", title: "No agents found yet",
@@ -76,16 +74,15 @@ struct AgentListDestination: View {
 private struct ProfileCards: View {
     @ObservedObject var profiles: ProfilesScreen
     let work: AgentWorkScreen?
-    let giveJob: (ProfileView) -> Void
 
     var body: some View {
         let kept = profiles.profiles.profiles ?? []
         if kept.contains(where: { $0.hasAgent || $0.isDefault }) {
             ShellSection(title: "Your agents") {
                 if let work {
-                    WorkingProfiles(profiles: kept, work: work, giveJob: giveJob)
+                    WorkingProfiles(profiles: kept, work: work)
                 } else {
-                    ProfileGrid(profiles: kept, work: [], giveJob: giveJob)
+                    ProfileGrid(profiles: kept, work: [])
                 }
             }
         }
@@ -96,21 +93,19 @@ private struct ProfileCards: View {
 private struct WorkingProfiles: View {
     let profiles: [ProfileView]
     @ObservedObject var work: AgentWorkScreen
-    let giveJob: (ProfileView) -> Void
 
     var body: some View {
-        ProfileGrid(profiles: profiles, work: work.desk.work ?? [], giveJob: giveJob)
+        ProfileGrid(profiles: profiles, work: work.desk.work ?? [])
     }
 }
 
 struct ProfileGrid: View {
     let profiles: [ProfileView]
     let work: [AgentWork]
-    let giveJob: (ProfileView) -> Void
 
     var body: some View {
         EqualRowsGrid(items: AgentProfileLines.ordered(profiles), cardWidth: AgentGridMetrics.cardWidth) { profile in
-            AgentProfileCard(profile: profile, work: AgentWorkLines.current(for: profile.id, in: work), giveJob: giveJob)
+            AgentProfileCard(profile: profile, work: AgentWorkLines.current(for: profile.id, in: work))
         }
     }
 }

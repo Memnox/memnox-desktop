@@ -2,16 +2,12 @@ import AppKit
 import MemnoxVoiceCore
 import SwiftUI
 
-/// One agent as its job: the name and purpose line, who answers for it, each way Memnox reaches it as a pill wearing
-/// its level, and the work it carries now. A default profile is the agent itself, offered a job; a profile with no
-/// agent behind it stays grey and shows no activity and no numbers.
+/// One agent: its name, whether Memnox can stop it, who answers for it, each way Memnox reaches it as a pill wearing
+/// its level, and the work it carries now. A profile with no agent behind it stays grey and shows no activity.
 struct AgentProfileCard: View {
     let profile: ProfileView
     /// The open work its agent carries, newest first; nil where this Mac's runtime keeps no work.
     let work: AgentWork?
-    /// Opens the job: a default gets a new job bound to its agent, any other its own job to edit; nil for a job kept
-    /// in the workspace, which is edited in the console.
-    let giveJob: ((ProfileView) -> Void)?
 
     private static let logo: CGFloat = 30
     /// How faint a card with nobody behind it is drawn, so it never reads as an agent at work.
@@ -28,7 +24,7 @@ struct AgentProfileCard: View {
                         .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
                         .foregroundStyle(Memnox.Console.foreground)
                         .lineLimit(1)
-                    Text(AgentProfileLines.purpose(profile))
+                    Text(AgentProfileLines.summary(profile))
                         .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
                         .foregroundStyle(Memnox.Console.muted)
                         .lineLimit(2)
@@ -48,12 +44,6 @@ struct AgentProfileCard: View {
                 StatusWord(.quiet, AgentProfileLines.noAgent)
             }
             Spacer(minLength: 0)
-            if let giveJob {
-                Button(profile.isDefault ? AgentProfileLines.giveJob : "Edit the job", systemImage: profile.isDefault ? "briefcase" : "pencil") {
-                    giveJob(profile)
-                }
-                .buttonStyle(KitButton(kind: profile.isDefault ? .primary : .secondary))
-            }
         }
         .padding(Memnox.Spacing.xLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -66,7 +56,7 @@ struct AgentProfileCard: View {
 
     private var connections: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
-            Text("Connected through")
+            Text("How Memnox reaches it")
                 .font(Memnox.Console.sans(Memnox.Console.TextSize.label, .medium))
                 .foregroundStyle(Memnox.Console.muted)
             ForEach(AgentProfileLines.shownConnections(profile)) { connection in

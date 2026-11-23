@@ -21,7 +21,7 @@ final class ProjectContextTests: XCTestCase {
     func testLinksASharedPageOnlyWhileTheDaemonAnswersIt() {
         XCTAssertEqual(SharedPage.servers.target(supports: everything), WindowRoute(.connectors, tab: "mcp"))
         XCTAssertNil(SharedPage.servers.target(supports: { _ in false }))
-        XCTAssertEqual(SharedPage.allCases.map(\.title), ["Rules", "Skills", "MCP servers", "Connectors", "Memory", "Agents"])
+        XCTAssertEqual(SharedPage.allCases.map(\.title), ["Rules", "Skills", "Tool servers", "Connectors", "Memory", "Agents"])
     }
 
     func testTellsWhatBelongsToTheProjectFromWhatIsShared() {

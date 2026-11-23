@@ -29,9 +29,9 @@ struct WorkspaceAgentsSection: View {
             if screen.agents.signedIn, !profiles.isEmpty {
                 let work = remote.flatMap(\.work)
                 ShellSection(title: "In your workspace") {
-                    QuietLine("Agents Memnox Cloud reaches beyond this Mac. Edit their jobs in the console.")
+                    QuietLine("Agents Memnox Cloud reaches beyond this Mac. Change who answers for them in the console.")
                     EqualRowsGrid(items: AgentProfileLines.ordered(profiles), cardWidth: AgentGridMetrics.cardWidth) { profile in
-                        AgentProfileCard(profile: profile, work: AgentWorkLines.current(for: profile.id, in: work), giveJob: nil)
+                        AgentProfileCard(profile: profile, work: AgentWorkLines.current(for: profile.id, in: work))
                     }
                 }
             }

@@ -1,21 +1,3 @@
-// src/daemon/community-index.ts
-var INDEX_METHOD = {
-  /** The index, filtered by words and kind, read fresh or from what was last read. */
-  INDEX_LIST: "index-list",
-  /** Fetches one version, checks its digest, and holds the skill or proposes the pack's rules. */
-  INDEX_INSTALL: "index-install",
-  /** Where the index is read from: a new one is a proposal the Mac signs, the marketplace again is at once. */
-  INDEX_SOURCE_SET: "index-source-set"
-};
-var INDEX_SOURCE = {
-  /** Memnox Cloud's marketplace, of the workspace this machine is on: the default. */
-  MARKETPLACE: "marketplace"
-};
-var INDEX_KIND = {
-  SKILL: "skill",
-  RULE_PACK: "rule_pack"
-};
-
 // src/daemon/memory-layers.ts
 var MEMORY_LAYERS_METHOD = {
   /** Each project's three layers as they stand: MEMORY.md, the router files, and the SKILL.md skills. */
@@ -312,55 +294,12 @@ var PROJECT_SCOPE = {
   ORGANIZATION: "organization"
 };
 
-// src/daemon/backup.ts
-var BACKUP_METHOD = {
-  /** Seals the setup under a passphrase and hands the archive back as text. */
-  BACKUP_CREATE: "backup-create",
-  /** Opens an archive and proposes putting it back, which holds once the person signs it. */
-  BACKUP_RESTORE: "backup-restore"
-};
-
 // src/daemon/lan.ts
 var LAN_METHOD = {
   /** Whether the local network is on, where it listens, whether it is advertised, and which phones reach it. */
   LAN_STATUS: "lan-status",
   /** Turns it off at once, or proposes turning it on, which holds once the person signs it on the Mac. */
   LAN_SET: "lan-set"
-};
-
-// src/daemon/personal-sync.ts
-var PERSONAL_SYNC_METHOD = {
-  /** Where sync stands here: the key, the last run, what was left out, and any machine waiting. */
-  PERSONAL_SYNC_STATUS: "personal-sync-status",
-  /** Pulls what the person's other machines sent, then sends what changed here. */
-  PERSONAL_SYNC_NOW: "personal-sync-now",
-  /** The copies a sync replaced without having seen them, opened for the person to choose from. */
-  PERSONAL_SYNC_CONFLICTS: "personal-sync-conflicts",
-  /** Keeps one side of a conflict: the copy taken back here, or this machine's own. */
-  PERSONAL_SYNC_RESOLVE: "personal-sync-resolve",
-  /** On a machine holding the key: proposes sealing it to a waiting machine whose fingerprint the person compared. */
-  PERSONAL_SYNC_KEY_OFFER: "personal-sync-key-offer",
-  /** On a new machine: proposes taking the key sealed to it, once the person compared the same fingerprint. */
-  PERSONAL_SYNC_KEY_ACCEPT: "personal-sync-key-accept"
-};
-var PERSONAL_SYNC_STATE = {
-  /** Not on Memnox Cloud, so there is nowhere to carry anything. */
-  OFF: "off",
-  /** No sync key here yet: another of the person's machines has to seal it to this one. */
-  WAITING_FOR_KEY: "waiting-for-key",
-  /** A key sealed to this machine arrived and waits for the person to compare and accept it. */
-  KEY_ARRIVED: "key-arrived",
-  READY: "ready",
-  /** The plan does not carry personal sync; what is here stays here. */
-  NOT_ON_PLAN: "not-on-plan",
-  /** The credential speaks for no person, so it has nothing of its own to sync. */
-  NO_PERSON: "no-person"
-};
-var SYNC_KEEP = {
-  /** The copy the cloud kept, put back here and sent as the newest. */
-  THEIRS: "theirs",
-  /** What this machine holds now; the kept copy is let go. */
-  MINE: "mine"
 };
 
 // src/daemon/profiles.ts
@@ -376,11 +315,7 @@ var PROFILES_METHOD = {
   /** Binds a kept profile to one agent found here; its ledger key stays `agt_<kind>`. */
   PROFILE_BIND: "profile-bind",
   /** Takes a binding off, which puts the agent back on its default profile. */
-  PROFILE_UNBIND: "profile-unbind",
-  /** The catalog of job descriptions, none with an agent behind it. */
-  TEMPLATES: "templates",
-  /** Copies a template's job into a new profile, with only the suggested skills a person took. */
-  PROFILE_FROM_TEMPLATE: "profile-from-template"
+  PROFILE_UNBIND: "profile-unbind"
 };
 
 // src/daemon/work.ts
@@ -655,13 +590,10 @@ var DAEMON_METHOD = {
   ...AGENTS_METHOD,
   ...SKILLS_METHOD,
   ...PROJECTS_METHOD,
-  ...BACKUP_METHOD,
   ...MEMORY_METHOD,
   ...LAN_METHOD,
-  ...PERSONAL_SYNC_METHOD,
   ...PROFILES_METHOD,
-  ...WORK_METHOD,
-  ...INDEX_METHOD
+  ...WORK_METHOD
 };
 var BRIEFING = {
   /** A held call, told with what its session has been doing. */
@@ -1023,20 +955,12 @@ var PROPOSING_METHODS = [
   SKILLS_METHOD.SKILL_ROLLBACK,
   PROJECTS_METHOD.PROJECT_OPEN,
   PROJECTS_METHOD.PROJECT_APPLY,
-  BACKUP_METHOD.BACKUP_RESTORE,
   MEMORY_METHOD.MEMORY_CONFIRM,
   LAN_METHOD.LAN_SET,
-  PERSONAL_SYNC_METHOD.PERSONAL_SYNC_KEY_OFFER,
-  PERSONAL_SYNC_METHOD.PERSONAL_SYNC_KEY_ACCEPT,
-  PROFILES_METHOD.PROFILE_APPLY,
-  INDEX_METHOD.INDEX_INSTALL,
-  INDEX_METHOD.INDEX_SOURCE_SET
+  PROFILES_METHOD.PROFILE_APPLY
 ];
 
 export {
-  INDEX_METHOD,
-  INDEX_SOURCE,
-  INDEX_KIND,
   MEMORY_LAYERS_METHOD,
   MEMORY_LAYER,
   MEMORY_METHOD,
@@ -1063,11 +987,7 @@ export {
   SKILLS_METHOD,
   PROJECTS_METHOD,
   PROJECT_SCOPE,
-  BACKUP_METHOD,
   LAN_METHOD,
-  PERSONAL_SYNC_METHOD,
-  PERSONAL_SYNC_STATE,
-  SYNC_KEEP,
   PROFILES_METHOD,
   WORK_METHOD,
   HANDOFF_ANSWER_WORD,

@@ -78,8 +78,7 @@ public enum ProposingMethods {
     public static let all: Set<String> = Set([
         DaemonMethod.handOver, .rule, .mcpServerPut, .mcpAssign, .mcpHandBack, .rulePropose, .ruleRemove, .rulePackImport,
         .agentResume, .agentLaunch, .skillImport, .skillPut, .skillAssign, .skillAccept, .skillRollback,
-        .projectOpen, .projectApply, .backupRestore, .memoryConfirm, .lanSet, .personalSyncKeyOffer,
-        .personalSyncKeyAccept, .profileApply, .indexInstall, .indexSourceSet,
+        .projectOpen, .projectApply, .memoryConfirm, .lanSet, .profileApply,
     ].map(\.rawValue))
 }
 
@@ -131,7 +130,6 @@ extension DaemonResponse {
         if let proposed { ids.append(proposed) }
         ids += packProposed ?? []
         ids += profileApplied?.proposed ?? []
-        ids += indexInstalled?.proposed ?? []
         return ids
     }
 }

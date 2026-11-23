@@ -65,61 +65,38 @@ final class ProfilesTests: XCTestCase {
     }
 }
 
-/// Jobs as the profile editor steers them: binding and copying a template are unsigned, and a template applies no rule.
-final class ProfileJobsTests: XCTestCase {
-    private static let job = #"[{"id":"backend","name":"Backend","skills":[],"mcpServers":[],"updatedAt":"2026-11-07T10:00:00Z","missing":[],"purpose":"Builds the API"}]"#
+/// Profiles as the agents list steers them: binding and unbinding are unsigned, and an edit carries who answers through.
+final class ProfileBindingTests: XCTestCase {
+    private static let kept = #"[{"id":"backend","name":"Backend","skills":[],"mcpServers":[],"updatedAt":"2026-11-07T10:00:00Z","missing":[]}]"#
 
-    func testGivesAnAgentsDefaultAJobInOnePress() async throws {
+    func testBindsAndUnbindsAnAgentUnsigned() async throws {
         let link = ScriptedLink()
-        link.answers["profile-put"] = [try line(#"{"id":1,"ok":true,"profiles":"# + Self.job + "}")]
-        link.answers["profile-bind"] = [try line(#"{"id":2,"ok":true,"profiles":"# + Self.job + "}")]
-        let outcome = await Profiles(link: link).putAndBind(ProfileDraft(name: "Backend", purpose: "Builds the API"), agent: "agt_claude-code")
-        XCTAssertEqual(outcome, .done("The agent now works under Backend."))
-        XCTAssertEqual(link.sent.map(\.method), ["profile-put", "profile-bind"])
-        XCTAssertEqual(link.sent.last?.agentId, "agt_claude-code")
-        XCTAssertEqual(link.sent.last?.profileName, "Backend")
-        XCTAssertNil(link.sent.last?.signature)
-    }
-
-    func testStopsBeforeBindingWhenTheJobWasRefused() async throws {
-        let link = ScriptedLink()
-        link.answers["profile-put"] = [try line(#"{"id":1,"ok":false,"error":"Give the profile a name."}"#)]
-        let outcome = await Profiles(link: link).putAndBind(ProfileDraft(name: ""), agent: "claude-code")
-        XCTAssertEqual(outcome, .failed("Give the profile a name."))
-        XCTAssertEqual(link.sent.map(\.method), ["profile-put"])
-    }
-
-    func testCopiesATemplateWithOnlyTheSkillsTakenAndUnbinds() async throws {
-        let link = ScriptedLink()
-        link.answers["templates"] = [try line(#"{"id":1,"ok":true,"templates":[{"id":"code-review","name":"Code Review","purpose":"Reads a change","role":"reviewer","responsibilities":[],"suggestedSkills":["review"],"suggestedRules":["Never push."],"suggestedConnections":[]}]}"#)]
-        link.answers["profile-from-template"] = [try line(#"{"id":2,"ok":true,"profiles":"# + Self.job + "}")]
-        link.answers["profile-unbind"] = [try line(#"{"id":3,"ok":true,"profiles":[]}"#)]
+        link.answers["profile-bind"] = [try line(#"{"id":1,"ok":true,"profiles":"# + Self.kept + "}")]
+        link.answers["profile-unbind"] = [try line(#"{"id":2,"ok":true,"profiles":[]}"#)]
         let profiles = Profiles(link: link)
-        await profiles.readTemplates()
-        XCTAssertEqual(profiles.templates?.first?.suggestedRules, ["Never push."])
-        let copied = await profiles.fromTemplate("code-review", named: "Reviewer", skills: [])
-        XCTAssertEqual(copied, .done("Reviewer is kept with no agent behind it yet. Its suggested rules wait for you to write them."))
-        let copy = try XCTUnwrap(link.sent.first { $0.method == "profile-from-template" })
-        XCTAssertEqual(copy.templateId, "code-review")
-        XCTAssertEqual(copy.profileName, "Reviewer")
-        XCTAssertEqual(copy.templateSkills, [])
+        let bound = await profiles.bind("Backend", agent: "agt_claude-code")
+        XCTAssertEqual(bound, .done("The agent now works under Backend."))
+        XCTAssertNil(link.sent.first?.signature)
         _ = await profiles.unbind(agent: "agt_codex-cli", from: "backend")
         XCTAssertEqual(link.sent.last?.agentId, "agt_codex-cli")
         XCTAssertEqual(profiles.profiles, [])
     }
 
-    func testKeepsAJobWithOnlyItsPurposeAndCarriesItsFieldsThroughAnEdit() throws {
-        let form = ProfileForm(name: "Backend", purpose: " Builds the API ", responsibilities: "run the tests\n\n keep the fingerprint ",
-                               responsiblePerson: "Bo", projects: ["/code/api"], templateOf: "software-development")
+    func testCarriesTheRoleWhoAnswersAndTheProjectsThroughAnEdit() throws {
+        let form = ProfileForm(name: "Backend", skills: ["review"], role: " reviewer ", responsiblePerson: "Bo", projects: ["/code/api"])
         let draft = try ProfileLines.draft(form, packs: []).get()
-        XCTAssertEqual(draft.purpose, "Builds the API")
-        XCTAssertEqual(draft.responsibilities, ["run the tests", "keep the fingerprint"])
+        XCTAssertEqual(draft.role, "reviewer")
+        XCTAssertEqual(draft.responsiblePerson, "Bo")
         XCTAssertEqual(draft.projects, ["/code/api"])
-        XCTAssertEqual(draft.templateOf, "software-development")
-        XCTAssertNil(draft.role)
-        let kept = ProfileView(id: "backend", name: "Backend", updatedAt: "", purpose: "Builds the API", responsibilities: ["a", "b"],
-                               projects: ["/code/api"])
-        XCTAssertEqual(ProfileLines.form(of: kept, packs: []).responsibilities, "a\nb")
+        let kept = ProfileView(id: "backend", name: "Backend", updatedAt: "", role: "reviewer", projects: ["/code/api"])
+        XCTAssertEqual(ProfileLines.form(of: kept, packs: []).role, "reviewer")
         XCTAssertEqual(ProfileLines.form(of: kept, packs: []).projects, ["/code/api"])
+    }
+
+    func testRefusesAProfileThatHoldsNothing() {
+        guard case .failure(let problem) = ProfileLines.draft(ProfileForm(name: "Backend"), packs: []) else {
+            return XCTFail("a profile with nothing in it was kept")
+        }
+        XCTAssertEqual(problem.why, "Choose at least one skill, server or rule pack.")
     }
 }

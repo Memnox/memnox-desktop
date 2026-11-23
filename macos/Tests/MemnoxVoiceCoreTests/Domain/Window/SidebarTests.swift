@@ -11,7 +11,7 @@ final class SidebarTests: XCTestCase {
         let sections = Sidebar.sections.map { [$0.title ?? ""] + $0.rows.map { Destinations.info($0).title } }
         XCTAssertEqual(sections, [
             ["", "Home", "Needs you", "Sessions", "Agents", "Projects"],
-            ["Govern", "Rules", "Hand over", "Activity"],
+            ["Govern", "Rules", "Activity"],
             ["Knowledge", "Memory", "Connectors"],
         ])
         XCTAssertEqual(Sidebar.foot.map { Destinations.info($0).title }, ["Settings"])
@@ -43,7 +43,7 @@ final class SidebarTests: XCTestCase {
     func testOpensConnectorsOnTheSystemsThisMacReaches() {
         XCTAssertEqual(Sidebar.target(.connectors, supports: nothingNew), WindowRoute(.connectors, tab: "systems"))
         XCTAssertEqual(Sidebar.strip(for: WindowRoute(.connectors, tab: "systems"), supports: everything).map(\.title),
-                       ["Systems", "Files", "MCP servers"])
+                       ["Apps", "Files", "Tool servers"])
     }
 
     func testKeepsSettingsAsATreeRatherThanAStrip() {

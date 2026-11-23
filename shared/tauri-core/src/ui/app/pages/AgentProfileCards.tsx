@@ -1,12 +1,13 @@
 import type { ProfileView } from '@memnox/core/wire';
-import { useEffect } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { AgentPresetLines, startedPack } from '../../../core/domain/agent-presets';
 import type { AgentWork } from '../../../core/domain/agent-wire';
 import { currentWork, NO_AGENT, orderedProfiles, responsibleLine, shownConnections, summaryLine } from '../../../core/domain/agent-work-lines';
 import { connectionStatusLine, headlineLevel } from '../../../core/domain/capability-level-lines';
 import { AgentCardLines } from '../../../core/domain/profile-lines';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { CapabilityStrip, ConnectionPill, LevelPill } from '../capability-strip';
-import { BrandLogo, Card, CardGrid, Section, StatusWord } from '../../kit';
+import { BrandLogo, Card, CardGrid, Section, Select, StatusWord } from '../../kit';
 import { WorkLine } from './WorkCards';
 
 /** As the Mac's agent grid sets it. */
@@ -38,6 +39,7 @@ export function AgentProfileCards({ parts }: { parts: SettingsParts }) {
                 profile={profile}
                 work={currentWork(profile.id, all)}
                 open={(url) => host.openPage(url)}
+                presets={profile.connections[0]?.agentKind === undefined ? undefined : <AgentPresetRow parts={parts} agent={profile.connections[0].agentKind} />}
               />
             ))}
           </CardGrid>
@@ -51,7 +53,7 @@ export function AgentProfileCards({ parts }: { parts: SettingsParts }) {
  * One agent: its name, whether Memnox can stop it, who answers for it, each way Memnox reaches it as a pill wearing
  * its level, and the work it carries now. One with no agent behind it stays grey with no activity.
  */
-export function AgentProfileCard({ profile, work, open }: { profile: ProfileView; work?: AgentWork | undefined; open?: (url: string) => void }) {
+export function AgentProfileCard({ profile, work, open, presets }: { profile: ProfileView; work?: AgentWork | undefined; open?: (url: string) => void; presets?: ReactNode }) {
   const bound = profile.connections.length > 0;
   const responsible = responsibleLine(profile);
   return (
@@ -77,6 +79,7 @@ export function AgentProfileCard({ profile, work, open }: { profile: ProfileView
             ))}
           </div>
           {work !== undefined && <WorkLine work={work} {...(open === undefined ? {} : { open })} />}
+          {presets}
           <details>
             <summary className="mx-focus cursor-pointer text-footnote font-medium text-muted select-none">{AgentCardLines.howSure}</summary>
             <div className="pt-2">
@@ -88,5 +91,38 @@ export function AgentProfileCard({ profile, work, open }: { profile: ProfileView
         <StatusWord tone="quiet">{NO_AGENT}</StatusWord>
       )}
     </Card>
+  );
+}
+
+/** Starting this one agent on a shipped pack, and what it was started on, as the Mac's `AgentPresetRow`. */
+function AgentPresetRow({ parts, agent }: { parts: SettingsParts; agent: string }) {
+  const { studio } = parts;
+  useObserved(studio);
+  const [note, setNote] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    void studio.readPacks();
+  }, []);
+  const packs = studio.packs ?? [];
+  const started = startedPack(studio.rules?.rules ?? [], agent, packs);
+  const start = (id: string) => {
+    const pack = packs.find((each) => each.id === id);
+    if (pack === undefined) return;
+    void studio.importPack(pack.toml, { agent }).then((outcome) => setNote(outcome.kind === 'failed' ? outcome.why : AgentPresetLines.waits));
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 text-meta text-muted">{AgentPresetLines.line(started)}</span>
+        {packs.length > 0 && (
+          <Select
+            value=""
+            label={AgentPresetLines.title}
+            options={[{ value: '', label: AgentPresetLines.title }, ...packs.filter((pack) => pack.id !== started?.id).map((pack) => ({ value: pack.id, label: pack.name }))]}
+            onChange={start}
+          />
+        )}
+      </span>
+      {note !== undefined && <span className="text-meta text-muted">{note}</span>}
+    </div>
   );
 }

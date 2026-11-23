@@ -5,7 +5,7 @@ import { RequestIds } from '../src/core/application/request-ids';
 import { Setup } from '../src/core/application/setup';
 import { VoiceSettings } from '../src/core/application/voice-settings';
 import { runtimeSourceOf, whyNotReadyFrom } from '../src/core/domain/runtime-source';
-import { isAtLeast } from '../src/core/domain/runtime-state';
+import { isAtLeast, MINIMUM_RUNTIME } from '../src/core/domain/runtime-state';
 import { ScriptedDaemon } from './doubles';
 
 /** A runtime that writes down what it was asked to do, and brings the daemon up when told to. */
@@ -48,7 +48,7 @@ const noWait = () => Promise.resolve();
 describe('setting Memnox up', () => {
   it('does nothing when the daemon is ready', async () => {
     const machine = new Machine(true, true);
-    const setup = new Setup(daemonAt({ now: '0.14.0' }), machine, new RequestIds(), noWait);
+    const setup = new Setup(daemonAt({ now: MINIMUM_RUNTIME }), machine, new RequestIds(), noWait);
     expect(await setup.ensure()).toEqual({ kind: 'ready' });
     expect(machine.steps).toEqual([]);
   });
@@ -56,7 +56,7 @@ describe('setting Memnox up', () => {
   it('installs memnox and wires the computer the first time', async () => {
     const version = { now: undefined as string | undefined };
     const machine = new Machine(false, false, (step) => {
-      if (step === 'setup') version.now = '0.14.0';
+      if (step === 'setup') version.now = MINIMUM_RUNTIME;
     });
     const setup = new Setup(daemonAt(version), machine, new RequestIds(), noWait);
     expect(await setup.ensure()).toEqual({ kind: 'ready' });
@@ -67,7 +67,7 @@ describe('setting Memnox up', () => {
   it('only starts the service on a computer set up before', async () => {
     const version = { now: undefined as string | undefined };
     const machine = new Machine(true, true, (step) => {
-      if (step === 'start') version.now = '0.14.0';
+      if (step === 'start') version.now = MINIMUM_RUNTIME;
     });
     await new Setup(daemonAt(version), machine, new RequestIds(), noWait).ensure();
     expect(machine.steps).toEqual(['start']);
@@ -76,7 +76,7 @@ describe('setting Memnox up', () => {
   it('updates a daemon older than the app', async () => {
     const version = { now: '0.12.0' as string | undefined };
     const machine = new Machine(true, true, (step) => {
-      if (step === 'update') version.now = '0.14.0';
+      if (step === 'update') version.now = MINIMUM_RUNTIME;
     });
     expect(await new Setup(daemonAt(version), machine, new RequestIds(), noWait).ensure()).toEqual({ kind: 'ready' });
     expect(machine.steps).toEqual(['update']);
@@ -100,7 +100,7 @@ describe('a daemon whose version does not show what it lacks', () => {
   it('updates one that answers no method for something the app needs', async () => {
     const updated = { done: false };
     const daemon = new ScriptedDaemon({
-      ping: (request) => [{ id: request.id, ok: true, version: '0.14.0' }],
+      ping: (request) => [{ id: request.id, ok: true, version: MINIMUM_RUNTIME }],
       machine: (request) => [updated.done ? { id: request.id, ok: true } : { id: request.id, ok: false, error: 'no method machine' }],
     });
     const machine = new Machine(true, true, (step) => {
@@ -113,7 +113,7 @@ describe('a daemon whose version does not show what it lacks', () => {
   it('restarts a local checkout rather than updating it from npm', async () => {
     const updated = { done: false };
     const daemon = new ScriptedDaemon({
-      ping: (request) => [{ id: request.id, ok: true, version: '0.14.0' }],
+      ping: (request) => [{ id: request.id, ok: true, version: MINIMUM_RUNTIME }],
       machine: (request) => [updated.done ? { id: request.id, ok: true } : { id: request.id, ok: false, error: 'no method machine' }],
     });
     const machine = new Machine(true, true, (step) => {
@@ -131,7 +131,7 @@ describe('a daemon whose version does not show what it lacks', () => {
 describe('restarting the Memnox service', () => {
   it('updates and restarts it, and says nothing once it answers again', async () => {
     const machine = new Machine(true, true);
-    const setup = new Setup(daemonAt({ now: '0.14.0' }), machine, new RequestIds(), noWait);
+    const setup = new Setup(daemonAt({ now: MINIMUM_RUNTIME }), machine, new RequestIds(), noWait);
     expect(await setup.restartService()).toBeUndefined();
     expect(machine.steps).toEqual(['update']);
   });

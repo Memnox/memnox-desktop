@@ -12,21 +12,21 @@ export type ProtectionTab = 'readyMade' | 'allRules' | 'autonomy';
 
 /** The tabs drawn. Autonomy is left off for now, since You could let go of on Home already offers the same. */
 export const PROTECTION_TABS: readonly { id: ProtectionTab; title: string }[] = [
-  { id: 'readyMade', title: 'Ready-made rules' },
-  { id: 'allRules', title: 'All rules' },
+  { id: 'readyMade', title: 'Starter rules' },
+  { id: 'allRules', title: 'Your rules' },
 ];
 
 export const PROTECTION = {
   // Ready-made rules, as the console's library and its choices say them.
-  readyIntro: (keyTitle: string) => `Rules written for you. Choose Allow, Ask or Deny on one; it holds once you confirm it with ${keyTitle}.`,
+  readyIntro: (keyTitle: string) => `Rules written for you. Choose Allow, Ask first or Never on one; it holds once you confirm it with ${keyTitle}.`,
   search: 'Search by tool, command or what it protects: kubectl, refund, secrets',
-  searchLabel: 'Search ready-made rules',
-  allRules: 'All rules',
+  searchLabel: 'Search starter rules',
+  allRules: 'Your rules',
   starter: 'Add the starter set',
   /** Under one category, the console's own words for taking every suggestion there. */
   everySuggestion: 'Use every suggestion',
-  noneMatchTitle: 'No ready-made rule matches that.',
-  noneMatchDetail: 'Propose your own under All rules.',
+  noneMatchTitle: 'No starter rule matches that.',
+  noneMatchDetail: 'Write your own under Your rules.',
   notAdded: 'Not added',
   suggested: 'Suggested',
   changed: 'Changed',
@@ -55,8 +55,8 @@ export const PROTECTION = {
   // All rules, as the console's full list.
   allIntro: 'Every rule your AI follows, in full. Each one either lets it go ahead, makes it ask you first, or stops it.',
   simplerTitle: 'Want the simple version?',
-  simplerNote: 'Choose Allow, Ask or Deny in plain words, one thing at a time.',
-  startTitle: 'Start from a ready-made rule',
+  simplerNote: 'Choose Allow, Ask first or Never in plain words, one thing at a time.',
+  startTitle: 'Start from a starter rule',
   startNote: 'Rules written for you, for force pushes, deploys, payments and secrets. Add one in a click.',
   handOver: 'See what to hand over',
   propose: 'Propose a rule',
@@ -65,7 +65,7 @@ export const PROTECTION = {
   noRuleHere: 'No rule here yet',
   noRuleHereBody: 'A rule with this effect shows here once one holds.',
   noRules: 'No rules yet',
-  noRulesBody: 'A rule comes from an Always allow answer, a ready-made rule, or one proposed here.',
+  noRulesBody: 'A rule comes from an Always allow answer, a starter rule, or one written here.',
   // Autonomy, as the console's hand over page.
   autonomyIntro: 'What your agents could start doing on their own, based on what you keep saying yes to.',
   readyToHandOver: 'You could let go of',

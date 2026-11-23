@@ -54,7 +54,7 @@ describe('the rule dialogs use the Mac words', () => {
   });
 
   it('counts the effect tabs by rule, as the Mac does', () => {
-    expect(inForceTabs([{ effect: 'ask' }, { effect: 'ask' }, { effect: 'deny' }]).map((tab) => `${tab.title} ${tab.count}`)).toEqual(['All 3', 'Allow 0', 'Ask 2', 'Deny 1']);
+    expect(inForceTabs([{ effect: 'ask' }, { effect: 'ask' }, { effect: 'deny' }]).map((tab) => `${tab.title} ${tab.count}`)).toEqual(['All 3', 'Allow 0', 'Ask first 2', 'Never 1']);
   });
 });
 

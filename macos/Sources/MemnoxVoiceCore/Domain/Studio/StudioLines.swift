@@ -28,8 +28,8 @@ public enum StudioLines {
     public static func words(_ effect: RuleEffect) -> EffectWords {
         switch effect {
         case .allow: EffectWords(title: "Allow", verdict: "Allowed", says: "Goes ahead on its own")
-        case .ask: EffectWords(title: "Ask", verdict: "Asked", says: "Waits for a person to say yes")
-        case .deny: EffectWords(title: "Deny", verdict: "Denied", says: "Refused, and told what to do instead")
+        case .ask: EffectWords(title: "Ask first", verdict: "Asked", says: "Waits for a person to say yes")
+        case .deny: EffectWords(title: "Never", verdict: "Denied", says: "Refused, and told what to do instead")
         }
     }
 

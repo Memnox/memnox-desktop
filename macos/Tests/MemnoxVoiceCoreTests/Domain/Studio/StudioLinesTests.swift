@@ -67,7 +67,7 @@ final class StudioLinesTests: XCTestCase {
 
     func testSaysARuleInThePresentAndADecisionInThePastTenseAsTheConsolesActivityDoes() {
         XCTAssertEqual(RuleEffect.allCases.map { [StudioLines.words($0).title, StudioLines.words($0).verdict] },
-                       [["Allow", "Allowed"], ["Ask", "Asked"], ["Deny", "Denied"]])
+                       [["Allow", "Allowed"], ["Ask first", "Asked"], ["Never", "Denied"]])
         XCTAssertEqual(StudioLines.verdict("deny"), "Denied")
         XCTAssertEqual(StudioLines.verdict("redact"), "redact")
     }

@@ -8,8 +8,8 @@ public enum ProtectionTab: String, CaseIterable, Sendable {
 
     public var title: String {
         switch self {
-        case .readyMade: "Ready-made rules"
-        case .allRules: "All rules"
+        case .readyMade: "Starter rules"
+        case .allRules: "Your rules"
         case .autonomy: "Autonomy"
         }
     }
@@ -24,16 +24,16 @@ public enum ProtectionTab: String, CaseIterable, Sendable {
 public enum ProtectionLines {
     // Ready-made rules, as the console's library and its choices say them.
     public static func readyIntro(keyTitle: String) -> String {
-        "Rules written for you. Choose Allow, Ask or Deny on one; it holds once you confirm it with \(keyTitle)."
+        "Rules written for you. Choose Allow, Ask first or Never on one; it holds once you confirm it with \(keyTitle)."
     }
     public static let search = "Search by tool, command or what it protects: kubectl, refund, secrets"
-    public static let searchLabel = "Search ready-made rules"
-    public static let allRules = "All rules"
+    public static let searchLabel = "Search starter rules"
+    public static let allRules = "Your rules"
     public static let starter = "Add the starter set"
     /// Under one category, the console's own words for taking every suggestion there.
     public static let everySuggestion = "Use every suggestion"
-    public static let noneMatchTitle = "No ready-made rule matches that."
-    public static let noneMatchDetail = "Propose your own under All rules."
+    public static let noneMatchTitle = "No starter rule matches that."
+    public static let noneMatchDetail = "Write your own under Your rules."
     /// The console's one sentence, which an empty state splits into its title and the line under it.
     public static var noneMatch: String { "\(noneMatchTitle) \(noneMatchDetail)" }
     public static let notAdded = "Not added"
@@ -59,8 +59,8 @@ public enum ProtectionLines {
     // All rules, as the console's full list.
     public static let allIntro = "Every rule your AI follows, in full. Each one either lets it go ahead, makes it ask you first, or stops it."
     public static let simplerTitle = "Want the simple version?"
-    public static let simplerNote = "Choose Allow, Ask or Deny in plain words, one thing at a time."
-    public static let startTitle = "Start from a ready-made rule"
+    public static let simplerNote = "Choose Allow, Ask first or Never in plain words, one thing at a time."
+    public static let startTitle = "Start from a starter rule"
     public static let startNote = "Rules written for you, for force pushes, deploys, payments and secrets. Add one in a click."
     public static let handOver = "See what to hand over"
     public static let propose = "Propose a rule"
@@ -70,7 +70,7 @@ public enum ProtectionLines {
     /// The console says nothing more under a filtered empty list; a card here needs a line, so it says when one shows.
     public static let noRuleHereBody = "A rule with this effect shows here once one holds."
     public static let noRules = "No rules yet"
-    public static let noRulesBody = "A rule comes from an Always allow answer, a ready-made rule, or one proposed here."
+    public static let noRulesBody = "A rule comes from an Always allow answer, a starter rule, or one written here."
 
     // Autonomy, as the console's hand over page.
     public static let autonomyIntro = "What your agents could start doing on their own, based on what you keep saying yes to."

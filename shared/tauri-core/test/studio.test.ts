@@ -130,8 +130,8 @@ describe('what a decision is called', () => {
   it('says a rule in the present and a decision in the past tense, as the console’s activity does', () => {
     expect(Object.values(EFFECT_WORDS).map((each) => [each.title, each.verdict])).toEqual([
       ['Allow', 'Allowed'],
-      ['Ask', 'Asked'],
-      ['Deny', 'Denied'],
+      ['Ask first', 'Asked'],
+      ['Never', 'Denied'],
     ]);
   });
 });

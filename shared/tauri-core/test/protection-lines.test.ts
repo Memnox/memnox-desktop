@@ -30,17 +30,17 @@ const rule = (name: string, effect: PolicyRuleView['effect'], actions: string[],
 
 describe('Protection settings in the console words', () => {
   it('lists the tabs in the console order', () => {
-    expect(PROTECTION_TABS.map((tab) => tab.title)).toEqual(['Ready-made rules', 'All rules']);
+    expect(PROTECTION_TABS.map((tab) => tab.title)).toEqual(['Starter rules', 'Your rules']);
   });
 
   it('says the console words for the ready-made rules and their save', () => {
     expect(PROTECTION.search).toBe('Search by tool, command or what it protects: kubectl, refund, secrets');
     expect(PROTECTION.starter).toBe('Add the starter set');
-    expect(`${PROTECTION.noneMatchTitle} ${PROTECTION.noneMatchDetail}`).toBe('No ready-made rule matches that. Propose your own under All rules.');
-    expect(inForceAs('ask')).toBe('In force as ask');
+    expect(`${PROTECTION.noneMatchTitle} ${PROTECTION.noneMatchDetail}`).toBe('No starter rule matches that. Write your own under Your rules.');
+    expect(inForceAs('ask')).toBe('In force as ask first');
     expect([PROTECTION.notSaved, PROTECTION.undo, PROTECTION.review]).toEqual(['Not saved yet', 'Undo', 'Review and save']);
     expect(PROTECTION.previewed).toBe('Not saved yet. Nothing has changed.');
-    expect(PROTECTION.readyIntro('Windows Hello')).toBe('Rules written for you. Choose Allow, Ask or Deny on one; it holds once you confirm it with Windows Hello.');
+    expect(PROTECTION.readyIntro('Windows Hello')).toBe('Rules written for you. Choose Allow, Ask first or Never on one; it holds once you confirm it with Windows Hello.');
     expect(PROTECTION.reviewDescription('Windows Hello')).toBe('Saving proposes each change, and it takes effect once you confirm it with Windows Hello on the island.');
     expect(changeCountLine(1)).toBe('1 change');
     expect(changeCountLine(3)).toBe('3 changes');
@@ -48,7 +48,7 @@ describe('Protection settings in the console words', () => {
 
   it('points between the tabs as the console does', () => {
     expect(PROTECTION.simplerTitle).toBe('Want the simple version?');
-    expect(PROTECTION.startTitle).toBe('Start from a ready-made rule');
+    expect(PROTECTION.startTitle).toBe('Start from a starter rule');
     expect(PROTECTION.handOver).toBe('See what to hand over');
     expect(PROTECTION.readyToHandOver).toBe('You could let go of');
     expect(PROTECTION.stopAsking).toBe('Stop asking');
@@ -68,7 +68,7 @@ describe('the ready-made rules read against what holds', () => {
 
   it('says the effect in force or Not added on the badge', () => {
     const inForce = [held(history, 'deny')];
-    expect(readyBadge(history, inForce)).toEqual({ word: 'In force as deny', tone: 'bad' });
+    expect(readyBadge(history, inForce)).toEqual({ word: 'In force as never', tone: 'bad' });
     expect(readyBadge(deleting, inForce)).toEqual({ word: 'Not added', tone: 'quiet' });
   });
 
@@ -76,7 +76,7 @@ describe('the ready-made rules read against what holds', () => {
     const inForce = [held(history, 'deny')];
     expect(readyChanges({ [history.id]: 'deny', [deleting.id]: 'ask' }, [history, deleting], inForce)).toEqual([{ rule: deleting, to: 'ask' }]);
     const moved = readyChanges({ [history.id]: 'ask' }, [history], inForce);
-    expect(moved.map(changeLine)).toEqual(['Deny to Ask']);
+    expect(moved.map(changeLine)).toEqual(['Never to Ask first']);
     expect(removals(moved)).toEqual([history.id]);
   });
 

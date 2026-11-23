@@ -40,6 +40,9 @@ struct AgentProfileCard: View {
             if bound {
                 connections
                 if let work { WorkLine(work: work) }
+                if let kind = profile.connections.first?.agentKind, let studio = AppWindow.shared.shell.studio {
+                    AgentPresetRow(studio: studio, agent: kind)
+                }
             } else {
                 StatusWord(.quiet, AgentProfileLines.noAgent)
             }
@@ -102,5 +105,49 @@ struct WorkLine: View {
                 .lineLimit(2)
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Starting this one agent on a shipped pack, and what it was started on; each rule waits for Touch ID on the island.
+private struct AgentPresetRow: View {
+    @ObservedObject var studio: StudioScreen
+    let agent: String
+    @State private var note: String?
+
+    var body: some View {
+        let packs = studio.studio.packs ?? []
+        let started = AgentPresets.started(studio.studio.rules?.rules ?? [], agent: agent, packs: packs)
+        VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
+            HStack(spacing: Memnox.Spacing.medium) {
+                Text(AgentPresets.line(started))
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                    .foregroundStyle(Memnox.Console.muted)
+                Spacer(minLength: Memnox.Spacing.small)
+                if !packs.isEmpty {
+                    Menu(AgentPresets.title) {
+                        ForEach(packs.filter { $0.id != started?.id }, id: \.id) { pack in
+                            Button(pack.name) { start(pack) }.help(pack.description)
+                        }
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+            }
+            if let note {
+                Text(note)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                    .foregroundStyle(Memnox.Console.muted)
+            }
+        }
+        .task { await studio.studio.readPacks() }
+    }
+
+    private func start(_ pack: RulePackView) {
+        Task {
+            switch await studio.studio.importPack(pack.toml, agent: agent) {
+            case .done, .proposed: note = AgentPresets.waits
+            case .failed(let why): note = why
+            }
+        }
     }
 }

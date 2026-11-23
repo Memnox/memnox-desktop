@@ -29,6 +29,8 @@ export interface HeldCard {
   readonly actionDigest: string | undefined;
   /** What it could affect, whether it can be undone and what was verified, where the cloud sent it. */
   readonly impact?: HeldImpact;
+  /** Nobody answered in time, so it was kept for later while its agent carries on without it. */
+  readonly parked?: true;
 }
 
 /**
@@ -53,6 +55,7 @@ export function heldCard(event: DaemonEvent, place: CallPlace = ON_THIS_COMPUTER
     expiresAt: event.expiresAt,
     sessionId: event.sessionId,
     actionDigest: event.actionDigest,
+    ...(event.parkedAt === undefined ? {} : { parked: true as const }),
   };
 }
 

@@ -25,9 +25,17 @@ struct PoliciesDestination: View {
 
     var body: some View {
         page
-            .task { await screen.studio.refresh() }
+            .task {
+                await screen.studio.refresh()
+                await screen.studio.readHistory()
+            }
             // A signed or declined proposal leaves the island, and the rules are read again so they show what holds.
-            .onChange(of: island.waiting.count) { Task { await screen.studio.refresh() } }
+            .onChange(of: island.waiting.count) {
+                Task {
+                    await screen.studio.refresh()
+                    await screen.studio.readHistory()
+                }
+            }
             .consoleSheet(isPresented: $building) {
                 RuleBuilderSheet(screen: screen, agents: shell.hub?.hub.hub?.agents.map(\.agent) ?? []) { building = false }
             }
@@ -110,7 +118,7 @@ struct PoliciesDestination: View {
             PointerCard(title: ProtectionLines.startTitle, note: ProtectionLines.startNote) { tab = .readyMade }
         }
         rulesInForce(view)
-        // The community's rule packs are left off for now, since the marketplace holds no listing yet.
+        if let history = screen.studio.history { RuleHistory(rows: history) }
     }
 
     private func rulesInForce(_ view: PolicyRulesView) -> some View {
@@ -571,3 +579,27 @@ private extension WidthClass {
     }
 }
 
+/// The rule changes answered on this computer, newest first, each saying who signed or declined it and whether it holds.
+private struct RuleHistory: View {
+    let rows: [RuleHistoryRow]
+
+    var body: some View {
+        let lines = RuleHistoryLines.lines(rows, now: Date())
+        ShellSection(title: RuleHistoryLines.title) {
+            if lines.isEmpty {
+                QuietLine(RuleHistoryLines.empty)
+            } else {
+                ShellPanel {
+                    ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                        if index > 0 { ShellDivider() }
+                        ShellRow(title: line.title, caption: line.caption) {
+                            EmptyView()
+                        } trailing: {
+                            StatusWord(line.inForce ? .good : .quiet, line.outcome)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

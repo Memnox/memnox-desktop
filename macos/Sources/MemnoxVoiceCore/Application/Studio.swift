@@ -37,6 +37,7 @@ public final class Studio: @unchecked Sendable {
     private var rulesView: PolicyRulesView?
     private var progressView: AutonomyProgress?
     private var packList: [RulePackView]?
+    private var historyRows: [RuleHistoryRow]?
     private var failed = false
     private var working: String?
 
@@ -52,6 +53,8 @@ public final class Studio: @unchecked Sendable {
     public var progress: AutonomyProgress? { lock.withLock { progressView } }
     /// The packs Memnox ships, once read; empty from a runtime that answered with none.
     public var packs: [RulePackView]? { lock.withLock { packList } }
+    /// The rule changes answered here, newest first; nil until read, or from a runtime with no such method.
+    public var history: [RuleHistoryRow]? { lock.withLock { historyRows } }
     /// The last read of the rules failed, so the page says so rather than drawing no rules.
     public var unreadable: Bool { lock.withLock { failed } }
     /// The rule, grant or pack a press is still working on, so its button can say so.
@@ -82,6 +85,14 @@ public final class Studio: @unchecked Sendable {
             } else if response?.ok == true {
                 packList = []
             }
+        }
+        changed?()
+    }
+
+    public func readHistory() async {
+        let response = await ask(link, DaemonRequest(id: ids.next(), method: .ruleHistory))
+        lock.withLock {
+            if let rows = response?.ruleHistory { historyRows = rows }
         }
         changed?()
     }

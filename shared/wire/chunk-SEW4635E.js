@@ -194,7 +194,13 @@ var POLICY_METHOD = {
   /** What could be handed over, what the autopilot holds, and where the machine stands. */
   PROGRESS: "progress",
   /** Takes one autopilot grant back at once, since that only narrows. */
-  AUTOPILOT_REVOKE: "autopilot-revoke"
+  AUTOPILOT_REVOKE: "autopilot-revoke",
+  /** The rule changes a person answered on this machine, newest first. Read only. */
+  RULE_HISTORY: "rule-history"
+};
+var RULE_CHANGE_KIND = {
+  ADDED: "added",
+  REMOVED: "removed"
 };
 var RULE_SOURCE = {
   /** A person added it on this machine, by voice, a form or a hand over. */
@@ -990,6 +996,7 @@ export {
   MCP_HEALTH,
   MCP_SCOPE,
   POLICY_METHOD,
+  RULE_CHANGE_KIND,
   RULE_SOURCE,
   AGENTS_METHOD,
   AGENT_STATUS,

@@ -12,6 +12,6 @@ final class NeedsYouLinesTests: XCTestCase {
         XCTAssertEqual(decided.map(\.id), ["a", "b"])
         XCTAssertEqual(decided.first?.caption, "Claude Code · Sam, signed")
         XCTAssertEqual(decided.map(\.outcome), ["Let go ahead", "Stopped"])
-        XCTAssertEqual(NeedsYouView.allCases.map(\.title), ["Waiting for you", "Decided today"])
+        XCTAssertEqual(NeedsYouView.allCases.map(\.title), ["Waiting for you", "Kept for later", "Decided today"])
     }
 }

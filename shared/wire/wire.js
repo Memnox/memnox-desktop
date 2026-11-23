@@ -41,6 +41,7 @@ import {
   REMOTE_CAPABILITY,
   REMOTE_METHOD,
   REMOTE_OUTCOME,
+  RULE_CHANGE_KIND,
   RULE_SCOPE,
   RULE_SOURCE,
   SKILLS_METHOD,
@@ -67,7 +68,7 @@ import {
   wentIn,
   workDraftFromText,
   workDraftOf
-} from "./chunk-5T7OLIGQ.js";
+} from "./chunk-SEW4635E.js";
 export {
   ACTIVITY_KIND,
   ACTIVITY_METHOD,
@@ -111,6 +112,7 @@ export {
   REMOTE_CAPABILITY,
   REMOTE_METHOD,
   REMOTE_OUTCOME,
+  RULE_CHANGE_KIND,
   RULE_SCOPE,
   RULE_SOURCE,
   SKILLS_METHOD,

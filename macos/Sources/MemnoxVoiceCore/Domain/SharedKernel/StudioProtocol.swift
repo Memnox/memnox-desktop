@@ -458,6 +458,31 @@ public struct AgentLaunched: Decodable, Equatable, Sendable {
     }
 }
 
+/// One rule change a person answered on this machine, as the runtime's `RuleHistoryRow` sends it.
+public struct RuleHistoryRow: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    /// `added` or `removed`, as the runtime's RULE_CHANGE_KIND names them.
+    public let kind: String
+    /// Each rule in one plain sentence, or the name of the rule taken out.
+    public let rules: [String]
+    /// `confirmed` or `declined`.
+    public let answer: String
+    public let answeredAt: String
+    public let answeredBy: String?
+    public let proposedBy: String
+
+    public init(id: String, kind: String, rules: [String], answer: String, answeredAt: String, answeredBy: String? = nil,
+                proposedBy: String) {
+        self.id = id
+        self.kind = kind
+        self.rules = rules
+        self.answer = answer
+        self.answeredAt = answeredAt
+        self.answeredBy = answeredBy
+        self.proposedBy = proposedBy
+    }
+}
+
 /// A pack Memnox ships, with its TOML to hand straight to rule-pack-import.
 public struct RulePackView: Decodable, Equatable, Identifiable, Sendable {
     /// The file it ships as, without its extension, which stays the same between releases.

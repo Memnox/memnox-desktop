@@ -93,6 +93,9 @@ final class UxContractTests: XCTestCase {
         XCTAssertEqual(NeedsYouView.allCases.map(\.title), views.map(\.label))
         let sections = (page.sections ?? []).filter { $0.platforms?.contains(Self.platform) ?? true }
         XCTAssertEqual(sections.map(\.label), [TeamRuleChangeLines.title])
+        let rules = try XCTUnwrap(try contract().pages.first { $0.id == Destination.rules.rawValue })
+        XCTAssertEqual((rules.sections ?? []).filter { $0.platforms?.contains(Self.platform) ?? true }.map(\.label),
+                       [RuleHistoryLines.title])
     }
 
     func testGivesEveryPageTheContractsTabsForThisMac() throws {

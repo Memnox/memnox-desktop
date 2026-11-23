@@ -11,7 +11,8 @@ import { MARK_OVERLAP_SHARE, markTiles, type ActionGlyph, type RuleMark } from '
 import { READY_EFFECTS, readyGroups, readyInForce, shownGroups, starterRules, type ReadyRule } from '../../../core/domain/ready-rules';
 import { AS_WRITTEN, plainCaption, plainCountLine, plainRule, writtenLines } from '../../../core/domain/plain-rules';
 import { canChange, changeCountLine, changeLine, changesToml, currentEffect, flatRules, inForceTabs, pickingSuggested, PROTECTION, PROTECTION_TABS, readyBadge, readyChanges, removals, type ProtectionTab, type ReadyChange } from '../../../core/domain/protection-lines';
-import type { PolicyRuleView } from '@memnox/core/wire';
+import type { PolicyRuleView, RuleHistoryRow } from '@memnox/core/wire';
+import { ruleHistoryLines, RuleHistoryLines } from '../../../core/domain/rule-history-lines';
 import { AgentLogos, ToolMark } from '../../kit/logos';
 import { fieldWords, ruleDocument, ruleText, RULES_FILE, tableOfDraft, tableOfRule, type RuleAlternative, type RuleTable } from '../../../core/domain/rule-toml';
 import { CodeBlock } from '../code-block';
@@ -84,8 +85,16 @@ export function PoliciesPage({ parts, width }: { parts: SettingsParts; width: Wi
   useObserved(studio);
   useEffect(() => {
     void studio.refresh();
+    void studio.readHistory();
   }, []);
-  useEffect(() => parts.host.onHomeStale?.(() => void studio.refresh()), []);
+  useEffect(
+    () =>
+      parts.host.onHomeStale?.(() => {
+        void studio.refresh();
+        void studio.readHistory();
+      }),
+    [],
+  );
   // The console's sidebar row lands on the choices first, so this page opens on the ready-made rules.
   const [tab, setTab] = useState<ProtectionTab>('readyMade');
   const [filter, setFilter] = useState<EffectTab>('all');
@@ -138,7 +147,7 @@ export function PoliciesPage({ parts, width }: { parts: SettingsParts; width: Wi
               {orgOnly && <p className="text-footnote text-muted">{scoped.length === 0 ? NO_ORGANIZATION_ITEMS : ORGANIZATION_READ_ONLY}</p>}
               <RulesInForce cards={onTab(cards, filter)} filtered={filter !== 'all'} chosen={chosen} pick={choose} />
             </Section>
-            {/* The community's rule packs are left off for now, since the marketplace holds no listing yet. */}
+            {studio.history !== undefined && <RuleHistory rows={studio.history} />}
           </>
         )}
         {tab === 'autonomy' && <HandOver parts={parts} said={said} />}
@@ -840,5 +849,23 @@ function PackButtons({ parts, said }: { parts: SettingsParts; said: (outcome: St
         }}
       />
     </>
+  );
+}
+
+/** The rule changes answered on this computer, newest first, each saying who signed or declined it and whether it holds. */
+function RuleHistory({ rows }: { rows: readonly RuleHistoryRow[] }) {
+  const lines = ruleHistoryLines(rows, Date.now());
+  return (
+    <Section title={RuleHistoryLines.title}>
+      {lines.length === 0 ? (
+        <p className="text-footnote text-muted">{RuleHistoryLines.empty}</p>
+      ) : (
+        <Panel>
+          {lines.map((line) => (
+            <Row key={line.id} title={line.title} caption={line.caption} trailing={<StatusWord tone={line.inForce ? 'good' : 'quiet'}>{line.outcome}</StatusWord>} />
+          ))}
+        </Panel>
+      )}
+    </Section>
   );
 }

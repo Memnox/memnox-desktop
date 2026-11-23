@@ -127,6 +127,8 @@ public enum DaemonMethod: String, Sendable {
     case rulePackImport = "rule-pack-import"
     /// The packs Memnox ships, each offered whole and imported through rule-pack-import.
     case rulePacks = "rule-packs"
+    /// The rule changes a person answered on this machine, newest first. Read only.
+    case ruleHistory = "rule-history"
     /// What could be handed over, what the autopilot holds, and where the machine stands.
     case progress
     /// Takes one autopilot grant back at once, since that only narrows.
@@ -1600,6 +1602,8 @@ public struct DaemonEvent: Decodable, Equatable, Sendable {
     public let withinSession: Bool?
     /// On a held call, the digest of exactly this call, which a yes signs and sends so one changed since is refused.
     public let actionDigest: String?
+    /// On a held call nobody answered in time and kept for later, while its agent carries on without it.
+    public let parkedAt: String?
     /// On an app start, the app's own links and what it reads as it opens.
     public let app: AppLinks?
     /// On a launch, a terminal app or an editor's agent panel rather than a terminal tab; on an app start, a new chat first.
@@ -1948,6 +1952,8 @@ public struct DaemonResponse: Decodable, Equatable, Sendable {
     public let agentOverlaps: AgentOverlapsView?
     /// On rule-packs.
     public let rulePacks: [RulePackView]?
+    /// On rule-history; absent from an older runtime.
+    public let ruleHistory: [RuleHistoryRow]?
     /// On skills-hub, and after every skill change, so a screen redraws from one answer.
     public let skillsHub: SkillsHubView?
     /// On skill-sync, and after a change that wrote agents' folders.

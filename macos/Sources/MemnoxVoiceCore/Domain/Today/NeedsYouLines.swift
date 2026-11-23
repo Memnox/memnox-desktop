@@ -1,14 +1,17 @@
 import Foundation
 
-/// The two views of Needs you: what waits on the person now, and what they already decided today, so a person who
-/// answered on the island or the phone can see what they said yes and no to without opening Activity.
+/// The three views of Needs you: what waits on the person now, what nobody answered in time and was kept while its
+/// agent carries on, and what they already decided today, so a person who answered on the island or the phone can see
+/// what they said yes and no to without opening Activity.
 public enum NeedsYouView: String, CaseIterable, Sendable {
     case waiting
+    case kept
     case decided
 
     public var title: String {
         switch self {
         case .waiting: "Waiting for you"
+        case .kept: "Kept for later"
         case .decided: "Decided today"
         }
     }
@@ -24,6 +27,8 @@ public struct DecidedLine: Equatable, Identifiable, Sendable {
 }
 
 public enum NeedsYouLines {
+    public static let noneKept = "Nothing is kept for later."
+    public static let noneKeptDetail = "A question nobody answered in time waits here while its agent carries on with other work."
     public static let noneDecided = "Nothing was decided today."
     public static let noneDecidedDetail = "What you allow or stop on the island or your phone shows here for the rest of the day."
 

@@ -12,6 +12,7 @@ import {
   type LiveActivityRow,
   type PolicyRulesView,
   type ProgressView,
+  type RuleHistoryRow,
   type RulePackView,
   type RuleVerdictView,
 } from '@memnox/core/wire';
@@ -55,6 +56,7 @@ export class Studio extends Observed {
   private rulesView: PolicyRulesView | undefined;
   private progressView: ProgressView | undefined;
   private packList: RulePackView[] | undefined;
+  private historyRows: RuleHistoryRow[] | undefined;
   private failedRead = false;
   private working: string | undefined;
 
@@ -78,6 +80,11 @@ export class Studio extends Observed {
     return this.packList;
   }
 
+  /** The rule changes answered here, newest first; undefined until read, or from a runtime with no such method. */
+  get history(): readonly RuleHistoryRow[] | undefined {
+    return this.historyRows;
+  }
+
   get unreadable(): boolean {
     return this.failedRead;
   }
@@ -89,6 +96,12 @@ export class Studio extends Observed {
   async readPacks(): Promise<void> {
     const response = await ask(this.link, this.ids, { method: POLICY_METHOD.RULE_PACKS });
     this.packList = response?.rulePacks ?? (response?.ok === true ? [] : undefined);
+    this.changed();
+  }
+
+  async readHistory(): Promise<void> {
+    const response = await ask(this.link, this.ids, { method: POLICY_METHOD.RULE_HISTORY });
+    if (response?.ruleHistory !== undefined) this.historyRows = response.ruleHistory;
     this.changed();
   }
 

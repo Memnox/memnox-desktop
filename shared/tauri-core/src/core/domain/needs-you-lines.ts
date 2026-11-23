@@ -3,15 +3,18 @@ import { activityWords } from './activity-words';
 import { answeredWords } from './studio-lines';
 
 /**
- * The two views of Needs you, the Mac's `NeedsYouView`: what waits on the person now, and what they already decided
- * today, so a person who answered on the island or the phone sees what they said yes and no to without opening Activity.
+ * The three views of Needs you, the Mac's `NeedsYouView`: what waits on the person now, what nobody answered in time and
+ * was kept while its agent carries on, and what they already decided today, so a person who answered on the island or
+ * the phone sees what they said yes and no to without opening Activity.
  */
-export type NeedsYouView = 'waiting' | 'decided';
+export type NeedsYouView = 'waiting' | 'kept' | 'decided';
 
-export const NEEDS_YOU_VIEWS: readonly NeedsYouView[] = ['waiting', 'decided'];
+export const NEEDS_YOU_VIEWS: readonly NeedsYouView[] = ['waiting', 'kept', 'decided'];
 
 export const NeedsYouLines = {
-  view: { waiting: 'Waiting for you', decided: 'Decided today' } satisfies Record<NeedsYouView, string>,
+  view: { waiting: 'Waiting for you', kept: 'Kept for later', decided: 'Decided today' } satisfies Record<NeedsYouView, string>,
+  noneKept: 'Nothing is kept for later.',
+  noneKeptDetail: 'A question nobody answered in time waits here while its agent carries on with other work.',
   noneDecided: 'Nothing was decided today.',
   noneDecidedDetail: 'What you allow or stop on the island or your phone shows here for the rest of the day.',
 } as const;

@@ -5,6 +5,7 @@ import { ALWAYS_ALLOW, ALWAYS_DENY, ANSWER_LABEL, ANSWER_ORDER, ANSWER_OUTCOME }
 import { DESTINATIONS, groupHeading } from '../src/core/domain/destinations';
 import { NEEDS_YOU_VIEWS, NeedsYouLines } from '../src/core/domain/needs-you-lines';
 import { TeamRuleChangeLines } from '../src/core/domain/team-rule-changes';
+import { RuleHistoryLines } from '../src/core/domain/rule-history-lines';
 import { SESSION_REASON_LABEL, SESSION_STATUS_ORDER, statusLabel } from '../src/core/domain/session-status';
 
 /**
@@ -84,5 +85,7 @@ describe('the ux contract', () => {
     expect(mine(page?.views).map((each) => each.id)).toEqual([...NEEDS_YOU_VIEWS]);
     expect(mine(page?.views).map((each) => each.label)).toEqual(NEEDS_YOU_VIEWS.map((each) => NeedsYouLines.view[each]));
     expect(mine(page?.sections).map((each) => each.label)).toEqual([TeamRuleChangeLines.title]);
+    const rules = contract().pages.find((each) => each.id === 'rules');
+    expect(mine(rules?.sections).map((each) => each.label)).toEqual([RuleHistoryLines.title]);
   });
 });

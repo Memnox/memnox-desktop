@@ -62,6 +62,8 @@ struct HeldCard: Equatable, Sendable {
     let impact: HeldImpact?
     /// The folder it waits in, by name, which names the project it happens in.
     let place: String?
+    /// Nobody answered in time, so it was kept for later while its agent carries on without it.
+    let parked: Bool
 
     /// `server` names the server that raised it, so the person sees where the call waits; nil for this Mac.
     init(_ event: DaemonEvent, server: String? = nil) {
@@ -80,6 +82,7 @@ struct HeldCard: Equatable, Sendable {
         team = false
         impact = nil
         self.place = event.place
+        parked = event.parkedAt != nil
     }
 
     /// A teammate's call the workspace routed here: named with its machine and team, and every allow asks for Touch ID.
@@ -98,6 +101,7 @@ struct HeldCard: Equatable, Sendable {
         team = true
         impact = call.impact
         place = nil
+        parked = false
     }
 
     /// What the Touch ID sheet says this answer is for, naming the call by its one label.

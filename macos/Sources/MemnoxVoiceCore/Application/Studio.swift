@@ -104,10 +104,13 @@ public final class Studio: @unchecked Sendable {
         return await change(grantId, request, done: "Taken back. Your agents ask about it again.")
     }
 
-    /// Each rule in the pack becomes its own proposal, signed one at a time on the island.
-    public func importPack(_ toml: String) async -> StudioOutcome {
+    /// Each rule in the pack becomes its own proposal, signed one at a time on the island. Given a project folder its
+    /// rules hold only there, and given an agent's kind they hold only for that agent.
+    public func importPack(_ toml: String, project: String? = nil, agent: String? = nil) async -> StudioOutcome {
         var request = DaemonRequest(id: ids.next(), method: .rulePackImport)
         request.rulePack = toml
+        request.rulePackProject = project
+        request.rulePackAgent = agent
         let response = await send(Self.importing, request)
         if let response, response.ok, let proposed = response.packProposed {
             let count = proposed.count

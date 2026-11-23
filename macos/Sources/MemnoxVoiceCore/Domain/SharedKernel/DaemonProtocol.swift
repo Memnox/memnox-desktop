@@ -1380,6 +1380,10 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var ruleTest: RuleTestInput?
     /// On rule-pack-import: the pack as TOML text.
     public var rulePack: String?
+    /// On rule-pack-import: a project folder, absolute, so the pack's rules hold only inside it.
+    public var rulePackProject: String?
+    /// On rule-pack-import: one agent, by kind, so the pack's rules hold only for it.
+    public var rulePackAgent: String?
     /// On autopilot-revoke: the grant, by id.
     public var grantId: String?
     /// On activity and activity-export: which rows.

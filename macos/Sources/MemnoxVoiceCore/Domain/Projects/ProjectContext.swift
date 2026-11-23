@@ -207,7 +207,7 @@ public enum ProjectContext {
     public static let searchFrom = 6
     public static let searchPrompt = "Find a project"
     public static let emptyTitle = "Keep each piece of work apart"
-    public static let emptyLine = "A project is a folder on this computer where your AI agents work, such as a website, a report or a campaign. Add one and Memnox keeps what its agents learn and may do there apart from your other work."
+    public static let emptyLine = "A project is one piece of work your agents help with, such as a website, the support inbox or invoicing. Each gets its own care, its own memory and its own view of who is working on it."
     public static let suggestionsTitle = "Folders your agents worked in"
     public static let suggestionsNote = "Your agents already worked in these folders. Add one to make it a project."
     public static let chooseTitle = "Choose a folder"

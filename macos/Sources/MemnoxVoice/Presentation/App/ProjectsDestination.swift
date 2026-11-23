@@ -104,7 +104,7 @@ struct ProjectsDestination: View {
                 header(list)
                 NoteBanner(text: screen.note)
                 if list.isEmpty {
-                    EmptyState(symbol: "folder.badge.plus", title: ProjectContext.emptyTitle, detail: ProjectContext.emptyLine)
+                    WhyProjects { example in choose(startingAs: example.care) }
                 } else {
                     cards(list)
                 }
@@ -145,6 +145,7 @@ struct ProjectsDestination: View {
                       spacing: Memnox.Spacing.large) {
                 ForEach(shown) { each in
                     ProjectCard(project: each, chips: ProjectPageLines.chips(each, sources: shell.memory?.memory.sources ?? []),
+                                care: ProjectCare.of(rulesHere: ProjectLines.rules(shell.studio?.studio.rules?.rules ?? [], in: each).here),
                                 pulse: ProjectContext.pulse(each, sessions: island.cards,
                                                             waitingPlaces: island.waiting.entries.map(\.card.place), now: Date()),
                                 busy: screen.projects.busy != nil,
@@ -196,8 +197,9 @@ struct ProjectsDestination: View {
         shell.go(ProjectSidebar.route(id))
     }
 
-    /// Takes a folder in through the daemon's own open, then opens the project it became.
-    private func add(_ folder: String) {
+    /// Takes a folder in through the daemon's own open, then opens the project it became, started on a level of care
+    /// where one was chosen; its rules then wait for Touch ID on the island.
+    private func add(_ folder: String, startingAs care: ProjectCare = .relaxed) {
         if let problem = LaunchLines.folderProblem(folder) {
             screen.note = problem
             return
@@ -208,19 +210,32 @@ struct ProjectsDestination: View {
             if case .failed = outcome { return }
             let made = screen.projects.projects?.first { ShellLines.inside(folder, project: $0.path) && ShellLines.inside($0.path, project: folder) }
             if let made { open(made.id) }
+            start(folder, on: care)
+        }
+    }
+
+    /// Proposes the starter rules a level names for one folder only; Relaxed proposes nothing.
+    private func start(_ folder: String, on care: ProjectCare) {
+        guard let id = care.level?.packId, let studio = shell.studio?.studio else { return }
+        Task {
+            await studio.readPacks()
+            guard let pack = (studio.packs ?? []).first(where: { $0.id == id }) else { return }
+            _ = await studio.importPack(pack.toml, project: folder)
         }
     }
 
     /// Finder's own panel, which also takes a typed path with Command Shift G.
-    private func choose() {
+    private func choose() { choose(startingAs: .relaxed) }
+
+    private func choose(startingAs care: ProjectCare) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Add as a project"
-        panel.message = ProjectContext.emptyLine
+        panel.message = ProjectWhy.chooseLine
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        add(url.path)
+        add(url.path, startingAs: care)
     }
 }
 
@@ -230,6 +245,8 @@ struct ProjectsDestination: View {
 private struct ProjectCard: View {
     let project: ProjectView
     let chips: [String]
+    /// How careful agents are inside it, read off the rules that hold there.
+    let care: ProjectCare
     /// Who works there now, what waits on the person there, and when anything last happened.
     let pulse: ProjectPulse
     let busy: Bool
@@ -296,6 +313,10 @@ private struct ProjectCard: View {
                     // Room for the menu laid over the corner, outside the card's own button.
                     Color.clear.frame(width: Self.menuWidth, height: 1)
                 }
+                Text("\(care.label). \(care.line)")
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                    .foregroundStyle(Memnox.Console.muted)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(project.path)
                     .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
                     .foregroundStyle(Memnox.Console.muted)
@@ -491,3 +512,44 @@ struct OrganizationPanel: View {
     }
 }
 
+
+/// The empty Projects page: why keeping work apart helps, in plain words, and three example projects each one press
+/// from being started on its own level of care.
+private struct WhyProjects: View {
+    let start: (ProjectExample) -> Void
+
+    var body: some View {
+        ShellSection(title: ProjectWhy.title) {
+            VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+                ForEach(ProjectWhy.lines, id: \.self) { line in
+                    Label(line, systemImage: "checkmark")
+                        .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                        .foregroundStyle(Memnox.Console.foreground)
+                }
+            }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: ProjectsLayout.cardWidth), spacing: Memnox.Spacing.large)],
+                      spacing: Memnox.Spacing.large) {
+                ForEach(ProjectExample.all) { example in
+                    ShellPanel {
+                        VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+                            HStack {
+                                Text(example.name)
+                                    .font(Memnox.Console.sans(Memnox.TextSize.body, .semibold))
+                                    .foregroundStyle(Memnox.Console.foreground)
+                                Spacer(minLength: Memnox.Spacing.small)
+                                StatusWord(.quiet, example.care.label)
+                            }
+                            Text(example.line)
+                                .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                                .foregroundStyle(Memnox.Console.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button(ProjectExample.startTitle, systemImage: "folder.badge.plus") { start(example) }
+                                .buttonStyle(KitButton(kind: .secondary))
+                        }
+                        .padding(SettingsMetrics.cardPadding)
+                    }
+                }
+            }
+        }
+    }
+}

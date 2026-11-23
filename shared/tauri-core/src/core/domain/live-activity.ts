@@ -27,8 +27,17 @@ export function liveMatch(row: LiveActivityRow, filter: ActivityFilter): LiveMat
   if (filter.until !== undefined && row.at > filter.until) return 'hidden';
   const text = filter.text?.trim().toLowerCase() ?? '';
   if (text !== '' && ![row.operation, row.target ?? '', row.agent].some((name) => name.toLowerCase().includes(text))) return 'hidden';
+  // A live row names no session's folder, so one outside the project may still be its session's command.
+  if (filter.project !== undefined && !inside(row.target, filter.project)) return 'unknown';
   if (filter.kind !== undefined) return 'unknown';
   return 'shown';
+}
+
+/** Whether a target is the folder or a path in it, never a sibling that only shares its start. */
+function inside(target: string | undefined, folder: string): boolean {
+  if (target === undefined) return false;
+  const root = folder.endsWith('/') ? folder.slice(0, -1) : folder;
+  return target === root || target.startsWith(`${root}/`);
 }
 
 /** The pill over a list scrolled away from its top. */

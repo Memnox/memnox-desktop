@@ -7,6 +7,7 @@ import { ago } from '../../../core/domain/session-text';
 import { activityLine, answeredWords, EFFECT_WORDS, effectTone, isEffect, sourceWords } from '../../../core/domain/studio-lines';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { useInspectorHost } from '../inspector-host';
+import { useShellChoices } from '../shell-choices';
 import { Inspector } from '../widgets';
 import { ActivityLines } from '../../../core/domain/activity-words';
 import { BrandLogo, Button, Chip, ChipGroup, EmptyState, Panel, ReadFailed, Row, SearchInput, Section, StatusWord } from '../../kit';
@@ -28,7 +29,9 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
   const [effect, setEffect] = useState<string>('');
   const [text, setText] = useState('');
   const [note, setNote] = useState<string | undefined>(undefined);
+  const { project } = useShellChoices();
   const filter: ActivityFilter = {
+    ...(project === undefined ? {} : { project: project.path }),
     ...(effect === '' ? {} : { effect: effect as ActivityFilter['effect'] }),
     ...(text.trim() === '' ? {} : { text: text.trim() }),
   };

@@ -36,4 +36,15 @@ final class HomeBriefTests: XCTestCase {
         XCTAssertEqual(ids[.ready]?.count, 1)
         XCTAssertEqual(HomeBrief.items(blocks).first?.id, "held:h")
     }
+
+    func testNarrowsWhatWaitsAndWorksToTheProjectChosen() {
+        let working = SessionCard(sessionId: "w", agent: "claude-code", agentName: "Claude Code", task: "tests", state: "working",
+                                  lastActive: "2026-11-01T08:00:00Z")
+        let held = TodayHeld(subject: "h", agent: "codex", who: "Codex", what: "rm -rf build", at: "2026-11-01T12:00:00Z")
+        let sources = TodaySources(held: [held], sessions: [working], owed: ["Sign in"])
+        let blocks = HomeBrief.blocks(sources, now: now, project: "Website", calendar: calendar)
+        let ids = Dictionary(uniqueKeysWithValues: blocks.map { ($0.block, $0.items.map(\.id)) })
+        XCTAssertEqual(ids[.waiting], ["owed:Sign in"])
+        XCTAssertEqual(ids[.working], [])
+    }
 }

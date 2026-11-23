@@ -38,7 +38,8 @@ struct TodayDestination<Lead: View>: View {
             page(now: context.date)
         }
         .onReceive(changes) { _ in tick += 1 }
-        .task { await read() }
+        // Read again when the project picker moves, since Today narrows to the project chosen.
+        .task(id: shell.projectId) { await read() }
         .task(id: activity?.activity.live.count ?? 0) {
             // A row arriving live is a name only, so the day is read again to show it whole.
             if (activity?.activity.live.count ?? 0) > 0 { await readActivity() }
@@ -55,7 +56,7 @@ struct TodayDestination<Lead: View>: View {
 
     private func page(now: Date) -> some View {
         let sources = self.sources
-        let blocks = HomeBrief.blocks(sources, now: now)
+        let blocks = HomeBrief.blocks(sources, now: now, project: shell.currentProject?.name)
         let items = HomeBrief.items(blocks)
         let open = items.first { $0.id == shell.inspecting }
         return InspectorLayout(width: width, title: TodayLines.position(of: open?.id, in: items), close: { shell.inspecting = nil }) {
@@ -110,7 +111,8 @@ struct TodayDestination<Lead: View>: View {
     private func readActivity() async {
         guard shell.supports("activity") == true, let activity else { return }
         let midnight = Calendar.current.startOfDay(for: Date())
-        await activity.activity.show(ActivityFilter(since: ISO8601DateFormatter().string(from: midnight)))
+        await activity.activity.show(ActivityFilter(since: ISO8601DateFormatter().string(from: midnight),
+                                                    project: shell.currentProject?.path))
     }
 
     // MARK: Strip and notes
@@ -290,7 +292,7 @@ struct TodayDestination<Lead: View>: View {
     private func step(_ offset: Int, _ items: [TodayItem]) {
         guard let next = TodayBoard.step(from: shell.inspecting, by: offset, in: items) else { return }
         // Moving onto a row folded away opens it, so the open item is always on screen.
-        let blocks = HomeBrief.blocks(sources, now: Date())
+        let blocks = HomeBrief.blocks(sources, now: Date(), project: shell.currentProject?.name)
         if let block = blocks.first(where: { $0.items.contains { $0.id == next } }) {
             hidden.remove(block.block)
             if block.block == .waiting, (block.items.firstIndex { $0.id == next } ?? 0) >= TodayBoard.urgentShown { everyUrgent = true }

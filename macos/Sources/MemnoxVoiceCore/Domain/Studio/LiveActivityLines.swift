@@ -25,7 +25,16 @@ public enum LiveActivityLines {
         if !text.isEmpty, ![row.operation, row.target ?? "", row.agent].contains(where: { $0.lowercased().contains(text) }) {
             return .hidden
         }
+        // A live row names no session's folder, so one outside the project may still be its session's command.
+        if let project = filter.project, !inside(row.target, project) { return .unknown }
         return filter.kind == nil ? .shown : .unknown
+    }
+
+    /// Whether a target is the folder or a path in it, never a sibling that only shares its start.
+    private static func inside(_ target: String?, _ folder: String) -> Bool {
+        guard let target else { return false }
+        let root = folder.hasSuffix("/") ? String(folder.dropLast()) : folder
+        return target == root || target.hasPrefix(root + "/")
     }
 
     /// The pill over a list scrolled away from its top.

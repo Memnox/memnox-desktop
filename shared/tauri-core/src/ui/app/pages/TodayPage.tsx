@@ -29,6 +29,7 @@ import {
   type TodayState,
 } from '../../../core/domain/today-board';
 import { AgentName, BrandLogo } from '../../kit/logos';
+import { useShellChoices } from '../shell-choices';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { bringForward } from '../../sessions/open-session';
 import { Inspector } from '../widgets';
@@ -116,14 +117,20 @@ export function TodayPage({
     const clock = setInterval(() => setNow(Date.now()), CLOCK_MS);
     return () => clearInterval(clock);
   }, []);
+  // The project picker narrows Today; kept in a ref so the live listener reads the one chosen now.
+  const { project } = useShellChoices();
+  const folder = useRef(project?.path);
+  folder.current = project?.path;
   const readActivity = () => {
     if (support.supports('activity') !== true) return;
-    void activity.show({ since: new Date(startOfDay(Date.now())).toISOString() }).then(() => setReadAt(Date.now()));
+    const since = new Date(startOfDay(Date.now())).toISOString();
+    const path = folder.current;
+    void activity.show({ since, ...(path === undefined ? {} : { project: path }) }).then(() => setReadAt(Date.now()));
   };
+  useEffect(() => readActivity(), [project?.path, support.supports('activity')]);
   useEffect(() => {
     void home.refresh().then(() => setReadAt(Date.now()));
     if (support.supports('agents') === true) void agents.refresh();
-    readActivity();
     // The projects name where each held call and session happens, so a person with several sees where.
     if (support.supports('projects') === true && projects.projects === undefined) void projects.refresh();
     page.current?.focus();
@@ -150,7 +157,7 @@ export function TodayPage({
     ...(home.home?.ready === undefined ? {} : { ready: home.home.ready }),
     projects: projects.projects ?? [],
   };
-  const blocks = homeBrief(sources, now);
+  const blocks = homeBrief(sources, now, project?.name);
   const items = briefItems(blocks);
   const opened = items.find((item) => item.id === open);
   const needYou = blocks.find((each) => each.block === 'waiting')?.items ?? [];

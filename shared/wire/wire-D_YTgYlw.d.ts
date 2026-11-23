@@ -3292,6 +3292,11 @@ interface ActivityFilter {
     since?: string;
     /** ISO 8601; only rows at or before it. */
     until?: string;
+    /**
+     * An absolute folder: only rows of sessions that touched something inside it, which is how a
+     * session's project is known, since a command names no folder of its own.
+     */
+    project?: string;
 }
 interface ActivityRow {
     id: string;

@@ -245,9 +245,12 @@ public struct ActivityFilter: Encodable, Equatable, Sendable {
     public var since: String?
     /// ISO 8601; only rows at or before it.
     public var until: String?
+    /// An absolute folder: only rows of sessions that touched something inside it, as the project picker narrows.
+    public var project: String?
 
     public init(effect: RuleEffect? = nil, agent: String? = nil, kind: ActivityKind? = nil, text: String? = nil,
-                since: String? = nil, until: String? = nil) {
+                since: String? = nil, until: String? = nil, project: String? = nil) {
+        self.project = project
         self.effect = effect?.rawValue
         self.agent = agent
         self.kind = kind?.rawValue

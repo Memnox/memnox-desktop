@@ -26,6 +26,11 @@ final class LiveActivityTests: XCTestCase {
         XCTAssertEqual(LiveActivityLines.match(row, ActivityFilter(text: "deploy")), .hidden)
         XCTAssertEqual(LiveActivityLines.match(row, ActivityFilter(since: "2026-10-31T00:00:00Z")), .hidden)
         XCTAssertEqual(LiveActivityLines.match(row, ActivityFilter(kind: .command)), .unknown)
+        XCTAssertEqual(LiveActivityLines.match(row, ActivityFilter(project: "/work/site")), .unknown)
+        let inside = LiveActivityRow(id: "b", at: "2026-10-30T10:00:00Z", agent: "claude-code", operation: "file.write",
+                                     effect: "allow", target: "/work/site/index.html")
+        XCTAssertEqual(LiveActivityLines.match(inside, ActivityFilter(project: "/work/site")), .shown)
+        XCTAssertEqual(LiveActivityLines.match(inside, ActivityFilter(project: "/work/sit")), .unknown)
     }
 
     func testWordsThePillAndTheRefreshLine() {

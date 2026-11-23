@@ -36,10 +36,13 @@ public enum HomeBrief {
     /// Not covered is left off for now, so Home stays straightforward; its items still reach Today's own list.
     public static let shown: [HomeBriefBlock] = HomeBriefBlock.allCases.filter { $0 != .notCovered }
 
-    /// Every block shown in the console's order, an empty one kept so it can say so.
-    public static func blocks(_ sources: TodaySources, now: Date,
+    /// Every block shown in the console's order, an empty one kept so it can say so. With a project chosen in the
+    /// picker, what waits and what works is only that project's, while what only the person owes and what they could
+    /// let go of stay, since neither belongs to one project; Today is narrowed where its activity is read.
+    public static func blocks(_ sources: TodaySources, now: Date, project: String? = nil,
                               calendar: Calendar = .current) -> [(block: HomeBriefBlock, items: [TodayItem])] {
         let overview = TodayBoard.overview(sources, now: now, calendar: calendar)
+            .filter { project == nil || [.handOver, .owed].contains($0.kind) || $0.project == project }
         let done = TodayBoard.done(sources.activity, now: now, calendar: calendar)
         return shown.map { block in
             switch block {

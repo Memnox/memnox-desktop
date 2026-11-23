@@ -29,8 +29,14 @@ export const HOME_BRIEF_NONE: Record<HomeBriefBlock, string> = {
 };
 
 /** Every block Home shows, in the console's order, an empty one kept so it can say so, read off the sources Today reads. */
-export function homeBrief(sources: TodaySources, now: number): { block: HomeBriefBlock; items: TodayItem[] }[] {
-  const board = overview(sources, now);
+/**
+ * With a project chosen in the picker, what waits and what works is only that project's, while what only the person
+ * owes and what they could let go of stay, since neither belongs to one project; Today is narrowed where it is read.
+ */
+export function homeBrief(sources: TodaySources, now: number, project?: string): { block: HomeBriefBlock; items: TodayItem[] }[] {
+  const board = overview(sources, now).filter(
+    (item) => project === undefined || item.kind.kind === 'hand-over' || item.kind.kind === 'owed' || item.project === project,
+  );
   const of = (block: HomeBriefBlock): TodayItem[] => {
     switch (block) {
       // What only the person can do waits on them as much as a held call does.

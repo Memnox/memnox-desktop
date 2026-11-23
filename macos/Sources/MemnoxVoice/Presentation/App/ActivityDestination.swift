@@ -59,7 +59,7 @@ struct ActivityDestination: View {
 
     private var filter: ActivityFilter {
         let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return ActivityFilter(effect: effect, text: words.isEmpty ? nil : words)
+        return ActivityFilter(effect: effect, text: words.isEmpty ? nil : words, project: shell.currentProject?.path)
     }
 
     private var toolbar: some View {

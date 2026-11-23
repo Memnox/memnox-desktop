@@ -57,3 +57,10 @@ describe('homeOpener', () => {
     expect(homeOpenerOf([{ block: 'working', items: working }], 2)).toBe('2 agents working. Nothing needs you. Memnox stopped 2 risky actions today.');
   });
 });
+
+describe('homeBrief with a project chosen', () => {
+  it('keeps only that project in what waits and works, and what the person owes', () => {
+    const blocks = homeBrief({ ...empty, owed: ['Sign in'] }, now, 'Website');
+    expect(blocks.find((each) => each.block === 'waiting')?.items.map((item) => item.title)).toHaveLength(1);
+  });
+});

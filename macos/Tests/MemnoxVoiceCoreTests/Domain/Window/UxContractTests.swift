@@ -19,6 +19,8 @@ final class UxContractTests: XCTestCase {
             let sf: String
             let platforms: [String]
             let tabs: [Tab]?
+            let views: [Tab]?
+            let sections: [Tab]?
         }
 
         struct Answers: Decodable {
@@ -82,6 +84,15 @@ final class UxContractTests: XCTestCase {
         XCTAssertEqual(Destinations.all.map(\.title), pages.map(\.label))
         XCTAssertEqual(Destinations.all.map(\.symbol), pages.map(\.sf))
         XCTAssertEqual(Destinations.all.map { $0.group == .top ? nil : $0.group.rawValue }, pages.map(\.group))
+    }
+
+    func testDrawsNeedsYousViewsAndSectionsInTheContractsWords() throws {
+        let page = try XCTUnwrap(try contract().pages.first { $0.id == Destination.needsYou.rawValue })
+        let views = (page.views ?? []).filter { $0.platforms?.contains(Self.platform) ?? true }
+        XCTAssertEqual(NeedsYouView.allCases.map(\.rawValue), views.map(\.id))
+        XCTAssertEqual(NeedsYouView.allCases.map(\.title), views.map(\.label))
+        let sections = (page.sections ?? []).filter { $0.platforms?.contains(Self.platform) ?? true }
+        XCTAssertEqual(sections.map(\.label), [TeamRuleChangeLines.title])
     }
 
     func testGivesEveryPageTheContractsTabsForThisMac() throws {

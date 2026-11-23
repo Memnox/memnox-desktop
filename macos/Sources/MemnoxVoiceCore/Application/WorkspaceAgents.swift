@@ -14,6 +14,8 @@ public final class WorkspaceAgents: @unchecked Sendable {
         public let workspace: String
         public let profiles: [ProfileView]
         public let work: [AgentWork]
+        /// The team's rule changes waiting on a second person; empty where the workspace would not say.
+        public var ruleChanges: [CloudRuleChange] = []
     }
 
     /// Told after anything here changed, on whatever thread that happened.
@@ -40,12 +42,15 @@ public final class WorkspaceAgents: @unchecked Sendable {
             do {
                 let profiles = try await reader.agentProfiles(in: workspace, token: credential.token)
                 let mine = try await reader.myAgentWork(in: workspace, token: credential.token)
+                // Read apart, so a workspace that will not list its rule changes still shows its agents.
+                let changes = (try? await reader.pendingRuleChanges(in: workspace, token: credential.token)) ?? []
                 fresh.append(Remote(workspace: workspace,
                                     profiles: profiles.map { WorkspaceAgentsLines.profileView($0, you: credential.personId) },
                                     work: mine.work.map {
                                         WorkspaceAgentsLines.work($0, handoffs: mine.handoffs, you: credential.personId, profiles: profiles)
                                     }
-                                        + orphans(mine, you: credential.personId)))
+                                        + orphans(mine, you: credential.personId),
+                                    ruleChanges: changes))
             } catch WorkspaceInboxError.signedOut {
                 lock.withLock { kept = [] }
                 changed?()

@@ -3,6 +3,7 @@ import { PERSON_DEVICE_KIND, readHeldCall, type InboxAnswerReply, type PersonCod
 import { readCloudMyWork, readCloudProfiles, type CloudMyWork, type CloudProfileView } from '../domain/workspace-agents';
 import { readWorkCorrelations, type WorkCorrelation } from '../domain/work-correlations';
 import { WorkspaceInboxError, type CodeRedemption, type HttpTransport, type WorkspaceAgentsReader, type WorkspaceInbox } from './ports/workspace-inbox';
+import { readCloudRuleChanges, type CloudRuleChange } from '../domain/team-rule-changes';
 
 /** Still waiting on the console is the one refusal that keeps the asking going. */
 const PENDING = 'authorization_pending';
@@ -61,6 +62,10 @@ export class CloudInbox implements WorkspaceInbox, WorkspaceAgentsReader {
 
   async myAgentWork(workspace: string, token: string): Promise<CloudMyWork> {
     return readCloudMyWork(await this.call<unknown>('GET', `v1/workspaces/${segment(workspace)}/me/agent-work`, undefined, token));
+  }
+
+  async pendingRuleChanges(workspace: string, token: string): Promise<readonly CloudRuleChange[]> {
+    return readCloudRuleChanges(await this.call<unknown>('GET', `v1/workspaces/${segment(workspace)}/policies/proposals?status=pending`, undefined, token));
   }
 
   async workCorrelations(workspace: string, sessionIds: readonly string[], token: string): Promise<readonly WorkCorrelation[]> {

@@ -84,7 +84,10 @@ private struct HeldCalls: View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
             NoticesSwitch(notifier: HeldNotifier.shared)
             if let work { WorkNeedingYou(screen: work, names: WorkNames(profiles)) }
-            if let workspace { WorkspaceHandoffs(screen: workspace) }
+            if let workspace {
+                WorkspaceHandoffs(screen: workspace)
+                TeamRuleChanges(screen: workspace)
+            }
             if waiting.isEmpty {
                 if let home = SettingsWindow.shared.home {
                     NothingWaiting(home: home)

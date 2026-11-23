@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { currentWork, handoffLine, issueLine, orderedProfiles } from '../../../core/domain/agent-work-lines';
 import { waitingHandoffs, WorkspaceAgentsLines } from '../../../core/domain/workspace-agents';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { Button, Card, CardGrid, Note, Section } from '../../kit';
+import { Button, Card, CardGrid, Note, Panel, Row, Section } from '../../kit';
+import { teamRuleChangeLines, TeamRuleChangeLines } from '../../../core/domain/team-rule-changes';
 import { AgentProfileCard } from './AgentProfileCards';
 import { WorkLine } from './WorkCards';
 
@@ -75,6 +76,31 @@ export function WorkspaceHandoffs({ parts }: { parts: SettingsParts }) {
           );
         })}
       </div>
+    </Section>
+  );
+}
+
+/**
+ * The team's rule changes that wait on a second person, listed here so they are seen, and opened in Memnox Cloud to
+ * approve, since the team signs them there rather than on this computer. Mirrors the Mac's `TeamRuleChanges`.
+ */
+export function TeamRuleChanges({ parts }: { parts: SettingsParts }) {
+  const { workspaceAgents, host } = parts;
+  useObserved(workspaceAgents);
+  if (!workspaceAgents.signedIn) return null;
+  const lines = teamRuleChangeLines(workspaceAgents.remote.flatMap((each) => each.ruleChanges), Date.now());
+  if (lines.length === 0) return null;
+  return (
+    <Section
+      title={`${TeamRuleChangeLines.title} \u00B7 ${lines.length}`}
+      trailing={<Button kind="link" onClick={() => host.openPage(TeamRuleChangeLines.consoleAddress)}>{TeamRuleChangeLines.open}</Button>}
+    >
+      <p className="text-footnote text-muted">{TeamRuleChangeLines.detail}</p>
+      <Panel>
+        {lines.map((line) => (
+          <Row key={line.id} title={line.title} caption={line.caption} />
+        ))}
+      </Panel>
     </Section>
   );
 }

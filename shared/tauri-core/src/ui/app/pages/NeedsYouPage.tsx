@@ -16,7 +16,7 @@ import { needsYou, openWork } from '../../../core/domain/agent-work-lines';
 import { waitingHandoffs } from '../../../core/domain/workspace-agents';
 import { WorkNeedingYou } from './WorkCards';
 import { useRuntimeStanding } from '../runtime-standing';
-import { WorkspaceHandoffs } from './WorkspaceAgents';
+import { TeamRuleChanges, WorkspaceHandoffs } from './WorkspaceAgents';
 import { ANSWER_LABEL } from '../../../core/domain/answer-words';
 
 /** How long the window waits before opening the live feed again after the daemon went away. */
@@ -174,6 +174,7 @@ function Approvals({ parts }: { parts: SettingsParts }) {
       )}
       {offersWork && <WorkNeedingYou parts={parts} />}
       <WorkspaceHandoffs parts={parts} />
+      <TeamRuleChanges parts={parts} />
     </div>
   );
 }

@@ -8,4 +8,6 @@ public protocol WorkspaceAgentsReader: AnyObject, Sendable {
     func answerHandoff(_ handoff: String, in workspace: String, accept: Bool, token: String) async throws
     /// Which issue each of these sessions concerns, as the workspace matched it.
     func workCorrelations(in workspace: String, sessions: [String], token: String) async throws -> [WorkCorrelation]
+    /// The team's rule changes still waiting on a second person, read only, since approving one is signed in the console.
+    func pendingRuleChanges(in workspace: String, token: String) async throws -> [CloudRuleChange]
 }

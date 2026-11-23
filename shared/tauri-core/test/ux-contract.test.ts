@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ALWAYS_ALLOW, ALWAYS_DENY, ANSWER_LABEL, ANSWER_ORDER, ANSWER_OUTCOME } from '../src/core/domain/answer-words';
 import { DESTINATIONS, groupHeading } from '../src/core/domain/destinations';
+import { NEEDS_YOU_VIEWS, NeedsYouLines } from '../src/core/domain/needs-you-lines';
+import { TeamRuleChangeLines } from '../src/core/domain/team-rule-changes';
 import { SESSION_REASON_LABEL, SESSION_STATUS_ORDER, statusLabel } from '../src/core/domain/session-status';
 
 /**
@@ -25,6 +27,8 @@ interface ContractPage {
   sf: string;
   platforms: string[];
   tabs?: ContractTab[];
+  views?: ContractTab[];
+  sections?: ContractTab[];
 }
 
 interface Contract {
@@ -72,5 +76,13 @@ describe('the ux contract', () => {
     expect([...SESSION_STATUS_ORDER]).toEqual(sessionStatus.order);
     expect(Object.fromEntries(SESSION_STATUS_ORDER.map((status) => [status, statusLabel(status)]))).toEqual(sessionStatus.labels);
     expect({ ...SESSION_REASON_LABEL }).toEqual(sessionStatus.reasons);
+  });
+
+  it("draws Needs you's views and sections in the contract's words", () => {
+    const page = contract().pages.find((each) => each.id === 'needs-you');
+    const mine = (list: ContractTab[] | undefined) => (list ?? []).filter((each) => each.platforms?.includes(PLATFORM) ?? true);
+    expect(mine(page?.views).map((each) => each.id)).toEqual([...NEEDS_YOU_VIEWS]);
+    expect(mine(page?.views).map((each) => each.label)).toEqual(NEEDS_YOU_VIEWS.map((each) => NeedsYouLines.view[each]));
+    expect(mine(page?.sections).map((each) => each.label)).toEqual([TeamRuleChangeLines.title]);
   });
 });

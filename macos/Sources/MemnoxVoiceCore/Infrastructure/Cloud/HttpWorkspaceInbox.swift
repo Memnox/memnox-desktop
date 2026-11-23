@@ -135,6 +135,10 @@ public final class HttpWorkspaceInbox: WorkspaceInbox, WorkspaceAgentsReader, @u
         return listed.correlations
     }
 
+    public func pendingRuleChanges(in workspace: String, token: String) async throws -> [CloudRuleChange] {
+        try await call("GET", "v1/workspaces/\(Self.segment(workspace))/policies/proposals?status=pending", token: token)
+    }
+
     /// The answer goes as the cloud's own boolean, unsigned, since it only moves who carries the work.
     public func answerHandoff(_ handoff: String, in workspace: String, accept: Bool, token: String) async throws {
         let json = try JSONSerialization.data(withJSONObject: ["accept": accept], options: [.sortedKeys])

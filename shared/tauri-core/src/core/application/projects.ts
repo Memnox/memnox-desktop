@@ -1,8 +1,9 @@
-import { PROJECTS_METHOD, type DaemonRequest, type DaemonResponse, type ProjectDraft, type ProjectView } from '@memnox/core/wire';
+import { MEMORY_METHOD, PROJECTS_METHOD, type DaemonRequest, type DaemonResponse, type ProjectDraft, type ProjectView } from '@memnox/core/wire';
 import { appliedLine, upToDate } from '../domain/project-lines';
 import { Observed } from './observed';
 import { requestOnce, type DaemonLink } from './ports/daemon-link';
 import type { RequestIds } from './request-ids';
+import { rememberedLine } from '../domain/new-project';
 
 /**
  * How one press on a project ended: done at once, done with the rest waiting for a signature on the island, nothing to
@@ -58,6 +59,15 @@ export class Projects extends Observed {
   /** Writes the manifest a found project shows now, applying nothing until asked. */
   put(path: string, draft: ProjectDraft): Promise<ProjectOutcome> {
     return this.change(path, { method: PROJECTS_METHOD.PROJECT_PUT, projectPath: path, projectDraft: draft }, `Saved ${draft.name} as a project in .memnox/project.toml. Commit it so every clone has it.`);
+  }
+
+  /** Keeps what the person typed for agents in this project to always know, confirmed by them as they said it. */
+  async remember(path: string, statements: readonly string[]): Promise<ProjectOutcome> {
+    if (statements.length === 0) return { kind: 'done', note: 'Nothing to remember.' };
+    const response = await this.ask({ method: MEMORY_METHOD.MEMORY_REMEMBER, memoryProject: path, memoryStatements: [...statements] });
+    if (response === undefined) return { kind: 'failed', why: 'Memnox is not answering on this Mac.' };
+    if (!response.ok) return { kind: 'failed', why: response.error ?? 'Memnox refused this.' };
+    return { kind: 'done', note: rememberedLine(statements.length) };
   }
 
   apply(id: string): Promise<ProjectOutcome> {

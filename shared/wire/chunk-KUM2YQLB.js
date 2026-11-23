@@ -43,6 +43,11 @@ var MEMORY_METHOD = {
   /** Deletes one item and its evidence. */
   MEMORY_FORGET: "memory-forget",
   /**
+   * What a person typed for agents in one project to always know, kept as facts already
+   * confirmed, since the person said them rather than a model reading them somewhere.
+   */
+  MEMORY_REMEMBER: "memory-remember",
+  /**
    * What the workspace settled and what its connected tools said, as this machine last pulled
    * it, read off disk with no network near it. Only a read down: nothing local goes up with it.
    */

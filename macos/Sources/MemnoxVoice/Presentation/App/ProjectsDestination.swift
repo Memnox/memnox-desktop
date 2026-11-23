@@ -73,12 +73,19 @@ struct ProjectsDestination: View {
     @State private var query = ""
     /// The folder being added, so its button says so and the others wait.
     @State private var adding: String?
+    /// The new project sheet while it is open, with what it opened with.
+    @State private var creating: NewProjectStart?
 
     var body: some View {
         page
             .task { await screen.projects.refresh() }
             // A signature on the island changes what a project gives, so the projects are read again.
             .onChange(of: island.waiting.count) { Task { await screen.projects.refresh() } }
+            .consoleSheet(item: $creating) { start in
+                NewProjectSheet(start: start, close: { creating = nil }) { answers in
+                    add(answers.folder, startingAs: answers.care, named: answers.name, knowing: answers.know)
+                }
+            }
     }
 
     @ViewBuilder private var page: some View {
@@ -104,7 +111,7 @@ struct ProjectsDestination: View {
                 header(list)
                 NoteBanner(text: screen.note)
                 if list.isEmpty {
-                    WhyProjects { example in choose(startingAs: example.care) }
+                    WhyProjects { example in creating = NewProjectStart(name: example.name, care: example.care) }
                 } else {
                     cards(list)
                 }
@@ -129,7 +136,7 @@ struct ProjectsDestination: View {
             if list.count >= ProjectContext.searchFrom {
                 SearchField(prompt: ProjectContext.searchPrompt, text: $query).frame(maxWidth: ProjectsLayout.searchWidth)
             }
-            Button(adding == nil ? ProjectContext.chooseTitle : "Adding", systemImage: "folder.badge.plus", action: choose)
+            Button(adding == nil ? NewProject.title : "Adding", systemImage: "folder.badge.plus") { creating = NewProjectStart() }
                 .buttonStyle(KitButton(kind: list.isEmpty ? .primary : .secondary))
                 .disabled(screen.projects.busy != nil)
                 .help(ProjectLines.openLine)
@@ -199,7 +206,7 @@ struct ProjectsDestination: View {
 
     /// Takes a folder in through the daemon's own open, then opens the project it became, started on a level of care
     /// where one was chosen; its rules then wait for Touch ID on the island.
-    private func add(_ folder: String, startingAs care: ProjectCare = .relaxed) {
+    private func add(_ folder: String, startingAs care: ProjectCare = .relaxed, named name: String? = nil, knowing know: [String] = []) {
         if let problem = LaunchLines.folderProblem(folder) {
             screen.note = problem
             return
@@ -211,6 +218,15 @@ struct ProjectsDestination: View {
             let made = screen.projects.projects?.first { ShellLines.inside(folder, project: $0.path) && ShellLines.inside($0.path, project: folder) }
             if let made { open(made.id) }
             start(folder, on: care)
+            // The name answered and what agents should know go on after the folder is a project, each said as it lands.
+            if let made, let name, let draft = NewProject.draft(of: made, name: name) {
+                let path = made.path
+                screen.press { await $0.put(path, draft: draft) }
+            }
+            if !know.isEmpty {
+                let path = made?.path ?? folder
+                screen.press { await $0.remember(path, know) }
+            }
         }
     }
 
@@ -224,19 +240,6 @@ struct ProjectsDestination: View {
         }
     }
 
-    /// Finder's own panel, which also takes a typed path with Command Shift G.
-    private func choose() { choose(startingAs: .relaxed) }
-
-    private func choose(startingAs care: ProjectCare) {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Add as a project"
-        panel.message = ProjectWhy.chooseLine
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        add(url.path, startingAs: care)
-    }
 }
 
 /// One project as the console's Projects grid draws it: its name and standing, what it is for, the agents given it,

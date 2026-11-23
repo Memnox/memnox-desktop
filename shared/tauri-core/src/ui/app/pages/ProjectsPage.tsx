@@ -5,7 +5,8 @@ import { projectRoute, type Route, type WidthClass } from '../../../core/domain/
 import { folderProblem } from '../../../core/domain/launch-lines';
 import { insideProject } from '../../../core/domain/shell-lines';
 import { foldersToOpen, FROM_ORGANIZATION, OPEN_LINE, projectCard, projectNote, projectRules, ProjectsPageLines, projectStanding } from '../../../core/domain/project-lines';
-import { carePack, PROJECT_CARE, PROJECT_EXAMPLES, projectCareOf, ProjectWhy, type ProjectCare, type ProjectExample } from '../../../core/domain/project-care';
+import { knowLines, namedDraft, newProjectName, NewProjectLines } from '../../../core/domain/new-project';
+import { carePack, PROJECT_CARE, PROJECT_CARES, PROJECT_EXAMPLES, projectCareOf, ProjectWhy, type ProjectCare, type ProjectExample } from '../../../core/domain/project-care';
 import {
   ADD_TITLE,
   CHOOSE_TITLE,
@@ -41,7 +42,7 @@ import { AgentLogos, OrganizationBadge } from './ProjectPages';
 import { Inspector } from '../widgets';
 import { usePicked } from '../inspector-host';
 import { useShellChoices } from '../shell-choices';
-import { BrandLogo, Button, Card, CardGrid, EmptyState, ErrorLine, Field, IconButton, Input, Menu, MenuItem, MenuSeparator, Note, Panel, PRESS_DIP, Pressable, ReadFailed, Row, SearchInput, Section, Spinner, StatTile, StatusWord } from '../../kit';
+import { BrandLogo, Button, Card, CardGrid, EmptyState, ErrorLine, Field, IconButton, Input, Menu, Textarea, MenuItem, MenuSeparator, Note, Panel, PRESS_DIP, Pressable, ReadFailed, Row, SearchInput, Section, Spinner, StatTile, StatusWord } from '../../kit';
 import { PAGE_METRICS } from '../page-metrics';
 
 /** Where a seen repository's sessions are listed. */
@@ -88,7 +89,8 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
       sessions.stop();
     };
   }, []);
-  const [opening, setOpening] = useState(false);
+  // The new project form while it is open, with the name and care it opened with.
+  const [creating, setCreating] = useState<{ name: string; care: ProjectCare } | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [note, setNote] = useState<string | undefined>(undefined);
   // The folder being added, so its button says so and the others wait.
@@ -117,7 +119,7 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
       if (pack !== undefined) void studio.importPack(pack.toml, { project: folder });
     });
   };
-  const add = (folder: string, care: ProjectCare = 'relaxed') => {
+  const add = (folder: string, care: ProjectCare = 'relaxed', name?: string, know: readonly string[] = []) => {
     const wrong = folderProblem(folder);
     if (wrong !== undefined) return setNote(wrong);
     setAdding(folder);
@@ -125,20 +127,15 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
       setAdding(undefined);
       setNote(projectNote(outcome, parts.words.keyTitle));
       if (outcome.kind === 'failed') return;
-      setOpening(false);
+      setCreating(undefined);
       const made = projects.projects?.find((each) => insideProject(folder, each) && insideProject(each.path, { path: folder }));
       if (made !== undefined) openProject(made.id);
       startOn(folder, care);
+      // The name answered and what agents should know go on after the folder is a project, each said as it lands.
+      const draft = made === undefined || name === undefined ? undefined : namedDraft(made, name);
+      if (made !== undefined && draft !== undefined) void projects.put(made.path, draft).then((done) => setNote(projectNote(done, parts.words.keyTitle)));
+      if (know.length > 0) void projects.remember(made?.path ?? folder, know).then((done) => setNote(projectNote(done, parts.words.keyTitle)));
     });
-  };
-  // The system's own folder dialog, as the Mac opens Finder's; the typed form stands in only in the browser preview.
-  const choose = (care: ProjectCare = 'relaxed') => {
-    const pick = parts.host.pickProjectFolder;
-    if (pick === undefined) return setOpening(!opening);
-    void pick().then(
-      (folder) => folder !== undefined && add(folder, care),
-      (why: unknown) => setNote(String(why)),
-    );
   };
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -154,17 +151,26 @@ function ProjectsTab({ parts, go }: { parts: SettingsParts; go: (route: Route) =
           kind={all.length === 0 ? 'primary' : 'secondary'}
           icon={FolderPlus}
           disabled={busy}
-          onClick={() => choose()}
+          onClick={() => setCreating(creating === undefined ? { name: '', care: 'relaxed' } : undefined)}
           title={OPEN_LINE}
-          {...(parts.host.pickProjectFolder === undefined ? { 'aria-expanded': opening } : {})}
+          aria-expanded={creating !== undefined}
         >
-          {adding === undefined ? CHOOSE_TITLE : ProjectsPageLines.adding}
+          {adding === undefined ? NewProjectLines.title : ProjectsPageLines.adding}
         </Button>
       </div>
-      {opening && <OpenFolderForm busy={busy} cancel={() => setOpening(false)} open={add} />}
+      {creating !== undefined && (
+        <NewProjectForm
+          key={`${creating.name}/${creating.care}`}
+          parts={parts}
+          start={creating}
+          busy={busy}
+          cancel={() => setCreating(undefined)}
+          make={(answers) => add(answers.folder, answers.care, answers.name, answers.know)}
+        />
+      )}
       {note !== undefined && <Note roomy>{note}</Note>}
       {all.length === 0 ? (
-        <WhyProjects start={(example) => choose(example.care)} />
+        <WhyProjects start={(example) => setCreating({ name: example.name, care: example.care })} />
       ) : list.length === 0 ? (
         <EmptyState icon={Search} title={ProjectsPageLines.noMatch} body={ProjectsPageLines.noMatchBody} />
       ) : (
@@ -339,25 +345,83 @@ function ProjectCard({ parts, project, care, pulse, pick, said }: { parts: Setti
   );
 }
 
-/** The folder to take in as a project, typed whole, since the folders the sessions ran in are offered above. */
-function OpenFolderForm({ busy, cancel, open }: { busy: boolean; cancel: () => void; open: (folder: string) => void }) {
+/**
+ * Making a project as three questions and one optional box, the Mac's `NewProjectSheet`: what the work is called, where
+ * it lives, how careful agents should be there, and what they should always know. The folder is chosen with the system's
+ * own dialog, and typed whole only in the browser preview, which has none.
+ */
+function NewProjectForm({ parts, start, busy, cancel, make }: {
+  parts: SettingsParts;
+  start: { name: string; care: ProjectCare };
+  busy: boolean;
+  cancel: () => void;
+  make: (answers: { folder: string; name: string; care: ProjectCare; know: string[] }) => void;
+}) {
+  const [name, setName] = useState(start.name);
   const [folder, setFolder] = useState('');
+  const [care, setCare] = useState<ProjectCare>(start.care);
+  const [know, setKnow] = useState('');
   const [problem, setProblem] = useState<string | undefined>(undefined);
+  const pick = parts.host.pickProjectFolder;
   const go = () => {
     const wrong = folderProblem(folder);
     setProblem(wrong);
-    if (wrong === undefined) open(folder);
+    if (wrong === undefined) make({ folder, name: newProjectName(name, folder), care, know: knowLines(know) });
   };
   return (
-    <Card className="flex flex-col gap-2">
-      <Field label={ProjectsPageLines.folderLabel}>
-        <Input wide mono value={folder} placeholder={ProjectsPageLines.folderPlaceholder} onValue={setFolder} onSubmit={go} autoFocus />
+    <Card className="flex flex-col gap-5">
+      <h2 className="text-headline font-semibold text-foreground">{NewProjectLines.title}</h2>
+      <Field label={NewProjectLines.nameQuestion}>
+        <Input wide value={name} placeholder={NewProjectLines.namePrompt} onValue={setName} autoFocus />
       </Field>
+      <div className="flex flex-col gap-2">
+        <Field label={NewProjectLines.placeQuestion}>
+          {pick === undefined ? (
+            <Input wide mono value={folder} placeholder={ProjectsPageLines.folderPlaceholder} onValue={setFolder} />
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                icon={FolderOpen}
+                onClick={() =>
+                  void pick().then(
+                    (chosen) => chosen !== undefined && setFolder(chosen),
+                    (why: unknown) => setProblem(String(why)),
+                  )
+                }
+              >
+                {folder === '' ? CHOOSE_TITLE : NewProjectLines.chooseAnother}
+              </Button>
+              {folder !== '' && <span className="min-w-0 truncate font-code text-footnote text-foreground" title={folder}>{folder}</span>}
+            </div>
+          )}
+        </Field>
+        <p className="text-footnote text-muted">{NewProjectLines.placeLine} {NewProjectLines.noFolderLine}</p>
+      </div>
+      <div role="radiogroup" aria-label={NewProjectLines.careQuestion} className="flex flex-col gap-2">
+        <span className="text-footnote font-medium text-muted">{NewProjectLines.careQuestion}</span>
+        <Panel>
+          {PROJECT_CARES.map((each) => (
+            <Pressable key={each} role="radio" aria-checked={care === each} onClick={() => setCare(each)} className="block w-full cursor-pointer text-left">
+              <Row
+                chosen={care === each}
+                title={PROJECT_CARE[each].label}
+                caption={PROJECT_CARE[each].line}
+                trailing={<span aria-hidden className={`size-4 rounded-full border-2 ${care === each ? 'border-primary bg-primary' : 'border-ink-edge'}`} />}
+              />
+            </Pressable>
+          ))}
+        </Panel>
+      </div>
+      <div className="flex flex-col gap-2">
+        <Field label={NewProjectLines.knowQuestion}>
+          <Textarea value={know} onValue={setKnow} rows={4} aria-label={NewProjectLines.knowQuestion} />
+        </Field>
+        <p className="text-footnote text-muted">{NewProjectLines.knowLine}</p>
+      </div>
       {problem !== undefined && <ErrorLine>{problem}</ErrorLine>}
-      <p className="text-footnote text-muted">{OPEN_LINE}</p>
       <div className="flex gap-2">
-        <Button kind="primary" icon={FolderOpen} disabled={busy} onClick={go}>
-          {busy ? ProjectsPageLines.adding : ProjectsPageLines.add}
+        <Button kind="primary" icon={FolderPlus} disabled={busy || folder.trim() === ''} onClick={go}>
+          {busy ? ProjectsPageLines.adding : NewProjectLines.create}
         </Button>
         <Button onClick={cancel}>{ProjectsPageLines.cancel}</Button>
       </div>

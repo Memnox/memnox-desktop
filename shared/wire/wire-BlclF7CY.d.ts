@@ -2808,6 +2808,11 @@ declare const MEMORY_METHOD: {
     /** Deletes one item and its evidence. */
     readonly MEMORY_FORGET: "memory-forget";
     /**
+     * What a person typed for agents in one project to always know, kept as facts already
+     * confirmed, since the person said them rather than a model reading them somewhere.
+     */
+    readonly MEMORY_REMEMBER: "memory-remember";
+    /**
      * What the workspace settled and what its connected tools said, as this machine last pulled
      * it, read off disk with no network near it. Only a read down: nothing local goes up with it.
      */
@@ -2997,6 +3002,10 @@ interface MemoryRequestFields extends MemoryLayersRequestFields {
     memoryScope?: MemoryScope;
     /** On MEMORY_FACTS. */
     memoryStatus?: MemoryStatus;
+    /** On MEMORY_REMEMBER: what the person said, one fact each. */
+    memoryStatements?: string[];
+    /** On MEMORY_REMEMBER: the project's folder, absolute, whose memory keeps them. */
+    memoryProject?: string;
     /** On WORKSPACE_GRAPH: read the cloud again now rather than answer from the last few seconds' read. */
     workspaceGraphFresh?: boolean;
 }
@@ -5289,6 +5298,7 @@ declare const DAEMON_METHOD: {
     readonly MEMORY_SEARCH: "memory-search";
     readonly MEMORY_FACTS: "memory-facts";
     readonly MEMORY_FORGET: "memory-forget";
+    readonly MEMORY_REMEMBER: "memory-remember";
     readonly WORKSPACE_MEMORY: "workspace-memory";
     readonly WORKSPACE_GRAPH: "workspace-graph";
     readonly PROJECTS: "projects";

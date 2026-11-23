@@ -193,6 +193,7 @@ public enum DaemonMethod: String, Sendable {
     case memorySourceRead = "memory-source-read"
     /// The Learn queue: candidates and conflicts waiting on a person.
     case memoryLearn = "memory-learn"
+    case memoryRemember = "memory-remember"
     /// A fact becomes verified; a rule candidate raises a signed rule proposal.
     case memoryConfirm = "memory-confirm"
     /// Rejected, and remembered so the same words are never proposed again.
@@ -1436,6 +1437,10 @@ public struct DaemonRequest: Encodable, Equatable, Sendable {
     public var memoryScope: String?
     /// On memory-facts.
     public var memoryStatus: String?
+    /// On memory-remember: what the person said, one fact each.
+    public var memoryStatements: [String]?
+    /// On memory-remember: the project's folder, absolute, whose memory keeps them.
+    public var memoryProject: String?
     /// On workspace-graph: read the cloud again now rather than answer from the last few seconds' read.
     public var workspaceGraphFresh: Bool?
     /// On memory-layers-plan and memory-layers-apply, and to narrow memory-layers: the repository, absolute.

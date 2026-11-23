@@ -50,6 +50,17 @@ public final class Projects: @unchecked Sendable {
         return await change(path, request, done: "Saved \(draft.name) as a project in .memnox/project.toml. Commit it so every clone has it.")
     }
 
+    /// Keeps what the person typed for agents in this project to always know, confirmed by them as they said it.
+    public func remember(_ path: String, _ statements: [String]) async -> ProjectOutcome {
+        guard !statements.isEmpty else { return .done("Nothing to remember.") }
+        var request = DaemonRequest(id: ids.next(), method: .memoryRemember)
+        request.memoryProject = path
+        request.memoryStatements = statements
+        guard let response = await ask(request) else { return .failed("Memnox is not answering on this Mac.") }
+        guard response.ok else { return .failed(response.error ?? "Memnox refused this.") }
+        return .done(NewProject.remembered(statements.count))
+    }
+
     public func apply(_ id: String) async -> ProjectOutcome {
         var request = DaemonRequest(id: ids.next(), method: .projectApply)
         request.projectId = id

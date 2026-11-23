@@ -38,7 +38,13 @@ public enum FirstRunEnd {
         return trimmed.isEmpty ? "You're set." : "You're set, \(trimmed)."
     }
 
-    public static let lead = "Your agents work inside your starting rules now. Try one ask, then open Memnox."
+    /// What happens next under the care chosen, so the end previews the first ask rather than only saying it is done.
+    public static func lead(_ care: CareLevel) -> String {
+        switch care {
+        case .watch: "Memnox now writes down what your agents do and stops nothing. You can make it careful any time under Rules."
+        case .ask, .strict: "The first time an agent wants to do something risky, it waits for you in the notch at the top of your screen."
+        }
+    }
 
     /// Where the rest of setup went, said under the button that opens Memnox, so nobody looks for it here.
     public static let later = "Pairing your iPhone waits on Home under Get set up, and Memnox Cloud is in Settings under Account."

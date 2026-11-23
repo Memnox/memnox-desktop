@@ -18,6 +18,8 @@ import {
   rowSpoken,
   setTitle,
   CARE,
+  endLead,
+  PURPOSE,
   CARE_LEVELS,
   RECOMMENDED_CARE,
   stepCounter,
@@ -54,6 +56,8 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
   const [step, setStep] = useState<OnboardingStep>(firstStep);
   // What the starting rules step proposed, said again on the end screen.
   const [proposed, setProposed] = useState<string | undefined>(undefined);
+  // How careful the person chose to be, so the end previews what happens next under it.
+  const [care, setCare] = useState<CareLevel>(RECOMMENDED_CARE);
   const guide = useGuide(parts);
   // The real island plays each part beside the steps, round and round; a row pressed plays its part at once.
   // A preview can start on one part with ?part=, so each part can be looked at.
@@ -122,13 +126,14 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
       </div>
       <div className="flex min-h-0 flex-1 justify-center gap-12 px-14">
         <ScrollColumn key={done ? 'done' : step}>
-          {done && <EndScreen parts={parts} proposed={proposed} finish={finish} />}
+          {done && <EndScreen parts={parts} care={care} proposed={proposed} finish={finish} />}
           {!done && id === 'connect' && <ConnectStep parts={parts} next={forward} />}
           {!done && id === 'rules' && (
             <RulesStep
               parts={parts}
-              next={(note) => {
+              next={(note, chosen) => {
                 setProposed(note);
+                setCare(chosen);
                 setStage('done');
               }}
             />
@@ -194,6 +199,7 @@ function Veil({ next }: { next: () => void }) {
     <div className="relative flex h-full flex-col items-center justify-center bg-(image:--mx-onboard-veil) text-white">
       <div className="flex animate-[card-in_600ms_cubic-bezier(.2,.8,.2,1)_both] flex-col items-center gap-11">
         <Wordmark height="var(--spacing-onboard-wordmark)" className="drop-shadow-onboard-wordmark" />
+        <p className="max-w-onboard-purpose text-center text-headline text-white/75">{PURPOSE}</p>
         <Button kind="glass" trailing={ArrowRight} onClick={next} autoFocus>
           {OnboardingLines.getStarted}
         </Button>
@@ -454,7 +460,7 @@ function CoverageCard({ parts }: { parts: SettingsParts }) {
 }
 
 /** Step 2: how careful Memnox is, the recommended level chosen; Finish proposes its pack and stops where it asks to. */
-function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: string | undefined) => void }) {
+function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: string | undefined, care: CareLevel) => void }) {
   const { studio, words, home } = parts;
   useObserved(studio);
   const [chosen, choose] = useState<CareLevel>(RECOMMENDED_CARE);
@@ -466,13 +472,13 @@ function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: str
   const level = CARE[chosen];
   const finish = async () => {
     const pack = level.pack === undefined ? undefined : studio.packs?.find((each) => each.id === level.pack);
-    if (pack === undefined) return next(undefined);
+    if (pack === undefined) return next(undefined, chosen);
     setSending(true);
     const outcome = await studio.importPack(pack.toml);
     setSending(false);
     if (outcome.kind === 'failed') return fail(outcome.why);
     if (level.enforces) void home.enforce();
-    next(outcome.kind === 'proposed' ? OnboardingLines.rulesWait : outcome.note);
+    next(outcome.kind === 'proposed' ? OnboardingLines.rulesWait : outcome.note, chosen);
   };
   const heading = stepHeading(1, words.keyTitle);
   return (
@@ -507,8 +513,8 @@ function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: str
  * The end screen, in the order a person acts on it: the prompt to try, the one button that opens Memnox with where the
  * rest of setup went under it, then what Memnox covers and what is optional, both quiet.
  */
-function EndScreen({ parts, proposed, finish }: { parts: SettingsParts; proposed: string | undefined; finish: () => void }) {
-  const { words, host, preferences } = parts;
+function EndScreen({ parts, care, proposed, finish }: { parts: SettingsParts; care: CareLevel; proposed: string | undefined; finish: () => void }) {
+  const { host, preferences } = parts;
   usePreferences();
   const name = firstName(preferences.name);
   const open = (page: string) => {
@@ -518,7 +524,7 @@ function EndScreen({ parts, proposed, finish }: { parts: SettingsParts; proposed
   };
   return (
     <>
-      <StepTitle title={setTitle(name)} detail={GuideLines.ready(name, words.talkKeysSaid)} />
+      <StepTitle title={setTitle(name)} detail={endLead(care)} />
       {proposed !== undefined && <QuietLine size={13}>{proposed}</QuietLine>}
       <TryCard />
       <Button kind="primary" wide trailing={ArrowRight} onClick={finish}>

@@ -66,6 +66,9 @@ public enum CareLevel: String, CaseIterable, Sendable {
 /// The first run's short steps and what each says, with the safe defaults already chosen so a press of Continue
 /// is always the sensible answer. Counts, never a score.
 public enum FirstRunLines {
+    /// The first thing read, above the name, saying what Memnox is for before it asks anything.
+    public static let purpose = "Your AI agents do real work. Memnox shows you what they did, asks you before anything risky, and keeps them out of each other's way."
+
     /// The steps by name, as the stepper shows them, in the contract's order.
     public static let steps = FirstRunStepID.allCases.map(\.label)
 

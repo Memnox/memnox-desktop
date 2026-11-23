@@ -38,8 +38,14 @@ final class FirstRunEndTests: XCTestCase {
         XCTAssertEqual(FirstRunEnd.title(name: ""), "You're set.")
     }
 
+    func testTheEndPreviewsTheFirstAskOnlyWhenMemnoxStops() {
+        XCTAssertTrue(FirstRunEnd.lead(.ask).contains("waits for you"))
+        XCTAssertTrue(FirstRunEnd.lead(.strict).contains("waits for you"))
+        XCTAssertTrue(FirstRunEnd.lead(.watch).contains("stops nothing"))
+    }
+
     func testKeepsEveryWordFreeOfDashes() {
-        let words = [FirstRunEnd.lead, FirstRunEnd.later, FirstRunEnd.talkHint, FirstRunLines.tryPrompt, FirstRunLines.tryDetail]
+        let words = CareLevel.allCases.map(FirstRunEnd.lead) + [FirstRunLines.purpose, FirstRunEnd.later, FirstRunEnd.talkHint, FirstRunLines.tryPrompt, FirstRunLines.tryDetail]
             + FirstRunEnd.extras(hearing: false).flatMap { [$0.title, $0.detail] }
         for line in words {
             XCTAssertFalse(line.contains("\u{2014}") || line.contains("\u{2013}") || line.contains(" - "), line)

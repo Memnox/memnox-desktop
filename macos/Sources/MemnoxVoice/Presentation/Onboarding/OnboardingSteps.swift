@@ -222,6 +222,7 @@ private struct CareChoice: View {
     /// Proposes the level's pack through the runtime, then stops rather than watches where the level asks for it.
     private func finish() async {
         home?.keepWatching = !chosen.enforces
+        flow.care = chosen
         guard let id = chosen.packId, let pack = (screen.studio.packs ?? []).first(where: { $0.id == id }) else {
             flow.next()
             return
@@ -266,7 +267,7 @@ struct ReadyStep: View {
 
     var body: some View {
         let hearing = setup.listening == .done
-        StepTitle(title: FirstRunEnd.title(name: setup.name), detail: FirstRunEnd.lead)
+        StepTitle(title: FirstRunEnd.title(name: setup.name), detail: FirstRunEnd.lead(flow.care))
         TryCard()
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             Button { open() } label: {

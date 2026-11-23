@@ -90,6 +90,16 @@ export function startingPacks<Pack extends { readonly id: string }>(packs: reado
   return { recommended, others: packs.filter((pack) => pack !== recommended) };
 }
 
+/** The first thing read, on the opening, saying what Memnox is for before it asks anything; the Mac's `FirstRunLines.purpose`. */
+export const PURPOSE = "Your AI agents do real work. Memnox shows you what they did, asks you before anything risky, and keeps them out of each other's way.";
+
+/** What happens next under the care chosen, so the end previews the first ask; the Mac's `FirstRunEnd.lead`. */
+export function endLead(care: CareLevel): string {
+  return CARE[care].enforces
+    ? 'The first time an agent wants to do something risky, it waits for you in the island at the top of your screen.'
+    : 'Memnox now writes down what your agents do and stops nothing. You can make it careful any time under Rules.';
+}
+
 /** Where the rest of setup went, said under the button that opens Memnox, so nobody looks for it here. */
 export const END_LATER = 'Pairing your phone waits on Home under Get set up, and Memnox Cloud is in Settings under Account.';
 

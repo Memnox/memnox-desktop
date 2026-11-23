@@ -38,6 +38,8 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
 final class OnboardingFlow: ObservableObject {
     @Published var stage: OnboardingStage = .intro
     @Published var step: OnboardingStep = .connect
+    /// How careful the person chose to be, so the end previews what happens next under it.
+    @Published var care = CareLevel.recommended
     /// The part of Memnox the notch beside the steps is playing, said on the first step.
     @Published var highlight: Highlight?
     @Published var setup: SetupModel?

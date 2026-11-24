@@ -18,5 +18,7 @@ describe('a project’s care', () => {
   it('shows three examples each with its own care', () => {
     expect(PROJECT_EXAMPLES.map((example) => example.care)).toEqual(['relaxed', 'careful', 'strict']);
     expect(ProjectWhy.lines).toHaveLength(4);
+    expect(ProjectWhy.lead).toContain('one piece of work');
+    expect(ProjectWhy.lines.map((line) => line.split(':')[0])).toEqual(['Its own care', 'Its own memory', 'Its own story', 'Its own people']);
   });
 });

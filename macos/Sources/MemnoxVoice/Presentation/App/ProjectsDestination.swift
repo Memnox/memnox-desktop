@@ -524,12 +524,20 @@ private struct WhyProjects: View {
     var body: some View {
         ShellSection(title: ProjectWhy.title) {
             VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
+                Text(ProjectWhy.lead)
+                    .font(Memnox.Console.sans(Memnox.TextSize.body))
+                    .foregroundStyle(Memnox.Console.foreground)
+                    .fixedSize(horizontal: false, vertical: true)
                 ForEach(ProjectWhy.lines, id: \.self) { line in
                     Label(line, systemImage: "checkmark")
                         .font(Memnox.Console.sans(Memnox.TextSize.footnote))
-                        .foregroundStyle(Memnox.Console.foreground)
+                        .foregroundStyle(Memnox.Console.muted)
                 }
             }
+            Text(ProjectWhy.examplesTitle)
+                .font(Memnox.Console.sans(Memnox.TextSize.body, .semibold))
+                .foregroundStyle(Memnox.Console.foreground)
+                .padding(.top, Memnox.Spacing.medium)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: ProjectsLayout.cardWidth), spacing: Memnox.Spacing.large)],
                       spacing: Memnox.Spacing.large) {
                 ForEach(ProjectExample.all) { example in

@@ -1,5 +1,5 @@
 import type { ProjectView } from '@memnox/core/wire';
-import { Ellipsis, Folder, FolderOpen, FolderPlus, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Check, Ellipsis, Folder, FolderOpen, FolderPlus, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { projectRoute, type Route, type WidthClass } from '../../../core/domain/destinations';
 import { folderProblem } from '../../../core/domain/launch-lines';
@@ -513,13 +513,16 @@ function WorkspaceOverview({ workspace, go }: { workspace: SeenWorkspace; go: (r
 function WhyProjects({ start }: { start: (example: ProjectExample) => void }) {
   return (
     <Section title={ProjectWhy.title}>
+      <p className="text-body text-foreground">{ProjectWhy.lead}</p>
       <ul className="flex flex-col gap-1.5">
         {ProjectWhy.lines.map((line) => (
-          <li key={line} className="text-footnote text-foreground">
+          <li key={line} className="flex gap-2 text-footnote text-muted">
+            <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden />
             {line}
           </li>
         ))}
       </ul>
+      <p className="mt-3 text-body font-semibold text-foreground">{ProjectWhy.examplesTitle}</p>
       <CardGrid min={PROJECT_CARD_MIN}>
         {PROJECT_EXAMPLES.map((example) => (
           <Card key={example.name} label={example.name} className="flex flex-col gap-3">

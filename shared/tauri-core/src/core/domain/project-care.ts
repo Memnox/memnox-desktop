@@ -48,12 +48,14 @@ export const PROJECT_EXAMPLES: readonly ProjectExample[] = [
 /** Why a project is worth having, said on the empty Projects page in words anybody uses, as the Mac's `ProjectWhy`. */
 export const ProjectWhy = {
   title: 'Keep each piece of work apart',
+  lead: 'A project is one piece of work your agents help with, such as your website, invoicing or the support inbox.',
   lines: [
-    'Each piece of work gets its own care, so the website stays relaxed while invoicing waits for you.',
-    'Agents in a project already know what was decided there, so you stop repeating yourself.',
-    'Ask what happened in one piece of work, not in everything at once.',
-    'See who is working on what, and catch two agents changing the same thing.',
+    'Its own care: the website stays relaxed while invoicing waits for you.',
+    'Its own memory: agents there already know what was decided, so you stop repeating yourself.',
+    'Its own story: ask what happened in invoicing this week, not in everything at once.',
+    'Its own people: see who is on what, and catch two agents changing the same thing.',
   ],
+  examplesTitle: 'Start from an example',
   start: 'Start like this',
   careTitle: 'How careful agents are here',
   makeIt: (care: ProjectCare) => `Make it ${PROJECT_CARE[care].label.toLowerCase()}`,

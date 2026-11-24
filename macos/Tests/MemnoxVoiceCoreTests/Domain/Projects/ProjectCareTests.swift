@@ -24,5 +24,9 @@ final class ProjectCareTests: XCTestCase {
     func testShowsThreeExamplesEachWithItsOwnCare() {
         XCTAssertEqual(ProjectExample.all.map(\.care), [.relaxed, .careful, .strict])
         XCTAssertEqual(ProjectWhy.lines.count, 4)
+        // A project is any piece of work, so the page never reads as only a folder of code.
+        XCTAssertTrue(ProjectWhy.lead.contains("one piece of work"))
+        XCTAssertEqual(ProjectWhy.lines.map { $0.components(separatedBy: ":").first ?? "" },
+                       ["Its own care", "Its own memory", "Its own story", "Its own people"])
     }
 }

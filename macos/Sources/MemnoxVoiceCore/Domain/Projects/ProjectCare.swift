@@ -76,11 +76,14 @@ public struct ProjectExample: Equatable, Identifiable, Sendable {
 /// Why a project is worth having, said on the empty Projects page in words anybody uses.
 public enum ProjectWhy {
     public static let title = "Keep each piece of work apart"
+    /// What a project is, said before why, so nobody reads it as only a folder of code.
+    public static let lead = "A project is one piece of work your agents help with, such as your website, invoicing or the support inbox."
     public static let lines = [
-        "Each piece of work gets its own care, so the website stays relaxed while invoicing waits for you.",
-        "Agents in a project already know what was decided there, so you stop repeating yourself.",
-        "Ask what happened in one piece of work, not in everything at once.",
-        "See who is working on what, and catch two agents changing the same thing.",
+        "Its own care: the website stays relaxed while invoicing waits for you.",
+        "Its own memory: agents there already know what was decided, so you stop repeating yourself.",
+        "Its own story: ask what happened in invoicing this week, not in everything at once.",
+        "Its own people: see who is on what, and catch two agents changing the same thing.",
     ]
+    public static let examplesTitle = "Start from an example"
     public static let chooseLine = "Choose the folder this work lives in. You can change how careful it is any time."
 }

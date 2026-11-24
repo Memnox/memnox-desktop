@@ -18,7 +18,7 @@ enum ToolName {
     static let openLink = "open_link"
     static let createFolder = "create_folder"
     static let signIn = "sign_in"
-    /// Points a job's agent at a tracker issue; a person's steer, so it goes unsigned and the daemon decides.
+    /// Points an agent at a tracker issue; a person's steer, so it goes unsigned and the daemon decides.
     static let startAgentWork = "start_agent_work"
     static let showAgentWork = "show_agent_work"
     static let answerHandoff = "answer_handoff"

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { currentWork, handoffLine, issueLine, orderedProfiles } from '../../../core/domain/agent-work-lines';
 import { waitingHandoffs, WorkspaceAgentsLines } from '../../../core/domain/workspace-agents';
 import { useObserved, type SettingsParts } from '../../settings/parts';
-import { Button, Card, CardGrid, Note, Section } from '../../kit';
+import { Button, Card, CardGrid, Note, Panel, Row, Section } from '../../kit';
+import { teamRuleChangeLines, TeamRuleChangeLines } from '../../../core/domain/team-rule-changes';
 import { AgentProfileCard } from './AgentProfileCards';
 import { WorkLine } from './WorkCards';
 
@@ -20,7 +21,7 @@ function useWorkspaceAgents(parts: SettingsParts): void {
 }
 
 /**
- * In your workspace: the jobs Memnox Cloud keeps, for agents hosted elsewhere, drawn as the cards on this computer
+ * In your workspace: the agents Memnox Cloud keeps, for agents hosted elsewhere, drawn as the cards on this computer
  * are. Shown only while the person is signed in, so with no account the list here is the whole of it and nothing is
  * sent anywhere. Mirrors the Mac's `WorkspaceAgentsSection`.
  */
@@ -75,6 +76,31 @@ export function WorkspaceHandoffs({ parts }: { parts: SettingsParts }) {
           );
         })}
       </div>
+    </Section>
+  );
+}
+
+/**
+ * The team's rule changes that wait on a second person, listed here so they are seen, and opened in Memnox Cloud to
+ * approve, since the team signs them there rather than on this computer. Mirrors the Mac's `TeamRuleChanges`.
+ */
+export function TeamRuleChanges({ parts }: { parts: SettingsParts }) {
+  const { workspaceAgents, host } = parts;
+  useObserved(workspaceAgents);
+  if (!workspaceAgents.signedIn) return null;
+  const lines = teamRuleChangeLines(workspaceAgents.remote.flatMap((each) => each.ruleChanges), Date.now());
+  if (lines.length === 0) return null;
+  return (
+    <Section
+      title={`${TeamRuleChangeLines.title} \u00B7 ${lines.length}`}
+      trailing={<Button kind="link" onClick={() => host.openPage(TeamRuleChangeLines.consoleAddress)}>{TeamRuleChangeLines.open}</Button>}
+    >
+      <p className="text-footnote text-muted">{TeamRuleChangeLines.detail}</p>
+      <Panel>
+        {lines.map((line) => (
+          <Row key={line.id} title={line.title} caption={line.caption} />
+        ))}
+      </Panel>
     </Section>
   );
 }

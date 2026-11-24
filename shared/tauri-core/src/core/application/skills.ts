@@ -125,8 +125,8 @@ export class SkillsHub extends Observed {
     this.busyWith = undefined;
     if (response?.skillsHub !== undefined) this.view = response.skillsHub;
     this.changed();
-    if (response === undefined) return { kind: 'failed', why: 'The runtime is not answering.' };
-    if (!response.ok) return { kind: 'failed', why: response.error ?? 'The runtime refused this.' };
+    if (response === undefined) return { kind: 'failed', why: 'Memnox is not answering on this Mac.' };
+    if (!response.ok) return { kind: 'failed', why: response.error ?? 'Memnox refused this.' };
     if (response.proposed !== undefined) return { kind: 'proposed', id: response.proposed };
     if (response.skillsSynced !== undefined && fields.method === SKILLS_METHOD.SKILL_SYNC) return { kind: 'done', note: skillsSyncedLine(response.skillsSynced) };
     return { kind: 'done', note: done };

@@ -14,9 +14,9 @@ final class DestinationsTests: XCTestCase {
     }
 
     func testListsTheAgentsFirstOnceTheDaemonAnswersAgents() {
-        XCTAssertEqual(Destinations.visibleTabs(.agents, supports: everything).map(\.id), ["agents", "jobs", "this-computer"])
+        XCTAssertEqual(Destinations.visibleTabs(.agents, supports: everything).map(\.id), ["agents"])
         XCTAssertEqual(Destinations.settled(WindowRoute(.agents), supports: everything), WindowRoute(.agents, tab: "agents"))
-        XCTAssertEqual(Destinations.settled(WindowRoute(.agents), supports: nothingNew), WindowRoute(.agents, tab: "this-computer"))
+        XCTAssertFalse(Destinations.isShown(.agents, supports: nothingNew))
     }
 
     func testLandsOnTheFirstTabShownWhenTheOneAskedForIsHidden() {
@@ -30,7 +30,9 @@ final class DestinationsTests: XCTestCase {
         XCTAssertEqual(Destinations.route(forPage: "overview"), WindowRoute(.home))
         XCTAssertEqual(Destinations.route(forPage: "today"), WindowRoute(.home))
         XCTAssertEqual(Destinations.route(forPage: "phones"), WindowRoute(.settings, tab: "phones"))
-        XCTAssertEqual(Destinations.route(forPage: "tools"), WindowRoute(.agents, tab: "this-computer"))
+        XCTAssertEqual(Destinations.route(forPage: "tools"), WindowRoute(.agents, tab: "agents"))
+        XCTAssertEqual(Destinations.route(forPage: "jobs"), WindowRoute(.agents, tab: "agents"))
+        XCTAssertEqual(Destinations.route(forPage: "hand-over"), WindowRoute(.rules, tab: "hand-over"))
         XCTAssertEqual(Destinations.route(forPage: "apps"), WindowRoute(.connectors, tab: "systems"))
         XCTAssertEqual(Destinations.route(forPage: "connection"), WindowRoute(.settings, tab: "connection"))
         XCTAssertEqual(Destinations.route(forPage: "machines"), WindowRoute(.settings, tab: "connection"))
@@ -64,7 +66,7 @@ final class DestinationsTests: XCTestCase {
     }
 
     func testFindsAPlaceByAnyWordOfItTitlesThatStartWithItFirst() {
-        XCTAssertEqual(Destinations.matchCommands("dec", supports: nothingNew).map(\.title).first, "Decide now")
+        XCTAssertEqual(Destinations.matchCommands("wait", supports: nothingNew).map(\.title).first, "Waiting for you")
         XCTAssertTrue(Destinations.matchCommands("conn", supports: nothingNew).map(\.title).contains("Connectors"))
         XCTAssertEqual(Destinations.matchCommands("mcp", supports: nothingNew), [])
         XCTAssertEqual(Destinations.matchCommands("  ", supports: nothingNew), Destinations.commands(supports: nothingNew))

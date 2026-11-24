@@ -2,6 +2,7 @@ import type { WorkCorrelation } from '../../domain/work-correlations';
 import type { HoldAnswer } from '@memnox/core/wire';
 import type { CloudMyWork, CloudProfileView } from '../../domain/workspace-agents';
 import type { InboxAnswerReply, PersonCode, PersonToken, RegisteredDevice, WorkspaceCredential, WorkspaceHeldCall, WorkspaceRef } from '../../domain/workspace-wire';
+import type { CloudRuleChange } from '../../domain/team-rule-changes';
 
 /** Where asking whether the person approved the code stands. */
 export type CodeRedemption =
@@ -51,7 +52,7 @@ export interface WorkspaceInbox {
 }
 
 /**
- * The workspace's agents for the person signed in: the jobs, the work they answer for and the handoffs that wait on
+ * The workspace's agents for the person signed in: the agents, the work they answer for and the handoffs that wait on
  * them. The workspace decides who sees what; this only carries what it says, and an answer to a handoff is unsigned.
  */
 export interface WorkspaceAgentsReader {
@@ -60,6 +61,8 @@ export interface WorkspaceAgentsReader {
   answerHandoff(handoff: string, workspace: string, accept: boolean, token: string): Promise<void>;
   /** Which issue each of these sessions concerns, as the workspace matched it. */
   workCorrelations(workspace: string, sessionIds: readonly string[], token: string): Promise<readonly WorkCorrelation[]>;
+  /** The team's rule changes still waiting on a second person, read only, since approving one is signed in the console. */
+  pendingRuleChanges(workspace: string, token: string): Promise<readonly CloudRuleChange[]>;
 }
 
 /** Where the signed in person's credential is kept between launches; a bearer token, so the real one is the system's credential store. */

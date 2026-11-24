@@ -3,7 +3,7 @@ import MemnoxVoiceCore
 import ServiceManagement
 import SwiftUI
 
-/// Connect this machine, on one card: the service installing and starting by itself, the Touch ID key, and the agents
+/// Your agents, on one card: the service installing and starting by itself, the Touch ID key, and the agents
 /// found here.
 /// Continue opens as soon as the service runs, since the rest finishes behind it.
 struct ConnectStep: View {
@@ -13,7 +13,7 @@ struct ConnectStep: View {
     var body: some View {
         let ready = FirstRunLines.canContinueConnect(serviceRunning: setup.daemon == .done)
         StepTitle(title: FirstRunStepID.connect.title,
-                  detail: "Memnox installs its service, makes your Touch ID key and finds your agents by itself. No account needed.")
+                  detail: "Memnox finds the agents on this Mac and sets itself up beside them. Nothing to type, and no account needed.")
         KitCard(symbol: "desktopcomputer", title: "Memnox on this Mac", detail: "Installed under your agents and kept up to date for you.") {
             KitRow(title: "Memnox service", detail: setup.runtime.doing.map { "\($0)…" } ?? "Installed, started and updated for you.",
                    hint: hint(setup.daemon), leading: { MemnoxTile() }) {
@@ -154,21 +154,22 @@ struct RulesStep: View {
 
     var body: some View {
         StepTitle(title: FirstRunStepID.rules.title,
-                  detail: "We chose the pack we recommend. Nothing holds until you confirm each rule with Touch ID on the island.")
+                  detail: "You can change this any time under Rules. Every rule still waits for your Touch ID before it holds.")
         if let studio = AppWindow.shared.shell.studio {
-            RulePacks(flow: flow, screen: studio)
+            CareChoice(flow: flow, screen: studio, home: SettingsWindow.shared.home)
         } else {
             Next(title: "Finish", flow: flow)
         }
     }
 }
 
-private struct RulePacks: View {
+/// The three levels of care as radio rows, the recommended one chosen. Finishing proposes the level's shipped pack,
+/// whose rules wait on the island for Touch ID, and moves this Mac to stopping where the level asks for it.
+private struct CareChoice: View {
     @ObservedObject var flow: OnboardingFlow
     @ObservedObject var screen: StudioScreen
-    /// The pack the person picked over the recommended one; nil keeps the recommended.
-    @State private var picked: String?
-    @State private var others = false
+    let home: HomeModel?
+    @State private var chosen = CareLevel.recommended
     @State private var failed: String?
     @State private var sending = false
 
@@ -176,32 +177,10 @@ private struct RulePacks: View {
     private static let ring: CGFloat = 2
 
     var body: some View {
-        let packs = screen.studio.packs ?? []
-        let recommended = FirstRunLines.recommendedPack(packs)
-        let chosen = packs.first { $0.id == picked } ?? recommended
-        KitCard(symbol: "checklist", title: "Recommended for you", detail: "A safe start. Change any rule later under Protection settings.") {
-            if screen.studio.packs == nil {
-                ProgressView().controlSize(.small)
-            } else if let recommended {
-                option(recommended, chosen: chosen)
-                if others {
-                    ForEach(FirstRunLines.otherPacks(packs), id: \.id) { each in
-                        KitDivider()
-                        option(each, chosen: chosen)
-                    }
-                } else if !FirstRunLines.otherPacks(packs).isEmpty {
-                    Button("See other packs", systemImage: "chevron.down") { withAnimation(.snappy) { others = true } }
-                        .buttonStyle(.plain)
-                        .pointingHand()
-                        .font(Memnox.sans(Memnox.TextSize.footnote, .medium))
-                        .foregroundStyle(Memnox.Console.primary)
-                        .padding(.top, Memnox.Spacing.regular)
-                }
-            } else {
-                Text("Memnox has no rule sets to pick from yet. The rules it starts with stay on.")
-                    .font(Memnox.sans(Memnox.TextSize.footnote))
-                    .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
-                    .fixedSize(horizontal: false, vertical: true)
+        KitCard(symbol: "hand.raised", title: chosen.label, detail: chosen.line) {
+            ForEach(Array(CareLevel.allCases.enumerated()), id: \.element) { index, level in
+                if index > 0 { KitDivider() }
+                option(level)
             }
         }
         .task { await screen.studio.readPacks() }
@@ -211,27 +190,21 @@ private struct RulePacks: View {
                 .foregroundStyle(Memnox.ink(Memnox.Ink.secondary))
                 .fixedSize(horizontal: false, vertical: true)
         }
-        if let chosen, failed == nil {
-            Button { Task { await use(chosen) } } label: {
-                HStack(spacing: Memnox.Spacing.small) {
-                    Text(sending ? "Proposing \(chosen.name)" : "Finish")
-                    Image(systemName: "arrow.right")
-                }
+        Button { Task { await finish() } } label: {
+            HStack(spacing: Memnox.Spacing.small) {
+                Text(sending ? "Setting it up" : "Finish")
+                Image(systemName: "arrow.right")
             }
-            .buttonStyle(KitButton(kind: .primary, wide: true))
-            .keyboardShortcut(.defaultAction)
-            .disabled(sending)
-        } else {
-            // Nothing to propose, or the proposal was refused and said so above; the rules Memnox starts with stay on.
-            Next(title: "Finish", flow: flow)
         }
+        .buttonStyle(KitButton(kind: .primary, wide: true))
+        .keyboardShortcut(.defaultAction)
+        .disabled(sending)
     }
 
-    /// One pack as a radio row, with its rule count and what it is for.
-    private func option(_ pack: RulePackView, chosen: RulePackView?) -> some View {
-        let on = chosen?.id == pack.id
-        return Button { picked = pack.id } label: {
-            KitRow(symbol: "checklist", title: FirstRunLines.packTitle(pack), detail: pack.description) {
+    private func option(_ level: CareLevel) -> some View {
+        let on = chosen == level
+        return Button { chosen = level } label: {
+            KitRow(symbol: level.symbol, title: level == CareLevel.recommended ? "\(level.label), recommended" : level.label, detail: level.line) {
                 Circle()
                     .strokeBorder(on ? Memnox.Console.primary : Memnox.ink(Memnox.Ink.tertiary), lineWidth: Self.ring)
                     .background(Circle().fill(on ? Memnox.Console.primary : Color.clear))
@@ -246,19 +219,38 @@ private struct RulePacks: View {
         .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
     }
 
-    /// Proposes the pack through the runtime; its rules then wait on the island for Touch ID while the end shows.
-    private func use(_ pack: RulePackView) async {
+    /// Proposes the level's pack through the runtime, then stops rather than watches where the level asks for it.
+    private func finish() async {
+        home?.keepWatching = !chosen.enforces
+        flow.care = chosen
+        guard let id = chosen.packId, let pack = (screen.studio.packs ?? []).first(where: { $0.id == id }) else {
+            flow.next()
+            return
+        }
         sending = true
         let outcome = await screen.studio.importPack(pack.toml)
         sending = false
         switch outcome {
         case .failed(let why):
             failed = why
+            return
         case .proposed:
             flow.setup?.guide(FirstRunGuide.packProposed)
-            flow.next()
         case .done:
-            flow.next()
+            break
+        }
+        if chosen.enforces { home?.enforce() }
+        flow.next()
+    }
+}
+
+private extension CareLevel {
+    /// The symbol on its row: an eye for watching, a raised hand for asking, a lock for asking about almost everything.
+    var symbol: String {
+        switch self {
+        case .watch: "eye"
+        case .ask: "hand.raised"
+        case .strict: "lock"
         }
     }
 }
@@ -275,7 +267,7 @@ struct ReadyStep: View {
 
     var body: some View {
         let hearing = setup.listening == .done
-        StepTitle(title: FirstRunEnd.title(name: setup.name), detail: FirstRunEnd.lead)
+        StepTitle(title: FirstRunEnd.title(name: setup.name), detail: FirstRunEnd.lead(flow.care))
         TryCard()
         VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
             Button { open() } label: {

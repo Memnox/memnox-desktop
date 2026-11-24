@@ -5,16 +5,16 @@ import XCTest
 /// Mirrors shared/tauri-core/test/protection-lines.test.ts, so both desktops say the console's words.
 final class ProtectionLinesTests: XCTestCase {
     func testListsTheTabsInTheConsolesOrder() {
-        XCTAssertEqual(ProtectionTab.shown.map(\.title), ["Ready-made rules", "All rules"])
+        XCTAssertEqual(ProtectionTab.shown.map(\.title), ["Starter rules", "Your rules"])
     }
 
     func testSaysTheConsolesWordsForTheReadyMadeRules() {
         XCTAssertEqual(ProtectionLines.search, "Search by tool, command or what it protects: kubectl, refund, secrets")
         XCTAssertEqual(ProtectionLines.starter, "Add the starter set")
-        XCTAssertEqual(ProtectionLines.noneMatch, "No ready-made rule matches that. Propose your own under All rules.")
-        XCTAssertEqual(ProtectionLines.inForceAs(.ask), "In force as ask")
+        XCTAssertEqual(ProtectionLines.noneMatch, "No starter rule matches that. Write your own under Your rules.")
+        XCTAssertEqual(ProtectionLines.inForceAs(.ask), "In force as ask first")
         XCTAssertEqual(ProtectionLines.readyIntro(keyTitle: "Touch ID"),
-                       "Rules written for you. Choose Allow, Ask or Deny on one; it holds once you confirm it with Touch ID.")
+                       "Rules written for you. Choose Allow, Ask first or Never on one; it holds once you confirm it with Touch ID.")
     }
 
     func testSavesTheWayTheConsolesChoicesSave() {
@@ -26,9 +26,9 @@ final class ProtectionLinesTests: XCTestCase {
 
     func testPointsBetweenTheTabsAsTheConsoleDoes() {
         XCTAssertEqual(ProtectionLines.simplerTitle, "Want the simple version?")
-        XCTAssertEqual(ProtectionLines.startTitle, "Start from a ready-made rule")
+        XCTAssertEqual(ProtectionLines.startTitle, "Start from a starter rule")
         XCTAssertEqual(ProtectionLines.handOver, "See what to hand over")
-        XCTAssertEqual(ProtectionLines.readyToHandOver, "Ready to hand over")
+        XCTAssertEqual(ProtectionLines.readyToHandOver, "You could let go of")
         XCTAssertEqual(ProtectionLines.stopAsking, "Stop asking")
     }
 

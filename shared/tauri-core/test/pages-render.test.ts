@@ -36,7 +36,6 @@ const gone: DaemonLink = {
 const NOTHING: Record<string, Partial<DaemonResponse>> = {
   agents: { agentsView: [] },
   profiles: { profiles: [] },
-  templates: { templates: [] },
   'agent-work': { agentWork: [] },
   projects: { projects: { projects: [] } },
   'skills-hub': { skillsHub: { skills: [], found: [], agents: [] } },
@@ -144,7 +143,6 @@ beforeAll(async () => {
     await Promise.allSettled([
       parts.agents.refresh(),
       parts.profiles.refresh(),
-      parts.profiles.readTemplates(),
       parts.work.refresh(),
       parts.workspaceAgents.refresh(),
       parts.skills.refresh(),
@@ -213,7 +211,7 @@ describe('the workspace’s agents', () => {
     const supports = withWorkspaceAgents((method) => parts.support.supports(method), parts.workspaceAgents.signedIn);
     expect(visibleTabs('agents', supports).map((tab) => tab.id)).toContain('agents');
     const list = renderToString(createElement('div', null, pageNamed('agents/agents').draw(parts)));
-    expect(list).toContain('No Memnox runtime is running on this computer');
+    expect(list).toContain('Memnox is not running on this computer');
     expect(list).toContain('Start Memnox');
     expect(list).toContain('In your workspace');
     expect(list).toContain('Content Agent');
@@ -225,17 +223,16 @@ describe('the workspace’s agents', () => {
   });
 });
 
-describe('the Jobs tab', () => {
+describe('the agents list', () => {
   const levels = { context: 'mediated', instructions: 'mediated', tools: 'enforced', activity: 'enforced', coordination: 'mediated', approval: 'enforced', enforcement: { shell: 'enforced', filesystem: 'enforced', git: 'enforced', network: 'observed', browser: 'none', mcp: 'mediated' } };
   const connection = { id: 'c1', profileId: 'agt_claude-code', kind: 'runtime_hook', agentKind: 'claude-code', agentId: 'agt_claude-code', mediation: 'interposed', firstSeen: 't', lastSeen: 't', status: 'live', levels };
   const answers: Record<string, Partial<DaemonResponse>> = {
     profiles: {
       profiles: [
-        { id: 'agt_claude-code', name: 'Claude Code', skills: [], mcpServers: [], updatedAt: 't', missing: [], responsibilities: [], projects: [], isDefault: true, connections: [connection], levels },
-        { id: 'reviewer', name: 'Reviewer', purpose: 'Reads a change', skills: [], mcpServers: [], updatedAt: 't', missing: [], responsibilities: [], projects: [], connections: [], levels },
+        { id: 'agt_claude-code', name: 'Claude Code', skills: [], mcpServers: [], updatedAt: 't', missing: [], projects: [], isDefault: true, connections: [connection], levels },
+        { id: 'reviewer', name: 'Reviewer', description: 'Reads a change', skills: [], mcpServers: [], updatedAt: 't', missing: [], projects: [], connections: [], levels },
       ] as unknown as DaemonResponse['profiles'],
     },
-    templates: { templates: [{ id: 'testing', name: 'Testing', purpose: 'Writes and runs tests', role: 'tester', responsibilities: [], suggestedSkills: [], suggestedRules: ['Never push.'], suggestedConnections: [] }] as unknown as DaemonResponse['templates'] },
   };
   const link: DaemonLink = {
     async *stream(request: DaemonRequest): AsyncIterable<DaemonResponse> {
@@ -244,27 +241,17 @@ describe('the Jobs tab', () => {
     },
   };
 
-  it('keeps a default out of Jobs, as the console does, and offers it a job under Agents instead', async () => {
+  it('shows each agent by whether Memnox can stop it, and offers no job', async () => {
     const parts = await partsOver(link);
-    const html = renderToString(createElement('div', null, pageNamed('agents/jobs').draw(parts)));
-    expect(html).not.toContain('Agents with no job yet');
-    expect(html).not.toContain('Give it a job');
     const { AgentProfileCards } = await import('../src/ui/app/pages/AgentProfileCards');
     const agents = renderToString(createElement(AgentProfileCards, { parts }));
-    expect(agents).toContain('Give it a job');
-  });
-
-  it('draws a job with nobody behind it grey, and a template with no activity', async () => {
-    const html = renderToString(createElement('div', null, pageNamed('agents/jobs').draw(await partsOver(link))));
-    expect(html).toContain('Reviewer');
-    expect(html).toContain('Start from a template');
-    expect(html).toContain('Use this job');
-    expect((html.match(/No agent behind it yet/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(agents).not.toContain('Give it a job');
+    expect(agents).toContain('Memnox can stop it.');
   });
 });
 
 describe('with the runtime away', () => {
-  it('never says all clear on Home, Needs your attention, On this computer or the sidebar, and opens Connection instead', async () => {
+  it('never says all clear on Home, Needs your attention or the sidebar, and opens Connection instead', async () => {
     const { PREFERENCE } = await import('../src/core/application/preferences');
     const { RuntimeStatus } = await import('../src/ui/app/AppShell');
     memory.set(PREFERENCE.setupDone, 'true');
@@ -275,19 +262,18 @@ describe('with the runtime away', () => {
     // A window newly open is still waiting on a service being set up, so it says that and shows no fault.
     const starting = renderToString(createElement('div', null, pageNamed('home/').draw(parts), createElement(RuntimeStatus, { parts, rail: false })));
     expect(starting).toContain('Starting Memnox');
-    for (const fault of ['could not read', 'not answering', 'Open Connection', 'Runtime running']) expect(starting, `starting says ${fault}`).not.toContain(fault);
+    for (const fault of ['could not read', 'not answering', 'Open Connection', 'Memnox running']) expect(starting, `starting says ${fault}`).not.toContain(fault);
     // Once the wait has run out, a service still away is said to be away.
     const openedAt = windowOpened.at;
     windowOpened.at = Date.now() - START_GRACE_MS;
-    const drawn = ['home/', 'needs-you/decide-now', 'agents/this-computer'].map((name) => [name, renderToString(createElement('div', null, pageNamed(name).draw(parts)))] as const);
+    const drawn = ['home/', 'needs-you/decide-now'].map((name) => [name, renderToString(createElement('div', null, pageNamed(name).draw(parts)))] as const);
     drawn.push(['sidebar', renderToString(createElement(RuntimeStatus, { parts, rail: false }))]);
     for (const [name, html] of drawn) {
-      for (const clear of ['Nothing is waiting', 'Nothing needs you', 'No agents found', 'Runtime running']) expect(html, `${name} says ${clear}`).not.toContain(clear);
+      for (const clear of ['Nothing is waiting', 'Nothing needs you', 'No agents found', 'Memnox running']) expect(html, `${name} says ${clear}`).not.toContain(clear);
     }
     expect(drawn.find(([name]) => name === 'home/')?.[1]).toContain('Open Connection');
     expect(drawn.find(([name]) => name === 'needs-you/decide-now')?.[1]).toContain('The Memnox service is not answering');
-    expect(drawn.find(([name]) => name === 'agents/this-computer')?.[1]).toContain('Open Connection');
-    expect(drawn.find(([name]) => name === 'sidebar')?.[1]).toContain('Runtime not answering');
+    expect(drawn.find(([name]) => name === 'sidebar')?.[1]).toContain('Memnox not answering');
     windowOpened.at = openedAt;
     memory.delete(PREFERENCE.setupDone);
   });

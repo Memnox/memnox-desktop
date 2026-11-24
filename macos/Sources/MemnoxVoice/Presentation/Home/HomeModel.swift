@@ -16,6 +16,8 @@ final class HomeModel: ObservableObject {
     @Published private(set) var protecting = false
     /// True while the runtime is asked to stop rather than watch, so Turn on stopping is not pressed twice.
     @Published private(set) var enforcing = false
+    /// Set when the first run chose Just watch, so finishing setup never asks to start stopping straight after.
+    var keepWatching = false
     /// What the last Turn on stopping came to, in words for under the step.
     @Published private(set) var enforceNote: String?
     /// True while the confirm for Turn on stopping is up, so setup finishing can put the same question up on Home.
@@ -134,7 +136,7 @@ final class HomeModel: ObservableObject {
     /// As setup finishes: reads the mode and, while this Mac only watches, puts the confirm up and says why it is asked.
     /// A window on a server is left alone, since Turn on stopping cannot reach it from here.
     func offerEnforce(say: @escaping (String) async -> Void) async {
-        guard !remote() else { return }
+        guard !remote(), !keepWatching else { return }
         let read = await load()
         if let read { home = read }
         guard let line = HomeEnforce.afterSetup(read.flatMap { HomeMode(rawValue: $0.mode) }) else { return }

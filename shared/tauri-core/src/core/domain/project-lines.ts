@@ -155,7 +155,7 @@ export function sharedBy(project: Pick<ProjectView, 'scope' | 'organization'>): 
 
 /** "Release rules, 4 rules", or that the organization gives this project no rule pack. */
 export function organizationRulesLine(organization: Pick<ProjectOrganizationView, 'rulePack' | 'rules'>): string {
-  if (organization.rulePack === undefined) return 'No rule pack from the organization.';
+  if (organization.rulePack === undefined) return 'No starter rules from the organization.';
   return `${organization.rulePack}, ${counted(organization.rules, 'rule', 'rules')}`;
 }
 

@@ -23,6 +23,7 @@ describe('the first run guide', () => {
     expect(GuideLines.welcome('Moise')).toMatch(/^Hi Moise, I’m Memnox\./);
     expect(GuideLines.welcome(undefined)).toMatch(/^Hi, I’m Memnox\./);
     expect(GuideLines.welcome(undefined)).toContain('No account needed.');
+    expect(GuideLines.welcome(undefined)).toContain('Tell them what to do by text or voice, and I carry your words whole.');
     expect(GuideLines.ready('Moise', 'Ctrl Alt Space')).toBe('You’re all set Moise. Press Ctrl Alt Space and say what you need. When an agent needs you, I will ask right here in the island.');
   });
 
@@ -49,8 +50,8 @@ describe('the first run guide', () => {
     expect(nextStep(0)).toBe(1);
     expect(nextStep(1)).toBeUndefined();
     expect(previousStep(0)).toBeUndefined();
-    expect(stepHeading(0, 'Windows Hello').detail).toContain('Windows Hello becomes the key only you approve with');
-    expect(stepHeading(1, 'Windows Hello').detail).toContain('The recommended rules are chosen for you');
+    expect(stepHeading(0, 'Windows Hello').detail).toContain('with Windows Hello as the key only you approve with');
+    expect(stepHeading(1, 'Windows Hello').detail).toContain('Every rule still waits for your Windows Hello');
   });
 
   it('says how short setup is, and where the phone and Memnox Cloud wait', () => {

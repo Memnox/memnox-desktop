@@ -22,8 +22,8 @@ private func ask(_ link: DaemonLink, _ request: DaemonRequest) async -> DaemonRe
 }
 
 private func outcome(_ response: DaemonResponse?, done: String) -> StudioOutcome {
-    guard let response else { return .failed("The runtime is not answering.") }
-    guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
+    guard let response else { return .failed("Memnox is not answering on this Mac.") }
+    guard response.ok else { return .failed(response.error ?? "Memnox refused this.") }
     if let proposed = response.proposed { return .proposed(proposed) }
     return .done(done)
 }
@@ -37,6 +37,7 @@ public final class Studio: @unchecked Sendable {
     private var rulesView: PolicyRulesView?
     private var progressView: AutonomyProgress?
     private var packList: [RulePackView]?
+    private var historyRows: [RuleHistoryRow]?
     private var failed = false
     private var working: String?
 
@@ -52,6 +53,8 @@ public final class Studio: @unchecked Sendable {
     public var progress: AutonomyProgress? { lock.withLock { progressView } }
     /// The packs Memnox ships, once read; empty from a runtime that answered with none.
     public var packs: [RulePackView]? { lock.withLock { packList } }
+    /// The rule changes answered here, newest first; nil until read, or from a runtime with no such method.
+    public var history: [RuleHistoryRow]? { lock.withLock { historyRows } }
     /// The last read of the rules failed, so the page says so rather than drawing no rules.
     public var unreadable: Bool { lock.withLock { failed } }
     /// The rule, grant or pack a press is still working on, so its button can say so.
@@ -86,6 +89,14 @@ public final class Studio: @unchecked Sendable {
         changed?()
     }
 
+    public func readHistory() async {
+        let response = await ask(link, DaemonRequest(id: ids.next(), method: .ruleHistory))
+        lock.withLock {
+            if let rows = response?.ruleHistory { historyRows = rows }
+        }
+        changed?()
+    }
+
     public func propose(_ draft: RuleDraftInput) async -> StudioOutcome {
         var request = DaemonRequest(id: ids.next(), method: .rulePropose)
         request.ruleDraft = draft
@@ -104,10 +115,13 @@ public final class Studio: @unchecked Sendable {
         return await change(grantId, request, done: "Taken back. Your agents ask about it again.")
     }
 
-    /// Each rule in the pack becomes its own proposal, signed one at a time on the island.
-    public func importPack(_ toml: String) async -> StudioOutcome {
+    /// Each rule in the pack becomes its own proposal, signed one at a time on the island. Given a project folder its
+    /// rules hold only there, and given an agent's kind they hold only for that agent.
+    public func importPack(_ toml: String, project: String? = nil, agent: String? = nil) async -> StudioOutcome {
         var request = DaemonRequest(id: ids.next(), method: .rulePackImport)
         request.rulePack = toml
+        request.rulePackProject = project
+        request.rulePackAgent = agent
         let response = await send(Self.importing, request)
         if let response, response.ok, let proposed = response.packProposed {
             let count = proposed.count
@@ -123,7 +137,7 @@ public final class Studio: @unchecked Sendable {
         request.ruleTest = input
         let response = await ask(link, request)
         if let verdict = response?.ruleVerdict { return .verdict(verdict) }
-        return .failed(response?.error ?? "The runtime is not answering.")
+        return .failed(response?.error ?? "Memnox is not answering on this Mac.")
     }
 
     /// The rules a person added here, as TOML text.
@@ -335,6 +349,13 @@ public final class Agents: @unchecked Sendable {
         let response = await ask(link, DaemonRequest(id: ids.next(), method: .agentsScan))
         guard response?.ok == true else { return nil }
         return response?.agentsScan
+    }
+
+    /// Where the agents here meet now; nil from a daemon too old to say, so the cards say nothing rather than all clear.
+    public func overlaps() async -> AgentOverlapsView? {
+        let response = await ask(link, DaemonRequest(id: ids.next(), method: .agentOverlaps))
+        guard response?.ok == true else { return nil }
+        return response?.agentOverlaps
     }
 
     /// Holds the agent at once, since that only narrows.

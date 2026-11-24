@@ -24,7 +24,7 @@ class Cloud implements HttpTransport {
 const store = (kept: WorkspaceCredential | undefined): PersonCredentialStore => ({ load: async () => kept, save: async () => undefined, delete: async () => undefined });
 
 const hosted: CloudProfileView = {
-  profile: { id: 'prf_1', name: 'Content Agent', purpose: 'Drafts the campaign briefs', responsiblePersonId: 'psn_me', projects: [] },
+  profile: { id: 'prf_1', name: 'Content Agent', responsiblePersonId: 'psn_me', projects: [] },
   connected: true,
   connections: [{ machineId: 'mch_1', connection: 'gateway', label: 'openai', live: true, levels: { context: 'mediated', enforcement: 'observed' } }],
   levels: { context: 'mediated', instructions: 'advisory', tools: 'mediated', activity: 'observed', coordination: 'none', approval: 'mediated', enforcement: 'observed' },
@@ -76,7 +76,7 @@ describe('reading the workspace’s agents', () => {
     expect(await agents.answer('hof_1', 'ws_1', 'accept')).toEqual({ kind: 'failed', why: 'Sign in to Memnox Cloud to answer this.' });
   });
 
-  it('reads each workspace’s jobs and work, dropping an entry it cannot read', async () => {
+  it('reads each workspace’s agents and work, dropping an entry it cannot read', async () => {
     const cloud = new Cloud({
       'GET v1/workspaces/ws_1/agent-profiles': { status: 200, body: { profiles: [hosted, { profile: { name: 'no id' } }] } },
       'GET v1/workspaces/ws_1/me/agent-work': { status: 200, body: mine },

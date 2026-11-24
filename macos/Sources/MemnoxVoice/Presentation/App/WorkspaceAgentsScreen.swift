@@ -17,7 +17,7 @@ final class WorkspaceAgentsScreen: ObservableObject {
     }
 }
 
-/// In your workspace: the jobs Memnox Cloud keeps, for agents hosted elsewhere, drawn as the cards on this Mac are.
+/// In your workspace: the agents Memnox Cloud keeps, for agents hosted elsewhere, drawn as the cards on this Mac are.
 /// Shown only while the person is signed in, so with no account the list here is the whole of it.
 struct WorkspaceAgentsSection: View {
     @ObservedObject var screen: WorkspaceAgentsScreen
@@ -29,9 +29,9 @@ struct WorkspaceAgentsSection: View {
             if screen.agents.signedIn, !profiles.isEmpty {
                 let work = remote.flatMap(\.work)
                 ShellSection(title: "In your workspace") {
-                    QuietLine("Agents Memnox Cloud reaches beyond this Mac. Edit their jobs in the console.")
+                    QuietLine("Agents Memnox Cloud reaches beyond this Mac. Change who answers for them in the console.")
                     EqualRowsGrid(items: AgentProfileLines.ordered(profiles), cardWidth: AgentGridMetrics.cardWidth) { profile in
-                        AgentProfileCard(profile: profile, work: AgentWorkLines.current(for: profile.id, in: work), giveJob: nil)
+                        AgentProfileCard(profile: profile, work: AgentWorkLines.current(for: profile.id, in: work))
                     }
                 }
             }
@@ -62,6 +62,35 @@ struct WorkspaceHandoffs: View {
             }
         }
         .task { if screen.agents.signedIn { await screen.agents.refresh() } }
+    }
+}
+
+/// The team's rule changes that wait on a second person, listed here so they are seen, and opened in Memnox Cloud to
+/// approve, since the team signs them there rather than on this Mac.
+struct TeamRuleChanges: View {
+    @ObservedObject var screen: WorkspaceAgentsScreen
+
+    var body: some View {
+        let lines = TeamRuleChangeLines.lines(screen.agents.remote.flatMap(\.ruleChanges), now: Date())
+        if !lines.isEmpty {
+            ShellSection(title: "\(TeamRuleChangeLines.title) \u{00B7} \(lines.count)") {
+                Button(TeamRuleChangeLines.open, systemImage: "arrow.up.forward") { NSWorkspace.shared.open(TeamRuleChangeLines.consoleAddress) }
+            } content: {
+                Text(TeamRuleChangeLines.detail)
+                    .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                    .foregroundStyle(Memnox.Console.muted)
+                ShellPanel {
+                    ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                        if index > 0 { ShellDivider() }
+                        ShellRow(title: line.title, caption: line.caption) {
+                            EmptyView()
+                        } trailing: {
+                            EmptyView()
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -45,7 +45,7 @@ export function chipLabel(chip: ToolChip): string {
 /** The rows in the Mac's order, with the talk key as this computer spells it. */
 export function menuRows(muted: boolean, talkKeys: readonly string[], demo = false): MenuRow[] {
   return [
-    { action: 'talk', title: 'Talk to Memnox', symbol: 'waveform', keys: talkKeys, tooltip: `Talk to Memnox with ${talkKeys.join(' ')}` },
+    { action: 'talk', title: 'Talk to Memnox', symbol: 'waveform', keys: talkKeys, tooltip: `Tell your agents what to do with ${talkKeys.join(' ')}, and Memnox carries your words whole` },
     { action: 'rule', title: 'Say a rule', symbol: 'shield.lefthalf.filled' },
     { action: 'copy', title: 'Copy what happened', symbol: 'doc.on.clipboard' },
     muted

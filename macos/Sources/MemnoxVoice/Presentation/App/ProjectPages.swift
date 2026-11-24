@@ -1,8 +1,8 @@
 import MemnoxVoiceCore
 import SwiftUI
 
-/// One project's own pages, opened from Projects with the sidebar swapped for the project's: its Overview with what it
-/// learned lately, its agents, its memory, and what its AI may do. Each is a page; nothing opens a sheet. The
+/// One project's own pages, opened from Projects with the sidebar swapped for the project's: its Overview with who works
+/// there, what waits and how careful agents are, its rules, and what its agents should know. Each is a page; nothing opens a sheet. The
 /// desktop is one person's, so people and the cloud's own actions show only once this Mac is joined to a workspace.
 struct ProjectPages: View {
     @ObservedObject var screen: ProjectsScreen
@@ -16,9 +16,8 @@ struct ProjectPages: View {
         let team = ProjectPageLines.showsTeam(project, joined: joined)
         ShellScroll(width: width) {
             switch page {
-            // Tools is left off for now, so a route to it shows the Overview, which holds its folder.
-            case .overview, .tools: ProjectOverviewPage(screen: screen, shell: shell, project: project, team: team)
-            case .agents: ProjectAgentsPage(shell: shell, project: project)
+            // Tools and Agents are on the Overview now, so an old route to either lands there.
+            case .overview, .tools, .agents: ProjectOverviewPage(screen: screen, shell: shell, project: project, team: team)
             case .memory:
                 if let memory = shell.memory {
                     ProjectMemoryPage(memory: memory, shell: shell, project: project)
@@ -175,6 +174,9 @@ private struct ProjectOverviewPage: View {
         let rulesHere = shell.studio?.studio.rules.map { ProjectLines.rules($0.rules, in: project).here.count } ?? 0
         let steps = ProjectPageLines.readySteps(project, sources: sources, rulesHere: rulesHere)
         header
+        ProjectNow(shell: shell, project: project)
+        ProjectCarePanel(shell: shell, project: project)
+        AgentsHere(project: project)
         if ProjectPageLines.showsChecklist(steps) {
             ShellSection(title: ProjectPageLines.readyTitle) {
                 ShellPanel {
@@ -234,6 +236,114 @@ private struct ProjectOverviewPage: View {
                         .foregroundStyle(Memnox.Console.destructive)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            }
+        }
+    }
+}
+
+/// Who works here now and what waits for you here, each a press away from the page that holds it.
+private struct ProjectNow: View {
+    @ObservedObject var shell: AppShellModel
+    let project: ProjectView
+
+    var body: some View {
+        if let island = shell.island {
+            ProjectNowLines(island: island, project: project) { shell.go($0) }
+        }
+    }
+}
+
+private struct ProjectNowLines: View {
+    @ObservedObject var island: IslandModel
+    let project: ProjectView
+    let go: (WindowRoute) -> Void
+
+    var body: some View {
+        let pulse = ProjectContext.pulse(project, sessions: island.cards, waitingPlaces: island.waiting.entries.map(\.card.place), now: Date())
+        ShellSection(title: "Right now") {
+            ShellPanel {
+                ShellRow(title: pulse.workingLine ?? "No agent is working here right now", caption: pulse.lastActivity,
+                         action: { go(WindowRoute(.sessions)) }) {
+                    Image(systemName: "person.2").foregroundStyle(Memnox.Console.muted).accessibilityHidden(true)
+                } trailing: { EmptyView() }
+                ShellDivider()
+                ShellRow(title: pulse.waiting == 0 ? "Nothing waits for you here" : ProjectLines.counted(pulse.waiting, "thing waits for you here", "things wait for you here"),
+                         caption: "Answer it with Touch ID on the island or under Needs you.",
+                         action: { go(WindowRoute(.needsYou)) }) {
+                    Image(systemName: "tray").foregroundStyle(pulse.waiting == 0 ? Memnox.Console.muted : Memnox.Console.warm).accessibilityHidden(true)
+                } trailing: { EmptyView() }
+            }
+        }
+    }
+}
+
+/// How careful agents are here, and the press that starts this project on another level; each rule still waits for
+/// Touch ID on the island before it holds. Going back to Relaxed is done by removing rules under Rules here.
+private struct ProjectCarePanel: View {
+    @ObservedObject var shell: AppShellModel
+    let project: ProjectView
+
+    var body: some View {
+        if let studio = shell.studio {
+            ProjectCareChoice(studio: studio, project: project)
+        }
+    }
+}
+
+private struct ProjectCareChoice: View {
+    @ObservedObject var studio: StudioScreen
+    let project: ProjectView
+    @State private var note: String?
+    @State private var busy = false
+
+    var body: some View {
+        let here = ProjectLines.rules(studio.studio.rules?.rules ?? [], in: project).here
+        let care = ProjectCare.of(rulesHere: here)
+        ShellSection(title: "How careful agents are here") {
+            ShellPanel {
+                VStack(alignment: .leading, spacing: Memnox.Spacing.medium) {
+                    HStack(spacing: Memnox.Spacing.medium) {
+                        StatusWord(care == .relaxed ? .quiet : .good, care.label)
+                        Text(care.line)
+                            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(Memnox.Console.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    HStack(spacing: Memnox.Spacing.medium) {
+                        ForEach(ProjectCare.allCases.filter { $0 != .relaxed && $0 != care }, id: \.self) { other in
+                            Button("Make it \(other.label.lowercased())") { start(other) }
+                                .buttonStyle(KitButton(kind: .secondary))
+                                .disabled(busy)
+                                .help(other.line)
+                        }
+                    }
+                    if let note {
+                        Text(note)
+                            .font(Memnox.Console.sans(Memnox.TextSize.footnote))
+                            .foregroundStyle(Memnox.Console.muted)
+                    }
+                }
+                .padding(SettingsMetrics.cardPadding)
+            }
+        }
+        .task { await studio.studio.readPacks() }
+    }
+
+    /// Proposes the level's shipped pack for this folder only, so the rest of your work keeps its own care.
+    private func start(_ care: ProjectCare) {
+        guard let id = care.level?.packId, let pack = (studio.studio.packs ?? []).first(where: { $0.id == id }) else {
+            note = "Memnox has no starter rules for that yet."
+            return
+        }
+        busy = true
+        let folder = project.path
+        Task {
+            let outcome = await studio.studio.importPack(pack.toml, project: folder)
+            busy = false
+            switch outcome {
+            case .done(let line): note = line
+            case .failed(let why): note = why
+            case .proposed: note = "Each rule waits for your signature on the island."
             }
         }
     }
@@ -634,23 +744,6 @@ private struct CloudButton: View {
         Button { openURL(url) } label: { Label(title, systemImage: "arrow.up.right.square") }
             .buttonStyle(KitButton(kind: .secondary, wide: true))
             .help("\(ProjectPageLines.openInCloud): \(url.absoluteString)")
-    }
-}
-
-/// The agents that work in this project, each with what the project gives it, and the way to where every agent on this
-/// computer is set up once for every project.
-private struct ProjectAgentsPage: View {
-    @ObservedObject var shell: AppShellModel
-    let project: ProjectView
-
-    var body: some View {
-        AgentsHere(project: project)
-        if let open = sharedRoute(.agents, shell: shell) {
-            HStack(spacing: Memnox.Spacing.medium) {
-                ReachBadge(reach: .everyProject, open: { shell.go(open) })
-                ProjectMuted(ProjectPageLines.agentsSharedLine)
-            }
-        }
     }
 }
 

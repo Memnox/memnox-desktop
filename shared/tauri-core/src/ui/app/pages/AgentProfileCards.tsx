@@ -1,42 +1,54 @@
-import type { ProfileView } from '@memnox/core/wire';
-import { Briefcase, Pencil } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import type { AgentOverlapsView, ProfileView } from '@memnox/core/wire';
+import { AGENT_MEETINGS_TITLE, meetingLines } from '../../../core/domain/agent-meetings';
+import { useEffect, useState, type ReactNode } from 'react';
+import { AgentPresetLines, startedPack } from '../../../core/domain/agent-presets';
 import type { AgentWork } from '../../../core/domain/agent-wire';
-import { currentWork, NO_AGENT, orderedProfiles, purposeLine, responsibleLine, shownConnections } from '../../../core/domain/agent-work-lines';
+import { currentWork, NO_AGENT, orderedProfiles, responsibleLine, shownConnections, summaryLine } from '../../../core/domain/agent-work-lines';
 import { connectionStatusLine, headlineLevel } from '../../../core/domain/capability-level-lines';
-import { JobsLines } from '../../../core/domain/profile-lines';
+import { AgentCardLines } from '../../../core/domain/profile-lines';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { CapabilityStrip, ConnectionPill, LevelPill } from '../capability-strip';
-import { BrandLogo, Button, Card, CardGrid, Note, Section, StatusWord } from '../../kit';
-import { JobSheet } from './JobsTab';
+import { BrandLogo, Card, CardGrid, Section, Select, StatusWord } from '../../kit';
 import { WorkLine } from './WorkCards';
+
+/** Read again this often while the cards are on screen, since two agents meet and part within minutes. */
+const OVERLAPS_REREAD_MS = 30_000;
 
 /** As the Mac's agent grid sets it. */
 const CARD_WIDTH = 300;
 const CARD_LOGO = 30;
 
 /**
- * The agents as their jobs, over the connections Memnox reaches them through, as the Mac's `AgentProfileCard`. A
+ * The agents, over the connections Memnox reaches them through, as the Mac's `AgentProfileCard`. A
  * runtime that sends no connections leaves this out, and the cards of what was found stand alone as before.
  */
 export function AgentProfileCards({ parts }: { parts: SettingsParts }) {
   const { profiles, work, support, host } = parts;
   useObserved(profiles, work, support);
   const offersWork = support.supports('agent-work') === true;
-  const [note, setNote] = useState<string | undefined>(undefined);
-  const [jobFor, setJobFor] = useState<ProfileView | undefined>(undefined);
-  const [editing, setEditing] = useState<ProfileView | undefined>(undefined);
   useEffect(() => {
     if (offersWork) void work.refresh();
   }, [offersWork]);
   const kept = profiles.profiles ?? [];
   const local = kept.some((each) => each.connections.length > 0 || each.isDefault === true);
   const all = offersWork ? (work.work ?? []) : [];
+  // Where the agents meet, read once for every card; undefined until read, or from a runtime too old to say.
+  const [overlaps, setOverlaps] = useState<AgentOverlapsView | undefined>(undefined);
+  useEffect(() => {
+    const read = () => void parts.agents.overlaps().then(setOverlaps);
+    read();
+    const timer = setInterval(read, OVERLAPS_REREAD_MS);
+    return () => clearInterval(timer);
+  }, []);
+  const meetings = (profile: ProfileView): string[] => {
+    const kind = profile.connections[0]?.agentKind;
+    if (overlaps === undefined || kind === undefined) return [];
+    return meetingLines(overlaps, kind, (other) => kept.find((each) => each.connections.some((connection) => connection.agentKind === other))?.name ?? other);
+  };
   return (
     <>
       {local && (
         <Section title="Your agents">
-          {note !== undefined && <Note>{note}</Note>}
           <CardGrid min={CARD_WIDTH}>
             {orderedProfiles(kept).map((profile) => (
               <AgentProfileCard
@@ -44,34 +56,22 @@ export function AgentProfileCards({ parts }: { parts: SettingsParts }) {
                 profile={profile}
                 work={currentWork(profile.id, all)}
                 open={(url) => host.openPage(url)}
-                giveJob={() => (profile.isDefault === true ? setJobFor(profile) : setEditing(profile))}
+                meetings={meetings(profile)}
+                presets={profile.connections[0]?.agentKind === undefined ? undefined : <AgentPresetRow parts={parts} agent={profile.connections[0].agentKind} />}
               />
             ))}
           </CardGrid>
         </Section>
-      )}
-      {(jobFor !== undefined || editing !== undefined) && (
-        <JobSheet
-          parts={parts}
-          {...(jobFor === undefined ? {} : { jobFor })}
-          {...(editing === undefined ? {} : { editing })}
-          close={() => {
-            setJobFor(undefined);
-            setEditing(undefined);
-          }}
-          said={(outcome) => setNote(outcome.kind === 'done' ? outcome.note : outcome.why)}
-        />
       )}
     </>
   );
 }
 
 /**
- * One agent as its job: the name and purpose line, who answers for it, each way Memnox reaches it as a pill wearing
- * its level, and the work it carries now. A default is offered a job; one with no agent behind it stays grey with no
- * activity. `giveJob` is left out for a job the workspace keeps, which is edited in the console.
+ * One agent: its name, whether Memnox can stop it, who answers for it, each way Memnox reaches it as a pill wearing
+ * its level, and the work it carries now. One with no agent behind it stays grey with no activity.
  */
-export function AgentProfileCard({ profile, work, open, giveJob }: { profile: ProfileView; work?: AgentWork | undefined; open?: (url: string) => void; giveJob?: () => void }) {
+export function AgentProfileCard({ profile, work, open, presets, meetings = [] }: { profile: ProfileView; work?: AgentWork | undefined; open?: (url: string) => void; presets?: ReactNode; meetings?: readonly string[] }) {
   const bound = profile.connections.length > 0;
   const responsible = responsibleLine(profile);
   return (
@@ -80,7 +80,7 @@ export function AgentProfileCard({ profile, work, open, giveJob }: { profile: Pr
         <BrandLogo agent={profile.connections[0]?.agentKind} name={profile.name} size={CARD_LOGO} />
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-headline font-semibold text-foreground">{profile.name}</span>
-          <span className="line-clamp-2 text-meta text-muted">{purposeLine(profile)}</span>
+          <span className="line-clamp-2 text-meta text-muted">{summaryLine(profile)}</span>
         </div>
         {bound && <LevelPill level={headlineLevel(profile.levels)} />}
       </div>
@@ -88,7 +88,7 @@ export function AgentProfileCard({ profile, work, open, giveJob }: { profile: Pr
       {bound ? (
         <>
           <div className="flex flex-col gap-1.5">
-            <span className="text-label font-medium text-muted">Connected through</span>
+            <span className="text-label font-medium text-muted">{AgentCardLines.reached}</span>
             {shownConnections(profile).map((connection) => (
               <span key={connection.id} className="flex items-center gap-2">
                 <ConnectionPill connection={connection} />
@@ -97,8 +97,17 @@ export function AgentProfileCard({ profile, work, open, giveJob }: { profile: Pr
             ))}
           </div>
           {work !== undefined && <WorkLine work={work} {...(open === undefined ? {} : { open })} />}
+          {meetings.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-label font-medium text-muted">{AGENT_MEETINGS_TITLE}</span>
+              {meetings.map((line) => (
+                <span key={line} className="text-meta text-foreground">{line}</span>
+              ))}
+            </div>
+          )}
+          {presets}
           <details>
-            <summary className="mx-focus cursor-pointer text-footnote font-medium text-muted select-none">{JobsLines.howSure}</summary>
+            <summary className="mx-focus cursor-pointer text-footnote font-medium text-muted select-none">{AgentCardLines.howSure}</summary>
             <div className="pt-2">
               <CapabilityStrip levels={profile.levels} />
             </div>
@@ -107,13 +116,39 @@ export function AgentProfileCard({ profile, work, open, giveJob }: { profile: Pr
       ) : (
         <StatusWord tone="quiet">{NO_AGENT}</StatusWord>
       )}
-      {giveJob !== undefined && (
-        <div className="mt-auto">
-          <Button kind={profile.isDefault === true ? 'primary' : 'secondary'} icon={profile.isDefault === true ? Briefcase : Pencil} onClick={giveJob}>
-            {profile.isDefault === true ? JobsLines.giveJob : JobsLines.editJob}
-          </Button>
-        </div>
-      )}
     </Card>
+  );
+}
+
+/** Starting this one agent on a shipped pack, and what it was started on, as the Mac's `AgentPresetRow`. */
+function AgentPresetRow({ parts, agent }: { parts: SettingsParts; agent: string }) {
+  const { studio } = parts;
+  useObserved(studio);
+  const [note, setNote] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    void studio.readPacks();
+  }, []);
+  const packs = studio.packs ?? [];
+  const started = startedPack(studio.rules?.rules ?? [], agent, packs);
+  const start = (id: string) => {
+    const pack = packs.find((each) => each.id === id);
+    if (pack === undefined) return;
+    void studio.importPack(pack.toml, { agent }).then((outcome) => setNote(outcome.kind === 'failed' ? outcome.why : AgentPresetLines.waits));
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 text-meta text-muted">{AgentPresetLines.line(started)}</span>
+        {packs.length > 0 && (
+          <Select
+            value=""
+            label={AgentPresetLines.title}
+            options={[{ value: '', label: AgentPresetLines.title }, ...packs.filter((pack) => pack.id !== started?.id).map((pack) => ({ value: pack.id, label: pack.name }))]}
+            onChange={start}
+          />
+        )}
+      </span>
+      {note !== undefined && <span className="text-meta text-muted">{note}</span>}
+    </div>
   );
 }

@@ -103,7 +103,7 @@ export class Setup {
     this.update({ doing: 'Updating Memnox' });
     if (this.source.kind === 'local') {
       // A checkout edited since its last build runs stale code, so it is built first; a failed build still restarts.
-      this.update({ doing: 'Building the local Memnox runtime' });
+      this.update({ doing: 'Building Memnox on this Mac' });
       await this.runtime.build?.();
       this.update({ doing: 'Restarting the Memnox service' });
       await this.runtime.run('start');

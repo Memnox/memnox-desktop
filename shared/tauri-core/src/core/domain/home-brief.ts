@@ -14,7 +14,7 @@ export const HOME_BRIEF_SHOWN: readonly HomeBriefBlock[] = HOME_BRIEF_BLOCKS.fil
 export const HOME_BRIEF_TITLE: Record<HomeBriefBlock, string> = {
   waiting: 'Needs you',
   working: 'Working now',
-  ready: 'Ready to hand over',
+  ready: 'You could let go of',
   today: 'Today',
   'not-covered': 'Not covered',
 };
@@ -24,13 +24,19 @@ export const HOME_BRIEF_NONE: Record<HomeBriefBlock, string> = {
   waiting: 'Nothing needs you. Agents keep working inside their rules.',
   working: 'No agent is working right now.',
   today: 'Nothing was recorded today.',
-  ready: 'Nothing yet. This fills in once you approve the same action a few times.',
+  ready: 'Nothing yet. Once you say yes to the same thing a few times, Memnox offers to stop asking.',
   'not-covered': 'Every agent on this computer is under Memnox.',
 };
 
 /** Every block Home shows, in the console's order, an empty one kept so it can say so, read off the sources Today reads. */
-export function homeBrief(sources: TodaySources, now: number): { block: HomeBriefBlock; items: TodayItem[] }[] {
-  const board = overview(sources, now);
+/**
+ * With a project chosen in the picker, what waits and what works is only that project's, while what only the person
+ * owes and what they could let go of stay, since neither belongs to one project; Today is narrowed where it is read.
+ */
+export function homeBrief(sources: TodaySources, now: number, project?: string): { block: HomeBriefBlock; items: TodayItem[] }[] {
+  const board = overview(sources, now).filter(
+    (item) => project === undefined || item.kind.kind === 'hand-over' || item.kind.kind === 'owed' || item.project === project,
+  );
   const of = (block: HomeBriefBlock): TodayItem[] => {
     switch (block) {
       // What only the person can do waits on them as much as a held call does.
@@ -52,4 +58,25 @@ export function homeBrief(sources: TodaySources, now: number): { block: HomeBrie
 /** The items in the order the blocks draw them, which is the order Up and Down step through. */
 export function briefItems(blocks: readonly { items: readonly TodayItem[] }[]): TodayItem[] {
   return blocks.flatMap((each) => each.items);
+}
+
+/**
+ * Home's first sentence, so a person who reads nothing else still knows where things stand:
+ * "3 agents working. 1 needs you. Nothing was stopped today." Ported from the Mac's `HomeOpener`.
+ */
+export function homeOpener(working: number, needsYou: number, stoppedToday: number): string {
+  const busy = working === 0 ? 'No agent is working right now.' : working === 1 ? '1 agent working.' : `${working} agents working.`;
+  const waiting = needsYou === 0 ? 'Nothing needs you.' : `${needsYou} ${needsYou === 1 ? 'needs' : 'need'} you.`;
+  const stopped =
+    stoppedToday === 0
+      ? 'Nothing was stopped today.'
+      : `Memnox stopped ${stoppedToday} risky ${stoppedToday === 1 ? 'action' : 'actions'} today.`;
+  return [busy, waiting, stopped].join(' ');
+}
+
+/** The same sentence read off Home's blocks, counting each working agent once. */
+export function homeOpenerOf(blocks: readonly { block: HomeBriefBlock; items: readonly TodayItem[] }[], stoppedToday: number): string {
+  const items = (block: HomeBriefBlock) => blocks.find((each) => each.block === block)?.items ?? [];
+  const agents = new Set(items('working').map((item) => item.agent ?? item.agentName));
+  return homeOpener(agents.size, items('waiting').length, stoppedToday);
 }

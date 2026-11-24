@@ -73,18 +73,12 @@ function host(target: string): string {
 
 /** The Activity page's own words. */
 export const ActivityLines = {
-  kinds: [
-    { value: '', label: 'Everything' },
-    { value: 'command', label: 'Commands' },
-    { value: 'file', label: 'Files' },
-    { value: 'mcp', label: 'MCP tools' },
-    { value: 'tool', label: 'Other tools' },
-  ],
   search: 'Search actions and targets',
-  decided: 'Decided',
-  any: 'Any',
-  kind: 'Kind',
-  noRecord: 'The runtime did not hand over a record.',
+  decided: 'What happened',
+  any: 'Everything',
+  /** What happened to an action, as the Mac's `StudioLines.happened` says it. */
+  outcome: { allow: 'Went ahead', ask: 'Waited for you', deny: 'Stopped' },
+  noRecord: 'Memnox did not hand over a record.',
   copied: 'Copied the signed record of what this view shows. memnox verify checks it.',
   copyRecord: 'Copy signed record',
   refresh: 'Refresh',

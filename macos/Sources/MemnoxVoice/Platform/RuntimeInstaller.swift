@@ -110,7 +110,7 @@ final class RuntimeInstaller: ObservableObject {
         if case .local(let checkout) = source {
             // A checkout edited since the app was built has source newer than its build, which the daemon runs, so it is
             // built first; a build that fails still restarts the service on the code that was there.
-            doing = "Building the local Memnox runtime"
+            doing = "Building Memnox on this Mac"
             _ = await Self.shell("cd \(Self.quoted(checkout)) && pnpm build")
             doing = "Restarting the Memnox service"
             _ = await Self.shell("\(memnox) daemon --install")
@@ -175,7 +175,7 @@ final class RuntimeInstaller: ObservableObject {
         if let found = await Self.found(Command.memnox), Self.resolved(found).hasPrefix(Self.resolved(checkout)) {
             return found
         }
-        doing = "Linking the local Memnox runtime"
+        doing = "Linking Memnox on this Mac"
         guard await Self.shell("cd \(Self.quoted(cli)) && npm link"), let found = await Self.found(Command.memnox) else {
             failed = "The local runtime would not link. In a terminal: cd \(cli) && npm link"
             return nil

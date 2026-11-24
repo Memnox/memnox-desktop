@@ -135,7 +135,7 @@ final class ProjectLinesTests: XCTestCase {
                                                    rules: 4, memory: "project", editedIn: "API is changed in Memnox Cloud.")
         XCTAssertEqual(ProjectLines.organizationRulesLine(organization), "Release rules, 4 rules")
         let bare = ProjectOrganizationView(id: "op_2", name: "Web", repository: "github.com/acme/web", memory: "none", editedIn: "")
-        XCTAssertEqual(ProjectLines.organizationRulesLine(bare), "No rule pack from the organization.")
+        XCTAssertEqual(ProjectLines.organizationRulesLine(bare), "No starter rules from the organization.")
         XCTAssertEqual(ProjectLines.organizationMemoryLine("none"), "Its agents keep no memory from this project.")
         XCTAssertEqual(ProjectLines.organizationMemoryLine("project"),
                        "What its agents learn is kept under the organization’s project rather than this folder.")

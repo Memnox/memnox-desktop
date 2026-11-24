@@ -50,6 +50,17 @@ public final class Projects: @unchecked Sendable {
         return await change(path, request, done: "Saved \(draft.name) as a project in .memnox/project.toml. Commit it so every clone has it.")
     }
 
+    /// Keeps what the person typed for agents in this project to always know, confirmed by them as they said it.
+    public func remember(_ path: String, _ statements: [String]) async -> ProjectOutcome {
+        guard !statements.isEmpty else { return .done("Nothing to remember.") }
+        var request = DaemonRequest(id: ids.next(), method: .memoryRemember)
+        request.memoryProject = path
+        request.memoryStatements = statements
+        guard let response = await ask(request) else { return .failed("Memnox is not answering on this Mac.") }
+        guard response.ok else { return .failed(response.error ?? "Memnox refused this.") }
+        return .done(NewProject.remembered(statements.count))
+    }
+
     public func apply(_ id: String) async -> ProjectOutcome {
         var request = DaemonRequest(id: ids.next(), method: .projectApply)
         request.projectId = id
@@ -65,8 +76,8 @@ public final class Projects: @unchecked Sendable {
             if let projects = response?.projects { view = projects.projects }
         }
         changed?()
-        guard let response else { return .failed("The runtime is not answering.") }
-        guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
+        guard let response else { return .failed("Memnox is not answering on this Mac.") }
+        guard response.ok else { return .failed(response.error ?? "Memnox refused this.") }
         let note = response.projectApplied.map(ProjectLines.appliedLine) ?? done
         if let proposed = response.proposed { return .proposed(id: proposed, note: note) }
         if let applied = response.projectApplied, ProjectLines.upToDate(applied) { return .upToDate(note) }

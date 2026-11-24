@@ -12,7 +12,6 @@ export type Destination =
   | 'agents'
   | 'projects'
   | 'rules'
-  | 'hand-over'
   | 'activity'
   | 'memory'
   | 'connectors'
@@ -96,7 +95,7 @@ export interface DestinationInfo {
 /** Settings pages that moved to a page of their own, so a link to one still lands. */
 const MOVED: Partial<Record<SettingsPage, Route>> = {
   overview: { destination: 'home' },
-  tools: { destination: 'agents', tab: 'this-computer' },
+  tools: { destination: 'agents', tab: 'agents' },
   apps: { destination: 'connectors', tab: 'systems' },
 };
 
@@ -120,10 +119,10 @@ const SETTINGS_GROUP: Partial<Record<SettingsPage, TabGroupId>> = {
  * Methods a contract tab reads that no runtime serves yet, so the tab stays hidden rather than promising a page. A test
  * fails the day the runtime declares one, so it leaves this list rather than lingering.
  */
-export const NOT_YET_SERVED: readonly string[] = ['waiting-kept', 'decided', 'rule-changes', 'rules-history', 'budgets', 'autopilot', 'findings'];
+export const NOT_YET_SERVED: readonly string[] = [];
 
 export const DESTINATIONS: readonly DestinationInfo[] = [
-  { id: 'home', title: 'Home', subtitle: 'What your agents can do on their own, and what still needs you.', symbol: 'house', group: 'top', tabs: [] },
+  { id: 'home', title: 'Home', subtitle: 'What your agents are doing, what needs you, and what you can safely let them do next.', symbol: 'house', group: 'top', tabs: [] },
   {
     id: 'needs-you',
     title: 'Needs you',
@@ -131,10 +130,7 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
     symbol: 'tray',
     group: 'top',
     tabs: [
-      { id: 'decide-now', title: 'Decide now', summary: 'Calls held for you, and what was read from your sources, waiting for a yes or a no.' },
-      { id: 'kept', title: 'Kept for later', summary: 'Questions nobody answered in time, kept so a later yes lets the retry through.', needs: 'waiting-kept' },
-      { id: 'decided', title: 'Decided', summary: 'What was answered lately, and by whom.', needs: 'decided' },
-      { id: 'rule-changes', title: 'Rule changes', summary: 'Rules proposed by an agent or a teammate, waiting for your signature.', needs: 'rule-changes' },
+      { id: 'decide-now', title: 'Waiting for you', summary: 'What your agents ask before they act, and what was read from your sources, waiting for a yes or a no.' },
     ],
   },
   {
@@ -148,49 +144,30 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
   {
     id: 'agents',
     title: 'Agents',
-    subtitle: 'The agents on this computer, what each is for, and what each can reach.',
+    subtitle: 'Each agent on this computer, what it is doing now, who answers for it, and what Memnox can stop.',
     symbol: 'cpu',
     group: 'top',
-    tabs: [
-      { id: 'agents', title: 'Agents', summary: 'The agents on this computer and what each can reach.', needs: 'agents' },
-      { id: 'jobs', title: 'Jobs', summary: 'Ready made jobs and the ones you wrote. Pick one, then connect a real agent to do it.', needs: 'profiles' },
-      { id: 'this-computer', title: 'On this computer', summary: 'The agents on this computer and the apps Memnox can act in as you.' },
-    ],
+    tabs: [{ id: 'agents', title: 'Agents', summary: 'Each agent on this computer, what it is doing now, and what Memnox can stop.', needs: 'agents' }],
   },
-  { id: 'projects', title: 'Projects', subtitle: 'Your projects, with the skills, tools, memory and rules each one carries.', symbol: 'folder', group: 'top', tabs: [] },
+  { id: 'projects', title: 'Projects', subtitle: 'Each piece of work your agents help with, with its own rules, its own memory and who works on it.', symbol: 'folder', group: 'top', tabs: [] },
   {
     id: 'rules',
     title: 'Rules',
-    subtitle: 'For each thing your AI might do, choose Allow, Ask or Deny. Nothing changes until you save and the change is approved.',
+    subtitle: 'What your agents may do on their own, what they ask you first, and what they never do.',
     symbol: 'checkmark.shield',
     group: 'govern',
     tabs: [
       { id: 'rules', title: 'Rules', summary: 'What each agent may do, and what it asks first.', needs: 'rules' },
-      { id: 'history', title: 'History', summary: 'Every change to your rules, and a way back to any of them.', needs: 'rules-history' },
-    ],
-  },
-  {
-    id: 'hand-over',
-    title: 'Hand over',
-    subtitle: 'What you could let your agents do on their own, what they may spend, and what autopilot gave them.',
-    symbol: 'gauge.with.dots.needle.67percent',
-    group: 'govern',
-    tabs: [
-      { id: 'ready', title: 'Ready to hand over', summary: 'What you said yes to often enough that it could run without asking.' },
-      { id: 'budgets', title: 'Budgets', summary: 'How much each kind of action may happen in a window, and how much has.', needs: 'budgets' },
-      { id: 'autopilot', title: 'Autopilot', summary: 'What autopilot let an agent do on its own, and a way to take it back.', needs: 'autopilot' },
+      { id: 'hand-over', title: 'Let them do more', summary: 'What you said yes to so often that your agents could do it without asking.', needs: 'hand-over' },
     ],
   },
   {
     id: 'activity',
     title: 'Activity',
-    subtitle: 'What your agents did, newest first, beside what was decided.',
+    subtitle: 'What your agents did, newest first, and why each thing was allowed or stopped.',
     symbol: 'clock.arrow.circlepath',
     group: 'govern',
-    tabs: [
-      { id: 'timeline', title: 'Timeline', summary: 'What your agents did, newest first, beside what was decided.', needs: 'activity' },
-      { id: 'caught', title: 'What was caught', summary: 'What Memnox stopped or would have stopped, and why.', needs: 'findings' },
-    ],
+    tabs: [{ id: 'timeline', title: 'What happened', summary: 'What your agents did, newest first, and why each thing was allowed or stopped.', needs: 'activity' }],
   },
   {
     id: 'memory',
@@ -208,13 +185,13 @@ export const DESTINATIONS: readonly DestinationInfo[] = [
   {
     id: 'connectors',
     title: 'Connectors',
-    subtitle: 'The tools your agents reach, the files their memory is read from, and the MCP servers they share.',
+    subtitle: 'The apps your agents reach, the files their memory is read from, and the tools they share.',
     symbol: 'square.grid.2x2',
     group: 'knowledge',
     tabs: [
-      { id: 'systems', title: 'Systems', summary: 'Connect any tool you use as yourself, and see the ones this computer already reaches.' },
+      { id: 'systems', title: 'Apps', summary: 'Connect any tool you use as yourself, and see the ones this computer already reaches.' },
       { id: 'files', title: 'Files', summary: "Where your agents' memory is read from: notes, instruction files, exports and memory servers.", needs: 'memory-facts' },
-      { id: 'mcp', title: 'MCP servers', summary: 'Servers set up once and given to the agents you choose, and the secrets they use.', needs: 'mcp-hub' },
+      { id: 'mcp', title: 'Tool servers', summary: 'Tools set up once and given to the agents you choose. Memnox checks every call they make.', needs: 'mcp-hub' },
     ],
   },
   {
@@ -242,7 +219,7 @@ export interface Route {
 export type ProjectPage = 'overview' | 'tools' | 'agents' | 'memory' | 'autonomy';
 
 /** Tools is left off for now, since its folder shows on the Overview and Files and Connectors are pages of their own. */
-export const PROJECT_PAGE_IDS: readonly ProjectPage[] = ['overview', 'agents', 'memory', 'autonomy'];
+export const PROJECT_PAGE_IDS: readonly ProjectPage[] = ['overview', 'autonomy', 'memory'];
 
 /** One project by its id, and which of its pages is shown. */
 export interface ProjectPlace {

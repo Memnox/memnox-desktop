@@ -28,10 +28,22 @@ public enum StudioLines {
     public static func words(_ effect: RuleEffect) -> EffectWords {
         switch effect {
         case .allow: EffectWords(title: "Allow", verdict: "Allowed", says: "Goes ahead on its own")
-        case .ask: EffectWords(title: "Ask", verdict: "Asked", says: "Waits for a person to say yes")
-        case .deny: EffectWords(title: "Deny", verdict: "Denied", says: "Refused, and told what to do instead")
+        case .ask: EffectWords(title: "Ask first", verdict: "Asked", says: "Waits for a person to say yes")
+        case .deny: EffectWords(title: "Never", verdict: "Denied", says: "Refused, and told what to do instead")
         }
     }
+
+    /// What happened to an action, as Activity filters by it: what went ahead, what waited, and what was stopped.
+    public static func happened(_ effect: RuleEffect) -> String {
+        switch effect {
+        case .allow: "Went ahead"
+        case .ask: "Waited for you"
+        case .deny: "Stopped"
+        }
+    }
+
+    /// The filter that shows every action, whatever happened to it.
+    public static let everything = "Everything"
 
     /// An effect's name, or the runtime's own word for one this app does not know yet.
     public static func title(_ effect: String) -> String {

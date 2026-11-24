@@ -47,7 +47,7 @@ describe('the catalogue every page shares', () => {
 
 describe('the rules as a catalogue', () => {
   it('words the three choices Allow, Ask and Deny', () => {
-    expect(Object.values(EFFECT_WORDS).map((each) => each.title)).toEqual(['Allow', 'Ask', 'Deny']);
+    expect(Object.values(EFFECT_WORDS).map((each) => each.title)).toEqual(['Allow', 'Ask first', 'Never']);
   });
 
   it('places a rule by what its first action acts on', () => {
@@ -74,7 +74,7 @@ describe('the rules as a catalogue', () => {
 
   it('counts each tab, narrows by category and search, and totals against the tab’s pool', () => {
     const cards = ruleCards([rule('push-deny', 'deny', ['git.push-force']), rule('web-ok', 'allow', ['http.get'])], []);
-    expect(effectTabs(cards).map((tab) => `${tab.title} ${tab.count}`)).toEqual(['All 2', 'Allow 1', 'Ask 0', 'Deny 1']);
+    expect(effectTabs(cards).map((tab) => `${tab.title} ${tab.count}`)).toEqual(['All 2', 'Allow 1', 'Ask first 0', 'Never 1']);
     const pool = onTab(cards, 'all');
     expect(ruleCategoryCounts(pool).map((each) => `${each.title} ${each.count}`)).toEqual(['Git 1', 'Web 1']);
     expect(shownCards(pool, 'git', '').map((card) => card.id)).toEqual(['push-deny']);

@@ -13,7 +13,7 @@ final class ReadyRuleChangesTests: XCTestCase {
 
     func testSaysTheEffectInForceOrNotAddedOnTheBadge() {
         let inForce = [held(history, "deny")]
-        XCTAssertEqual(ReadyRuleChanges.badge(history, among: inForce).word, "In force as deny")
+        XCTAssertEqual(ReadyRuleChanges.badge(history, among: inForce).word, "In force as never")
         XCTAssertEqual(ReadyRuleChanges.badge(history, among: inForce).tone, .bad)
         XCTAssertEqual(ReadyRuleChanges.badge(deleting, among: inForce).word, "Not added")
         XCTAssertEqual(ReadyRuleChanges.badge(deleting, among: inForce).tone, .quiet)
@@ -24,7 +24,7 @@ final class ReadyRuleChangesTests: XCTestCase {
         let changes = ReadyRuleChanges.changes([history.id: .deny, deleting.id: .ask], rules: [history, deleting], among: inForce)
         XCTAssertEqual(changes, [ReadyRuleChange(rule: deleting, from: nil, to: .ask)])
         let moved = ReadyRuleChanges.changes([history.id: .ask], rules: [history], among: inForce)
-        XCTAssertEqual(moved.map(ReadyRuleChanges.changeLine), ["Deny to Ask"])
+        XCTAssertEqual(moved.map(ReadyRuleChanges.changeLine), ["Never to Ask first"])
         XCTAssertEqual(ReadyRuleChanges.removals(moved), [history.id])
     }
 

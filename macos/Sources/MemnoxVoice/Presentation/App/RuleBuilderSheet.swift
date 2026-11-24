@@ -50,7 +50,7 @@ struct RuleBuilderSheet: View {
             }
             RuleField(label: "Only when it carries", optional: true) {
                 code("secret, financial", $carries, "Only when it carries")
-                RuleHint(text: "What the action carries, as the runtime classifies it. Pick a word below, or type a name your team gave its own patterns.")
+                RuleHint(text: "What the action carries, as Memnox classifies it. Pick a word below, or type a name your team gave its own patterns.")
                 DataClassChips(text: $carries)
             }
             RuleField(label: "Only when it is", optional: true,

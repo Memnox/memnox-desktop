@@ -59,7 +59,7 @@ final class SkillsTests: XCTestCase {
         let synced = await hub.sync()
         XCTAssertEqual(synced, .done("Wrote 2."))
         let accepted = await hub.accept("release-notes")
-        XCTAssertEqual(accepted, .failed("The runtime is not answering."))
+        XCTAssertEqual(accepted, .failed("Memnox is not answering on this Mac."))
     }
 
     func testSendsTheNameTheVersionAndTheFoundSkillEachChangeNeeds() async throws {

@@ -229,7 +229,7 @@ struct MenuView: View {
                     close()
                     model.talk()
                 }
-                .help("Talk to Memnox with Option Space")
+                .help("Tell your agents what to do with Option Space, and Memnox carries your words whole")
                 MenuRow(symbol: MenuSymbol.rule, title: "Say a rule") {
                     close()
                     model.sayRule()

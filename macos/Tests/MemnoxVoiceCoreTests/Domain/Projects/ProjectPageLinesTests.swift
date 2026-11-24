@@ -113,7 +113,7 @@ final class ProjectPageLinesTests: XCTestCase {
         XCTAssertEqual(ProjectPageLines.renameHeading(project()), "Rename \(project().name)")
         XCTAssertEqual([ProjectPageLines.renameInCloud, ProjectPageLines.removeInCloud], ["Rename in Memnox Cloud", "Remove in Memnox Cloud"])
         XCTAssertEqual(ProjectSidebar.goneTitle, "This project is gone")
-        XCTAssertEqual(ProjectPage.rules.summary, "The agents given this project, what they carry, and the rules that hold in it.")
+        XCTAssertEqual(ProjectPage.rules.summary, "What agents may do here, what they ask you first, and what they never do.")
     }
 
     func testSaysACardsLineAsTheWindowsAndLinuxAppDoes() {

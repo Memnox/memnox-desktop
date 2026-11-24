@@ -9,8 +9,6 @@ export type AgentConnection = ProfileView['connections'][number];
 export type CapabilityLevels = ProfileView['levels'];
 export type CapabilityLevel = CapabilityLevels['context'];
 export type EnforcementSeam = keyof CapabilityLevels['enforcement'];
-/** A job description with no agent behind it. */
-export type ProfileTemplate = NonNullable<DaemonResponse['templates']>[number];
 /** An agent carrying a piece of work a person pointed it at. */
 export type AgentWork = NonNullable<DaemonResponse['agentWork']>[number];
 export type WorkStatus = AgentWork['status'];

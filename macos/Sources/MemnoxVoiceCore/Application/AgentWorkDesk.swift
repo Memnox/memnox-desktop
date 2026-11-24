@@ -89,8 +89,8 @@ public final class AgentWorkDesk: @unchecked Sendable {
             if let work = response?.agentWork { list = work }
         }
         changed?()
-        guard let response else { return .failed("The runtime is not answering.") }
-        guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
+        guard let response else { return .failed("Memnox is not answering on this Mac.") }
+        guard response.ok else { return .failed(response.error ?? "Memnox refused this.") }
         return .done(done(response))
     }
 

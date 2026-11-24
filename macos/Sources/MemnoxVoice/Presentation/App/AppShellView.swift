@@ -268,29 +268,21 @@ private struct AppPage: View {
             case .sessions:
                 SessionsDestination(shell: shell, island: island, width: width)
             case .agents:
-                if route.tab == "this-computer" {
-                    SettingsPageColumn { ToolsPage(tools: menu.tools) }
-                } else if route.tab == "jobs", let profiles = shell.profiles {
-                    ProfilesDestination(shell: shell, screen: profiles, width: width)
-                } else if let agents = shell.agents {
+                if let agents = shell.agents {
                     AgentListDestination(screen: agents, island: island, home: models.home,
                                          profiles: shell.supports("profiles") == true ? shell.profiles : nil,
                                          current: shell.currentProject,
                                          work: shell.supports("agent-work") == true ? shell.work : nil,
-                                         workspace: shell.workspaceAgents,
-                                         giveJob: { profile in
-                                             shell.jobFor = profile.id
-                                             shell.go(WindowRoute(.agents, tab: "jobs"))
-                                         }, width: width)
+                                         workspace: shell.workspaceAgents, width: width)
                 }
             case .projects:
                 WorkspacesDestination(shell: shell, island: island, account: models.account, width: width)
             case .rules:
-                if let studio = shell.studio {
+                if route.tab == "hand-over" {
+                    if let home = models.home { HandOverDestination(home: home, width: width) }
+                } else if let studio = shell.studio {
                     PoliciesDestination(shell: shell, screen: studio, island: island, home: models.home, width: width)
                 }
-            case .handOver:
-                if let home = models.home { HandOverDestination(home: home, width: width) }
             case .activity:
                 if let activity = shell.activity { ActivityDestination(shell: shell, screen: activity, width: width) }
             case .memory:

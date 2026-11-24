@@ -78,6 +78,11 @@ export function headlineLevel(levels: CapabilityLevels): CapabilityLevel {
   return levelRows(levels).reduce<CapabilityLevel>((least, each) => weaker(least, each.level), 'enforced');
 }
 
+/** Whether Memnox sits in the path of the agent asking first, so it can stop a call rather than only see it. */
+export function canStop(levels: CapabilityLevels): boolean {
+  return levels.approval === 'enforced' || levels.approval === 'mediated';
+}
+
 /** A connection's pill: its own levels, or, from a runtime that sends none, what its mediation says. */
 export function connectionLevel(connection: AgentConnection): CapabilityLevel {
   if (connection.levels !== undefined) return headlineLevel(connection.levels);

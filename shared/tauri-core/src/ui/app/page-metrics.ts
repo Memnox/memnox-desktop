@@ -10,7 +10,6 @@ export const PAGE_METRICS = {
   skillInstructions: 160,
   /** ActivityDestination's toolbar: the search and the kind, each no wider than this. */
   activitySearch: 280,
-  activityKind: 150,
   /** McpServersLayout.searchWidth: the server search grows to this and no further. */
   hubSearch: 320,
   /** SkillsLayout.progressWidth: the import bar beside its count. */

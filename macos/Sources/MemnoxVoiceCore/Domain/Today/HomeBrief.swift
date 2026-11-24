@@ -13,7 +13,7 @@ public enum HomeBriefBlock: String, CaseIterable, Sendable {
         switch self {
         case .waiting: "Needs you"
         case .working: "Working now"
-        case .ready: "Ready to hand over"
+        case .ready: "You could let go of"
         case .today: "Today"
         case .notCovered: "Not covered"
         }
@@ -25,7 +25,7 @@ public enum HomeBriefBlock: String, CaseIterable, Sendable {
         case .waiting: "Nothing needs you. Agents keep working inside their rules."
         case .working: "No agent is working right now."
         case .today: "Nothing was recorded today."
-        case .ready: "Nothing yet. This fills in once you approve the same action a few times."
+        case .ready: "Nothing yet. Once you say yes to the same thing a few times, Memnox offers to stop asking."
         case .notCovered: "Every agent on this Mac is under Memnox."
         }
     }
@@ -36,10 +36,13 @@ public enum HomeBrief {
     /// Not covered is left off for now, so Home stays straightforward; its items still reach Today's own list.
     public static let shown: [HomeBriefBlock] = HomeBriefBlock.allCases.filter { $0 != .notCovered }
 
-    /// Every block shown in the console's order, an empty one kept so it can say so.
-    public static func blocks(_ sources: TodaySources, now: Date,
+    /// Every block shown in the console's order, an empty one kept so it can say so. With a project chosen in the
+    /// picker, what waits and what works is only that project's, while what only the person owes and what they could
+    /// let go of stay, since neither belongs to one project; Today is narrowed where its activity is read.
+    public static func blocks(_ sources: TodaySources, now: Date, project: String? = nil,
                               calendar: Calendar = .current) -> [(block: HomeBriefBlock, items: [TodayItem])] {
         let overview = TodayBoard.overview(sources, now: now, calendar: calendar)
+            .filter { project == nil || [.handOver, .owed].contains($0.kind) || $0.project == project }
         let done = TodayBoard.done(sources.activity, now: now, calendar: calendar)
         return shown.map { block in
             switch block {
@@ -56,5 +59,31 @@ public enum HomeBrief {
     /// The items in the order the blocks draw them, which is the order Up and Down step through.
     public static func items(_ blocks: [(block: HomeBriefBlock, items: [TodayItem])]) -> [TodayItem] {
         blocks.flatMap(\.items)
+    }
+}
+
+/// Home's first sentence, so a person who reads nothing else still knows where things stand:
+/// "3 agents working. 1 needs you. Nothing was stopped today."
+public enum HomeOpener {
+    public static func line(working: Int, needsYou: Int, stoppedToday: Int) -> String {
+        let busy = switch working {
+        case 0: "No agent is working right now."
+        case 1: "1 agent working."
+        default: "\(working) agents working."
+        }
+        let waiting = needsYou == 0 ? "Nothing needs you." : "\(needsYou) \(needsYou == 1 ? "needs" : "need") you."
+        let stopped = switch stoppedToday {
+        case 0: "Nothing was stopped today."
+        case 1: "Memnox stopped 1 risky action today."
+        default: "Memnox stopped \(stoppedToday) risky actions today."
+        }
+        return [busy, waiting, stopped].joined(separator: " ")
+    }
+
+    /// The same sentence read off Home's blocks, counting each working agent once.
+    public static func line(_ blocks: [(block: HomeBriefBlock, items: [TodayItem])], stoppedToday: Int) -> String {
+        let items = { (block: HomeBriefBlock) in blocks.first { $0.block == block }?.items ?? [] }
+        let agents = Set(items(.working).map { $0.agent ?? $0.agentName })
+        return line(working: agents.count, needsYou: items(.waiting).count, stoppedToday: stoppedToday)
     }
 }

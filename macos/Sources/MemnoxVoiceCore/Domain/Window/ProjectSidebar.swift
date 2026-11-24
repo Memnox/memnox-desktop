@@ -1,7 +1,7 @@
 import Foundation
 
-/// The pages one project opens on, as the console's project view holds them: what it is and what it learned lately,
-/// the agents that work in it, what it learned, and what its AI may do. A project is a campaign or a deal as often as a codebase, so none
+/// The pages one project opens on: what is happening there and how careful agents are, the rules that hold there, and
+/// what agents there should know. A project is a campaign or a deal as often as a codebase, so none
 /// of them is about code. The desktop is one person's, so people show only once this Mac is joined to a workspace.
 public enum ProjectPage: String, CaseIterable, Sendable {
     case overview
@@ -16,19 +16,19 @@ public enum ProjectPage: String, CaseIterable, Sendable {
         case .overview: "Overview"
         case .tools: "Tools"
         case .agents: "Agents"
-        case .memory: "Memory"
-        case .rules: "What its AI may do"
+        case .memory: "What agents here should know"
+        case .rules: "Rules here"
         }
     }
 
     /// One line under the page's title saying what it is for.
     public var summary: String {
         switch self {
-        case .overview: "What this project is, what it still needs, and what it learned lately."
+        case .overview: "Who is working here, what waits for you here, and how careful agents are here."
         case .tools: "Where this project\u{2019}s work happens, and what its agents learn from."
         case .agents: "The agents that work in this project, and what each is given."
-        case .memory: "What its agents learned in this project, and what they know in every project."
-        case .rules: "The agents given this project, what they carry, and the rules that hold in it."
+        case .memory: "What agents in this project already know, so you never repeat yourself."
+        case .rules: "What agents may do here, what they ask you first, and what they never do."
         }
     }
 }
@@ -53,8 +53,8 @@ public enum ProjectSidebar {
     public static let allTitle = "All projects"
     /// Where Back to Projects lands.
     public static let list = WindowRoute(.projects)
-    /// The pages the sidebar lists, with Tools left off for now.
-    public static let pages: [ProjectPage] = [.overview, .agents, .memory, .rules]
+    /// The pages the sidebar lists: three, with the agents here shown on the Overview.
+    public static let pages: [ProjectPage] = [.overview, .rules, .memory]
     /// Said in place of a project's name while the projects are still being read, or once it is gone.
     public static let unnamed = "Project"
     /// Said where a project was open and is no longer among the projects.

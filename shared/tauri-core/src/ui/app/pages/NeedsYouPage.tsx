@@ -9,13 +9,14 @@ import { LearnPage } from './LearnPage';
 import { projectNameOfPlace } from '../../../core/domain/project-context';
 import { heldFacts, NOTHING_WAITING, NOTHING_WAITING_DETAIL, waitingLine } from '../../../core/domain/approvals-lines';
 import { GovernanceLines } from '../../../core/domain/governance-lines';
-import { BrandLogo, Button, EmptyState, StatusWord, Switch } from '../../kit';
+import { BrandLogo, Button, Chip, ChipGroup, EmptyState, Panel, Row, StatusWord, Switch } from '../../kit';
+import { decidedLines, NEEDS_YOU_VIEWS, NeedsYouLines, type NeedsYouView } from '../../../core/domain/needs-you-lines';
 import { handHeld, heldBusy } from '../held-hand';
 import { needsYou, openWork } from '../../../core/domain/agent-work-lines';
 import { waitingHandoffs } from '../../../core/domain/workspace-agents';
 import { WorkNeedingYou } from './WorkCards';
 import { useRuntimeStanding } from '../runtime-standing';
-import { WorkspaceHandoffs } from './WorkspaceAgents';
+import { TeamRuleChanges, WorkspaceHandoffs } from './WorkspaceAgents';
 import { ANSWER_LABEL } from '../../../core/domain/answer-words';
 
 /** How long the window waits before opening the live feed again after the daemon went away. */
@@ -29,13 +30,54 @@ const CARD_LOGO = 26;
  * be confirmed, as the Mac's `NeedsYouDestination` lays them out.
  */
 export function NeedsYouPage({ parts }: { parts: SettingsParts }) {
-  const { support } = parts;
-  useObserved(support);
+  const { support, calls } = parts;
+  useObserved(support, calls);
+  const [view, setView] = useState<NeedsYouView>('waiting');
+  // Decided reads the record, so it is offered only where the runtime keeps one.
+  const decides = support.supports('activity') === true;
+  const entries = calls.state.waiting.entries;
+  const kept = entries.filter((each) => each.card.parked === true).length;
+  const counts: Partial<Record<NeedsYouView, number>> = { waiting: entries.length - kept, kept };
   return (
     <div className="flex flex-col gap-8">
-      <Approvals parts={parts} />
-      {support.supports('memory-learn') === true && <LearnPage parts={parts} />}
+      <ChipGroup label="Needs you" role="group">
+        {NEEDS_YOU_VIEWS.filter((each) => each !== 'decided' || decides).map((each) => (
+          <Chip key={each} role="toggle" on={view === each} pick={() => setView(each)} {...(counts[each] === undefined ? {} : { count: counts[each] })}>
+            {NeedsYouLines.view[each]}
+          </Chip>
+        ))}
+      </ChipGroup>
+      {decides && view === 'decided' ? (
+        <DecidedToday parts={parts} />
+      ) : view === 'kept' ? (
+        <Approvals parts={parts} kept />
+      ) : (
+        <>
+          <Approvals parts={parts} />
+          {support.supports('memory-learn') === true && <LearnPage parts={parts} />}
+        </>
+      )}
     </div>
+  );
+}
+
+/** What the person allowed or stopped today, read off the same record Home's Today reads, newest first. */
+function DecidedToday({ parts }: { parts: SettingsParts }) {
+  const { activity } = parts;
+  useObserved(activity);
+  useEffect(() => {
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    void activity.show({ since: midnight.toISOString() });
+  }, []);
+  const decided = decidedLines(activity.rows);
+  if (decided.length === 0) return <EmptyState icon={ShieldCheck} title={NeedsYouLines.noneDecided} body={NeedsYouLines.noneDecidedDetail} />;
+  return (
+    <Panel>
+      {decided.map((line) => (
+        <Row key={line.id} title={line.title} caption={line.caption} trailing={<StatusWord tone={line.allowed ? 'good' : 'quiet'}>{line.outcome}</StatusWord>} />
+      ))}
+    </Panel>
   );
 }
 
@@ -44,7 +86,7 @@ export function NeedsYouPage({ parts }: { parts: SettingsParts }) {
  * through the island, as the Mac's does, so a yes that reaches outside the session is signed exactly as there and how
  * it ended is said on the island's card; the card here leaves once the answer stands.
  */
-function Approvals({ parts }: { parts: SettingsParts }) {
+function Approvals({ parts, kept = false }: { parts: SettingsParts; kept?: boolean }) {
   const { calls, words, projects, support, work, workspaceAgents, home, host } = parts;
   useObserved(calls, projects, work, workspaceAgents, support, home);
   const standing = useRuntimeStanding(parts);
@@ -75,14 +117,17 @@ function Approvals({ parts }: { parts: SettingsParts }) {
       open = false;
     };
   }, []);
-  const waiting = [...calls.state.waiting.newestFirst].reverse();
+  // Kept for later lists only what an agent is no longer blocked on; Waiting for you lists the rest.
+  const waiting = [...calls.state.waiting.newestFirst].reverse().filter((each) => (each.card.parked === true) === kept);
   const busy = heldBusy(calls.state);
-  const workWaits = (offersWork && openWork(work.work ?? []).some(needsYou)) || (workspaceAgents.signedIn && waitingHandoffs(workspaceAgents.remote).length > 0);
+  const workWaits = !kept && ((offersWork && openWork(work.work ?? []).some(needsYou)) || (workspaceAgents.signedIn && waitingHandoffs(workspaceAgents.remote).length > 0));
 
   return (
     <div className="flex flex-col gap-6">
-      <NoticesSwitch parts={parts} />
-      {waiting.length === 0 ? (
+      {!kept && <NoticesSwitch parts={parts} />}
+      {waiting.length === 0 && kept ? (
+        <EmptyState icon={ShieldCheck} title={NeedsYouLines.noneKept} body={NeedsYouLines.noneKeptDetail} />
+      ) : waiting.length === 0 ? (
         !workWaits &&
         (standing === 'starting' ? (
           <EmptyState icon={ShieldCheck} title={RuntimeAwayLines.starting} body={RuntimeAwayLines.startingDetail} />
@@ -133,8 +178,13 @@ function Approvals({ parts }: { parts: SettingsParts }) {
           </div>
         </>
       )}
-      {offersWork && <WorkNeedingYou parts={parts} />}
-      <WorkspaceHandoffs parts={parts} />
+      {!kept && (
+        <>
+          {offersWork && <WorkNeedingYou parts={parts} />}
+          <WorkspaceHandoffs parts={parts} />
+          <TeamRuleChanges parts={parts} />
+        </>
+      )}
     </div>
   );
 }

@@ -31,8 +31,8 @@ function sources(folder: string): string[] {
 const NAMED = [/method: '([a-z][a-z-]*)'/g, /supports\('([a-z][a-z-]*)'\)/g, /needs: '([a-z][a-z-]*)'/g];
 
 describe('the daemon methods the window sends', () => {
-  it('reads the wire’s methods, the new job methods among them', () => {
-    for (const method of ['profiles', 'profile-bind', 'profile-unbind', 'templates', 'profile-from-template', 'agent-work', 'work-start', 'handoff-answer', 'subscribe']) expect(KNOWN.has(method)).toBe(true);
+  it('reads the wire’s methods, the profile and work methods among them', () => {
+    for (const method of ['profiles', 'profile-bind', 'profile-unbind', 'agent-work', 'work-start', 'handoff-answer', 'subscribe']) expect(KNOWN.has(method)).toBe(true);
   });
 
   it('names only methods the runtime declares, in every source and on every tab', () => {

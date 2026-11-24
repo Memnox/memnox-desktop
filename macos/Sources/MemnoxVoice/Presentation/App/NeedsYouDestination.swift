@@ -8,15 +8,74 @@ struct NeedsYouDestination: View {
     @ObservedObject var shell: AppShellModel
     @ObservedObject var island: IslandModel
     let width: WidthClass
+    @State private var view = NeedsYouView.waiting
 
     var body: some View {
+        let entries = island.waiting.entries
+        let kept = entries.filter(\.card.parked).count
+        // Decided reads the record, so it is offered only where the runtime keeps one.
+        let today = shell.supports("activity") == true ? shell.todayActivity : nil
+        let views = NeedsYouView.allCases.filter { $0 != .decided || today != nil }
         ShellScroll(width: width) {
-            HeldCalls(island: island, projects: shell.projects?.projects.projects ?? [],
-                      work: shell.supports("agent-work") == true ? shell.work : nil,
-                      profiles: shell.profiles?.profiles.profiles ?? [], workspace: shell.workspaceAgents)
-            if shell.supports("memory-learn") == true, let memory = shell.memory {
-                LearnQueue(screen: memory, island: island)
+            HStack(spacing: Memnox.Spacing.small) {
+                ForEach(views, id: \.self) { each in
+                    FilterChip(title: each.title, chosen: view == each,
+                               count: count(each, waiting: entries.count - kept, kept: kept)) { view = each }
+                }
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Needs you")
+            switch view {
+            case .waiting:
+                HeldCalls(island: island, projects: shell.projects?.projects.projects ?? [],
+                          work: shell.supports("agent-work") == true ? shell.work : nil,
+                          profiles: shell.profiles?.profiles.profiles ?? [], workspace: shell.workspaceAgents)
+                if shell.supports("memory-learn") == true, let memory = shell.memory {
+                    LearnQueue(screen: memory, island: island)
+                }
+            case .kept:
+                HeldCalls(island: island, projects: shell.projects?.projects.projects ?? [], kept: true)
+            case .decided:
+                if let today { DecidedToday(screen: today) }
+            }
+        }
+    }
+
+    /// A count beside the views that wait on the person, none beside what is already decided.
+    private func count(_ view: NeedsYouView, waiting: Int, kept: Int) -> Int? {
+        switch view {
+        case .waiting: waiting
+        case .kept: kept
+        case .decided: nil
+        }
+    }
+}
+
+/// What the person allowed or stopped today, read off the same record Home's Today reads, newest first.
+private struct DecidedToday: View {
+    @ObservedObject var screen: ActivityScreen
+
+    var body: some View {
+        let decided = NeedsYouLines.decided(screen.activity.rows)
+        Group {
+            if decided.isEmpty {
+                EmptyState(symbol: "checkmark.circle", title: NeedsYouLines.noneDecided, detail: NeedsYouLines.noneDecidedDetail)
+            } else {
+                ShellPanel {
+                    ForEach(Array(decided.enumerated()), id: \.element.id) { index, line in
+                        if index > 0 { ShellDivider() }
+                        ShellRow(title: line.title, caption: line.caption) {
+                            EmptyView()
+                        } trailing: {
+                            StatusWord(line.allowed ? .good : .quiet, line.outcome)
+                        }
+                    }
+                }
+            }
+        }
+        .task {
+            let midnight = Calendar.current.startOfDay(for: Date())
+            await screen.activity.show(ActivityFilter(since: ISO8601DateFormatter().string(from: midnight)))
         }
     }
 }
@@ -28,25 +87,34 @@ private struct HeldCalls: View {
     let projects: [ProjectView]
     /// Agent work whose handoffs and done claims wait here too, nil where this Mac's runtime keeps none.
     var work: AgentWorkScreen?
-    /// The jobs, which name the agent a handoff is from and to.
+    /// The agent profiles, which name the agent a handoff is from and to.
     var profiles: [ProfileView] = []
     /// The workspace's handoffs, which wait here while the person is signed in.
     var workspace: WorkspaceAgentsScreen?
+    /// Only the calls kept for later, which an agent is no longer blocked on, and nothing else that waits.
+    var kept = false
 
     var body: some View {
-        let waiting = island.waiting.entries
+        let waiting = island.waiting.entries.filter { $0.card.parked == kept }
         VStack(alignment: .leading, spacing: Memnox.Spacing.large) {
-            NoticesSwitch(notifier: HeldNotifier.shared)
-            if let work { WorkNeedingYou(screen: work, names: WorkNames(profiles)) }
-            if let workspace { WorkspaceHandoffs(screen: workspace) }
-            if waiting.isEmpty {
+            if !kept {
+                NoticesSwitch(notifier: HeldNotifier.shared)
+                if let work { WorkNeedingYou(screen: work, names: WorkNames(profiles)) }
+                if let workspace {
+                    WorkspaceHandoffs(screen: workspace)
+                    TeamRuleChanges(screen: workspace)
+                }
+            }
+            if waiting.isEmpty, kept {
+                EmptyState(symbol: "clock", title: NeedsYouLines.noneKept, detail: NeedsYouLines.noneKeptDetail)
+            } else if waiting.isEmpty {
                 if let home = SettingsWindow.shared.home {
                     NothingWaiting(home: home)
                 } else {
                     NothingWaiting.empty
                 }
             } else {
-                Text("\(waiting.count) waiting, oldest first.")
+                Text(kept ? "\(waiting.count) kept, oldest first." : "\(waiting.count) waiting, oldest first.")
                     .font(Memnox.Console.sans(Memnox.TextSize.footnote))
                     .foregroundStyle(Memnox.Console.muted)
                 VStack(spacing: Memnox.Spacing.large) {

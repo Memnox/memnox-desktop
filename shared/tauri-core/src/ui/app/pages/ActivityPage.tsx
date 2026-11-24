@@ -7,14 +7,14 @@ import { ago } from '../../../core/domain/session-text';
 import { activityLine, answeredWords, EFFECT_WORDS, effectTone, isEffect, sourceWords } from '../../../core/domain/studio-lines';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { useInspectorHost } from '../inspector-host';
+import { useShellChoices } from '../shell-choices';
 import { Inspector } from '../widgets';
 import { ActivityLines } from '../../../core/domain/activity-words';
-import { BrandLogo, Button, Chip, ChipGroup, EmptyState, Panel, ReadFailed, Row, SearchInput, Section, Select, StatusWord } from '../../kit';
+import { BrandLogo, Button, Chip, ChipGroup, EmptyState, Panel, ReadFailed, Row, SearchInput, Section, StatusWord } from '../../kit';
 import { PAGE_METRICS } from '../page-metrics';
 
-/** The Mac's toolbar: the search and the kind, each capped. */
+/** The Mac's toolbar: the search, capped. */
 const SEARCH_WIDTH = PAGE_METRICS.activitySearch;
-const KIND_WIDTH = PAGE_METRICS.activityKind;
 
 /** An agent's logo at the head of its row. */
 const ROW_LOGO = 24;
@@ -27,12 +27,12 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
   const { activity, host } = parts;
   useObserved(activity);
   const [effect, setEffect] = useState<string>('');
-  const [kind, setKind] = useState<string>('');
   const [text, setText] = useState('');
   const [note, setNote] = useState<string | undefined>(undefined);
+  const { project } = useShellChoices();
   const filter: ActivityFilter = {
+    ...(project === undefined ? {} : { project: project.path }),
     ...(effect === '' ? {} : { effect: effect as ActivityFilter['effect'] }),
-    ...(kind === '' ? {} : { kind: kind as ActivityFilter['kind'] }),
     ...(text.trim() === '' ? {} : { text: text.trim() }),
   };
   const key = JSON.stringify(filter);
@@ -88,15 +88,13 @@ export function ActivityPage({ parts, width, go }: { parts: SettingsParts; width
             </Chip>
             {(['allow', 'ask', 'deny'] as const).map((each) => (
               <Chip key={each} role="toggle" on={effect === each} pick={() => setEffect(each)}>
-                {EFFECT_WORDS[each].title}
+                {ActivityLines.outcome[each]}
               </Chip>
             ))}
           </ChipGroup>
-          <div style={{ maxWidth: KIND_WIDTH }}>
-            <Select look="field" wide value={kind} options={ActivityLines.kinds} onChange={setKind} label={ActivityLines.kind} />
-          </div>
           <span className="flex-1" />
           <Button
+            kind="link"
             icon={Copy}
             onClick={() =>
               void activity.exportBundle().then(async (bundle) => {

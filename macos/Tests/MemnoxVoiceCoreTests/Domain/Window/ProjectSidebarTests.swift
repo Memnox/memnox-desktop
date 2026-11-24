@@ -6,13 +6,13 @@ final class ProjectSidebarTests: XCTestCase {
     private let everything: Supports = { _ in true }
 
     func testHoldsTheProjectsOwnPagesWithoutLeadingWithCode() {
-        XCTAssertEqual(ProjectSidebar.pages.map(\.title), ["Overview", "Agents", "Memory", "What its AI may do"])
+        XCTAssertEqual(ProjectSidebar.pages.map(\.title), ["Overview", "Rules here", "What agents here should know"])
         XCTAssertEqual(ProjectSidebar.backTitle, "Back to Projects")
         XCTAssertFalse(ProjectSidebar.pages.contains { $0.title.contains("Code") })
     }
 
     func testSaysWhatEachPageIsForInTheWordsTheWindowsAndLinuxAppUses() {
-        XCTAssertEqual(ProjectPage.overview.summary, "What this project is, what it still needs, and what it learned lately.")
+        XCTAssertEqual(ProjectPage.overview.summary, "Who is working here, what waits for you here, and how careful agents are here.")
     }
 
     func testOpensTheSharedMySkillsFromTheOverviewsSkillsPart() {
@@ -38,14 +38,15 @@ final class ProjectSidebarTests: XCTestCase {
         XCTAssertEqual(Sidebar.strip(for: ProjectSidebar.route("prj_1", .agents), supports: everything), [])
     }
 
-    func testSendsAnOldRouteToTheToolsPageToTheOverview() {
+    func testSendsAnOldRouteToTheToolsOrAgentsPageToTheOverview() {
         XCTAssertEqual(ProjectSidebar.place(of: ProjectSidebar.route("prj_1", .tools)), ProjectPlace(id: "prj_1", page: .overview))
+        XCTAssertEqual(ProjectSidebar.place(of: ProjectSidebar.route("prj_1", .agents)), ProjectPlace(id: "prj_1", page: .overview))
         XCTAssertFalse(ProjectSidebar.pages.contains(.tools))
     }
 
     func testSaysWhereTheWindowIsAsTheTopBarDoes() {
         let place = ProjectPlace(id: "prj_1", page: .rules)
-        XCTAssertEqual(ProjectSidebar.breadcrumb(place, name: "Spring launch"), ["Projects", "Spring launch", "What its AI may do"])
-        XCTAssertEqual(ProjectSidebar.breadcrumb(place, name: nil), ["Projects", "Project", "What its AI may do"])
+        XCTAssertEqual(ProjectSidebar.breadcrumb(place, name: "Spring launch"), ["Projects", "Spring launch", "Rules here"])
+        XCTAssertEqual(ProjectSidebar.breadcrumb(place, name: nil), ["Projects", "Project", "Rules here"])
     }
 }

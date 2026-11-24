@@ -151,8 +151,8 @@ public final class SkillsHub: @unchecked Sendable {
             if let hub = response?.skillsHub { view = hub }
         }
         changed?()
-        guard let response else { return .failed("The runtime is not answering.") }
-        guard response.ok else { return .failed(response.error ?? "The runtime refused this.") }
+        guard let response else { return .failed("Memnox is not answering on this Mac.") }
+        guard response.ok else { return .failed(response.error ?? "Memnox refused this.") }
         if let proposed = response.proposed { return .proposed(proposed) }
         if saysSync, let synced = response.skillsSynced { return .done(SkillsLines.synced(synced)) }
         return .done(done)

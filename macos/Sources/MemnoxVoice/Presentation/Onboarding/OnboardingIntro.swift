@@ -1,3 +1,4 @@
+import MemnoxVoiceCore
 import SwiftUI
 
 /// The opening over the whole screen: the wordmark glowing on a dark veil with one button, then the name asked in the
@@ -68,16 +69,21 @@ private struct NameQuestion: View {
         static let fieldFill = 0.14
         static let sendSide: CGFloat = 34
         static let gap: CGFloat = 40
+        /// Wide enough for the purpose to sit on two or three lines rather than one long one.
+        static let purposeWidth: CGFloat = 560
     }
 
     var body: some View {
         VStack(spacing: Layout.gap) {
             VStack(spacing: Memnox.Spacing.large) {
-                Text("Welcome to Memnox. I'm the voice over your agents.")
-                Text("So, what should I call you?")
+                Text(FirstRunLines.purpose)
+                    .font(Memnox.sans(Memnox.TextSize.title))
+                    .foregroundStyle(Color.white.opacity(Memnox.Ink.secondary))
+                    .frame(maxWidth: Layout.purposeWidth)
+                Text("What should I call you?")
+                    .font(Memnox.display(Layout.lineSize, .medium))
+                    .foregroundStyle(Color.white)
             }
-            .font(Memnox.display(Layout.lineSize, .medium))
-            .foregroundStyle(Color.white)
             .multilineTextAlignment(.center)
             HStack(spacing: Memnox.Spacing.medium) {
                 TextField("", text: $name, prompt: Text("Your name").foregroundStyle(Color.white.opacity(Memnox.Ink.secondary)))

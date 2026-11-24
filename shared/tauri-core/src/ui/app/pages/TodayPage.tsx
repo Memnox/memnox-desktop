@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { HOLD_ANSWER } from '@memnox/core/wire';
 import { ACTIVITY_ROUTE, type Route, type WidthClass } from '../../../core/domain/destinations';
 import type { HeldCard } from '../../../core/domain/held-card';
-import { briefItems, HOME_BRIEF_NONE, HOME_BRIEF_TITLE, homeBrief, type HomeBriefBlock } from '../../../core/domain/home-brief';
+import { briefItems, HOME_BRIEF_NONE, HOME_BRIEF_TITLE, homeBrief, homeOpenerOf, type HomeBriefBlock } from '../../../core/domain/home-brief';
 import { HomeLines } from '../../../core/domain/home-lines';
 import { heldSigningLine, TodayNotes, TodayPageLines } from '../../../core/domain/home-page-lines';
 import {
@@ -29,6 +29,7 @@ import {
   type TodayState,
 } from '../../../core/domain/today-board';
 import { AgentName, BrandLogo } from '../../kit/logos';
+import { useShellChoices } from '../shell-choices';
 import { useObserved, type SettingsParts } from '../../settings/parts';
 import { bringForward } from '../../sessions/open-session';
 import { Inspector } from '../widgets';
@@ -97,7 +98,7 @@ export function TodayPage({
   parts: SettingsParts;
   width: WidthClass;
   go: (route: Route) => void;
-  /** The greeting and the one Do this next card, above every block. */
+  /** The greeting and the one Get set up card, above every block. */
   lead: ReactNode;
 }) {
   const { calls, sessions, home, agents, activity, support, words, projects } = parts;
@@ -116,14 +117,20 @@ export function TodayPage({
     const clock = setInterval(() => setNow(Date.now()), CLOCK_MS);
     return () => clearInterval(clock);
   }, []);
+  // The project picker narrows Today; kept in a ref so the live listener reads the one chosen now.
+  const { project } = useShellChoices();
+  const folder = useRef(project?.path);
+  folder.current = project?.path;
   const readActivity = () => {
     if (support.supports('activity') !== true) return;
-    void activity.show({ since: new Date(startOfDay(Date.now())).toISOString() }).then(() => setReadAt(Date.now()));
+    const since = new Date(startOfDay(Date.now())).toISOString();
+    const path = folder.current;
+    void activity.show({ since, ...(path === undefined ? {} : { project: path }) }).then(() => setReadAt(Date.now()));
   };
+  useEffect(() => readActivity(), [project?.path, support.supports('activity')]);
   useEffect(() => {
     void home.refresh().then(() => setReadAt(Date.now()));
     if (support.supports('agents') === true) void agents.refresh();
-    readActivity();
     // The projects name where each held call and session happens, so a person with several sees where.
     if (support.supports('projects') === true && projects.projects === undefined) void projects.refresh();
     page.current?.focus();
@@ -150,7 +157,7 @@ export function TodayPage({
     ...(home.home?.ready === undefined ? {} : { ready: home.home.ready }),
     projects: projects.projects ?? [],
   };
-  const blocks = homeBrief(sources, now);
+  const blocks = homeBrief(sources, now, project?.name);
   const items = briefItems(blocks);
   const opened = items.find((item) => item.id === open);
   const needYou = blocks.find((each) => each.block === 'waiting')?.items ?? [];
@@ -231,6 +238,7 @@ export function TodayPage({
         {/* With the runtime away an empty block would read as all clear, so the strip and the blocks wait for it. */}
         {!home.unavailable && (
         <>
+        <p className="text-headline text-foreground">{homeOpenerOf(blocks, home.home?.today.refused ?? 0)}</p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-panel-edge bg-hover px-4 py-2.5 text-meta text-muted">
           <span className={needYou.length === 0 ? 'invisible' : ''}>
             <StateMark state={needYou.length === 0 ? 'done' : 'needs-you'} />

@@ -39,7 +39,7 @@ const STEP_TICK_STROKE = 2.4;
 const WAITING_GLYPH = 13;
 
 /**
- * Home's one Do this next card, as the Mac's `HomeStart` draws it: the stage and how many steps are done, the one thing
+ * Home's one Get set up card, as the Mac's `HomeStart` draws it: the stage and how many steps are done, the one thing
  * to do next with its press, and what waits on an agent; Show all steps opens the rest under their two tracks with the
  * counts already won. The card goes once every step is done.
  */
@@ -78,8 +78,7 @@ export function HomeStart({ parts, go, actions, mode, openSetup }: { parts: Sett
 
   // Stopping rather than watching is confirmed here first, setup opens where it was left, every other step opens where it is done.
   const press = (step: HomeStep) => {
-    if (step.id === 'finishSetup') openSetup();
-    else if (step.id === 'enforce' && !step.done) setConfirming(true);
+    if (step.id === 'chooseCare' && !standing.setupFinished) openSetup();
     else go(STEP_ROUTE[step.id]);
   };
   const more = <Button onClick={() => setAllSteps(!allSteps)}>{allSteps ? FEWER_STEPS : ALL_STEPS}</Button>;
@@ -94,7 +93,7 @@ export function HomeStart({ parts, go, actions, mode, openSetup }: { parts: Sett
         </div>
         <p className="text-body-sm text-muted">{STAGE_MEANS[setup.stage]}</p>
       </div>
-      {setup.next !== undefined && <NextRung step={setup.next} busy={setup.next.id === 'enforce' && home.enforcing} press={press} />}
+      {setup.next !== undefined && <NextRung step={setup.next} busy={false} press={press} />}
       {home.enforceNote !== undefined && <p className="text-body-sm text-muted select-text">{home.enforceNote}</p>}
       {setup.waiting.map((step) => (
         <WaitingRung key={step.id} step={step} />
@@ -152,7 +151,7 @@ export function HomeStart({ parts, go, actions, mode, openSetup }: { parts: Sett
             label: HomeEnforce.readFirst,
             act: () => {
               setConfirming(false);
-              go(STEP_ROUTE.enforce);
+              go({ destination: 'activity', tab: 'timeline' });
             },
           }}
           cancel={() => setConfirming(false)}
@@ -182,7 +181,7 @@ function StepsDone({ setup }: { setup: HomeSetup }) {
   );
 }
 
-/** The one thing to do now, and the only part of the block with a filled press, as the cloud's Do this next rung. */
+/** The one thing to do now, and the only part of the block with a filled press, as the cloud's Get set up rung. */
 function NextRung({ step, busy, press }: { step: HomeStep; busy: boolean; press: (step: HomeStep) => void }) {
   return (
     <div className="flex flex-col gap-1.5 rounded-card border border-primary/30 bg-primary/5 p-4">

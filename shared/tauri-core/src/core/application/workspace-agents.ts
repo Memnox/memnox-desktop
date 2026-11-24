@@ -6,6 +6,7 @@ import type { WorkOutcome } from './agent-work';
 import type { Diary } from './diary';
 import { Observed } from './observed';
 import type { WorkCorrelation } from '../domain/work-correlations';
+import type { CloudRuleChange } from '../domain/team-rule-changes';
 import { WorkspaceInboxError, type PersonCredentialStore, type WorkspaceAgentsReader } from './ports/workspace-inbox';
 
 /** One workspace's agents as last read. */
@@ -13,6 +14,8 @@ export interface RemoteAgents {
   readonly workspace: string;
   readonly profiles: readonly ProfileView[];
   readonly work: readonly AgentWork[];
+  /** The team's rule changes waiting on a second person; empty where the workspace would not say. */
+  readonly ruleChanges: readonly CloudRuleChange[];
 }
 
 /**
@@ -46,7 +49,7 @@ export class WorkspaceAgents extends Observed {
     return this.busyWith;
   }
 
-  /** Every workspace's jobs and the person's work; a workspace that did not answer keeps what it showed. */
+  /** Every workspace's agents and the person's work; a workspace that did not answer keeps what it showed. */
   async refresh(): Promise<void> {
     const credential = await this.store.load().catch(() => undefined);
     if (credential === undefined) {
@@ -62,7 +65,9 @@ export class WorkspaceAgents extends Observed {
       try {
         const profiles = await this.reader.agentProfiles(workspace, credential.token);
         const mine = await this.reader.myAgentWork(workspace, credential.token);
-        fresh.push({ workspace, profiles: profiles.map((each) => cloudProfileView(each, credential.personId)), work: cloudWorkAll(mine) });
+        // Read apart, so a workspace that will not list its rule changes still shows its agents.
+        const ruleChanges = await this.reader.pendingRuleChanges(workspace, credential.token).catch(() => []);
+        fresh.push({ workspace, profiles: profiles.map((each) => cloudProfileView(each, credential.personId)), work: cloudWorkAll(mine), ruleChanges });
       } catch (error) {
         if (error instanceof WorkspaceInboxError && error.failure.kind === 'signed-out') {
           this.signed = false;

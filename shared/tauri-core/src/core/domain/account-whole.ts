@@ -36,7 +36,7 @@ export const AccountWholeLines = {
   settingUp: 'Connecting Memnox on this computer to your workspace.',
   notYet: 'Memnox on this computer is not connected to your workspace yet.',
   tooOld: 'The Memnox running on this computer is older than the app. Update brings it up to date, with no terminal.',
-  unreachable: 'The Memnox daemon did not answer. Check Connection and try again.',
+  unreachable: 'Memnox did not answer. Check Connection and try again.',
   expired: 'The code ran out before it was approved. Sign in again for a new one.',
 } as const;
 

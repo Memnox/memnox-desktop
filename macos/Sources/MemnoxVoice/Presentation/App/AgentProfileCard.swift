@@ -2,16 +2,14 @@ import AppKit
 import MemnoxVoiceCore
 import SwiftUI
 
-/// One agent as its job: the name and purpose line, who answers for it, each way Memnox reaches it as a pill wearing
-/// its level, and the work it carries now. A default profile is the agent itself, offered a job; a profile with no
-/// agent behind it stays grey and shows no activity and no numbers.
+/// One agent: its name, whether Memnox can stop it, who answers for it, each way Memnox reaches it as a pill wearing
+/// its level, and the work it carries now. A profile with no agent behind it stays grey and shows no activity.
 struct AgentProfileCard: View {
     let profile: ProfileView
     /// The open work its agent carries, newest first; nil where this Mac's runtime keeps no work.
     let work: AgentWork?
-    /// Opens the job: a default gets a new job bound to its agent, any other its own job to edit; nil for a job kept
-    /// in the workspace, which is edited in the console.
-    let giveJob: ((ProfileView) -> Void)?
+    /// Where it meets other agents now, one plain line each; empty where it meets none.
+    var meetings: [String] = []
 
     private static let logo: CGFloat = 30
     /// How faint a card with nobody behind it is drawn, so it never reads as an agent at work.
@@ -28,7 +26,7 @@ struct AgentProfileCard: View {
                         .font(Memnox.Console.sans(Memnox.TextSize.headline, .semibold))
                         .foregroundStyle(Memnox.Console.foreground)
                         .lineLimit(1)
-                    Text(AgentProfileLines.purpose(profile))
+                    Text(AgentProfileLines.summary(profile))
                         .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
                         .foregroundStyle(Memnox.Console.muted)
                         .lineLimit(2)
@@ -44,16 +42,26 @@ struct AgentProfileCard: View {
             if bound {
                 connections
                 if let work { WorkLine(work: work) }
+                if !meetings.isEmpty {
+                    VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
+                        Text(AgentMeetings.title)
+                            .font(Memnox.Console.sans(Memnox.Console.TextSize.label, .medium))
+                            .foregroundStyle(Memnox.Console.muted)
+                        ForEach(meetings, id: \.self) { line in
+                            Label(line, systemImage: "person.2")
+                                .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                                .foregroundStyle(Memnox.Console.foreground)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                if let kind = profile.connections.first?.agentKind, let studio = AppWindow.shared.shell.studio {
+                    AgentPresetRow(studio: studio, agent: kind)
+                }
             } else {
                 StatusWord(.quiet, AgentProfileLines.noAgent)
             }
             Spacer(minLength: 0)
-            if let giveJob {
-                Button(profile.isDefault ? AgentProfileLines.giveJob : "Edit the job", systemImage: profile.isDefault ? "briefcase" : "pencil") {
-                    giveJob(profile)
-                }
-                .buttonStyle(KitButton(kind: profile.isDefault ? .primary : .secondary))
-            }
         }
         .padding(Memnox.Spacing.xLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -66,7 +74,7 @@ struct AgentProfileCard: View {
 
     private var connections: some View {
         VStack(alignment: .leading, spacing: Memnox.Spacing.small) {
-            Text("Connected through")
+            Text("How Memnox reaches it")
                 .font(Memnox.Console.sans(Memnox.Console.TextSize.label, .medium))
                 .foregroundStyle(Memnox.Console.muted)
             ForEach(AgentProfileLines.shownConnections(profile)) { connection in
@@ -112,5 +120,49 @@ struct WorkLine: View {
                 .lineLimit(2)
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Starting this one agent on a shipped pack, and what it was started on; each rule waits for Touch ID on the island.
+private struct AgentPresetRow: View {
+    @ObservedObject var studio: StudioScreen
+    let agent: String
+    @State private var note: String?
+
+    var body: some View {
+        let packs = studio.studio.packs ?? []
+        let started = AgentPresets.started(studio.studio.rules?.rules ?? [], agent: agent, packs: packs)
+        VStack(alignment: .leading, spacing: Memnox.Spacing.xSmall) {
+            HStack(spacing: Memnox.Spacing.medium) {
+                Text(AgentPresets.line(started))
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                    .foregroundStyle(Memnox.Console.muted)
+                Spacer(minLength: Memnox.Spacing.small)
+                if !packs.isEmpty {
+                    Menu(AgentPresets.title) {
+                        ForEach(packs.filter { $0.id != started?.id }, id: \.id) { pack in
+                            Button(pack.name) { start(pack) }.help(pack.description)
+                        }
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+            }
+            if let note {
+                Text(note)
+                    .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
+                    .foregroundStyle(Memnox.Console.muted)
+            }
+        }
+        .task { await studio.studio.readPacks() }
+    }
+
+    private func start(_ pack: RulePackView) {
+        Task {
+            switch await studio.studio.importPack(pack.toml, agent: agent) {
+            case .done, .proposed: note = AgentPresets.waits
+            case .failed(let why): note = why
+            }
+        }
     }
 }

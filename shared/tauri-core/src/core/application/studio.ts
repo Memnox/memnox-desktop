@@ -4,6 +4,7 @@ import {
   POLICY_METHOD,
   type ActivityFilter,
   type ActivityRow,
+  type AgentOverlapsView,
   type AgentView,
   type DaemonRequest,
   type DaemonResponse,
@@ -11,6 +12,7 @@ import {
   type LiveActivityRow,
   type PolicyRulesView,
   type ProgressView,
+  type RuleHistoryRow,
   type RulePackView,
   type RuleVerdictView,
 } from '@memnox/core/wire';
@@ -40,8 +42,8 @@ async function ask(link: DaemonLink, ids: RequestIds, fields: Omit<DaemonRequest
 }
 
 function outcomeOf(response: DaemonResponse | undefined, done: string): StudioOutcome {
-  if (response === undefined) return { kind: 'failed', why: 'The runtime is not answering.' };
-  if (!response.ok) return { kind: 'failed', why: response.error ?? 'The runtime refused this.' };
+  if (response === undefined) return { kind: 'failed', why: 'Memnox is not answering on this Mac.' };
+  if (!response.ok) return { kind: 'failed', why: response.error ?? 'Memnox refused this.' };
   if (response.proposed !== undefined) return { kind: 'proposed', id: response.proposed };
   return { kind: 'done', note: done };
 }
@@ -54,6 +56,7 @@ export class Studio extends Observed {
   private rulesView: PolicyRulesView | undefined;
   private progressView: ProgressView | undefined;
   private packList: RulePackView[] | undefined;
+  private historyRows: RuleHistoryRow[] | undefined;
   private failedRead = false;
   private working: string | undefined;
 
@@ -77,6 +80,11 @@ export class Studio extends Observed {
     return this.packList;
   }
 
+  /** The rule changes answered here, newest first; undefined until read, or from a runtime with no such method. */
+  get history(): readonly RuleHistoryRow[] | undefined {
+    return this.historyRows;
+  }
+
   get unreadable(): boolean {
     return this.failedRead;
   }
@@ -88,6 +96,12 @@ export class Studio extends Observed {
   async readPacks(): Promise<void> {
     const response = await ask(this.link, this.ids, { method: POLICY_METHOD.RULE_PACKS });
     this.packList = response?.rulePacks ?? (response?.ok === true ? [] : undefined);
+    this.changed();
+  }
+
+  async readHistory(): Promise<void> {
+    const response = await ask(this.link, this.ids, { method: POLICY_METHOD.RULE_HISTORY });
+    if (response?.ruleHistory !== undefined) this.historyRows = response.ruleHistory;
     this.changed();
   }
 
@@ -114,8 +128,14 @@ export class Studio extends Observed {
     return this.change(grantId, { method: POLICY_METHOD.AUTOPILOT_REVOKE, grantId }, 'Taken back. Your agents ask about it again.');
   }
 
-  async importPack(toml: string): Promise<StudioOutcome> {
-    const response = await this.send('pack', { method: POLICY_METHOD.RULE_PACK_IMPORT, rulePack: toml });
+  /** Each rule in the pack becomes its own proposal; a project folder or an agent's kind narrows where they hold. */
+  async importPack(toml: string, scope: { readonly project?: string; readonly agent?: string } = {}): Promise<StudioOutcome> {
+    const response = await this.send('pack', {
+      method: POLICY_METHOD.RULE_PACK_IMPORT,
+      rulePack: toml,
+      ...(scope.project === undefined ? {} : { rulePackProject: scope.project }),
+      ...(scope.agent === undefined ? {} : { rulePackAgent: scope.agent }),
+    });
     if (response?.ok === true && response.packProposed !== undefined) {
       const count = response.packProposed.length;
       return { kind: 'done', note: count === 1 ? '1 rule waits for your signature on the island.' : `${count} rules wait for your signature on the island.` };
@@ -126,7 +146,7 @@ export class Studio extends Observed {
   async test(input: RuleTestInput): Promise<RuleVerdictView | string> {
     const response = await ask(this.link, this.ids, { method: POLICY_METHOD.RULE_TEST, ruleTest: input });
     if (response?.ruleVerdict !== undefined) return response.ruleVerdict;
-    return response?.error ?? 'The runtime is not answering.';
+    return response?.error ?? 'Memnox is not answering on this Mac.';
   }
 
   async exportToml(): Promise<string | undefined> {
@@ -331,6 +351,12 @@ export class Agents extends Observed {
     this.failedRead = response === undefined || !response.ok;
     if (response?.agentsView !== undefined) this.view = response.agentsView;
     this.changed();
+  }
+
+  /** Where the agents here meet now; undefined from a runtime too old to say, so the cards say nothing rather than all clear. */
+  async overlaps(): Promise<AgentOverlapsView | undefined> {
+    const response = await ask(this.link, this.ids, { method: AGENTS_METHOD.AGENT_OVERLAPS });
+    return response?.ok === true ? response.agentOverlaps : undefined;
   }
 
   pause(kind: string): Promise<StudioOutcome> {

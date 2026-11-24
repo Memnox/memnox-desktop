@@ -117,7 +117,7 @@ describe('what a Protect press came to', () => {
     expect(runtimePredatesSeams(old)).toBe(true);
     const result = afterProtect(['claude-desktop'], old, undefined);
     expect(result.restartService).toBe(true);
-    expect(result.line).toBe('The Memnox service on this computer is older than this app, so it cannot see that Claude Desktop is held. Restart it to run the newer runtime.');
+    expect(result.line).toBe('The Memnox service on this computer is older than this app, so it cannot see that Claude Desktop is held. Restart it to run the newer Memnox.');
     expect(runtimePredatesSeams([code, desktop('unprotected')])).toBe(false);
     expect(runtimePredatesSeams([])).toBe(false);
   });

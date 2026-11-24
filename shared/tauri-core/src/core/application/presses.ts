@@ -20,7 +20,6 @@ export function proposalIds(response: DaemonResponse): string[] {
     ...(response.proposed === undefined ? [] : [response.proposed]),
     ...(response.packProposed ?? []),
     ...(response.profileApplied?.proposed ?? []),
-    ...(response.indexInstalled?.proposed ?? []),
   ];
 }
 

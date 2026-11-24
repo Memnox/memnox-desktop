@@ -49,19 +49,16 @@ final class EnforceModeTests: XCTestCase {
         XCTAssertEqual(away, .unreachable)
     }
 
-    func testTheStepPressesToTurnOnStoppingAndClosesOnceTheDaemonEnforces() {
-        var standing = HomeStanding()
-        standing.mode = .observe
-        let open = HomeSteps.steps(standing).first { $0.id == .enforce }
-        XCTAssertEqual(open?.action, "Turn on stopping")
-        XCTAssertEqual(open?.done, false)
-        standing.mode = .enforce
-        XCTAssertEqual(HomeSteps.steps(standing).first { $0.id == .enforce }?.done, true)
+    func testAskingBeforeRiskyThingsStopsAndJustWatchingDoesNot() {
+        XCTAssertTrue(CareLevel.ask.enforces)
+        XCTAssertTrue(CareLevel.strict.enforces)
+        XCTAssertFalse(CareLevel.watch.enforces)
+        XCTAssertNil(CareLevel.watch.packId)
     }
 
     func testTheBadgeFollowsTheModeTheDaemonReports() {
-        XCTAssertEqual(HomeMode.observe.badge, "Observing on this Mac")
-        XCTAssertEqual(HomeMode.enforce.badge, "Enforcing on this Mac")
+        XCTAssertEqual(HomeMode.observe.badge, "Watching only")
+        XCTAssertEqual(HomeMode.enforce.badge, "Protecting")
     }
 
     func testNoWordOfTheConfirmCarriesADash() {

@@ -38,10 +38,16 @@ public enum FirstRunEnd {
         return trimmed.isEmpty ? "You're set." : "You're set, \(trimmed)."
     }
 
-    public static let lead = "Your agents work inside your starting rules now. Try one ask, then open Memnox."
+    /// What happens next under the care chosen, so the end previews the first ask rather than only saying it is done.
+    public static func lead(_ care: CareLevel) -> String {
+        switch care {
+        case .watch: "Memnox now writes down what your agents do and stops nothing. You can make it careful any time under Rules."
+        case .ask, .strict: "The first time an agent wants to do something risky, it waits for you in the notch at the top of your screen."
+        }
+    }
 
     /// Where the rest of setup went, said under the button that opens Memnox, so nobody looks for it here.
-    public static let later = "Pairing your iPhone waits on Home under Do this next, and Memnox Cloud is in Settings under Account."
+    public static let later = "Pairing your iPhone waits on Home under Get set up, and Memnox Cloud is in Settings under Account."
 
     /// Talking once the microphone is allowed, since it shows Memnox at work in a second; Home otherwise.
     public static func next(hearing: Bool) -> FirstRunNext {
@@ -57,8 +63,12 @@ public enum FirstRunEnd {
             switch id {
             case .voice:
                 return hearing
-                    ? FirstRunExtra(id: id, title: "Talk to Memnox", detail: "The microphone is allowed. Pick the voice it answers in.", done: true)
-                    : FirstRunExtra(id: id, title: "Talk to Memnox", detail: "Allow the microphone, and talk to your agents from anywhere.", done: false)
+                    ? FirstRunExtra(id: id, title: "Talk to Memnox",
+                                    detail: "The microphone is allowed. Tell your agents what to do out loud, and Memnox carries your words whole.",
+                                    done: true)
+                    : FirstRunExtra(id: id, title: "Talk to Memnox",
+                                    detail: "Allow the microphone, then tell your agents what to do out loud from anywhere. Memnox carries your words whole.",
+                                    done: false)
             case .keys:
                 return FirstRunExtra(id: id, title: "Keys to try",
                                      detail: "Option Space to ask, Control Option to say a rule, Right Option to dictate.", done: false)

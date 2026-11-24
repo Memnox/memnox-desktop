@@ -3,7 +3,7 @@ import Foundation
 /// The words around Today's table: the line under its title, the strip over it, and the panel's own.
 public enum TodayLines {
     /// What the panel says where neither the runtime nor the agent recommended anything, rather than guessing one.
-    public static let noRecommendation = "Neither the runtime nor the agent recommended anything for this, so the choice is yours."
+    public static let noRecommendation = "Neither Memnox nor the agent recommended anything for this, so the choice is yours."
     public static let noChoices = "There is nothing to decide here; it is shown so you know it is there."
 
     private static let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]

@@ -116,7 +116,7 @@ public final class HttpWorkspaceInbox: WorkspaceInbox, WorkspaceAgentsReader, @u
         }
     }
 
-    /// The workspace's jobs, for agents no daemon here reaches.
+    /// The workspace's agent profiles, for agents no daemon here reaches.
     public func agentProfiles(in workspace: String, token: String) async throws -> [CloudProfileView] {
         let listed: CloudProfiles = try await call("GET", "v1/workspaces/\(Self.segment(workspace))/agent-profiles", token: token)
         return listed.profiles
@@ -133,6 +133,10 @@ public final class HttpWorkspaceInbox: WorkspaceInbox, WorkspaceAgentsReader, @u
         let listed: WorkCorrelations = try await call("GET", "v1/workspaces/\(Self.segment(workspace))/work-correlations?session=\(asked)",
                                                       token: token)
         return listed.correlations
+    }
+
+    public func pendingRuleChanges(in workspace: String, token: String) async throws -> [CloudRuleChange] {
+        try await call("GET", "v1/workspaces/\(Self.segment(workspace))/policies/proposals?status=pending", token: token)
     }
 
     /// The answer goes as the cloud's own boolean, unsigned, since it only moves who carries the work.

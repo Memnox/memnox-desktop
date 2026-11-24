@@ -82,11 +82,6 @@ final class AppWindow {
         didSet { shell.network = network.map(NetworkScreen.init) }
     }
 
-    /// Rule packs from the community index, read by the packs under Rules.
-    var index: CommunityIndex? {
-        didSet { shell.index = index.map(IndexScreen.init) }
-    }
-
     /// Named bundles of skills, servers and a rule pack, read by Profiles under Workspaces and Launch on an agent's card.
     var profiles: Profiles? {
         didSet { shell.profiles = profiles.map(ProfilesScreen.init) }
@@ -219,16 +214,12 @@ final class AppShellModel: ObservableObject {
     @Published var memoryLayers: MemoryLayersScreen?
     /// The local network, nil until the app wires it, which leaves Phones without its line.
     @Published var network: NetworkScreen?
-    /// The community index for the rule packs under Rules, nil until the app wires it, which keeps them empty.
-    @Published var index: IndexScreen?
     /// Profiles for their tab and Launch, nil until the app wires it, which keeps the tab empty and Launch without a choice.
     @Published var profiles: ProfilesScreen?
     /// Agent work for the agents list and the Work tab, nil until the app wires it, which keeps both without work.
     @Published var work: AgentWorkScreen?
     /// The workspace's agents, nil until the app wires it; it holds nothing while nobody is signed in.
     @Published var workspaceAgents: WorkspaceAgentsScreen?
-    /// The profile whose job the editor opens on, set by Give it a job on an agent's card.
-    @Published var jobFor: String?
     /// Bumped when the daemon answers a method, so the tabs are drawn again.
     @Published private(set) var answers = 0
     private var support: DaemonSupport?

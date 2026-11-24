@@ -221,8 +221,8 @@ export class Memory extends Observed {
     const response = await this.working(project, () =>
       this.ask({ method: MEMORY_METHOD.MEMORY_LAYERS_PLAN, memoryLayersProject: project, memoryKeep: [...keep], ...(agent === undefined ? {} : { memoryLayersAgent: agent }) }),
     );
-    if (response === undefined) return 'The runtime is not answering.';
-    if (!response.ok || response.memoryLayersPlan === undefined) return response.error ?? 'The runtime could not plan the layers.';
+    if (response === undefined) return 'Memnox is not answering on this Mac.';
+    if (!response.ok || response.memoryLayersPlan === undefined) return response.error ?? 'Memnox could not plan the layers.';
     this.planShown = { plan: response.memoryLayersPlan, project, keep, ...(agent === undefined ? {} : { agent }) };
     this.changed();
     return undefined;
@@ -244,11 +244,11 @@ export class Memory extends Observed {
     this.planShown = undefined;
     if (response === undefined) {
       this.changed();
-      return { kind: 'failed', why: 'The runtime is not answering.' };
+      return { kind: 'failed', why: 'Memnox is not answering on this Mac.' };
     }
     if (!response.ok) {
       this.changed();
-      return { kind: 'failed', why: response.error ?? 'The runtime refused this.' };
+      return { kind: 'failed', why: response.error ?? 'Memnox refused this.' };
     }
     const updated = response.memoryLayers;
     if (updated !== undefined) {
@@ -302,8 +302,8 @@ export class Memory extends Observed {
     this.busyWith = undefined;
     this.take(response);
     this.changed();
-    if (response === undefined) return { kind: 'failed', why: 'The runtime is not answering.' };
-    if (!response.ok) return { kind: 'failed', why: response.error ?? 'The runtime refused this.' };
+    if (response === undefined) return { kind: 'failed', why: 'Memnox is not answering on this Mac.' };
+    if (!response.ok) return { kind: 'failed', why: response.error ?? 'Memnox refused this.' };
     const note = done(response);
     if (response.proposed !== undefined) return { kind: 'proposed', id: response.proposed, note };
     return { kind: 'done', note };

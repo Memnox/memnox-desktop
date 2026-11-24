@@ -26,7 +26,7 @@ final class McpHubTests: XCTestCase {
         XCTAssertTrue(hub.unreadable)
         XCTAssertNil(hub.hub)
         let outcome = await hub.sync()
-        XCTAssertEqual(outcome, .failed("The runtime is not answering."))
+        XCTAssertEqual(outcome, .failed("Memnox is not answering on this Mac."))
     }
 
     func testSaysAWideningChangeWaitsForASignatureRatherThanClaimingItIsDone() async throws {

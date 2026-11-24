@@ -87,7 +87,7 @@ final class ProtocolVectorsTests: XCTestCase {
     func testSendsOnlyProfileAndWorkMethodsTheRuntimeAnswers() throws {
         let runtime = Set(try XCTUnwrap(vectors().values["methods"]))
         let sent: [DaemonMethod] = [.profiles, .profilePut, .profileRemove, .profileApply, .profileBind, .profileUnbind,
-                                    .templates, .profileFromTemplate, .agentWork, .workStart, .workStop, .workClose,
+                                    .agentWork, .workStart, .workStop, .workClose,
                                     .handoffAnswer]
         for method in sent { XCTAssertTrue(runtime.contains(method.rawValue), method.rawValue) }
     }

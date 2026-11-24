@@ -1083,6 +1083,8 @@ body {
   /* OnboardingIntro.Layout: the wordmark's height, its white sheen and its glow. */
   --spacing-onboard-wordmark: 92px;
   --text-onboard-wordmark: 92px;
+  /* OnboardingIntro's purpose line, wide enough to sit on two or three lines. */
+  --container-onboard-purpose: 560px;
   --drop-shadow-onboard-wordmark: 0 0 6px rgb(255 255 255 / 0.6), 0 0 28px rgb(255 255 255 / 0.55);
   /* CuedScroll's More below, lifted off the step. */
   --shadow-onboard-more: 0 4px 10px rgb(0 0 0 / 0.25);
@@ -1117,7 +1119,7 @@ body {
 }
 
 :root {
-  /* AgentHomePicker.Layout.tileWidth: the app tiles fill the row, none narrower than 96. */
+  /* No Mac twin since the Mac dropped its editor setup page: the app tiles fill the row, none narrower than 96. */
   --mx-settings-app-tiles: repeat(auto-fill, minmax(96px, 1fr));
   /* OnboardingIntro: black at veilInk over the screen; the sky stands in for the Mac's full screen glass, which a web window cannot draw. */
   --mx-onboard-veil: linear-gradient(rgb(0 0 0 / 0.58), rgb(0 0 0 / 0.58)), radial-gradient(120% 90% at 50% 20%, #2b4f7f 0%, #10213a 55%, #05070c 100%);

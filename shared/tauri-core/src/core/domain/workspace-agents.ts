@@ -4,18 +4,15 @@ import { NO_LEVELS, type AgentConnection, type AgentWork, type CapabilityLevel, 
 // Agent profiles and agent work as Memnox Cloud sends them, field for field from memnox-cloud's src/agent-profiles and
 // src/agent-work, for agents hosted elsewhere that no daemon here reaches. Mirrors the Mac's `WorkspaceAgentsWire`.
 
-/** A job as the workspace keeps it. */
+/** An agent profile as the workspace keeps it: who it is, its role and who answers for it. */
 export interface CloudProfile {
   readonly id: string;
   readonly name: string;
-  readonly purpose?: string;
   readonly role?: string;
-  readonly responsibilities?: readonly string[];
   readonly responsiblePersonId?: string;
   /** Read only as a fallback; the cloud sends the name on the view, beside `needsResponsiblePerson`. */
   readonly responsiblePersonName?: string;
   readonly projects?: readonly string[];
-  readonly templateOf?: string;
 }
 
 /** One way the workspace reaches a profile's agent, and how sure it is through it. */
@@ -92,7 +89,7 @@ export function cloudLevels(cloud: Readonly<Record<string, string>> | undefined)
   };
 }
 
-/** Who answers for a workspace job: their name when the cloud sends it, else you or a teammate, else nobody yet. */
+/** Who answers for a workspace agent: their name when the cloud sends it, else you or a teammate, else nobody yet. */
 export function responsibleOf(view: CloudProfileView, you: string | undefined): string | undefined {
   if (view.needsResponsiblePerson === true) return undefined;
   const named = (view.responsiblePersonName ?? view.profile.responsiblePersonName)?.trim();
@@ -125,12 +122,9 @@ export function cloudProfileView(view: CloudProfileView, you: string | undefined
     mcpServers: [],
     updatedAt: '',
     missing: [],
-    ...(profile.purpose === undefined ? {} : { purpose: profile.purpose }),
     ...(profile.role === undefined ? {} : { role: profile.role }),
-    responsibilities: [...(profile.responsibilities ?? [])],
     ...(responsible === undefined ? {} : { responsiblePerson: responsible }),
     projects: [...(profile.projects ?? [])],
-    ...(profile.templateOf === undefined ? {} : { templateOf: profile.templateOf }),
     connections,
     levels: cloudLevels(view.levels),
   };
@@ -217,7 +211,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 /** The words the workspace's agents are drawn with. */
 export const WorkspaceAgentsLines = {
   title: 'In your workspace',
-  intro: 'Agents Memnox Cloud reaches beyond this computer. Edit their jobs in the console.',
+  intro: 'Agents Memnox Cloud reaches beyond this computer. Change who answers for them in the console.',
   handoffs: (count: number) => `In your workspace · ${count}`,
   signIn: 'Sign in to Memnox Cloud to answer this.',
   notTaken: (why: string) => `The workspace did not take the answer: ${why}`,

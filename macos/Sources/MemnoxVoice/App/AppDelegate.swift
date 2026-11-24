@@ -395,7 +395,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppWindow.shared.skillCare = SkillCare(link: pressing, ids: ids)
         AppWindow.shared.memoryLayers = MemoryLayers(link: pressing, ids: ids)
         AppWindow.shared.network = LocalNetwork(link: pressing, ids: ids)
-        AppWindow.shared.index = CommunityIndex(link: pressing, ids: ids)
         AppWindow.shared.profiles = Profiles(link: pressing, ids: ids)
         AppWindow.shared.work = AgentWorkDesk(link: pressing, ids: ids)
         AppWindow.shared.workspaceAgents = WorkspaceAgents(reader: cloud, store: personCredential)

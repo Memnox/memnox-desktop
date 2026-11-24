@@ -65,16 +65,17 @@ const project = (extra: Partial<ProjectView> = {}): ProjectView => ({
 const organization = { id: 'org proj', name: 'Acme', repository: 'github.com/acme/launch', repositories: ['github.com/acme/launch'], description: 'The spring campaign', servers: ['slack'], skills: [], rules: 0, memory: 'project', skipped: [], editedIn: 'Changed in Memnox Cloud' };
 
 describe('the sidebar a project swaps in', () => {
-  it('leads with the way back and the project’s name, then its four pages, the one shown lit', () => {
-    const sidebar = projectSidebar(project(), projectRoute('p1', 'agents'));
+  it('leads with the way back and the project’s name, then its three pages, the one shown lit', () => {
+    const sidebar = projectSidebar(project(), projectRoute('p1', 'autonomy'));
     expect(sidebar.back).toEqual({ title: BACK_TO_PROJECTS, route: PROJECTS_ROUTE });
     expect(BACK_TO_PROJECTS).toBe('Back to Projects');
     expect(sidebar.name).toBe('Spring launch');
-    expect(sidebar.rows.map((row) => row.title)).toEqual(['Overview', 'Agents', 'Memory', 'What its AI may do']);
-    expect(sidebar.rows.filter((row) => row.chosen).map((row) => row.page)).toEqual(['agents']);
-    expect(sidebar.rows[1]?.route).toEqual(projectRoute('p1', 'agents'));
+    expect(sidebar.rows.map((row) => row.title)).toEqual(['Overview', 'Rules here', 'What agents here should know']);
+    expect(sidebar.rows.filter((row) => row.chosen).map((row) => row.page)).toEqual(['autonomy']);
+    expect(sidebar.rows[1]?.route).toEqual(projectRoute('p1', 'autonomy'));
+    expect(projectRoute('p1', 'agents')).toEqual(projectRoute('p1'));
     expect(projectRoute('p1', 'tools')).toEqual(projectRoute('p1'));
-    expect(projectCrumbs(project(), 'autonomy')).toEqual(['Projects', 'Spring launch', 'What its AI may do']);
+    expect(projectCrumbs(project(), 'autonomy')).toEqual(['Projects', 'Spring launch', 'Rules here']);
   });
 
   it('lays the tools out as a catalogue, the repository one shelf among many and listed after the rest', () => {
@@ -112,7 +113,7 @@ describe('the sidebar a project swaps in', () => {
     expect(empty.map((card) => card.name)).toEqual(['Add documents', 'Add an app']);
     expect(empty.find((card) => card.name === 'Add an app')?.action).toEqual({ kind: 'connect' });
     expect(projectPageInfo('tools').summary).toBe('Where this project’s work happens, and what its agents learn from.');
-    expect(projectPageInfo('overview').summary).toBe('What this project is, what it still needs, and what it learned lately.');
+    expect(projectPageInfo('overview').summary).toBe('Who is working here, what waits for you here, and how careful agents are here.');
     const shared = projectToolCards(project({ scope: 'organization', organization }), { hub: ['postgres'], connections: [] });
     expect(shared.some((card) => card.action?.kind === 'add-server')).toBe(false);
   });
@@ -232,7 +233,7 @@ describe('the words every desktop shares', () => {
     expect(renameHeading(project())).toBe('Rename Spring launch');
     expect([RENAME_IN_CLOUD, REMOVE_IN_CLOUD]).toEqual(['Rename in Memnox Cloud', 'Remove in Memnox Cloud']);
     expect(GONE_TITLE).toBe('This project is gone');
-    expect(projectPageInfo('autonomy').summary).toBe('The agents given this project, what they carry, and the rules that hold in it.');
+    expect(projectPageInfo('autonomy').summary).toBe('What agents may do here, what they ask you first, and what they never do.');
   });
 
   it('counts the rules of its own file only while they are in force, as the Mac does', () => {

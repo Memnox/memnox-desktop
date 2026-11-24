@@ -21,6 +21,9 @@ describe('a live row against the filter', () => {
   it('is shown, left out, or left to a refresh when names alone cannot tell', () => {
     expect(liveMatch(live('a'), {})).toBe('shown');
     expect(liveMatch(live('a'), { effect: 'deny' })).toBe('hidden');
+    expect(liveMatch(live('a'), { project: '/work/site' })).toBe('unknown');
+    expect(liveMatch(live('b', { target: '/work/site/index.html' }), { project: '/work/site' })).toBe('shown');
+    expect(liveMatch(live('b', { target: '/work/site/index.html' }), { project: '/work/sit' })).toBe('unknown');
     expect(liveMatch(live('a'), { agent: 'codex-cli' })).toBe('hidden');
     expect(liveMatch(live('a'), { text: 'ORIGIN' })).toBe('shown');
     expect(liveMatch(live('a'), { text: 'deploy' })).toBe('hidden');

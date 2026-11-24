@@ -245,9 +245,12 @@ public struct ActivityFilter: Encodable, Equatable, Sendable {
     public var since: String?
     /// ISO 8601; only rows at or before it.
     public var until: String?
+    /// An absolute folder: only rows of sessions that touched something inside it, as the project picker narrows.
+    public var project: String?
 
     public init(effect: RuleEffect? = nil, agent: String? = nil, kind: ActivityKind? = nil, text: String? = nil,
-                since: String? = nil, until: String? = nil) {
+                since: String? = nil, until: String? = nil, project: String? = nil) {
+        self.project = project
         self.effect = effect?.rawValue
         self.agent = agent
         self.kind = kind?.rawValue
@@ -452,6 +455,31 @@ public struct AgentLaunched: Decodable, Equatable, Sendable {
         self.agent = agent
         self.workingDirectory = workingDirectory
         self.line = line
+    }
+}
+
+/// One rule change a person answered on this machine, as the runtime's `RuleHistoryRow` sends it.
+public struct RuleHistoryRow: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    /// `added` or `removed`, as the runtime's RULE_CHANGE_KIND names them.
+    public let kind: String
+    /// Each rule in one plain sentence, or the name of the rule taken out.
+    public let rules: [String]
+    /// `confirmed` or `declined`.
+    public let answer: String
+    public let answeredAt: String
+    public let answeredBy: String?
+    public let proposedBy: String
+
+    public init(id: String, kind: String, rules: [String], answer: String, answeredAt: String, answeredBy: String? = nil,
+                proposedBy: String) {
+        self.id = id
+        self.kind = kind
+        self.rules = rules
+        self.answer = answer
+        self.answeredAt = answeredAt
+        self.answeredBy = answeredBy
+        self.proposedBy = proposedBy
     }
 }
 

@@ -87,7 +87,7 @@ struct SkillsDestination: View {
                 }
             }
         } else if skills.unreadable {
-            ShellScroll(width: width) { ReadFailed(what: "the Skills Hub") { Task { await skills.refresh() } } }
+            ShellScroll(width: width) { ReadFailed(what: "your skills") { Task { await skills.refresh() } } }
         } else {
             ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
         }

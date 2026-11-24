@@ -1,8 +1,8 @@
 import Foundation
 
-/// The two steps the first run asks of a person, the only ones that cannot wait: this Mac connected, and the rules
-/// its agents start under. The other questions of the contract's `onboarding` list in `shared/ux/contract.json`, who
-/// Memnox is for, which agents and where it asks, are answered from Home once Memnox opens.
+/// The two steps the first run asks of a person, the only ones that cannot wait: their agents connected, and how
+/// careful Memnox is with them. The contract's `onboarding` list in `shared/ux/contract.json` names them `agents` and
+/// `careful`; who Memnox is for and where it asks are answered from Home once Memnox opens.
 public enum FirstRunStepID: String, CaseIterable, Sendable {
     case connect
     case rules
@@ -10,23 +10,65 @@ public enum FirstRunStepID: String, CaseIterable, Sendable {
     /// The step's question, heading its page.
     public var title: String {
         switch self {
-        case .connect: "Connect this machine"
-        case .rules: "Your starting rules"
+        case .connect: "Your agents"
+        case .rules: "How careful should Memnox be?"
         }
     }
 
     /// The step's name in the stepper.
     public var label: String {
         switch self {
-        case .connect: "This Mac"
-        case .rules: "Starting rules"
+        case .connect: "Your agents"
+        case .rules: "How careful"
         }
     }
+}
+
+/// How careful Memnox is with the agents, chosen once in the first run and changed any time under Rules. Each names
+/// the mode it leaves this Mac in and the shipped pack it proposes, as the contract's `careful` says.
+public enum CareLevel: String, CaseIterable, Sendable {
+    case watch
+    case ask
+    case strict
+
+    public var label: String {
+        switch self {
+        case .watch: "Just watch"
+        case .ask: "Ask me before risky things"
+        case .strict: "Ask me about almost everything"
+        }
+    }
+
+    public var line: String {
+        switch self {
+        case .watch: "Memnox writes down what your agents do and stops nothing."
+        case .ask: "Agents work freely and wait for you before they delete, publish or change somebody else's system."
+        case .strict: "Agents read and explain freely and wait for you before they change anything."
+        }
+    }
+
+    /// Whether this Mac stops what a rule holds rather than only writing it down.
+    public var enforces: Bool { self != .watch }
+
+    /// The shipped pack whose rules it proposes, each signed on its own; nil proposes nothing.
+    public var packId: String? {
+        switch self {
+        case .watch: nil
+        case .ask: "safe-defaults"
+        case .strict: "read-only-agents"
+        }
+    }
+
+    /// The one already chosen, so a press of Finish is always the sensible answer.
+    public static let recommended = CareLevel.ask
 }
 
 /// The first run's short steps and what each says, with the safe defaults already chosen so a press of Continue
 /// is always the sensible answer. Counts, never a score.
 public enum FirstRunLines {
+    /// The first thing read, above the name, saying what Memnox is for before it asks anything.
+    public static let purpose = "Your AI agents do real work. Memnox shows you what they did, asks you before anything risky, and keeps them out of each other's way."
+
     /// The steps by name, as the stepper shows them, in the contract's order.
     public static let steps = FirstRunStepID.allCases.map(\.label)
 

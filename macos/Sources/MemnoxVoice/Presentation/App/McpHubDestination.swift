@@ -60,7 +60,7 @@ struct McpHubDestination: View {
         if let view = screen.hub.hub {
             McpServers(shell: shell, screen: screen, view: view, width: width) { note }
         } else if screen.hub.unreadable {
-            ShellScroll(width: width) { ReadFailed(what: "the MCP Hub") { Task { await screen.hub.refresh() } } }
+            ShellScroll(width: width) { ReadFailed(what: "your tool servers") { Task { await screen.hub.refresh() } } }
         } else {
             ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -341,7 +341,7 @@ private struct McpPressLine: View {
         if press == .working {
             HStack(spacing: Memnox.Spacing.small) {
                 ProgressView().controlSize(.mini)
-                Text("Asking the runtime")
+                Text("Asking Memnox")
             }
             .font(Memnox.Console.sans(Memnox.Console.TextSize.meta))
             .foregroundStyle(Memnox.Console.muted)

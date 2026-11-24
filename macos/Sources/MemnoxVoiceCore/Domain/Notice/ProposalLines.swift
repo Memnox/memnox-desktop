@@ -13,15 +13,12 @@ public enum ProposalLines {
         "team": "an answer to your team",
         "work": "acting in one of your own accounts",
         "account": "claiming an account as your own",
-        "mcp-hub": "a change to your MCP servers",
+        "mcp-hub": "a change to your tool servers",
         "rule-remove": "removing one of your rules",
         "agent-resume": "letting a paused agent carry on",
         "skills-hub": "a change to your skills",
         "project": "handing a project its setup",
-        "backup-restore": "putting a backup back",
         "lan": "opening this Mac to your local network",
-        "personal-sync-key": "sharing your personal sync key",
-        "index-source": "reading listings from another source",
     ]
 
     /// What Touch ID's sheet says it is for: the kind first where one is known, then the proposal's own words.

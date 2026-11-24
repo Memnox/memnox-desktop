@@ -173,9 +173,9 @@ public enum AgentLines {
         if runtimePredatesSeams(agents) {
             let line = restarted
                 ? "The Memnox service restarted but still runs a runtime older than this app, so it counts \(listed(names)) "
-                    + "as outside. Update the runtime, then restart the service."
+                    + "as outside. Update Memnox, then restart the service."
                 : "The Memnox service on this Mac is older than this app, so it cannot see that \(listed(names)) "
-                    + "\(one ? "is" : "are") held. Restart it to run the newer runtime."
+                    + "\(one ? "is" : "are") held. Restart it to run the newer Memnox."
             return ProtectResult(kinds: kinds, line: line, held: false, followUp: .restartService, at: at)
         }
         let line: String

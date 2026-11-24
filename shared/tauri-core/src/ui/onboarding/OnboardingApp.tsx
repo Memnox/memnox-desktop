@@ -17,14 +17,19 @@ import {
   progressOf,
   rowSpoken,
   setTitle,
-  startingPacks,
+  CARE,
+  endLead,
+  PURPOSE,
+  CARE_LEVELS,
+  RECOMMENDED_CARE,
   stepCounter,
   stepHeading,
+  type CareLevel,
   type OnboardingStage,
   type OnboardingStep,
   type WelcomeRow,
 } from '../../core/domain/onboarding';
-import { agentsFoundLine, firstName, packTitle } from '../../core/domain/setup-steps';
+import { agentsFoundLine, firstName } from '../../core/domain/setup-steps';
 import type { StepState } from '../../core/domain/step-state';
 import { BrandLogo, Wordmark } from '../kit/logos';
 import { IconTile, MemnoxTile, NeedsHint, QuietLine, StatusMark } from '../settings/kit';
@@ -51,6 +56,8 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
   const [step, setStep] = useState<OnboardingStep>(firstStep);
   // What the starting rules step proposed, said again on the end screen.
   const [proposed, setProposed] = useState<string | undefined>(undefined);
+  // How careful the person chose to be, so the end previews what happens next under it.
+  const [care, setCare] = useState<CareLevel>(RECOMMENDED_CARE);
   const guide = useGuide(parts);
   // The real island plays each part beside the steps, round and round; a row pressed plays its part at once.
   // A preview can start on one part with ?part=, so each part can be looked at.
@@ -119,13 +126,14 @@ export function OnboardingApp({ parts, stage: firstStage = 'intro', step: firstS
       </div>
       <div className="flex min-h-0 flex-1 justify-center gap-12 px-14">
         <ScrollColumn key={done ? 'done' : step}>
-          {done && <EndScreen parts={parts} proposed={proposed} finish={finish} />}
+          {done && <EndScreen parts={parts} care={care} proposed={proposed} finish={finish} />}
           {!done && id === 'connect' && <ConnectStep parts={parts} next={forward} />}
           {!done && id === 'rules' && (
             <RulesStep
               parts={parts}
-              next={(note) => {
+              next={(note, chosen) => {
                 setProposed(note);
+                setCare(chosen);
                 setStage('done');
               }}
             />
@@ -191,6 +199,7 @@ function Veil({ next }: { next: () => void }) {
     <div className="relative flex h-full flex-col items-center justify-center bg-(image:--mx-onboard-veil) text-white">
       <div className="flex animate-[card-in_600ms_cubic-bezier(.2,.8,.2,1)_both] flex-col items-center gap-11">
         <Wordmark height="var(--spacing-onboard-wordmark)" className="drop-shadow-onboard-wordmark" />
+        <p className="max-w-onboard-purpose text-center text-headline text-white/75">{PURPOSE}</p>
         <Button kind="glass" trailing={ArrowRight} onClick={next} autoFocus>
           {OnboardingLines.getStarted}
         </Button>
@@ -450,65 +459,50 @@ function CoverageCard({ parts }: { parts: SettingsParts }) {
   );
 }
 
-/** Step 2: the recommended pack chosen already, the rest folded behind See other packs; Finish proposes the one chosen. */
-function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: string | undefined) => void }) {
-  const { studio, words } = parts;
+/** Step 2: how careful Memnox is, the recommended level chosen; Finish proposes its pack and stops where it asks to. */
+function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: string | undefined, care: CareLevel) => void }) {
+  const { studio, words, home } = parts;
   useObserved(studio);
-  const [picked, pick] = useState<string | undefined>(undefined);
-  const [others, showOthers] = useState(false);
+  const [chosen, choose] = useState<CareLevel>(RECOMMENDED_CARE);
   const [failed, fail] = useState<string | undefined>(undefined);
   const [sending, setSending] = useState(false);
   useEffect(() => {
     void studio.readPacks();
   }, []);
-  const packs = studio.packs;
-  const starting = startingPacks(packs ?? []);
-  const chosen = picked ?? starting.recommended?.id;
-  const pack = packs?.find((each) => each.id === chosen);
+  const level = CARE[chosen];
   const finish = async () => {
-    if (pack === undefined) return next(undefined);
+    const pack = level.pack === undefined ? undefined : studio.packs?.find((each) => each.id === level.pack);
+    if (pack === undefined) return next(undefined, chosen);
     setSending(true);
     const outcome = await studio.importPack(pack.toml);
     setSending(false);
     if (outcome.kind === 'failed') return fail(outcome.why);
-    next(outcome.kind === 'proposed' ? OnboardingLines.rulesWait : outcome.note);
+    if (level.enforces) void home.enforce();
+    next(outcome.kind === 'proposed' ? OnboardingLines.rulesWait : outcome.note, chosen);
   };
-  const row = (each: NonNullable<typeof packs>[number], index: number, recommended: boolean) => (
-    <Fragment key={each.id}>
-      {index > 0 && <KitDivider />}
-      <Pressable role="radio" aria-checked={chosen === each.id} disabled={sending} onClick={() => pick(each.id)} className="cursor-pointer text-left disabled:cursor-default">
-        <KitRow
-          tile={<IconTile icon={ListChecks} />}
-          title={recommended ? OnboardingLines.recommendedPack(packTitle(each)) : packTitle(each)}
-          detail={each.description}
-          trailing={<span aria-hidden className={`size-4 rounded-full border-2 ${chosen === each.id ? 'border-primary bg-primary' : 'border-ink-edge'}`} />}
-        />
-      </Pressable>
-    </Fragment>
-  );
   const heading = stepHeading(1, words.keyTitle);
   return (
     <>
       <StepTitle counter={stepCounter(1)} title={heading.title} detail={heading.detail} />
-      <KitCard icon={ListChecks} title={OnboardingLines.rulePacks} detail={OnboardingLines.rulePacksDetail}>
-        {packs === undefined && <Spinner />}
-        {packs !== undefined && packs.length === 0 && <QuietLine size={13}>{OnboardingLines.noPacks}</QuietLine>}
-        {starting.recommended !== undefined && (
-          <div role="radiogroup" aria-label={OnboardingLines.rulePacks} className="flex flex-col">
-            {row(starting.recommended, 0, true)}
-            {others && starting.others.map((each, index) => row(each, index + 1, false))}
-          </div>
-        )}
-        {starting.others.length > 0 && (
-          <div className="pt-2">
-            <Button icon={others ? ChevronUp : ChevronDown} onClick={() => showOthers(!others)}>
-              {others ? OnboardingLines.hideOthers : OnboardingLines.seeOthers}
-            </Button>
-          </div>
-        )}
+      <KitCard icon={ShieldCheck} title={level.label} detail={level.line}>
+        <div role="radiogroup" aria-label={heading.title} className="flex flex-col">
+          {CARE_LEVELS.map((each, index) => (
+            <Fragment key={each}>
+              {index > 0 && <KitDivider />}
+              <Pressable role="radio" aria-checked={chosen === each} disabled={sending} onClick={() => choose(each)} className="cursor-pointer text-left disabled:cursor-default">
+                <KitRow
+                  tile={<IconTile icon={ListChecks} />}
+                  title={each === RECOMMENDED_CARE ? `${CARE[each].label}, recommended` : CARE[each].label}
+                  detail={CARE[each].line}
+                  trailing={<span aria-hidden className={`size-4 rounded-full border-2 ${chosen === each ? 'border-primary bg-primary' : 'border-ink-edge'}`} />}
+                />
+              </Pressable>
+            </Fragment>
+          ))}
+        </div>
       </KitCard>
       {failed !== undefined && <NeedsHint why={failed} size={12} />}
-      <Button kind="primary" wide trailing={ArrowRight} disabled={sending || packs === undefined} onClick={() => void finish()}>
+      <Button kind="primary" wide trailing={ArrowRight} disabled={sending} onClick={() => void finish()}>
         {sending ? OnboardingLines.proposing : OnboardingLines.finish}
       </Button>
     </>
@@ -519,8 +513,8 @@ function RulesStep({ parts, next }: { parts: SettingsParts; next: (proposed: str
  * The end screen, in the order a person acts on it: the prompt to try, the one button that opens Memnox with where the
  * rest of setup went under it, then what Memnox covers and what is optional, both quiet.
  */
-function EndScreen({ parts, proposed, finish }: { parts: SettingsParts; proposed: string | undefined; finish: () => void }) {
-  const { words, host, preferences } = parts;
+function EndScreen({ parts, care, proposed, finish }: { parts: SettingsParts; care: CareLevel; proposed: string | undefined; finish: () => void }) {
+  const { host, preferences } = parts;
   usePreferences();
   const name = firstName(preferences.name);
   const open = (page: string) => {
@@ -530,7 +524,7 @@ function EndScreen({ parts, proposed, finish }: { parts: SettingsParts; proposed
   };
   return (
     <>
-      <StepTitle title={setTitle(name)} detail={GuideLines.ready(name, words.talkKeysSaid)} />
+      <StepTitle title={setTitle(name)} detail={endLead(care)} />
       {proposed !== undefined && <QuietLine size={13}>{proposed}</QuietLine>}
       <TryCard />
       <Button kind="primary" wide trailing={ArrowRight} onClick={finish}>

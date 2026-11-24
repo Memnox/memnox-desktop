@@ -14,7 +14,7 @@ import { Note, PRESS_DIP, Pressable, ReadFailed, Spinner, StatusWord } from '../
 
 /**
  * Home is the one page the window opens on, the same on the console, the Mac, Windows and Linux: the greeting and mode,
- * one Do this next card, then the blocks in the contract's order, each counting what it holds in its header. No charts
+ * one Get set up card, then the blocks in the contract's order, each counting what it holds in its header. No charts
  * and no tiles, and every number is a count the ledger can show.
  */
 export function HomePage({ parts, width, go }: { parts: SettingsParts; width: WidthClass; go: (route: Route) => void }) {
@@ -63,7 +63,7 @@ export function HomePage({ parts, width, go }: { parts: SettingsParts; width: Wi
 
       <UpdateBanner updates={parts.updates} />
 
-      {/* The one Do this next card, setup first until it is done, then the getting started steps until every one is. */}
+      {/* The one Get set up card, setup first until it is done, then the getting started steps until every one is. */}
       <HomeStart parts={parts} go={go} actions={view?.today.actions ?? 0} mode={homeMode(view?.mode)} openSetup={() => host.openOnboarding()} />
     </>
   );

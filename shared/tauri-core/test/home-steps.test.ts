@@ -13,28 +13,29 @@ describe("Home's getting started steps", () => {
     expect(stageOf(standing({ agents: 2, agentsProtected: 1, mode: 'enforce' }))).toBe('enforcing');
   });
 
-  it('offers the first step a person can do next, and holds the one that waits on an agent apart', () => {
-    const setup = homeSetup(standing({ agents: 1, agentsProtected: 1 }), 'Windows Hello');
-    expect(setup.next?.id).toBe('rulesInForce');
+  it('offers the first step a person can do next, never more than three', () => {
+    const setup = homeSetup(standing({ agents: 1, agentsProtected: 1, setupFinished: false }), 'Windows Hello');
+    expect(setup.next?.id).toBe('chooseCare');
     expect(setup.next?.how).toContain('Windows Hello');
-    expect(setup.waiting.map((step) => step.id)).toEqual(['actionsRecorded']);
-    expect(progressLine(setup)).toBe('2 of 9 done');
-    expect(restOf(setup, 'computer').map((step) => step.id)).toEqual(['finishSetup', 'protectAgents', 'answerAway', 'enforce']);
-    expect(restOf(setup, 'work')).toHaveLength(3);
+    expect(setup.waiting).toEqual([]);
+    expect(progressLine(setup)).toBe('1 of 3 done');
+    expect(restOf(setup, 'computer').map((step) => step.id)).toEqual(['protectAgents', 'answerAway']);
+    expect(restOf(setup, 'work')).toHaveLength(0);
   });
 
   it('counts only what was won, and stops once every step is done', () => {
-    const all = standing({ agents: 1, agentsProtected: 1, rulesInForce: 3, actionsRecorded: 4, phonesPaired: 1, mode: 'enforce', appsConnected: 1, sourcesLinked: 1, skillsShared: 2 });
+    const all = standing({ agents: 1, agentsProtected: 1, rulesInForce: 3, actionsRecorded: 4, phonesPaired: 1, mode: 'enforce', skillsShared: 2 });
     const setup = homeSetup(all, 'Windows Hello');
     expect(setup.climbed).toBe(true);
     expect(setup.standing.map((count) => count.label)).not.toContain('Servers shared');
     expect(homeSetup(EMPTY_STANDING, 'Windows Hello').standing).toEqual([]);
   });
 
-  it('asks to finish setup first until it is done', () => {
+  it('starts by connecting the agents, in plain words', () => {
     const setup = homeSetup(standing({ setupFinished: false }), 'Windows Hello');
-    expect(setup.next?.id).toBe('finishSetup');
-    expect(progressLine(setup)).toBe('0 of 9 done');
+    expect(setup.next?.id).toBe('protectAgents');
+    expect(setup.next?.title).toBe('Connect your agents');
+    expect(progressLine(setup)).toBe('0 of 3 done');
   });
 
   it('knows only the two modes the runtime names', () => {

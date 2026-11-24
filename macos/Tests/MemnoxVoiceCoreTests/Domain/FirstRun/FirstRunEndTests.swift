@@ -16,6 +16,12 @@ final class FirstRunEndTests: XCTestCase {
         XCTAssertTrue(extras.allSatisfy { !$0.done })
     }
 
+    func testSaysThePersonGivesPurposeAndMemnoxCarriesTheirWordsWhole() {
+        let carried = "Tell them what to do by text or voice, and I carry your words whole."
+        XCTAssertTrue(FirstRunGuide.welcome(name: "Sam").contains(carried))
+        XCTAssertTrue(FirstRunEnd.extras(hearing: false).allSatisfy { $0.id != .voice || $0.detail.contains("carries your words whole") })
+    }
+
     func testSaysWhereTheRestOfSetupWaitsOnceMemnoxOpens() {
         XCTAssertTrue(FirstRunEnd.later.contains("iPhone"))
         XCTAssertTrue(FirstRunEnd.later.contains("Memnox Cloud"))

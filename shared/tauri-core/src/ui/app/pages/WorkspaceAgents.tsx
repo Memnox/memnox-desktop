@@ -21,7 +21,7 @@ function useWorkspaceAgents(parts: SettingsParts): void {
 }
 
 /**
- * In your workspace: the jobs Memnox Cloud keeps, for agents hosted elsewhere, drawn as the cards on this computer
+ * In your workspace: the agents Memnox Cloud keeps, for agents hosted elsewhere, drawn as the cards on this computer
  * are. Shown only while the person is signed in, so with no account the list here is the whole of it and nothing is
  * sent anywhere. Mirrors the Mac's `WorkspaceAgentsSection`.
  */

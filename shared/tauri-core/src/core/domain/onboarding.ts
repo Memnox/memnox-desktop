@@ -154,7 +154,7 @@ function greeting(name: string | undefined): string {
  */
 export const GuideLines = {
   welcome(name: string | undefined): string {
-    return `Hi${greeting(name)}, I’m Memnox. I live in the island at the top of your screen and watch over your AI agents, so they can work on their own and stay inside the boundaries you set. No account needed.`;
+    return `Hi${greeting(name)}, I’m Memnox. I live in the island at the top of your screen. Your AI agents work on their own inside the boundaries you set. Tell them what to do by text or voice, and I carry your words whole. No account needed.`;
   },
   /** What Memnox puts on this computer and the one thing it asks for now, said before any of it happens. */
   setup(platform: Platform): string {

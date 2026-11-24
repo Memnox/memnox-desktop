@@ -87,7 +87,7 @@ private struct HeldCalls: View {
     let projects: [ProjectView]
     /// Agent work whose handoffs and done claims wait here too, nil where this Mac's runtime keeps none.
     var work: AgentWorkScreen?
-    /// The jobs, which name the agent a handoff is from and to.
+    /// The agent profiles, which name the agent a handoff is from and to.
     var profiles: [ProfileView] = []
     /// The workspace's handoffs, which wait here while the person is signed in.
     var workspace: WorkspaceAgentsScreen?

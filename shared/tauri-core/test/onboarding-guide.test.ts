@@ -23,6 +23,7 @@ describe('the first run guide', () => {
     expect(GuideLines.welcome('Moise')).toMatch(/^Hi Moise, I’m Memnox\./);
     expect(GuideLines.welcome(undefined)).toMatch(/^Hi, I’m Memnox\./);
     expect(GuideLines.welcome(undefined)).toContain('No account needed.');
+    expect(GuideLines.welcome(undefined)).toContain('Tell them what to do by text or voice, and I carry your words whole.');
     expect(GuideLines.ready('Moise', 'Ctrl Alt Space')).toBe('You’re all set Moise. Press Ctrl Alt Space and say what you need. When an agent needs you, I will ask right here in the island.');
   });
 

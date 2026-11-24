@@ -60,5 +60,6 @@ describe('agent work on Windows and Linux', () => {
     expect(ordered.map((each) => each.id)).toEqual(['backend', 'default:codex', 'review']);
     expect(summaryLine(profile('x', { isDefault: true, connections: [connection] }))).toBe('Memnox can only watch it.');
     expect(summaryLine(profile('y'))).toBe('No agent behind it yet');
+    expect(summaryLine(profile('z', { description: 'Builds the API', connections: [connection] }))).toBe('Memnox can only watch it.');
   });
 });

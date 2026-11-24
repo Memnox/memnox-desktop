@@ -81,22 +81,4 @@ final class ProfileBindingTests: XCTestCase {
         XCTAssertEqual(link.sent.last?.agentId, "agt_codex-cli")
         XCTAssertEqual(profiles.profiles, [])
     }
-
-    func testCarriesTheRoleWhoAnswersAndTheProjectsThroughAnEdit() throws {
-        let form = ProfileForm(name: "Backend", skills: ["review"], role: " reviewer ", responsiblePerson: "Bo", projects: ["/code/api"])
-        let draft = try ProfileLines.draft(form, packs: []).get()
-        XCTAssertEqual(draft.role, "reviewer")
-        XCTAssertEqual(draft.responsiblePerson, "Bo")
-        XCTAssertEqual(draft.projects, ["/code/api"])
-        let kept = ProfileView(id: "backend", name: "Backend", updatedAt: "", role: "reviewer", projects: ["/code/api"])
-        XCTAssertEqual(ProfileLines.form(of: kept, packs: []).role, "reviewer")
-        XCTAssertEqual(ProfileLines.form(of: kept, packs: []).projects, ["/code/api"])
-    }
-
-    func testRefusesAProfileThatHoldsNothing() {
-        guard case .failure(let problem) = ProfileLines.draft(ProfileForm(name: "Backend"), packs: []) else {
-            return XCTFail("a profile with nothing in it was kept")
-        }
-        XCTAssertEqual(problem.why, "Choose at least one skill, tool server or set of starter rules.")
-    }
 }

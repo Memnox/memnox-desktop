@@ -351,11 +351,11 @@ const previewLan: LanStatus =
 
 /** Two profiles: one whole, one naming a server the MCP Hub no longer holds. */
 const previewProfiles: ProfileView[] = [
-  { id: 'backend-engineering', name: 'Backend Engineering', description: 'Reviews, release notes and the local database, with careful pushes', skills: ['release-notes', 'review-checklist'], mcpServers: ['github', 'postgres'], rulePack: { name: 'Careful', rules: 6 }, updatedAt: '2026-10-28T09:00:00Z', missing: [], projects: [], connections: [], levels: NO_LEVELS },
-  { id: 'docs-writer', name: 'Docs writer', skills: ['release-notes'], mcpServers: ['figma'], updatedAt: '2026-10-21T09:00:00Z', missing: ['figma is no longer in the MCP Hub.'], projects: [], connections: [], levels: NO_LEVELS },
+  { id: 'backend-engineering', name: 'Sam’s Claude Code', skills: ['release-notes', 'review-checklist'], mcpServers: ['github', 'postgres'], rulePack: { name: 'Careful', rules: 6 }, updatedAt: '2026-10-28T09:00:00Z', missing: [], projects: [], connections: [], levels: NO_LEVELS },
+  { id: 'docs-writer', name: 'Release notes bot', skills: ['release-notes'], mcpServers: ['figma'], updatedAt: '2026-10-21T09:00:00Z', missing: ['figma is no longer in the MCP Hub.'], projects: [], connections: [], levels: NO_LEVELS },
 ];
 
-/** Claude Code under a job, checked by Memnox through its own hook, with every seam but the network held. */
+/** Claude Code under a kept profile, checked by Memnox through its own hook, with every seam but the network held. */
 const previewLevels = {
   context: 'mediated',
   instructions: 'mediated',
@@ -367,7 +367,7 @@ const previewLevels = {
 } as const;
 
 /** The profiles a person keeps, a default, and the agent work they carry, for the agents list and its work. */
-const previewJobs: ProfileView[] = [
+const previewKeptProfiles: ProfileView[] = [
   {
     ...previewProfiles[0]!,
     role: 'developer',
@@ -422,8 +422,8 @@ const previewWork: NonNullable<DaemonResponse['agentWork']> = [
 
 function profileAnswer(request: DaemonRequest): Partial<DaemonResponse> {
   if (previewState === 'empty') return { profiles: [] };
-  if (request.method === 'profile-apply') return { profiles: previewJobs, profileApplied: { profile: request.profileName ?? '', agent: request.profileAgent ?? '', proposed: ['prp_preview_1', 'prp_preview_2'], already: ['github'], skipped: [] } };
-  return { profiles: previewJobs };
+  if (request.method === 'profile-apply') return { profiles: previewKeptProfiles, profileApplied: { profile: request.profileName ?? '', agent: request.profileAgent ?? '', proposed: ['prp_preview_1', 'prp_preview_2'], already: ['github'], skipped: [] } };
+  return { profiles: previewKeptProfiles };
 }
 
 /** Every method a page asks, answered from the scene. */

@@ -89,7 +89,7 @@ export function cloudLevels(cloud: Readonly<Record<string, string>> | undefined)
   };
 }
 
-/** Who answers for a workspace job: their name when the cloud sends it, else you or a teammate, else nobody yet. */
+/** Who answers for a workspace agent: their name when the cloud sends it, else you or a teammate, else nobody yet. */
 export function responsibleOf(view: CloudProfileView, you: string | undefined): string | undefined {
   if (view.needsResponsiblePerson === true) return undefined;
   const named = (view.responsiblePersonName ?? view.profile.responsiblePersonName)?.trim();
@@ -211,7 +211,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 /** The words the workspace's agents are drawn with. */
 export const WorkspaceAgentsLines = {
   title: 'In your workspace',
-  intro: 'Agents Memnox Cloud reaches beyond this computer. Edit their jobs in the console.',
+  intro: 'Agents Memnox Cloud reaches beyond this computer. Change who answers for them in the console.',
   handoffs: (count: number) => `In your workspace · ${count}`,
   signIn: 'Sign in to Memnox Cloud to answer this.',
   notTaken: (why: string) => `The workspace did not take the answer: ${why}`,

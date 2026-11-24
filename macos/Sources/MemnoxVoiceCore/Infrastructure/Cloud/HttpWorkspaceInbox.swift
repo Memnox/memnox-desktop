@@ -116,7 +116,7 @@ public final class HttpWorkspaceInbox: WorkspaceInbox, WorkspaceAgentsReader, @u
         }
     }
 
-    /// The workspace's jobs, for agents no daemon here reaches.
+    /// The workspace's agent profiles, for agents no daemon here reaches.
     public func agentProfiles(in workspace: String, token: String) async throws -> [CloudProfileView] {
         let listed: CloudProfiles = try await call("GET", "v1/workspaces/\(Self.segment(workspace))/agent-profiles", token: token)
         return listed.profiles

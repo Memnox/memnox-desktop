@@ -55,7 +55,7 @@ export class CloudInbox implements WorkspaceInbox, WorkspaceAgentsReader {
     return this.call<InboxAnswerReply>('POST', `v1/workspaces/${segment(workspace)}/me/held-calls/${segment(call)}/answer`, body, token);
   }
 
-  /** The workspace's jobs, for agents no daemon here reaches. */
+  /** The workspace's agent profiles, for agents no daemon here reaches. */
   async agentProfiles(workspace: string, token: string): Promise<readonly CloudProfileView[]> {
     return readCloudProfiles(await this.call<unknown>('GET', `v1/workspaces/${segment(workspace)}/agent-profiles`, undefined, token));
   }

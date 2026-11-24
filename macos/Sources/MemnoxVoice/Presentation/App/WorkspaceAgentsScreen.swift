@@ -17,7 +17,7 @@ final class WorkspaceAgentsScreen: ObservableObject {
     }
 }
 
-/// In your workspace: the jobs Memnox Cloud keeps, for agents hosted elsewhere, drawn as the cards on this Mac are.
+/// In your workspace: the agents Memnox Cloud keeps, for agents hosted elsewhere, drawn as the cards on this Mac are.
 /// Shown only while the person is signed in, so with no account the list here is the whole of it.
 struct WorkspaceAgentsSection: View {
     @ObservedObject var screen: WorkspaceAgentsScreen

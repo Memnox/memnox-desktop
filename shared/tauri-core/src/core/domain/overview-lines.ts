@@ -2,7 +2,7 @@
 export const OverviewLines = {
   subtitle: 'What waits on you, what your agents are doing, and what could run on its own.',
   talk: 'Talk to Memnox',
-  talkHint: (keys: string) => `Or press ${keys} from anywhere`,
+  talkHint: (keys: string) => `Tell your agents what to do, or press ${keys} from anywhere`,
   startHere: 'Start here',
   setUpComputer: 'Set up this computer',
   setUpComputerCaption: (keyTitle: string) => `Your own agents, the voice, and ${keyTitle} for what they ask.`,
@@ -17,7 +17,7 @@ export const OverviewLines = {
   readyOf: (ready: number, total: number) => `${ready} of ${total}`,
   goTo: (page: string) => `Go to ${page}`,
   allReady: 'Everything is ready',
-  allReadyCaption: (keys: string) => `Press ${keys} from anywhere and ask about your agents.`,
+  allReadyCaption: (keys: string) => `Press ${keys} from anywhere to tell your agents what to do or ask about them.`,
   openPage: (page: string) => `Open ${page}`,
   stepState: (step: string, done: boolean) => `${step}, ${done ? 'done' : 'not done yet'}`,
   finishReady: 'Finish and hear Memnox say hello.',

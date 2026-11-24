@@ -63,8 +63,12 @@ public enum FirstRunEnd {
             switch id {
             case .voice:
                 return hearing
-                    ? FirstRunExtra(id: id, title: "Talk to Memnox", detail: "The microphone is allowed. Pick the voice it answers in.", done: true)
-                    : FirstRunExtra(id: id, title: "Talk to Memnox", detail: "Allow the microphone, and talk to your agents from anywhere.", done: false)
+                    ? FirstRunExtra(id: id, title: "Talk to Memnox",
+                                    detail: "The microphone is allowed. Tell your agents what to do out loud, and Memnox carries your words whole.",
+                                    done: true)
+                    : FirstRunExtra(id: id, title: "Talk to Memnox",
+                                    detail: "Allow the microphone, then tell your agents what to do out loud from anywhere. Memnox carries your words whole.",
+                                    done: false)
             case .keys:
                 return FirstRunExtra(id: id, title: "Keys to try",
                                      detail: "Option Space to ask, Control Option to say a rule, Right Option to dictate.", done: false)

@@ -30,7 +30,7 @@ public final class WorkspaceAgents: @unchecked Sendable {
     public var remote: [Remote] { lock.withLock { kept } }
     public var busy: String? { lock.withLock { busyWith } }
 
-    /// Every workspace's jobs and the person's work; a workspace that did not answer keeps what it showed.
+    /// Every workspace's agents and the person's work; a workspace that did not answer keeps what it showed.
     public func refresh() async {
         guard let credential = store.load() else {
             lock.withLock { kept = [] }

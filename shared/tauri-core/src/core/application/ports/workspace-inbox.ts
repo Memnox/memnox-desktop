@@ -52,7 +52,7 @@ export interface WorkspaceInbox {
 }
 
 /**
- * The workspace's agents for the person signed in: the jobs, the work they answer for and the handoffs that wait on
+ * The workspace's agents for the person signed in: the agents, the work they answer for and the handoffs that wait on
  * them. The workspace decides who sees what; this only carries what it says, and an answer to a handoff is unsigned.
  */
 export interface WorkspaceAgentsReader {

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { Profiles } from '../src/core/application/profiles';
 import { RequestIds } from '../src/core/application/request-ids';
 import { Agents } from '../src/core/application/studio';
-import { applyWhereLine, choiceNames, packChangeLine, profileAppliedLine, profileContents, profileDraftFrom, profileFormOf, profileSavedLine } from '../src/core/domain/profile-lines';
+import { profileAppliedLine, profileContents, profileSavedLine } from '../src/core/domain/profile-lines';
 import { NO_LEVELS } from '../src/core/domain/agent-wire';
 import { ScriptedDaemon } from './doubles';
 
@@ -20,8 +20,6 @@ const backend: ProfileView = {
   levels: NO_LEVELS,
 };
 
-const packs = [{ id: 'careful', name: 'Careful', toml: '[[policies]]' }];
-
 describe('what a profile says', () => {
   it('counts what it bundles, never a score', () => {
     expect(profileContents(backend)).toBe('2 skills · 1 server · Careful, 6 rules');
@@ -33,58 +31,9 @@ describe('what a profile says', () => {
     expect(profileAppliedLine({ proposed: [], already: [], skipped: ['figma is not in the MCP Hub.'] }, 'Windows Hello')).toBe('Skipped: figma is not in the MCP Hub.');
     expect(profileAppliedLine({ proposed: [], already: [], skipped: [] }, 'Windows Hello')).toBe('The profile holds nothing to give.');
   });
-
-  it('says where skills go before Apply', () => {
-    expect(applyWhereLine(' ')).toBe('Skills go into the agent’s home folder.');
-    expect(applyWhereLine('/code/api')).toBe('Skills go into /code/api.');
-  });
 });
 
-describe('the New profile dialog', () => {
-  const form = { name: ' Backend ', description: '', skills: new Set(['b', 'a']), servers: new Set<string>(), pack: 'careful' };
-
-  it('makes the draft with the pack’s text and sorted lists', () => {
-    expect(profileDraftFrom(form, packs)).toEqual({ name: 'Backend', skills: ['a', 'b'], rulePack: { name: 'Careful', toml: '[[policies]]' } });
-  });
-
-  it('says what is missing', () => {
-    expect(profileDraftFrom({ ...form, name: '' }, packs)).toBe('Give the profile a name.');
-    expect(profileDraftFrom({ ...form, skills: new Set(), pack: '' }, packs)).toBe('Choose at least one skill, tool server or set of starter rules.');
-    expect(profileDraftFrom({ ...form, pack: 'gone' }, packs)).toBe('Those starter rules are no longer offered. Choose others.');
-  });
-});
-
-describe('editing a profile', () => {
-  const offered = [{ id: 'careful', name: 'Careful', ruleCount: 6 }];
-
-  it('opens with the profile as kept and its pack matched by name', () => {
-    expect(profileFormOf(backend, offered)).toEqual({
-      name: 'Backend Engineering',
-      description: '',
-      skills: new Set(['review-checklist', 'release-notes']),
-      servers: new Set(['postgres']),
-      pack: 'careful',
-      role: '',
-      responsiblePerson: '',
-      projects: [],
-    });
-    expect(profileFormOf(backend, []).pack).toBe('');
-  });
-
-  it('keeps a name the hub no longer holds tickable, after what it holds', () => {
-    expect(choiceNames(['a', 'b'], new Set(['b', 'z', 'gone']))).toEqual(['a', 'b', 'gone', 'z']);
-  });
-
-  it('says what saving does to the pack the profile keeps', () => {
-    const kept = { name: 'Careful', rules: 6 };
-    expect(packChangeLine(undefined, { pack: '' }, offered)).toBeUndefined();
-    expect(packChangeLine(kept, { pack: 'careful' }, offered)).toBeUndefined();
-    expect(packChangeLine(kept, { pack: '' }, offered)).toBe('Saving takes Careful out of the profile.');
-    expect(packChangeLine(kept, { pack: '' }, [])).toBe('Careful is no longer offered here, so saving takes it out of the profile. Choose a pack to keep one.');
-    expect(packChangeLine(kept, { pack: 'open' }, [...offered, { id: 'open', name: 'Open', ruleCount: 2 }])).toBe('Saving replaces Careful with Open.');
-    expect(packChangeLine(kept, { pack: 'careful' }, [{ id: 'careful', name: 'Careful', ruleCount: 7 }])).toBe('Saving takes Careful as it is offered now, 7 rules where the profile keeps 6.');
-  });
-
+describe('saving a profile', () => {
   it('says a save grants nothing, new or edited', () => {
     expect(profileSavedLine('Backend', false)).toBe('Backend is kept. It gives nothing until you apply it.');
     expect(profileSavedLine('Backend', true)).toBe('Backend is saved. What it already gave stays, and the change gives nothing until you apply it again.');
@@ -153,13 +102,5 @@ describe('profiles, as the agents list steers them', () => {
     const profiles = new Profiles(daemon, new RequestIds(), 'Windows Hello');
     await profiles.refresh();
     expect(profiles.profiles?.[0]).toMatchObject({ connections: [], projects: [], levels: NO_LEVELS });
-  });
-
-  it('carries the role, who answers and the projects through an edit', () => {
-    const form = { name: 'Backend', description: '', skills: new Set<string>(['review']), servers: new Set<string>(), pack: '', role: ' reviewer ', responsiblePerson: 'Bo', projects: ['/code/api'] };
-    expect(profileDraftFrom(form, [])).toEqual({ name: 'Backend', skills: ['review'], role: 'reviewer', responsiblePerson: 'Bo', projects: ['/code/api'] });
-    const edited = profileFormOf({ ...kept, role: 'reviewer', projects: ['/code/api'] }, []);
-    expect(edited.role).toBe('reviewer');
-    expect(edited.projects).toEqual(['/code/api']);
   });
 });

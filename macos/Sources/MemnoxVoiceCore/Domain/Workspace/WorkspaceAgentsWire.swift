@@ -93,7 +93,7 @@ public enum WorkspaceAgentsLines {
                            projects: profile.projects ?? [], connections: connections, levels: levels(cloud.levels))
     }
 
-    /// Who answers for a job, as a card says it: you when it is the person signed in, else the name the cloud sent,
+    /// Who answers for an agent, as a card says it: you when it is the person signed in, else the name the cloud sent,
     /// else a teammate, so a person id never reaches the screen.
     public static func responsibleName(id: String?, name: String?, you: String?) -> String? {
         guard let id, !id.isEmpty else { return nil }

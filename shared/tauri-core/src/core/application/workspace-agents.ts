@@ -49,7 +49,7 @@ export class WorkspaceAgents extends Observed {
     return this.busyWith;
   }
 
-  /** Every workspace's jobs and the person's work; a workspace that did not answer keeps what it showed. */
+  /** Every workspace's agents and the person's work; a workspace that did not answer keeps what it showed. */
   async refresh(): Promise<void> {
     const credential = await this.store.load().catch(() => undefined);
     if (credential === undefined) {

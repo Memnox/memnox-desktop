@@ -1,5 +1,4 @@
-import type { ProfileApplied, ProfileDraft, ProfileView, RulePackView } from '@memnox/core/wire';
-import { filled } from './agent-work-lines';
+import type { ProfileApplied, ProfileView } from '@memnox/core/wire';
 
 /** "2 skills · 1 server · Release rules, 4 rules", counted, never a score. */
 export function profileContents(profile: Pick<ProfileView, 'skills' | 'mcpServers' | 'rulePack'>): string {
@@ -19,138 +18,20 @@ export function profileAppliedLine(applied: Pick<ProfileApplied, 'proposed' | 'a
   return said === '' ? 'The profile holds nothing to give.' : said;
 }
 
-/** What the New profile dialog holds: the name and line as typed, and what was ticked in the hubs and packs. */
-export interface ProfileForm {
-  readonly name: string;
-  readonly description: string;
-  readonly skills: ReadonlySet<string>;
-  readonly servers: ReadonlySet<string>;
-  /** A pack's id from the packs the runtime offers, or empty for none. */
-  readonly pack: string;
-  /** The role a rule's `roles:` matches, and who answers for the agent. */
-  readonly role?: string;
-  readonly responsiblePerson?: string;
-  /** Carried through an edit unseen, so saving never drops the projects. */
-  readonly projects?: readonly string[];
-}
-
-/** The form as the runtime takes it, or what is missing in the words the dialog shows. */
-export function profileDraftFrom(form: ProfileForm, packs: readonly Pick<RulePackView, 'id' | 'name' | 'toml'>[]): ProfileDraft | string {
-  const name = form.name.trim();
-  if (name === '') return 'Give the profile a name.';
-  const pack = packs.find((each) => each.id === form.pack);
-  if (form.pack !== '' && pack === undefined) return 'Those starter rules are no longer offered. Choose others.';
-  if (form.skills.size === 0 && form.servers.size === 0 && pack === undefined) return 'Choose at least one skill, tool server or set of starter rules.';
-  const role = filled(form.role);
-  const responsible = filled(form.responsiblePerson);
-  const projects = form.projects ?? [];
-  return {
-    name,
-    ...(form.description.trim() === '' ? {} : { description: form.description.trim() }),
-    ...(form.skills.size === 0 ? {} : { skills: [...form.skills].sort() }),
-    ...(form.servers.size === 0 ? {} : { mcpServers: [...form.servers].sort() }),
-    ...(pack === undefined ? {} : { rulePack: { name: pack.name, toml: pack.toml } }),
-    ...(role === undefined ? {} : { role }),
-    ...(responsible === undefined ? {} : { responsiblePerson: responsible }),
-    ...(projects.length === 0 ? {} : { projects: [...projects] }),
-  };
-}
-
 export function boundLine(profile: string): string {
   return `The agent now works under ${profile}.`;
 }
 
 export const unboundLine = 'The agent is back on its own default.';
 
-/** The form Edit opens with: the profile as kept, its pack matched by name among the packs offered now. */
-export function profileFormOf(
-  profile: Pick<ProfileView, 'name' | 'description' | 'skills' | 'mcpServers' | 'rulePack'> & Partial<Pick<ProfileView, 'role' | 'responsiblePerson' | 'projects'>>,
-  packs: readonly Pick<RulePackView, 'id' | 'name'>[],
-): ProfileForm {
-  const kept = profile.rulePack;
-  const pack = kept === undefined ? undefined : packs.find((each) => each.name === kept.name);
-  return {
-    name: profile.name,
-    description: profile.description ?? '',
-    skills: new Set(profile.skills),
-    servers: new Set(profile.mcpServers),
-    pack: pack === undefined ? '' : pack.id,
-    role: profile.role ?? '',
-    responsiblePerson: profile.responsiblePerson ?? '',
-    projects: profile.projects ?? [],
-  };
-}
-
-/** The names to tick: what the hub holds now, then any the profile keeps that the hub no longer does, so each can be unticked. */
-export function choiceNames(hub: readonly string[], kept: ReadonlySet<string>): string[] {
-  return [...hub, ...[...kept].filter((name) => !hub.includes(name)).sort()];
-}
-
-/**
- * What saving an edit does to the pack the profile keeps, said under the picker. The runtime hands back only the
- * pack's name, so a pack is sent again from the packs offered now, and one no longer offered cannot be kept.
- */
-export function packChangeLine(kept: ProfileView['rulePack'], form: Pick<ProfileForm, 'pack'>, packs: readonly Pick<RulePackView, 'id' | 'name' | 'ruleCount'>[]): string | undefined {
-  if (kept === undefined) return undefined;
-  const chosen = packs.find((each) => each.id === form.pack);
-  const offered = packs.some((each) => each.name === kept.name);
-  if (chosen === undefined) return offered ? `Saving takes ${kept.name} out of the profile.` : `${kept.name} is no longer offered here, so saving takes it out of the profile. Choose a pack to keep one.`;
-  if (chosen.name !== kept.name) return `Saving replaces ${kept.name} with ${chosen.name}.`;
-  if (chosen.ruleCount !== kept.rules) return `Saving takes ${kept.name} as it is offered now, ${counted(chosen.ruleCount, 'rule', 'rules')} where the profile keeps ${kept.rules}.`;
-  return undefined;
-}
-
 /** What a save came to: nothing is given by keeping a profile, and an edit gives nothing new until it is applied again. */
 export function profileSavedLine(name: string, editing: boolean): string {
   return editing ? `${name} is saved. What it already gave stays, and the change gives nothing until you apply it again.` : `${name} is kept. It gives nothing until you apply it.`;
 }
 
-/** Where a profile is applied, said before Apply: a repository, or the agent's home folder. */
-export function applyWhereLine(project: string): string {
-  return project.trim() === '' ? 'Skills go into the agent’s home folder.' : `Skills go into ${project.trim()}.`;
-}
-
 function counted(count: number, one: string, many: string): string {
   return count === 1 ? `1 ${one}` : `${count} ${many}`;
 }
-
-/** The Profiles page's own words. */
-export const ProfilesLines = {
-  readWhat: 'the profiles',
-  create: 'New profile',
-  intro: (keyTitle: string) => `A profile gives nothing until you apply it. Applying it waits for your signature with ${keyTitle} on the island, once for each piece.`,
-  emptyTitle: 'No profiles yet',
-  emptyBody: 'Bundle the skills, tool servers and starter rules one kind of work needs, such as Backend Engineering, and apply it to any agent in one go.',
-  skills: (names: readonly string[]) => `Skills: ${names.join(', ')}`,
-  servers: (names: readonly string[]) => `Servers: ${names.join(', ')}`,
-  apply: 'Apply',
-  edit: 'Edit',
-  remove: 'Remove',
-  removeNamed: (name: string) => `Remove ${name}`,
-  cancel: 'Cancel',
-  removeStays: 'What it already gave stays where it was given.',
-  agent: 'Agent',
-  repository: 'Repository, optional',
-  repositoryPlaceholder: '/home/you/code/project',
-  yourProjects: 'Your projects',
-  applying: 'Applying',
-  applyTo: (agent: string | undefined) => `Apply to ${agent ?? 'the agent'}`,
-  editNamed: (name: string) => `Edit ${name}`,
-  keep: 'Keep profile',
-  saveChanges: 'Save changes',
-  name: 'Name',
-  namePlaceholder: 'Backend Engineering',
-  nameStays: 'The name stays, since a new name would keep a second profile beside this one.',
-  description: 'What it is for, optional',
-  descriptionPlaceholder: 'Reviews, release notes and the local database',
-  hubSkills: 'Skills you keep',
-  noSkills: 'You keep no skill yet.',
-  hubServers: 'Tool servers you set up',
-  noServers: 'No tool server is set up yet.',
-  rulePack: 'Starter rules',
-  noRulePack: 'No starter rules',
-  packOption: (name: string, rules: number) => `${name}, ${rules === 1 ? '1 rule' : `${rules} rules`}`,
-} as const;
 
 /** What an agent's card says beyond its levels, as the Mac's `AgentProfileCard` says it. */
 export const AgentCardLines = {

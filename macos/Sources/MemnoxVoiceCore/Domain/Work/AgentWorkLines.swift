@@ -67,10 +67,10 @@ public enum AgentWorkLines {
         return "Wants to hand it to \(to): \(handoff.reason)"
     }
 
-    /// Said for an agent whose job this Mac does not know by name.
+    /// Said for an agent this Mac does not know by name.
     public static let anotherAgent = "another agent"
 
-    /// The agent carrying the work by its job's name, or a plain word where the job is not known here.
+    /// The agent carrying the work by its own name, or a plain word where the agent is not known here.
     public static func agentName(_ work: AgentWork, profileName: (String) -> String?) -> String {
         profileName(work.profileId) ?? anotherAgent
     }

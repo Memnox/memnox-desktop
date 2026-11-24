@@ -69,7 +69,7 @@ struct AgentListDestination: View {
     }
 }
 
-/// The agents as their jobs, over the connections Memnox reaches them through, from a runtime that sends connections;
+/// The agents as their kept profiles, over the connections Memnox reaches them through, from a runtime that sends connections;
 /// an older one sends none, and the cards of what was found stand alone as before.
 private struct ProfileCards: View {
     @ObservedObject var profiles: ProfilesScreen

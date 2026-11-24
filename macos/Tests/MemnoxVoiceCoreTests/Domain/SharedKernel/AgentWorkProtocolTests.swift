@@ -3,7 +3,7 @@ import XCTest
 
 @testable import MemnoxVoiceCore
 
-/// Profiles with jobs and connections, templates and agent work as the runtime's daemon/profiles.ts and daemon/work.ts
+/// Profiles with who answers for them and connections, templates and agent work as the runtime's daemon/profiles.ts and daemon/work.ts
 /// write them, so a field renamed on one side fails here rather than as an empty page.
 final class AgentWorkProtocolTests: XCTestCase {
     private static let levels = #"{"context":"mediated","instructions":"mediated","tools":"enforced","activity":"mediated","coordination":"mediated","approval":"enforced","enforcement":{"shell":"observed","filesystem":"enforced","git":"none","network":"none","browser":"none","mcp":"enforced"}}"#

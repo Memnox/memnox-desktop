@@ -3,7 +3,7 @@ import type { ProfileView } from '@memnox/core/wire';
 import type { AgentWork, WorkHandoff } from './agent-wire';
 
 /**
- * What a screen says about agent work and about an agent's job, mirroring the Mac's `AgentWorkLines` and
+ * What a screen says about agent work and about an agent, mirroring the Mac's `AgentWorkLines` and
  * `AgentProfileLines`. The issue stays in its tracker; nothing here fetches it or decides what may happen to it.
  */
 
@@ -92,10 +92,8 @@ export function filled(text: string | undefined): string | undefined {
   return trimmed === undefined || trimmed === '' ? undefined : trimmed;
 }
 
-/** The line under an agent's name: what it was kept for, else whether Memnox can stop it or only watch it. */
+/** The line under an agent's name is whether Memnox can stop it or only watch it, never a purpose, because the person gives purpose. */
 export function summaryLine(profile: ProfileView): string {
-  const description = filled(profile.description);
-  if (description !== undefined) return description;
   if (profile.connections.length === 0) return NO_AGENT;
   return canStop(profile.levels) ? 'Memnox can stop it.' : 'Memnox can only watch it.';
 }

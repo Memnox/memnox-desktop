@@ -180,7 +180,7 @@ describe('menu panel', () => {
     expect(MENU_WORDS).toEqual({ title: 'Memnox', connected: 'Connected', manage: 'Manage' });
     const rows = menuRows(false, ['Ctrl', 'Alt', 'Space']);
     expect(rows.map((row) => row.symbol)).toEqual(['waveform', 'shield.lefthalf.filled', 'doc.on.clipboard', 'speaker.slash', 'play.circle', 'gearshape', 'power']);
-    expect(rows[0]?.tooltip).toBe('Talk to Memnox with Ctrl Alt Space');
+    expect(rows[0]?.tooltip).toBe('Tell your agents what to do with Ctrl Alt Space, and Memnox carries your words whole');
     expect(rows[4]?.tooltip).toBe('Reopens Memnox with made up data, so every page shows what it can do');
     expect(menuRows(false, [], true)[4]?.tooltip).toBe("Reopens Memnox on this computer's own agents");
     expect(menuRows(true, [])[3]?.symbol).toBe('speaker.wave.2');

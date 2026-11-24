@@ -1,7 +1,7 @@
 import XCTest
 @testable import MemnoxVoiceCore
 
-/// What a screen says about agent work and about a profile, with no number on a job nobody is behind.
+/// What a screen says about agent work and about a profile, with no number on a profile nobody is behind.
 final class AgentWorkLinesTests: XCTestCase {
     private func work(_ status: String, profile: String = "backend", url: String? = nil, title: String? = nil) -> AgentWork {
         AgentWork(id: "agw_\(status)", profileId: profile, responsiblePerson: "Bo",
@@ -27,12 +27,12 @@ final class AgentWorkLinesTests: XCTestCase {
     func testOrdersKeptProfilesBeforeDefaultsBeforeProfilesWithNobodyBehindThem() {
         let connection = AgentConnection(id: "con_c", profileId: "p", kind: "runtime_hook", agentKind: "claude-code", mediation: "interposed",
                                          firstSeen: "", lastSeen: "", status: "live")
-        let job = ProfileView(id: "backend", name: "Backend", description: "Builds the API", updatedAt: "", connections: [connection])
+        let kept = ProfileView(id: "backend", name: "Backend", description: "Builds the API", updatedAt: "", connections: [connection])
         let fallback = ProfileView(id: "default:codex-cli", name: "Codex", updatedAt: "", isDefault: true, connections: [connection])
         let template = ProfileView(id: "review", name: "Review", updatedAt: "")
-        XCTAssertEqual(AgentProfileLines.ordered([template, fallback, job]).map(\.id), ["backend", "default:codex-cli", "review"])
+        XCTAssertEqual(AgentProfileLines.ordered([template, fallback, kept]).map(\.id), ["backend", "default:codex-cli", "review"])
         XCTAssertEqual(AgentProfileLines.summary(fallback), "Memnox can only watch it.")
-        XCTAssertEqual(AgentProfileLines.summary(job), "Builds the API")
+        XCTAssertEqual(AgentProfileLines.summary(kept), "Memnox can only watch it.", "a description never stands in for how Memnox reaches it")
         XCTAssertEqual(AgentProfileLines.summary(template), AgentProfileLines.noAgent)
         XCTAssertFalse(template.hasAgent)
     }

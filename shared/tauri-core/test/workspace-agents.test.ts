@@ -76,7 +76,7 @@ describe('reading the workspace’s agents', () => {
     expect(await agents.answer('hof_1', 'ws_1', 'accept')).toEqual({ kind: 'failed', why: 'Sign in to Memnox Cloud to answer this.' });
   });
 
-  it('reads each workspace’s jobs and work, dropping an entry it cannot read', async () => {
+  it('reads each workspace’s agents and work, dropping an entry it cannot read', async () => {
     const cloud = new Cloud({
       'GET v1/workspaces/ws_1/agent-profiles': { status: 200, body: { profiles: [hosted, { profile: { name: 'no id' } }] } },
       'GET v1/workspaces/ws_1/me/agent-work': { status: 200, body: mine },

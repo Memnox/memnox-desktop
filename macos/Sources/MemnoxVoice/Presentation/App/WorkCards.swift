@@ -20,7 +20,7 @@ struct AgentWorkCard: View {
     let work: AgentWork
     let names: WorkNames
 
-    /// The agent by its job's name, who answers for it, and the tracker; a blank responsible person is left out.
+    /// The agent by its own name, who answers for it, and the tracker; a blank responsible person is left out.
     private var facts: [(String, String)] {
         var facts: [(String, String)] = [("Agent", AgentWorkLines.agentName(work, profileName: names.name))]
         if let responsible = AgentWorkLines.filled(work.responsiblePerson) { facts.append(("Answers to", responsible)) }

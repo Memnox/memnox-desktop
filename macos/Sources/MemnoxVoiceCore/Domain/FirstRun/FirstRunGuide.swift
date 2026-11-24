@@ -15,9 +15,9 @@ public enum FirstRunGuide {
     /// Said over the opening, with the same words it shows.
     public static let askName = "Welcome to Memnox. I'm the voice over your agents. So, what should I call you?"
 
-    /// The greeting at the first step, with the person's name when they gave one.
+    /// The greeting at the first step, with the person's name when they gave one. The person gives their agents purpose, and Memnox only carries it.
     public static func welcome(name: String) -> String {
-        "Hi\(greeting(name)), I'm Memnox. I live in your notch and watch over your AI agents, so they can work on their own inside the boundaries you set."
+        "Hi\(greeting(name)), I'm Memnox. Your AI agents work on their own inside the boundaries you set. Tell them what to do by text or voice, and I carry your words whole."
     }
 
     /// What each page says when it first opens, in the order it is said.

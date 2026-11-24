@@ -1,11 +1,10 @@
 import Foundation
 
-/// What the agents list says about a profile: what it is kept for, who answers for it, and how Memnox reaches its agents.
+/// What the agents list says about a profile: who answers for it and how Memnox reaches its agents.
 /// A profile with no agent behind it says so and shows no activity and no numbers.
 public enum AgentProfileLines {
-    /// The line under the name: what it was kept for, else whether Memnox can stop it or only watch it.
+    /// The line under the name is whether Memnox can stop it or only watch it, never a purpose, because the person gives purpose.
     public static func summary(_ profile: ProfileView) -> String {
-        if let description = AgentWorkLines.filled(profile.description) { return description }
         guard profile.hasAgent else { return noAgent }
         return CapabilityLevelLines.canStop(profile.levels) ? "Memnox can stop it." : "Memnox can only watch it."
     }
